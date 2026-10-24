@@ -1,0 +1,3 @@
+ALTER TABLE public.gemini_voice_sessions ADD COLUMN IF NOT EXISTS usage jsonb, ADD COLUMN IF NOT EXISTS last_activity_at timestamptz;
+ALTER TABLE public.voice_guardrails ADD COLUMN IF NOT EXISTS gemini_pricing jsonb NOT NULL DEFAULT '{}'::jsonb;
+COMMENT ON COLUMN public.gemini_voice_sessions.usage IS 'Server-measured audio seconds, raw provider usage reports, and explicitly configured audio-only pricing estimates; not a provider invoice.';
