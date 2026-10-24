@@ -1,5 +1,7 @@
 # Current work
 
+- [ ] Audit homepage Aspen knowledge, reconcile advertised prices and limitations, update its draft/published knowledge, and verify a real homepage answer without changing prospect simulations.
+
 - [x] Add browser handoff controls, saved agent manager destination, private press-1 acceptance, no-answer recovery and atomic call-history status; deployed and 19 tests passed; authenticated settings verified.
 - [ ] Verify actual browser-to-manager call, private audio and return to Aspen; blocked on Twilio Voice signing keys and configured manager number. Prospect simulations remain non-dialing until a separately authorized business destination is configured.
 - [x] Give step-by-step Twilio browser signing-key links and explain why existing connector credentials cannot sign browser tokens.
