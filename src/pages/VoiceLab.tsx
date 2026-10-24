@@ -9,7 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Mic, MicOff, Volume2, FlaskConical, PhoneOff, Loader2, Play, Save, RotateCcw, RefreshCw } from "lucide-react";
-import { shouldSendMicrophone, type CaptureMode } from "@/lib/voiceLabAudio";
+import { microphonePcm, shouldSendMicrophone, type CaptureMode } from "@/lib/voiceLabAudio";
 
 const VOICES = [
   { id: "Kore", label: "Kore — warm female (default)" },
@@ -294,11 +294,7 @@ const VoiceLab = () => {
               }
               const capture = captureRef.current;
               if (!shouldSendMicrophone(capture.mode, capture.held, capture.muted, capture.replaying)) return;
-              const pcm = new Int16Array(input.length);
-              for (let i = 0; i < input.length; i++) {
-                const s = Math.max(-1, Math.min(1, input[i]));
-                pcm[i] = s < 0 ? s * 32768 : s * 32767;
-              }
+              const pcm = microphonePcm(input, e.inputBuffer.sampleRate);
               const bytes = new Uint8Array(pcm.buffer);
               let binary = "";
               for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
