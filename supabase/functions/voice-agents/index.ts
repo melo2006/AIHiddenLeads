@@ -2,9 +2,10 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { z } from 'npm:zod@3';
 import { DEFAULT_AGENT, VOICES, isPublicUrl } from '../_shared/voice-config.ts';
+import { validPricing } from '../_shared/voice-usage.ts';
 
 const configSchema = z.object({ name:z.string().min(1).max(80), businessName:z.string().min(1).max(160), voice:z.enum(VOICES as [string,...string[]]), avatarPath:z.string().max(500).default(''), greeting:z.string().min(1).max(1500), systemPrompt:z.string().min(1).max(12000), knowledge:z.string().max(60000).default(''), crawlDepth:z.union([z.literal(1),z.literal(2)]).default(1), recordTranscript:z.boolean().default(false) });
-const requestSchema = z.object({ action:z.enum(['list','create','save','publish','source','refresh','removeSource','member','rollback']), agentId:z.string().uuid().optional(), sourceId:z.string().uuid().optional(), config:configSchema.optional(), businessName:z.string().min(1).max(160).optional(), userEmail:z.string().email().optional(), kind:z.enum(['url','document']).optional(), label:z.string().min(1).max(255).optional(), url:z.string().max(2000).optional(), storagePath:z.string().max(500).optional() });
+const requestSchema = z.object({ action:z.enum(['list','usage','pricing','create','save','publish','source','refresh','removeSource','member','rollback']), agentId:z.string().uuid().optional(), sourceId:z.string().uuid().optional(), config:configSchema.optional(), businessName:z.string().min(1).max(160).optional(), userEmail:z.string().email().optional(), kind:z.enum(['url','document']).optional(), label:z.string().min(1).max(255).optional(), url:z.string().max(2000).optional(), storagePath:z.string().max(500).optional(), pricing:z.object({model:z.literal('gemini-3.8-live'),inputAudioPerMinute:z.number().finite().min(0).max(100),outputAudioPerMinute:z.number().finite().min(0).max(100),source:z.string().url().max(2000)}).optional() });
 const json = (data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
 Deno.serve(async req=>{
   if(req.method==='OPTIONS') return new Response('ok',{headers:corsHeaders});
@@ -20,6 +21,19 @@ Deno.serve(async req=>{
     const parsed=requestSchema.safeParse(await req.json());
     if(!parsed.success) return json({error:parsed.error.flatten()},400);
     const body=parsed.data;
+    if(body.action==='usage' || body.action==='pricing') {
+      if(!admin) return json({error:'Administrator access required'},403);
+      if(body.action==='pricing') {
+        const pricing=validPricing(body.pricing,'gemini-3.8-live');
+        if(!pricing) return json({error:'Enter model-specific audio rates and an HTTPS pricing reference.'},400);
+        const {data:guard,error:guardError}=await db.from('voice_guardrails').select('id').limit(1).single(); if(guardError) throw guardError;
+        const {error}=await db.from('voice_guardrails').update({gemini_pricing:pricing}).eq('id',guard.id); if(error) throw error;
+        return json({success:true});
+      }
+      const {data:sessions,error}=await db.from('gemini_voice_sessions').select('id,created_at,started_at,ended_at,last_activity_at,duration_seconds,status,agent_id,organization_id,lead_id,prospect_id,config,usage').order('created_at',{ascending:false}).limit(500); if(error) throw error;
+      const {data:guard}=await db.from('voice_guardrails').select('gemini_pricing').limit(1).maybeSingle();
+      return json({model:'gemini-3.8-live',pricing:guard?.gemini_pricing || {},sessions:(sessions || []).map(({config,...s})=>({...s,businessName:config?.businessName || 'Voice lab',preview:config?.preview===true,transcriptEnabled:config?.recordTranscript===true}))});
+    }
     if(body.action==='list') {
       const {data:members}=await db.from('voice_memberships').select('organization_id').eq('user_id',user.id).eq('role','editor');
       let query=db.from('voice_agents').select('*,voice_organizations(name),voice_agent_sources(*)').order('created_at');

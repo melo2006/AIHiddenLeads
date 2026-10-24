@@ -1,5 +1,10 @@
 # Current work
 
+- [x] Remove sales pitches from business simulations and preserve business-specific greetings; live BankUnited greeting and banking answer verified.
+- [x] Expand first-level menu learning and optional second-level coverage without replacing deep listing scope; BankUnited refresh read 8 pages within the deadline, not all pages.
+- [x] Add protected per-call voice usage reporting, unknown historical costs, rate snapshots and CSV export; live test saved 19 seconds and two provider usage reports.
+- [ ] Enable dollar estimates once exact gemini-3.8-live pricing is verified or supplied; official model-specific rates were unavailable during research.
+- [x] Verify simulation rules, learning scope, cost calculations and authenticated cost screen at desktop and phone sizes.
 - [x] Fix screenshot homepage/menu clipping; verified phone text at 320, 338 and 390 pixels through 150% reading size.
 - [x] Add saved menu text-size controls, labelled voice controls and microphone sensitivity; verified pause stays suspended, replay does not duplicate captions and settings persist.
 

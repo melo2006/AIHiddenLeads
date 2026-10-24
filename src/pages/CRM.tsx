@@ -18,6 +18,7 @@ import CampaignDetailView from "@/components/crm/CampaignDetailView";
 import PipelinePageView from "@/components/crm/PipelinePageView";
 import TemplatesView from "@/components/crm/TemplatesView";
 import VoiceAgentsView from "@/components/crm/VoiceAgentsView";
+import VoiceCostsView from "@/components/crm/VoiceCostsView";
 import GuardrailsView from "@/components/crm/GuardrailsView";
 import CallHistoryView from "@/components/crm/CallHistoryView";
 import DemoSessionsView from "@/components/crm/DemoSessionsView";
@@ -252,6 +253,7 @@ const CRM = () => {
               <Route path="templates" element={<TemplatesView />} />
               <Route path="ad-hijack" element={<AdHijack />} />
               <Route path="voice-agents" element={<VoiceAgentsView />} />
+              <Route path="voice-costs" element={<VoiceCostsView />} />
               <Route path="guardrails" element={<GuardrailsView />} />
               <Route path="*" element={<CRMDashboard />} />
             </Routes>

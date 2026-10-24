@@ -15,6 +15,13 @@
       "when": 1792819054092,
       "tag": "0001_isolate_voice_clients_from_legacy_crm",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792824041797,
+      "tag": "0002_gemini_voice_usage_tracking",
+      "breakpoints": true
     }
   ]
 }

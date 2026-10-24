@@ -548,6 +548,7 @@ export type Database = {
           ended_at: string | null
           expires_at: string
           id: string
+          last_activity_at: string | null
           last_error: string | null
           lead_id: string | null
           max_seconds: number
@@ -557,6 +558,7 @@ export type Database = {
           status: string
           token_hash: string
           transcript: Json
+          usage: Json | null
           visitor_hash: string
         }
         Insert: {
@@ -568,6 +570,7 @@ export type Database = {
           ended_at?: string | null
           expires_at?: string
           id?: string
+          last_activity_at?: string | null
           last_error?: string | null
           lead_id?: string | null
           max_seconds?: number
@@ -577,6 +580,7 @@ export type Database = {
           status?: string
           token_hash: string
           transcript?: Json
+          usage?: Json | null
           visitor_hash: string
         }
         Update: {
@@ -588,6 +592,7 @@ export type Database = {
           ended_at?: string | null
           expires_at?: string
           id?: string
+          last_activity_at?: string | null
           last_error?: string | null
           lead_id?: string | null
           max_seconds?: number
@@ -597,6 +602,7 @@ export type Database = {
           status?: string
           token_hash?: string
           transcript?: Json
+          usage?: Json | null
           visitor_hash?: string
         }
         Relationships: [
@@ -1710,6 +1716,7 @@ export type Database = {
           created_at: string
           enabled: boolean
           estimated_cost_per_minute: number
+          gemini_pricing: Json
           id: string
           max_call_seconds: number
           max_calls_per_day_total: number
@@ -1720,6 +1727,7 @@ export type Database = {
           created_at?: string
           enabled?: boolean
           estimated_cost_per_minute?: number
+          gemini_pricing?: Json
           id?: string
           max_call_seconds?: number
           max_calls_per_day_total?: number
@@ -1730,6 +1738,7 @@ export type Database = {
           created_at?: string
           enabled?: boolean
           estimated_cost_per_minute?: number
+          gemini_pricing?: Json
           id?: string
           max_call_seconds?: number
           max_calls_per_day_total?: number
@@ -1852,6 +1861,7 @@ export type Database = {
           ended_at: string | null
           expires_at: string
           id: string
+          last_activity_at: string | null
           last_error: string | null
           lead_id: string | null
           max_seconds: number
@@ -1861,6 +1871,7 @@ export type Database = {
           status: string
           token_hash: string
           transcript: Json
+          usage: Json | null
           visitor_hash: string
         }[]
         SetofOptions: {
