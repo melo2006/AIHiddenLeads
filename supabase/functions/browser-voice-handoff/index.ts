@@ -36,6 +36,7 @@ Deno.serve(async req=>{
   const action=url.searchParams.get('action');
   if(action){
    if(req.method!=='POST')return json({error:'POST required'},405);
+   if(!req.headers.get('content-type')?.includes('application/x-www-form-urlencoded'))return json({error:'Invalid Twilio callback'},400);
    const form=await req.formData();
    const params:Record<string,string>={};for(const [key,value] of form)if(typeof value==='string')params[key]=value;
    const authToken=Deno.env.get('TWILIO_AUTH_TOKEN');
