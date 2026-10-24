@@ -1,0 +1,3 @@
+import { useParams, Link } from 'react-router-dom';
+import GeminiAgentWidget from '@/components/GeminiAgentWidget';
+export default function ClientVoiceAgent(){const {id}=useParams();return <div className="min-h-screen bg-background text-foreground"><header className="sticky top-0 h-14 border-b border-border bg-background px-4 flex items-center"><Link to="/" className="font-bold text-sm">AI Hidden Leads</Link></header><main className="flex justify-center p-4 py-8"><GeminiAgentWidget agentId={id}/></main></div>;}
