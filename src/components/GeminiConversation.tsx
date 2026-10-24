@@ -11,7 +11,7 @@ import {
 import { Mic, MicOff, Volume2, FlaskConical, PhoneOff, Loader2, Play, Pause, Save, RotateCcw, RefreshCw, Settings2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { FunctionsHttpError } from "@supabase/supabase-js";
-import { microphonePcm, shouldSendMicrophone, type CaptureMode } from "@/lib/voiceLabAudio";
+import { microphonePcm, shouldSendMicrophone, microphoneGate, type NoiseFilter, type CaptureMode } from "@/lib/voiceLabAudio";
 
 const VOICES = [
   { id: "Kore", label: "Kore — warm female (default)" },
@@ -46,7 +46,17 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const [micLevel, setMicLevel] = useState(0);
   const [microphones, setMicrophones] = useState<MediaDeviceInfo[]>([]);
   const [microphone, setMicrophone] = useState("default");
-  const [captureMode, setCaptureMode] = useState<CaptureMode>("handsfree");
+  const [captureMode, setCaptureMode] = useState<CaptureMode>(() => {
+    try { return localStorage.getItem("voice-capture-mode") === "hold" ? "hold" : "handsfree"; } catch { return "handsfree"; }
+  });
+  const [noiseFilter, setNoiseFilter] = useState<NoiseFilter>(() => {
+    try { const saved = localStorage.getItem("voice-noise-filter"); return saved === "light" || saved === "strong" ? saved : "balanced"; } catch { return "balanced"; }
+  });
+  const noiseFilterRef = useRef(noiseFilter);
+  useEffect(() => {
+    noiseFilterRef.current = noiseFilter;
+    try { localStorage.setItem("voice-noise-filter", noiseFilter); localStorage.setItem("voice-capture-mode", captureMode); } catch { /* Keep controls available without storage. */ }
+  }, [noiseFilter, captureMode]);
   const [held, setHeld] = useState(false);
   const [muted, setMuted] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -111,8 +121,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   }, [endHold]);
 
   useEffect(() => {
-    transcriptEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [turns]);
+    const end = transcriptEndRef.current;
+    const panel = end?.parentElement;
+    if (panel && panel.scrollHeight - panel.scrollTop - panel.clientHeight < 100) panel.scrollTop = panel.scrollHeight;
+  }, [turns, partialAspen, partialUser]);
 
   const flushLine = useCallback((role: "user" | "assistant") => {
     const ref = role === "user" ? userLineRef : aspenLineRef;
@@ -160,7 +172,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       playTimeRef.current = 0;
     }
     const ctx = playCtxRef.current;
-    if (ctx.state === "suspended") void ctx.resume().catch(() => setError("Audio is paused. End the call and press Start again to enable sound."));
+    if (ctx.state === "suspended" && !captureRef.current.paused) void ctx.resume().catch(() => setError("Audio is paused. End the call and press Start again to enable sound."));
     const binary = atob(base64);
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
@@ -223,7 +235,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   }, [pauseCapture]);
 
   const replayLastMessage = useCallback(async () => {
-    if (!lastAudioRef.current.length) return;
+    if (!lastAudioRef.current.length || captureRef.current.paused || captureRef.current.replaying) return;
     try {
       if (!playCtxRef.current || playCtxRef.current.state === "closed") playCtxRef.current = new AudioContext();
       await playCtxRef.current.resume();
@@ -316,17 +328,20 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             const node = micCtx.createScriptProcessor(2048, 1, 1);
             micNodeRef.current = node;
             let frame = 0;
+            let gateOpenUntil = 0;
             node.onaudioprocess = (e) => {
               if (!liveRef.current || ws.readyState !== WebSocket.OPEN) return;
               const input = e.inputBuffer.getChannelData(0);
+              const rms = Math.sqrt(input.reduce((sum, x) => sum + x * x, 0) / input.length);
               if (++frame % 4 === 0) {
-                const rms = Math.sqrt(input.reduce((sum, x) => sum + x * x, 0) / input.length);
                 setMicLevel(Math.min(100, Math.round(rms * 500)));
               }
               const capture = captureRef.current;
               if (capture.paused) return;
               if (!shouldSendMicrophone(capture.mode, capture.held, capture.muted, capture.replaying)) return;
-              const pcm = microphonePcm(input, e.inputBuffer.sampleRate);
+              const gate = microphoneGate(rms, noiseFilterRef.current, performance.now(), gateOpenUntil);
+              gateOpenUntil = gate.openUntil;
+              const pcm = microphonePcm(capture.mode === "hold" || gate.open ? input : new Float32Array(input.length), e.inputBuffer.sampleRate);
               const bytes = new Uint8Array(pcm.buffer);
               let binary = "";
               for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
@@ -424,18 +439,17 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           {phase === "live" && !aspenSpeaking && <Mic className="h-3.5 w-3.5 shrink-0 animate-pulse text-primary" />}
           {phase === "live" && aspenSpeaking && <Volume2 className="h-3.5 w-3.5 shrink-0 animate-pulse text-primary" />}
           {phase === "idle" && <MicOff className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
-          <p className="truncate text-[11px] text-muted-foreground">
+          <p className="min-w-0 break-words text-xs leading-snug text-foreground" role="status">
             {phase === "live" && (
               <span className="font-semibold text-foreground">
-                {paused ? "Paused" : replaying ? "Replaying" : muted ? "Muted" : aspenSpeaking ? `${name} speaking` : captureMode === "hold" && !held ? "Paused" : "Listening"}
-                {" — "}
+                {paused ? "Paused" : replaying ? "Replaying saved audio" : muted ? "Microphone muted" : aspenSpeaking ? `${name} speaking` : captureMode === "hold" && !held ? "Hold to talk" : "Listening"}
               </span>
             )}
-            {status}
+            {phase !== "live" && (phase === "idle" ? "Ready to talk" : status)}
           </p>
         </div>
 
-        <div className="max-h-16 space-y-1 overflow-y-auto rounded-md border border-border p-1.5">
+        <div aria-label="Conversation transcript" tabIndex={0} className="max-h-[4.5rem] space-y-1 overflow-y-auto overscroll-contain rounded-md border border-border p-1.5">
           {turns.length === 0 && !partialAspen && !partialUser && (
             <p className="py-1 text-center text-[11px] text-muted-foreground">No conversation yet.</p>
           )}
@@ -443,8 +457,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             <div key={i} className={t.role === "user" ? "text-right" : "text-left"}>
               <span
                 aria-label={t.role === "user" ? "Caller transcript" : "Aspen transcript"}
-                className={`inline-block max-w-[90%] break-words rounded-lg px-2 py-1 text-[11px] leading-snug ${
-                  t.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
+                className={`inline-block max-w-full break-words rounded-md px-2 py-1 text-xs leading-snug ${
+                  t.role === "user" ? "bg-primary text-primary-foreground" : "text-foreground"
                 }`}
               >
                 {t.text}
@@ -456,14 +470,16 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           <div ref={transcriptEndRef} />
         </div>
 
-        <div className="flex items-center justify-center gap-2">
+        <div className="voice-controls flex flex-wrap items-center justify-center gap-1 [&_button]:h-auto [&_button]:min-h-11 [&_button]:w-auto [&_button]:min-w-11 [&_button]:flex-col [&_button]:gap-1 [&_button]:px-1.5 [&_button]:py-1.5 [&_span]:text-[10px] [&_span]:leading-tight">
           {phase === "idle" ? (
             <Button size="icon" onClick={() => void startConversation()} title="Start conversation" aria-label="Start conversation">
               <Mic className="h-4 w-4" />
+              <span>Talk</span>
             </Button>
           ) : (
             <Button size="icon" variant="destructive" onClick={stopEverything} title="End conversation" aria-label="End conversation">
               <PhoneOff className="h-4 w-4" />
+              <span>End</span>
             </Button>
           )}
           {phase === "live" && (
@@ -480,6 +496,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
               }}
             >
               {muted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+              <span>{muted ? "Unmute" : "Mute"}</span>
             </Button>
           )}
           {phase === "live" && (
@@ -492,21 +509,24 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
               onClick={togglePause}
             >
               {paused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
+              <span>{paused ? "Resume" : "Pause"}</span>
             </Button>
           )}
           <Button
             size="icon"
             variant="outline"
-            disabled={!hasReplay || aspenSpeaking || phase === "connecting" || phase === "preview"}
+            disabled={!hasReplay || paused || replaying || aspenSpeaking || phase === "connecting" || phase === "preview"}
             onClick={() => void replayLastMessage()}
             title="Replay last message"
             aria-label="Replay last message"
           >
             <RotateCcw className="h-4 w-4" />
+            <span>Replay</span>
           </Button>
           {replaying && (
             <Button size="icon" variant="outline" onClick={clearPlayback} title="Stop replay" aria-label="Stop replay">
               <PhoneOff className="h-4 w-4" />
+              <span>Stop replay</span>
             </Button>
           )}
           {phase === "live" && captureMode === "hold" && (
@@ -514,7 +534,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
               size="icon"
               className="touch-none select-none"
               variant={held ? "default" : "secondary"}
-              disabled={muted || replaying}
+              disabled={muted || paused || replaying}
               aria-pressed={held}
               title={held ? "Listening — release to send" : "Hold to talk"}
               aria-label={held ? "Listening — release to send" : "Hold to talk"}
@@ -532,17 +552,19 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
               onLostPointerCapture={endHold}
             >
               <Mic className="h-4 w-4" />
+              <span>Hold</span>
             </Button>
           )}
           <Button
             size="icon"
             variant="ghost"
             onClick={() => setShowSettings((s) => !s)}
-            title="Settings"
-            aria-label="Settings"
+            title="Voice settings"
+            aria-label="Voice settings"
             aria-expanded={showSettings}
           >
             <Settings2 className="h-4 w-4" />
+            <span>Settings</span>
           </Button>
         </div>
 
@@ -557,6 +579,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
         {showSettings && (
           <div className="space-y-2 border-t border-border pt-2">
+            <label className="block space-y-1 text-xs">Microphone sensitivity
+              <Select value={noiseFilter} onValueChange={value => setNoiseFilter(value as NoiseFilter)}>
+                <SelectTrigger aria-label="Microphone sensitivity" className="h-auto min-h-9 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="light">High — quiet room</SelectItem><SelectItem value="balanced">Medium — default</SelectItem><SelectItem value="strong">Low — filter quieter sounds</SelectItem></SelectContent>
+              </Select>
+            </label>
             <label className="flex items-start gap-2 text-[11px] text-muted-foreground">
               <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} disabled={phase !== "idle"} />
               Allow saving this conversation transcript when enabled by the business
@@ -644,6 +672,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
           <label className="flex items-start gap-2 text-xs text-muted-foreground"><input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} disabled={phase !== "idle"} />Allow saving this conversation transcript when enabled by the business</label>
           <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block space-y-1 text-xs">Microphone sensitivity
+              <Select value={noiseFilter} onValueChange={value => setNoiseFilter(value as NoiseFilter)}>
+                <SelectTrigger aria-label="Microphone sensitivity"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="light">High — quiet room</SelectItem><SelectItem value="balanced">Medium — default</SelectItem><SelectItem value="strong">Low — filter quieter sounds</SelectItem></SelectContent>
+              </Select>
+            </label>
             <div>
               <label className="text-xs font-semibold text-muted-foreground">Microphone</label>
               <div className="mt-1 flex gap-2">
@@ -674,7 +708,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
               try { localStorage.setItem("gemini-aspen-voice", voice); setSavedVoice(voice); setStatus(`${voice} saved for Gemini calls in this browser.`); } catch { setError("Your browser could not save the voice preference."); }
             }}><Save className="h-4 w-4 mr-2" /> Save Gemini voice</Button>}
             {phase === "preview" && <span className="text-xs text-muted-foreground">{voice} preview</span>}
-            <Button variant="outline" size="sm" disabled={!hasReplay || aspenSpeaking || phase === "connecting" || phase === "preview"} onClick={() => void replayLastMessage()} title="Replay saved audio without another AI request"><RotateCcw className="mr-2 h-4 w-4" />Replay last message</Button>
+            <Button variant="outline" size="sm" disabled={!hasReplay || paused || replaying || aspenSpeaking || phase === "connecting" || phase === "preview"} onClick={() => void replayLastMessage()} title="Replay saved audio without another AI request"><RotateCcw className="mr-2 h-4 w-4" />Replay last message</Button>
             {replaying && <Button variant="outline" size="sm" onClick={clearPlayback}><PhoneOff className="mr-2 h-4 w-4" />Stop replay</Button>}
             {phase === "live" && <Button variant={muted ? "destructive" : "outline"} size="sm" aria-pressed={muted} onClick={() => {
               if (!muted) pauseCapture();
@@ -683,7 +717,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             }}>{muted ? <MicOff className="mr-2 h-4 w-4" /> : <Mic className="mr-2 h-4 w-4" />}{muted ? "Unmute microphone" : "Mute microphone"}</Button>}
             {phase === "live" && <Button variant={paused ? "default" : "outline"} size="sm" aria-pressed={paused} onClick={togglePause}>{paused ? <Play className="mr-2 h-4 w-4" /> : <Pause className="mr-2 h-4 w-4" />}{paused ? "Resume" : "Pause"}</Button>}
             {phase === "live" && captureMode === "hold" && <Button
-              className="touch-none select-none" variant={held ? "default" : "secondary"} disabled={muted || replaying}
+              className="touch-none select-none" variant={held ? "default" : "secondary"} disabled={muted || paused || replaying}
               aria-pressed={held} onContextMenu={event => event.preventDefault()}
               onPointerDown={event => {
                 if (event.button !== 0 || captureRef.current.held) return;

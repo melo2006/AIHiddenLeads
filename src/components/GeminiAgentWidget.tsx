@@ -19,7 +19,7 @@ export default function GeminiAgentWidget({ agentId, leadId, prospectId, busines
  const openWidget=()=>{setHasOpened(true);setClickedOpen(true);setOpen(true);};
  const content=<>
   {/* Keep the conversation mounted while minimized so the call stays alive */}
-  <div className={`${open?'':'hidden'} w-[min(19rem,calc(100vw-1.5rem))] max-h-[55vh] overflow-y-auto rounded-xl border-2 border-primary/40 bg-secondary shadow-2xl sm:max-h-[70vh]`}>
+  <div className={`${open?'':'hidden'} w-[min(19rem,calc(100vw-24px))] max-h-[55dvh] overflow-y-auto overscroll-contain rounded-xl border-2 border-primary/40 bg-secondary shadow-2xl sm:max-h-[70vh]`}>
    <div className="flex items-center gap-2 border-b border-border p-2"><img src={identity.avatarUrl||avatar} alt={identity.name} className="h-8 w-8 rounded-full object-cover" /><div className="min-w-0 flex-1"><p className="text-xs font-semibold leading-tight">{identity.name}</p><p className="truncate text-[10px] text-muted-foreground">{businessName || identity.businessName}</p></div><Button size="icon" variant="ghost" className="h-7 w-7" title="Minimize" aria-label="Minimize voice assistant" onClick={()=>setOpen(false)}><Minus className="h-3.5 w-3.5" /></Button><Button size="icon" variant="ghost" className="h-7 w-7" title="Close voice assistant" aria-label="Close voice assistant" onClick={()=>{setDismissed(true);onClose?.();}}><X className="h-3.5 w-3.5" /></Button></div>
    {hasOpened && <GeminiConversation compact autoStart={clickedOpen} agentId={agentId} leadId={leadId} prospectId={prospectId} name={identity.name} visitorName={callerName} />}
   </div>
