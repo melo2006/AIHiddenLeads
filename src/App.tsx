@@ -21,6 +21,7 @@ const MarketingHub = lazy(() => import("./pages/MarketingHub.tsx"));
 const TranscriptPage = lazy(() => import("./pages/TranscriptPage.tsx"));
 const VoiceLab = lazy(() => import("./pages/VoiceLab.tsx"));
 const ClientVoiceAgent = lazy(() => import("./pages/ClientVoiceAgent.tsx"));
+const BookCall = lazy(() => import("./pages/BookCall.tsx"));
 
 const queryClient = new QueryClient();
 
