@@ -1,11 +1,17 @@
 // Reviewed homepage sales reference. This is never used by prospect simulations.
 export const HOMEPAGE_PLANS = [
-  { name: 'AI Essentials', monthlyUsd: 99, setupUsd: 99 },
-  { name: 'Growth Engine', monthlyUsd: 199, setupUsd: 199 },
-  { name: 'Full Service', monthlyUsd: 349, setupUsd: 0 },
+  { name: 'AI Essentials', monthlyUsd: 99, setupUsd: 99, browserVoiceMinutes: 400, normalMinutes: 200, perMinEquivUsd: 0.25, leadsPerMonth: 50 },
+  { name: 'Growth Engine', monthlyUsd: 199, setupUsd: 199, browserVoiceMinutes: 1200, normalMinutes: 600, perMinEquivUsd: 0.17, leadsPerMonth: 100 },
+  { name: 'Full Service', monthlyUsd: 349, setupUsd: 349, browserVoiceMinutes: 2500, normalMinutes: 1250, perMinEquivUsd: 0.14, leadsPerMonth: 200 },
 ] as const;
 
+export const SETUP_PROMO_END = '2025-11-30'; // setup fee waived through this date (launch promo)
+
 export const HOMEPAGE_ADDONS = [
+  { name: 'Connected Bundle (warm transfer + SMS notifications + appointment reminders)', usd: 79, cadence: 'monthly', availability: 'offered' },
+  { name: 'Warm Transfer to your phone', usd: 49, cadence: 'monthly', availability: 'offered' },
+  { name: 'SMS Lead Notifications', usd: 19, cadence: 'monthly', availability: 'offered' },
+  { name: 'SMS/Email Appointment Reminders', usd: 29, cadence: 'monthly', availability: 'offered' },
   { name: 'Website Refresh', usd: 99, cadence: 'one-time', availability: 'offered' },
   { name: 'SEO Audit', usd: 0, cadence: 'one-time', availability: 'offered' },
   { name: 'AI Search Optimization / GEO', usd: 249, cadence: 'monthly', availability: 'coming soon' },
