@@ -1,8 +1,9 @@
 # Current work
 
-- [ ] Add microphone selection, mute and hold-to-talk for noisy places.
-- [ ] Correct noisy caller recognition guidance while preserving English unless explicitly changed.
-- [ ] Add local replay of Aspen's last message and verify controls.
+- [x] Add microphone selection, mute and hold-to-talk; verified no audio sent when released or muted.
+- [x] Strengthen English response guidance and verify explicit language changes only.
+- [ ] Verify accurate English caller transcription on the user's Android microphone; Google Live still guessed Spanish from synthetic audio, so this remains unverified.
+- [x] Add local replay of Aspen's last message; verified no new provider request and no capture during replay.
 
 - [x] Fix silent startup; verify greeting playback, outgoing microphone audio and caller-triggered responses. Synthetic speech recognition remains imperfect; real Android testing is needed.
 - [x] Add voice previews and save the preferred Gemini voice in this browser.
