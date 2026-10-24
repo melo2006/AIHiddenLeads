@@ -11,6 +11,7 @@ interface Props { agentId?: string; leadId?: string; prospectId?: string; busine
 export default function GeminiAgentWidget({ agentId, leadId, prospectId, businessName, callerName, onClose, floating = false }: Props) {
  const [open,setOpen]=useState(!floating);
  const [hasOpened,setHasOpened]=useState(!floating);
+ const [clickedOpen,setClickedOpen]=useState(false);
  const [dismissed,setDismissed]=useState(false);
  const [identity,setIdentity]=useState({name:'Aspen',businessName:businessName||'AI Hidden Leads',avatarUrl:''});
  const isMobile=useIsMobile();
