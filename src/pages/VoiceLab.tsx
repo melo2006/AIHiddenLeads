@@ -217,7 +217,14 @@ const VoiceLab = () => {
         stopEverything();
       };
       ws.onclose = () => {
-        if (liveRef.current) stopEverything();
+        clearTimeout(readyTimeout);
+        if (liveRef.current) {
+          stopEverything();
+        } else {
+          setPhase("idle");
+          setStatus("Conversation ended. Press Start to begin again.");
+          setError((prev) => prev ?? "The connection closed before the session started. Try again.");
+        }
       };
     } catch (e) {
       stopEverything();
