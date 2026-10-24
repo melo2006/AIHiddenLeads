@@ -56,6 +56,8 @@ const VoiceLab = () => {
   const sourcesRef = useRef(new Set<AudioBufferSourceNode>());
   const micNodeRef = useRef<ScriptProcessorNode | null>(null);
   const generationRef = useRef(0);
+  const previewDoneRef = useRef(false);
+  const isPreviewRef = useRef(false);
   const aspenLineRef = useRef("");
   const userLineRef = useRef("");
   const transcriptEndRef = useRef<HTMLDivElement | null>(null);
@@ -127,8 +129,9 @@ const VoiceLab = () => {
     source.onended = () => {
       sourcesRef.current.delete(source);
       if (ctx.currentTime >= playTimeRef.current - 0.05) setAspenSpeaking(false);
+      if (isPreviewRef.current && previewDoneRef.current && sourcesRef.current.size === 0) stopEverything();
     };
-  }, []);
+  }, [stopEverything]);
 
   // Interrupt: drop all queued playback instantly
   const clearPlayback = useCallback(() => {
@@ -140,6 +143,8 @@ const VoiceLab = () => {
 
   const startConversation = useCallback(async (preview = false) => {
     const generation = ++generationRef.current;
+    isPreviewRef.current = preview;
+    previewDoneRef.current = false;
     setError(null);
     setTurns([]);
     setPartialUser("");
@@ -238,6 +243,10 @@ const VoiceLab = () => {
           case "turn_complete":
             flushLine("user");
             flushLine("assistant");
+            if (preview) {
+              previewDoneRef.current = true;
+              if (sourcesRef.current.size === 0) stopEverything();
+            }
             break;
           case "error":
             setError(String(msg.message || "Gemini error"));
