@@ -8,7 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Mic, MicOff, Volume2, FlaskConical, PhoneOff, Loader2, Play, Save, RotateCcw, RefreshCw, Settings2 } from "lucide-react";
+import { Mic, MicOff, Volume2, FlaskConical, PhoneOff, Loader2, Play, Pause, Save, RotateCcw, RefreshCw, Settings2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { microphonePcm, shouldSendMicrophone, type CaptureMode } from "@/lib/voiceLabAudio";
@@ -49,6 +49,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const [captureMode, setCaptureMode] = useState<CaptureMode>("handsfree");
   const [held, setHeld] = useState(false);
   const [muted, setMuted] = useState(false);
+  const [paused, setPaused] = useState(false);
   const [replaying, setReplaying] = useState(false);
   const [hasReplay, setHasReplay] = useState(false);
   const [turns, setTurns] = useState<Turn[]>([]);
@@ -73,7 +74,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const isPreviewRef = useRef(false);
   const aspenLineRef = useRef("");
   const userLineRef = useRef("");
-  const captureRef = useRef({ mode: "handsfree" as CaptureMode, held: false, muted: false, replaying: false });
+  const captureRef = useRef({ mode: "handsfree" as CaptureMode, held: false, muted: false, replaying: false, paused: false });
   const currentAudioRef = useRef<string[]>([]);
   const lastAudioRef = useRef<string[]>([]);
   const transcriptEndRef = useRef<HTMLDivElement | null>(null);
