@@ -11,6 +11,7 @@ async function conversation(prompts: string[]): Promise<string[]> {
     const ws = new WebSocket(liveUrl);
     const replies: string[] = [];
     let transcript = "";
+    let greeted = false;
     const timeout = setTimeout(() => {
       ws.close();
       reject(new Error("Live language verification timed out"));
@@ -22,12 +23,16 @@ async function conversation(prompts: string[]): Promise<string[]> {
     };
     ws.onmessage = (event) => {
       const msg = JSON.parse(String(event.data));
-      if (msg.type === "ready") ws.send(JSON.stringify({ type: "text", text: prompts[0] }));
       if (msg.type === "aspen_transcript") transcript += msg.text;
       if (msg.type === "error" || msg.type === "closed") {
         clearTimeout(timeout); ws.close(); reject(new Error(String(msg.message || msg.reason)));
       }
       if (msg.type === "turn_complete") {
+        if (!greeted) {
+          greeted = true; transcript = "";
+          ws.send(JSON.stringify({ type: "text", text: prompts[0] }));
+          return;
+        }
         replies.push(transcript); transcript = "";
         if (replies.length === prompts.length) {
           clearTimeout(timeout); ws.close(); resolve(replies);
