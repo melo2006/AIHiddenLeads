@@ -9,3 +9,4 @@
 - Reuse GeminiConversation for lab, admin tests, homepage and prospect demos; Retell components remain only for rollback and existing telephone workflows.
 - Apply saved reading size through root rem sizing, with wrapping and scrollable navigation rather than CSS page zoom, to avoid horizontal clipping.
 - Keep microphone amplitude filtering browser-side with silence frames and speech-tail hangover; Gemini language and provider VAD remain server-side.
+- Render voice transcript messages with AI Elements MessageResponse; voice-only surfaces omit text composers because input is the existing PCM microphone stream.

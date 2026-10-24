@@ -1,7 +1,7 @@
 # Current work
 
-- [ ] Fix screenshot homepage/menu clipping and verify narrow phones at enlarged text sizes.
-- [ ] Add saved menu text-size controls and clarify voice controls, pause/replay and microphone sensitivity.
+- [x] Fix screenshot homepage/menu clipping; verified phone text at 320, 338 and 390 pixels through 150% reading size.
+- [x] Add saved menu text-size controls, labelled voice controls and microphone sensitivity; verified pause stays suspended, replay does not duplicate captions and settings persist.
 
 - [x] Approve and implement Gemini homepage, Voice Agents settings, and existing prospect-demo links.
 - [x] Verify saved settings, publishing, homepage greeting, document processing and business-specific demo history.
