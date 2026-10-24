@@ -55,6 +55,7 @@ const App = () => (
             <Route path="/checkout" element={<Checkout />} />
             <Route path="/checkout/return" element={<CheckoutReturn />} />
             <Route path="/transcript" element={<TranscriptPage />} />
+            <Route path="/voice-lab" element={<VoiceLab />} />
             <Route path="/d/:slug" element={<ShortLinkRedirect />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/dashboard/*" element={<CRM />} />
