@@ -1,5 +1,6 @@
 # Current work
 
+- [ ] Diagnose and correct Gemini daily-limit accounting and show limit denials without interrupting the page.
 - [x] Add Play/Stop auditions beside the agent voice selector and link agent/history screens to Voice Costs.
 - [x] Verify exact Google Live pricing and supported alternatives; show model-matched per-call and per-minute estimates separately from measurements.
 - [x] Add documented model comparison for authorized tests without changing published agents; authenticated phone and desktop pages show costs without page overflow. Audition connections reached ready for 3.8 and 3.1; extended-thinking audio was not verified.
