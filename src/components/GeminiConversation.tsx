@@ -386,6 +386,179 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
   useEffect(() => stopEverything, [stopEverything]);
 
+  // Compact mode: minimal floating-widget layout for phones — status line,
+  // two-line scrolling transcript, and a single row of icon buttons.
+  if (compact) {
+    return (
+      <div className="space-y-2 bg-background p-2 text-foreground">
+        <div className="flex items-center gap-1.5">
+          {phase === "connecting" && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" />}
+          {phase === "live" && !aspenSpeaking && <Mic className="h-3.5 w-3.5 shrink-0 animate-pulse text-primary" />}
+          {phase === "live" && aspenSpeaking && <Volume2 className="h-3.5 w-3.5 shrink-0 animate-pulse text-primary" />}
+          {phase === "idle" && <MicOff className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+          <p className="truncate text-[11px] text-muted-foreground">
+            {phase === "live" && (
+              <span className="font-semibold text-foreground">
+                {replaying ? "Replaying" : muted ? "Muted" : aspenSpeaking ? `${name} speaking` : captureMode === "hold" && !held ? "Paused" : "Listening"}
+                {" — "}
+              </span>
+            )}
+            {status}
+          </p>
+        </div>
+
+        <div className="max-h-16 space-y-1 overflow-y-auto rounded-md border border-border p-1.5">
+          {turns.length === 0 && !partialAspen && !partialUser && (
+            <p className="py-1 text-center text-[11px] text-muted-foreground">No conversation yet.</p>
+          )}
+          {turns.map((t, i) => (
+            <div key={i} className={t.role === "user" ? "text-right" : "text-left"}>
+              <span
+                aria-label={t.role === "user" ? "Caller transcript" : "Aspen transcript"}
+                className={`inline-block max-w-[90%] break-words rounded-lg px-2 py-1 text-[11px] leading-snug ${
+                  t.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
+                }`}
+              >
+                {t.text}
+              </span>
+            </div>
+          ))}
+          {partialUser && <p className="break-words text-right text-[11px] leading-snug text-foreground">{partialUser}</p>}
+          {partialAspen && <p className="break-words text-[11px] leading-snug text-foreground">{partialAspen}</p>}
+          <div ref={transcriptEndRef} />
+        </div>
+
+        <div className="flex items-center justify-center gap-2">
+          {phase === "idle" ? (
+            <Button size="icon" onClick={() => void startConversation()} title="Start conversation" aria-label="Start conversation">
+              <Mic className="h-4 w-4" />
+            </Button>
+          ) : (
+            <Button size="icon" variant="destructive" onClick={stopEverything} title="End conversation" aria-label="End conversation">
+              <PhoneOff className="h-4 w-4" />
+            </Button>
+          )}
+          {phase === "live" && (
+            <Button
+              size="icon"
+              variant={muted ? "destructive" : "outline"}
+              aria-pressed={muted}
+              title={muted ? "Unmute microphone" : "Mute microphone"}
+              aria-label={muted ? "Unmute microphone" : "Mute microphone"}
+              onClick={() => {
+                if (!muted) pauseCapture();
+                captureRef.current.muted = !muted;
+                setMuted(!muted);
+              }}
+            >
+              {muted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+            </Button>
+          )}
+          <Button
+            size="icon"
+            variant="outline"
+            disabled={!hasReplay || aspenSpeaking || phase === "connecting" || phase === "preview"}
+            onClick={() => void replayLastMessage()}
+            title="Replay last message"
+            aria-label="Replay last message"
+          >
+            <RotateCcw className="h-4 w-4" />
+          </Button>
+          {replaying && (
+            <Button size="icon" variant="outline" onClick={clearPlayback} title="Stop replay" aria-label="Stop replay">
+              <PhoneOff className="h-4 w-4" />
+            </Button>
+          )}
+          {phase === "live" && captureMode === "hold" && (
+            <Button
+              size="icon"
+              className="touch-none select-none"
+              variant={held ? "default" : "secondary"}
+              disabled={muted || replaying}
+              aria-pressed={held}
+              title={held ? "Listening — release to send" : "Hold to talk"}
+              aria-label={held ? "Listening — release to send" : "Hold to talk"}
+              onContextMenu={(event) => event.preventDefault()}
+              onPointerDown={(event) => {
+                if (event.button !== 0 || captureRef.current.held) return;
+                event.currentTarget.setPointerCapture(event.pointerId);
+                clearPlayback();
+                captureRef.current.held = true;
+                setHeld(true);
+                wsRef.current?.send(JSON.stringify({ type: "activity_start" }));
+              }}
+              onPointerUp={endHold}
+              onPointerCancel={endHold}
+              onLostPointerCapture={endHold}
+            >
+              <Mic className="h-4 w-4" />
+            </Button>
+          )}
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={() => setShowSettings((s) => !s)}
+            title="Settings"
+            aria-label="Settings"
+            aria-expanded={showSettings}
+          >
+            <Settings2 className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {phase === "live" && (
+          <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+            <span>Mic</span>
+            <meter min="0" max="100" value={micLevel} aria-label="Microphone level" className="h-2 w-16" />
+            <span>{micLevel > 3 ? "Sound" : "Quiet"}</span>
+          </div>
+        )}
+        {error && <p className="text-[11px] font-semibold text-destructive">{error}</p>}
+
+        {showSettings && (
+          <div className="space-y-2 border-t border-border pt-2">
+            <label className="flex items-start gap-2 text-[11px] text-muted-foreground">
+              <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} disabled={phase !== "idle"} />
+              Allow saving this conversation transcript when enabled by the business
+            </label>
+            <div>
+              <label className="text-[11px] font-semibold text-muted-foreground">Microphone</label>
+              <div className="mt-1 flex gap-2">
+                <Select value={microphone} onValueChange={setMicrophone} disabled={phase !== "idle"}>
+                  <SelectTrigger aria-label="Microphone" className="h-8 min-w-0 flex-1 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">System default microphone</SelectItem>
+                    {microphones.filter((device) => device.deviceId && device.deviceId !== "default").map((device, index) => (
+                      <SelectItem key={device.deviceId} value={device.deviceId}>{device.label || `Microphone ${index + 1}`}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button size="icon" variant="outline" className="h-8 w-8" disabled={phase !== "idle"} onClick={() => void refreshMicrophones(true)} aria-label="Refresh microphones" title="Allow access and refresh microphones">
+                  <RefreshCw className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+            <div>
+              <label className="text-[11px] font-semibold text-muted-foreground">Conversation mode</label>
+              <Select value={captureMode} onValueChange={(value) => setCaptureMode(value as CaptureMode)} disabled={phase !== "idle"}>
+                <SelectTrigger aria-label="Conversation mode" className="mt-1 h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="handsfree">Hands-free</SelectItem>
+                  <SelectItem value="hold">Noisy place — hold to talk</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {draft && (
+              <Button variant="outline" size="sm" className="h-8 text-xs" disabled={phase !== "idle"} onClick={() => void startConversation(true)} aria-label="Play selected voice preview" title="Play selected voice preview">
+                <Play className="mr-1.5 h-3.5 w-3.5" /> Preview voice
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className={compact ? "bg-background text-foreground" : "min-h-screen bg-background text-foreground"}>
       {!compact && <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur">
