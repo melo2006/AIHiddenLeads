@@ -1,5 +1,8 @@
 # Current work
 
+- [ ] Add Play/Stop auditions beside the agent voice selector and link agent/history screens to Voice Costs.
+- [ ] Verify exact Google Live pricing and supported alternatives; show model-matched per-call and per-minute estimates separately from measurements.
+- [ ] Add verified model comparison for admin tests without changing published agents; check the authenticated phone workflow.
 - [x] Remove sales pitches from business simulations and preserve business-specific greetings; live BankUnited greeting and banking answer verified.
 - [x] Expand first-level menu learning and optional second-level coverage without replacing deep listing scope; BankUnited refresh read 8 pages within the deadline, not all pages.
 - [x] Add protected per-call voice usage reporting, unknown historical costs, rate snapshots and CSV export; live test saved 19 seconds and two provider usage reports.

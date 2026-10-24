@@ -35,8 +35,8 @@ type Phase = "idle" | "connecting" | "live" | "preview";
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const WS_URL = SUPABASE_URL.replace(/^https/, "wss") + "/functions/v1/gemini-live-proxy";
 
-export interface GeminiConversationProps { agentId?: string; leadId?: string; prospectId?: string; draft?: boolean; compact?: boolean; name?: string; visitorName?: string; previewVoice?: string; autoStart?: boolean; }
-const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compact = false, name = "Aspen", visitorName = "", previewVoice, autoStart = false }: GeminiConversationProps) => {
+export interface GeminiConversationProps { agentId?: string; leadId?: string; prospectId?: string; draft?: boolean; compact?: boolean; name?: string; visitorName?: string; previewVoice?: string; autoStart?: boolean; previewOnly?: boolean; testModel?: string; }
+const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compact = false, name = "Aspen", visitorName = "", previewVoice, autoStart = false, previewOnly = false, testModel }: GeminiConversationProps) => {
   const [consent, setConsent] = useState(false);
   const [voice, setVoice] = useState(() => {
     try { const saved = localStorage.getItem("gemini-aspen-voice"); return VOICES.some(v => v.id === saved) ? saved ?? "Kore" : "Kore"; } catch { return "Kore"; }
@@ -289,7 +289,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       if (playCtx.state !== "running" || (micCtx && micCtx.state !== "running")) throw new Error("Your browser paused audio. Press Start again to enable the microphone and speaker.");
       let visitorKey = localStorage.getItem("gemini-visitor-key");
       if (!visitorKey) { visitorKey = crypto.randomUUID(); localStorage.setItem("gemini-visitor-key", visitorKey); }
-      const { data: authorized, error: authError } = await supabase.functions.invoke("gemini-session", { body: { visitorKey, agentId, leadId, prospectId, draft, preview, voice: previewVoice || voice, hour: new Date().getHours(), visitorName, consent } });
+      const { data: authorized, error: authError } = await supabase.functions.invoke("gemini-session", { body: { visitorKey, agentId, leadId, prospectId, draft, preview, voice: previewVoice || voice, model: testModel, hour: new Date().getHours(), visitorName, consent } });
       if (authError) {
         const detail = authError instanceof FunctionsHttpError ? await authError.context.json().catch(() => null) : null;
         throw new Error(detail?.error || authError.message);
@@ -417,7 +417,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           : e instanceof Error ? e.message : "Could not start. Check your microphone and try again."
       );
     }
-  }, [voice, microphone, captureMode, refreshMicrophones, playPcmChunk, clearPlayback, flushLine, stopEverything, agentId, leadId, prospectId, draft, previewVoice, visitorName, consent]);
+  }, [voice, microphone, captureMode, refreshMicrophones, playPcmChunk, clearPlayback, flushLine, stopEverything, agentId, leadId, prospectId, draft, previewVoice, visitorName, consent, testModel]);
 
   useEffect(() => stopEverything, [stopEverything]);
 
@@ -429,6 +429,15 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     autoStartedRef.current = true;
     void startConversation();
   }, [compact, autoStart, startConversation]);
+
+  if (previewOnly) return <div className="space-y-2">
+    <div className="flex flex-wrap items-center gap-2">
+      <Button size="sm" variant="outline" disabled={phase !== "idle"} onClick={() => void startConversation(true)} aria-label="Play selected voice"><Play className="mr-2 h-4 w-4"/>Play voice</Button>
+      <Button size="sm" variant="outline" disabled={phase === "idle"} onClick={stopEverything} aria-label="Stop voice preview"><PhoneOff className="mr-2 h-4 w-4"/>Stop</Button>
+      <span role="status" className="text-xs text-muted-foreground">{phase === "connecting" ? "Connecting…" : phase === "preview" ? `Playing ${previewVoice || voice}` : `${previewVoice || voice} selected`}</span>
+    </div>
+    {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
+  </div>;
 
   // Compact mode: minimal floating-widget layout for phones — status line,
   // two-line scrolling transcript, and a single row of icon buttons.
