@@ -1,4 +1,4 @@
-export type VoicePricing = { model: string; inputAudioPerMinute: number; outputAudioPerMinute: number; source: string };
+export type VoicePricing = { model: string; inputAudioPerMinute: number; outputAudioPerMinute: number; source: string; verifiedAt?: string; basis?: string };
 export function pcmSeconds(base64: string, sampleRate: number) {
   const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0;
   return Math.max(0, Math.floor(base64.length * 3 / 4) - padding) / (sampleRate * 2);
@@ -6,6 +6,9 @@ export function pcmSeconds(base64: string, sampleRate: number) {
 export function audioCost(inputSeconds: number, outputSeconds: number, pricing: VoicePricing | null) {
   if (!pricing) return null;
   return (inputSeconds * pricing.inputAudioPerMinute + outputSeconds * pricing.outputAudioPerMinute) / 60;
+}
+export function costPerCallMinute(cost: number | null | undefined, durationSeconds: number | null | undefined) {
+  return cost == null || !durationSeconds || durationSeconds <= 0 ? null : cost * 60 / durationSeconds;
 }
 export function validPricing(value: unknown, model: string): VoicePricing | null {
   if (!value || typeof value !== 'object') return null;
