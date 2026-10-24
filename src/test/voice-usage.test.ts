@@ -7,16 +7,16 @@ test('one second of 24kHz response PCM is measured correctly', () => expect(pcmS
 test('unknown pricing never becomes zero cost', () => expect(audioCost(180,60,null)).toBeNull());
 test('audio estimate prices input and output minutes separately', () => expect(audioCost(120,60,{model:'test',inputAudioPerMinute:0.02,outputAudioPerMinute:0.08,source:'https://example.com'})).toBeCloseTo(0.12));
 test('pricing for a different model is not used', () => expect(validPricing({model:'other',inputAudioPerMinute:0.02,outputAudioPerMinute:0.08,source:'https://example.com'},'gemini-3.8-live')).toBeNull());
-test('Google 3.8 Live published audio minute estimates are 0.005 input and 0.018 output', () => {
+test('Google 3.8 Live token-derived input and published output estimates are 0.00576 and 0.018', () => {
   const pricing = officialLivePricing('gemini-3.8-live');
-  expect(pricing?.inputAudioPerMinute).toBe(0.005);
+  expect(pricing?.inputAudioPerMinute).toBe(0.00576);
   expect(pricing?.outputAudioPerMinute).toBe(0.018);
-  expect(audioCost(60,60,pricing)).toBeCloseTo(0.023);
+  expect(audioCost(60,60,pricing)).toBeCloseTo(0.02376, 5);
 });
-test('five-minute call with half-time output estimates 0.070 USD and 0.014 USD per call minute', () => {
+test('five-minute call with half-time output estimates 0.0738 USD and 0.01476 USD per call minute', () => {
   const cost=audioCost(300,150,officialLivePricing('gemini-3.8-live'));
-  expect(cost).toBeCloseTo(0.07);
-  expect(costPerCallMinute(cost,300)).toBeCloseTo(0.014);
+  expect(cost).toBeCloseTo(0.0738, 5);
+  expect(costPerCallMinute(cost,300)).toBeCloseTo(0.01476, 5);
 });
 test('missing cost or duration never invents a per-minute price', () => {
   expect(costPerCallMinute(null,300)).toBeNull();
@@ -24,7 +24,7 @@ test('missing cost or duration never invents a per-minute price', () => {
   expect(costPerCallMinute(0.07,0)).toBeNull();
 });
 test('legacy 3.1 has the same published audio rates, unsupported 3.6 Live is not priced', () => {
-  expect(officialLivePricing('gemini-3.1-flash-live-preview')?.inputAudioPerMinute).toBe(0.005);
+  expect(officialLivePricing('gemini-3.1-flash-live-preview')?.inputAudioPerMinute).toBe(0.00576);
   expect(officialLivePricing('gemini-3.1-flash-live-preview')?.outputAudioPerMinute).toBe(0.018);
   expect(officialLivePricing('gemini-3.6-live')).toBeNull();
 });
