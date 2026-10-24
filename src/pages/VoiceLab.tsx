@@ -139,6 +139,14 @@ const VoiceLab = () => {
 
       ws.onopen = () => setStatus("Connected — waiting for Gemini…");
 
+      // If Gemini never signals ready, don't hang on "connecting" forever
+      const readyTimeout = setTimeout(() => {
+        if (!liveRef.current) {
+          setError("Gemini did not respond in time. Check that your Google API key is valid and has Live API access, then try again.");
+          stopEverything();
+        }
+      }, 15000);
+
       ws.onmessage = (event) => {
         let msg: Record<string, unknown>;
         try {
@@ -149,6 +157,7 @@ const VoiceLab = () => {
 
         switch (msg.type) {
           case "ready": {
+            clearTimeout(readyTimeout);
             liveRef.current = true;
             setPhase("live");
             setStatus("Live — just talk. Interrupt her anytime.");
