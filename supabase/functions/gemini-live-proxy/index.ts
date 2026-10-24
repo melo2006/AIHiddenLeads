@@ -113,10 +113,19 @@ Deno.serve((req) => {
       }))
     }
 
-    geminiWs.onmessage = (event) => {
+    geminiWs.onmessage = async (event) => {
       if (closed || clientSocket.readyState !== WebSocket.OPEN) return
       try {
-        const msg = JSON.parse(typeof event.data === 'string' ? event.data : '{}')
+        // Gemini Live sends binary frames — normalize to text first
+        let raw: string
+        if (typeof event.data === 'string') {
+          raw = event.data
+        } else if (event.data instanceof Blob) {
+          raw = await event.data.text()
+        } else {
+          raw = new TextDecoder().decode(event.data as ArrayBuffer)
+        }
+        const msg = JSON.parse(raw)
 
         if (msg.setupComplete) {
           clientSocket.send(JSON.stringify({ type: 'ready' }))
