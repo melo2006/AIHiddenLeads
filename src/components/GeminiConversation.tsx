@@ -399,7 +399,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // two-line scrolling transcript, and a single row of icon buttons.
   if (compact) {
     return (
-      <div className="space-y-2 bg-background p-2 text-foreground">
+      <div className="space-y-2 p-2 text-foreground">
         <div className="flex items-center gap-1.5">
           {phase === "connecting" && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" />}
           {phase === "live" && !aspenSpeaking && <Mic className="h-3.5 w-3.5 shrink-0 animate-pulse text-primary" />}
