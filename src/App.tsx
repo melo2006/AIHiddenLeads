@@ -19,6 +19,7 @@ import AuthCallback from "./pages/AuthCallback.tsx";
 const AdPreviews = lazy(() => import("./pages/AdPreviews.tsx"));
 const MarketingHub = lazy(() => import("./pages/MarketingHub.tsx"));
 const TranscriptPage = lazy(() => import("./pages/TranscriptPage.tsx"));
+const VoiceLab = lazy(() => import("./pages/VoiceLab.tsx"));
 
 const queryClient = new QueryClient();
 
