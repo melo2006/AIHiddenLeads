@@ -8,10 +8,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Mic, Square, Volume2, Loader2, FlaskConical } from "lucide-react";
+import { Mic, MicOff, Volume2, Loader2, FlaskConical, PhoneOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
-// Gemini TTS prebuilt voices — friendly subset first, then the rest
 const VOICES = [
   { id: "Kore", label: "Kore — warm female (default)" },
   { id: "Aoede", label: "Aoede — bright female" },
@@ -28,6 +27,12 @@ const VOICES = [
 ];
 
 type Turn = { role: "user" | "assistant"; text: string };
+type Phase = "idle" | "listening" | "thinking" | "speaking";
+
+// Voice-activity tuning
+const SPEECH_THRESHOLD = 0.015; // RMS level that counts as speech
+const SILENCE_MS = 1400; // pause this long -> turn is over
+const MIN_SPEECH_MS = 500; // ignore blips shorter than this
 
 function encodeWav(chunks: readonly Float32Array[], sampleRate: number): Blob {
   const length = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
@@ -62,128 +67,219 @@ function encodeWav(chunks: readonly Float32Array[], sampleRate: number): Blob {
 const VoiceLab = () => {
   const [voice, setVoice] = useState("Kore");
   const [turns, setTurns] = useState<Turn[]>([]);
-  const [recording, setRecording] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState<string>("Pick a voice, then press the microphone and talk.");
+  const [phase, setPhase] = useState<Phase>("idle");
+  const [status, setStatus] = useState("Pick a voice and press Start — then just talk naturally.");
   const [error, setError] = useState<string | null>(null);
 
-  const recorderRef = useRef<{
-    stop: () => Promise<Blob>;
-  } | null>(null);
+  const phaseRef = useRef<Phase>("idle");
+  const turnsRef = useRef<Turn[]>([]);
+  const voiceRef = useRef(voice);
+  const streamRef = useRef<MediaStream | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const transcriptEndRef = useRef<HTMLDivElement | null>(null);
 
+  // Turn capture state (refs — updated inside audio callback)
+  const chunksRef = useRef<Float32Array[]>([]);
+  const speechStartedRef = useRef(false);
+  const speechMsRef = useRef(0);
+  const silenceMsRef = useRef(0);
+
   useEffect(() => {
+    voiceRef.current = voice;
+  }, [voice]);
+  useEffect(() => {
+    turnsRef.current = turns;
     transcriptEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [turns]);
 
-  const playBase64 = useCallback((b64: string) => {
-    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
-    const blob = new Blob([bytes], { type: "audio/wav" });
-    const url = URL.createObjectURL(blob);
-    if (audioRef.current) {
-      audioRef.current.src = url;
-      audioRef.current.play().catch(() => setStatus("Tap the speaker to hear the reply."));
-    }
+  const setPhaseBoth = useCallback((p: Phase) => {
+    phaseRef.current = p;
+    setPhase(p);
   }, []);
 
-  const startGreeting = useCallback(async () => {
-    setBusy(true);
+  const stopEverything = useCallback(() => {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    audioCtxRef.current?.close().catch(() => {});
+    audioCtxRef.current = null;
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = "";
+    }
+    setPhaseBoth("idle");
+    setStatus("Conversation ended. Press Start to begin again.");
+  }, [setPhaseBoth]);
+
+  const sendTurn = useCallback(
+    async (wav: Blob) => {
+      setPhaseBoth("thinking");
+      setStatus("Aspen is thinking…");
+      try {
+        const form = new FormData();
+        form.append("file", new File([wav], "recording.wav", { type: "audio/wav" }));
+        form.append("voice", voiceRef.current);
+        form.append(
+          "history",
+          JSON.stringify(turnsRef.current.map((t) => ({ role: t.role, content: t.text })))
+        );
+        const { data, error: fnError } = await supabase.functions.invoke("gemini-voice-lab", {
+          body: form,
+        });
+        if (fnError) throw new Error(fnError.message);
+        if (data?.error && !data?.transcript) throw new Error(data.error);
+
+        setTurns((prev) => [
+          ...prev,
+          { role: "user", text: data.transcript },
+          { role: "assistant", text: data.reply },
+        ]);
+
+        // Play the reply, then go back to listening
+        if (phaseRef.current === "idle") return; // user hung up mid-request
+        setPhaseBoth("speaking");
+        setStatus("Aspen is speaking…");
+        const bytes = Uint8Array.from(atob(data.audioBase64), (c) => c.charCodeAt(0));
+        const url = URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
+        const el = audioRef.current;
+        if (el) {
+          el.src = url;
+          el.onended = () => {
+            URL.revokeObjectURL(url);
+            if (phaseRef.current === "speaking") {
+              setPhaseBoth("listening");
+              setStatus("Listening — just talk.");
+            }
+          };
+          await el.play().catch(() => {
+            if (phaseRef.current === "speaking") {
+              setPhaseBoth("listening");
+              setStatus("Listening — just talk.");
+            }
+          });
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Something went wrong");
+        if (phaseRef.current !== "idle") {
+          setPhaseBoth("listening");
+          setStatus("That turn failed — try speaking again.");
+        }
+      }
+    },
+    [setPhaseBoth]
+  );
+
+  // Continuous listening with voice-activity detection
+  const startListening = useCallback(async () => {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+    });
+    streamRef.current = stream;
+    const context = new AudioContext();
+    await context.resume();
+    audioCtxRef.current = context;
+    const source = context.createMediaStreamSource(stream);
+    const node = context.createScriptProcessor(4096, 1, 1);
+
+    chunksRef.current = [];
+    speechStartedRef.current = false;
+    speechMsRef.current = 0;
+    silenceMsRef.current = 0;
+
+    node.onaudioprocess = (event) => {
+      // Only capture while in the listening phase
+      if (phaseRef.current !== "listening") return;
+      const input = event.inputBuffer.getChannelData(0);
+      const chunk = new Float32Array(input);
+
+      // RMS volume of this chunk
+      let sum = 0;
+      for (let i = 0; i < chunk.length; i++) sum += chunk[i] * chunk[i];
+      const rms = Math.sqrt(sum / chunk.length);
+      const chunkMs = (chunk.length / context.sampleRate) * 1000;
+
+      if (rms > SPEECH_THRESHOLD) {
+        speechStartedRef.current = true;
+        speechMsRef.current += chunkMs;
+        silenceMsRef.current = 0;
+        chunksRef.current.push(chunk);
+      } else if (speechStartedRef.current) {
+        silenceMsRef.current += chunkMs;
+        chunksRef.current.push(chunk); // keep a little of the tail
+        if (silenceMsRef.current >= SILENCE_MS) {
+          const speechMs = speechMsRef.current;
+          const captured = chunksRef.current;
+          // Reset for the next turn
+          chunksRef.current = [];
+          speechStartedRef.current = false;
+          speechMsRef.current = 0;
+          silenceMsRef.current = 0;
+          if (speechMs >= MIN_SPEECH_MS) {
+            const wav = encodeWav(captured, context.sampleRate);
+            if (wav.size >= 2048) void sendTurn(wav);
+          }
+        }
+      }
+    };
+
+    source.connect(node);
+    node.connect(context.destination);
+  }, [sendTurn]);
+
+  const startConversation = useCallback(async () => {
     setError(null);
+    setTurns([]);
+    setPhaseBoth("thinking");
     setStatus("Aspen is saying hello…");
     try {
+      await startListening();
       const { data, error: fnError } = await supabase.functions.invoke("gemini-voice-lab", {
-        body: { action: "greeting", voice },
+        body: { action: "greeting", voice: voiceRef.current },
       });
       if (fnError) throw new Error(fnError.message);
       if (data?.error) throw new Error(data.error);
       setTurns([{ role: "assistant", text: data.reply }]);
-      playBase64(data.audioBase64);
-      setStatus("Your turn — press the microphone and answer her.");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong");
-      setStatus("Could not start. Try again.");
-    } finally {
-      setBusy(false);
-    }
-  }, [voice, playBase64]);
 
-  const startRecording = useCallback(async () => {
-    setError(null);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-      });
-      const context = new AudioContext();
-      await context.resume();
-      const source = context.createMediaStreamSource(stream);
-      const node = context.createScriptProcessor(4096, 1, 1);
-      const chunks: Float32Array[] = [];
-      node.onaudioprocess = (event) =>
-        chunks.push(new Float32Array(event.inputBuffer.getChannelData(0)));
-      source.connect(node);
-      node.connect(context.destination);
-      let stopped = false;
-      recorderRef.current = {
-        async stop() {
-          if (stopped) throw new Error("Already stopped");
-          stopped = true;
-          stream.getTracks().forEach((t) => t.stop());
-          node.disconnect();
-          source.disconnect();
-          node.onaudioprocess = null;
-          const blob = encodeWav(chunks, context.sampleRate);
-          await context.close();
-          if (blob.size < 2048) throw new Error("Recording was empty — try again");
-          return blob;
-        },
-      };
-      setRecording(true);
-      setStatus("Listening… press the square button when you finish speaking.");
+      setPhaseBoth("speaking");
+      setStatus("Aspen is speaking…");
+      const bytes = Uint8Array.from(atob(data.audioBase64), (c) => c.charCodeAt(0));
+      const url = URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
+      const el = audioRef.current;
+      if (el) {
+        el.src = url;
+        el.onended = () => {
+          URL.revokeObjectURL(url);
+          if (phaseRef.current === "speaking") {
+            setPhaseBoth("listening");
+            setStatus("Listening — just talk.");
+          }
+        };
+        await el.play().catch(() => {
+          setPhaseBoth("listening");
+          setStatus("Listening — just talk.");
+        });
+      }
     } catch (e) {
+      stopEverything();
       setError(
         e instanceof Error && e.name === "NotAllowedError"
           ? "Microphone permission was denied — allow it in your browser and try again."
-          : "Could not open the microphone."
+          : e instanceof Error
+            ? e.message
+            : "Could not start. Try again."
       );
     }
-  }, []);
+  }, [startListening, setPhaseBoth, stopEverything]);
 
-  const stopAndSend = useCallback(async () => {
-    const recorder = recorderRef.current;
-    recorderRef.current = null;
-    setRecording(false);
-    if (!recorder) return;
-    setBusy(true);
-    setStatus("Aspen is thinking…");
-    try {
-      const blob = await recorder.stop();
-      const form = new FormData();
-      form.append("file", new File([blob], "recording.wav", { type: "audio/wav" }));
-      form.append("voice", voice);
-      form.append(
-        "history",
-        JSON.stringify(turns.map((t) => ({ role: t.role, content: t.text })))
-      );
-      const { data, error: fnError } = await supabase.functions.invoke("gemini-voice-lab", {
-        body: form,
-      });
-      if (fnError) throw new Error(fnError.message);
-      if (data?.error && !data?.transcript) throw new Error(data.error);
-      setTurns((prev) => [
-        ...prev,
-        { role: "user", text: data.transcript },
-        { role: "assistant", text: data.reply },
-      ]);
-      playBase64(data.audioBase64);
-      setStatus("Your turn — press the microphone to reply.");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong");
-      setStatus("That turn failed — try speaking again.");
-    } finally {
-      setBusy(false);
-    }
-  }, [turns, voice, playBase64]);
+  // Cleanup on unmount
+  useEffect(() => stopEverything, [stopEverything]);
+
+  const phaseLabel: Record<Phase, string> = {
+    idle: "Not started",
+    listening: "Listening",
+    thinking: "Thinking",
+    speaking: "Speaking",
+  };
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -191,7 +287,8 @@ const VoiceLab = () => {
         <div className="mx-auto flex h-14 max-w-3xl items-center gap-2 px-4">
           <FlaskConical className="h-5 w-5 text-primary" />
           <h1 className="text-sm font-extrabold tracking-tight">
-            Voice Lab — Gemini Aspen <span className="text-muted-foreground font-normal">(test only, Retell untouched)</span>
+            Voice Lab — Gemini Aspen{" "}
+            <span className="text-muted-foreground font-normal">(hands-free test)</span>
           </h1>
         </div>
       </header>
@@ -201,7 +298,7 @@ const VoiceLab = () => {
           <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
             <div className="flex-1">
               <label className="text-xs font-semibold text-muted-foreground">Voice</label>
-              <Select value={voice} onValueChange={setVoice} disabled={busy || recording}>
+              <Select value={voice} onValueChange={setVoice} disabled={phase !== "idle"}>
                 <SelectTrigger className="mt-1">
                   <SelectValue />
                 </SelectTrigger>
@@ -214,19 +311,37 @@ const VoiceLab = () => {
                 </SelectContent>
               </Select>
             </div>
-            <Button onClick={startGreeting} disabled={busy || recording} variant="secondary">
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Volume2 className="h-4 w-4" />}
-              <span className="ml-2">Start / Restart conversation</span>
-            </Button>
+            {phase === "idle" ? (
+              <Button onClick={startConversation} variant="secondary">
+                <Mic className="h-4 w-4" />
+                <span className="ml-2">Start conversation</span>
+              </Button>
+            ) : (
+              <Button onClick={stopEverything} variant="destructive">
+                <PhoneOff className="h-4 w-4" />
+                <span className="ml-2">End conversation</span>
+              </Button>
+            )}
           </div>
-          <p className="text-xs text-muted-foreground">{status}</p>
+
+          <div className="flex items-center gap-2">
+            {phase === "listening" && <Mic className="h-4 w-4 text-primary animate-pulse" />}
+            {phase === "thinking" && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
+            {phase === "speaking" && <Volume2 className="h-4 w-4 text-primary animate-pulse" />}
+            {phase === "idle" && <MicOff className="h-4 w-4 text-muted-foreground" />}
+            <p className="text-xs text-muted-foreground">
+              <span className="font-semibold text-foreground">{phaseLabel[phase]}</span>
+              {" — "}
+              {status}
+            </p>
+          </div>
           {error && <p className="text-xs text-destructive font-semibold">{error}</p>}
         </Card>
 
         <Card className="p-4 min-h-[300px] max-h-[50vh] overflow-y-auto space-y-3">
           {turns.length === 0 && (
             <p className="text-sm text-muted-foreground text-center pt-16">
-              No conversation yet. Press “Start / Restart conversation”.
+              No conversation yet. Press “Start conversation” and just talk — no buttons needed.
             </p>
           )}
           {turns.map((t, i) => (
@@ -245,27 +360,11 @@ const VoiceLab = () => {
           <div ref={transcriptEndRef} />
         </Card>
 
-        <div className="flex justify-center pb-8">
-          {!recording ? (
-            <Button
-              size="lg"
-              className="h-16 w-16 rounded-full"
-              onClick={startRecording}
-              disabled={busy}
-            >
-              <Mic className="h-6 w-6" />
-            </Button>
-          ) : (
-            <Button
-              size="lg"
-              variant="destructive"
-              className="h-16 w-16 rounded-full animate-pulse"
-              onClick={stopAndSend}
-            >
-              <Square className="h-6 w-6" />
-            </Button>
-          )}
-        </div>
+        <p className="text-[11px] text-muted-foreground text-center pb-8">
+          Tip: talk naturally and pause when you're done — Aspen answers after a short silence.
+          For the fully instant, interrupt-anytime version (true Gemini Live), a Google AI Studio
+          key is needed.
+        </p>
 
         <audio ref={audioRef} className="hidden" />
       </main>
