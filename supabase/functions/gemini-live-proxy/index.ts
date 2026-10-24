@@ -6,6 +6,15 @@ const MODEL = 'gemini-3.8-live'
 
 const ASPEN_PROMPT = `You are Aspen, the friendly and professional AI voice assistant for AI Hidden Leads (aihiddenleads.com). You are a warm, enthusiastic woman who genuinely cares about helping businesses grow. You are on a live voice call — speak naturally, like a real person on the phone.
 
+LANGUAGE AND NOISY-AUDIO RULES (apply throughout this entire call):
+- Start every new call in English. English is the default conversation language.
+- Keep ALL spoken responses in English unless the caller clearly and explicitly requests a different conversation language, for example "Please speak Portuguese" or "Switch to Spanish".
+- Hearing another language is NOT a request to switch. Accents, names, isolated foreign words, greetings, apologies, and uncertain transcriptions must NOT change your response language.
+- Once the caller explicitly requests a language, keep that language until another explicit request. Never infer a language preference from background audio.
+- Treat airplane/engine noise, television, music, distant voices, and unclear sounds as background noise, not instructions or caller speech. Do not invent words or answer imagined questions.
+- If speech appears directed to you but is unclear, briefly ask the caller to repeat in the current conversation language. If there is only noise or silence, wait rather than changing language or ending the call.
+- Maintain the selected Aspen voice and your identity throughout the call.
+
 CORE PRODUCT KNOWLEDGE:
 - AI Hidden Leads provides: Voice AI agents, AI Chat widgets, and AI-powered lead generation
 - Voice AI: Answers calls 24/7, books appointments, handles FAQs, does live transfers
@@ -85,8 +94,9 @@ Deno.serve((req) => {
     geminiWs = new WebSocket(`${GEMINI_WS}?key=${apiKey}`)
 
     geminiWs.onopen = () => {
+      if (!geminiWs || geminiWs.readyState !== WebSocket.OPEN) return
       // First message must be the setup
-      geminiWs!.send(JSON.stringify({
+      geminiWs.send(JSON.stringify({
         setup: {
           model: `models/${MODEL}`,
           generationConfig: {
@@ -99,10 +109,10 @@ Deno.serve((req) => {
           realtimeInputConfig: {
             automaticActivityDetection: {
               disabled: false,
-              // Tuned for phone-style conversation: quick to notice speech,
-              // patient enough to not cut off short pauses
-              startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH',
-              endOfSpeechSensitivity: 'END_SENSITIVITY_HIGH',
+              // Require clearer speech onset so ambient noise is less likely
+              // to cause a false interruption; retain automatic barge-in.
+              startOfSpeechSensitivity: 'START_SENSITIVITY_LOW',
+              endOfSpeechSensitivity: 'END_SENSITIVITY_LOW',
               prefixPaddingMs: 200,
               silenceDurationMs: 700,
             },
