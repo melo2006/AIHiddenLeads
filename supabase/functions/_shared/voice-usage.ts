@@ -10,6 +10,10 @@ export function audioCost(inputSeconds: number, outputSeconds: number, pricing: 
 export function costPerCallMinute(cost: number | null | undefined, durationSeconds: number | null | undefined) {
   return cost == null || !durationSeconds || durationSeconds <= 0 ? null : cost * 60 / durationSeconds;
 }
+// Planning assumption: capture runs for the call and the agent speaks half the time.
+export function typicalConversationCost(minutes: number, pricing: VoicePricing | null) {
+  return audioCost(minutes * 60, minutes * 30, pricing);
+}
 export function validPricing(value: unknown, model: string): VoicePricing | null {
   if (!value || typeof value !== 'object') return null;
   const p = value as Record<string, unknown>;

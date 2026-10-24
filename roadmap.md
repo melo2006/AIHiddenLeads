@@ -1,5 +1,7 @@
 # Current work
 
+- [x] Verify Google's shared Live rates and model IDs; show model-matched 1/2/5/10-minute conversation estimates in both screens. Use $0.00576/min token-derived input and $0.018/min published output for future estimates; saved historical snapshots preserved. Verified signed-in selection and 24 cost records; 16 tests passed.
+- [x] Recommend Twilio for the first Gemini telephone rollout and Telnyx as a later cost option; identify /dashboard/telephony scope, true browser handoff versus existing callback bridge, carrier fees, consent and signed-webhook prerequisites. Telephone migration is a recommendation, not enabled in this change.
 - [x] Separate verified admin tests and auditions from visitor quota; retain the shared daily cap. Verified signed-in session authorization and handled quota message with the page still usable; 14 tests passed.
 - [x] Add Play/Stop auditions beside the agent voice selector and link agent/history screens to Voice Costs.
 - [x] Verify exact Google Live pricing and supported alternatives; show model-matched per-call and per-minute estimates separately from measurements.
