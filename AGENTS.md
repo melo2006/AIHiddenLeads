@@ -12,6 +12,7 @@
 - Render voice transcript messages with AI Elements MessageResponse; voice-only surfaces omit text composers because input is the existing PCM microphone stream.
 - Prebundle transcript renderer dependencies and recover stale Vite chunk loads once per minute; preview updates must not leave open tabs blank or cause reload loops.
 - Build prospect simulation configurations separately from homepage sales configurations, sharing only voice identity so platform greetings never leak into business roleplay.
+- Keep a reviewed server-side homepage sales reference for offer facts and seed only the homepage agent with it; update saved draft/published snapshots explicitly and do not rely on scraping interactive marketing or reuse historical sales offers.
 - Persist voice audio measurements and raw provider reports server-side with periodic checkpoints; apply only model-matched explicit rate snapshots and label estimates separately from invoices.
 - Keep documented Live model comparison limited to authorized draft tests and voice auditions; published conversations retain the default, and model-specific published audio rates are versioned separately from recorded measurements.
 - Share model-matched conversation planning totals between Voice Agents and Voice Costs, with explicit input/output assumptions; recorded per-session estimates remain separate from provider invoices.

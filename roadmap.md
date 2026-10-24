@@ -1,5 +1,8 @@
 # Current work
 
+- [x] Audit homepage Aspen knowledge, add reviewed services/prices/limitations to draft and published snapshots without publishing unrelated transfer settings; live homepage answer gave all three monthly/setup prices and reactivation correctly; 16 tests passed.
+- [ ] Reconcile conflicting marketing terms (100 vs 500 included conversations, fixed overages vs passthrough, obsolete Retell/$149 offer and unsupported statistics); awaits owner-confirmed usage/overage terms before changing commercial promises.
+
 - [x] Add browser handoff controls, saved agent manager destination, private press-1 acceptance, no-answer recovery and atomic call-history status; deployed and 19 tests passed; authenticated settings verified.
 - [ ] Verify actual browser-to-manager call, private audio and return to Aspen; blocked on Twilio Voice signing keys and configured manager number. Prospect simulations remain non-dialing until a separately authorized business destination is configured.
 - [x] Give step-by-step Twilio browser signing-key links and explain why existing connector credentials cannot sign browser tokens.
