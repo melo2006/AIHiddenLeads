@@ -2,7 +2,7 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
 
 const GATEWAY = 'https://ai.gateway.lovable.dev'
 const STT_MODEL = 'google/gemini-3.5-transcribe'
-const CHAT_MODEL = 'google/gemini-2.5-flash'
+const CHAT_MODEL = 'google/gemini-3.8-flash'
 const TTS_MODEL = 'google/gemini-3.1-flash-tts-preview'
 
 const ASPEN_PROMPT = `You are Aspen, the friendly and professional AI assistant for AI Hidden Leads (aihiddenleads.com). You are a warm, enthusiastic woman who genuinely cares about helping businesses grow.
