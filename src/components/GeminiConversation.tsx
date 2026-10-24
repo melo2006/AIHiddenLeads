@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
 import {
   Select,
   SelectContent,
@@ -454,19 +455,14 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             <p className="py-1 text-center text-[11px] text-muted-foreground">No conversation yet.</p>
           )}
           {turns.map((t, i) => (
-            <div key={i} className={t.role === "user" ? "text-right" : "text-left"}>
-              <span
-                aria-label={t.role === "user" ? "Caller transcript" : "Aspen transcript"}
-                className={`inline-block max-w-full break-words rounded-md px-2 py-1 text-xs leading-snug ${
-                  t.role === "user" ? "bg-primary text-primary-foreground" : "text-foreground"
-                }`}
-              >
-                {t.text}
-              </span>
-            </div>
+            <Message key={i} from={t.role} className="max-w-full">
+              <MessageContent aria-label={t.role === "user" ? "Caller transcript" : "Aspen transcript"} className={t.role === "user" ? "bg-primary text-primary-foreground text-xs px-2 py-1" : "text-xs text-foreground"}>
+                <MessageResponse>{t.text}</MessageResponse>
+              </MessageContent>
+            </Message>
           ))}
-          {partialUser && <p className="break-words text-right text-[11px] leading-snug text-foreground">{partialUser}</p>}
-          {partialAspen && <p className="break-words text-[11px] leading-snug text-foreground">{partialAspen}</p>}
+          {partialUser && <Message from="user"><MessageContent className="bg-primary text-primary-foreground text-xs"><MessageResponse>{partialUser}</MessageResponse></MessageContent></Message>}
+          {partialAspen && <Message from="assistant"><MessageContent className="text-xs"><MessageResponse>{partialAspen}</MessageResponse></MessageContent></Message>}
           <div ref={transcriptEndRef} />
         </div>
 
@@ -767,20 +763,14 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             </p>
           )}
           {turns.map((t, i) => (
-            <div key={i} className={t.role === "user" ? "text-right" : "text-left"}>
-              <span aria-label={t.role === "user" ? "Caller transcript" : "Aspen transcript"}
-                className={`inline-block rounded-lg px-3 py-2 text-sm max-w-[85%] break-words ${
-                  t.role === "user"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-foreground"
-                }`}
-              >
-                {t.text}
-              </span>
-            </div>
+            <Message key={i} from={t.role}>
+              <MessageContent aria-label={t.role === "user" ? "Caller transcript" : "Aspen transcript"} className={t.role === "user" ? "bg-primary text-primary-foreground" : "text-foreground"}>
+                <MessageResponse>{t.text}</MessageResponse>
+              </MessageContent>
+            </Message>
           ))}
-          {partialUser && <p className="text-right text-sm text-foreground break-words">{partialUser}</p>}
-          {partialAspen && <p className="text-sm text-foreground break-words">{partialAspen}</p>}
+          {partialUser && <Message from="user"><MessageContent className="bg-primary text-primary-foreground"><MessageResponse>{partialUser}</MessageResponse></MessageContent></Message>}
+          {partialAspen && <Message from="assistant"><MessageContent><MessageResponse>{partialAspen}</MessageResponse></MessageContent></Message>}
           <div ref={transcriptEndRef} />
         </Card>
 
