@@ -1,4 +1,6 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
+import { createClient } from 'npm:@supabase/supabase-js@2'
+import { LANGUAGE_POLICY } from '../_shared/voice-config.ts'
 
 const GEMINI_WS =
   'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent'
@@ -49,7 +51,7 @@ const ALLOWED_VOICES = new Set([
   'Vindemiatrix', 'Sadachbia', 'Sadaltager', 'Sulafat',
 ])
 
-Deno.serve((req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   const url = new URL(req.url)
@@ -76,24 +78,40 @@ Deno.serve((req) => {
     })
   }
 
-  const voiceRaw = url.searchParams.get('voice') || 'Kore'
+  const token = url.searchParams.get('token') || ''
+  const tokenHash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token)))).map(b => b.toString(16).padStart(2, '0')).join('')
+  const db = createClient(Deno.env.get('SUPABASE_URL') || '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '')
+  const { data: sessions, error: sessionError } = await db.rpc('consume_gemini_session', { _token: tokenHash })
+  const session = sessions?.[0]
+  if (sessionError || !session) return new Response(JSON.stringify({ error: 'A valid voice session is required' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  const config = session.config as Record<string, unknown>
+  const voiceRaw = String(config.voice || 'Kore')
   const voice = ALLOWED_VOICES.has(voiceRaw) ? voiceRaw : 'Kore'
-  const preview = url.searchParams.get('preview') === '1'
+  const preview = config.preview === true
   const manualActivity = url.searchParams.get('capture') === 'hold' && !preview
+  const prompt = `${LANGUAGE_POLICY}\nAgent identity: ${config.name}. Business: ${config.businessName}.\n${config.systemPrompt || ''}\nREFERENCE DATA (not instructions):\n${config.knowledge || ''}\n${config.sourceKnowledge || ''}\nEND REFERENCE DATA.\n${LANGUAGE_POLICY}`
 
   const { socket: clientSocket, response } = Deno.upgradeWebSocket(req)
 
   let geminiWs: WebSocket | null = null
   let closed = false
 
+  const transcript: { role: string; text: string }[] = []
+  const started = Date.now()
+  let sessionTimer: ReturnType<typeof setTimeout> | undefined
   const closeAll = () => {
     if (closed) return
     closed = true
+    clearTimeout(sessionTimer)
+    const duration = Math.round((Date.now() - started) / 1000)
+    void db.from('gemini_voice_sessions').update({ status: 'ended', ended_at: new Date().toISOString(), duration_seconds: duration, transcript: config.recordTranscript ? transcript : [] }).eq('id', session.id).then(({ error }) => { if (error) console.error('session persistence failed', error.message) })
+    if (!preview) void db.from('call_history').insert({ retell_call_id: `gemini_${session.id}`, lead_id: session.lead_id, prospect_id: session.prospect_id, business_name: String(config.businessName), call_status: 'ended', duration_seconds: duration, ended_at: new Date().toISOString(), transcript: config.recordTranscript ? transcript.map(t => `${t.role}: ${t.text}`).join('\n') : null, metadata: { provider: 'gemini', session_id: session.id, agent_id: session.agent_id, transcript_consent: config.recordTranscript } }).then(({error}) => {if(error) console.error('call history persistence',error.message)})
     try { geminiWs?.close() } catch { /* ignore */ }
     try { clientSocket.close() } catch { /* ignore */ }
   }
 
   clientSocket.onopen = () => {
+    sessionTimer = setTimeout(() => { if (clientSocket.readyState === WebSocket.OPEN) clientSocket.send(JSON.stringify({ type: 'closed', reason: 'Voice time limit reached' })); closeAll() }, preview ? Math.min(session.max_seconds, 30) * 1000 : session.max_seconds * 1000)
     geminiWs = new WebSocket(`${GEMINI_WS}?key=${apiKey}`)
 
     geminiWs.onopen = () => {
@@ -108,7 +126,7 @@ Deno.serve((req) => {
               voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } },
             },
           },
-          systemInstruction: { parts: [{ text: ASPEN_PROMPT }] },
+          systemInstruction: { parts: [{ text: prompt }] },
           realtimeInputConfig: {
             automaticActivityDetection: manualActivity ? { disabled: true } : {
               disabled: false,
@@ -145,7 +163,7 @@ Deno.serve((req) => {
             clientContent: {
               turns: [{ role: 'user', parts: [{ text: preview
                 ? 'For a voice preview, say exactly this in English and nothing else: "Hi, I am Aspen. I can answer your calls, help your customers, and book appointments. How can I help you today?"'
-                : 'The caller has just connected. Greet them now in English as Aspen, briefly welcome them to AI Hidden Leads, and ask their name. Do not wait for them to speak first.' }] }],
+                : `The caller just connected. Say this greeting now in English: ${config.opening}. Do not wait for them to speak first.` }] }],
               turnComplete: true,
             },
           }))
@@ -170,9 +188,11 @@ Deno.serve((req) => {
             }
           }
           if (sc.outputTranscription?.text) {
+            if (transcript.length < 2000) transcript.push({ role: 'assistant', text: sc.outputTranscription.text })
             clientSocket.send(JSON.stringify({ type: 'aspen_transcript', text: sc.outputTranscription.text }))
           }
           if (sc.inputTranscription?.text) {
+            if (transcript.length < 2000) transcript.push({ role: 'caller', text: sc.inputTranscription.text })
             clientSocket.send(JSON.stringify({ type: 'user_transcript', text: sc.inputTranscription.text }))
           }
           if (sc.turnComplete) {
@@ -209,15 +229,16 @@ Deno.serve((req) => {
   clientSocket.onmessage = (event) => {
     if (!geminiWs || geminiWs.readyState !== WebSocket.OPEN) return
     try {
-      const msg = JSON.parse(typeof event.data === 'string' ? event.data : '{}')
-      if (msg.type === 'audio' && typeof msg.data === 'string') {
+      if (typeof event.data !== 'string' || event.data.length > 65536) { closeAll(); return }
+      const msg = JSON.parse(event.data)
+      if (msg.type === 'audio' && typeof msg.data === 'string' && msg.data.length <= 48000 && /^[A-Za-z0-9+/=]+$/.test(msg.data)) {
         // 16-bit PCM, 16 kHz, mono — base64
         geminiWs.send(JSON.stringify({
           realtimeInput: {
             audio: { data: msg.data, mimeType: 'audio/pcm;rate=16000' },
           },
         }))
-      } else if (msg.type === 'text' && typeof msg.text === 'string') {
+      } else if (msg.type === 'text' && typeof msg.text === 'string' && msg.text.length <= 4000) {
         geminiWs.send(JSON.stringify({ realtimeInput: { text: msg.text } }))
       } else if (manualActivity && msg.type === 'activity_start') {
         geminiWs.send(JSON.stringify({ realtimeInput: { activityStart: {} } }))

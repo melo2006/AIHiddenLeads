@@ -13,7 +13,7 @@ import FAQSection from "@/components/landing/FAQSection";
 import TestimonialSection from "@/components/landing/TestimonialSection";
 import LeadCaptureSection from "@/components/landing/LeadCaptureSection";
 import Footer from "@/components/landing/Footer";
-import TalkingAvatarWidget from "@/components/landing/TalkingAvatarWidget";
+import GeminiAgentWidget from "@/components/GeminiAgentWidget";
 import TryWebsiteCTA from "@/components/landing/TryWebsiteCTA";
 
 const Index = () => {
@@ -41,7 +41,7 @@ const Index = () => {
       <TryWebsiteCTA />
       <LeadCaptureSection selectedNiche={selectedNiche} />
       <Footer />
-      <TalkingAvatarWidget />
+      <GeminiAgentWidget floating />
     </div>
   );
 };

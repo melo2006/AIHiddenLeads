@@ -538,6 +538,98 @@ export type Database = {
           },
         ]
       }
+      gemini_voice_sessions: {
+        Row: {
+          agent_id: string | null
+          config: Json
+          consumed: boolean
+          created_at: string
+          duration_seconds: number | null
+          ended_at: string | null
+          expires_at: string
+          id: string
+          last_error: string | null
+          lead_id: string | null
+          max_seconds: number
+          organization_id: string | null
+          prospect_id: string | null
+          started_at: string | null
+          status: string
+          token_hash: string
+          transcript: Json
+          visitor_hash: string
+        }
+        Insert: {
+          agent_id?: string | null
+          config: Json
+          consumed?: boolean
+          created_at?: string
+          duration_seconds?: number | null
+          ended_at?: string | null
+          expires_at?: string
+          id?: string
+          last_error?: string | null
+          lead_id?: string | null
+          max_seconds?: number
+          organization_id?: string | null
+          prospect_id?: string | null
+          started_at?: string | null
+          status?: string
+          token_hash: string
+          transcript?: Json
+          visitor_hash: string
+        }
+        Update: {
+          agent_id?: string | null
+          config?: Json
+          consumed?: boolean
+          created_at?: string
+          duration_seconds?: number | null
+          ended_at?: string | null
+          expires_at?: string
+          id?: string
+          last_error?: string | null
+          lead_id?: string | null
+          max_seconds?: number
+          organization_id?: string | null
+          prospect_id?: string | null
+          started_at?: string | null
+          status?: string
+          token_hash?: string
+          transcript?: Json
+          visitor_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gemini_voice_sessions_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "voice_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gemini_voice_sessions_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gemini_voice_sessions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "voice_organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gemini_voice_sessions_prospect_id_fkey"
+            columns: ["prospect_id"]
+            isOneToOne: false
+            referencedRelation: "prospects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       imported_leads: {
         Row: {
           ai_chatbot_detected: boolean | null
@@ -1490,6 +1582,129 @@ export type Database = {
         }
         Relationships: []
       }
+      voice_agent_sources: {
+        Row: {
+          agent_id: string
+          content: string | null
+          created_at: string
+          id: string
+          kind: string
+          label: string
+          last_error: string | null
+          refreshed_at: string | null
+          status: string
+          storage_path: string | null
+          url: string | null
+        }
+        Insert: {
+          agent_id: string
+          content?: string | null
+          created_at?: string
+          id?: string
+          kind: string
+          label: string
+          last_error?: string | null
+          refreshed_at?: string | null
+          status?: string
+          storage_path?: string | null
+          url?: string | null
+        }
+        Update: {
+          agent_id?: string
+          content?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+          label?: string
+          last_error?: string | null
+          refreshed_at?: string | null
+          status?: string
+          storage_path?: string | null
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voice_agent_sources_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "voice_agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      voice_agent_versions: {
+        Row: {
+          agent_id: string
+          config: Json
+          created_at: string
+          id: string
+          version: number
+        }
+        Insert: {
+          agent_id: string
+          config: Json
+          created_at?: string
+          id?: string
+          version: number
+        }
+        Update: {
+          agent_id?: string
+          config?: Json
+          created_at?: string
+          id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voice_agent_versions_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "voice_agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      voice_agents: {
+        Row: {
+          created_at: string
+          draft: Json
+          id: string
+          organization_id: string
+          published: Json | null
+          slug: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          draft?: Json
+          id?: string
+          organization_id: string
+          published?: Json | null
+          slug?: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          draft?: Json
+          id?: string
+          organization_id?: string
+          published?: Json | null
+          slug?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voice_agents_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "voice_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       voice_guardrails: {
         Row: {
           created_at: string
@@ -1523,11 +1738,86 @@ export type Database = {
         }
         Relationships: []
       }
+      voice_memberships: {
+        Row: {
+          id: string
+          organization_id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          role?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voice_memberships_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "voice_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      voice_organizations: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      voice_platform_roles: {
+        Row: {
+          role: string
+          user_id: string
+        }
+        Insert: {
+          role?: string
+          user_id: string
+        }
+        Update: {
+          role?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      authorize_gemini_session: {
+        Args: {
+          _agent?: string
+          _config: Json
+          _lead?: string
+          _org?: string
+          _prospect?: string
+          _token: string
+          _visitor: string
+        }
+        Returns: string
+      }
+      can_manage_voice: { Args: { _org: string }; Returns: boolean }
       claim_next_prospect_enrichment_items: {
         Args: { _job_id: string; _limit?: number }
         Returns: {
@@ -1547,6 +1837,35 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "prospect_enrichment_job_items"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      consume_gemini_session: {
+        Args: { _token: string }
+        Returns: {
+          agent_id: string | null
+          config: Json
+          consumed: boolean
+          created_at: string
+          duration_seconds: number | null
+          ended_at: string | null
+          expires_at: string
+          id: string
+          last_error: string | null
+          lead_id: string | null
+          max_seconds: number
+          organization_id: string | null
+          prospect_id: string | null
+          started_at: string | null
+          status: string
+          token_hash: string
+          transcript: Json
+          visitor_hash: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "gemini_voice_sessions"
           isOneToOne: false
           isSetofReturn: true
         }
@@ -1595,6 +1914,7 @@ export type Database = {
         }[]
       }
       is_admin_email: { Args: { _email: string }; Returns: boolean }
+      is_voice_admin: { Args: never; Returns: boolean }
       refresh_prospect_enrichment_job: {
         Args: { _job_id: string }
         Returns: {

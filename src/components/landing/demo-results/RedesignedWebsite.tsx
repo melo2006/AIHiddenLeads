@@ -23,7 +23,7 @@ import {
   getThemeColor,
   buildSupportingCopy,
 } from "./demoResultsUtils";
-import VoiceAgentWidget from "./VoiceAgentWidget";
+import GeminiAgentWidget from "@/components/GeminiAgentWidget";
 import ChatWidget from "./ChatWidget";
 
 interface Props {
@@ -409,15 +409,7 @@ const RedesignedWebsite = ({ leadData }: Props) => {
               viewport={{ once: true }}
               transition={{ delay: 0.2 }}
             >
-              <VoiceAgentWidget
-                businessName={siteName}
-                businessNiche={leadData.niche || "general"}
-                ownerName={leadData.fullName || "Business Owner"}
-                ownerEmail={leadData.email}
-                ownerPhone={leadData.phone}
-                websiteUrl={leadData.websiteUrl}
-                businessInfo={leadData.websiteContent || leadData.description || ""}
-              />
+              <GeminiAgentWidget leadId={leadData.leadId} prospectId={leadData.prospectId} businessName={siteName} />
             </motion.div>
           </div>
         </div>
