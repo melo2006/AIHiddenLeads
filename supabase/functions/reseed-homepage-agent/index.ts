@@ -13,7 +13,7 @@ Deno.serve(async (req) => {
     const anon = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, { global: { headers: { Authorization: auth } } });
     const { data: { user } } = await anon.auth.getUser();
     if (!user) return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401, headers: { ...cors, 'Content-Type': 'application/json' } });
-    const { data: role } = await db.from('user_roles').select('role').eq('user_id', user.id).eq('role', 'platform_admin').maybeSingle();
+    const { data: role } = await db.from('voice_platform_roles').select('role').eq('user_id', user.id).maybeSingle();
     if (!role) return new Response(JSON.stringify({ error: 'forbidden' }), { status: 403, headers: { ...cors, 'Content-Type': 'application/json' } });
 
     const { data: agent, error: findErr } = await db.from('voice_agents').select('id,draft,published').eq('slug', 'aspen-homepage').single();
