@@ -129,8 +129,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     liveRef.current = false;
     captureRef.current.held = false;
     captureRef.current.replaying = false;
+    captureRef.current.paused = false;
     setHeld(false);
     setReplaying(false);
+    setPaused(false);
     if (micNodeRef.current) { micNodeRef.current.onaudioprocess = null; micNodeRef.current.disconnect(); }
     micNodeRef.current = null;
     for (const source of sourcesRef.current) { try { source.stop(); } catch {} }
@@ -206,6 +208,20 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     }
   }, [endHold]);
 
+  // Pause: stop mic capture and freeze speaker playback without ending the call.
+  const togglePause = useCallback(() => {
+    if (captureRef.current.paused) {
+      captureRef.current.paused = false;
+      setPaused(false);
+      void playCtxRef.current?.resume().catch(() => {});
+    } else {
+      pauseCapture();
+      captureRef.current.paused = true;
+      setPaused(true);
+      void playCtxRef.current?.suspend().catch(() => {});
+    }
+  }, [pauseCapture]);
+
   const replayLastMessage = useCallback(async () => {
     if (!lastAudioRef.current.length) return;
     try {
@@ -223,9 +239,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const startConversation = useCallback(async (preview = false) => {
     clearPlayback();
     const generation = ++generationRef.current;
-    captureRef.current = { mode: captureMode, held: false, muted: false, replaying: false };
+    captureRef.current = { mode: captureMode, held: false, muted: false, replaying: false, paused: false };
     setHeld(false);
     setMuted(false);
+    setPaused(false);
     currentAudioRef.current = [];
     lastAudioRef.current = [];
     setHasReplay(false);
@@ -307,6 +324,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
                 setMicLevel(Math.min(100, Math.round(rms * 500)));
               }
               const capture = captureRef.current;
+              if (capture.paused) return;
               if (!shouldSendMicrophone(capture.mode, capture.held, capture.muted, capture.replaying)) return;
               const pcm = microphonePcm(input, e.inputBuffer.sampleRate);
               const bytes = new Uint8Array(pcm.buffer);
