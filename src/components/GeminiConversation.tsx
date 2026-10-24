@@ -427,7 +427,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           <p className="truncate text-[11px] text-muted-foreground">
             {phase === "live" && (
               <span className="font-semibold text-foreground">
-                {replaying ? "Replaying" : muted ? "Muted" : aspenSpeaking ? `${name} speaking` : captureMode === "hold" && !held ? "Paused" : "Listening"}
+                {paused ? "Paused" : replaying ? "Replaying" : muted ? "Muted" : aspenSpeaking ? `${name} speaking` : captureMode === "hold" && !held ? "Paused" : "Listening"}
                 {" — "}
               </span>
             )}
@@ -480,6 +480,18 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
               }}
             >
               {muted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+            </Button>
+          )}
+          {phase === "live" && (
+            <Button
+              size="icon"
+              variant={paused ? "default" : "outline"}
+              aria-pressed={paused}
+              title={paused ? "Resume conversation" : "Pause conversation"}
+              aria-label={paused ? "Resume conversation" : "Pause conversation"}
+              onClick={togglePause}
+            >
+              {paused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
             </Button>
           )}
           <Button
@@ -669,6 +681,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
               captureRef.current.muted = !muted;
               setMuted(!muted);
             }}>{muted ? <MicOff className="mr-2 h-4 w-4" /> : <Mic className="mr-2 h-4 w-4" />}{muted ? "Unmute microphone" : "Mute microphone"}</Button>}
+            {phase === "live" && <Button variant={paused ? "default" : "outline"} size="sm" aria-pressed={paused} onClick={togglePause}>{paused ? <Play className="mr-2 h-4 w-4" /> : <Pause className="mr-2 h-4 w-4" />}{paused ? "Resume" : "Pause"}</Button>}
             {phase === "live" && captureMode === "hold" && <Button
               className="touch-none select-none" variant={held ? "default" : "secondary"} disabled={muted || replaying}
               aria-pressed={held} onContextMenu={event => event.preventDefault()}
@@ -699,7 +712,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             <p className="text-xs text-muted-foreground">
               {phase === "live" && (
                 <span className="font-semibold text-foreground">
-                  {replaying ? "Replaying — microphone paused" : muted ? "Microphone muted" : aspenSpeaking ? `${name} is speaking` : captureMode === "hold" && !held ? "Microphone paused" : "Listening"}
+                  {paused ? "Paused — press Resume to continue" : replaying ? "Replaying — microphone paused" : muted ? "Microphone muted" : aspenSpeaking ? `${name} is speaking` : captureMode === "hold" && !held ? "Microphone paused" : "Listening"}
                   {" — "}
                 </span>
               )}
