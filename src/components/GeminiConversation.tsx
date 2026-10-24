@@ -294,6 +294,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         const detail = authError instanceof FunctionsHttpError ? await authError.context.json().catch(() => null) : null;
         throw new Error(detail?.error || authError.message);
       }
+      if (authorized?.allowed === false) {
+        stopEverything();
+        setStatus('Daily voice allowance reached');
+        setError(authorized.error);
+        return;
+      }
       if (generation !== generationRef.current) { stream?.getTracks().forEach(t => t.stop()); return; }
       const ws = new WebSocket(`${WS_URL}?token=${encodeURIComponent(authorized.token)}&capture=${captureMode}`);
       wsRef.current = ws;

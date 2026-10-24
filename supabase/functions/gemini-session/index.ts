@@ -3,6 +3,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { z } from 'npm:zod@3';
 import { DEFAULT_AGENT, VOICES, greeting, businessDemoConfig } from '../_shared/voice-config.ts';
 import { DEFAULT_LIVE_MODEL, officialLivePricing } from '../_shared/live-models.ts';
+import { voiceQuotaClass, voiceLimitResponse } from '../_shared/voice-session-limit.ts';
 const schema=z.object({ visitorKey:z.string().min(16).max(100), model:z.string().max(100).optional(), agentId:z.string().uuid().optional(), leadId:z.string().uuid().optional(), prospectId:z.string().uuid().optional(), draft:z.boolean().default(false), preview:z.boolean().default(false), voice:z.enum(VOICES as [string,...string[]]).optional(), hour:z.number().int().min(0).max(23).optional(), visitorName:z.string().max(100).default(''), consent:z.boolean().default(false) });
 const json=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
 export async function hash(value:string) { return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)))).map(b=>b.toString(16).padStart(2,'0')).join(''); }
@@ -12,11 +13,12 @@ Deno.serve(async req=>{
  try {
   const parsed=schema.safeParse(await req.json()); if(!parsed.success) return json({error:'Invalid voice session request'},400); const b=parsed.data;
   const db=createClient(Deno.env.get('SUPABASE_URL') || '',Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '');
+  const bearer=req.headers.get('Authorization')?.replace(/^Bearer\s+/i,'') || '';
+  const {data:{user}}=await db.auth.getUser(bearer);
+  const {data:role}=user ? await db.from('voice_platform_roles').select('role').eq('user_id',user.id).maybeSingle() : {data:null};
   let config:Record<string,unknown>, agentId=null, orgId=null;
   if(b.draft || b.preview) {
-    const token=req.headers.get('Authorization')?.replace(/^Bearer\s+/i,'') || '';
-    const {data:{user}}=await db.auth.getUser(token); if(!user) return json({error:'Sign in to preview voices'},401);
-    const {data:role}=await db.from('voice_platform_roles').select('role').eq('user_id',user.id).maybeSingle();
+    if(!user) return json({error:'Sign in to preview voices'},401);
     if(!b.agentId) { if(role?.role!=='admin') return json({error:'Administrator access required'},403); config={...DEFAULT_AGENT}; }
     else {
       const {data:agent}=await db.from('voice_agents').select('*').eq('id',b.agentId).maybeSingle(); if(!agent) return json({error:'Agent not found'},404);
@@ -40,11 +42,16 @@ Deno.serve(async req=>{
   }
   const requestedModel = b.model;
   if(requestedModel && (!(b.draft || b.preview) || !officialLivePricing(requestedModel))) return json({error:'Model comparison is available only for authorized draft tests and previews.'},400);
-  config={...config,model:requestedModel || DEFAULT_LIVE_MODEL,opening:greeting(config,b.hour,b.visitorName),preview:b.preview,recordTranscript:Boolean(config.recordTranscript)&&b.consent};
+  config={...config,quotaClass:voiceQuotaClass(role?.role==='admin',b.preview),model:requestedModel || DEFAULT_LIVE_MODEL,opening:greeting(config,b.hour,b.visitorName),preview:b.preview,recordTranscript:Boolean(config.recordTranscript)&&b.consent};
   const token=crypto.randomUUID()+crypto.randomUUID();
   const visitor=await hash(`${b.visitorKey}|${req.headers.get('x-forwarded-for')?.split(',')[0] || ''}`);
   const {data:id,error}=await db.rpc('authorize_gemini_session',{_visitor:visitor,_token:await hash(token),_config:config,_agent:agentId,_org:orgId,_lead:b.leadId || null,_prospect:b.prospectId || null});
-  if(error) return json({error:error.message},429);
+  if(error) {
+    const limit=voiceLimitResponse(error.message);
+    if(limit) return json(limit);
+    console.error('gemini-session authorization failed',error.code);
+    return json({error:'Could not authorize the voice session. Please try again.'},500);
+  }
   const {data:s}=await db.from('gemini_voice_sessions').select('max_seconds').eq('id',id).single();
   let avatarUrl=''; if(config.avatarPath) { const {data}=await db.storage.from('lead-uploads').createSignedUrl(String(config.avatarPath),3600); avatarUrl=data?.signedUrl || ''; }
   return json({token,sessionId:id,maxSeconds:s?.max_seconds,name:config.name,businessName:config.businessName,voice:config.voice,avatarUrl});
