@@ -148,7 +148,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     setPaused(false);
     if (micNodeRef.current) { micNodeRef.current.onaudioprocess = null; micNodeRef.current.disconnect(); }
     micNodeRef.current = null;
-    for (const source of sourcesRef.current) { try { source.stop(); } catch {} }
+    for (const source of sourcesRef.current) { try { source.stop(); } catch { /* Already stopped. */ } }
     sourcesRef.current.clear();
     setMicLevel(0);
     try { wsRef.current?.close() } catch { /* ignore */ }
@@ -208,7 +208,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const clearPlayback = useCallback(() => {
     captureRef.current.replaying = false;
     setReplaying(false);
-    for (const source of sourcesRef.current) { try { source.stop(); } catch {} }
+    for (const source of sourcesRef.current) { try { source.stop(); } catch { /* Already stopped. */ } }
     sourcesRef.current.clear();
     playTimeRef.current = playCtxRef.current?.currentTime ?? 0;
     setAspenSpeaking(false);
