@@ -17,3 +17,6 @@
 - Share model-matched conversation planning totals between Voice Agents and Voice Costs, with explicit input/output assumptions; recorded per-session estimates remain separate from provider invoices.
 - Discover website learning links within the submitted URL scope, preserve source-labelled original evidence ahead of generated research, and bound two-level scans by page and time budgets.
 - Classify voice auditions and verified platform-admin tests server-side separately from visitor calls; retain the shared daily cap and return expected quota denials as handled session results.
+
+- Authorize browser handoffs from server-issued session capabilities and saved agent destinations; validate Twilio webhook signatures and atomically persist transitions, never accept client-supplied telephone targets.
+- Pause Gemini capture and playback during the Twilio browser leg, retaining its session for return; keep legacy callback transfers separate to prevent duplicate dialing.
