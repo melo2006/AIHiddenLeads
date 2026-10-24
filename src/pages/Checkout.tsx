@@ -6,31 +6,31 @@ import { StripeEmbeddedCheckout } from "@/components/StripeEmbeddedCheckout";
 
 const planDetails: Record<string, { name: string; price: string; features: string[]; priceId: string }> = {
   essentials: {
-    name: "AI Essentials — Voice + Chat",
+    name: "AI Essentials — Voice + Chat + 50 B2B Leads",
     price: "$99/mo",
     priceId: "essentials_monthly",
     features: [
       "AI Voice Agent — 24/7 receptionist for your business",
       "AI Chat Widget installed on your website",
-      "Lead capture & automatic appointment booking",
-      "Warm transfer hot leads directly to your phone",
-      "Up to 100 AI interactions per month included",
-      "Email & SMS lead notifications",
+      "Lead capture & appointment booking",
+      "400 browser voice minutes/mo (≈ $0.25/min value)",
+      "50 qualified B2B leads per month, delivered weekly",
+      "Email lead notifications",
       "Basic analytics dashboard",
     ],
   },
   growth: {
-    name: "Growth Engine — Leads + Outreach + Reputation",
+    name: "Growth Engine — More Voice + 100 Leads + Reactivation",
     price: "$199/mo",
     priceId: "growth_monthly",
     features: [
       "Everything in AI Essentials",
+      "1,200 browser voice minutes/mo (≈ $0.17/min value)",
+      "100 qualified B2B leads per month",
       "Database Reactivation — revive old/cold leads",
-      "50 new leads per month from AI prospecting",
-      "Automated Email & SMS outreach campaigns",
-      "Multi-step drip sequences (days/weeks of follow-up)",
-      "Google Review management & reputation monitoring",
-      "Speed-to-Lead — 60-second AI callback on new leads",
+      "Automated email campaigns & drip sequences",
+      "Speed-to-Lead follow-up",
+      "Google Review management",
       "Full CRM pipeline & tracking",
     ],
   },
@@ -40,11 +40,11 @@ const planDetails: Record<string, { name: string; price: string; features: strin
     priceId: "fullservice_monthly",
     features: [
       "Everything in Growth Engine",
-      "Unlimited lead generation",
-      "Unlimited outreach campaigns",
+      "2,500 browser voice minutes/mo (≈ $0.14/min value)",
+      "200 qualified B2B leads per month",
       "Social media content creation & posting",
       "Website refresh included",
-      "Priority AI voice minutes",
+      "Priority support",
       "Dedicated account manager",
       "White-label reporting",
     ],
@@ -52,11 +52,11 @@ const planDetails: Record<string, { name: string; price: string; features: strin
 };
 
 const disclaimers = [
-  "AI voice and chat usage beyond included interactions is billed at cost (typically $30–$90/mo depending on call volume). We pass through provider costs with no markup.",
-  "Lead generation results vary by industry, location, and market conditions. We do not guarantee a specific number of leads, appointments, or revenue outcomes.",
+  "Included minutes cover browser voice conversations on your website. Phone-line services (warm transfer to your phone, SMS notifications, appointment reminders) are optional add-ons billed separately — carrier usage is passed through at cost.",
+  "Lead generation results vary by industry, location, and market conditions. We deliver qualified B2B prospect records; we do not guarantee appointments or revenue outcomes.",
   "You may cancel your subscription at any time. No long-term contracts required.",
-  "Setup fees are one-time charges for initial configuration, widget installation, and onboarding.",
-  "We are not responsible for AI usage overage charges beyond included minutes. Usage is visible in your dashboard at all times.",
+  "Setup fee is waived through November 30 as a launch promotion; after that it is a one-time charge for initial configuration, widget installation, and onboarding.",
+  "Usage is visible in your dashboard at all times before any billing.",
 ];
 
 export default function Checkout() {
@@ -79,7 +79,7 @@ export default function Checkout() {
             <div>
               <h1 className="text-2xl font-bold text-foreground">{plan.name}</h1>
               <p className="text-3xl font-extrabold text-primary mt-2">{plan.price}</p>
-              <p className="text-sm text-muted-foreground mt-1">Launch Special — 50% off first 3 months</p>
+              <p className="text-sm text-muted-foreground mt-1">Launch Special — setup fee waived through Nov 30, included minutes doubled</p>
             </div>
 
             <div className="rounded-xl border border-border bg-card p-5">
