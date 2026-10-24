@@ -5,7 +5,7 @@ export const HOMEPAGE_PLANS = [
   { name: 'Full Service', monthlyUsd: 349, setupUsd: 349, browserVoiceMinutes: 2500, normalMinutes: 1250, perMinEquivUsd: 0.14, leadsPerMonth: 200 },
 ] as const;
 
-export const SETUP_PROMO_END = '2025-11-30'; // setup fee waived through this date (launch promo)
+export const SETUP_PROMO_END = '2026-11-30'; // setup fee waived through this date (launch promo)
 
 export const HOMEPAGE_ADDONS = [
   { name: 'Connected Bundle (warm transfer + SMS notifications + appointment reminders)', usd: 79, cadence: 'monthly', availability: 'offered' },
