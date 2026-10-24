@@ -153,7 +153,7 @@
     }
   },
   "pricing": {
-    "badge": "Promo de Lanzamiento — 50% OFF los Primeros 3 Meses",
+    "badge": "Promo de Lanzamiento — Setup GRATIS hasta el 30 de Noviembre",
     "title": "Precios",
     "titleAccent": "Honestos y Transparentes",
     "sub": "Sin tarifas ocultas. Sin contratos de 12 meses. Cancela cuando quieras.",
@@ -161,15 +161,19 @@
     "launchPrice": "Precio de lanzamiento",
     "setup": "Setup:",
     "free": "GRATIS",
+    "setupPromo": "(gratis hasta el 30/nov)",
+    "webMinutes": "minutos de voz web/mes",
+    "perMinSuffix": "/min equivalente",
+    "promoMinutes": "Promo de lanzamiento: normalmente {{n}} min — DUPLICADO gratis",
     "mostPopular": "Más Popular",
     "essentials": {
       "name": "IA Esencial",
-      "tag": "Voz + Chat — Nunca Más Pierdas un Lead",
+      "tag": "Voz + Chat + 50 Leads B2B al Mes",
       "cta": "Empezar por $99/mes"
     },
     "growth": {
       "name": "Motor de Crecimiento",
-      "tag": "Leads + Prospección + Reputación + Reactivación",
+      "tag": "Más Voz + 100 Leads + Reactivación",
       "cta": "Hacer Crecer Mi Negocio"
     },
     "full": {
@@ -177,10 +181,12 @@
       "tag": "Manejamos Todo Tu Marketing",
       "cta": "Quiero Full Service"
     },
-    "transparencyTitle": "Total Transparencia: Costos de Uso de IA",
-    "transparencyBody": "Todos los planes incluyen un número base de interacciones por IA. El uso de voz y chat más allá de lo incluido se cobra a costo según tu volumen — típicamente <strong>$30–$90/mes</strong> para la mayoría de pequeños negocios. Trasladamos el costo del proveedor de IA sin margen. Siempre verás tu consumo en el panel antes de cualquier cobro. <strong>El uso varía según el volumen — no nos responsabilizamos por excedentes más allá de los minutos incluidos.</strong>",
+    "transparencyTitle": "Total Transparencia: Qué Está Incluido",
+    "transparencyBody": "Cada plan incluye un bloque generoso de <strong>minutos de voz web</strong> (visitantes hablando con tu IA en tu sitio) — a mayor plan, más barato el costo por minuto. Los servicios de línea telefónica (transferencia en vivo a tu celular, SMS, recordatorios de citas) usan redes de operadora y se cobran aparte — mira el Paquete Conectado abajo. Siempre verás tu consumo en el panel antes de cualquier cobro.",
     "compareTitle": "Cómo nos comparamos:",
-    "compareBody": "Los agentes de voz básicos con IA cuestan desde $75–$150+/mes en otros lados — y SOLO contestan llamadas. Nosotros incluimos voz + chat + captura de leads + agendamiento + transferencia en vivo desde <strong>$99/mes</strong>. Sin tarifa por usuario, sin cobros ocultos de API."
+    "compareBody": "Los agentes de voz básicos con IA cuestan desde $75–$150+/mes en otros lados — y SOLO contestan llamadas. Nosotros incluimos voz + chat + captura de leads + agendamiento + <strong>50 leads B2B reales cada mes</strong> desde <strong>$99/mes</strong>. Sin tarifa por usuario, sin cobros ocultos de API.",
+    "telephonyTitle": "¿Necesitas línea telefónica? Agrega el Paquete Conectado — $79/mes:",
+    "telephonyBody": "Agrega <strong>transferencia en vivo</strong> de leads calientes a tu teléfono, <strong>notificaciones por SMS</strong> y <strong>recordatorios de citas por SMS/correo</strong> a cualquier plan. El uso de la operadora se cobra a costo. También disponible por separado: transferencia $49/mes, SMS $19/mes, recordatorios $29/mes."
   },
   "addons": {
     "badge": "A La Carta",
