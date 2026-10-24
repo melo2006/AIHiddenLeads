@@ -85,7 +85,7 @@ Deno.serve(async req=>{
     try {
       let content='';
       if(source.kind==='document' && /\.(txt|md|csv)$/i.test(source.storage_path || '')) {
-        const {data:file,error}=await db.storage.from('lead-uploads').download(source.storage_path); if(error) throw error; content=await file.text();
+        const {data:file,error}=await db.storage.from('lead-uploads').download(source.storage_path); if(error) throw error; if(file.size>10*1024*1024) throw new Error('Maximum document size is 10 MB'); content=await file.text();
       } else {
         const config=agent.draft as Record<string,unknown>;
         const websiteUrl=source.url || 'https://aihiddenleads.com';

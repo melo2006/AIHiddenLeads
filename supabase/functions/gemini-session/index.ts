@@ -25,10 +25,14 @@ Deno.serve(async req=>{
     }
     if(b.voice) config.voice=b.voice;
   } else if(b.leadId || b.prospectId) {
+    if(b.leadId && b.prospectId) { const {data:p}=await db.from('prospects').select('website_url').eq('id',b.prospectId).maybeSingle(); const {data:l}=await db.from('leads').select('website_url').eq('id',b.leadId).maybeSingle(); if(!p || !l || p.website_url!==l.website_url) return json({error:'Prospect and demo website do not match'},400); }
     let knowledge='', businessName='';
     if(b.leadId) { const {data:lead}=await db.from('leads').select('business_name,website_url,website_content,scan_status').eq('id',b.leadId).maybeSingle(); if(!lead || !lead.website_content || !['completed','enriched'].includes(lead.scan_status)) return json({error:'This business demo has not finished learning its website. Please wait for the scan.'},409); knowledge=lead.website_content; businessName=lead.business_name; }
     else { const {data:p}=await db.from('prospects').select('business_name,business_data,ai_analysis').eq('id',b.prospectId).maybeSingle(); if(!p) return json({error:'Demo business not found'},404); knowledge=JSON.stringify(p.business_data || {}); businessName=p.business_name; if(knowledge.length<20) return json({error:'Prepare this prospect website demo before starting a call.'},409); }
     config={...DEFAULT_AGENT,businessName,sourceKnowledge:knowledge.slice(0,100000),systemPrompt:'You are demonstrating the voice assistant for this business to its owner. Briefly explain this is a simulation, then act as its front desk or sales assistant. Answer using only this exact business reference. Keep the introduction under 8 seconds. Offer to demonstrate a typical customer enquiry. Any calendar check or appointment suggestion must be explicitly hypothetical. At the end invite the owner to ask AI Hidden Leads about setting this up. Never speak as AI Hidden Leads during the business roleplay.'};
+    const {data:aspen}=await db.from('voice_agents').select('published').eq('slug','aspen-homepage').maybeSingle();
+    const published=aspen?.published as Record<string,unknown>|undefined;
+    if(published) config={...config,name:published.name,voice:published.voice,avatarPath:published.avatarPath,greeting:published.greeting};
   } else {
     let query=db.from('voice_agents').select('*'); query=b.agentId?query.eq('id',b.agentId):query.eq('slug','aspen-homepage');
     const {data:agent}=await query.maybeSingle(); if(!agent?.published) return json({error:'Voice agent is not published yet'},409);

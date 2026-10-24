@@ -305,6 +305,7 @@ const CallRow = ({ call }: { call: CallRecord }) => {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
             <p className="text-sm font-medium truncate">{call.business_name}</p>
+            {call.retell_call_id.startsWith('gemini_') && <Badge variant="outline" className="text-[10px]">Gemini</Badge>}
             {call.website_url && (
               <button
                 onClick={handleRedemo}

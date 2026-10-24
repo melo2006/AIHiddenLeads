@@ -208,6 +208,7 @@ const SessionCard = ({
                       <span className="flex items-center gap-2">
                         <PhoneCall className="h-3 w-3" />
                         {formatDate(c.started_at)} · {formatDuration(c.duration_seconds)} · {c.call_status}
+                        {c.retell_call_id.startsWith('gemini_') && <Badge variant="outline" className="text-[10px]">Gemini</Badge>}
                       </span>
                       {c.transfer_requested && (
                         <Badge variant="outline" className="text-[10px]">
@@ -219,7 +220,7 @@ const SessionCard = ({
                       <audio controls preload="none" src={c.recording_url} className="w-full h-8" />
                     ) : (
                       <p className="text-[11px] text-muted-foreground italic">
-                        No recording stored — open Call History to fetch it from Retell.
+                        {c.retell_call_id.startsWith('gemini_') ? 'Gemini audio is not recorded; transcripts require visitor consent.' : 'No recording stored — open Call History to fetch it from Retell.'}
                       </p>
                     )}
                     {c.summary && (
