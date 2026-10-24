@@ -1,11 +1,17 @@
 // Reviewed homepage sales reference. This is never used by prospect simulations.
 export const HOMEPAGE_PLANS = [
-  { name: 'AI Essentials', monthlyUsd: 99, setupUsd: 99 },
-  { name: 'Growth Engine', monthlyUsd: 199, setupUsd: 199 },
-  { name: 'Full Service', monthlyUsd: 349, setupUsd: 0 },
+  { name: 'AI Essentials', monthlyUsd: 99, setupUsd: 99, browserVoiceMinutes: 400, normalMinutes: 200, perMinEquivUsd: 0.25, leadsPerMonth: 50 },
+  { name: 'Growth Engine', monthlyUsd: 199, setupUsd: 199, browserVoiceMinutes: 1200, normalMinutes: 600, perMinEquivUsd: 0.17, leadsPerMonth: 100 },
+  { name: 'Full Service', monthlyUsd: 349, setupUsd: 349, browserVoiceMinutes: 2500, normalMinutes: 1250, perMinEquivUsd: 0.14, leadsPerMonth: 200 },
 ] as const;
 
+export const SETUP_PROMO_END = '2026-11-30'; // setup fee waived through this date (launch promo)
+
 export const HOMEPAGE_ADDONS = [
+  { name: 'Connected Bundle (warm transfer + SMS notifications + appointment reminders)', usd: 79, cadence: 'monthly', availability: 'offered' },
+  { name: 'Warm Transfer to your phone', usd: 49, cadence: 'monthly', availability: 'offered' },
+  { name: 'SMS Lead Notifications', usd: 19, cadence: 'monthly', availability: 'offered' },
+  { name: 'SMS/Email Appointment Reminders', usd: 29, cadence: 'monthly', availability: 'offered' },
   { name: 'Website Refresh', usd: 99, cadence: 'one-time', availability: 'offered' },
   { name: 'SEO Audit', usd: 0, cadence: 'one-time', availability: 'offered' },
   { name: 'AI Search Optimization / GEO', usd: 249, cadence: 'monthly', availability: 'coming soon' },
@@ -35,12 +41,13 @@ SERVICES AND PRACTICAL SCENARIOS
 11. Full-service support: social content/posting and website refreshes are offered in the Full Service plan, with an agreed scope. Do not invent deliverable counts or guarantees.
 
 CURRENT APPROVED USD PLAN PRICES
-${HOMEPAGE_PLANS.map(p => `${p.name}: $${p.monthlyUsd}/month; $${p.setupUsd} one-time setup${p.setupUsd === 0 ? ' (no setup fee)' : ''}.`).join('\n')}
-AI Essentials: core AI Voice Agent and AI website chat, lead capture/appointment support, warm-transfer capability and lead notifications with required configuration.
-Growth Engine: Essentials plus lead generation, automated outreach, database reactivation and Google review/reputation management; CRM pipeline and follow-up sequences.
-Full Service: Growth features plus social media management and website refreshes, with agreed service scope.
-Voice/chat usage costs are separate from subscription fees. The business's stated typical usage budget is $30–$90/month, not a guaranteed bill or flat fee. Actual costs depend on volume, provider, country and telephone/messaging services. Consumer plan prices are not the same as Gemini's provider cost. Never promise unlimited free voice, texts or phone calls.
-The public site has conflicting included usage and overage claims (100 vs 500 conversations, fixed overage vs at-cost billing). Do not quote a guaranteed included count, exact overage, SMS price, transfer price, alert threshold or automatic billing behavior until Ron confirms the terms. Prices above are current USD offer prices, not old $149 promotions. Do not infer a promotion end date or regular renewal price. For Brazilian-real pricing, country-specific package differences, tax or currency conversion, request confirmation rather than equating website language with billing country. Month-to-month service is offered; cancellation process and contract specifics need confirmation if asked.
+${HOMEPAGE_PLANS.map(p => `${p.name}: $${p.monthlyUsd}/month with ${p.browserVoiceMinutes} browser voice minutes included (about $${p.perMinEquivUsd}/minute equivalent — the bigger the plan, the cheaper the minute) and ${p.leadsPerMonth} qualified B2B leads per month delivered in weekly batches; $${p.setupUsd} one-time setup, WAIVED FREE through November 30 as a launch promotion.`).join('\n')}
+Launch promotion: included browser voice minutes are DOUBLED during the promo (normally ${HOMEPAGE_PLANS.map(p => `${p.normalMinutes} for ${p.name}`).join(', ')}), and the setup fee is free through November 30 on every plan. After the promo, minutes return to the normal amounts and setup fees apply.
+AI Essentials ($99/mo): core AI Voice Agent and AI website chat, lead capture/appointment support, 400 browser voice minutes and 50 B2B leads per month, email lead notifications.
+Growth Engine ($199/mo): Essentials plus 1,200 browser voice minutes, 100 B2B leads per month, database reactivation, automated email outreach and drip sequences, Speed-to-Lead follow-up, Google review management, CRM pipeline.
+Full Service ($349/mo): Growth features plus 2,500 browser voice minutes, 200 B2B leads per month, social media management and website refreshes, priority support and a dedicated account manager, with agreed service scope.
+Browser voice minutes cover visitors talking with the AI on the website. Phone-line services use real carrier networks and are billed separately as add-ons: Connected Bundle $79/month (warm transfer to the owner's phone + SMS lead notifications + SMS/email appointment reminders), or separately: warm transfer $49/month, SMS notifications $19/month, appointment reminders $29/month. Carrier usage (phone minutes, SMS messages) is billed at cost on top. Never promise unlimited free voice, texts or phone calls.
+Prices above are current USD offer prices, not old $149 promotions. The only promotion end date to quote is November 30 for the setup-fee waiver and doubled minutes. For Brazilian-real pricing, country-specific package differences, tax or currency conversion, request confirmation rather than equating website language with billing country. Month-to-month service is offered; cancellation process and contract specifics need confirmation if asked.
 
 OPTIONAL SERVICES
 ${HOMEPAGE_ADDONS.map(a => `${a.name}: ${a.usd === 0 ? 'free' : `$${a.usd} ${a.cadence === 'monthly' ? 'per month' : 'one-time'}`}; ${a.availability}.`).join('\n')}

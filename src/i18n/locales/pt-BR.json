@@ -153,7 +153,7 @@
     }
   },
   "pricing": {
-    "badge": "Promoção de Lançamento — 50% OFF nos 3 Primeiros Meses",
+    "badge": "Promoção de Lançamento — Taxa de Setup GRÁTIS até 30 de Novembro",
     "title": "Preço",
     "titleAccent": "Honesto e Transparente",
     "sub": "Sem taxas escondidas. Sem contrato de 12 meses. Cancela quando quiser.",
@@ -161,15 +161,19 @@
     "launchPrice": "Preço de lançamento",
     "setup": "Setup:",
     "free": "GRÁTIS",
+    "setupPromo": "(grátis até 30/nov)",
+    "webMinutes": "minutos de voz no site/mês",
+    "perMinSuffix": "/min equivalente",
+    "promoMinutes": "Promo de lançamento: normalmente {{n}} min — DOBRADO grátis",
     "mostPopular": "Mais Popular",
     "essentials": {
       "name": "I.A. Essencial",
-      "tag": "WhatsApp + Voz + Chat — Nunca Mais Perca um Cliente",
+      "tag": "Voz + Chat + 50 Leads B2B por Mês",
       "cta": "Começar por R$ 499/mês"
     },
     "growth": {
       "name": "Motor de Crescimento",
-      "tag": "WhatsApp IA + Prospecção + Reputação + Reativação",
+      "tag": "Mais Voz + 100 Leads + Reativação",
       "cta": "Crescer Meu Negócio"
     },
     "full": {
@@ -177,10 +181,12 @@
       "tag": "A Gente Cuida do Marketing Inteiro",
       "cta": "Quero o Full Service"
     },
-    "transparencyTitle": "Total Transparência: Custos de Uso da IA",
-    "transparencyBody": "Todos os planos incluem uma cota base de interações por IA (voz, chat do site e WhatsApp). Uso além do incluso é cobrado a custo conforme seu volume — normalmente <strong>R$ 150–R$ 450/mês</strong> pra maioria das pequenas empresas. A gente repassa o custo do provedor de IA sem nenhuma margem. Você vê o seu consumo no painel antes de qualquer cobrança. <strong>O uso varia conforme o volume — não nos responsabilizamos por excedentes além do incluso.</strong>",
+    "transparencyTitle": "Total Transparência: O Que Está Incluso",
+    "transparencyBody": "Todo plano inclui um bloco generoso de <strong>minutos de voz no site</strong> (visitantes falando com a IA no seu site) — quanto maior o plano, mais barato o custo por minuto. Serviços de linha telefônica (transferência ao vivo pro seu celular, SMS, lembretes de agendamento) usam redes de operadora e são cobrados à parte — veja o pacote Conectado abaixo. Você sempre vê o consumo no painel antes de qualquer cobrança.",
     "compareTitle": "Como a gente se compara:",
-    "compareBody": "Plataformas básicas de WhatsApp IA no Brasil cobram <strong>R$ 299–R$ 899/mês</strong> — e SÓ atendem no Zap. A gente entrega WhatsApp + Voz + Chat no site + captura de lead + agendamento + transferência ao vivo a partir de <strong>R$ 499/mês</strong>. Sem taxa por usuário, sem cobrança escondida de API."
+    "compareBody": "Agentes de voz básicos com IA custam <strong>US$ 75–150+/mês</strong> lá fora — e SÓ atendem ligações. A gente entrega voz + chat + captura de lead + agendamento + <strong>50 leads B2B reais todo mês</strong> a partir de <strong>R$ 499/mês</strong>. Sem taxa por usuário, sem cobrança escondida de API.",
+    "telephonyTitle": "Precisa de linha telefônica? Adicione o Pacote Conectado — US$ 79/mês:",
+    "telephonyBody": "Adiciona <strong>transferência ao vivo</strong> de leads quentes pro seu telefone, <strong>notificações por SMS</strong> e <strong>lembretes de agendamento por SMS/e-mail</strong> em qualquer plano. O uso da operadora é cobrado a custo. Também disponível separado: transferência US$ 49/mês, SMS US$ 19/mês, lembretes US$ 29/mês."
   },
   "addons": {
     "badge": "À La Carte",

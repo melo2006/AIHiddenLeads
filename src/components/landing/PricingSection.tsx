@@ -14,12 +14,16 @@ const tiers = [
     originalPriceBRL: 999,
     setupFee: 99,
     setupFeeBRL: 499,
-    originalSetup: 299,
-    originalSetupBRL: 1499,
+    originalSetup: 99,
+    originalSetupBRL: 499,
     icon: Zap,
     popular: false,
     checkoutPlan: "essentials",
     featureCount: 7,
+    minutes: 400,
+    normalMinutes: 200,
+    perMin: "0.25",
+    leads: 50,
   },
   {
     key: "growth",
@@ -29,12 +33,16 @@ const tiers = [
     originalPriceBRL: 1999,
     setupFee: 199,
     setupFeeBRL: 999,
-    originalSetup: 499,
-    originalSetupBRL: 2499,
+    originalSetup: 199,
+    originalSetupBRL: 999,
     icon: Sparkles,
     popular: true,
     checkoutPlan: "growth",
     featureCount: 8,
+    minutes: 1200,
+    normalMinutes: 600,
+    perMin: "0.17",
+    leads: 100,
   },
   {
     key: "full",
@@ -44,12 +52,16 @@ const tiers = [
     originalPriceBRL: 3499,
     setupFee: null,
     setupFeeBRL: null,
-    originalSetup: 499,
-    originalSetupBRL: 2499,
+    originalSetup: 349,
+    originalSetupBRL: 1749,
     icon: Crown,
     popular: false,
     checkoutPlan: "fullservice",
     featureCount: 8,
+    minutes: 2500,
+    normalMinutes: 1250,
+    perMin: "0.14",
+    leads: 200,
   },
 ] as const;
 
@@ -61,28 +73,28 @@ const FEATURES: Record<string, Record<string, string[]>> = {
       "AI Voice Agent (24/7 receptionist)",
       "AI Chat Widget on your website",
       "Lead capture & appointment booking",
-      "Warm transfer hot leads to your phone",
-      "Up to 100 AI interactions/mo",
-      "Email & SMS lead notifications",
+      "400 browser voice minutes/mo (≈ $0.25/min value)",
+      "50 qualified B2B leads/month (weekly batches)",
+      "Email lead notifications",
       "Basic analytics dashboard",
     ],
     growth: [
       "Everything in AI Essentials",
+      "1,200 browser voice minutes/mo (≈ $0.17/min value)",
+      "100 qualified B2B leads/month",
       "Database Reactivation (revive old leads)",
-      "50 new leads/month from prospecting",
-      "Automated Email & SMS campaigns",
-      "Drip sequences (days/weeks of follow-up)",
-      "Google Review management",
-      "Speed-to-Lead (60-sec AI callback)",
+      "Automated email campaigns & drip sequences",
+      "Speed-to-Lead follow-up",
+      "Google review management",
       "CRM pipeline & tracking",
     ],
     full: [
       "Everything in Growth Engine",
-      "Unlimited lead generation",
-      "Unlimited outreach campaigns",
+      "2,500 browser voice minutes/mo (≈ $0.14/min value)",
+      "200 qualified B2B leads/month",
       "Social media content & posting",
       "Website refresh included",
-      "Priority AI voice minutes",
+      "Priority support",
       "Dedicated account manager",
       "White-label reporting",
     ],
@@ -90,30 +102,30 @@ const FEATURES: Record<string, Record<string, string[]>> = {
   "pt-BR": {
     essentials: [
       "Agente de Voz com IA (recepcionista 24/7)",
-      "Chat WhatsApp com IA (texto + áudios)",
       "Chat de IA no seu site",
       "Captura de leads e agendamento automático",
-      "Transferência ao vivo dos leads quentes",
-      "Até 500 conversas de IA por mês",
-      "Notificação de lead por e-mail e SMS",
+      "400 minutos de voz no site/mês (≈ US$ 0,25/min)",
+      "50 leads B2B qualificados por mês (lotes semanais)",
+      "Notificação de lead por e-mail",
+      "Painel básico de análises",
     ],
     growth: [
       "Tudo do IA Essencial",
-      "WhatsApp IA ilimitado (texto + áudio)",
+      "1.200 minutos de voz no site/mês (≈ US$ 0,17/min)",
+      "100 leads B2B qualificados por mês",
       "Reativação de Base (recupera leads antigos)",
-      "50 leads novos por mês via prospecção",
-      "Campanhas automáticas de WhatsApp, e-mail e SMS",
-      "Sequências de follow-up (dias/semanas)",
+      "Campanhas automáticas de e-mail e follow-up",
+      "Speed-to-Lead (retorno rápido por IA)",
       "Gestão de avaliações no Google",
-      "Speed-to-Lead (retorno em 60s por IA)",
+      "Pipeline e acompanhamento no CRM",
     ],
     full: [
       "Tudo do Motor de Crescimento",
-      "WhatsApp + Voz IA ilimitados",
-      "Geração de leads ilimitada",
-      "Campanhas de prospecção ilimitadas",
+      "2.500 minutos de voz no site/mês (≈ US$ 0,14/min)",
+      "200 leads B2B qualificados por mês",
       "Conteúdo e posts em redes sociais",
       "Refresh do site incluído",
+      "Suporte prioritário",
       "Gerente de conta dedicado",
       "Relatórios white-label",
     ],
@@ -123,28 +135,28 @@ const FEATURES: Record<string, Record<string, string[]>> = {
       "Agente de Voz con IA (recepcionista 24/7)",
       "Chat de IA en tu sitio",
       "Captura de leads y agendamiento",
-      "Transferencia en vivo de leads calientes",
-      "Hasta 100 interacciones de IA al mes",
-      "Notificación de leads por correo y SMS",
+      "400 minutos de voz web/mes (≈ $0.25/min)",
+      "50 leads B2B calificados al mes (lotes semanales)",
+      "Notificación de leads por correo",
       "Panel básico de analítica",
     ],
     growth: [
       "Todo lo de IA Esencial",
+      "1,200 minutos de voz web/mes (≈ $0.17/min)",
+      "100 leads B2B calificados al mes",
       "Reactivación de Base (recupera leads viejos)",
-      "50 leads nuevos al mes desde prospección",
-      "Campañas automáticas de correo y SMS",
-      "Secuencias de seguimiento (días/semanas)",
+      "Campañas automáticas de correo y seguimiento",
+      "Speed-to-Lead (respuesta rápida con IA)",
       "Gestión de reseñas de Google",
-      "Speed-to-Lead (devolución de llamada en 60s)",
       "Pipeline y seguimiento en CRM",
     ],
     full: [
       "Todo lo del Motor de Crecimiento",
-      "Generación de leads ilimitada",
-      "Campañas de prospección ilimitadas",
+      "2,500 minutos de voz web/mes (≈ $0.14/min)",
+      "200 leads B2B calificados al mes",
       "Contenido y publicaciones en redes",
       "Refresh del sitio incluido",
-      "Minutos de voz prioritarios",
+      "Soporte prioritario",
       "Gerente de cuenta dedicado",
       "Reportes white-label",
     ],
@@ -225,20 +237,6 @@ const PricingSection = () => {
                         <span className="line-through">R$ {tier.originalPriceBRL.toLocaleString("pt-BR")}{t("pricing.perMo")}</span>
                         <span className="text-primary ml-2 font-medium">{t("pricing.launchPrice")}</span>
                       </p>
-                      <p className="text-xs text-muted-foreground mt-2">
-                        {tier.setupFeeBRL !== null ? (
-                          <>
-                            {t("pricing.setup")} <span className="line-through">R$ {tier.originalSetupBRL.toLocaleString("pt-BR")}</span>{" "}
-                            <span className="text-primary font-semibold">R$ {tier.setupFeeBRL.toLocaleString("pt-BR")}</span>{" "}
-                            <span className="text-muted-foreground">(≈ ${tier.setupFee} USD)</span>
-                          </>
-                        ) : (
-                          <>
-                            {t("pricing.setup")} <span className="line-through">R$ {tier.originalSetupBRL.toLocaleString("pt-BR")}</span>{" "}
-                            <span className="text-primary font-semibold">{t("pricing.free")}</span>
-                          </>
-                        )}
-                      </p>
                     </>
                   ) : (
                     <>
@@ -250,21 +248,19 @@ const PricingSection = () => {
                         <span className="line-through">${tier.originalPrice}{t("pricing.perMo")}</span>
                         <span className="text-primary ml-2 font-medium">{t("pricing.launchPrice")}</span>
                       </p>
-                      <p className="text-xs text-muted-foreground mt-2">
-                        {tier.setupFee !== null ? (
-                          <>
-                            {t("pricing.setup")} <span className="line-through">${tier.originalSetup}</span>{" "}
-                            <span className="text-primary font-semibold">${tier.setupFee}</span>
-                          </>
-                        ) : (
-                          <>
-                            {t("pricing.setup")} <span className="line-through">${tier.originalSetup}</span>{" "}
-                            <span className="text-primary font-semibold">{t("pricing.free")}</span>
-                          </>
-                        )}
-                      </p>
                     </>
                   )}
+                  <p className="text-xs text-primary font-medium mt-2">
+                    {tier.minutes.toLocaleString()} {t("pricing.webMinutes")} (≈ ${tier.perMin}{t("pricing.perMinSuffix")})
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {t("pricing.promoMinutes", { n: tier.normalMinutes.toLocaleString() })}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    {t("pricing.setup")} <span className="line-through">${tier.originalSetup}</span>{" "}
+                    <span className="text-primary font-semibold">{t("pricing.free")}</span>{" "}
+                    <span className="text-muted-foreground">{t("pricing.setupPromo")}</span>
+                  </p>
                 </div>
 
                 <ul className="space-y-3 mb-6 flex-1">
@@ -312,6 +308,13 @@ const PricingSection = () => {
             <p className="text-sm text-center text-muted-foreground leading-relaxed">
               <span className="font-semibold text-foreground">{t("pricing.compareTitle")}</span>{" "}
               <Trans i18nKey="pricing.compareBody" components={{ strong: <span className="text-primary font-medium" /> }} />
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-border bg-card/50 p-5">
+            <p className="text-sm text-center text-muted-foreground leading-relaxed">
+              <span className="font-semibold text-foreground">{t("pricing.telephonyTitle")}</span>{" "}
+              <Trans i18nKey="pricing.telephonyBody" components={{ strong: <span className="text-primary font-medium" /> }} />
             </p>
           </div>
         </motion.div>
