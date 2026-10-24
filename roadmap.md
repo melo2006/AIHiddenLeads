@@ -1,5 +1,7 @@
 # Current work
 
+- [ ] Verify live model names and prices, replace fixed selector pricing with model-matched conversation totals, and explain current deployment.
+- [ ] Recommend the next telephony phase, compare Twilio/Telnyx, and identify the proposed admin page and transfer prerequisites.
 - [x] Separate verified admin tests and auditions from visitor quota; retain the shared daily cap. Verified signed-in session authorization and handled quota message with the page still usable; 14 tests passed.
 - [x] Add Play/Stop auditions beside the agent voice selector and link agent/history screens to Voice Costs.
 - [x] Verify exact Google Live pricing and supported alternatives; show model-matched per-call and per-minute estimates separately from measurements.
