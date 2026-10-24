@@ -16,12 +16,12 @@ export default function GeminiAgentWidget({ agentId, leadId, prospectId, busines
  const [identity,setIdentity]=useState({name:'Aspen',businessName:businessName||'AI Hidden Leads',avatarUrl:''});
  const isMobile=useIsMobile();
  useEffect(()=>{let active=true;void supabase.functions.invoke(`voice-agent-public${agentId?`?agentId=${agentId}`:''}`,{method:'GET'}).then(({data})=>{if(active&&data?.name)setIdentity({...data,businessName:businessName||data.businessName});});return()=>{active=false;};},[agentId,leadId,prospectId,businessName]);
- const openWidget=()=>{setHasOpened(true);setOpen(true);};
+ const openWidget=()=>{setHasOpened(true);setClickedOpen(true);setOpen(true);};
  const content=<>
   {/* Keep the conversation mounted while minimized so the call stays alive */}
   <div className={`${open?'':'hidden'} w-[min(19rem,calc(100vw-1.5rem))] max-h-[55vh] overflow-y-auto rounded-xl border-2 border-primary/40 bg-secondary shadow-2xl sm:max-h-[70vh]`}>
    <div className="flex items-center gap-2 border-b border-border p-2"><img src={identity.avatarUrl||avatar} alt={identity.name} className="h-8 w-8 rounded-full object-cover" /><div className="min-w-0 flex-1"><p className="text-xs font-semibold leading-tight">{identity.name}</p><p className="truncate text-[10px] text-muted-foreground">{businessName || identity.businessName}</p></div><Button size="icon" variant="ghost" className="h-7 w-7" title="Minimize" aria-label="Minimize voice assistant" onClick={()=>setOpen(false)}><Minus className="h-3.5 w-3.5" /></Button><Button size="icon" variant="ghost" className="h-7 w-7" title="Close voice assistant" aria-label="Close voice assistant" onClick={()=>{setDismissed(true);onClose?.();}}><X className="h-3.5 w-3.5" /></Button></div>
-   {hasOpened && <GeminiConversation compact autoStart agentId={agentId} leadId={leadId} prospectId={prospectId} name={identity.name} visitorName={callerName} />}
+   {hasOpened && <GeminiConversation compact autoStart={clickedOpen} agentId={agentId} leadId={leadId} prospectId={prospectId} name={identity.name} visitorName={callerName} />}
   </div>
   {!open && <button type="button" onClick={openWidget} title={`Talk to ${identity.name}`} aria-label={`Talk to ${identity.name}`} className="relative h-12 w-12 rounded-full border-2 border-primary/50 bg-card shadow-lg transition-transform hover:scale-105">
    <img src={identity.avatarUrl||avatar} alt="" className="h-full w-full rounded-full object-cover" />
