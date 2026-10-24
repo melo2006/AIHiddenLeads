@@ -1,5 +1,6 @@
 # Current work
 
+- [ ] Review and approve Gemini homepage, client Voice Agents administration, and emailed prospect-demo rollout plan.
 - [x] Add microphone selection, mute and hold-to-talk; verified no audio sent when released or muted.
 - [x] Strengthen English response guidance and verify explicit language changes only.
 - [x] Verify real English speech through the browser microphone path; caller's name and services question recognized in English and answered in English. Added mobile sample-rate normalization and tests.
