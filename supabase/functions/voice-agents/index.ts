@@ -2,6 +2,7 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { z } from 'npm:zod@3';
 import { DEFAULT_AGENT, VOICES, isPublicUrl } from '../_shared/voice-config.ts';
+import { HOMEPAGE_KNOWLEDGE, HOMEPAGE_SALES_PROMPT } from '../_shared/homepage-knowledge.ts';
 import { DEFAULT_LIVE_MODEL, LIVE_MODELS, officialLivePricing } from '../_shared/live-models.ts';
 import { validPricing } from '../_shared/voice-usage.ts';
 
@@ -48,7 +49,7 @@ Deno.serve(async req=>{
       const {data:org,error}=await db.from('voice_organizations').insert({name:businessName}).select().single(); if(error) throw error;
       const {data:homepage}=await db.from('voice_agents').select('id').eq('slug','aspen-homepage').maybeSingle();
       const isHomepage=businessName==='AI Hidden Leads' && !homepage;
-      const {data:agent,error:err}=await db.from('voice_agents').insert({organization_id:org.id,draft:{...DEFAULT_AGENT,businessName},...(isHomepage?{slug:'aspen-homepage'}:{})}).select().single(); if(err) throw err;
+      const {data:agent,error:err}=await db.from('voice_agents').insert({organization_id:org.id,draft:{...DEFAULT_AGENT,businessName,...(isHomepage?{knowledge:HOMEPAGE_KNOWLEDGE,systemPrompt:HOMEPAGE_SALES_PROMPT}:{})},...(isHomepage?{slug:'aspen-homepage'}:{})}).select().single(); if(err) throw err;
       return json({agent});
     }
     if(!body.agentId) return json({error:'Agent required'},400);
