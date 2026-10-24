@@ -31,7 +31,9 @@ Deno.serve(async req=>{
       if(!admin) return json({error:'Administrator access required'},403);
       const businessName=body.businessName || 'New business';
       const {data:org,error}=await db.from('voice_organizations').insert({name:businessName}).select().single(); if(error) throw error;
-      const {data:agent,error:err}=await db.from('voice_agents').insert({organization_id:org.id,draft:{...DEFAULT_AGENT,businessName}}).select().single(); if(err) throw err;
+      const {data:homepage}=await db.from('voice_agents').select('id').eq('slug','aspen-homepage').maybeSingle();
+      const isHomepage=businessName==='AI Hidden Leads' && !homepage;
+      const {data:agent,error:err}=await db.from('voice_agents').insert({organization_id:org.id,draft:{...DEFAULT_AGENT,businessName},...(isHomepage?{slug:'aspen-homepage'}:{})}).select().single(); if(err) throw err;
       return json({agent});
     }
     if(!body.agentId) return json({error:'Agent required'},400);
