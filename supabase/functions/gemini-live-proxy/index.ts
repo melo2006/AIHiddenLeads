@@ -110,8 +110,8 @@ Deno.serve((req) => {
           },
           systemInstruction: { parts: [{ text: ASPEN_PROMPT }] },
           realtimeInputConfig: {
-            automaticActivityDetection: {
-              disabled: manualActivity,
+            automaticActivityDetection: manualActivity ? { disabled: true } : {
+              disabled: false,
               // Detect quiet caller speech promptly, but tolerate brief pauses.
               startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH',
               endOfSpeechSensitivity: 'END_SENSITIVITY_LOW',
