@@ -34,8 +34,8 @@ type Phase = "idle" | "connecting" | "live" | "preview";
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const WS_URL = SUPABASE_URL.replace(/^https/, "wss") + "/functions/v1/gemini-live-proxy";
 
-export interface GeminiConversationProps { agentId?: string; leadId?: string; prospectId?: string; draft?: boolean; compact?: boolean; name?: string; visitorName?: string; previewVoice?: string; }
-const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compact = false, name = "Aspen", visitorName = "", previewVoice }: GeminiConversationProps) => {
+export interface GeminiConversationProps { agentId?: string; leadId?: string; prospectId?: string; draft?: boolean; compact?: boolean; name?: string; visitorName?: string; previewVoice?: string; autoStart?: boolean; }
+const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compact = false, name = "Aspen", visitorName = "", previewVoice, autoStart = false }: GeminiConversationProps) => {
   const [consent, setConsent] = useState(false);
   const [voice, setVoice] = useState(() => {
     try { const saved = localStorage.getItem("gemini-aspen-voice"); return VOICES.some(v => v.id === saved) ? saved ?? "Kore" : "Kore"; } catch { return "Kore"; }
@@ -386,11 +386,20 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
   useEffect(() => stopEverything, [stopEverything]);
 
+  // Auto-connect once when the widget opens (the open tap is the user gesture
+  // that unlocks microphone and audio).
+  const autoStartedRef = useRef(false);
+  useEffect(() => {
+    if (!compact || !autoStart || autoStartedRef.current) return;
+    autoStartedRef.current = true;
+    void startConversation();
+  }, [compact, autoStart, startConversation]);
+
   // Compact mode: minimal floating-widget layout for phones — status line,
   // two-line scrolling transcript, and a single row of icon buttons.
   if (compact) {
     return (
-      <div className="space-y-2 bg-background p-2 text-foreground">
+      <div className="space-y-2 p-2 text-foreground">
         <div className="flex items-center gap-1.5">
           {phase === "connecting" && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" />}
           {phase === "live" && !aspenSpeaking && <Mic className="h-3.5 w-3.5 shrink-0 animate-pulse text-primary" />}
