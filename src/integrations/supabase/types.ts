@@ -712,6 +712,42 @@ export type Database = {
           },
         ]
       }
+      implementation_calls: {
+        Row: {
+          business_name: string | null
+          created_at: string
+          email: string
+          id: string
+          name: string
+          notes: string | null
+          phone: string | null
+          slot_start: string
+          status: string
+        }
+        Insert: {
+          business_name?: string | null
+          created_at?: string
+          email: string
+          id?: string
+          name: string
+          notes?: string | null
+          phone?: string | null
+          slot_start: string
+          status?: string
+        }
+        Update: {
+          business_name?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          slot_start?: string
+          status?: string
+        }
+        Relationships: []
+      }
       imported_leads: {
         Row: {
           ai_chatbot_detected: boolean | null
@@ -1887,7 +1923,18 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      implementation_call_slots: {
+        Row: {
+          slot_start: string | null
+        }
+        Insert: {
+          slot_start?: string | null
+        }
+        Update: {
+          slot_start?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       advance_browser_handoff: {
