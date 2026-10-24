@@ -77,6 +77,7 @@ Deno.serve((req) => {
 
   const voiceRaw = url.searchParams.get('voice') || 'Kore'
   const voice = ALLOWED_VOICES.has(voiceRaw) ? voiceRaw : 'Kore'
+  const preview = url.searchParams.get('preview') === '1'
 
   const { socket: clientSocket, response } = Deno.upgradeWebSocket(req)
 
@@ -109,9 +110,8 @@ Deno.serve((req) => {
           realtimeInputConfig: {
             automaticActivityDetection: {
               disabled: false,
-              // Require clearer speech onset so ambient noise is less likely
-              // to cause a false interruption; retain automatic barge-in.
-              startOfSpeechSensitivity: 'START_SENSITIVITY_LOW',
+              // Detect quiet caller speech promptly, but tolerate brief pauses.
+              startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH',
               endOfSpeechSensitivity: 'END_SENSITIVITY_LOW',
               prefixPaddingMs: 200,
               silenceDurationMs: 700,
@@ -139,6 +139,14 @@ Deno.serve((req) => {
 
         if (msg.setupComplete) {
           clientSocket.send(JSON.stringify({ type: 'ready' }))
+          geminiWs?.send(JSON.stringify({
+            clientContent: {
+              turns: [{ role: 'user', parts: [{ text: preview
+                ? 'For a voice preview, say exactly this in English and nothing else: "Hi, I am Aspen. I can answer your calls, help your customers, and book appointments. How can I help you today?"'
+                : 'The caller has just connected. Greet them now in English as Aspen, briefly welcome them to AI Hidden Leads, and ask their name. Do not wait for them to speak first.' }] }],
+              turnComplete: true,
+            },
+          }))
           return
         }
 
