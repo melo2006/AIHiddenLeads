@@ -21,6 +21,7 @@ const MarketingHub = lazy(() => import("./pages/MarketingHub.tsx"));
 const TranscriptPage = lazy(() => import("./pages/TranscriptPage.tsx"));
 const VoiceLab = lazy(() => import("./pages/VoiceLab.tsx"));
 const ClientVoiceAgent = lazy(() => import("./pages/ClientVoiceAgent.tsx"));
+const BookCall = lazy(() => import("./pages/BookCall.tsx"));
 
 const queryClient = new QueryClient();
 
@@ -61,6 +62,7 @@ const App = () => {
             <Route path="/checkout/return" element={<CheckoutReturn />} />
             <Route path="/transcript" element={<TranscriptPage />} />
             <Route path="/voice-lab" element={<VoiceLab />} />
+            <Route path="/book" element={<BookCall />} />
             <Route path="/agent/:id" element={<ClientVoiceAgent />} />
             <Route path="/d/:slug" element={<ShortLinkRedirect />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
