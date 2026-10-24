@@ -2,6 +2,7 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { z } from 'npm:zod@3';
 import { DEFAULT_AGENT, VOICES, isPublicUrl } from '../_shared/voice-config.ts';
+import { DEFAULT_LIVE_MODEL, LIVE_MODELS, officialLivePricing } from '../_shared/live-models.ts';
 import { validPricing } from '../_shared/voice-usage.ts';
 
 const configSchema = z.object({ name:z.string().min(1).max(80), businessName:z.string().min(1).max(160), voice:z.enum(VOICES as [string,...string[]]), avatarPath:z.string().max(500).default(''), greeting:z.string().min(1).max(1500), systemPrompt:z.string().min(1).max(12000), knowledge:z.string().max(60000).default(''), crawlDepth:z.union([z.literal(1),z.literal(2)]).default(1), recordTranscript:z.boolean().default(false) });
@@ -32,14 +33,14 @@ Deno.serve(async req=>{
       }
       const {data:sessions,error}=await db.from('gemini_voice_sessions').select('id,created_at,started_at,ended_at,last_activity_at,duration_seconds,status,agent_id,organization_id,lead_id,prospect_id,config,usage').order('created_at',{ascending:false}).limit(500); if(error) throw error;
       const {data:guard}=await db.from('voice_guardrails').select('gemini_pricing').limit(1).maybeSingle();
-      return json({model:'gemini-3.8-live',pricing:guard?.gemini_pricing || {},sessions:(sessions || []).map(({config,...s})=>({...s,businessName:config?.businessName || 'Voice lab',preview:config?.preview===true,transcriptEnabled:config?.recordTranscript===true}))});
+      return json({model:DEFAULT_LIVE_MODEL,models:LIVE_MODELS.map(m=>({...m,pricing:officialLivePricing(m.id)})),pricing:officialLivePricing(DEFAULT_LIVE_MODEL) || guard?.gemini_pricing || {},sessions:(sessions || []).map(({config,...s})=>({...s,businessName:config?.businessName || 'Voice lab',preview:config?.preview===true,transcriptEnabled:config?.recordTranscript===true}))});
     }
     if(body.action==='list') {
       const {data:members}=await db.from('voice_memberships').select('organization_id').eq('user_id',user.id).eq('role','editor');
       let query=db.from('voice_agents').select('*,voice_organizations(name),voice_agent_sources(*)').order('created_at');
       if(!admin) query=query.in('organization_id',(members || []).map(m=>m.organization_id));
       const {data,error}=await query; if(error) throw error;
-      return json({agents:data,admin});
+      return json({agents:data,admin,models:LIVE_MODELS.map(m=>({...m,pricing:officialLivePricing(m.id)}))});
     }
     if(body.action==='create') {
       if(!admin) return json({error:'Administrator access required'},403);
