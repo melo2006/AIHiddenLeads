@@ -74,7 +74,7 @@ async function chat(apiKey: string, history: { role: string; content: string }[]
         ...history.slice(-12),
         { role: 'user', content: userText },
       ],
-      max_tokens: 180,
+      max_tokens: 500,
       temperature: 0.8,
     }),
   })
