@@ -310,6 +310,13 @@ const PricingSection = () => {
               <Trans i18nKey="pricing.compareBody" components={{ strong: <span className="text-primary font-medium" /> }} />
             </p>
           </div>
+
+          <div className="rounded-xl border border-border bg-card/50 p-5">
+            <p className="text-sm text-center text-muted-foreground leading-relaxed">
+              <span className="font-semibold text-foreground">{t("pricing.telephonyTitle")}</span>{" "}
+              <Trans i18nKey="pricing.telephonyBody" components={{ strong: <span className="text-primary font-medium" /> }} />
+            </p>
+          </div>
         </motion.div>
       </div>
     </section>
