@@ -13,6 +13,11 @@ export default defineConfig(({ mode }) => ({
     },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
+  // Prebundle transcript dependencies before serving the first page, rather
+  // than invalidating already-open previews when the voice widget loads.
+  optimizeDeps: {
+    include: ["streamdown", "@streamdown/cjk", "@streamdown/code", "@streamdown/math", "@streamdown/mermaid"],
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

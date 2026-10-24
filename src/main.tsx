@@ -4,6 +4,21 @@ import App from "./App.tsx";
 import "./index.css";
 import "./i18n";
 
+// An open tab can retain an old chunk URL after a preview update. Recover
+// once instead of leaving the route blank, without creating a reload loop.
+window.addEventListener("vite:preloadError", (event) => {
+  try {
+    const key = "page-preload-recovery";
+    const previous = Number(sessionStorage.getItem(key) || 0);
+    if (Date.now() - previous < 60_000) return;
+    sessionStorage.setItem(key, String(Date.now()));
+    event.preventDefault();
+    window.location.reload();
+  } catch {
+    // Leave the original error available when browser storage is blocked.
+  }
+});
+
 class ErrorBoundary extends React.Component<
   { children: React.ReactNode },
   { hasError: boolean; error: Error | null }
@@ -39,7 +54,9 @@ class ErrorBoundary extends React.Component<
   }
 }
 
-createRoot(document.getElementById("root")!).render(
+const root = document.getElementById("root");
+if (!root) throw new Error("The page container is missing");
+createRoot(root).render(
   <ErrorBoundary>
     <App />
   </ErrorBoundary>
