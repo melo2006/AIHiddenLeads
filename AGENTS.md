@@ -11,3 +11,6 @@
 - Keep microphone amplitude filtering browser-side with silence frames and speech-tail hangover; Gemini language and provider VAD remain server-side.
 - Render voice transcript messages with AI Elements MessageResponse; voice-only surfaces omit text composers because input is the existing PCM microphone stream.
 - Prebundle transcript renderer dependencies and recover stale Vite chunk loads once per minute; preview updates must not leave open tabs blank or cause reload loops.
+- Build prospect simulation configurations separately from homepage sales configurations, sharing only voice identity so platform greetings never leak into business roleplay.
+- Persist voice audio measurements and raw provider reports server-side with periodic checkpoints; apply only model-matched explicit rate snapshots and label estimates separately from invoices.
+- Discover website learning links within the submitted URL scope, preserve source-labelled original evidence ahead of generated research, and bound two-level scans by page and time budgets.

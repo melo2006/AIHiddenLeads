@@ -23,6 +23,7 @@ const crmItems = [
   { title: "AI Follow-Up", url: "/dashboard/follow-up", icon: Brain },
   { title: "Templates", url: "/dashboard/templates", icon: FileText },
   { title: "Voice Agents", url: "/dashboard/voice-agents", icon: PhoneIncoming },
+  { title: "Voice Costs", url: "/dashboard/voice-costs", icon: Activity },
   { title: "Voice Guardrails", url: "/dashboard/guardrails", icon: ShieldCheck },
 ];
 
