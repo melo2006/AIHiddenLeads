@@ -369,6 +369,16 @@ Deno.serve(async (req) => {
     if (!response.ok) {
       const errorText = await response.text();
       console.error("Retell API error:", response.status, errorText);
+      if (response.status === 402 || response.status === 429) {
+        // Provider out of credits / rate limited: answer gracefully so the page doesn't crash.
+        return new Response(
+          JSON.stringify({
+            error: "Aspen is temporarily unavailable. Please try again a little later.",
+            code: response.status === 402 ? "VOICE_CREDITS_EXHAUSTED" : "VOICE_RATE_LIMITED",
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
       throw new Error(`Retell API error: ${response.status}`);
     }
 
