@@ -110,9 +110,8 @@ Deno.serve((req) => {
           realtimeInputConfig: {
             automaticActivityDetection: {
               disabled: false,
-              // Require clearer speech onset so ambient noise is less likely
-              // to cause a false interruption; retain automatic barge-in.
-              startOfSpeechSensitivity: 'START_SENSITIVITY_LOW',
+              // Detect quiet caller speech promptly, but tolerate brief pauses.
+              startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH',
               endOfSpeechSensitivity: 'END_SENSITIVITY_LOW',
               prefixPaddingMs: 200,
               silenceDurationMs: 700,
