@@ -4,6 +4,7 @@ const corsHeaders = {
 };
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { learningLinks } from '../_shared/website-learning.ts';
 
 const FIRECRAWL_BASE = 'https://api.firecrawl.dev/v1';
 const LOVABLE_AI_BASE = 'https://ai.gateway.lovable.dev/v1/chat/completions';
@@ -1045,8 +1046,8 @@ async function backgroundEnrich(
     });
 
     const fullContent = truncate(
-      [enrichedKnowledge, existingContent ? `\n\n${existingContent}` : ''].join(''),
-      60000,
+      [existingContent || '', `\n\n=== GENERATED RESEARCH SUMMARY (verify against original sources) ===\n${enrichedKnowledge}`].join(''),
+      160000,
     );
 
     await supabase.from('leads').update({
@@ -1142,7 +1143,7 @@ Deno.serve(async (req) => {
       homepageResponse = await firecrawlRequest('/scrape', firecrawlKey, {
         url: formattedUrl,
         formats: firecrawlFormats,
-        onlyMainContent: true,
+        onlyMainContent: false,
         waitFor: 3000,
         timeout: 15000,
       }, 0);
@@ -1230,16 +1231,16 @@ Deno.serve(async (req) => {
     }
 
     // === PHASE 2: Sub-pages (skip if running out of time) ===
-    // Depth 1 = the given page only (plus extra URLs). Depth 2 = also learn its key sub-pages.
+    // Learn directly linked menu/product pages; depth 2 adds links discovered on those pages.
     let successfulPages: { url: string; title: string; summary: string; markdown: string }[] = [];
-    const shouldCrawlChildren = !scanDeepLink || crawlDepth >= 2;
+    const shouldCrawlChildren = true;
     if (!isOverBudget() && shouldCrawlChildren) {
       const linkPool = new Set<string>();
       if (Array.isArray(homepage.links)) {
         homepage.links.forEach((link: string) => linkPool.add(cleanText(link)));
       }
 
-      if (!isOverBudget()) {
+      if (!isOverBudget() && linkPool.size === 0) {
         try {
           const mapResponse = await firecrawlRequest('/map', firecrawlKey, {
             url: formattedUrl,
@@ -1254,21 +1255,31 @@ Deno.serve(async (req) => {
       }
 
       const pool = Array.from(linkPool);
-      const candidateLinks = scanDeepLink
-        ? pickDeepLinkChildren(pool, formattedUrl, 6)
-        : pickRelevantLinks(pool, formattedUrl).slice(0, crawlDepth >= 2 ? 10 : 6);
+      const candidateLinks = learningLinks(pool, formattedUrl, 20);
       console.log('Relevant links selected:', candidateLinks.length, 'depth:', crawlDepth, 'deepLink:', scanDeepLink);
 
 
       if (!isOverBudget()) {
-        const pageResults = await Promise.allSettled(candidateLinks.map((link) => scrapeMarkdownPage(link, firecrawlKey)));
+        const pageResults = [];
+        for (let i=0;i<candidateLinks.length && !isOverBudget();i+=5) {
+          pageResults.push(...await Promise.allSettled(candidateLinks.slice(i,i+5).map((link) => scrapeMarkdownPage(link, firecrawlKey))));
+        }
         successfulPages = pageResults
           .filter((r): r is PromiseFulfilledResult<Awaited<ReturnType<typeof scrapeMarkdownPage>>> => r.status === 'fulfilled')
           .map((r) => r.value)
           .filter((page) => page.markdown || page.summary);
+        if (crawlDepth === 2 && !isOverBudget()) {
+          const nestedLinks = successfulPages.flatMap(page => Array.from(page.markdown.matchAll(/\]\(([^\s)]+)\)/g),m=>{try{return new URL(m[1],page.url).toString()}catch{return ''}}));
+          const visited = new Set([formattedUrl,...candidateLinks]);
+          const secondLevel = learningLinks(nestedLinks,formattedUrl,60).filter(link=>!visited.has(link)).slice(0,20);
+          for(let i=0;i<secondLevel.length && !isOverBudget();i+=5) {
+            const results=await Promise.allSettled(secondLevel.slice(i,i+5).map(link=>scrapeMarkdownPage(link,firecrawlKey)));
+            results.forEach(r=>{if(r.status==='fulfilled' && (r.value.markdown || r.value.summary)) successfulPages.push(r.value)});
+          }
+        }
       }
     } else {
-      console.warn('Skipping sub-page scraping (deep link at depth 1, or time budget exceeded)');
+      console.warn('Skipping sub-page scraping: time budget exceeded');
     }
 
     // Extra / secondary URLs (skip if over budget)
@@ -1342,9 +1353,9 @@ Deno.serve(async (req) => {
     }
 
     const combinedPageContent = successfulPages
-      .map((page) => [page.title ? `## ${page.title}` : '', page.summary ? `Summary: ${page.summary}` : '', page.markdown].filter(Boolean).join('\n'))
+      .map((page) => [`SOURCE URL: ${page.url}`,page.title ? `## ${page.title}` : '', page.markdown.slice(0,Math.floor(100000/Math.max(successfulPages.length,1)))].filter(Boolean).join('\n'))
       .join('\n\n')
-      .slice(0, 50000);
+      .slice(0, 100000);
 
     // === PHASE 3: AI profile analysis ===
     const profile = await analyzeBusinessProfile({
@@ -1373,7 +1384,7 @@ Deno.serve(async (req) => {
       filesContent ? `\n\n=== UPLOADED DOCUMENTS ===\n${filesContent}` : '',
     ].join('');
 
-    const initialContent = truncate([initialKnowledge, additionalContent].join(''), 60000);
+    const initialContent = truncate([`LEARNING COVERAGE: depth ${crawlDepth}; ${successfulPages.length+1} primary website pages read; bounded by time and page limits, not the entire website.\n`, additionalContent, '\n\n=== GENERATED BUSINESS SUMMARY ===\n', initialKnowledge].join(''), 160000);
 
     const title = cleanText(metadata.title) || profile.businessName || getHost(formattedUrl);
     const description = cleanText(metadata.description) || profile.summary;

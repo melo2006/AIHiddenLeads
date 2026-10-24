@@ -436,10 +436,10 @@ const TryDemo = () => {
                   <p className="text-[11px] font-semibold text-foreground/80 mb-1.5">How deep should we learn?</p>
                   <div className="grid grid-cols-2 gap-2">
                     {[
-                      { value: 1 as const, label: "Level 1 — this page only", hint: "Fastest (~90s)" },
-                      { value: 2 as const, label: "Level 2 — + its sub-pages", hint: "Richer, slower" },
+                      { value: 1 as const, label: "Level 1 — page & menu", hint: "Up to 20 linked pages" },
+                      { value: 2 as const, label: "Level 2 — add submenus", hint: "Up to 40 linked pages" },
                     ].map((opt) => (
-                      <button
+                      <Button variant="outline"
                         key={opt.value}
                         type="button"
                         onClick={() => setCrawlDepth(opt.value)}
@@ -451,12 +451,11 @@ const TryDemo = () => {
                       >
                         <span className="block text-[11px] font-semibold text-foreground leading-tight">{opt.label}</span>
                         <span className="block text-[10px] text-muted-foreground">{opt.hint}</span>
-                      </button>
+                      </Button>
                     ))}
                   </div>
                   <p className="text-[10px] text-muted-foreground mt-1.5">
-                    Level 2 stays inside the page you gave us (e.g. one agent's listings) — it never pulls in the parent
-                    company's other pages.
+                    Learning is limited to readable pages and available time. A specific listing stays in its own section, never other listings.
                   </p>
                 </div>
 
