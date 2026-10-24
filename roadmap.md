@@ -1,9 +1,12 @@
 # Current work
 
+- [x] Add Play/Stop auditions beside the agent voice selector and link agent/history screens to Voice Costs.
+- [x] Verify exact Google Live pricing and supported alternatives; show model-matched per-call and per-minute estimates separately from measurements.
+- [x] Add documented model comparison for authorized tests without changing published agents; authenticated phone and desktop pages show costs without page overflow. Audition connections reached ready for 3.8 and 3.1; extended-thinking audio was not verified.
 - [x] Remove sales pitches from business simulations and preserve business-specific greetings; live BankUnited greeting and banking answer verified.
 - [x] Expand first-level menu learning and optional second-level coverage without replacing deep listing scope; BankUnited refresh read 8 pages within the deadline, not all pages.
 - [x] Add protected per-call voice usage reporting, unknown historical costs, rate snapshots and CSV export; live test saved 19 seconds and two provider usage reports.
-- [ ] Enable dollar estimates once exact gemini-3.8-live pricing is verified or supplied; official model-specific rates were unavailable during research.
+- [x] Enable dollar estimates using Google's exact Live audio minute equivalents verified October 24, 2026; retain unknown costs for unmeasured history.
 - [x] Verify simulation rules, learning scope, cost calculations and authenticated cost screen at desktop and phone sizes.
 - [x] Fix screenshot homepage/menu clipping; verified phone text at 320, 338 and 390 pixels through 150% reading size.
 - [x] Add saved menu text-size controls, labelled voice controls and microphone sensitivity; verified pause stays suspended, replay does not duplicate captions and settings persist.

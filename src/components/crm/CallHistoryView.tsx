@@ -4,7 +4,7 @@ import { Phone, PhoneForwarded, Clock, User, Mail, Globe, ChevronDown, ChevronUp
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
 
@@ -344,8 +344,9 @@ const CallRow = ({ call }: { call: CallRecord }) => {
 
       {expanded && (
         <div className="px-4 pb-4 space-y-3 border-t border-border pt-3">
+          {call.retell_call_id.startsWith('gemini_') && <Link to="/dashboard/voice-costs" className="text-xs text-primary underline">Gemini Voice Costs — call and per-minute estimates</Link>}
           {/* Recording */}
-          <div>
+          {!call.retell_call_id.startsWith('gemini_') && <div>
             <div className="flex items-center justify-between mb-1">
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Recording</p>
               <Button
@@ -368,7 +369,7 @@ const CallRow = ({ call }: { call: CallRecord }) => {
                 No recording saved yet. Click "Fetch recording" to pull it from Retell (available shortly after the call ends).
               </p>
             )}
-          </div>
+          </div>}
 
           {/* Summary */}
           {call.summary && (

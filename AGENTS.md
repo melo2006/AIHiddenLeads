@@ -13,4 +13,5 @@
 - Prebundle transcript renderer dependencies and recover stale Vite chunk loads once per minute; preview updates must not leave open tabs blank or cause reload loops.
 - Build prospect simulation configurations separately from homepage sales configurations, sharing only voice identity so platform greetings never leak into business roleplay.
 - Persist voice audio measurements and raw provider reports server-side with periodic checkpoints; apply only model-matched explicit rate snapshots and label estimates separately from invoices.
+- Keep documented Live model comparison limited to authorized draft tests and voice auditions; published conversations retain the default, and model-specific published audio rates are versioned separately from recorded measurements.
 - Discover website learning links within the submitted URL scope, preserve source-labelled original evidence ahead of generated research, and bound two-level scans by page and time budgets.

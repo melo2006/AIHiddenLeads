@@ -2,7 +2,8 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { z } from 'npm:zod@3';
 import { DEFAULT_AGENT, VOICES, greeting, businessDemoConfig } from '../_shared/voice-config.ts';
-const schema=z.object({ visitorKey:z.string().min(16).max(100), agentId:z.string().uuid().optional(), leadId:z.string().uuid().optional(), prospectId:z.string().uuid().optional(), draft:z.boolean().default(false), preview:z.boolean().default(false), voice:z.enum(VOICES as [string,...string[]]).optional(), hour:z.number().int().min(0).max(23).optional(), visitorName:z.string().max(100).default(''), consent:z.boolean().default(false) });
+import { DEFAULT_LIVE_MODEL, officialLivePricing } from '../_shared/live-models.ts';
+const schema=z.object({ visitorKey:z.string().min(16).max(100), model:z.string().max(100).optional(), agentId:z.string().uuid().optional(), leadId:z.string().uuid().optional(), prospectId:z.string().uuid().optional(), draft:z.boolean().default(false), preview:z.boolean().default(false), voice:z.enum(VOICES as [string,...string[]]).optional(), hour:z.number().int().min(0).max(23).optional(), visitorName:z.string().max(100).default(''), consent:z.boolean().default(false) });
 const json=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
 export async function hash(value:string) { return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)))).map(b=>b.toString(16).padStart(2,'0')).join(''); }
 Deno.serve(async req=>{
@@ -37,7 +38,9 @@ Deno.serve(async req=>{
     const {data:agent}=await query.maybeSingle(); if(!agent?.published) return json({error:'Voice agent is not published yet'},409);
     config=agent.published as Record<string,unknown>; agentId=agent.id; orgId=agent.organization_id;
   }
-  config={...config,opening:greeting(config,b.hour,b.visitorName),preview:b.preview,recordTranscript:Boolean(config.recordTranscript)&&b.consent};
+  const requestedModel = b.model;
+  if(requestedModel && (!(b.draft || b.preview) || !officialLivePricing(requestedModel))) return json({error:'Model comparison is available only for authorized draft tests and previews.'},400);
+  config={...config,model:requestedModel || DEFAULT_LIVE_MODEL,opening:greeting(config,b.hour,b.visitorName),preview:b.preview,recordTranscript:Boolean(config.recordTranscript)&&b.consent};
   const token=crypto.randomUUID()+crypto.randomUUID();
   const visitor=await hash(`${b.visitorKey}|${req.headers.get('x-forwarded-for')?.split(',')[0] || ''}`);
   const {data:id,error}=await db.rpc('authorize_gemini_session',{_visitor:visitor,_token:await hash(token),_config:config,_agent:agentId,_org:orgId,_lead:b.leadId || null,_prospect:b.prospectId || null});

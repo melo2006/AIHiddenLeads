@@ -2,10 +2,11 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { LANGUAGE_POLICY } from '../_shared/voice-config.ts'
 import { pcmSeconds, audioCost, validPricing } from '../_shared/voice-usage.ts'
+import { DEFAULT_LIVE_MODEL, officialLivePricing } from '../_shared/live-models.ts'
 
 const GEMINI_WS =
   'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent'
-const MODEL = 'gemini-3.8-live'
+const MODEL = DEFAULT_LIVE_MODEL
 
 const ASPEN_PROMPT = `You are Aspen, the friendly and professional AI voice assistant for AI Hidden Leads (aihiddenleads.com). You are a warm, enthusiastic woman who genuinely cares about helping businesses grow. You are on a live voice call — speak naturally, like a real person on the phone.
 
@@ -87,7 +88,9 @@ Deno.serve(async (req) => {
   if (sessionError || !session) return new Response(JSON.stringify({ error: 'A valid voice session is required' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   const config = session.config as Record<string, unknown>
   const { data: guardrails } = await db.from('voice_guardrails').select('gemini_pricing').limit(1).maybeSingle()
-  const pricing = validPricing(guardrails?.gemini_pricing, MODEL)
+  const selectedModel = String(config.model || MODEL)
+  const model = officialLivePricing(selectedModel) ? selectedModel : MODEL
+  const pricing = officialLivePricing(model) || validPricing(guardrails?.gemini_pricing, model)
   const voiceRaw = String(config.voice || 'Kore')
   const voice = ALLOWED_VOICES.has(voiceRaw) ? voiceRaw : 'Kore'
   const preview = config.preview === true
@@ -104,7 +107,7 @@ Deno.serve(async (req) => {
   let inputAudioSeconds = 0
   let outputAudioSeconds = 0
   const providerReports: unknown[] = []
-  const usage = () => ({ model: MODEL, input_audio_seconds: inputAudioSeconds, output_audio_seconds: outputAudioSeconds, audio_estimate_usd: audioCost(inputAudioSeconds, outputAudioSeconds, pricing), pricing, provider_reports: providerReports, cost_basis: pricing ? 'configured_audio_estimate_excludes_text_context_and_scanning' : 'pricing_unverified' })
+  const usage = () => ({ model, input_audio_seconds: inputAudioSeconds, output_audio_seconds: outputAudioSeconds, audio_estimate_usd: audioCost(inputAudioSeconds, outputAudioSeconds, pricing), pricing, provider_reports: providerReports, cost_basis: pricing ? 'published_audio_estimate_excludes_text_context_and_scanning' : 'pricing_unverified' })
   let heartbeat: ReturnType<typeof setInterval> | undefined
   const persistUsage = async () => {
     const { error } = await db.from('gemini_voice_sessions').update({ status: 'live', duration_seconds: Math.round((Date.now()-started)/1000), last_activity_at: new Date().toISOString(), usage: usage() }).eq('id',session.id)
@@ -138,7 +141,7 @@ Deno.serve(async (req) => {
       // First message must be the setup
       geminiWs.send(JSON.stringify({
         setup: {
-          model: `models/${MODEL}`,
+          model: `models/${model}`,
           generationConfig: {
             responseModalities: ['AUDIO'],
             speechConfig: {
