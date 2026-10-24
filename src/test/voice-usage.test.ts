@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { expect, test } from 'vitest';
-import { pcmSeconds, audioCost, validPricing, costPerCallMinute } from '../../supabase/functions/_shared/voice-usage';
+import { pcmSeconds, audioCost, validPricing, costPerCallMinute, typicalConversationCost } from '../../supabase/functions/_shared/voice-usage';
 import { officialLivePricing } from '../../supabase/functions/_shared/live-models';
 test('one second of 16kHz 16-bit microphone PCM is measured correctly', () => expect(pcmSeconds(Buffer.alloc(32000).toString('base64'),16000)).toBe(1));
 test('one second of 24kHz response PCM is measured correctly', () => expect(pcmSeconds(Buffer.alloc(48000).toString('base64'),24000)).toBe(1));
@@ -27,4 +27,11 @@ test('legacy 3.1 has the same published audio rates, unsupported 3.6 Live is not
   expect(officialLivePricing('gemini-3.1-flash-live-preview')?.inputAudioPerMinute).toBe(0.005);
   expect(officialLivePricing('gemini-3.1-flash-live-preview')?.outputAudioPerMinute).toBe(0.018);
   expect(officialLivePricing('gemini-3.6-live')).toBeNull();
+});
+test('conversation totals change when the selected model has different rates', () => {
+  const pricing = { model: 'example', inputAudioPerMinute: 0.005, outputAudioPerMinute: 0.018, source: 'https://example.com' };
+  expect(typicalConversationCost(1, pricing)).toBeCloseTo(0.014);
+  expect(typicalConversationCost(5, pricing)).toBeCloseTo(0.070);
+  expect(typicalConversationCost(5, { ...pricing, outputAudioPerMinute: 0.008 })).toBeCloseTo(0.045);
+  expect(typicalConversationCost(5, null)).toBeNull();
 });
