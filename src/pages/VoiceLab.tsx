@@ -8,7 +8,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Mic, MicOff, Volume2, FlaskConical, PhoneOff, Loader2, Play, Save } from "lucide-react";
+import { Mic, MicOff, Volume2, FlaskConical, PhoneOff, Loader2, Play, Save, RotateCcw, RefreshCw } from "lucide-react";
+import { shouldSendMicrophone, type CaptureMode } from "@/lib/voiceLabAudio";
 
 const VOICES = [
   { id: "Kore", label: "Kore — warm female (default)" },
@@ -39,6 +40,13 @@ const VoiceLab = () => {
   const [partialUser, setPartialUser] = useState("");
   const [partialAspen, setPartialAspen] = useState("");
   const [micLevel, setMicLevel] = useState(0);
+  const [microphones, setMicrophones] = useState<MediaDeviceInfo[]>([]);
+  const [microphone, setMicrophone] = useState("default");
+  const [captureMode, setCaptureMode] = useState<CaptureMode>("handsfree");
+  const [held, setHeld] = useState(false);
+  const [muted, setMuted] = useState(false);
+  const [replaying, setReplaying] = useState(false);
+  const [hasReplay, setHasReplay] = useState(false);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [phase, setPhase] = useState<Phase>("idle");
   const [aspenSpeaking, setAspenSpeaking] = useState(false);
@@ -60,7 +68,41 @@ const VoiceLab = () => {
   const isPreviewRef = useRef(false);
   const aspenLineRef = useRef("");
   const userLineRef = useRef("");
+  const captureRef = useRef({ mode: "handsfree" as CaptureMode, held: false, muted: false, replaying: false });
+  const currentAudioRef = useRef<string[]>([]);
+  const lastAudioRef = useRef<string[]>([]);
   const transcriptEndRef = useRef<HTMLDivElement | null>(null);
+
+  const refreshMicrophones = useCallback(async (requestPermission = false) => {
+    try {
+      if (requestPermission) {
+        const permissionStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        permissionStream.getTracks().forEach(track => track.stop());
+      }
+      setMicrophones((await navigator.mediaDevices.enumerateDevices()).filter(device => device.kind === "audioinput"));
+    } catch { setError("Could not list microphones. Allow microphone access in Chrome."); }
+  }, []);
+
+  useEffect(() => {
+    void refreshMicrophones();
+    const update = () => void refreshMicrophones();
+    navigator.mediaDevices?.addEventListener("devicechange", update);
+    return () => navigator.mediaDevices?.removeEventListener("devicechange", update);
+  }, [refreshMicrophones]);
+
+  const endHold = useCallback(() => {
+    if (!captureRef.current.held) return;
+    captureRef.current.held = false;
+    setHeld(false);
+    if (wsRef.current?.readyState === WebSocket.OPEN) wsRef.current.send(JSON.stringify({ type: "activity_end" }));
+  }, []);
+
+  useEffect(() => {
+    const release = () => { if (document.hidden) endHold(); };
+    window.addEventListener("blur", endHold);
+    document.addEventListener("visibilitychange", release);
+    return () => { window.removeEventListener("blur", endHold); document.removeEventListener("visibilitychange", release); };
+  }, [endHold]);
 
   useEffect(() => {
     transcriptEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -79,6 +121,10 @@ const VoiceLab = () => {
   const stopEverything = useCallback(() => {
     generationRef.current += 1;
     liveRef.current = false;
+    captureRef.current.held = false;
+    captureRef.current.replaying = false;
+    setHeld(false);
+    setReplaying(false);
     if (micNodeRef.current) { micNodeRef.current.onaudioprocess = null; micNodeRef.current.disconnect(); }
     micNodeRef.current = null;
     for (const source of sourcesRef.current) { try { source.stop(); } catch {} }
@@ -129,20 +175,54 @@ const VoiceLab = () => {
     source.onended = () => {
       sourcesRef.current.delete(source);
       if (ctx.currentTime >= playTimeRef.current - 0.05) setAspenSpeaking(false);
+      if (sourcesRef.current.size === 0 && captureRef.current.replaying) {
+        captureRef.current.replaying = false;
+        setReplaying(false);
+      }
       if (isPreviewRef.current && previewDoneRef.current && sourcesRef.current.size === 0) stopEverything();
     };
   }, [stopEverything]);
 
   // Interrupt: drop all queued playback instantly
   const clearPlayback = useCallback(() => {
+    captureRef.current.replaying = false;
+    setReplaying(false);
     for (const source of sourcesRef.current) { try { source.stop(); } catch {} }
     sourcesRef.current.clear();
     playTimeRef.current = playCtxRef.current?.currentTime ?? 0;
     setAspenSpeaking(false);
   }, []);
 
+  const pauseCapture = useCallback(() => {
+    endHold();
+    if (captureRef.current.mode === "handsfree" && wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: "audio_pause" }));
+    }
+  }, [endHold]);
+
+  const replayLastMessage = useCallback(async () => {
+    if (!lastAudioRef.current.length) return;
+    try {
+      if (!playCtxRef.current || playCtxRef.current.state === "closed") playCtxRef.current = new AudioContext();
+      await playCtxRef.current.resume();
+      pauseCapture();
+      clearPlayback();
+      isPreviewRef.current = false;
+      captureRef.current.replaying = true;
+      setReplaying(true);
+      lastAudioRef.current.forEach(playPcmChunk);
+    } catch { captureRef.current.replaying = false; setReplaying(false); setError("Could not replay audio. Check your speaker connection."); }
+  }, [pauseCapture, clearPlayback, playPcmChunk]);
+
   const startConversation = useCallback(async (preview = false) => {
+    clearPlayback();
     const generation = ++generationRef.current;
+    captureRef.current = { mode: captureMode, held: false, muted: false, replaying: false };
+    setHeld(false);
+    setMuted(false);
+    currentAudioRef.current = [];
+    lastAudioRef.current = [];
+    setHasReplay(false);
     isPreviewRef.current = preview;
     previewDoneRef.current = false;
     setError(null);
@@ -165,12 +245,13 @@ const VoiceLab = () => {
       const micResume = micCtx?.resume();
       await Promise.all([playResume, micResume]);
       const stream = preview ? null : await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        audio: { deviceId: microphone === "default" ? undefined : { exact: microphone }, echoCancellation: true, noiseSuppression: true, autoGainControl: captureMode !== "hold" },
       });
       if (generation !== generationRef.current) { stream?.getTracks().forEach(t => t.stop()); return; }
       micStreamRef.current = stream;
+      if (stream) void refreshMicrophones();
       if (playCtx.state !== "running" || (micCtx && micCtx.state !== "running")) throw new Error("Your browser paused audio. Press Start again to enable the microphone and speaker.");
-      const ws = new WebSocket(`${WS_URL}?voice=${encodeURIComponent(voice)}${preview ? "&preview=1" : ""}`);
+      const ws = new WebSocket(`${WS_URL}?voice=${encodeURIComponent(voice)}&capture=${captureMode}${preview ? "&preview=1" : ""}`);
       wsRef.current = ws;
 
       ws.onopen = () => setStatus("Connected — waiting for Gemini…");
@@ -197,7 +278,7 @@ const VoiceLab = () => {
             clearTimeout(readyTimeout);
             liveRef.current = true;
             setPhase(preview ? "preview" : "live");
-            setStatus(preview ? "Playing voice preview…" : "Live — just talk. Interrupt her anytime.");
+            setStatus(preview ? "Playing voice preview…" : captureMode === "hold" ? "Live — hold to talk" : "Live — hands-free");
             if (!micCtx || !stream) break;
             void micCtx.resume();
             const source = micCtx.createMediaStreamSource(stream);
@@ -211,6 +292,8 @@ const VoiceLab = () => {
                 const rms = Math.sqrt(input.reduce((sum, x) => sum + x * x, 0) / input.length);
                 setMicLevel(Math.min(100, Math.round(rms * 500)));
               }
+              const capture = captureRef.current;
+              if (!shouldSendMicrophone(capture.mode, capture.held, capture.muted, capture.replaying)) return;
               const pcm = new Int16Array(input.length);
               for (let i = 0; i < input.length; i++) {
                 const s = Math.max(-1, Math.min(1, input[i]));
@@ -226,11 +309,15 @@ const VoiceLab = () => {
             break;
           }
           case "audio":
+            // Keep the last response locally, never request a new model generation to replay.
+            if (currentAudioRef.current.length < 6000) currentAudioRef.current.push(msg.data as string);
             playPcmChunk(msg.data as string);
             break;
           case "interrupted":
             clearPlayback();
             flushLine("assistant");
+            if (currentAudioRef.current.length) { lastAudioRef.current = currentAudioRef.current; setHasReplay(true); }
+            currentAudioRef.current = [];
             break;
           case "aspen_transcript":
             aspenLineRef.current += msg.text as string;
@@ -241,6 +328,8 @@ const VoiceLab = () => {
             setPartialUser(userLineRef.current);
             break;
           case "turn_complete":
+            if (currentAudioRef.current.length) { lastAudioRef.current = currentAudioRef.current; setHasReplay(true); }
+            currentAudioRef.current = [];
             flushLine("user");
             flushLine("assistant");
             if (preview) {
@@ -284,7 +373,7 @@ const VoiceLab = () => {
           : e instanceof Error ? e.message : "Could not start. Check your microphone and try again."
       );
     }
-  }, [voice, playPcmChunk, clearPlayback, flushLine, stopEverything]);
+  }, [voice, microphone, captureMode, refreshMicrophones, playPcmChunk, clearPlayback, flushLine, stopEverything]);
 
   useEffect(() => stopEverything, [stopEverything]);
 
@@ -293,7 +382,7 @@ const VoiceLab = () => {
       <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-3xl items-center gap-2 px-4">
           <FlaskConical className="h-5 w-5 text-primary" />
-          <h1 className="text-sm font-extrabold tracking-tight">
+          <h1 className="text-sm font-extrabold">
             Voice Lab — Gemini Live Aspen{" "}
             <span className="text-muted-foreground font-normal">(real-time, Retell untouched)</span>
           </h1>
@@ -331,6 +420,29 @@ const VoiceLab = () => {
             )}
           </div>
 
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground">Microphone</label>
+              <div className="mt-1 flex gap-2">
+                <Select value={microphone} onValueChange={setMicrophone} disabled={phase !== "idle"}>
+                  <SelectTrigger aria-label="Microphone" className="min-w-0 flex-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">System default microphone</SelectItem>
+                    {microphones.filter(device => device.deviceId && device.deviceId !== "default").map((device, index) => <SelectItem key={device.deviceId} value={device.deviceId}>{device.label || `Microphone ${index + 1}`}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Button size="icon" variant="outline" disabled={phase !== "idle"} onClick={() => void refreshMicrophones(true)} aria-label="Refresh microphones" title="Allow access and refresh microphones"><RefreshCw className="h-4 w-4" /></Button>
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground">Conversation mode</label>
+              <Select value={captureMode} onValueChange={value => setCaptureMode(value as CaptureMode)} disabled={phase !== "idle"}>
+                <SelectTrigger aria-label="Conversation mode" className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="handsfree">Hands-free</SelectItem><SelectItem value="hold">Noisy place — hold to talk</SelectItem></SelectContent>
+              </Select>
+            </div>
+          </div>
+
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm" disabled={phase !== "idle"} onClick={() => void startConversation(true)} aria-label="Play selected voice preview" title="Play selected voice preview">
               <Play className="h-4 w-4 mr-2" /> Preview voice
@@ -339,6 +451,30 @@ const VoiceLab = () => {
               try { localStorage.setItem("gemini-aspen-voice", voice); setSavedVoice(voice); setStatus(`${voice} saved for Gemini calls in this browser.`); } catch { setError("Your browser could not save the voice preference."); }
             }}><Save className="h-4 w-4 mr-2" /> Save Gemini voice</Button>
             {phase === "preview" && <span className="text-xs text-muted-foreground">{voice} preview</span>}
+            <Button variant="outline" size="sm" disabled={!hasReplay || aspenSpeaking || phase === "connecting" || phase === "preview"} onClick={() => void replayLastMessage()} title="Replay saved audio without another AI request"><RotateCcw className="mr-2 h-4 w-4" />Replay last message</Button>
+            {replaying && <Button variant="outline" size="sm" onClick={clearPlayback}><PhoneOff className="mr-2 h-4 w-4" />Stop replay</Button>}
+            {phase === "live" && <Button variant={muted ? "destructive" : "outline"} size="sm" aria-pressed={muted} onClick={() => {
+              if (!muted) pauseCapture();
+              captureRef.current.muted = !muted;
+              setMuted(!muted);
+            }}>{muted ? <MicOff className="mr-2 h-4 w-4" /> : <Mic className="mr-2 h-4 w-4" />}{muted ? "Unmute microphone" : "Mute microphone"}</Button>}
+            {phase === "live" && captureMode === "hold" && <Button
+              className="touch-none select-none" variant={held ? "default" : "secondary"} disabled={muted || replaying}
+              aria-pressed={held} onContextMenu={event => event.preventDefault()}
+              onPointerDown={event => {
+                if (event.button !== 0 || captureRef.current.held) return;
+                event.currentTarget.setPointerCapture(event.pointerId);
+                clearPlayback();
+                captureRef.current.held = true; setHeld(true);
+                wsRef.current?.send(JSON.stringify({ type: "activity_start" }));
+              }} onPointerUp={endHold} onPointerCancel={endHold} onLostPointerCapture={endHold}
+              onKeyDown={event => {
+                if ((event.key === " " || event.key === "Enter") && !event.repeat && !captureRef.current.held) {
+                  event.preventDefault(); clearPlayback(); captureRef.current.held = true; setHeld(true);
+                  wsRef.current?.send(JSON.stringify({ type: "activity_start" }));
+                }
+              }} onKeyUp={event => { if (event.key === " " || event.key === "Enter") { event.preventDefault(); endHold(); } }} onBlur={endHold}
+            ><Mic className="mr-2 h-4 w-4" />{held ? "Listening — release to send" : "Hold to talk"}</Button>}
           </div>
           <div className="flex items-center gap-2">
             {phase === "connecting" && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
@@ -352,7 +488,7 @@ const VoiceLab = () => {
             <p className="text-xs text-muted-foreground">
               {phase === "live" && (
                 <span className="font-semibold text-foreground">
-                  {aspenSpeaking ? "Aspen is speaking — you can talk over her" : "Listening"}
+                  {replaying ? "Replaying — microphone paused" : muted ? "Microphone muted" : aspenSpeaking ? "Aspen is speaking" : captureMode === "hold" && !held ? "Microphone paused" : "Listening"}
                   {" — "}
                 </span>
               )}
@@ -369,14 +505,13 @@ const VoiceLab = () => {
         <Card className="p-4 min-h-[300px] max-h-[50vh] overflow-y-auto space-y-3">
           {turns.length === 0 && !partialAspen && !partialUser && (
             <p className="text-sm text-muted-foreground text-center pt-16">
-              No conversation yet. Press “Start live conversation” and just talk — she hears you
-              continuously and you can interrupt her mid-sentence.
+              No conversation yet.
             </p>
           )}
           {turns.map((t, i) => (
             <div key={i} className={t.role === "user" ? "text-right" : "text-left"}>
-              <span
-                className={`inline-block rounded-lg px-3 py-2 text-sm max-w-[85%] ${
+              <span aria-label={t.role === "user" ? "Caller transcript" : "Aspen transcript"}
+                className={`inline-block rounded-lg px-3 py-2 text-sm max-w-[85%] break-words ${
                   t.role === "user"
                     ? "bg-primary text-primary-foreground"
                     : "bg-muted text-foreground"
