@@ -1,6 +1,7 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { LANGUAGE_POLICY } from '../_shared/voice-config.ts'
+import { pcmSeconds, audioCost, validPricing } from '../_shared/voice-usage.ts'
 
 const GEMINI_WS =
   'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent'
@@ -85,6 +86,8 @@ Deno.serve(async (req) => {
   const session = sessions?.[0]
   if (sessionError || !session) return new Response(JSON.stringify({ error: 'A valid voice session is required' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   const config = session.config as Record<string, unknown>
+  const { data: guardrails } = await db.from('voice_guardrails').select('gemini_pricing').limit(1).maybeSingle()
+  const pricing = validPricing(guardrails?.gemini_pricing, MODEL)
   const voiceRaw = String(config.voice || 'Kore')
   const voice = ALLOWED_VOICES.has(voiceRaw) ? voiceRaw : 'Kore'
   const preview = config.preview === true
@@ -98,14 +101,30 @@ Deno.serve(async (req) => {
 
   const transcript: { role: string; text: string }[] = []
   const started = Date.now()
+  let inputAudioSeconds = 0
+  let outputAudioSeconds = 0
+  const providerReports: unknown[] = []
+  const usage = () => ({ model: MODEL, input_audio_seconds: inputAudioSeconds, output_audio_seconds: outputAudioSeconds, audio_estimate_usd: audioCost(inputAudioSeconds, outputAudioSeconds, pricing), pricing, provider_reports: providerReports, cost_basis: pricing ? 'configured_audio_estimate_excludes_text_context_and_scanning' : 'pricing_unverified' })
+  let heartbeat: ReturnType<typeof setInterval> | undefined
+  const persistUsage = async () => {
+    const { error } = await db.from('gemini_voice_sessions').update({ status: 'live', duration_seconds: Math.round((Date.now()-started)/1000), last_activity_at: new Date().toISOString(), usage: usage() }).eq('id',session.id)
+    if (error) console.error('usage checkpoint failed',error.message)
+  }
   let sessionTimer: ReturnType<typeof setTimeout> | undefined
   const closeAll = () => {
     if (closed) return
     closed = true
     clearTimeout(sessionTimer)
+    clearInterval(heartbeat)
     const duration = Math.round((Date.now() - started) / 1000)
-    void db.from('gemini_voice_sessions').update({ status: 'ended', ended_at: new Date().toISOString(), duration_seconds: duration, transcript: config.recordTranscript ? transcript : [] }).eq('id', session.id).then(({ error }) => { if (error) console.error('session persistence failed', error.message) })
-    if (!preview) void db.from('call_history').insert({ retell_call_id: `gemini_${session.id}`, lead_id: session.lead_id, prospect_id: session.prospect_id, business_name: String(config.businessName), call_status: 'ended', duration_seconds: duration, ended_at: new Date().toISOString(), transcript: config.recordTranscript ? transcript.map(t => `${t.role}: ${t.text}`).join('\n') : null, metadata: { provider: 'gemini', session_id: session.id, agent_id: session.agent_id, transcript_consent: config.recordTranscript } }).then(({error}) => {if(error) console.error('call history persistence',error.message)})
+    EdgeRuntime.waitUntil((async () => {
+      const { error } = await db.from('gemini_voice_sessions').update({ status: 'ended', ended_at: new Date().toISOString(), last_activity_at: new Date().toISOString(), duration_seconds: duration, usage: usage(), transcript: config.recordTranscript ? transcript : [] }).eq('id', session.id)
+      if (error) console.error('session persistence failed', error.message)
+      if (!preview) {
+        const {error:historyError} = await db.from('call_history').insert({ retell_call_id: `gemini_${session.id}`, lead_id: session.lead_id, prospect_id: session.prospect_id, business_name: String(config.businessName), call_status: 'ended', duration_seconds: duration, started_at: new Date(started).toISOString(), ended_at: new Date().toISOString(), transcript: config.recordTranscript ? transcript.map(t => `${t.role}: ${t.text}`).join('\n') : null, metadata: { provider: 'gemini', session_id: session.id, agent_id: session.agent_id, transcript_consent: config.recordTranscript, usage: usage() } })
+        if (historyError) console.error('call history persistence',historyError.message)
+      }
+    })())
     try { geminiWs?.close() } catch { /* ignore */ }
     try { clientSocket.close() } catch { /* ignore */ }
   }
@@ -156,8 +175,14 @@ Deno.serve(async (req) => {
           raw = new TextDecoder().decode(event.data as ArrayBuffer)
         }
         const msg = JSON.parse(raw)
+        if (msg.usageMetadata && providerReports.length < 1000) {
+          // Preserve raw reports: never assume session-cumulative or incremental semantics.
+          providerReports.push({ received_at: new Date().toISOString(), metadata: msg.usageMetadata })
+        }
 
         if (msg.setupComplete) {
+          heartbeat = setInterval(() => { if (!closed) EdgeRuntime.waitUntil(persistUsage()) }, 10000)
+          EdgeRuntime.waitUntil(persistUsage())
           clientSocket.send(JSON.stringify({ type: 'ready' }))
           geminiWs?.send(JSON.stringify({
             clientContent: {
@@ -180,6 +205,7 @@ Deno.serve(async (req) => {
           if (sc.modelTurn?.parts) {
             for (const part of sc.modelTurn.parts) {
               if (part.inlineData?.data) {
+                outputAudioSeconds += pcmSeconds(part.inlineData.data, 24000)
                 clientSocket.send(JSON.stringify({ type: 'audio', data: part.inlineData.data }))
               }
               if (part.text) {
@@ -232,6 +258,7 @@ Deno.serve(async (req) => {
       if (typeof event.data !== 'string' || event.data.length > 65536) { closeAll(); return }
       const msg = JSON.parse(event.data)
       if (msg.type === 'audio' && typeof msg.data === 'string' && msg.data.length <= 48000 && /^[A-Za-z0-9+/=]+$/.test(msg.data)) {
+        inputAudioSeconds += pcmSeconds(msg.data, 16000)
         // 16-bit PCM, 16 kHz, mono — base64
         geminiWs.send(JSON.stringify({
           realtimeInput: {
