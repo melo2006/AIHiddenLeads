@@ -86,6 +86,12 @@ Deno.serve(async req=>{
       let content='';
       if(source.kind==='document' && /\.(txt|md|csv)$/i.test(source.storage_path || '')) {
         const {data:file,error}=await db.storage.from('lead-uploads').download(source.storage_path); if(error) throw error; if(file.size>10*1024*1024) throw new Error('Maximum document size is 10 MB'); content=await file.text();
+      } else if(source.kind==='document') {
+        const {data:link,error}=await db.storage.from('lead-uploads').createSignedUrl(source.storage_path,120); if(error || !link) throw new Error('Document is unavailable');
+        const key=Deno.env.get('FIRECRAWL_API_KEY'); if(!key) throw new Error('Document parser is unavailable');
+        const response=await fetch('https://api.firecrawl.dev/v1/scrape',{method:'POST',headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},body:JSON.stringify({url:link.signedUrl,formats:['markdown']})});
+        const result=await response.json(); if(!response.ok || !result.success) throw new Error('PDF could not be read. Upload a text version instead.');
+        content=result.data?.markdown || '';
       } else {
         const config=agent.draft as Record<string,unknown>;
         const websiteUrl=source.url || 'https://aihiddenleads.com';
