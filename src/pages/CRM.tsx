@@ -17,6 +17,7 @@ import CampaignsView from "@/components/crm/CampaignsView";
 import CampaignDetailView from "@/components/crm/CampaignDetailView";
 import PipelinePageView from "@/components/crm/PipelinePageView";
 import TemplatesView from "@/components/crm/TemplatesView";
+import VoiceAgentsView from "@/components/crm/VoiceAgentsView";
 import GuardrailsView from "@/components/crm/GuardrailsView";
 import CallHistoryView from "@/components/crm/CallHistoryView";
 import DemoSessionsView from "@/components/crm/DemoSessionsView";
@@ -147,6 +148,9 @@ const AdminLogin = ({ onSignedIn }: { onSignedIn: () => void }) => {
 const CRM = () => {
   const [session, setSession] = useState<Session | null>(null);
   const [authReady, setAuthReady] = useState(false);
+  const [voiceAccess, setVoiceAccess] = useState(false);
+  const [voiceAdmin, setVoiceAdmin] = useState(false);
+  const [rolesReady, setRolesReady] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -162,7 +166,19 @@ const CRM = () => {
     return () => subscription.unsubscribe();
   }, []);
 
-  if (!authReady) {
+  useEffect(() => {
+    let active = true;
+    setRolesReady(false);
+    if (!session) { setVoiceAccess(false); setVoiceAdmin(false); setRolesReady(true); return; }
+    Promise.all([supabase.from('voice_platform_roles').select('role').eq('user_id', session.user.id), supabase.from('voice_memberships').select('id').eq('user_id', session.user.id).eq('role','editor')]).then(([roles,members]) => {
+      if (!active) return;
+      setVoiceAdmin(Boolean(roles.data?.some(r => r.role === 'admin')));
+      setVoiceAccess(Boolean(members.data?.length)); setRolesReady(true);
+    });
+    return () => { active = false; };
+  }, [session?.user.id]);
+
+  if (!authReady || (session && !rolesReady)) {
     return <div className="min-h-screen grid place-items-center text-sm text-muted-foreground">Loading admin...</div>;
   }
 
@@ -171,7 +187,7 @@ const CRM = () => {
   }
 
   const userEmail = session.user.email?.toLowerCase();
-  if (userEmail !== ADMIN_EMAIL.toLowerCase()) {
+  if (!voiceAdmin && !voiceAccess) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-sm border-border bg-card">
@@ -197,6 +213,8 @@ const CRM = () => {
       </div>
     );
   }
+
+  if (!voiceAdmin && voiceAccess) return <div className="min-h-screen bg-background text-foreground"><header className="sticky top-0 flex h-14 items-center justify-between border-b border-border bg-background px-4"><span className="font-bold">AI Hidden Leads · Voice Agents</span><Button size="sm" variant="ghost" onClick={() => supabase.auth.signOut()}>Sign out</Button></header><main className="p-4 sm:p-6"><VoiceAgentsView /></main></div>;
 
   return (
     <SidebarProvider>
@@ -233,6 +251,7 @@ const CRM = () => {
               <Route path="follow-up" element={<FollowUpIntelligence />} />
               <Route path="templates" element={<TemplatesView />} />
               <Route path="ad-hijack" element={<AdHijack />} />
+              <Route path="voice-agents" element={<VoiceAgentsView />} />
               <Route path="guardrails" element={<GuardrailsView />} />
               <Route path="*" element={<CRMDashboard />} />
             </Routes>

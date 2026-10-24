@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { MessageSquare, Mic, ArrowLeft, Phone } from "lucide-react";
 import type { DemoLeadData } from "@/components/landing/demo-results/demoResultsUtils";
 import { getResponsiveScreenshotSrc, getSiteName, withCacheKey } from "@/components/landing/demo-results/demoResultsUtils";
-import VoiceAgentWidget from "@/components/landing/demo-results/VoiceAgentWidget";
+import GeminiAgentWidget from "@/components/GeminiAgentWidget";
 import ChatWidget from "@/components/landing/demo-results/ChatWidget";
 import WebsiteShowcase from "@/components/landing/demo-results/WebsiteShowcase";
 import GeoGridWidget from "@/components/landing/demo-results/GeoGridWidget";
@@ -1083,23 +1083,7 @@ const DemoSite = () => {
             <DraggableFloating initialX={24} initialY={window.innerHeight - 100} anchorRight={true}>
               {voiceOpen ? (
                 <div className="w-[min(20rem,calc(100vw-3rem))] max-h-[60vh] overflow-y-auto animate-in slide-in-from-bottom-4 fade-in duration-300">
-                  <VoiceAgentWidget
-                    key={`voice-${leadData.websiteUrl}`}
-                    leadId={leadData.leadId}
-                    prospectId={leadData.prospectId || prospectIdParam || undefined}
-                    businessName={siteName}
-                    businessNiche={leadData.niche || "general"}
-                    ownerName={followUpName}
-                    ownerEmail={followUpEmail}
-                    ownerPhone={followUpPhone}
-                    websiteUrl={homepageUrl}
-                    businessInfo={leadData.websiteContent || leadData.description || ""}
-                    callerName={knownCallerName}
-                    callerEmail={knownCallerEmail}
-                    callerPhone={knownCallerPhone}
-                    language={i18n.resolvedLanguage || i18n.language || "en"}
-                    onClose={() => setVoiceOpen(false)}
-                  />
+                  <GeminiAgentWidget leadId={leadData.leadId} prospectId={leadData.prospectId || prospectIdParam || undefined} businessName={siteName} callerName={knownCallerName} onClose={() => setVoiceOpen(false)} />
                 </div>
               ) : (
                 <button

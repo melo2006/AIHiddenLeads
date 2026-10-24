@@ -11,7 +11,7 @@ import {
   getSiteName,
   getThemeColor,
 } from "./demoResultsUtils";
-import VoiceAgentWidget from "./VoiceAgentWidget";
+import GeminiAgentWidget from "@/components/GeminiAgentWidget";
 
 interface WebsiteShowcaseProps {
   leadData: DemoLeadData;
@@ -261,15 +261,7 @@ const WebsiteShowcase = ({ leadData, compact = false }: WebsiteShowcaseProps) =>
             </p>
           </div>
 
-          <VoiceAgentWidget
-            businessName={siteName}
-            businessNiche={leadData.niche || "general"}
-            ownerName={leadData.fullName || "Business Owner"}
-            ownerEmail={leadData.email}
-            ownerPhone={leadData.phone}
-            websiteUrl={leadData.websiteUrl}
-            businessInfo={leadData.websiteContent || leadData.description || ""}
-          />
+          <GeminiAgentWidget leadId={leadData.leadId} prospectId={leadData.prospectId} businessName={siteName} />
         </section>
       )}
     </div>
