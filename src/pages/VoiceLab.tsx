@@ -8,8 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Mic, MicOff, Volume2, Loader2, FlaskConical, PhoneOff } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { Mic, MicOff, Volume2, FlaskConical, PhoneOff, Loader2 } from "lucide-react";
 
 const VOICES = [
   { id: "Kore", label: "Kore — warm female (default)" },
@@ -27,259 +26,201 @@ const VOICES = [
 ];
 
 type Turn = { role: "user" | "assistant"; text: string };
-type Phase = "idle" | "listening" | "thinking" | "speaking";
+type Phase = "idle" | "connecting" | "live";
 
-// Voice-activity tuning
-const SPEECH_THRESHOLD = 0.015; // RMS level that counts as speech
-const SILENCE_MS = 1400; // pause this long -> turn is over
-const MIN_SPEECH_MS = 500; // ignore blips shorter than this
-
-function encodeWav(chunks: readonly Float32Array[], sampleRate: number): Blob {
-  const length = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
-  const bytes = new ArrayBuffer(44 + length * 2);
-  const view = new DataView(bytes);
-  const tag = (offset: number, value: string) => {
-    for (let i = 0; i < value.length; i++) view.setUint8(offset + i, value.charCodeAt(i));
-  };
-  tag(0, "RIFF");
-  view.setUint32(4, 36 + length * 2, true);
-  tag(8, "WAVE");
-  tag(12, "fmt ");
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, 1, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * 2, true);
-  view.setUint16(32, 2, true);
-  view.setUint16(34, 16, true);
-  tag(36, "data");
-  view.setUint32(40, length * 2, true);
-  let offset = 44;
-  for (const chunk of chunks)
-    for (const value of chunk) {
-      const sample = Math.max(-1, Math.min(1, value));
-      view.setInt16(offset, sample * (sample < 0 ? 32768 : 32767), true);
-      offset += 2;
-    }
-  return new Blob([bytes], { type: "audio/wav" });
-}
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+const WS_URL = SUPABASE_URL.replace(/^https/, "wss") + "/functions/v1/gemini-live-proxy";
 
 const VoiceLab = () => {
   const [voice, setVoice] = useState("Kore");
   const [turns, setTurns] = useState<Turn[]>([]);
   const [phase, setPhase] = useState<Phase>("idle");
-  const [status, setStatus] = useState("Pick a voice and press Start — then just talk naturally.");
+  const [aspenSpeaking, setAspenSpeaking] = useState(false);
+  const [status, setStatus] = useState(
+    "Pick a voice and press Start — then just talk, like a real phone call. You can interrupt her."
+  );
   const [error, setError] = useState<string | null>(null);
 
-  const phaseRef = useRef<Phase>("idle");
-  const turnsRef = useRef<Turn[]>([]);
-  const voiceRef = useRef(voice);
-  const streamRef = useRef<MediaStream | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+  const micStreamRef = useRef<MediaStream | null>(null);
+  const micCtxRef = useRef<AudioContext | null>(null);
+  const playCtxRef = useRef<AudioContext | null>(null);
+  const playTimeRef = useRef(0);
+  const liveRef = useRef(false);
+  const aspenLineRef = useRef("");
+  const userLineRef = useRef("");
   const transcriptEndRef = useRef<HTMLDivElement | null>(null);
 
-  // Turn capture state (refs — updated inside audio callback)
-  const chunksRef = useRef<Float32Array[]>([]);
-  const speechStartedRef = useRef(false);
-  const speechMsRef = useRef(0);
-  const silenceMsRef = useRef(0);
-
   useEffect(() => {
-    voiceRef.current = voice;
-  }, [voice]);
-  useEffect(() => {
-    turnsRef.current = turns;
     transcriptEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [turns]);
 
-  const setPhaseBoth = useCallback((p: Phase) => {
-    phaseRef.current = p;
-    setPhase(p);
+  const flushLine = useCallback((role: "user" | "assistant") => {
+    const ref = role === "user" ? userLineRef : aspenLineRef;
+    const text = ref.current.trim();
+    if (text) {
+      setTurns((prev) => [...prev, { role, text }]);
+    }
+    ref.current = "";
   }, []);
 
   const stopEverything = useCallback(() => {
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    streamRef.current = null;
-    audioCtxRef.current?.close().catch(() => {});
-    audioCtxRef.current = null;
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.src = "";
-    }
-    setPhaseBoth("idle");
+    liveRef.current = false;
+    try { wsRef.current?.close() } catch { /* ignore */ }
+    wsRef.current = null;
+    micStreamRef.current?.getTracks().forEach((t) => t.stop());
+    micStreamRef.current = null;
+    micCtxRef.current?.close().catch(() => {});
+    micCtxRef.current = null;
+    playCtxRef.current?.close().catch(() => {});
+    playCtxRef.current = null;
+    flushLine("user");
+    flushLine("assistant");
+    setAspenSpeaking(false);
+    setPhase("idle");
     setStatus("Conversation ended. Press Start to begin again.");
-  }, [setPhaseBoth]);
+  }, [flushLine]);
 
-  const sendTurn = useCallback(
-    async (wav: Blob) => {
-      setPhaseBoth("thinking");
-      setStatus("Aspen is thinking…");
-      try {
-        const form = new FormData();
-        form.append("file", new File([wav], "recording.wav", { type: "audio/wav" }));
-        form.append("voice", voiceRef.current);
-        form.append(
-          "history",
-          JSON.stringify(turnsRef.current.map((t) => ({ role: t.role, content: t.text })))
-        );
-        const { data, error: fnError } = await supabase.functions.invoke("gemini-voice-lab", {
-          body: form,
-        });
-        if (fnError) throw new Error(fnError.message);
-        if (data?.error && !data?.transcript) throw new Error(data.error);
+  // Play a 24 kHz PCM chunk (base64) with gapless scheduling
+  const playPcmChunk = useCallback((base64: string) => {
+    if (!playCtxRef.current) {
+      playCtxRef.current = new AudioContext({ sampleRate: 24000 });
+      playTimeRef.current = 0;
+    }
+    const ctx = playCtxRef.current;
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const samples = new Int16Array(bytes.buffer);
+    const floats = new Float32Array(samples.length);
+    for (let i = 0; i < samples.length; i++) floats[i] = samples[i] / 32768;
 
-        setTurns((prev) => [
-          ...prev,
-          { role: "user", text: data.transcript },
-          { role: "assistant", text: data.reply },
-        ]);
+    const buffer = ctx.createBuffer(1, floats.length, 24000);
+    buffer.getChannelData(0).set(floats);
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(ctx.destination);
 
-        // Play the reply, then go back to listening
-        if (phaseRef.current === "idle") return; // user hung up mid-request
-        setPhaseBoth("speaking");
-        setStatus("Aspen is speaking…");
-        const bytes = Uint8Array.from(atob(data.audioBase64), (c) => c.charCodeAt(0));
-        const url = URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
-        const el = audioRef.current;
-        if (el) {
-          el.src = url;
-          el.onended = () => {
-            URL.revokeObjectURL(url);
-            if (phaseRef.current === "speaking") {
-              setPhaseBoth("listening");
-              setStatus("Listening — just talk.");
-            }
-          };
-          await el.play().catch(() => {
-            if (phaseRef.current === "speaking") {
-              setPhaseBoth("listening");
-              setStatus("Listening — just talk.");
-            }
-          });
-        }
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Something went wrong");
-        if (phaseRef.current !== "idle") {
-          setPhaseBoth("listening");
-          setStatus("That turn failed — try speaking again.");
-        }
-      }
-    },
-    [setPhaseBoth]
-  );
-
-  // Continuous listening with voice-activity detection
-  const startListening = useCallback(async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-    });
-    streamRef.current = stream;
-    const context = new AudioContext();
-    await context.resume();
-    audioCtxRef.current = context;
-    const source = context.createMediaStreamSource(stream);
-    const node = context.createScriptProcessor(4096, 1, 1);
-
-    chunksRef.current = [];
-    speechStartedRef.current = false;
-    speechMsRef.current = 0;
-    silenceMsRef.current = 0;
-
-    node.onaudioprocess = (event) => {
-      // Only capture while in the listening phase
-      if (phaseRef.current !== "listening") return;
-      const input = event.inputBuffer.getChannelData(0);
-      const chunk = new Float32Array(input);
-
-      // RMS volume of this chunk
-      let sum = 0;
-      for (let i = 0; i < chunk.length; i++) sum += chunk[i] * chunk[i];
-      const rms = Math.sqrt(sum / chunk.length);
-      const chunkMs = (chunk.length / context.sampleRate) * 1000;
-
-      if (rms > SPEECH_THRESHOLD) {
-        speechStartedRef.current = true;
-        speechMsRef.current += chunkMs;
-        silenceMsRef.current = 0;
-        chunksRef.current.push(chunk);
-      } else if (speechStartedRef.current) {
-        silenceMsRef.current += chunkMs;
-        chunksRef.current.push(chunk); // keep a little of the tail
-        if (silenceMsRef.current >= SILENCE_MS) {
-          const speechMs = speechMsRef.current;
-          const captured = chunksRef.current;
-          // Reset for the next turn
-          chunksRef.current = [];
-          speechStartedRef.current = false;
-          speechMsRef.current = 0;
-          silenceMsRef.current = 0;
-          if (speechMs >= MIN_SPEECH_MS) {
-            const wav = encodeWav(captured, context.sampleRate);
-            if (wav.size >= 2048) void sendTurn(wav);
-          }
-        }
-      }
+    const now = ctx.currentTime;
+    const startAt = Math.max(now, playTimeRef.current);
+    source.start(startAt);
+    playTimeRef.current = startAt + buffer.duration;
+    setAspenSpeaking(true);
+    source.onended = () => {
+      if (ctx.currentTime >= playTimeRef.current - 0.05) setAspenSpeaking(false);
     };
+  }, []);
 
-    source.connect(node);
-    node.connect(context.destination);
-  }, [sendTurn]);
+  // Interrupt: drop all queued playback instantly
+  const clearPlayback = useCallback(() => {
+    playCtxRef.current?.close().catch(() => {});
+    playCtxRef.current = null;
+    playTimeRef.current = 0;
+    setAspenSpeaking(false);
+  }, []);
 
   const startConversation = useCallback(async () => {
     setError(null);
     setTurns([]);
-    setPhaseBoth("thinking");
-    setStatus("Aspen is saying hello…");
-    try {
-      await startListening();
-      const { data, error: fnError } = await supabase.functions.invoke("gemini-voice-lab", {
-        body: { action: "greeting", voice: voiceRef.current },
-      });
-      if (fnError) throw new Error(fnError.message);
-      if (data?.error) throw new Error(data.error);
-      setTurns([{ role: "assistant", text: data.reply }]);
+    aspenLineRef.current = "";
+    userLineRef.current = "";
+    setPhase("connecting");
+    setStatus("Connecting to Gemini Live…");
 
-      setPhaseBoth("speaking");
-      setStatus("Aspen is speaking…");
-      const bytes = Uint8Array.from(atob(data.audioBase64), (c) => c.charCodeAt(0));
-      const url = URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
-      const el = audioRef.current;
-      if (el) {
-        el.src = url;
-        el.onended = () => {
-          URL.revokeObjectURL(url);
-          if (phaseRef.current === "speaking") {
-            setPhaseBoth("listening");
-            setStatus("Listening — just talk.");
+    try {
+      // Mic first — permission errors surface before opening the socket
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+      micStreamRef.current = stream;
+
+      const ws = new WebSocket(`${WS_URL}?voice=${encodeURIComponent(voice)}`);
+      wsRef.current = ws;
+
+      ws.onopen = () => setStatus("Connected — waiting for Gemini…");
+
+      ws.onmessage = (event) => {
+        let msg: Record<string, unknown>;
+        try {
+          msg = JSON.parse(event.data as string);
+        } catch {
+          return;
+        }
+
+        switch (msg.type) {
+          case "ready": {
+            liveRef.current = true;
+            setPhase("live");
+            setStatus("Live — just talk. Interrupt her anytime.");
+            // Start streaming mic audio as 16 kHz PCM
+            const micCtx = new AudioContext({ sampleRate: 16000 });
+            micCtxRef.current = micCtx;
+            const source = micCtx.createMediaStreamSource(stream);
+            const node = micCtx.createScriptProcessor(2048, 1, 1);
+            node.onaudioprocess = (e) => {
+              if (!liveRef.current || ws.readyState !== WebSocket.OPEN) return;
+              const input = e.inputBuffer.getChannelData(0);
+              const pcm = new Int16Array(input.length);
+              for (let i = 0; i < input.length; i++) {
+                const s = Math.max(-1, Math.min(1, input[i]));
+                pcm[i] = s < 0 ? s * 32768 : s * 32767;
+              }
+              const bytes = new Uint8Array(pcm.buffer);
+              let binary = "";
+              for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+              ws.send(JSON.stringify({ type: "audio", data: btoa(binary) }));
+            };
+            source.connect(node);
+            node.connect(micCtx.destination);
+            break;
           }
-        };
-        await el.play().catch(() => {
-          setPhaseBoth("listening");
-          setStatus("Listening — just talk.");
-        });
-      }
+          case "audio":
+            playPcmChunk(msg.data as string);
+            break;
+          case "interrupted":
+            clearPlayback();
+            flushLine("assistant");
+            break;
+          case "aspen_transcript":
+            aspenLineRef.current += msg.text as string;
+            break;
+          case "user_transcript":
+            userLineRef.current += msg.text as string;
+            break;
+          case "turn_complete":
+            flushLine("user");
+            flushLine("assistant");
+            break;
+          case "error":
+            setError(String(msg.message || "Gemini error"));
+            break;
+          case "closed":
+            if (liveRef.current) {
+              stopEverything();
+              setError(`Session ended: ${msg.reason || "unknown"}`);
+            }
+            break;
+        }
+      };
+
+      ws.onerror = () => {
+        setError("Could not connect to the voice service.");
+        stopEverything();
+      };
+      ws.onclose = () => {
+        if (liveRef.current) stopEverything();
+      };
     } catch (e) {
       stopEverything();
       setError(
         e instanceof Error && e.name === "NotAllowedError"
           ? "Microphone permission was denied — allow it in your browser and try again."
-          : e instanceof Error
-            ? e.message
-            : "Could not start. Try again."
+          : "Could not start. Check your microphone and try again."
       );
     }
-  }, [startListening, setPhaseBoth, stopEverything]);
+  }, [voice, playPcmChunk, clearPlayback, flushLine, stopEverything]);
 
-  // Cleanup on unmount
   useEffect(() => stopEverything, [stopEverything]);
-
-  const phaseLabel: Record<Phase, string> = {
-    idle: "Not started",
-    listening: "Listening",
-    thinking: "Thinking",
-    speaking: "Speaking",
-  };
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -287,8 +228,8 @@ const VoiceLab = () => {
         <div className="mx-auto flex h-14 max-w-3xl items-center gap-2 px-4">
           <FlaskConical className="h-5 w-5 text-primary" />
           <h1 className="text-sm font-extrabold tracking-tight">
-            Voice Lab — Gemini Aspen{" "}
-            <span className="text-muted-foreground font-normal">(hands-free test)</span>
+            Voice Lab — Gemini Live Aspen{" "}
+            <span className="text-muted-foreground font-normal">(real-time, Retell untouched)</span>
           </h1>
         </div>
       </header>
@@ -314,7 +255,7 @@ const VoiceLab = () => {
             {phase === "idle" ? (
               <Button onClick={startConversation} variant="secondary">
                 <Mic className="h-4 w-4" />
-                <span className="ml-2">Start conversation</span>
+                <span className="ml-2">Start live conversation</span>
               </Button>
             ) : (
               <Button onClick={stopEverything} variant="destructive">
@@ -325,13 +266,21 @@ const VoiceLab = () => {
           </div>
 
           <div className="flex items-center gap-2">
-            {phase === "listening" && <Mic className="h-4 w-4 text-primary animate-pulse" />}
-            {phase === "thinking" && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
-            {phase === "speaking" && <Volume2 className="h-4 w-4 text-primary animate-pulse" />}
+            {phase === "connecting" && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
+            {phase === "live" && !aspenSpeaking && (
+              <Mic className="h-4 w-4 text-primary animate-pulse" />
+            )}
+            {phase === "live" && aspenSpeaking && (
+              <Volume2 className="h-4 w-4 text-primary animate-pulse" />
+            )}
             {phase === "idle" && <MicOff className="h-4 w-4 text-muted-foreground" />}
             <p className="text-xs text-muted-foreground">
-              <span className="font-semibold text-foreground">{phaseLabel[phase]}</span>
-              {" — "}
+              {phase === "live" && (
+                <span className="font-semibold text-foreground">
+                  {aspenSpeaking ? "Aspen is speaking — you can talk over her" : "Listening"}
+                  {" — "}
+                </span>
+              )}
               {status}
             </p>
           </div>
@@ -341,7 +290,8 @@ const VoiceLab = () => {
         <Card className="p-4 min-h-[300px] max-h-[50vh] overflow-y-auto space-y-3">
           {turns.length === 0 && (
             <p className="text-sm text-muted-foreground text-center pt-16">
-              No conversation yet. Press “Start conversation” and just talk — no buttons needed.
+              No conversation yet. Press “Start live conversation” and just talk — she hears you
+              continuously and you can interrupt her mid-sentence.
             </p>
           )}
           {turns.map((t, i) => (
@@ -361,12 +311,9 @@ const VoiceLab = () => {
         </Card>
 
         <p className="text-[11px] text-muted-foreground text-center pb-8">
-          Tip: talk naturally and pause when you're done — Aspen answers after a short silence.
-          For the fully instant, interrupt-anytime version (true Gemini Live), a Google AI Studio
-          key is needed.
+          Powered by Gemini 3.8 Live (native audio, real-time streaming) via your own Google AI
+          Studio key. Usage bills to your Google account, not Lovable credits.
         </p>
-
-        <audio ref={audioRef} className="hidden" />
       </main>
     </div>
   );
