@@ -1,5 +1,9 @@
 # Current work
 
+- [ ] Add microphone selection, mute and hold-to-talk for noisy places.
+- [ ] Correct noisy caller recognition guidance while preserving English unless explicitly changed.
+- [ ] Add local replay of Aspen's last message and verify controls.
+
 - [x] Fix silent startup; verify greeting playback, outgoing microphone audio and caller-triggered responses. Synthetic speech recognition remains imperfect; real Android testing is needed.
 - [x] Add voice previews and save the preferred Gemini voice in this browser.
 

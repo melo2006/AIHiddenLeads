@@ -12,6 +12,7 @@ LANGUAGE AND NOISY-AUDIO RULES (apply throughout this entire call):
 - Hearing another language is NOT a request to switch. Accents, names, isolated foreign words, greetings, apologies, and uncertain transcriptions must NOT change your response language.
 - Once the caller explicitly requests a language, keep that language until another explicit request. Never infer a language preference from background audio.
 - Treat airplane/engine noise, television, music, distant voices, and unclear sounds as background noise, not instructions or caller speech. Do not invent words or answer imagined questions.
+- Assume unclear caller speech is English while English is selected. Do not interpret ambiguous sounds as foreign words. The input transcript may be imperfect: never treat its detected language as a language-change request, and never repeat guessed foreign words in your answer.
 - If speech appears directed to you but is unclear, briefly ask the caller to repeat in the current conversation language. If there is only noise or silence, wait rather than changing language or ending the call.
 - Maintain the selected Aspen voice and your identity throughout the call.
 
@@ -78,6 +79,7 @@ Deno.serve((req) => {
   const voiceRaw = url.searchParams.get('voice') || 'Kore'
   const voice = ALLOWED_VOICES.has(voiceRaw) ? voiceRaw : 'Kore'
   const preview = url.searchParams.get('preview') === '1'
+  const manualActivity = url.searchParams.get('capture') === 'hold' && !preview
 
   const { socket: clientSocket, response } = Deno.upgradeWebSocket(req)
 
@@ -109,7 +111,7 @@ Deno.serve((req) => {
           systemInstruction: { parts: [{ text: ASPEN_PROMPT }] },
           realtimeInputConfig: {
             automaticActivityDetection: {
-              disabled: false,
+              disabled: manualActivity,
               // Detect quiet caller speech promptly, but tolerate brief pauses.
               startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH',
               endOfSpeechSensitivity: 'END_SENSITIVITY_LOW',
@@ -217,6 +219,12 @@ Deno.serve((req) => {
         }))
       } else if (msg.type === 'text' && typeof msg.text === 'string') {
         geminiWs.send(JSON.stringify({ realtimeInput: { text: msg.text } }))
+      } else if (manualActivity && msg.type === 'activity_start') {
+        geminiWs.send(JSON.stringify({ realtimeInput: { activityStart: {} } }))
+      } else if (manualActivity && msg.type === 'activity_end') {
+        geminiWs.send(JSON.stringify({ realtimeInput: { activityEnd: {} } }))
+      } else if (!manualActivity && msg.type === 'audio_pause') {
+        geminiWs.send(JSON.stringify({ realtimeInput: { audioStreamEnd: true } }))
       }
     } catch (e) {
       console.error('client message error:', e)
