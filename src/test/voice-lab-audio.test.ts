@@ -1,7 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { microphonePcm, shouldSendMicrophone } from "../lib/voiceLabAudio";
+import { microphonePcm, shouldSendMicrophone, microphoneGate } from "../lib/voiceLabAudio";
 
 describe("Voice Lab microphone privacy controls", () => {
+  it("strong noise filtering blocks quiet background sound but lets louder speech through", () => {
+    expect(microphoneGate(0.015, "strong", 1000, 0).open).toBe(false);
+    expect(microphoneGate(0.03, "strong", 1000, 0).open).toBe(true);
+    expect(microphoneGate(0.015, "light", 1000, 0).open).toBe(true);
+  });
+  it("keeps speech tails for 450 ms then sends silence", () => {
+    const gate = microphoneGate(0.03, "balanced", 1000, 0);
+    expect(gate.openUntil).toBe(1450);
+    expect(microphoneGate(0, "balanced", 1400, gate.openUntil).open).toBe(true);
+    expect(microphoneGate(0, "balanced", 1500, gate.openUntil).open).toBe(false);
+  });
   it("converts a 48 kHz mobile input into genuine 16 kHz PCM", () => {
     const result = microphonePcm(new Float32Array(4800).fill(0.5), 48000);
     expect(result.length).toBe(1600);

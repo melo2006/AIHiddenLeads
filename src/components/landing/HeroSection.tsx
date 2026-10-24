@@ -28,7 +28,7 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
         {/* Two-column layout: Text left, Aspen right */}
         <div className="flex flex-col lg:flex-row items-center gap-8 lg:gap-10">
           {/* Left column - Main content */}
-          <div className="flex-1 text-center lg:text-left">
+          <div className="min-w-0 w-full flex-1 text-center lg:text-left">
             {/* Badge */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -74,12 +74,12 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.3 }}
-              className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start mb-5"
+              className="flex w-full min-w-0 flex-col sm:flex-row sm:flex-wrap gap-3 justify-center lg:justify-start mb-5"
             >
               <Button
                 onClick={() => navigate("/demo")}
                 size="lg"
-                className="text-base sm:text-lg px-8 py-6 bg-primary text-primary-foreground hover:bg-primary/90 glow-border rounded-xl font-semibold"
+                className="h-auto min-h-12 max-w-full whitespace-normal break-words text-base sm:text-lg px-4 py-3 bg-primary text-primary-foreground hover:bg-primary/90 glow-border rounded-xl font-semibold"
               >
                 {t("hero.ctaPrimary")}
               </Button>
@@ -87,7 +87,7 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
                 onClick={onGetDemo}
                 variant="outline"
                 size="lg"
-                className="text-base sm:text-lg px-6 py-6 border-border hover:bg-secondary rounded-xl"
+                className="h-auto min-h-12 max-w-full whitespace-normal break-words text-base sm:text-lg px-4 py-3 border-border hover:bg-secondary rounded-xl"
               >
                 {t("hero.ctaSecondary")}
               </Button>
@@ -108,7 +108,7 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.5, delay: 0.5 }}
-              className="grid grid-cols-2 gap-3 sm:gap-4 max-w-md mx-auto lg:mx-0"
+              className="grid grid-cols-[repeat(2,minmax(0,1fr))] gap-3 sm:gap-4 max-w-md mx-auto lg:mx-0 [&>div]:min-w-0 [&>div]:flex-wrap"
             >
               <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3 rounded-xl border border-destructive/30 bg-destructive/5">
                 <PhoneOff className="w-5 h-5 text-destructive shrink-0" />

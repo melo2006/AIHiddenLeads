@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useEffect } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
@@ -37,7 +37,11 @@ const legacyCrmRedirects = [
   { path: "/templates", to: "/dashboard/templates" },
 ];
 
-const App = () => (
+const App = () => {
+  useEffect(() => {
+    try { const size = localStorage.getItem("reading-text-size"); if (size && ["90", "100", "110", "125", "150"].includes(size)) document.documentElement.dataset.textSize = size; } catch { /* Default reading size remains available. */ }
+  }, []);
+  return (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
@@ -70,6 +74,7 @@ const App = () => (
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
-);
+  );
+};
 
 export default App;

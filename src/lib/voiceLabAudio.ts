@@ -1,4 +1,11 @@
 export type CaptureMode = "handsfree" | "hold";
+export type NoiseFilter = "light" | "balanced" | "strong";
+export const noiseThresholds: Record<NoiseFilter, number> = { light: 0.004, balanced: 0.012, strong: 0.025 };
+// Send silence (not dropped frames) below the gate so server speech-end detection keeps working.
+export function microphoneGate(rms: number, filter: NoiseFilter, now: number, openUntil: number) {
+  const next = rms >= noiseThresholds[filter] ? now + 450 : openUntil;
+  return { open: now < next, openUntil: next };
+}
 
 // Some mobile audio drivers ignore the requested context rate. Send real 16 kHz PCM,
 // not device-rate samples mislabeled as 16 kHz (which changes speech speed/pitch).
