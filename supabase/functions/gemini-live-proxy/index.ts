@@ -124,7 +124,7 @@ Deno.serve(async (req) => {
       const { error } = await db.from('gemini_voice_sessions').update({ status: 'ended', ended_at: new Date().toISOString(), last_activity_at: new Date().toISOString(), duration_seconds: duration, usage: usage(), transcript: config.recordTranscript ? transcript : [] }).eq('id', session.id)
       if (error) console.error('session persistence failed', error.message)
       if (!preview) {
-        const {error:historyError} = await db.from('call_history').insert({ retell_call_id: `gemini_${session.id}`, lead_id: session.lead_id, prospect_id: session.prospect_id, business_name: String(config.businessName), call_status: 'ended', duration_seconds: duration, started_at: new Date(started).toISOString(), ended_at: new Date().toISOString(), transcript: config.recordTranscript ? transcript.map(t => `${t.role}: ${t.text}`).join('\n') : null, metadata: { provider: 'gemini', session_id: session.id, agent_id: session.agent_id, transcript_consent: config.recordTranscript, usage: usage() } })
+        const {error:historyError} = await db.from('call_history').upsert({ retell_call_id: `gemini_${session.id}`, lead_id: session.lead_id, prospect_id: session.prospect_id, business_name: String(config.businessName), call_status: 'ended', duration_seconds: duration, started_at: new Date(started).toISOString(), ended_at: new Date().toISOString(), transcript: config.recordTranscript ? transcript.map(t => `${t.role}: ${t.text}`).join('\n') : null, metadata: { provider: 'gemini', session_id: session.id, agent_id: session.agent_id, transcript_consent: config.recordTranscript, usage: usage() } },{onConflict:'retell_call_id'})
         if (historyError) console.error('call history persistence',historyError.message)
       }
     })())
@@ -225,6 +225,11 @@ Deno.serve(async (req) => {
             clientSocket.send(JSON.stringify({ type: 'user_transcript', text: sc.inputTranscription.text }))
           }
           if (sc.turnComplete) {
+            if(config.transferPhone) EdgeRuntime.waitUntil((async()=>{
+              const summary=transcript.filter(t=>t.role==='caller').map(t=>t.text).join(' ').slice(-1200);
+              const {error}=await db.from('browser_voice_handoffs').update({summary}).eq('session_id',session.id).eq('status','not_requested');
+              if(error)console.error('handoff briefing checkpoint failed',error.message);
+            })());
             clientSocket.send(JSON.stringify({ type: 'turn_complete' }))
           }
           return
