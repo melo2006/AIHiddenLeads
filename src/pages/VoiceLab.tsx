@@ -8,7 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Mic, MicOff, Volume2, FlaskConical, PhoneOff, Loader2 } from "lucide-react";
+import { Mic, MicOff, Volume2, FlaskConical, PhoneOff, Loader2, Play, Save } from "lucide-react";
 
 const VOICES = [
   { id: "Kore", label: "Kore — warm female (default)" },
@@ -26,13 +26,19 @@ const VOICES = [
 ];
 
 type Turn = { role: "user" | "assistant"; text: string };
-type Phase = "idle" | "connecting" | "live";
+type Phase = "idle" | "connecting" | "live" | "preview";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const WS_URL = SUPABASE_URL.replace(/^https/, "wss") + "/functions/v1/gemini-live-proxy";
 
 const VoiceLab = () => {
-  const [voice, setVoice] = useState("Kore");
+  const [voice, setVoice] = useState(() => {
+    try { const saved = localStorage.getItem("gemini-aspen-voice"); return VOICES.some(v => v.id === saved) ? saved ?? "Kore" : "Kore"; } catch { return "Kore"; }
+  });
+  const [savedVoice, setSavedVoice] = useState(voice);
+  const [partialUser, setPartialUser] = useState("");
+  const [partialAspen, setPartialAspen] = useState("");
+  const [micLevel, setMicLevel] = useState(0);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [phase, setPhase] = useState<Phase>("idle");
   const [aspenSpeaking, setAspenSpeaking] = useState(false);
@@ -47,6 +53,9 @@ const VoiceLab = () => {
   const playCtxRef = useRef<AudioContext | null>(null);
   const playTimeRef = useRef(0);
   const liveRef = useRef(false);
+  const sourcesRef = useRef(new Set<AudioBufferSourceNode>());
+  const micNodeRef = useRef<ScriptProcessorNode | null>(null);
+  const generationRef = useRef(0);
   const aspenLineRef = useRef("");
   const userLineRef = useRef("");
   const transcriptEndRef = useRef<HTMLDivElement | null>(null);
@@ -62,10 +71,17 @@ const VoiceLab = () => {
       setTurns((prev) => [...prev, { role, text }]);
     }
     ref.current = "";
+    if (role === "user") setPartialUser(""); else setPartialAspen("");
   }, []);
 
   const stopEverything = useCallback(() => {
+    generationRef.current += 1;
     liveRef.current = false;
+    if (micNodeRef.current) { micNodeRef.current.onaudioprocess = null; micNodeRef.current.disconnect(); }
+    micNodeRef.current = null;
+    for (const source of sourcesRef.current) { try { source.stop(); } catch {} }
+    sourcesRef.current.clear();
+    setMicLevel(0);
     try { wsRef.current?.close() } catch { /* ignore */ }
     wsRef.current = null;
     micStreamRef.current?.getTracks().forEach((t) => t.stop());
@@ -88,6 +104,7 @@ const VoiceLab = () => {
       playTimeRef.current = 0;
     }
     const ctx = playCtxRef.current;
+    if (ctx.state === "suspended") void ctx.resume().catch(() => setError("Audio is paused. End the call and press Start again to enable sound."));
     const binary = atob(base64);
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
@@ -103,38 +120,52 @@ const VoiceLab = () => {
 
     const now = ctx.currentTime;
     const startAt = Math.max(now, playTimeRef.current);
+    sourcesRef.current.add(source);
     source.start(startAt);
     playTimeRef.current = startAt + buffer.duration;
     setAspenSpeaking(true);
     source.onended = () => {
+      sourcesRef.current.delete(source);
       if (ctx.currentTime >= playTimeRef.current - 0.05) setAspenSpeaking(false);
     };
   }, []);
 
   // Interrupt: drop all queued playback instantly
   const clearPlayback = useCallback(() => {
-    playCtxRef.current?.close().catch(() => {});
-    playCtxRef.current = null;
-    playTimeRef.current = 0;
+    for (const source of sourcesRef.current) { try { source.stop(); } catch {} }
+    sourcesRef.current.clear();
+    playTimeRef.current = playCtxRef.current?.currentTime ?? 0;
     setAspenSpeaking(false);
   }, []);
 
-  const startConversation = useCallback(async () => {
+  const startConversation = useCallback(async (preview = false) => {
+    const generation = ++generationRef.current;
     setError(null);
     setTurns([]);
+    setPartialUser("");
+    setPartialAspen("");
     aspenLineRef.current = "";
     userLineRef.current = "";
     setPhase("connecting");
     setStatus("Connecting to Gemini Live…");
 
     try {
-      // Mic first — permission errors surface before opening the socket
-      const stream = await navigator.mediaDevices.getUserMedia({
+      // Unlock audio while still inside the user's click, before permissions/network awaits.
+      const playCtx = new AudioContext();
+      playCtxRef.current = playCtx;
+      playTimeRef.current = 0;
+      const playResume = playCtx.resume();
+      const micCtx = preview ? null : new AudioContext({ sampleRate: 16000 });
+      micCtxRef.current = micCtx;
+      const micResume = micCtx?.resume();
+      await Promise.all([playResume, micResume]);
+      const stream = preview ? null : await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
+      if (generation !== generationRef.current) { stream?.getTracks().forEach(t => t.stop()); return; }
       micStreamRef.current = stream;
-
-      const ws = new WebSocket(`${WS_URL}?voice=${encodeURIComponent(voice)}`);
+      if (playCtx.state !== "running" || (micCtx && micCtx.state !== "running")) throw new Error("Your browser paused audio. Press Start again to enable the microphone and speaker.");
+      const ws = new WebSocket(`${WS_URL}?voice=${encodeURIComponent(voice)}${preview ? "&preview=1" : ""}`);
       wsRef.current = ws;
 
       ws.onopen = () => setStatus("Connected — waiting for Gemini…");
@@ -148,6 +179,7 @@ const VoiceLab = () => {
       }, 15000);
 
       ws.onmessage = (event) => {
+        if (generation !== generationRef.current) return;
         let msg: Record<string, unknown>;
         try {
           msg = JSON.parse(event.data as string);
@@ -159,16 +191,21 @@ const VoiceLab = () => {
           case "ready": {
             clearTimeout(readyTimeout);
             liveRef.current = true;
-            setPhase("live");
-            setStatus("Live — just talk. Interrupt her anytime.");
-            // Start streaming mic audio as 16 kHz PCM
-            const micCtx = new AudioContext({ sampleRate: 16000 });
-            micCtxRef.current = micCtx;
+            setPhase(preview ? "preview" : "live");
+            setStatus(preview ? "Playing voice preview…" : "Live — just talk. Interrupt her anytime.");
+            if (!micCtx || !stream) break;
+            void micCtx.resume();
             const source = micCtx.createMediaStreamSource(stream);
             const node = micCtx.createScriptProcessor(2048, 1, 1);
+            micNodeRef.current = node;
+            let frame = 0;
             node.onaudioprocess = (e) => {
               if (!liveRef.current || ws.readyState !== WebSocket.OPEN) return;
               const input = e.inputBuffer.getChannelData(0);
+              if (++frame % 4 === 0) {
+                const rms = Math.sqrt(input.reduce((sum, x) => sum + x * x, 0) / input.length);
+                setMicLevel(Math.min(100, Math.round(rms * 500)));
+              }
               const pcm = new Int16Array(input.length);
               for (let i = 0; i < input.length; i++) {
                 const s = Math.max(-1, Math.min(1, input[i]));
@@ -192,9 +229,11 @@ const VoiceLab = () => {
             break;
           case "aspen_transcript":
             aspenLineRef.current += msg.text as string;
+            setPartialAspen(aspenLineRef.current);
             break;
           case "user_transcript":
             userLineRef.current += msg.text as string;
+            setPartialUser(userLineRef.current);
             break;
           case "turn_complete":
             flushLine("user");
@@ -202,6 +241,7 @@ const VoiceLab = () => {
             break;
           case "error":
             setError(String(msg.message || "Gemini error"));
+            stopEverything();
             break;
           case "closed":
             if (liveRef.current) {
@@ -218,6 +258,7 @@ const VoiceLab = () => {
       };
       ws.onclose = () => {
         clearTimeout(readyTimeout);
+        if (generation !== generationRef.current) return;
         if (liveRef.current) {
           stopEverything();
         } else {
@@ -231,7 +272,7 @@ const VoiceLab = () => {
       setError(
         e instanceof Error && e.name === "NotAllowedError"
           ? "Microphone permission was denied — allow it in your browser and try again."
-          : "Could not start. Check your microphone and try again."
+          : e instanceof Error ? e.message : "Could not start. Check your microphone and try again."
       );
     }
   }, [voice, playPcmChunk, clearPlayback, flushLine, stopEverything]);
@@ -269,7 +310,7 @@ const VoiceLab = () => {
               </Select>
             </div>
             {phase === "idle" ? (
-              <Button onClick={startConversation} variant="secondary">
+              <Button onClick={() => void startConversation()} variant="secondary">
                 <Mic className="h-4 w-4" />
                 <span className="ml-2">Start live conversation</span>
               </Button>
@@ -281,6 +322,15 @@ const VoiceLab = () => {
             )}
           </div>
 
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" disabled={phase !== "idle"} onClick={() => void startConversation(true)} aria-label="Play selected voice preview" title="Play selected voice preview">
+              <Play className="h-4 w-4 mr-2" /> Preview voice
+            </Button>
+            <Button variant="outline" size="sm" disabled={phase !== "idle" || savedVoice === voice} onClick={() => {
+              try { localStorage.setItem("gemini-aspen-voice", voice); setSavedVoice(voice); setStatus(`${voice} saved for Gemini calls in this browser.`); } catch { setError("Your browser could not save the voice preference."); }
+            }}><Save className="h-4 w-4 mr-2" /> Save Gemini voice</Button>
+            {phase === "preview" && <span className="text-xs text-muted-foreground">{voice} preview</span>}
+          </div>
           <div className="flex items-center gap-2">
             {phase === "connecting" && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
             {phase === "live" && !aspenSpeaking && (
@@ -300,11 +350,15 @@ const VoiceLab = () => {
               {status}
             </p>
           </div>
+          {phase === "live" && <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span>Microphone</span><meter min="0" max="100" value={micLevel} aria-label="Microphone level" className="h-3 w-24" />
+            <span>{micLevel > 3 ? "Sound detected" : "Quiet"}</span>
+          </div>}
           {error && <p className="text-xs text-destructive font-semibold">{error}</p>}
         </Card>
 
         <Card className="p-4 min-h-[300px] max-h-[50vh] overflow-y-auto space-y-3">
-          {turns.length === 0 && (
+          {turns.length === 0 && !partialAspen && !partialUser && (
             <p className="text-sm text-muted-foreground text-center pt-16">
               No conversation yet. Press “Start live conversation” and just talk — she hears you
               continuously and you can interrupt her mid-sentence.
@@ -323,6 +377,8 @@ const VoiceLab = () => {
               </span>
             </div>
           ))}
+          {partialUser && <p className="text-right text-sm text-foreground break-words">{partialUser}</p>}
+          {partialAspen && <p className="text-sm text-foreground break-words">{partialAspen}</p>}
           <div ref={transcriptEndRef} />
         </Card>
 
