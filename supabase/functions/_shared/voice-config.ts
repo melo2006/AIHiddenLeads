@@ -3,7 +3,7 @@ export const DEFAULT_AGENT = {
   name: 'Aspen', businessName: 'AI Hidden Leads', voice: 'Kore', avatarPath: '',
   greeting: '{timeGreeting}! I am {agentName} from {businessName}. {nameQuestion}',
   systemPrompt: 'You are a warm, natural and concise business voice assistant. Explain Voice AI, website chat, lead generation, database reactivation, review management and intro avatar services. Invite interested visitors to try their website demo. Never invent prices or business facts.',
-  knowledge: '', crawlDepth: 1, recordTranscript: false,
+  knowledge: '', crawlDepth: 1, recordTranscript: false, transferPhone: '', transferManagerName: '',
 };
 export function businessDemoConfig(businessName: string, knowledge: string, identity?: Record<string, unknown>) {
   return {

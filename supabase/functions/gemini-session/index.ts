@@ -4,6 +4,7 @@ import { z } from 'npm:zod@3';
 import { DEFAULT_AGENT, VOICES, greeting, businessDemoConfig } from '../_shared/voice-config.ts';
 import { DEFAULT_LIVE_MODEL, officialLivePricing } from '../_shared/live-models.ts';
 import { voiceQuotaClass, voiceLimitResponse } from '../_shared/voice-session-limit.ts';
+import { transferDestination } from '../_shared/browser-handoff.ts';
 const schema=z.object({ visitorKey:z.string().min(16).max(100), model:z.string().max(100).optional(), agentId:z.string().uuid().optional(), leadId:z.string().uuid().optional(), prospectId:z.string().uuid().optional(), draft:z.boolean().default(false), preview:z.boolean().default(false), voice:z.enum(VOICES as [string,...string[]]).optional(), hour:z.number().int().min(0).max(23).optional(), visitorName:z.string().max(100).default(''), consent:z.boolean().default(false) });
 const json=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
 export async function hash(value:string) { return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)))).map(b=>b.toString(16).padStart(2,'0')).join(''); }
@@ -54,6 +55,18 @@ Deno.serve(async req=>{
   }
   const {data:s}=await db.from('gemini_voice_sessions').select('max_seconds').eq('id',id).single();
   let avatarUrl=''; if(config.avatarPath) { const {data}=await db.storage.from('lead-uploads').createSignedUrl(String(config.avatarPath),3600); avatarUrl=data?.signedUrl || ''; }
-  return json({token,sessionId:id,maxSeconds:s?.max_seconds,name:config.name,businessName:config.businessName,voice:config.voice,avatarUrl});
+  let handoffToken: string | undefined;
+  const destination=transferDestination(config);
+  if(destination && !b.preview) {
+    const {data:history,error:historyError}=await db.from('call_history').upsert({retell_call_id:`gemini_${id}`,lead_id:b.leadId||null,prospect_id:b.prospectId||null,business_name:String(config.businessName),call_status:'connecting',caller_name:b.visitorName||null,metadata:{provider:'gemini',session_id:id,agent_id:agentId,transcript_consent:config.recordTranscript}},{onConflict:'retell_call_id'}).select('id').single();
+    if(historyError)throw historyError;
+    if(history){
+      const capability=crypto.randomUUID()+crypto.randomUUID();
+      const {error:handoffError}=await db.from('browser_voice_handoffs').insert({session_id:id,call_history_id:history.id,organization_id:orgId,token_hash:await hash(capability),target_phone:destination,manager_name:String(config.transferManagerName||'the manager'),expires_at:new Date(Date.now()+((s?.max_seconds||300)+600)*1000).toISOString()});
+      if(handoffError)throw handoffError;
+      handoffToken=capability;
+    }
+  }
+  return json({token,sessionId:id,maxSeconds:s?.max_seconds,name:config.name,businessName:config.businessName,voice:config.voice,avatarUrl,handoffToken});
  } catch(e) {console.error('gemini-session',e);return json({error:'Could not authorize the voice session'},500);}
 });

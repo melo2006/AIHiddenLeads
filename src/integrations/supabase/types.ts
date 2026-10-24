@@ -71,6 +71,82 @@ export type Database = {
         }
         Relationships: []
       }
+      browser_voice_handoffs: {
+        Row: {
+          browser_call_sid: string | null
+          call_history_id: string
+          created_at: string
+          expires_at: string
+          id: string
+          last_error: string | null
+          manager_name: string
+          organization_id: string | null
+          owner_call_sid: string | null
+          session_id: string
+          status: Database["public"]["Enums"]["call_transfer_status"]
+          summary: string
+          target_phone: string
+          token_hash: string
+          updated_at: string
+        }
+        Insert: {
+          browser_call_sid?: string | null
+          call_history_id: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          last_error?: string | null
+          manager_name?: string
+          organization_id?: string | null
+          owner_call_sid?: string | null
+          session_id: string
+          status?: Database["public"]["Enums"]["call_transfer_status"]
+          summary?: string
+          target_phone: string
+          token_hash: string
+          updated_at?: string
+        }
+        Update: {
+          browser_call_sid?: string | null
+          call_history_id?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          last_error?: string | null
+          manager_name?: string
+          organization_id?: string | null
+          owner_call_sid?: string | null
+          session_id?: string
+          status?: Database["public"]["Enums"]["call_transfer_status"]
+          summary?: string
+          target_phone?: string
+          token_hash?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "browser_voice_handoffs_call_history_id_fkey"
+            columns: ["call_history_id"]
+            isOneToOne: false
+            referencedRelation: "call_history"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "browser_voice_handoffs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "voice_organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "browser_voice_handoffs_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: true
+            referencedRelation: "gemini_voice_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       call_event_logs: {
         Row: {
           call_history_id: string
@@ -1814,6 +1890,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      advance_browser_handoff: {
+        Args: {
+          _error?: string
+          _expected: Database["public"]["Enums"]["call_transfer_status"][]
+          _id: string
+          _next: Database["public"]["Enums"]["call_transfer_status"]
+        }
+        Returns: boolean
+      }
       authorize_gemini_session: {
         Args: {
           _agent?: string
