@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Menu, X, FileText } from "lucide-react";
+import { Menu, X, FileText, Type } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
+import TextSizeControl from "@/components/TextSizeControl";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 const LandingNavbar = () => {
   const [open, setOpen] = useState(false);
@@ -19,9 +21,9 @@ const LandingNavbar = () => {
     <div aria-hidden className="h-14 sm:h-16" />
     <nav className="fixed top-0 inset-x-0 z-[90] bg-background/80 backdrop-blur-xl border-b border-border">
       <div className="container mx-auto px-4 sm:px-6 flex items-center justify-between h-14 sm:h-16">
-        <Link to="/" className="flex items-center gap-2" onDoubleClick={(e) => { e.preventDefault(); window.location.href = "/dashboard"; }}>
-          <img src="/logo.png" alt="AI Hidden Leads" className="w-8 h-8 sm:w-9 sm:h-9" />
-          <span className="text-base sm:text-lg font-extrabold tracking-tight text-foreground">
+        <Link to="/" className="flex min-w-0 flex-1 lg:flex-none items-center gap-1.5" onDoubleClick={(e) => { e.preventDefault(); window.location.href = "/dashboard"; }}>
+          <img src="/logo.png" alt="AI Hidden Leads" className="w-6 h-6 shrink-0 sm:w-9 sm:h-9" />
+          <span className="min-w-0 text-sm sm:text-lg leading-tight font-extrabold text-foreground">
             AI <span className="text-primary">Hidden</span> Leads
           </span>
         </Link>
@@ -51,6 +53,7 @@ const LandingNavbar = () => {
             Script
           </Link>
           <LanguageSwitcher />
+          <Popover><PopoverTrigger asChild><Button size="icon" variant="ghost" aria-label="Text size" title="Text size"><Type /></Button></PopoverTrigger><PopoverContent className="z-[100] w-72"><TextSizeControl /></PopoverContent></Popover>
           <Button size="sm" onClick={() => scrollTo("demo-form")}>
             {t("nav.getFreeDemo")}
           </Button>
@@ -64,14 +67,14 @@ const LandingNavbar = () => {
 
         <div className="lg:hidden flex items-center gap-1">
           <LanguageSwitcher />
-          <button onClick={() => setOpen(!open)} className="p-2 text-muted-foreground hover:text-foreground">
+          <Button size="icon" variant="ghost" aria-label={open ? "Close menu" : "Open menu"} aria-expanded={open} onClick={() => setOpen(!open)} className="shrink-0 text-muted-foreground hover:text-foreground">
             {open ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </button>
+          </Button>
         </div>
       </div>
 
       {open && (
-        <div className="lg:hidden border-t border-border bg-background/95 backdrop-blur-xl px-4 py-3 space-y-1">
+        <div className="lg:hidden max-h-[calc(100dvh-4rem)] overflow-y-auto overscroll-contain border-t border-border bg-background/95 backdrop-blur-xl px-4 py-3 space-y-1">
           {[
             { id: "services", label: t("nav.services") },
             { id: "how-it-works", label: t("nav.howItWorks") },
@@ -79,13 +82,13 @@ const LandingNavbar = () => {
             { id: "testimonials", label: t("nav.testimonials") },
             { id: "faq", label: t("nav.faq", "Help / FAQ") },
           ].map((item) => (
-            <button
+            <Button variant="ghost"
               key={item.id}
               onClick={() => scrollTo(item.id)}
-              className="block w-full text-left px-3 py-3 rounded-lg text-base font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-all"
+              className="h-auto min-h-11 justify-start whitespace-normal w-full text-left px-3 py-2 text-base font-medium text-foreground hover:bg-secondary transition-all"
             >
               {item.label}
-            </button>
+            </Button>
           ))}
           <Link
             to="/transcript"
@@ -94,7 +97,8 @@ const LandingNavbar = () => {
           >
             Script
           </Link>
-          <Button size="lg" className="w-full mt-2 text-base" onClick={() => scrollTo("demo-form")}>
+          <TextSizeControl />
+          <Button size="lg" className="h-auto min-h-11 whitespace-normal w-full mt-2 py-3 text-base" onClick={() => scrollTo("demo-form")}>
             {t("nav.getFreeDemo")}
           </Button>
         </div>

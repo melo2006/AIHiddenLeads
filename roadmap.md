@@ -1,5 +1,8 @@
 # Current work
 
+- [ ] Fix screenshot homepage/menu clipping and verify narrow phones at enlarged text sizes.
+- [ ] Add saved menu text-size controls and clarify voice controls, pause/replay and microphone sensitivity.
+
 - [x] Approve and implement Gemini homepage, Voice Agents settings, and existing prospect-demo links.
 - [x] Verify saved settings, publishing, homepage greeting, document processing and business-specific demo history.
 - [x] Restrict legacy CRM and upload permissions when enabling client voice memberships.
