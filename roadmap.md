@@ -1,5 +1,9 @@
 # Current work
 
+- [ ] Remove sales pitches from business simulations and preserve business-specific greetings.
+- [ ] Expand first-level menu learning and optional second-level coverage without replacing deep listing scope.
+- [ ] Add protected per-call voice usage and cost reporting, with provider measurements and clearly labelled unknown historical costs.
+- [ ] Verify simulation rules, learning scope, cost calculations and the authenticated cost screen.
 - [x] Fix screenshot homepage/menu clipping; verified phone text at 320, 338 and 390 pixels through 150% reading size.
 - [x] Add saved menu text-size controls, labelled voice controls and microphone sensitivity; verified pause stays suspended, replay does not duplicate captions and settings persist.
 
