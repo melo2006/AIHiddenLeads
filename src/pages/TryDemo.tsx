@@ -31,6 +31,8 @@ import { formatPhoneNumber, sanitizeUrlInput } from "@/lib/formatters";
 import ScanningAnimation from "@/components/landing/ScanningAnimation";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import type { DemoLeadData } from "@/components/landing/demo-results/demoResultsUtils";
+import RankAuditPanel from "@/components/landing/demo-results/RankAuditPanel";
+import { rankAuditExamples, type RankAuditExample } from "@/lib/rankAuditExamples";
 
 const LAST_DEMO_STORAGE_KEY = "lastDemoLeadData";
 const MAX_FILES = 3;
@@ -103,6 +105,15 @@ const TryDemo = () => {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [url, setUrl] = useState("");
+  const [auditBusiness, setAuditBusiness] = useState("");
+  const [auditLocation, setAuditLocation] = useState("");
+  const [auditKeyword, setAuditKeyword] = useState("");
+  const [auditMode, setAuditMode] = useState<"maps" | "nationwide">("maps");
+  const [selectedExample, setSelectedExample] = useState<string | null>(null);
+  const selectExample = (example: RankAuditExample) => {
+    setUrl(example.website); setAuditBusiness(example.name); setAuditLocation(example.location);
+    setAuditKeyword(example.keyword); setAuditMode(example.mode); setSelectedExample(example.id);
+  };
   const [secondaryUrl, setSecondaryUrl] = useState("");
   const [crawlDepth, setCrawlDepth] = useState<1 | 2>(1);
   const [files, setFiles] = useState<File[]>([]);
@@ -168,7 +179,7 @@ const TryDemo = () => {
     }
 
     const { fullName: name, phone: ph, email: em, url: websiteUrl } = parsed.data;
-    const businessName = extractBusinessName(websiteUrl);
+    const businessName = auditBusiness.trim() || extractBusinessName(websiteUrl);
 
     setIsSubmitting(true);
 
@@ -226,6 +237,10 @@ const TryDemo = () => {
       });
       if (em) params.set("callerEmail", em);
       if (ph) params.set("callerPhone", ph);
+      if (auditLocation.trim()) params.set("city", auditLocation.trim());
+      if (auditKeyword.trim()) params.set("keyword", auditKeyword.trim());
+      params.set("auditMode", auditMode);
+      params.set("auditBusiness", businessName);
       navigate(`/demo-site?${params.toString()}`, { state: { leadData } });
     } catch (err) {
       console.error("Error:", err);
@@ -333,6 +348,24 @@ const TryDemo = () => {
           ))}
         </motion.div>
 
+        <section aria-labelledby="audit-examples-title" className="mb-6 border-y border-border py-5 text-left">
+          <h2 id="audit-examples-title" className="text-base font-bold">Try a real business</h2>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {rankAuditExamples.map(example => <Button key={example.id} type="button" variant={selectedExample === example.id ? "default" : "outline"} onClick={() => selectExample(example)} className="h-auto min-h-14 flex-col items-start whitespace-normal px-3 py-2 text-left text-xs">
+              <span className="font-semibold">{example.name}</span><span className="mt-1 text-[10px]">{example.mode === "nationwide" ? "Nationwide · B2B supplier" : example.id === "manufacturer" ? "Riviera Beach · manufacturer" : example.id === "bank" ? "Las Olas · single bank branch" : "Fort Lauderdale · plumber"}</span>
+            </Button>)}
+          </div>
+          <p className="mt-2 text-[11px] text-muted-foreground">Public examples, not customers or verified rankings. Website access and Google listings may change.</p>
+          {selectedExample && <a className="mt-1 inline-block text-xs text-primary underline" href={rankAuditExamples.find(e => e.id === selectedExample)?.source} target="_blank" rel="noreferrer">View business location source</a>}
+          <div className="mt-4 space-y-3">
+            <div><label htmlFor="demo-audit-name" className="mb-1 block text-xs font-medium">Business / branch name</label><Input id="demo-audit-name" value={auditBusiness} onChange={e => setAuditBusiness(e.target.value)} placeholder="Exact Google business name" maxLength={200} /></div>
+            <div><label htmlFor="demo-audit-location" className="mb-1 block text-xs font-medium">Local branch address or city + state</label><Input id="demo-audit-location" value={auditLocation} onChange={e => setAuditLocation(e.target.value)} placeholder="Optional for nationwide Google search" maxLength={100} /></div>
+            <div><label htmlFor="demo-audit-keyword" className="mb-1 block text-xs font-medium">Customer search keyword</label><Input id="demo-audit-keyword" value={auditKeyword} onChange={e => setAuditKeyword(e.target.value)} placeholder="e.g. plumber, custom manufacturing, industrial supplies" maxLength={150} /></div>
+          </div>
+          <div className="mt-3"><RankAuditPanel businessName={auditBusiness || extractBusinessName(url)} city={auditLocation} websiteUrl={url} initialKeyword={auditKeyword} initialMode={auditMode} /></div>
+          <p className="mt-2 text-xs text-muted-foreground">Ranking audit and website demo run separately. Local Maps checks one branch; nationwide mode checks 25 Google buyer searches, not AI citations.</p>
+        </section>
+
         {/* Form */}
         <motion.form
           initial={{ opacity: 0, y: 20 }}
@@ -378,7 +411,7 @@ const TryDemo = () => {
               <Input
                 placeholder="mybusiness.com *"
                 value={url}
-                onChange={(e) => setUrl(sanitizeUrlInput(e.target.value))}
+                onChange={(e) => { setUrl(sanitizeUrlInput(e.target.value)); setSelectedExample(null); }}
                 onBlur={() => {
                   if (url.trim()) {
                     const normalized = normalizeUrl(url);
