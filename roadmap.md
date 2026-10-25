@@ -1,5 +1,8 @@
 # Current work
 
+- [ ] Keep scan progress pending until actual demo display is prepared; remove unnecessary live-browser delays when screenshots exist.
+- [ ] Preload safe Aspen configuration/resources without opening paid voice sessions or microphone; verify greeting/startup flow.
+
 - [x] Add homepage interactive illustrative 25-point before/after comparison directly below laptop section; both maps, pin selection and demo-form CTA verified in browser, phone layout without horizontal overflow.
 - [x] Update growth package copy and $299/mo search bundle in English, Portuguese and Spanish; 15 grid/offer tests passed, Portuguese rendering verified, no browser errors. Live measurement/tracking remains provider-setup dependent; Aspen unchanged.
 
