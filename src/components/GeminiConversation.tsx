@@ -287,17 +287,26 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       const micCtx = preview ? null : new AudioContext({ sampleRate: 16000 });
       micCtxRef.current = micCtx;
       const micResume = micCtx?.resume();
-      await Promise.all([playResume, micResume]);
-      const stream = preview ? null : await navigator.mediaDevices.getUserMedia({
-        audio: { deviceId: microphone === "default" ? undefined : { exact: microphone }, echoCancellation: true, noiseSuppression: true, autoGainControl: captureMode !== "hold" },
-      });
-      if (generation !== generationRef.current) { stream?.getTracks().forEach(t => t.stop()); return; }
-      micStreamRef.current = stream;
-      if (stream) void refreshMicrophones();
-      if (playCtx.state !== "running" || (micCtx && micCtx.state !== "running")) throw new Error("Your browser paused audio. Press Start again to enable the microphone and speaker.");
       let visitorKey = localStorage.getItem("gemini-visitor-key");
       if (!visitorKey) { visitorKey = crypto.randomUUID(); localStorage.setItem("gemini-visitor-key", visitorKey); }
-      const { data: authorized, error: authError } = await supabase.functions.invoke("gemini-session", { body: { visitorKey, agentId, leadId, prospectId, draft, preview, voice: previewVoice || voice, model: testModel, hour: new Date().getHours(), visitorName, consent } });
+      // Prepare the server's business snapshot alongside permission/audio setup, only after a tap.
+      const microphoneReady = preview ? Promise.resolve(null) : navigator.mediaDevices.getUserMedia({
+        audio: { deviceId: microphone === "default" ? undefined : { exact: microphone }, echoCancellation: true, noiseSuppression: true, autoGainControl: captureMode !== "hold" },
+      }).then(stream => {
+        if (generation !== generationRef.current) { stream.getTracks().forEach(t => t.stop()); return null; }
+        micStreamRef.current = stream;
+        return stream;
+      });
+      const [session, stream] = await Promise.all([
+        supabase.functions.invoke("gemini-session", { body: { visitorKey, agentId, leadId, prospectId, draft, preview, voice: previewVoice || voice, model: testModel, hour: new Date().getHours(), visitorName, consent } }),
+        microphoneReady,
+        playResume,
+        micResume,
+      ]);
+      if (generation !== generationRef.current) { stream?.getTracks().forEach(t => t.stop()); return; }
+      if (stream) void refreshMicrophones();
+      if (playCtx.state !== "running" || (micCtx && micCtx.state !== "running")) throw new Error("Your browser paused audio. Press Start again to enable the microphone and speaker.");
+      const { data: authorized, error: authError } = session;
       if (authError) {
         const detail = authError instanceof FunctionsHttpError ? await authError.context.json().catch(() => null) : null;
         throw new Error(detail?.error || authError.message);
