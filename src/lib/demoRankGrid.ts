@@ -13,7 +13,7 @@ export function simulatedRankGrid(context: AuditContext) {
     const col = index % 5;
     seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
     const distance = Math.abs(row - 2) + Math.abs(col - 2);
-    const rank = Math.min(20, 1 + distance * 3 + seed % 5);
+    const rank = distance === 0 ? 1 + seed % 3 : Math.min(20, 1 + distance * 3 + seed % 5);
     return { row, col, rank, tone: rankTone(rank) };
   });
 }
