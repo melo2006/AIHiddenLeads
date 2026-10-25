@@ -8,6 +8,7 @@ import GeminiAgentWidget from "@/components/GeminiAgentWidget";
 import ChatWidget from "@/components/landing/demo-results/ChatWidget";
 import WebsiteShowcase from "@/components/landing/demo-results/WebsiteShowcase";
 import GeoGridWidget from "@/components/landing/demo-results/GeoGridWidget";
+import RankAuditPanel from "@/components/landing/demo-results/RankAuditPanel";
 import DemoWatermark from "@/components/landing/demo-results/DemoWatermark";
 import DraggableFloating from "@/components/landing/demo-results/DraggableFloating";
 import ScanningAnimation from "@/components/landing/ScanningAnimation";
@@ -878,6 +879,10 @@ const DemoSite = () => {
             </button>
           </div>
 
+        </div>
+
+        <div className="pointer-events-auto absolute left-3 top-full mt-2 max-w-[calc(100%-1.5rem)] sm:left-5">
+          <RankAuditPanel businessName={siteName} city={searchParams.get("city") || undefined} niche={leadData.niche} />
         </div>
 
         {/* Test phone override panel */}
