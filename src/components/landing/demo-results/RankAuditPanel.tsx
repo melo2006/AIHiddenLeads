@@ -154,16 +154,8 @@ export default function RankAuditPanel({ businessName, city = "", niche = "", we
           {isLiveMaps && live.center && (
             <figure aria-label="Live 25-point map audit" className="space-y-3">
               <figcaption className="text-sm font-semibold">{live.center.formatted || localCity} · 25 live checkpoints</figcaption>
-              <div className="h-72 overflow-hidden rounded-md border border-border">
-                <MapContainer center={[live.center.lat, live.center.lng]} zoom={12} scrollWheelZoom={false} style={{ height: "100%", width: "100%" }}>
-                  <TileLayer attribution='&copy; OpenStreetMap contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                  <FitBounds points={live.grid || []} />
-                  {(live.grid || []).map((p, i) => (
-                    <CircleMarker key={i} center={[p.lat as number, p.lng as number]} radius={15} pathOptions={{ color: liveColor(p.rank), fillColor: liveColor(p.rank), fillOpacity: 0.7, weight: 2 }}>
-                      <Tooltip permanent direction="center" className="rank-pin-label">{p.rank != null ? `#${p.rank}` : "20+"}</Tooltip>
-                    </CircleMarker>
-                  ))}
-                </MapContainer>
+              <div className="overflow-hidden rounded-md border border-border">
+                <LiveMap center={live.center} grid={live.grid || []} />
               </div>
             </figure>
           )}
