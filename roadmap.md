@@ -1,5 +1,9 @@
 # Current work
 
+- [ ] Improve homepage and live rank marker readability over real street maps.
+- [ ] Add verified editable business examples and direct audit access on /demo; explain inputs and local versus nationwide limitations.
+- [ ] Verify example selection, validation and map rendering without paid Google Maps calls; provide step-by-step testing guidance.
+
 - [x] Keep homepage scan progress continuous until actual data arrives; eager screenshot fallback skips unnecessary remote browser wait, with bounded slow-iframe fallback. Delayed 18-second scan test confirmed no premature ready message and successful demo transition.
 - [x] Preload cached public Aspen identity/avatar and free proxy health check; prepare authorization and microphone concurrently after a click, autostart externally opened demo widgets. BankUnited screenshot appeared in 3 seconds, greeting in 4.9 seconds, no pre-click voice session or runtime errors; 11 focused tests passed. Real-device/provider timing varies.
 
