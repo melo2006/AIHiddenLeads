@@ -163,25 +163,7 @@ const GeoGridWidget = ({ businessName, websiteUrl, defaultKeyword, onBookCall, o
 
             {/* Map */}
             <div className="h-[360px] sm:h-[440px] rounded-xl overflow-hidden border border-border">
-              <MapContainer center={[result.center.lat, result.center.lng]} zoom={13} scrollWheelZoom={false} style={{ height: "100%", width: "100%" }}>
-                <TileLayer
-                  attribution='&copy; OpenStreetMap'
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                />
-                <FitBounds points={result.grid} />
-                {result.grid.map((p, i) => (
-                  <CircleMarker
-                    key={i}
-                    center={[p.lat, p.lng]}
-                    radius={22}
-                    pathOptions={{ color: rankColor(p.rank), fillColor: rankColor(p.rank), fillOpacity: 0.75, weight: 2 }}
-                  >
-                    <Tooltip permanent direction="center" className="!bg-transparent !border-0 !shadow-none !text-white !font-bold !text-xs">
-                      {rankLabel(p.rank)}
-                    </Tooltip>
-                  </CircleMarker>
-                ))}
-              </MapContainer>
+              <ScanMap center={result.center} grid={result.grid} />
             </div>
 
             {/* Voice agent narrative + CTAs */}
