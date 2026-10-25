@@ -1,7 +1,7 @@
 # Current work
 
-- [ ] Allow SEO/AI crawlers and enrich static metadata with factual LocalBusiness schema.
-- [ ] Add isolated demo-bar 25-point simulated audit, fast-win summary, offer links and future authenticated live-provider hook; preserve pages and Aspen.
+- [x] Allow SEO/AI crawlers and enrich static metadata with factual LocalBusiness schema; no invented address or hours.
+- [x] Add isolated demo-bar 25-point simulated audit, fast-win summary, offer links and authenticated future live-provider hook; 8 rule tests passed, desktop/phone panel and both offer destinations verified. Live provider integration intentionally deferred until credentials and adapter setup; no paid calls made.
 
 - [x] Audit homepage Aspen knowledge, add reviewed services/prices/limitations to draft and published snapshots without publishing unrelated transfer settings; live homepage answer gave all three monthly/setup prices and reactivation correctly; 16 tests passed.
 - [ ] Reconcile conflicting marketing terms (100 vs 500 included conversations, fixed overages vs passthrough, obsolete Retell/$149 offer and unsupported statistics); awaits owner-confirmed usage/overage terms before changing commercial promises.
