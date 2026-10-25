@@ -1,9 +1,15 @@
 import { useState } from "react";
-import { ArrowRight, Building2, MapPin } from "lucide-react";
+import { ArrowRight, MapPin } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { homepageMapComparison } from "@/lib/homepageMapComparison";
+import RankStreetMap from "./RankStreetMap";
+
+const comparisonStreetPoints = {
+  before: homepageMapComparison.map(p => ({ index: p.index, lat: 26.1224 + (2 - p.row) * 0.01447, lng: -80.1373 + (p.col - 2) * 0.016, rank: p.beforeRank })),
+  after: homepageMapComparison.map(p => ({ index: p.index, lat: 26.1224 + (2 - p.row) * 0.01447, lng: -80.1373 + (p.col - 2) * 0.016, rank: p.afterRank })),
+};
 
 export default function MapVisibilitySection() {
   const { t } = useTranslation();
@@ -25,20 +31,9 @@ export default function MapVisibilitySection() {
                 <div className="min-w-0"><p className={`mb-1 text-xs font-bold uppercase ${mode === "after" ? "text-primary" : "text-muted-foreground"}`}>{t(`mapVisibility.${mode}Label`)}</p><h3 className="text-base font-semibold sm:text-lg">{t(`mapVisibility.${mode}Title`)}</h3></div>
                 <ArrowRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />
               </figcaption>
-              <div className="visibility-map relative isolate aspect-square p-5 sm:p-7">
-                <svg className="pointer-events-none absolute inset-0 h-full w-full text-border" viewBox="0 0 400 400" fill="none" aria-hidden="true">
-                  <path d="M0 55H400M0 135H400M0 215H400M0 295H400M0 375H400M55 0V400M135 0V400M215 0V400M295 0V400M375 0V400" stroke="currentColor" strokeWidth="10" />
-                  <path d="M-20 340L420 40M-20 360L420 60" stroke="currentColor" strokeWidth="5" />
-                </svg>
-                <div className="relative grid h-full grid-cols-5 grid-rows-5 gap-3 sm:gap-5">
-                  {homepageMapComparison.map(p => {
-                    const rank = mode === "before" ? p.beforeRank : p.afterRank;
-                    const tone = mode === "before" ? p.beforeTone : p.afterTone;
-                    return <Button key={p.index} variant="ghost" aria-pressed={selected === p.index} aria-label={t("mapVisibility.pinLabel", { mode: t(`mapVisibility.${mode}Label`), n: p.index + 1, rank: rank > 20 ? "20+" : rank })} onClick={() => setSelected(p.index)} className={`audit-rank-${tone} h-full min-h-0 w-full min-w-0 rounded-full p-0 text-xs font-bold hover:opacity-90 focus-visible:ring-offset-card ${selected === p.index ? "ring-2 ring-foreground ring-offset-2 ring-offset-card" : ""}`}>
-                      {p.index === 12 ? <Building2 className="mr-0.5 hidden h-3 w-3 sm:block" aria-hidden="true" /> : null}#{rank > 20 ? "20+" : rank}
-                    </Button>;
-                  })}
-                </div>
+              <div className="visibility-map relative isolate h-80 sm:h-96">
+                <RankStreetMap points={comparisonStreetPoints[mode]} selected={selected} onSelect={setSelected} illustrative />
+                <span className="pointer-events-none absolute left-3 top-3 z-[500] rounded border border-border bg-card px-2 py-1 text-[10px] font-semibold text-foreground">Illustrative · Fort Lauderdale · not measured</span>
               </div>
               <div className="flex items-baseline justify-between gap-2 border-t border-border px-5 py-4"><p className="text-sm text-muted-foreground">{t("mapVisibility.topThree")}</p><p className={`text-2xl font-bold ${mode === "after" ? "text-primary" : "text-foreground"}`}>{mode === "before" ? "1" : "22"}<span className="text-sm font-normal text-muted-foreground"> / 25</span></p></div>
             </figure>
