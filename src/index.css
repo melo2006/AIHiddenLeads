@@ -102,6 +102,7 @@
 }
 
 @layer utilities {
+  .visibility-map { background: hsl(var(--muted) / 0.45); }
   .audit-rank-good { color: hsl(var(--primary-foreground)); background: hsl(var(--primary)); }
   .audit-rank-warning { color: hsl(var(--primary-foreground)); background: hsl(var(--audit-rank-warning)); }
   .audit-rank-bad { color: hsl(var(--destructive-foreground)); background: hsl(var(--destructive)); }

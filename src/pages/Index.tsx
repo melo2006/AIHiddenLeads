@@ -15,6 +15,7 @@ import LeadCaptureSection from "@/components/landing/LeadCaptureSection";
 import Footer from "@/components/landing/Footer";
 import GeminiAgentWidget from "@/components/GeminiAgentWidget";
 import TryWebsiteCTA from "@/components/landing/TryWebsiteCTA";
+import MapVisibilitySection from "@/components/landing/MapVisibilitySection";
 
 const Index = () => {
   const [selectedNiche, setSelectedNiche] = useState(niches[0]);
@@ -28,6 +29,7 @@ const Index = () => {
       <LandingNavbar />
       <HeroSection niche={selectedNiche} onGetDemo={scrollToDemo} />
       <BeforeAfterSection niche={selectedNiche} />
+      <MapVisibilitySection />
       <TryWebsiteCTA />
       <StatsSection niche={selectedNiche} />
       <ServicesGrid />

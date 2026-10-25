@@ -3,6 +3,7 @@ import { Globe, Search, Sparkles, Wrench } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { searchGrowthOffers, searchBundleSavings } from "@/lib/homepageMapComparison";
 
 const addOns = [
   {
@@ -20,15 +21,15 @@ const addOns = [
   {
     key: "aiSearch",
     icon: Sparkles,
-    price: "$249",
+    price: `$${searchGrowthOffers.aiSearch}`,
     priceBRL: "R$ 1.249",
     priceNote: "/mo",
-    badgeKey: "comingSoon",
+    badgeKey: "liveNow",
   },
   {
     key: "mapsBoost",
     icon: Globe,
-    price: "$149",
+    price: `$${searchGrowthOffers.mapsBoost}`,
     priceBRL: "R$ 749",
     priceNote: "/mo",
   },
@@ -72,12 +73,12 @@ const AddOnPackages = () => {
               transition={{ delay: i * 0.08 }}
               className="group rounded-2xl border border-border bg-card p-6 flex flex-col hover:border-primary/30 transition-all duration-300"
             >
-              <div className="flex items-start justify-between mb-4">
+              <div className="flex flex-wrap items-start justify-between gap-2 mb-4">
                 <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
                   <addon.icon className="w-5 h-5 text-primary" />
                 </div>
                 {addon.badgeKey && (
-                  <Badge variant="outline" className="border-accent/30 text-accent text-[10px] px-2 py-0.5">
+                    <Badge variant="outline" className="max-w-full whitespace-normal border-primary/30 text-primary text-[10px] px-2 py-0.5">
                     {t(`addons.${addon.badgeKey}`)}
                   </Badge>
                 )}
@@ -110,6 +111,13 @@ const AddOnPackages = () => {
               </Button>
             </motion.div>
           ))}
+        </div>
+
+        <div className="mx-auto mt-6 max-w-5xl border-y border-primary/40 bg-primary/10 px-5 py-7 sm:px-8">
+          <Badge variant="outline" className="mb-3 border-primary/40 text-primary">{t("addons.bundle.badge")}</Badge>
+          <h3 className="text-xl font-bold sm:text-2xl">{t("addons.bundle.title")}</h3>
+          <p className="mt-3 text-base leading-relaxed">{t("addons.bundle.body", { maps: searchGrowthOffers.mapsBoost, ai: searchGrowthOffers.aiSearch, bundle: searchGrowthOffers.bundle, savings: searchBundleSavings })}</p>
+          <p className="mt-3 text-xs text-muted-foreground">{t("addons.bundle.note")}</p>
         </div>
 
         {/* AI Search teaser */}
