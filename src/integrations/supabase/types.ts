@@ -1402,6 +1402,39 @@ export type Database = {
         }
         Relationships: []
       }
+      rank_scan_cache: {
+        Row: {
+          business_name: string
+          cache_key: string
+          city: string | null
+          created_at: string
+          id: string
+          keyword: string
+          result: Json
+          scan_mode: string
+        }
+        Insert: {
+          business_name: string
+          cache_key: string
+          city?: string | null
+          created_at?: string
+          id?: string
+          keyword: string
+          result: Json
+          scan_mode: string
+        }
+        Update: {
+          business_name?: string
+          cache_key?: string
+          city?: string | null
+          created_at?: string
+          id?: string
+          keyword?: string
+          result?: Json
+          scan_mode?: string
+        }
+        Relationships: []
+      }
       scraped_ads: {
         Row: {
           ad_country: string | null

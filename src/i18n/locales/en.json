@@ -207,7 +207,14 @@
     "selected": "Sample checkpoint {{n}}: Before #{{before}} → After #{{after}}",
     "office": "Your office",
     "cta": "Check My 25-Point Map + Live AI Website Demo — Free",
-    "auditNote": "Free demo includes a simulated grid. Live neighborhood measurements and weekly tracking require provider setup; rankings and AI citations are not guaranteed."
+    "auditNote": "Free demo includes a simulated grid. Live neighborhood measurements and weekly tracking require provider setup; rankings and AI citations are not guaranteed.",
+    "timelineTitle": "Our 3-Part Growth Timeline",
+    "week1Title": "Week 1 — Immediate ROI, zero waiting on Google",
+    "week1Text": "Aspen goes live 24/7 on your website and phone lines, and your first batch of verified B2B leads (up to 50/mo) is delivered to your dashboard.",
+    "days1to14Title": "Days 1–14 — Fast-win technical & category fixes",
+    "days1to14Text": "We deploy AI Answer Engine Schema (llms.txt + JSON-LD for ChatGPT/Gemini), align your exact Google Business Profile categories, and flag keyword-stuffing competitors to capture low-hanging ranking jumps.",
+    "days15to60Title": "Days 15–60 — Compound map & search expansion",
+    "days15to60Text": "Automated weekly Google posts, review velocity, and AI citation pages steadily expand your green zone across surrounding areas and national buyer searches."
   },
   "addons": {
     "badge": "À La Carte",

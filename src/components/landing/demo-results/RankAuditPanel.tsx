@@ -1,17 +1,102 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { MapPin, ShieldCheck } from "lucide-react";
+import { Loader2, MapPin, Radar, ShieldCheck } from "lucide-react";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { supabase } from "@/integrations/supabase/client";
 import { auditOffers, simulatedRankGrid } from "@/lib/demoRankGrid";
 
-interface Props { businessName: string; city?: string; niche?: string }
+interface Props { businessName: string; city?: string; niche?: string; websiteUrl?: string }
 
-export default function RankAuditPanel({ businessName, city = "", niche = "" }: Props) {
+type ScanMode = "maps" | "nationwide";
+
+interface LiveCell { row: number; col: number; rank: number | null; lat?: number; lng?: number; query?: string; matchedName?: string }
+interface LiveResult {
+  mode: "live" | "simulated";
+  scanMode: ScanMode;
+  cached?: boolean;
+  center?: { lat: number; lng: number; formatted?: string } | null;
+  grid?: LiveCell[];
+  stats?: { totalCells: number; rankedCells: number; avgRank: number | null; top3VisibilityPct: number; blindSpots: number };
+  reason?: string;
+  error?: string;
+}
+
+const liveTone = (rank: number | null) => (rank != null && rank <= 3 ? "good" : rank != null && rank <= 10 ? "warning" : "bad");
+const liveColor = (rank: number | null) => (rank != null && rank <= 3 ? "#16a34a" : rank != null && rank <= 10 ? "#facc15" : "#dc2626");
+
+// Plain Leaflet (imperative) — react-leaflet v5 requires React 19, this project is React 18.
+const LiveMap = ({ center, grid }: { center: { lat: number; lng: number }; grid: LiveCell[] }) => {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!ref.current) return;
+    const map = L.map(ref.current, { scrollWheelZoom: false }).setView([center.lat, center.lng], 12);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "&copy; OpenStreetMap contributors" }).addTo(map);
+    const pts: L.LatLngExpression[] = [];
+    grid.forEach(p => {
+      if (typeof p.lat !== "number" || typeof p.lng !== "number") return;
+      pts.push([p.lat, p.lng]);
+      const color = liveColor(p.rank);
+      L.circleMarker([p.lat, p.lng], { radius: 15, color, fillColor: color, fillOpacity: 0.7, weight: 2 })
+        .addTo(map)
+        .bindTooltip(p.rank != null ? `#${p.rank}` : "20+", { permanent: true, direction: "center", className: "rank-pin-label" });
+    });
+    if (pts.length) map.fitBounds(L.latLngBounds(pts).pad(0.15));
+    const t = setTimeout(() => map.invalidateSize(), 300);
+    return () => { clearTimeout(t); map.remove(); };
+  }, [center, grid]);
+  return <div ref={ref} className="h-72 w-full" />;
+};
+
+export default function RankAuditPanel({ businessName, city = "", niche = "", websiteUrl = "" }: Props) {
   const [open, setOpen] = useState(false);
   const [localCity, setLocalCity] = useState(city);
+  const [keyword, setKeyword] = useState(niche && niche !== "general" ? niche : "");
+  const [scanMode, setScanMode] = useState<ScanMode>("maps");
+  const [loading, setLoading] = useState(false);
+  const [live, setLive] = useState<LiveResult | null>(null);
+  const [scanError, setScanError] = useState<string | null>(null);
   const points = useMemo(() => simulatedRankGrid({ businessName, city: localCity, niche }), [businessName, localCity, niche]);
+
+  const runLiveScan = async () => {
+    const kw = keyword.trim() || (niche && niche !== "general" ? niche : "local services");
+    if (scanMode === "maps" && !localCity.trim()) {
+      setScanError("Enter the business city first — the live map audit needs a real location.");
+      return;
+    }
+    setLoading(true);
+    setScanError(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("demo-rank-audit", {
+        body: { businessName, city: localCity.trim(), keyword: kw, niche, websiteUrl, mode: scanMode },
+      });
+      if (error) throw error;
+      const result = data as LiveResult;
+      if (result?.error) throw new Error(result.error);
+      if (result?.mode === "live" && result.grid) {
+        setLive(result);
+      } else {
+        setLive(null);
+        setScanError(
+          result?.reason === "daily_live_scan_cap_reached"
+            ? "Today's live scan limit was reached — showing the simulated preview. Try again tomorrow."
+            : "Live scan is unavailable right now — showing the simulated preview.",
+        );
+      }
+    } catch (e: any) {
+      setLive(null);
+      setScanError(e?.message || "Live scan failed — showing the simulated preview.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const isLiveMaps = live?.mode === "live" && live.scanMode === "maps" && live.center;
+  const isLiveNationwide = live?.mode === "live" && live.scanMode === "nationwide";
+
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
@@ -26,39 +111,104 @@ export default function RankAuditPanel({ businessName, city = "", niche = "" }: 
           <SheetDescription>{businessName}{niche && niche !== "general" ? ` · ${niche}` : ""}</SheetDescription>
         </SheetHeader>
         <div className="mt-5 space-y-5">
-          <div className="flex items-start gap-2 rounded-md border border-border bg-muted p-3 text-xs text-muted-foreground">
-            <ShieldCheck className="h-4 w-4 shrink-0 text-primary" />
-            <p><strong className="text-foreground">Simulated preview — not live rankings.</strong> Illustrative neighborhood pins, not actual business locations or measured Google results. A live audit is needed to verify visibility.</p>
-          </div>
-          <div>
-            <label htmlFor="audit-city" className="mb-1 block text-xs font-medium">Business city</label>
-            <Input id="audit-city" value={localCity} onChange={e => setLocalCity(e.target.value)} maxLength={100} placeholder="City not supplied — enter a city" />
-          </div>
-          <figure aria-label="Simulated 5 by 5 neighborhood rank grid" className="space-y-3">
-            <figcaption className="text-sm font-semibold">{localCity ? `${localCity} · ` : ""}25 neighborhood checkpoints</figcaption>
-            <div className="grid aspect-square grid-cols-5 grid-rows-5 gap-3 rounded-md border border-border bg-muted/40 p-3">
-              {points.map(point => (
-                <div key={`${point.row}-${point.col}`} data-audit-pin className={`audit-rank-${point.tone} flex min-w-0 flex-col items-center justify-center rounded-full text-xs font-bold`} title={`Simulated row ${point.row + 1}, column ${point.col + 1}: rank ${point.rank}`}>
-                  <MapPin className="h-4 w-4" aria-hidden="true" />
-                  <span>#{point.rank}</span>
-                </div>
-              ))}
+          {!live && (
+            <div className="flex items-start gap-2 rounded-md border border-border bg-muted p-3 text-xs text-muted-foreground">
+              <ShieldCheck className="h-4 w-4 shrink-0 text-primary" />
+              <p><strong className="text-foreground">Simulated preview — not live rankings.</strong> Illustrative neighborhood pins, not actual business locations or measured Google results. Run the live audit below to measure real visibility.</p>
             </div>
-            <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1.5"><i className="audit-rank-good h-2.5 w-2.5 rounded-full" />1–3 · Visible</span>
-              <span className="flex items-center gap-1.5"><i className="audit-rank-warning h-2.5 w-2.5 rounded-full" />4–10 · At risk</span>
-              <span className="flex items-center gap-1.5"><i className="audit-rank-bad h-2.5 w-2.5 rounded-full" />11+ · Low visibility</span>
+          )}
+          {live && (
+            <div className="flex items-start gap-2 rounded-md border border-primary/40 bg-primary/10 p-3 text-xs text-muted-foreground">
+              <Radar className="h-4 w-4 shrink-0 text-primary" />
+              <p><strong className="text-foreground">Live data{live.cached ? " (cached — 0 extra credits)" : ""} · Serper Google {live.scanMode === "maps" ? "Maps" : "Search"}.</strong> Real search ordering per checkpoint — a strong visibility signal, not a guaranteed ranking.</p>
             </div>
-          </figure>
+          )}
+
+          <div className="grid grid-cols-2 gap-2" role="group" aria-label="Audit type">
+            <Button type="button" size="sm" variant={scanMode === "maps" ? "default" : "outline"} className="h-auto min-h-9 whitespace-normal text-xs" onClick={() => { setScanMode("maps"); setLive(null); }}>
+              📍 Local Maps Grid
+            </Button>
+            <Button type="button" size="sm" variant={scanMode === "nationwide" ? "default" : "outline"} className="h-auto min-h-9 whitespace-normal text-xs" onClick={() => { setScanMode("nationwide"); setLive(null); }}>
+              🤖 Nationwide AI Search Matrix
+            </Button>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            {scanMode === "maps" && (
+              <div>
+                <label htmlFor="audit-city" className="mb-1 block text-xs font-medium">Business city</label>
+                <Input id="audit-city" value={localCity} onChange={e => setLocalCity(e.target.value)} maxLength={100} placeholder="City not supplied — enter a city" />
+              </div>
+            )}
+            <div>
+              <label htmlFor="audit-keyword" className="mb-1 block text-xs font-medium">Target keyword</label>
+              <Input id="audit-keyword" value={keyword} onChange={e => setKeyword(e.target.value)} maxLength={150} placeholder={scanMode === "maps" ? 'e.g. "med spa near me"' : 'e.g. "commercial cleaning services"'} />
+            </div>
+          </div>
+
+          <Button onClick={runLiveScan} disabled={loading} className="h-auto min-h-11 w-full whitespace-normal py-3 font-semibold">
+            {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Scanning 25 live checkpoints (30–60s)…</> : <><Radar className="mr-2 h-4 w-4" />Run Live 25-Point Audit</>}
+          </Button>
+          {scanError && <p className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">{scanError}</p>}
+
+          {isLiveMaps && live.center && (
+            <figure aria-label="Live 25-point map audit" className="space-y-3">
+              <figcaption className="text-sm font-semibold">{live.center.formatted || localCity} · 25 live checkpoints</figcaption>
+              <div className="overflow-hidden rounded-md border border-border">
+                <LiveMap center={live.center} grid={live.grid || []} />
+              </div>
+            </figure>
+          )}
+
+          {isLiveNationwide && (
+            <figure aria-label="Live 25-point nationwide search matrix" className="space-y-3">
+              <figcaption className="text-sm font-semibold">25 B2B buyer searches · your organic position</figcaption>
+              <div className="grid grid-cols-5 grid-rows-5 gap-2 rounded-md border border-border bg-muted/40 p-3">
+                {(live.grid || []).map((cell, i) => (
+                  <div key={i} className={`audit-rank-${liveTone(cell.rank)} flex aspect-square min-w-0 flex-col items-center justify-center rounded-full text-[10px] font-bold`} title={`${cell.query}: ${cell.rank != null ? `position #${cell.rank}` : "not in top 10"}`}>
+                    #{cell.rank != null ? cell.rank : "10+"}
+                  </div>
+                ))}
+              </div>
+            </figure>
+          )}
+
+          {!live && (
+            <figure aria-label="Simulated 5 by 5 neighborhood rank grid" className="space-y-3">
+              <figcaption className="text-sm font-semibold">{localCity ? `${localCity} · ` : ""}25 neighborhood checkpoints</figcaption>
+              <div className="grid aspect-square grid-cols-5 grid-rows-5 gap-3 rounded-md border border-border bg-muted/40 p-3">
+                {points.map(point => (
+                  <div key={`${point.row}-${point.col}`} data-audit-pin className={`audit-rank-${point.tone} flex min-w-0 flex-col items-center justify-center rounded-full text-xs font-bold`} title={`Simulated row ${point.row + 1}, column ${point.col + 1}: rank ${point.rank}`}>
+                    <MapPin className="h-4 w-4" aria-hidden="true" />
+                    <span>#{point.rank}</span>
+                  </div>
+                ))}
+              </div>
+            </figure>
+          )}
+
+          {live?.stats && (
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="rounded-lg border border-border bg-secondary/40 p-2"><p className="text-[10px] uppercase text-muted-foreground">Avg rank</p><p className="text-lg font-extrabold">{live.stats.avgRank ? `#${live.stats.avgRank.toFixed(1)}` : "—"}</p></div>
+              <div className="rounded-lg border border-border bg-secondary/40 p-2"><p className="text-[10px] uppercase text-muted-foreground">Top-3 visibility</p><p className="text-lg font-extrabold">{live.stats.top3VisibilityPct}%</p></div>
+              <div className="rounded-lg border border-border bg-secondary/40 p-2"><p className="text-[10px] uppercase text-muted-foreground">Blind spots</p><p className="text-lg font-extrabold">{live.stats.blindSpots}</p></div>
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1.5"><i className="audit-rank-good h-2.5 w-2.5 rounded-full" />1–3 · Visible</span>
+            <span className="flex items-center gap-1.5"><i className="audit-rank-warning h-2.5 w-2.5 rounded-full" />4–10 · At risk</span>
+            <span className="flex items-center gap-1.5"><i className="audit-rank-bad h-2.5 w-2.5 rounded-full" />11+ · Low visibility</span>
+          </div>
+
           <section className="border-t border-border pt-4">
-            <h3 className="text-lg font-bold">14-Day AI Fast-Win Plan</h3>
+            <h3 className="text-lg font-bold">Our 3-Part Growth Timeline</h3>
             <ol className="mt-3 space-y-3 text-sm text-muted-foreground">
-              <li><strong className="text-foreground">Days 1–3:</strong> Review and correct Google Business Profile categories with your authorization.</li>
-              <li><strong className="text-foreground">Days 4–7:</strong> Document keyword-stuffing competitors and report verified policy violations to Google. Google decides removals.</li>
-              <li><strong className="text-foreground">Days 8–14:</strong> Add factual AI Search Schema to eligible website pages and review local visibility.</li>
-              <li><strong className="text-foreground">Starting Week 1:</strong> Begin weekly delivery of up to {auditOffers.monthlyLeads} qualified B2B prospects per month with the Founder Plan.</li>
+              <li><strong className="text-foreground">Week 1 — Immediate ROI, zero waiting on Google:</strong> Aspen goes live 24/7 on your website and phone lines, and your first batch of verified B2B leads (up to {auditOffers.monthlyLeads}/mo) is delivered to your dashboard.</li>
+              <li><strong className="text-foreground">Days 1–14 — Fast-win technical &amp; category fixes:</strong> We deploy AI Answer Engine Schema (llms.txt + JSON-LD for ChatGPT/Gemini), align your exact Google Business Profile categories, and flag keyword-stuffing competitors to capture low-hanging ranking jumps.</li>
+              <li><strong className="text-foreground">Days 15–60 — Compound map &amp; search expansion:</strong> Automated weekly Google posts, review velocity, and AI citation pages steadily expand your green zone across surrounding areas and national buyer searches.</li>
             </ol>
-            <p className="mt-3 text-xs text-muted-foreground">A 14-day action plan, not a ranking guarantee. Prospect records are not guaranteed appointments or opt-in buyers. Google Maps Boost is separate from the base plan.</p>
+            <p className="mt-3 text-xs text-muted-foreground">A realistic action plan, not a ranking guarantee. Prospect records are not guaranteed appointments or opt-in buyers. Google decides whether reported policy violations are removed.</p>
           </section>
           <div className="space-y-2 border-t border-border pt-4">
             <Button asChild className="h-auto min-h-11 w-full whitespace-normal py-3"><Link to="/checkout?plan=essentials">Claim ${auditOffers.founder}/mo Founder Plan</Link></Button>

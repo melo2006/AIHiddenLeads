@@ -45,3 +45,10 @@
 - [x] Keep language/noise instructions and restore prompt speech onset detection after low sensitivity missed caller speech.
 - [x] Deploy and verify English responses and explicit Portuguese switching.
 - [x] Explain the shared customer knowledge and transfer integration needed for a future admin provider choice.
+## Serper live 25-point audit (Oct 26, 2026)
+- [x] rank_scan_cache table (7-day cache, daily cap 30 live scans)
+- [x] demo-rank-audit: live Serper Maps 5x5 grid + Nationwide AI Search Matrix
+- [x] RankAuditPanel: live Leaflet map (OSM tiles), mode toggle, 3-part timeline
+- [x] MapVisibilitySection: 3-part growth timeline (en/es/pt-BR)
+- [x] Verified live maps + nationwide scans end-to-end; cache hits cost 0 credits
+- [ ] Aspen widget Type Chat toggle (voice-only today; needs proxy text turns)

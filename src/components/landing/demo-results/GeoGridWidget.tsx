@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { MapContainer, TileLayer, CircleMarker, Tooltip, useMap } from "react-leaflet";
+import { useEffect, useMemo, useRef, useState } from "react";
+import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { MapPin, Loader2, Target, TrendingDown, Zap, CalendarCheck } from "lucide-react";
 import { motion } from "framer-motion";
@@ -47,18 +47,26 @@ const rankColor = (rank: number | null) => {
 
 const rankLabel = (rank: number | null) => (rank == null ? "20+" : `#${rank}`);
 
-const FitBounds = ({ points }: { points: GridPoint[] }) => {
-  const map = useMap();
+// Plain Leaflet (imperative) — react-leaflet v5 requires React 19, this project is React 18.
+const ScanMap = ({ center, grid }: { center: { lat: number; lng: number }; grid: GridPoint[] }) => {
+  const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (!points.length) return;
-    const lats = points.map((p) => p.lat);
-    const lngs = points.map((p) => p.lng);
-    map.fitBounds([
-      [Math.min(...lats), Math.min(...lngs)],
-      [Math.max(...lats), Math.max(...lngs)],
-    ], { padding: [20, 20] });
-  }, [points, map]);
-  return null;
+    if (!ref.current) return;
+    const map = L.map(ref.current, { scrollWheelZoom: false }).setView([center.lat, center.lng], 13);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "&copy; OpenStreetMap" }).addTo(map);
+    const pts: L.LatLngExpression[] = [];
+    grid.forEach((p) => {
+      pts.push([p.lat, p.lng]);
+      const color = rankColor(p.rank);
+      L.circleMarker([p.lat, p.lng], { radius: 22, color, fillColor: color, fillOpacity: 0.75, weight: 2 })
+        .addTo(map)
+        .bindTooltip(rankLabel(p.rank), { permanent: true, direction: "center", className: "rank-pin-label" });
+    });
+    if (pts.length) map.fitBounds(L.latLngBounds(pts).pad(0.1));
+    const t = setTimeout(() => map.invalidateSize(), 300);
+    return () => { clearTimeout(t); map.remove(); };
+  }, [center, grid]);
+  return <div ref={ref} className="h-full w-full" />;
 };
 
 const GeoGridWidget = ({ businessName, websiteUrl, defaultKeyword, onBookCall, onVoiceCall }: Props) => {
@@ -155,25 +163,7 @@ const GeoGridWidget = ({ businessName, websiteUrl, defaultKeyword, onBookCall, o
 
             {/* Map */}
             <div className="h-[360px] sm:h-[440px] rounded-xl overflow-hidden border border-border">
-              <MapContainer center={[result.center.lat, result.center.lng]} zoom={13} scrollWheelZoom={false} style={{ height: "100%", width: "100%" }}>
-                <TileLayer
-                  attribution='&copy; OpenStreetMap'
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                />
-                <FitBounds points={result.grid} />
-                {result.grid.map((p, i) => (
-                  <CircleMarker
-                    key={i}
-                    center={[p.lat, p.lng]}
-                    radius={22}
-                    pathOptions={{ color: rankColor(p.rank), fillColor: rankColor(p.rank), fillOpacity: 0.75, weight: 2 }}
-                  >
-                    <Tooltip permanent direction="center" className="!bg-transparent !border-0 !shadow-none !text-white !font-bold !text-xs">
-                      {rankLabel(p.rank)}
-                    </Tooltip>
-                  </CircleMarker>
-                ))}
-              </MapContainer>
+              <ScanMap center={result.center} grid={result.grid} />
             </div>
 
             {/* Voice agent narrative + CTAs */}
