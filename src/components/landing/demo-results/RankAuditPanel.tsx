@@ -34,7 +34,7 @@ export default function RankAuditPanel({ businessName, city = "", niche = "", we
   const [keyword, setKeyword] = useState(initialKeyword || (niche && niche !== "general" ? niche : ""));
   const [scanMode, setScanMode] = useState<ScanMode>(initialMode);
   const [auditName, setAuditName] = useState(businessName);
-  useEffect(() => { setLocalCity(city); setKeyword(initialKeyword || (niche && niche !== "general" ? niche : "")); setAuditName(businessName); setScanMode(initialMode); setLive(null); }, [city, initialKeyword, businessName, initialMode, niche]);
+  useEffect(() => { setLocalCity(city); setKeyword(initialKeyword || (niche && niche !== "general" ? niche : "")); setAuditName(businessName); setScanMode(initialMode); setLive(null); setScanError(null); }, [city, initialKeyword, businessName, initialMode, niche]);
   const [loading, setLoading] = useState(false);
   const [live, setLive] = useState<LiveResult | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);

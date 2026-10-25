@@ -33,7 +33,7 @@ export default function MapVisibilitySection() {
               </figcaption>
               <div className="visibility-map relative isolate h-80 sm:h-96">
                 <RankStreetMap points={comparisonStreetPoints[mode]} selected={selected} onSelect={setSelected} illustrative />
-                <span className="pointer-events-none absolute left-3 top-3 z-[500] rounded border border-border bg-card px-2 py-1 text-[10px] font-semibold text-foreground">Illustrative · Fort Lauderdale · not measured</span>
+                <span className="pointer-events-none absolute left-12 right-3 top-3 z-[500] rounded border border-border bg-card px-2 py-1 text-[10px] font-semibold text-foreground">Illustrative · Fort Lauderdale · not measured</span>
               </div>
               <div className="flex items-baseline justify-between gap-2 border-t border-border px-5 py-4"><p className="text-sm text-muted-foreground">{t("mapVisibility.topThree")}</p><p className={`text-2xl font-bold ${mode === "after" ? "text-primary" : "text-foreground"}`}>{mode === "before" ? "1" : "22"}<span className="text-sm font-normal text-muted-foreground"> / 25</span></p></div>
             </figure>
