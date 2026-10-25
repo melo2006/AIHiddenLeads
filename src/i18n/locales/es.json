@@ -207,7 +207,14 @@
     "selected": "Punto de ejemplo {{n}}: Antes #{{before}} → Después #{{after}}",
     "office": "Tu oficina",
     "cta": "Ver Mi Mapa de 25 Puntos + Demo Web con IA en Vivo — Gratis",
-    "auditNote": "La demo gratis incluye una cuadrícula simulada. Las mediciones reales y el seguimiento semanal requieren configurar un proveedor; no se garantizan posiciones ni citas de IA."
+    "auditNote": "La demo gratis incluye una cuadrícula simulada. Las mediciones reales y el seguimiento semanal requieren configurar un proveedor; no se garantizan posiciones ni citas de IA.",
+    "timelineTitle": "Nuestro plan de crecimiento en 3 partes",
+    "week1Title": "Semana 1 — ROI inmediato, sin esperar a Google",
+    "week1Text": "Aspen se activa 24/7 en tu sitio web y líneas telefónicas, y tu primer lote de prospectos B2B verificados (hasta 50/mes) llega a tu panel.",
+    "days1to14Title": "Días 1–14 — Correcciones técnicas y de categorías de victoria rápida",
+    "days1to14Text": "Implementamos esquema para motores de respuesta de IA (llms.txt + JSON-LD para ChatGPT/Gemini), alineamos las categorías exactas de tu Perfil de Empresa en Google y señalamos competidores con relleno de palabras clave.",
+    "days15to60Title": "Días 15–60 — Expansión compuesta en mapas y búsqueda",
+    "days15to60Text": "Publicaciones semanales automatizadas en Google, velocidad de reseñas y páginas de citas de IA amplían constantemente tu zona verde en áreas circundantes y búsquedas nacionales de compradores."
   },
   "addons": {
     "badge": "A La Carta",

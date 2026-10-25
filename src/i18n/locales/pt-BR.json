@@ -207,7 +207,14 @@
     "selected": "Ponto de exemplo {{n}}: Antes #{{before}} → Depois #{{after}}",
     "office": "Seu escritório",
     "cta": "Ver Meu Mapa de 25 Pontos + Demo do Site com IA ao Vivo — Grátis",
-    "auditNote": "A demo grátis inclui uma grade simulada. Medições reais e acompanhamento semanal exigem configuração de um provedor; posições e citações por IA não são garantidas."
+    "auditNote": "A demo grátis inclui uma grade simulada. Medições reais e acompanhamento semanal exigem configuração de um provedor; posições e citações por IA não são garantidas.",
+    "timelineTitle": "Nosso plano de crescimento em 3 partes",
+    "week1Title": "Semana 1 — ROI imediato, sem esperar pelo Google",
+    "week1Text": "A Aspen entra no ar 24/7 no seu site e linhas telefônicas, e seu primeiro lote de leads B2B verificados (até 50/mês) chega ao seu painel.",
+    "days1to14Title": "Dias 1–14 — Correções técnicas e de categorias de vitória rápida",
+    "days1to14Text": "Implementamos schema para motores de resposta de IA (llms.txt + JSON-LD para ChatGPT/Gemini), alinhamos as categorias exatas do seu Perfil de Empresa no Google e sinalizamos concorrentes com excesso de palavras-chave.",
+    "days15to60Title": "Dias 15–60 — Expansão composta em mapas e busca",
+    "days15to60Text": "Publicações semanais automatizadas no Google, ritmo de avaliações e páginas de citações de IA expandem continuamente sua zona verde em áreas vizinhas e buscas nacionais de compradores."
   },
   "addons": {
     "badge": "À La Carte",
