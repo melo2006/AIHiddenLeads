@@ -277,6 +277,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     userLineRef.current = "";
     setPhase("connecting");
     setStatus("Connecting to Gemini Live…");
+    const startupTimeout = window.setTimeout(() => {
+      if (generation === generationRef.current && !liveRef.current) {
+        stopEverything();
+        setError("Starting the voice assistant took too long. Check microphone permission and try again.");
+      }
+    }, 30000);
 
     try {
       // Unlock audio while still inside the user's click, before permissions/network awaits.
@@ -441,6 +447,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           ? "Microphone permission was denied — allow it in your browser and try again."
           : e instanceof Error ? e.message : "Could not start. Check your microphone and try again."
       );
+    } finally {
+      window.clearTimeout(startupTimeout);
     }
   }, [voice, microphone, captureMode, refreshMicrophones, playPcmChunk, clearPlayback, flushLine, stopEverything, agentId, leadId, prospectId, draft, previewVoice, visitorName, consent, testModel]);
 

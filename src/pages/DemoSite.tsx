@@ -838,7 +838,7 @@ const DemoSite = () => {
     (leadData.title && leadData.title.trim().length > 3),
   );
   const isScanPreviewReady = !isScanning && !isPreviewAvailable && hasGeneratedPreviewData;
-  const hasAnyPreview = isPreviewAvailable || isScanPreviewReady;
+  const hasAnyPreview = !isPreviewLoading && (isPreviewAvailable || isScanPreviewReady);
   const isScanFailed = !isScanning && !hasGeneratedPreviewData && !isPreviewAvailable && !isPreviewLoading;
 
   return (
