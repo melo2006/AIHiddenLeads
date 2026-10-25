@@ -904,7 +904,7 @@ const DemoSite = () => {
           </div>
 
           <div className="basis-full">
-            <RankAuditPanel businessName={siteName} city={searchParams.get("city") || undefined} niche={leadData.niche} websiteUrl={leadData.websiteUrl} />
+            <RankAuditPanel businessName={searchParams.get("auditBusiness") || leadData.businessName || siteName} city={searchParams.get("city") || undefined} niche={leadData.niche} websiteUrl={leadData.websiteUrl} initialKeyword={searchParams.get("keyword") || undefined} initialMode={searchParams.get("auditMode") === "nationwide" ? "nationwide" : "maps"} />
           </div>
         </div>
 

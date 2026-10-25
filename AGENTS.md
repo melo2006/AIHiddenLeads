@@ -26,4 +26,5 @@
 - Authorize browser handoffs from server-issued session capabilities and saved agent destinations; validate Twilio webhook signatures and atomically persist transitions, never accept client-supplied telephone targets.
 - Pause Gemini capture and playback during the Twilio browser leg, retaining its session for return; keep legacy callback transfers separate to prevent duplicate dialing.
 - Use plain imperative Leaflet (`L.map` in useEffect), never react-leaflet: react-leaflet v5 requires React 19 and crashes on React 18 with "render2 is not a function".
+- Share the isolated Leaflet street-map renderer between homepage illustrations and measured audits; public demo examples prefill editable inputs without opening paid scans or voice sessions.
 - Live rank audits go through the `demo-rank-audit` function (Serper), cached 7 days in `rank_scan_cache` with a 30-scan daily cap; failed cells stay null, never fabricated.
