@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Loader2, MapPin, Radar, ShieldCheck } from "lucide-react";
-import { MapContainer, TileLayer, CircleMarker, Tooltip, useMap } from "react-leaflet";
+import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,16 +28,27 @@ interface LiveResult {
 const liveTone = (rank: number | null) => (rank != null && rank <= 3 ? "good" : rank != null && rank <= 10 ? "warning" : "bad");
 const liveColor = (rank: number | null) => (rank != null && rank <= 3 ? "#16a34a" : rank != null && rank <= 10 ? "#facc15" : "#dc2626");
 
-const FitBounds = ({ points }: { points: LiveCell[] }) => {
-  const map = useMap();
-  useMemo(() => {
-    const pts = points.filter(p => typeof p.lat === "number" && typeof p.lng === "number");
-    if (!pts.length) return;
-    const lats = pts.map(p => p.lat as number);
-    const lngs = pts.map(p => p.lng as number);
-    map.fitBounds([[Math.min(...lats), Math.min(...lngs)], [Math.max(...lats), Math.max(...lngs)]], { padding: [24, 24] });
-  }, [points, map]);
-  return null;
+// Plain Leaflet (imperative) — react-leaflet v5 requires React 19, this project is React 18.
+const LiveMap = ({ center, grid }: { center: { lat: number; lng: number }; grid: LiveCell[] }) => {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!ref.current) return;
+    const map = L.map(ref.current, { scrollWheelZoom: false }).setView([center.lat, center.lng], 12);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "&copy; OpenStreetMap contributors" }).addTo(map);
+    const pts: L.LatLngExpression[] = [];
+    grid.forEach(p => {
+      if (typeof p.lat !== "number" || typeof p.lng !== "number") return;
+      pts.push([p.lat, p.lng]);
+      const color = liveColor(p.rank);
+      L.circleMarker([p.lat, p.lng], { radius: 15, color, fillColor: color, fillOpacity: 0.7, weight: 2 })
+        .addTo(map)
+        .bindTooltip(p.rank != null ? `#${p.rank}` : "20+", { permanent: true, direction: "center", className: "rank-pin-label" });
+    });
+    if (pts.length) map.fitBounds(L.latLngBounds(pts).pad(0.15));
+    const t = setTimeout(() => map.invalidateSize(), 300);
+    return () => { clearTimeout(t); map.remove(); };
+  }, [center, grid]);
+  return <div ref={ref} className="h-72 w-full" />;
 };
 
 export default function RankAuditPanel({ businessName, city = "", niche = "", websiteUrl = "" }: Props) {
