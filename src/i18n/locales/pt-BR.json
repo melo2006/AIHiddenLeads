@@ -188,6 +188,27 @@
     "telephonyTitle": "Precisa de linha telefônica? Adicione o Pacote Conectado — US$ 79/mês:",
     "telephonyBody": "Adiciona <strong>transferência ao vivo</strong> de leads quentes pro seu telefone, <strong>notificações por SMS</strong> e <strong>lembretes de agendamento por SMS/e-mail</strong> em qualquer plano. O uso da operadora é cobrado a custo. Também disponível separado: transferência US$ 49/mês, SMS US$ 19/mês, lembretes US$ 29/mês."
   },
+  "mapVisibility": {
+    "badge": "📍 NOVO: Auditoria Local e Regional de 25 Pontos",
+    "headlineStart": "Você Acha Que É #1 no Google Maps.",
+    "headlineAccent": "Seus Clientes a 5 km Nem Conseguem Te Encontrar.",
+    "disclaimer": "Antes e depois ilustrativos — não são posições medidas nem promessa de resultados em 14 dias.",
+    "beforeLabel": "Antes",
+    "afterLabel": "Depois · Objetivo ilustrativo",
+    "beforeTitle": "Sua Empresa Hoje",
+    "afterTitle": "Depois do Nosso Impulso de Mapas e Busca por IA de 14 Dias",
+    "pinLabel": "{{mode}}, ponto {{n}}: posição ilustrativa {{rank}}",
+    "topThree": "Pontos entre os 3 primeiros",
+    "legend": {
+      "good": "#1–3 · Visível",
+      "warning": "#4–10 · Em risco",
+      "bad": "#11+ · Baixa visibilidade"
+    },
+    "selected": "Ponto de exemplo {{n}}: Antes #{{before}} → Depois #{{after}}",
+    "office": "Seu escritório",
+    "cta": "Ver Meu Mapa de 25 Pontos + Demo do Site com IA ao Vivo — Grátis",
+    "auditNote": "A demo grátis inclui uma grade simulada. Medições reais e acompanhamento semanal exigem configuração de um provedor; posições e citações por IA não são garantidas."
+  },
   "addons": {
     "badge": "À La Carte",
     "title": "Pacotes Extras de",
@@ -196,7 +217,7 @@
     "learnMore": "Saber Mais",
     "comingSoon": "Em Breve",
     "futureTitle": "🔮 O Futuro da Busca:",
-    "futureBody": "Google não é mais o único jeito de te encontrarem. ChatGPT, Gemini e Perplexity já respondem perguntas tipo \"melhor empresa de ar-condicionado perto de mim\" — e citam empresas diretamente. Nossa Otimização para Busca por IA (GEO) garante que seu negócio apareça nesses resultados.",
+    "futureBody": "Google não é mais o único jeito de te encontrarem. ChatGPT, Gemini e Perplexity também citam empresas. Nossa otimização melhora sua elegibilidade nesses resultados; cada plataforma decide o posicionamento.",
     "items": {
       "websiteRefresh": {
         "title": "Atualização do Site",
@@ -204,9 +225,9 @@
         "note": "Taxa única"
       },
       "seoAudit": {
-        "title": "Relatório de Auditoria SEO",
-        "description": "Auditoria completa da saúde de SEO do seu site — o que está quebrado, o que falta e exatamente o que corrigir para ranquear melhor no Google.",
-        "note": "Incluso em qualquer plano"
+        "title": "Relatório de Auditoria de Mapas de 25 Pontos e IA (GRÁTIS)",
+        "description": "Veja a grade exata de 25 pontos do bairro onde concorrentes estão levando suas ligações e o que corrigir primeiro.",
+        "note": "Prévia simulada grátis; posições reais exigem auditoria verificada."
       },
       "aiSearch": {
         "title": "Otimização para Busca por IA",
@@ -216,8 +237,15 @@
       "mapsBoost": {
         "title": "Impulso no Google Maps",
         "description": "Suba no pacote local do Google Maps. Otimizamos seu Perfil da Empresa, criamos citações e gerenciamos avaliações para dominar localmente.",
-        "note": "Resultados em 60–90 dias"
+        "note": "⚡ Otimização de Perfil e Categorias em 14 Dias + Acompanhamento Semanal de 25 Pontos"
       }
+    },
+    "liveNow": "🔥 Disponível — Busca por IA + Citações de ChatGPT/Gemini",
+    "bundle": {
+      "badge": "Combo com Melhor Custo-Benefício",
+      "title": "🚀 Pacote de Domínio Total nas Buscas",
+      "body": "Combine Impulso no Google Maps (US$ {{maps}}) + Otimização para Busca por IA (US$ {{ai}}) por apenas US$ {{bundle}}/mês (Economize US$ {{savings}}/mês) — Apareça no pacote local do Google E receba recomendações do ChatGPT, Gemini e Google IA!",
+      "note": "Otimização é um plano de ação, não garantia de posições ou citações. Acompanhamento real exige configuração de provedor; o pacote é combinado na sua chamada de implementação."
     }
   },
   "testimonials": {

@@ -1,6 +1,6 @@
 # Architecture rules
 
-- Keep demo rank audits isolated from website and voice rendering; default to explicitly simulated deterministic pins and reserve authenticated live-provider adapters so sample values never become claimed measurements.
+- Keep demo rank audits and homepage comparison data isolated from website and voice rendering; use explicitly simulated deterministic pins and shared homepage search-offer arithmetic, reserving authenticated live-provider adapters so examples never become claimed measurements.
 
 - Keep Gemini Live session instructions and audio-detection settings server-side in its proxy; this keeps language policy consistent and private credentials out of the browser.
 - Keep live provider verification tests opt-in through an environment URL; routine tests must not consume third-party call usage.
