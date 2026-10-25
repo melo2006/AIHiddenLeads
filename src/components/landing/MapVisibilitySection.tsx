@@ -52,6 +52,17 @@ export default function MapVisibilitySection() {
           <Button size="lg" onClick={() => document.getElementById("demo-form")?.scrollIntoView({ behavior: "smooth" })} className="h-auto min-h-12 max-w-full whitespace-normal px-5 py-3 leading-snug"><MapPin className="mr-2 h-4 w-4 shrink-0" />{t("mapVisibility.cta")}</Button>
           <p className="mx-auto mt-3 max-w-3xl text-xs text-muted-foreground">{t("mapVisibility.auditNote")}</p>
         </div>
+        <div className="mx-auto mt-10 max-w-5xl">
+          <h3 className="text-center text-lg font-bold">{t("mapVisibility.timelineTitle")}</h3>
+          <div className="mt-5 grid gap-4 md:grid-cols-3">
+            {(["week1", "days1to14", "days15to60"] as const).map(step => (
+              <div key={step} className="rounded-lg border border-border bg-card p-4 text-left">
+                <p className="text-sm font-bold text-primary">{t(`mapVisibility.${step}Title`)}</p>
+                <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{t(`mapVisibility.${step}Text`)}</p>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </section>
   );
