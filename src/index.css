@@ -109,6 +109,8 @@
   .audit-rank-good { color: hsl(var(--primary-foreground)); background: hsl(var(--primary)); }
   .audit-rank-warning { color: hsl(var(--primary-foreground)); background: hsl(var(--audit-rank-warning)); }
   .audit-rank-bad { color: hsl(var(--destructive-foreground)); background: hsl(var(--destructive)); }
+  .rank-pin-label { background: transparent; border: 0; box-shadow: none; color: #fff; font-weight: 700; font-size: 11px; text-shadow: 0 1px 2px rgb(0 0 0 / 0.6); }
+  .rank-pin-label::before { display: none; }
   @media (max-width: 1023px) {
     section button:not([aria-label]) {
       max-width: 100%;
