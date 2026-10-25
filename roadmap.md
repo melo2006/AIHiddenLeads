@@ -1,7 +1,7 @@
 # Current work
 
-- [ ] Add homepage interactive illustrative 25-point before/after comparison directly below laptop section and verify demo-form CTA.
-- [ ] Update growth package copy and $299/mo search bundle in all homepage languages; test pricing and sample grid rules.
+- [x] Add homepage interactive illustrative 25-point before/after comparison directly below laptop section; both maps, pin selection and demo-form CTA verified in browser, phone layout without horizontal overflow.
+- [x] Update growth package copy and $299/mo search bundle in English, Portuguese and Spanish; 15 grid/offer tests passed, Portuguese rendering verified, no browser errors. Live measurement/tracking remains provider-setup dependent; Aspen unchanged.
 
 - [x] Allow SEO/AI crawlers and enrich static metadata with factual LocalBusiness schema; no invented address or hours.
 - [x] Add isolated demo-bar 25-point simulated audit, fast-win summary, offer links and authenticated future live-provider hook; 8 rule tests passed, desktop/phone panel and both offer destinations verified. Live provider integration intentionally deferred until credentials and adapter setup; no paid calls made.
