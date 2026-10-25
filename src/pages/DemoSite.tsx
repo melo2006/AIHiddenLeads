@@ -8,6 +8,7 @@ import GeminiAgentWidget from "@/components/GeminiAgentWidget";
 import ChatWidget from "@/components/landing/demo-results/ChatWidget";
 import WebsiteShowcase from "@/components/landing/demo-results/WebsiteShowcase";
 import GeoGridWidget from "@/components/landing/demo-results/GeoGridWidget";
+import RankAuditPanel from "@/components/landing/demo-results/RankAuditPanel";
 import DemoWatermark from "@/components/landing/demo-results/DemoWatermark";
 import DraggableFloating from "@/components/landing/demo-results/DraggableFloating";
 import ScanningAnimation from "@/components/landing/ScanningAnimation";
@@ -250,6 +251,16 @@ const DemoSite = () => {
     try { return localStorage.getItem("demo_test_phone_override") || ""; } catch { return ""; }
   });
   const [viewportWidth, setViewportWidth] = useState(() => (typeof window !== "undefined" ? window.innerWidth : 1024));
+  const previewBarRef = useRef<HTMLDivElement>(null);
+  const [previewBarHeight, setPreviewBarHeight] = useState(112);
+
+  useEffect(() => {
+    const bar = previewBarRef.current;
+    if (!bar) return;
+    const observer = new ResizeObserver(() => setPreviewBarHeight(bar.getBoundingClientRect().height));
+    observer.observe(bar);
+    return () => observer.disconnect();
+  }, [Boolean(leadData)]);
 
   useEffect(() => {
     if (latestLeadData || leadData) return;
@@ -819,7 +830,7 @@ const DemoSite = () => {
   return (
     <div className="relative min-h-[100dvh] bg-background">
       <div className="pointer-events-none fixed inset-x-0 top-0 z-40">
-        <div className="pointer-events-auto flex min-h-16 w-full items-center justify-between gap-2 border-b border-border/60 bg-card/95 px-3 py-2 shadow-xl backdrop-blur-xl sm:min-h-[4.5rem] sm:gap-3 sm:px-5">
+        <div ref={previewBarRef} className="pointer-events-auto flex min-h-16 w-full flex-wrap items-center justify-between gap-2 border-b border-border/60 bg-card/95 px-3 py-2 shadow-xl backdrop-blur-xl sm:min-h-[4.5rem] sm:gap-3 sm:px-5">
           {/* Left: Back to Homepage */}
           <button
             onClick={() => navigate("/")}
@@ -878,6 +889,9 @@ const DemoSite = () => {
             </button>
           </div>
 
+          <div className="basis-full">
+            <RankAuditPanel businessName={siteName} city={searchParams.get("city") || undefined} niche={leadData.niche} />
+          </div>
         </div>
 
         {/* Test phone override panel */}
@@ -906,7 +920,7 @@ const DemoSite = () => {
 
       {/* Website — iframe first, screenshot fallback */}
       {hasAnyPreview && <DemoWatermark />}
-      <div className="relative min-h-[100dvh] pt-16 sm:pt-[4.5rem]">
+      <div className="relative min-h-[100dvh]" style={{ paddingTop: previewBarHeight }}>
         {canRenderInlineIframe && (
           <iframe
             src={livePreviewUrl}

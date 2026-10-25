@@ -1,5 +1,7 @@
 # Architecture rules
 
+- Keep demo rank audits isolated from website and voice rendering; default to explicitly simulated deterministic pins and reserve authenticated live-provider adapters so sample values never become claimed measurements.
+
 - Keep Gemini Live session instructions and audio-detection settings server-side in its proxy; this keeps language policy consistent and private credentials out of the browser.
 - Keep live provider verification tests opt-in through an environment URL; routine tests must not consume third-party call usage.
 - Preview voices through the same Gemini Live model as calls, without microphone capture; save the lab preference locally without altering Retell voices.
