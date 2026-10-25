@@ -15,6 +15,8 @@ import ScanningAnimation from "@/components/landing/ScanningAnimation";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { preloadVoiceIdentity } from "@/lib/voicePreload";
+import { shouldStartRemotePreview } from "@/lib/demoStartup";
 
 
 const DEFAULT_DEMO_OWNER_NAME = "your dedicated specialist";
@@ -253,6 +255,8 @@ const DemoSite = () => {
   const [viewportWidth, setViewportWidth] = useState(() => (typeof window !== "undefined" ? window.innerWidth : 1024));
   const previewBarRef = useRef<HTMLDivElement>(null);
   const [previewBarHeight, setPreviewBarHeight] = useState(112);
+
+  useEffect(() => { void preloadVoiceIdentity(); }, []);
 
   useEffect(() => {
     const bar = previewBarRef.current;
@@ -666,7 +670,7 @@ const DemoSite = () => {
       iframeFailureMode !== "unreachable" &&
       (iframeBlocked || isMixedContentPreview(previewUrl, embedOrigin));
 
-    if (!requiresBrowserFallback || liveViewUrl || isLiveViewLoading || liveViewFailed) return;
+    if (!shouldStartRemotePreview(requiresBrowserFallback, Boolean(screenshotSrc)) || liveViewUrl || isLiveViewLoading || liveViewFailed) return;
 
     let cancelled = false;
 
@@ -707,7 +711,7 @@ const DemoSite = () => {
 
     startLiveView();
     return () => { cancelled = true; };
-  }, [iframeBlocked, iframeFailureMode, isLiveViewLoading, leadData?.websiteUrl, liveViewFailed, liveViewUrl, resolvedIframeUrl]);
+  }, [iframeBlocked, iframeFailureMode, isLiveViewLoading, leadData?.websiteUrl, liveViewFailed, liveViewUrl, resolvedIframeUrl, screenshotSrc]);
 
   useEffect(() => {
     setHasIframeLoaded(false);
@@ -716,6 +720,16 @@ const DemoSite = () => {
   useEffect(() => {
     setHasLiveViewLoaded(false);
   }, [liveViewUrl]);
+
+  // A slow permitted iframe must not hide an already captured website indefinitely.
+  useEffect(() => {
+    if (isScanning || isIframeCheckPending || iframeBlocked || hasIframeLoaded || !resolvedIframeUrl) return;
+    const timer = window.setTimeout(() => {
+      setIframeBlocked(true);
+      setIframeFailureMode("blocked");
+    }, 8000);
+    return () => window.clearTimeout(timer);
+  }, [isScanning, isIframeCheckPending, iframeBlocked, hasIframeLoaded, resolvedIframeUrl]);
 
   const handleBack = () => {
     if (returnTo && returnTo.startsWith("/")) {
@@ -801,11 +815,11 @@ const DemoSite = () => {
   const isLivePreviewReady = Boolean(liveViewUrl && hasLiveViewLoaded && !isGeneratedScreenshot);
   const hasScreenshotAsset = Boolean(screenshotSrc);
   const isStaticPreviewReady = hasScreenshotAsset && hasScreenshotLoaded;
-  const shouldShowScreenshotFallback = hasScreenshotAsset && (isWebsiteUnreachable || requiresBrowserFallback);
+  const shouldShowScreenshotFallback = hasScreenshotAsset && (isWebsiteUnreachable || requiresBrowserFallback || !hasIframeLoaded);
   const isInlinePreviewLoading =
     !requiresBrowserFallback &&
     !isWebsiteUnreachable &&
-    (isIframeCheckPending || !hasIframeLoaded);
+    (isIframeCheckPending || !hasIframeLoaded) && !isStaticPreviewReady;
   // Keep the scanning overlay visible while the backend scan is in progress, regardless of
   // the iframe's onLoad (which fires for the initial blank document and would otherwise
   // dismiss the overlay too early, leaving a black screen).
@@ -824,7 +838,7 @@ const DemoSite = () => {
     (leadData.title && leadData.title.trim().length > 3),
   );
   const isScanPreviewReady = !isScanning && !isPreviewAvailable && hasGeneratedPreviewData;
-  const hasAnyPreview = isPreviewAvailable || isScanPreviewReady;
+  const hasAnyPreview = !isPreviewLoading && (isPreviewAvailable || isScanPreviewReady);
   const isScanFailed = !isScanning && !hasGeneratedPreviewData && !isPreviewAvailable && !isPreviewLoading;
 
   return (
@@ -937,15 +951,16 @@ const DemoSite = () => {
           />
         )}
         {/* Iframe blocked → try Browserbase live view, then screenshot fallback */}
-        {resolvedIframeUrl && (requiresBrowserFallback || shouldShowScreenshotFallback) && (
+        {(requiresBrowserFallback || shouldShowScreenshotFallback) && (
           <div className="relative min-h-[calc(100dvh-4.5rem)]">
-            {shouldShowScreenshotFallback && (
+            {shouldShowScreenshotFallback && screenshotSrc && (
               <div className="relative mx-auto w-full max-w-[1600px]">
                 <img
-                  src={screenshotSrc!}
+                  src={screenshotSrc}
                   alt={`${siteName} website`}
                   className="block h-auto w-full"
-                  loading="lazy"
+                  loading="eager"
+                  fetchPriority="high"
                   decoding="async"
                   draggable={false}
                   onLoad={() => setHasScreenshotLoaded(true)}
@@ -1097,7 +1112,7 @@ const DemoSite = () => {
             <DraggableFloating initialX={24} initialY={window.innerHeight - 100} anchorRight={true}>
               {voiceOpen ? (
                 <div className="w-[min(20rem,calc(100vw-3rem))] max-h-[60vh] overflow-y-auto animate-in slide-in-from-bottom-4 fade-in duration-300">
-                  <GeminiAgentWidget leadId={leadData.leadId} prospectId={leadData.prospectId || prospectIdParam || undefined} businessName={siteName} callerName={knownCallerName} onClose={() => setVoiceOpen(false)} />
+                  <GeminiAgentWidget autoStart leadId={leadData.leadId} prospectId={leadData.prospectId || prospectIdParam || undefined} businessName={siteName} callerName={knownCallerName} onClose={() => setVoiceOpen(false)} />
                 </div>
               ) : (
                 <button

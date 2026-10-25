@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
+import { pendingScanProgress } from "@/lib/demoStartup";
 import {
   CheckCircle,
   Globe,
@@ -121,18 +122,12 @@ const ScanningAnimation = ({
     setProgress(0);
 
     if (mode === "continuous") {
+      const startedAt = Date.now();
       const intervalId = window.setInterval(() => {
         setCurrentStep((prev) => (prev + 1) % scanSteps.length);
       }, STEP_DURATION);
       const progressId = window.setInterval(() => {
-        setProgress((p) => {
-          if (p >= 88) return 88;
-          // Aim ~120s to reach 88% so the bar stays in sync with backend scans
-          if (p < 30) return p + 0.18;
-          if (p < 55) return p + 0.10;
-          if (p < 75) return p + 0.06;
-          return p + 0.03;
-        });
+        setProgress(pendingScanProgress(Date.now() - startedAt));
       }, 120);
 
       return () => {

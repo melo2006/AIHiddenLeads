@@ -112,7 +112,6 @@ const LeadCaptureSection = ({ selectedNiche }: LeadCaptureSectionProps) => {
   const [viewState, setViewState] = useState<ViewState>("form");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [scanData, setScanData] = useState<DemoLeadData | null>(null);
-  const [scanAnimationDone, setScanAnimationDone] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState(() => {
@@ -140,7 +139,7 @@ const LeadCaptureSection = ({ selectedNiche }: LeadCaptureSectionProps) => {
   }, []);
 
   useEffect(() => {
-    if (viewState !== "scanning" || !scanAnimationDone || !scanData) return;
+    if (viewState !== "scanning" || !scanData) return;
 
     const params = new URLSearchParams({
       url: scanData.websiteUrl,
@@ -153,8 +152,7 @@ const LeadCaptureSection = ({ selectedNiche }: LeadCaptureSectionProps) => {
 
     navigate(`/demo-site?${params.toString()}`, { state: { leadData: scanData } });
     setViewState("form");
-    setScanAnimationDone(false);
-  }, [navigate, scanAnimationDone, scanData, viewState]);
+  }, [navigate, scanData, viewState]);
 
   const handleFileAdd = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newFiles = Array.from(e.target.files || []);
@@ -206,7 +204,7 @@ const LeadCaptureSection = ({ selectedNiche }: LeadCaptureSectionProps) => {
     }
 
     setIsSubmitting(true);
-    setScanAnimationDone(false);
+    setScanData(null);
     try {
       const { data: leadId, error } = await (supabase as any).rpc("create_demo_lead", {
         _business_name: parsed.data.businessName,
@@ -314,10 +312,6 @@ const LeadCaptureSection = ({ selectedNiche }: LeadCaptureSectionProps) => {
     }
   };
 
-  const handleScanComplete = useCallback(() => {
-    setScanAnimationDone(true);
-  }, []);
-
   if (viewState === "scanning") {
     return (
       <div className="fixed inset-0 z-50 bg-background flex items-center justify-center px-4">
@@ -325,7 +319,8 @@ const LeadCaptureSection = ({ selectedNiche }: LeadCaptureSectionProps) => {
           websiteUrl={formData.website}
           businessName={formData.businessName}
           callerName={formData.name}
-          onComplete={handleScanComplete}
+          onComplete={() => {}}
+          mode="continuous"
           onCancel={() => setViewState("form")}
         />
       </div>

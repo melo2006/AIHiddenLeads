@@ -1,0 +1,2 @@
+export const pendingScanProgress = (elapsedMs: number) => Math.min(88, 88 * (1 - Math.exp(-Math.max(0, elapsedMs) / 65000)));
+export const shouldStartRemotePreview = (needsFallback: boolean, hasScreenshot: boolean) => needsFallback && !hasScreenshot;

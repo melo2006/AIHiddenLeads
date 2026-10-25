@@ -1,5 +1,8 @@
 # Current work
 
+- [x] Keep homepage scan progress continuous until actual data arrives; eager screenshot fallback skips unnecessary remote browser wait, with bounded slow-iframe fallback. Delayed 18-second scan test confirmed no premature ready message and successful demo transition.
+- [x] Preload cached public Aspen identity/avatar and free proxy health check; prepare authorization and microphone concurrently after a click, autostart externally opened demo widgets. BankUnited screenshot appeared in 3 seconds, greeting in 4.9 seconds, no pre-click voice session or runtime errors; 11 focused tests passed. Real-device/provider timing varies.
+
 - [x] Add homepage interactive illustrative 25-point before/after comparison directly below laptop section; both maps, pin selection and demo-form CTA verified in browser, phone layout without horizontal overflow.
 - [x] Update growth package copy and $299/mo search bundle in English, Portuguese and Spanish; 15 grid/offer tests passed, Portuguese rendering verified, no browser errors. Live measurement/tracking remains provider-setup dependent; Aspen unchanged.
 
