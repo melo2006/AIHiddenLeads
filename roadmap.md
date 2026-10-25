@@ -50,5 +50,5 @@
 - [x] demo-rank-audit: live Serper Maps 5x5 grid + Nationwide AI Search Matrix
 - [x] RankAuditPanel: live Leaflet map (OSM tiles), mode toggle, 3-part timeline
 - [x] MapVisibilitySection: 3-part growth timeline (en/es/pt-BR)
-- [ ] Verify one live scan end-to-end (costs ~25 Serper credits)
+- [x] Verified live maps + nationwide scans end-to-end; cache hits cost 0 credits
 - [ ] Aspen widget Type Chat toggle (voice-only today; needs proxy text turns)
