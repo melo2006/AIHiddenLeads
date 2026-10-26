@@ -4,7 +4,8 @@
 - [x] Deploy engaged prospect demos with five-minute soft checkpoint, fifteen-minute server ceiling, shared silence closure and explicit roleplay-to-platform sales policy. Forty focused tests passed; saved homepage instructions refreshed. Extended real spoken call and model recommendation remain owner testing, not claimed verified.
 - [x] Inspect existing Stripe scaffolding: no Stripe payment credentials in deployed secret inventory; checkout price preflight now handles unavailable payments without page errors, and return URLs no longer claim confirmed payment. Document secure paid onboarding and WordPress/Wix installation scope in docs/SELF-SERVICE-ONBOARDING.md.
 - [x] Connect owner-approved built-in Stripe in test mode. Live account claim remains owner action.
-- [ ] Register existing plans and finish verified checkout; collect purchase/start/cancel and upgrade/downgrade rules before entitlement handling.
+- [x] Register $99/$199/$349 monthly plans in test payments. Owner chose guided setup after successful payment, cancellation at paid-period end, both plan changes immediately prorated, US business.
+- [ ] Finish authenticated embedded checkout and verified customer purchase handling.
 - [ ] Implement paid self-service onboarding and actual installation package after verified checkout and approved subscription rules.
 
 - [x] Investigate dropped call/white screen: latest call ended at 122s of 600s, no fatal browser error or saved close reason. Added isolated assistant recovery, explicit disconnect notices and new-call close diagnostics; original cause remains unproven.
