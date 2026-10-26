@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
@@ -633,11 +634,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         {error && <p className="text-[11px] font-semibold text-destructive">{error}</p>}
 
         {showSettings && (
-          <div className="space-y-2 border-t border-border pt-2">
-            <label className="block space-y-1 text-xs">Microphone sensitivity
+          <Dialog open={showSettings} onOpenChange={setShowSettings}><DialogContent className="max-h-[85dvh] w-[calc(100vw-24px)] max-w-sm overflow-y-auto"><DialogTitle>Voice settings</DialogTitle><DialogDescription>Microphone and background noise</DialogDescription><div className="space-y-3">
+            <label className="block space-y-1 text-xs">Background noise filtering
               <Select value={noiseFilter} onValueChange={value => setNoiseFilter(value as NoiseFilter)}>
                 <SelectTrigger aria-label="Microphone sensitivity" className="h-auto min-h-9 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="light">High — quiet room</SelectItem><SelectItem value="balanced">Medium — default</SelectItem><SelectItem value="strong">Low — filter quieter sounds</SelectItem></SelectContent>
+                <SelectContent><SelectItem value="light">Minimum filtering — quiet room</SelectItem><SelectItem value="balanced">Balanced filtering — everyday</SelectItem><SelectItem value="strong">Strong filtering — noisy room</SelectItem></SelectContent>
               </Select>
             </label>
             <label className="flex items-start gap-2 text-[11px] text-muted-foreground">
@@ -676,7 +677,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
                 <Play className="mr-1.5 h-3.5 w-3.5" /> Preview voice
               </Button>
             )}
-          </div>
+          </div></DialogContent></Dialog>
         )}
       </div>
     );
@@ -728,10 +729,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
           <label className="flex items-start gap-2 text-xs text-muted-foreground"><input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} disabled={phase !== "idle"} />Allow saving this conversation transcript when enabled by the business</label>
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block space-y-1 text-xs">Microphone sensitivity
+            <label className="block space-y-1 text-xs">Background noise filtering
               <Select value={noiseFilter} onValueChange={value => setNoiseFilter(value as NoiseFilter)}>
                 <SelectTrigger aria-label="Microphone sensitivity"><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="light">High — quiet room</SelectItem><SelectItem value="balanced">Medium — default</SelectItem><SelectItem value="strong">Low — filter quieter sounds</SelectItem></SelectContent>
+                <SelectContent><SelectItem value="light">Minimum filtering — quiet room</SelectItem><SelectItem value="balanced">Balanced filtering — everyday</SelectItem><SelectItem value="strong">Strong filtering — noisy room</SelectItem></SelectContent>
               </Select>
             </label>
             <div>

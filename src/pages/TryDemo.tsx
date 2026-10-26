@@ -240,7 +240,7 @@ const TryDemo = () => {
       if (auditLocation.trim()) params.set("city", auditLocation.trim());
       if (auditKeyword.trim()) params.set("keyword", auditKeyword.trim());
       params.set("auditMode", auditMode);
-      params.set("auditBusiness", businessName);
+      if (auditBusiness.trim()) params.set("auditBusiness", auditBusiness.trim());
       navigate(`/demo-site?${params.toString()}`, { state: { leadData } });
     } catch (err) {
       console.error("Error:", err);
