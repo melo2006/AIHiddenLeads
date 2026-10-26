@@ -6,9 +6,10 @@ import ChatWidget from './ChatWidget';
 import DraggableFloating from './DraggableFloating';
 import avatar from '@/assets/aspen_blonde_avatar.jpg';
 import AspenLauncherContent from '@/components/AspenLauncherContent';
+import AssistantErrorBoundary from '@/components/AssistantErrorBoundary';
 
 type Props = React.ComponentProps<typeof ChatWidget> & { voiceRequested?: boolean; onClosed: () => void };
-export default function AspenDemoWidget({ voiceRequested = false, onClosed, ...chatProps }: Props) {
+function AspenDemoWidgetContent({ voiceRequested = false, onClosed, ...chatProps }: Props) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<'voice' | 'chat'>('voice');
   const [chatVisited, setChatVisited] = useState(false);
@@ -30,3 +31,4 @@ export default function AspenDemoWidget({ voiceRequested = false, onClosed, ...c
     </div> : <Button onClick={() => { setMode('voice'); setOpen(true); }} className="h-auto max-w-[calc(100vw-24px)] gap-2 px-2 py-1.5 shadow-lg" aria-label="Open Aspen chat and voice"><AspenLauncherContent /></Button>}
   </DraggableFloating>;
 }
+export default function AspenDemoWidget(props:Props){return <AssistantErrorBoundary><AspenDemoWidgetContent {...props}/></AssistantErrorBoundary>;}
