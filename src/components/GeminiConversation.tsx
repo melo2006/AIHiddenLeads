@@ -18,6 +18,7 @@ import { microphonePcm, shouldSendMicrophone, microphoneGate, microphoneAutoGain
 import VoiceActionConfirmation, { type VoiceAction } from "./VoiceActionConfirmation";
 import BrowserVoiceHandoff from "@/components/BrowserVoiceHandoff";
 import { voiceIdleAction, homepageWalkthroughDue, type VoiceIdleStage } from '@/lib/voiceIdle';
+import { voiceDisconnectMessage } from '@/lib/voiceDisconnect';
 
 const VOICES = [
   { id: "Kore", label: "Kore — warm female (default)" },
@@ -122,7 +123,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         wsRef.current.send(JSON.stringify({type:'idle_prompt',stage:'continue'}));
         return;
       }
-      if (idle.stage === 'goodbye') { stopEverything(); return; }
+      if (idle.stage === 'goodbye') { wsRef.current?.send(JSON.stringify({type:'end_session',reason:'silence_timeout'})); stopEverything(); setStatus(voiceDisconnectMessage(1000,'silence_timeout')); return; }
       const action = voiceIdleAction(idle.stage, idle.quietSince, Date.now());
       if ((action === 'checkin' || action === 'goodbye') && wsRef.current?.readyState === WebSocket.OPEN) {
         idle.stage = action;
@@ -494,11 +495,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         setError("Could not connect to the voice service.");
         stopEverything();
       };
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         clearTimeout(readyTimeout);
         if (generation !== generationRef.current) return;
         if (liveRef.current) {
           stopEverything();
+          setError(voiceDisconnectMessage(event.code, event.reason));
         } else {
           setPhase("idle");
           setStatus("Conversation ended. Press Start to begin again.");

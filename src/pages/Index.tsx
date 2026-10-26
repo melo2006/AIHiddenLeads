@@ -16,6 +16,7 @@ import Footer from "@/components/landing/Footer";
 import GeminiAgentWidget from "@/components/GeminiAgentWidget";
 import TryWebsiteCTA from "@/components/landing/TryWebsiteCTA";
 import MapVisibilitySection from "@/components/landing/MapVisibilitySection";
+import AssistantErrorBoundary from '@/components/AssistantErrorBoundary';
 
 const Index = () => {
   const [selectedNiche, setSelectedNiche] = useState(niches[0]);
@@ -43,7 +44,7 @@ const Index = () => {
       <TryWebsiteCTA />
       <LeadCaptureSection selectedNiche={selectedNiche} />
       <Footer />
-      <GeminiAgentWidget floating />
+      <AssistantErrorBoundary><GeminiAgentWidget floating /></AssistantErrorBoundary>
     </div>
   );
 };
