@@ -1,108 +1,22 @@
-import { motion } from "framer-motion";
-import { TrendingDown, Clock, DollarSign, PhoneOff } from "lucide-react";
-import { useTranslation } from "react-i18next";
+import { PhoneOff, TrendingUp, Star, ExternalLink } from "lucide-react";
 import type { NicheData } from "@/data/nicheData";
-
-interface StatsSectionProps {
-  niche: NicheData;
-}
-
-const StatsSection = ({ niche }: StatsSectionProps) => {
-  const { t, i18n } = useTranslation();
-  const isPT = i18n.language === "pt-BR";
-
-  // Brazilian Reais equivalents per niche, based on local SMB averages
-  const revenueBRLByNiche: Record<string, string> = {
-    realtors: "R$ 1.500",
-    medspa: "R$ 1.000",
-    autodetail: "R$ 450",
-    veterinary: "R$ 600",
-    marine: "R$ 2.200",
-  };
-  const revenueDisplay = isPT
-    ? (revenueBRLByNiche[niche.id] ?? niche.stats.revenuePerMissedCall)
-    : niche.stats.revenuePerMissedCall;
-  const stats = [
-    {
-      icon: PhoneOff,
-      value: niche.stats.missedCallRate,
-      label: t("stats.cards.unanswered.label"),
-      sublabel: t("stats.cards.unanswered.sublabel"),
-      color: "text-destructive",
-      bg: "bg-destructive/10",
-      border: "border-destructive/20",
-    },
-    {
-      icon: DollarSign,
-      value: revenueDisplay,
-      label: t("stats.cards.lost.label"),
-      sublabel: isPT
-        ? `${t("stats.cards.lost.sublabel")} (≈ ${niche.stats.revenuePerMissedCall} USD)`
-        : t("stats.cards.lost.sublabel"),
-      color: "text-[hsl(var(--warning))]",
-      bg: "bg-[hsl(var(--warning)/0.1)]",
-      border: "border-[hsl(var(--warning)/0.2)]",
-    },
-    {
-      icon: Clock,
-      value: niche.stats.avgResponseTime,
-      label: t("stats.cards.response.label"),
-      sublabel: t("stats.cards.response.sublabel"),
-      color: "text-accent",
-      bg: "bg-accent/10",
-      border: "border-accent/20",
-    },
-    {
-      icon: TrendingDown,
-      value: "78%",
-      label: t("stats.cards.firstResponder.label"),
-      sublabel: t("stats.cards.firstResponder.sublabel"),
-      color: "text-primary",
-      bg: "bg-primary/10",
-      border: "border-primary/20",
-    },
-  ];
-
-  return (
-    <section className="py-14 sm:py-20 relative">
-      <div className="absolute inset-0 bg-gradient-to-b from-background via-secondary/30 to-background" />
-      <div className="container mx-auto px-5 sm:px-6 relative z-10">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          className="text-center mb-10 sm:mb-14"
-        >
-          <h2 className="text-2xl sm:text-4xl lg:text-5xl font-bold mb-4">
-            {t("stats.title1")} <span className="text-destructive">{t("stats.title2")}</span>
-          </h2>
-          <p className="text-muted-foreground text-sm sm:text-lg max-w-2xl mx-auto">
-            {t("stats.sub")}
-          </p>
-        </motion.div>
-
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 max-w-5xl mx-auto">
-          {stats.map((stat, i) => (
-            <motion.div
-              key={stat.label}
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.1 }}
-              className={`relative rounded-2xl border ${stat.border} ${stat.bg} p-4 sm:p-6 text-center card-glow transition-all duration-300`}
-            >
-              <div className={`inline-flex p-2.5 sm:p-3 rounded-xl ${stat.bg} mb-3 sm:mb-4`}>
-                <stat.icon className={`w-5 h-5 sm:w-6 sm:h-6 ${stat.color}`} />
-              </div>
-              <p className={`text-2xl sm:text-3xl lg:text-4xl font-bold ${stat.color} mb-1 sm:mb-2`}>{stat.value}</p>
-              <p className="text-xs sm:text-sm font-medium text-foreground">{stat.label}</p>
-              <p className="text-[11px] sm:text-xs text-muted-foreground mt-1">{stat.sublabel}</p>
-            </motion.div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
+import { HOMEPAGE_EVIDENCE } from '../../../supabase/functions/_shared/homepage-evidence';
+import { useTranslation } from 'react-i18next';
+const icons = [PhoneOff, TrendingUp, Star];
+const StatsSection = (_props: { niche: NicheData }) => {
+  const { i18n } = useTranslation();
+  const pt = i18n.language.startsWith('pt'); const es = i18n.language.startsWith('es');
+  const labels = pt ? ['Chamadas sem resposta','Conversão de prospects qualificados por telefone','Usariam uma empresa que responde a todas as avaliações'] : es ? ['Llamadas sin respuesta','Conversión de prospectos telefónicos calificados','Usarían una empresa que responde a todas las reseñas'] : HOMEPAGE_EVIDENCE.map(e => e.label);
+  return <section className="py-12 sm:py-16"><div className="container mx-auto px-5 sm:px-6">
+    <h2 className="text-2xl sm:text-3xl font-bold mb-3">{pt ? 'Responder faz diferença.' : es ? 'Responder importa.' : 'Why answering matters.'}</h2>
+    <p className="text-sm text-muted-foreground mb-6">{pt ? 'Estudos externos, não resultados dos nossos clientes nem garantias.' : es ? 'Estudios externos, no resultados de nuestros clientes ni garantías.' : 'External research—not our client results, a 2026 market estimate or a performance guarantee.'}</p>
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+      {HOMEPAGE_EVIDENCE.map((e, i) => { const Icon = icons[i] || Star; return <article key={e.value} className="rounded-lg border border-border bg-card p-5">
+        <Icon className="h-7 w-7 text-primary mb-4" /><p className="text-4xl font-bold text-primary">{e.value}</p>
+        <h3 className="mt-3 font-semibold">{labels[i]}</h3><p className="mt-3 text-xs text-muted-foreground leading-relaxed">{e.caveat}</p>
+        <a className="mt-4 inline-flex gap-1 items-center text-xs text-primary underline" href={e.url} target="_blank" rel="noopener noreferrer">{e.source}<ExternalLink className="h-3 w-3 shrink-0" /></a>
+      </article>; })}
+    </div>
+  </div></section>;
 };
-
 export default StatsSection;
