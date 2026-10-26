@@ -1,5 +1,7 @@
 # Current work
 
+- [ ] Improve non-JavaScript public marketing readability and verify image access without changing private protections.
+
 - [x] Combine demo chat/voice into one Aspen widget and restore closed corner position. Browser verified live text reply, one microphone acquisition per voice open and one drag wrapper; 15 tests passed. Spoken contact spelling policy deployed; Android permission layers and spoken readback still need the owner's device test.
 
 - [x] Add brief sales introductions, requested-time checks and two real alternatives; preserve Eastern booking during travel. Deployed; 21 tests passed and live calendar/booking page rechecked without creating events. Spoken Aspen confirmation still needs the owner's call test.
