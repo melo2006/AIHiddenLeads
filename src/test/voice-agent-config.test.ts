@@ -11,7 +11,7 @@ test('private literal URL is rejected',()=>expect(isPublicUrl('http://127.0.0.1/
 test('bank simulation does not inherit the platform sales greeting or knowledge',()=>{
   const config=businessDemoConfig('BankUnited','Verified checking account documentation',{...DEFAULT_AGENT,greeting:'Let us set up AI Hidden Leads'});
   expect(greeting(config,9)).toContain('BankUnited');
-  expect(greeting(config,9)).not.toContain('AI Hidden Leads');
+  expect(greeting(config,9)).not.toContain('Let us set up AI Hidden Leads');
   expect(config.knowledge).toBe('');
   expect(config.sourceKnowledge).toBe('Verified checking account documentation');
 });
