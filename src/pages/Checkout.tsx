@@ -3,7 +3,8 @@ import { ArrowLeft, Shield, Check, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PaymentTestModeBanner } from "@/components/PaymentTestModeBanner";
 import { StripeEmbeddedCheckout } from "@/components/StripeEmbeddedCheckout";
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { getStripePriceId } from '@/lib/stripe';
 
 const planDetails: Record<string, { name: string; price: string; features: string[]; priceId: string }> = {
   essentials: {
@@ -66,7 +67,15 @@ export default function Checkout() {
   const planKey = searchParams.get("plan") || "essentials";
   const plan = planDetails[planKey] || planDetails.essentials;
   const [paymentFailed, setPaymentFailed] = useState(false);
+  const [priceReady, setPriceReady] = useState(false);
   const paymentsAvailable = Boolean(import.meta.env.VITE_PAYMENTS_CLIENT_TOKEN);
+  useEffect(() => {
+    let active = true;
+    setPriceReady(false);
+    setPaymentFailed(false);
+    if (paymentsAvailable) void getStripePriceId(plan.priceId).then(() => { if (active) setPriceReady(true); }).catch(() => { if (active) setPaymentFailed(true); });
+    return () => { active = false; };
+  }, [plan.priceId, paymentsAvailable]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -129,7 +138,7 @@ export default function Checkout() {
           <div className="space-y-4">
             <h2 className="text-lg font-semibold text-foreground">Complete Your Order</h2>
             <div className="rounded-xl border border-border bg-card p-1 min-h-[400px]">
-              {paymentsAvailable && !paymentFailed ? <StripeEmbeddedCheckout
+              {paymentsAvailable && !paymentFailed && !priceReady ? <p role="status" className="p-5 text-sm text-muted-foreground">Checking checkout availability…</p> : paymentsAvailable && !paymentFailed && priceReady ? <StripeEmbeddedCheckout
                 priceId={plan.priceId}
                 returnUrl={`${window.location.origin}/checkout/return?session_id={CHECKOUT_SESSION_ID}`}
                 onUnavailable={() => setPaymentFailed(true)}
