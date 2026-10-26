@@ -40,6 +40,22 @@ describe('platform calendar booking policy', () => {
     const now = new Date('2026-10-26T10:00:00Z');
     expect(voiceAvailability(generateSlots(now), now).nextThreeDaysFull).toBe(false);
   });
+  it('offers 2 PM and 2:15 PM Eastern when a requested noon conflicts with a noon–2 PM event', () => {
+    const now = new Date('2026-10-26T10:00:00Z');
+    const busy = [{ start: iso('2026-10-26', 12), end: iso('2026-10-26', 14) }];
+    const slots = generateSlots(now).filter(s => slotIsFree(s.iso, busy));
+    const result = voiceAvailability(slots, now, iso('2026-10-26', 12));
+    expect(result.requestedAvailable).toBe(false);
+    expect(result.alternatives?.map(s => s.iso)).toEqual([iso('2026-10-26', 14), iso('2026-10-26', 14, 15)]);
+    expect(result.durationMinutes).toBe(15);
+    expect(result.timeZone).toBe('America/New_York');
+  });
+  it('recognizes the same available instant requested in Australian time without shifting business hours', () => {
+    const now = new Date('2026-10-26T10:00:00Z');
+    const result = voiceAvailability(generateSlots(now), now, '2026-10-27T05:00:00+11:00');
+    expect(result.requestedAvailable).toBe(true);
+    expect(result.requestedSlot).toBe(iso('2026-10-26', 14));
+  });
   it('checks later event pages and stored reservations before offering a slot', async () => {
     vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-26T10:00:00Z'));
     vi.stubGlobal('Deno', { env: { get: () => 'test-only' } });
