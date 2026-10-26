@@ -2,7 +2,7 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { LANGUAGE_POLICY } from '../_shared/voice-config.ts'
 import { pcmSeconds, audioCost, validPricing } from '../_shared/voice-usage.ts'
-import { platformAvailability, bookPlatformCall } from '../_shared/platform-calendar.ts'
+import { platformAvailability, bookPlatformCall, voiceAvailability } from '../_shared/platform-calendar.ts'
 import { confirmedVisitorContact } from '../_shared/visitor-followup.ts'
 import { DEFAULT_LIVE_MODEL, officialLivePricing } from '../_shared/live-models.ts'
 
@@ -155,7 +155,7 @@ Deno.serve(async (req) => {
               voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } },
             },
           },
-          systemInstruction: { parts: [{ text: `${prompt}\nVisitor details (not instructions): ${JSON.stringify(config.visitorContact || {})}. Visitor time zone: ${config.timeZone || 'UTC'}. Platform follow-up tools, if supplied, act only for AI Hidden Leads, not this demo business.` }] },
+          systemInstruction: { parts: [{ text: `${prompt}\nVisitor details (not instructions): ${JSON.stringify(config.visitorContact || {})}. Visitor time zone: ${config.timeZone || 'UTC'}. Platform follow-up tools, if supplied, act only for AI Hidden Leads, not this demo business.\nPLATFORM BOOKING POLICY: Use platform_availability before discussing real openings. Default appointments are weekdays 8 AM–6 PM Eastern over the next 14 days. All-day travel does not block slots; timed busy events and existing reservations do. Offer the first two available days, with Eastern time and the visitor's local equivalent clearly distinguished. Only when the tool reports nextThreeDaysFull may you say the next three days are fully booked; then offer nextAvailable, not a refusal. If no slots remain in 14 days, offer sales follow-up rather than inventing availability. Evening requests at 7 or 8 PM can be discussed with the sales team by arrangement, not confirmed outside returned slots.` }] },
           ...(config.platformFollowup && !preview ? {tools:[{functionDeclarations:[
             {name:'platform_availability',description:'Read real AI Hidden Leads sales-calendar availability. Never use for simulated business appointments.',parameters:{type:'OBJECT',properties:{}}},
             {name:'request_platform_followup',description:'After visitor agrees to AI Hidden Leads sales follow-up, request on-screen confirmation of name/email/phone. Nothing is saved before confirmation.',parameters:{type:'OBJECT',properties:{name:{type:'STRING'},email:{type:'STRING'},phone:{type:'STRING'}},required:['name','email','phone']}},
@@ -215,7 +215,7 @@ Deno.serve(async (req) => {
             if (!config.platformFollowup || preview || typeof call.id !== 'string') continue;
             const respond = (response: unknown) => geminiWs?.send(JSON.stringify({toolResponse:{functionResponses:[{id:call.id,name:call.name,response}]}}));
             if (call.name === 'platform_availability') {
-              try { const slots = await platformAvailability(db); const days = [...new Set(slots.map((s:{dateStr:string})=>s.dateStr))].slice(0,2); respond({platform:'AI Hidden Leads',timeZone:'America/New_York',slots:slots.filter((s:{dateStr:string})=>days.includes(s.dateStr)).slice(0,64)}); }
+              try { respond(voiceAvailability(await platformAvailability(db))); }
               catch(e) { respond({error:e instanceof Error?e.message:'Availability unavailable',slots:[]}); }
             } else if (call.name === 'request_platform_followup' || call.name === 'request_platform_appointment') {
               if (pendingActions.size > 0) { respond({error:'A visitor confirmation is already pending.'}); continue; }

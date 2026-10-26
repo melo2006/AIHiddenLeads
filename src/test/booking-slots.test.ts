@@ -17,7 +17,7 @@ describe("booking slot generation", () => {
     expect(etWallToUtc("2026-07-06", 9, 0).toISOString()).toBe("2026-07-06T13:00:00.000Z");
   });
 
-  it("generates only weekday slots within 9:00-17:00 ET", () => {
+  it("generates weekday slots from 8 AM until the last appointment ends at 6 PM Eastern", () => {
     const now = new Date("2026-01-05T10:00:00Z"); // Monday 5AM ET
     const slots = generateSlots(now);
     expect(slots.length).toBeGreaterThan(0);
@@ -27,14 +27,15 @@ describe("booking slot generation", () => {
       expect(day).not.toBe(6);
       expect(s.label).toMatch(/^\d{1,2}:\d{2} (AM|PM)$/);
     }
-    // First slot of any day is 9:00 AM, last is 4:45 PM
+    // First slot is 8:00 AM, last is 5:45 PM, ending at 6 PM.
     const byDay = new Map<string, string[]>();
     for (const s of slots) {
       byDay.set(s.dateStr, [...(byDay.get(s.dateStr) ?? []), s.label]);
     }
     for (const labels of byDay.values()) {
-      expect(labels[0]).toBe("9:00 AM");
-      expect(labels[labels.length - 1]).toBe("4:45 PM");
+      expect(labels[0]).toBe("8:00 AM");
+      expect(labels[labels.length - 1]).toBe("5:45 PM");
+      expect(labels.length).toBe(40);
     }
   });
 
@@ -52,5 +53,10 @@ describe("booking slot generation", () => {
     expect(isValidSlot(slots[0].iso, now)).toBe(true);
     expect(isValidSlot("2020-01-01T14:00:00.000Z", now)).toBe(false);
     expect(isValidSlot("not-a-date", now)).toBe(false);
+  });
+  it("allows bookings in the second week but not beyond the two-week window", () => {
+    const now = new Date("2026-10-26T00:14:00Z");
+    expect(isValidSlot(etWallToUtc("2026-11-06", 8, 0).toISOString(), now)).toBe(true);
+    expect(isValidSlot(etWallToUtc("2026-11-09", 8, 0).toISOString(), now)).toBe(false);
   });
 });

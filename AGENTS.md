@@ -18,6 +18,7 @@
 - Build prospect simulation configurations separately from homepage sales configurations, sharing only voice identity so platform greetings never leak into business roleplay.
 - Store editable prospect simulation templates separately from homepage sales templates; platform actions require explicit on-screen confirmation and never act for the simulated business.
 - Use a session-bound pending-action registry for Gemini native tools; only browser-confirmed contact data can be saved, and platform bookings share verified Google Calendar availability and slot rules with the booking page.
+- Derive platform calendar conflicts from paginated original event boundaries, not merged freeBusy intervals, so date-only travel can remain nonblocking while timed events, offsets and existing reservations stay authoritative.
 - Keep WebSocket lifetime work pending until close to avoid early worker retirement; server session deadlines remain authoritative and hard hosting limits still apply.
 - Keep scraped business contacts in source knowledge, not visitor contact fields; confirmed visitor data is recorded in call history without overwriting populated lead fields.
 - Keep a reviewed server-side homepage sales reference for offer facts and seed only the homepage agent with it; update saved draft/published snapshots explicitly and do not rely on scraping interactive marketing or reuse historical sales offers.

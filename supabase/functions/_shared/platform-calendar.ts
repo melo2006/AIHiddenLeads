@@ -3,15 +3,40 @@ declare const Deno: { env: { get(name: string): string | undefined } };
 
 export const PLATFORM_CALENDAR = 'melo2006@gmail.com';
 type Busy = { start: string; end: string };
+type CalendarEvent = { status?: string; transparency?: string; start?: { date?: string; dateTime?: string }; end?: { date?: string; dateTime?: string } };
+// freeBusy merges all-day trips with timed events; read original event boundaries instead.
+export function timedBusyIntervals(events: CalendarEvent[]): Busy[] {
+  return events.flatMap(event => {
+    if (event.status === 'cancelled' || event.transparency === 'transparent' || event.start?.date) return [];
+    const start = event.start?.dateTime, end = event.end?.dateTime;
+    if (!start || !end || !Number.isFinite(Date.parse(start)) || !Number.isFinite(Date.parse(end)) || Date.parse(end) <= Date.parse(start)) {
+      throw new Error('A timed calendar event could not be checked. Availability is not confirmed.');
+    }
+    return [{ start, end }];
+  });
+}
+export function voiceAvailability(slots: ReturnType<typeof generateSlots>, now = new Date()) {
+  const firstThreeDates = new Set(Array.from({ length: 3 }, (_, i) => {
+    const date = new Date(now); date.setUTCDate(date.getUTCDate() + i);
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
+  }));
+  const days = [...new Set(slots.map(s => s.dateStr))].slice(0, 2);
+  return {
+    platform: 'AI Hidden Leads', timeZone: 'America/New_York', businessHours: 'Weekdays 8 AM–6 PM Eastern', searchDays: 14,
+    nextThreeDaysFull: !slots.some(s => firstThreeDates.has(s.dateStr)),
+    nextAvailable: slots[0] || null,
+    slots: days.flatMap(day => slots.filter(s => s.dateStr === day)),
+  };
+}
 export function slotIsFree(iso: string, busy: Busy[]) {
   const start = Date.parse(iso), end = start + SLOT_MINUTES * 60000;
   return busy.every(b => end <= Date.parse(b.start) || start >= Date.parse(b.end));
 }
-export async function calendarRequest(path: string, body: unknown) {
+export async function calendarRequest(path: string, body?: unknown) {
   const key = Deno.env.get('GOOGLE_CALENDAR_API_KEY'), gatewayKey = Deno.env.get('LOVABLE_API_KEY');
   if (!key || !gatewayKey) throw new Error('Google Calendar is not connected. No availability or booking can be confirmed.');
   const res = await fetch(`https://connector-gateway.lovable.dev/google_calendar/calendar/v3${path}`, {
-    method: 'POST', headers: { Authorization: `Bearer ${gatewayKey}`, 'X-Connection-Api-Key': key, 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    method: body === undefined ? 'GET' : 'POST', headers: { Authorization: `Bearer ${gatewayKey}`, 'X-Connection-Api-Key': key, 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`Google Calendar request failed (${res.status}). No appointment has been confirmed.`);
   return res.json();
@@ -19,18 +44,26 @@ export async function calendarRequest(path: string, body: unknown) {
 export async function platformAvailability(db: any) {
   const slots = generateSlots();
   if (!slots.length) return [];
-  const result = await calendarRequest('/freeBusy', {
-    timeMin: slots[0].iso, timeMax: new Date(Date.parse(slots[slots.length - 1].iso) + SLOT_MINUTES * 60000).toISOString(), items: [{ id: PLATFORM_CALENDAR }],
+  const query = new URLSearchParams({
+    timeMin: slots[0].iso, timeMax: new Date(Date.parse(slots[slots.length - 1].iso) + SLOT_MINUTES * 60000).toISOString(),
+    singleEvents: 'true', maxResults: '250', fields: 'nextPageToken,items(status,transparency,start,end)',
   });
-  const calendar = result.calendars?.[PLATFORM_CALENDAR];
-  if (!calendar || calendar.errors?.length || !Array.isArray(calendar.busy)) throw new Error('Google Calendar availability could not be verified.');
+  const busy: Busy[] = [];
+  for (let page = 0; page < 20; page++) {
+    const result = await calendarRequest(`/calendars/${encodeURIComponent(PLATFORM_CALENDAR)}/events?${query}`);
+    if (!Array.isArray(result.items)) throw new Error('Google Calendar availability could not be verified.');
+    busy.push(...timedBusyIntervals(result.items));
+    if (!result.nextPageToken) break;
+    if (page === 19) throw new Error('Calendar has too many events to verify safely. Please contact our team.');
+    query.set('pageToken', result.nextPageToken);
+  }
   const { data, error } = await db.from('implementation_calls').select('slot_start').neq('status', 'cancelled').gte('slot_start', slots[0].iso);
   if (error) throw new Error('Appointment availability could not be checked.');
   const taken = new Set((data || []).map((r: { slot_start: string }) => new Date(r.slot_start).toISOString()));
-  return slots.filter(s => !taken.has(s.iso) && slotIsFree(s.iso, calendar.busy));
+  return slots.filter(s => !taken.has(s.iso) && slotIsFree(s.iso, busy));
 }
 export async function bookPlatformCall(db: any, details: { name: string; email: string; phone?: string; businessName?: string; notes?: string; slotStart: string }) {
-  if (!isValidSlot(details.slotStart)) throw new Error('Choose an upcoming 15-minute weekday slot during 9 AM–5 PM Eastern, at least two hours ahead.');
+  if (!isValidSlot(details.slotStart)) throw new Error('Choose an upcoming 15-minute weekday slot during 8 AM–6 PM Eastern, at least two hours ahead.');
   const available = await platformAvailability(db);
   if (!available.some(s => s.iso === details.slotStart)) throw new Error('That time is not available on the sales calendar. Please choose another.');
   const { data, error } = await db.from('implementation_calls').insert({ name: details.name, email: details.email, phone: details.phone || null, business_name: details.businessName || null, notes: details.notes || null, slot_start: details.slotStart, status: 'pending' }).select('id').single();
