@@ -1,6 +1,8 @@
 import { HOMEPAGE_SERVICE_AREAS } from '../../supabase/functions/_shared/homepage-services';
 
-const english = {
+type SalesCopy = { badge: string; headline: string; headlineAccent: string; sub: string; start: string; trust: string; title: string; description: string; technology: string; demo: string; addons: string; scope: string; services: ReadonlyArray<{ id: string; name: string; scope: string; benefits: readonly string[] }> };
+
+const english: SalesCopy = {
   badge: '2026 AI tools. Practical business advantages.',
   headline: 'AI Hidden Leads',
   headlineAccent: 'Beyond voicemail.',
@@ -16,7 +18,7 @@ const english = {
   services: HOMEPAGE_SERVICE_AREAS,
 };
 
-const spanish: typeof english = {
+const spanish: SalesCopy = {
   badge: 'Herramientas de IA de 2026. Ventajas prácticas.', headline: 'AI Hidden Leads', headlineAccent: 'Más que un buzón de voz.',
   sub: 'Recepción conversacional, prospectos B2B, búsqueda local, reputación y contenido social para pequeñas y medianas empresas.',
   start: 'Empieza con voz + chat + 50 prospectos B2B/mes por US$99/mes.', trust: 'Simulación web gratis · Tu nombre + sitio web · Sin tarjeta',
@@ -30,10 +32,10 @@ const spanish: typeof english = {
     {id:'search',name:'Google Maps y búsqueda con IA',scope:'Paquetes opcionales',benefits:['Mide 25 ubicaciones, no solo tu oficina: descubre cómo cambia tu visibilidad entre barrios.','Prioriza categorías del perfil, mejoras de búsqueda local y datos estructurados a partir del análisis.']},
     {id:'reputation',name:'Reseñas y reputación',scope:'Alcance opcional acordado',benefits:['Solicita opiniones honestas y supervisa reseñas nuevas, sin incentivos ni selección de clientes satisfechos.','Borradores de respuesta con IA ahorran tiempo; tu equipo aprueba las respuestas sensibles.']},
     {id:'social',name:'Contenido y creación social',scope:'Full Service / cotización',benefits:['Planifica publicaciones, anuncios y videos con IA para tu empresa, con aprobación antes de publicar.','Acuerda programación diaria o semanal y respuestas permitidas tras conectar las cuentas; no mensajes autónomos sin configurar.']},
-  ] as unknown as typeof HOMEPAGE_SERVICE_AREAS,
+  ],
 };
 
-const portuguese: typeof english = {
+const portuguese: SalesCopy = {
   badge:'Ferramentas de IA de 2026. Vantagens práticas.',headline:'AI Hidden Leads',headlineAccent:'Além da caixa postal.',
   sub:'Recepção por IA, novos prospects B2B, busca local, reputação e conteúdo social para pequenas e médias empresas.',
   start:'Comece com voz + chat + 50 prospects B2B/mês por US$99/mês.',trust:'Simulação gratuita · Seu nome + site · Sem cartão',
@@ -47,7 +49,7 @@ const portuguese: typeof english = {
     {id:'search',name:'Google Maps e busca com IA',scope:'Pacotes opcionais',benefits:['Meça 25 locais, não só seu escritório: veja como a visibilidade muda entre bairros.','Use o diagnóstico para priorizar categorias, melhorias de busca local e dados estruturados do site.']},
     {id:'reputation',name:'Avaliações e reputação',scope:'Escopo opcional acordado',benefits:['Peça avaliações honestas e monitore novas respostas, sem incentivos nem seleção de clientes satisfeitos.','Rascunhos com IA economizam tempo; sua equipe aprova respostas sensíveis antes da publicação.']},
     {id:'social',name:'Conteúdo e criação social',scope:'Full Service / orçamento',benefits:['Planeje posts, anúncios e conceitos de vídeo com IA para sua empresa, com aprovação antes de publicar.','Combine agenda diária ou semanal e respostas permitidas após conectar as contas — sem DMs autônomas não configuradas.']},
-  ] as unknown as typeof HOMEPAGE_SERVICE_AREAS,
+  ],
 };
 
 export function homepageSalesCopy(language: string) {
