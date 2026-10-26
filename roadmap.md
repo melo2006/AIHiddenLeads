@@ -1,7 +1,7 @@
 # Current work
 
-- [ ] Enlarge and label Aspen launchers; combine homepage voice/chat and showcase the new window.
-- [ ] Keep floating chat composer visible above the on-screen keyboard and restore position afterward.
+- [x] Enlarge Aspen faces from 48px to 72px and label launchers “Ask Aspen”; add homepage Voice/Chat toggle and prominent session-free preview; replace default phone/laptop two-icon imagery.
+- [x] Keep composer above VisualViewport keyboard bounds and restore saved position; verified 707px Fold-sized browser, simulated keyboard shrink, 13 tests and clean build. Actual Android keyboard behavior requires owner device confirmation.
 
 - [x] Add public-only HTML summary and logo for non-JavaScript readers; verified text/image visibility, normal homepage replacement and no browser errors. Published site already returns HTTP 200 and allows crawlers; update publication to apply fallback. Full-page scraping still requires browser rendering; private protections unchanged.
 

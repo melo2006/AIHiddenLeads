@@ -97,6 +97,10 @@ const DraggableFloating = ({
 
   useEffect(() => {
     const handleResize = () => {
+      // Mobile keyboards may emit a layout resize as well as visualViewport resize.
+      // The visual bounds handle that temporarily; do not replace the saved corner.
+      const focused = document.activeElement;
+      if (focused instanceof HTMLInputElement || focused instanceof HTMLTextAreaElement) return;
       const el = containerRef.current;
       if (!el) return;
       if (anchorRight) {
@@ -195,7 +199,7 @@ const DraggableFloating = ({
         position: "fixed",
         left: visiblePosition.x,
         top: visiblePosition.y,
-        zIndex: 50,
+        zIndex: 60,
         touchAction: isDragging ? "none" : "auto",
         '--aspen-available-height': `${Math.max(140, viewport.height - 56)}px`,
       } as React.CSSProperties}
