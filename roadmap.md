@@ -1,5 +1,10 @@
 # Current work
 
+- [x] Refresh saved homepage greeting/knowledge and translated ranking headline without assuming #1; retain session-free preloading. Real Aspen greeting and $99/$199/$349 with 50/100/200 leads verified.
+- [x] Set server-authorized homepage allowance to 600 seconds; simulations stay 300. Verify automatic 15-second silence check-in, additional reply grace, spoken goodbye and closed socket using silent microphone input; 37 tests passed.
+- [x] Give sourced review-response/approval and social-scheduling recommendations without connecting a paid service; live homepage had no page errors and clean build.
+- [ ] Verify uninterrupted full ten-minute homepage conversation; hosting duration ceiling remains unverified and needs an extended live-call check.
+
 - [x] Explain session-bound voice settings and add explicit end-to-edit and start-with-settings controls; noise filtering remains adjustable during calls.
 - [x] Narrow Aspen launcher with stacked label and larger face; update matching homepage device images. Verified 390px phone and desktop rendering.
 - [x] Restore independently scrolling chat with compact keyboard-safe composer; keep voice settings and all choices above the assistant. Verified real chat reply, selectable Strong filtering, simulated keyboard bounds and nine tests; actual Android keyboard remains device-dependent.

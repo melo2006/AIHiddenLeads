@@ -333,6 +333,11 @@ Deno.serve(async (req) => {
             audio: { data: msg.data, mimeType: 'audio/pcm;rate=16000' },
           },
         }))
+      } else if (msg.type === 'idle_prompt' && config.homepageSales === true && !preview && (msg.stage === 'checkin' || msg.stage === 'goodbye')) {
+        const text = msg.stage === 'checkin'
+          ? 'The caller has been quiet after playback. Briefly ask in the selected conversation language: Are you still there? Take your time, I am here if you would like to continue. Then wait for their answer.'
+          : 'The caller remained silent after a check-in and reply grace period. Briefly say in the selected conversation language: I will let you go for now. You are welcome to start another conversation whenever you are ready. Take care. Do not ask another question.';
+        geminiWs.send(JSON.stringify({clientContent:{turns:[{role:'user',parts:[{text}]}],turnComplete:true}}));
       } else if (msg.type === 'text' && typeof msg.text === 'string' && msg.text.length <= 4000) {
         geminiWs.send(JSON.stringify({ realtimeInput: { text: msg.text } }))
       } else if (manualActivity && msg.type === 'activity_start') {

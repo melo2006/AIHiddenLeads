@@ -24,7 +24,7 @@
 - Derive platform calendar conflicts from paginated original event boundaries, not merged freeBusy intervals, so date-only travel can remain nonblocking while timed events, offsets and existing reservations stay authoritative.
 - Keep WebSocket lifetime work pending until close to avoid early worker retirement; server session deadlines remain authoritative and hard hosting limits still apply.
 - Keep scraped business contacts in source knowledge, not visitor contact fields; confirmed visitor data is recorded in call history without overwriting populated lead fields.
-- Keep a reviewed server-side homepage sales reference for offer facts and seed only the homepage agent with it; update saved draft/published snapshots explicitly and do not rely on scraping interactive marketing or reuse historical sales offers.
+- Seed homepage-only reviewed sales knowledge into draft/published snapshots; never scrape marketing for offers. Identify sales sessions by saved slug, separate their allowance from simulations, and wait for playback before silence check-ins; suspend for pauses, handoffs and confirmations.
 - Persist voice audio measurements and raw provider reports server-side with periodic checkpoints; apply only model-matched explicit rate snapshots and label estimates separately from invoices.
 - Keep documented Live model comparison limited to authorized draft tests and voice auditions; published conversations retain the default, and model-specific published audio rates are versioned separately from recorded measurements.
 - Share model-matched conversation planning totals between Voice Agents and Voice Costs, with explicit input/output assumptions; recorded per-session estimates remain separate from provider invoices.
