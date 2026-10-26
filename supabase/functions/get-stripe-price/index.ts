@@ -16,7 +16,8 @@ serve(async (req) => {
       });
     }
 
-    const env = (environment || 'sandbox') as StripeEnv;
+    if(environment!=='sandbox'&&environment!=='live')return new Response(JSON.stringify({error:'Invalid payment environment'}),{status:400,headers:{...corsHeaders,'Content-Type':'application/json'}});
+    const env: StripeEnv = environment;
     const stripe = createStripeClient(env);
 
     const prices = await stripe.prices.list({ lookup_keys: [priceId] });
@@ -27,7 +28,8 @@ serve(async (req) => {
       });
     }
 
-    return new Response(JSON.stringify({ stripeId: prices.data[0].id }), {
+    const settings=await stripe.tax.settings.retrieve();
+    return new Response(JSON.stringify({ stripeId: prices.data[0].id, ready: settings.status==='active', message: settings.status==='active' ? null : 'Payments need the seller’s business address configured before checkout can open.' }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {

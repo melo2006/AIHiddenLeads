@@ -6,6 +6,7 @@ import { DEFAULT_LIVE_MODEL, officialLivePricing } from '../_shared/live-models.
 import { voiceQuotaClass, voiceLimitResponse } from '../_shared/voice-session-limit.ts';
 import { transferDestination } from '../_shared/browser-handoff.ts';
 import { transcriptAllowed } from '../_shared/transcript-consent.ts';
+import { workspaceAccess } from '../_shared/customer-payments.ts';
 const schema=z.object({ visitorKey:z.string().min(16).max(100), model:z.string().max(100).optional(), agentId:z.string().uuid().optional(), leadId:z.string().uuid().optional(), prospectId:z.string().uuid().optional(), draft:z.boolean().default(false), preview:z.boolean().default(false), voice:z.enum(VOICES as [string,...string[]]).optional(), hour:z.number().int().min(0).max(23).optional(), visitorName:z.string().max(100).default(''), timeZone:z.string().max(100).default('UTC'), campaign:z.object({visitId:z.string().uuid(),source:z.string().max(100),campaign:z.string().max(100)}).nullable().optional(), consent:z.boolean().default(false) });
 const json=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
 export async function hash(value:string) { return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)))).map(b=>b.toString(16).padStart(2,'0')).join(''); }
@@ -24,6 +25,7 @@ Deno.serve(async req=>{
     if(!b.agentId) { if(role?.role!=='admin') return json({error:'Administrator access required'},403); config={...DEFAULT_AGENT}; }
     else {
       const {data:agent}=await db.from('voice_agents').select('*').eq('id',b.agentId).maybeSingle(); if(!agent) return json({error:'Agent not found'},404);
+      if(!(await workspaceAccess(db,agent.organization_id))) return json({error:'This assistant subscription is not active'},403);
       const {data:member}=await db.from('voice_memberships').select('id').eq('organization_id',agent.organization_id).eq('user_id',user.id).eq('role','editor').maybeSingle(); if(role?.role!=='admin' && !member) return json({error:'Access denied'},403);
       const {data:sources}=await db.from('voice_agent_sources').select('content').eq('agent_id',agent.id).eq('status','ready');
       config={...(agent.draft as Record<string,unknown>),sourceKnowledge:(sources || []).map(s=>s.content || '').join('\n').slice(0,100000)}; agentId=agent.id; orgId=agent.organization_id;
@@ -40,6 +42,7 @@ Deno.serve(async req=>{
   } else {
     let query=db.from('voice_agents').select('*'); query=b.agentId?query.eq('id',b.agentId):query.eq('slug','aspen-homepage');
     const {data:agent}=await query.maybeSingle(); if(!agent?.published) return json({error:'Voice agent is not published yet'},409);
+    if(!(await workspaceAccess(db,agent.organization_id))) return json({error:'This assistant subscription is not active'},403);
     config={...(agent.published as Record<string,unknown>), homepageSales:agent.slug==='aspen-homepage'}; agentId=agent.id; orgId=agent.organization_id;
   }
   const requestedModel = b.model;
