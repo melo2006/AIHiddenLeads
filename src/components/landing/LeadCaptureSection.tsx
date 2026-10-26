@@ -25,6 +25,7 @@ import type { NicheData } from "@/data/nicheData";
 import ScanningAnimation from "./ScanningAnimation";
 import type { DemoLeadData } from "./demo-results/demoResultsUtils";
 import { formatPhoneNumber, sanitizeUrlInput } from "@/lib/formatters";
+import {trackCampaignEvent} from '@/lib/campaignTracking';
 
 type ViewState = "form" | "scanning" | "results";
 
@@ -229,6 +230,7 @@ const LeadCaptureSection = ({ selectedNiche }: LeadCaptureSectionProps) => {
       }
 
       setViewState("scanning");
+      void trackCampaignEvent('scan_started');
 
       const scanResult = await supabase.functions.invoke("scan-website", {
         body: {

@@ -25,6 +25,7 @@ import DemoSessionsView from "@/components/crm/DemoSessionsView";
 import ImportedListsView from "@/components/crm/ImportedListsView";
 import ImportedListDetailView from "@/components/crm/ImportedListDetailView";
 import EngagementDashboard from "@/components/crm/EngagementDashboard";
+import CampaignResultsView from '@/components/crm/CampaignResultsView';
 import SMSDashboard from "@/components/crm/SMSDashboard";
 import AdHijack from "@/pages/AdHijack";
 
@@ -248,6 +249,7 @@ const CRM = () => {
               <Route path="imported" element={<ImportedListsView />} />
               <Route path="imported/:id" element={<ImportedListDetailView />} />
               <Route path="engagement" element={<EngagementDashboard />} />
+              <Route path="campaign-results" element={<CampaignResultsView />} />
               <Route path="sms" element={<SMSDashboard />} />
               <Route path="follow-up" element={<FollowUpIntelligence />} />
               <Route path="templates" element={<TemplatesView />} />
