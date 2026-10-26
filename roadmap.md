@@ -1,5 +1,9 @@
 # Current work
 
+- [ ] Add compact Try your website / Book a quick call / Start now actions to the homepage and Aspen window, with Essentials-first plan selection.
+- [ ] Allow engaged prospect demos to continue and explicitly transition into factual AI Hidden Leads sales while retaining silence closure.
+- [ ] Verify existing Stripe checkout and design payment-gated self-service onboarding with platform installation instructions; do not reconnect existing payments.
+
 - [x] Investigate dropped call/white screen: latest call ended at 122s of 600s, no fatal browser error or saved close reason. Added isolated assistant recovery, explicit disconnect notices and new-call close diagnostics; original cause remains unproven.
 - [x] Add private Campaign Results, contact-free UTM milestones, consented written transcript checkpoints and rule-based service-mention/coverage review. Real consented call saved 1,331 transcript characters and user-ended reason; private desktop/phone dashboard verified. No full audio recording or AI assessment; historical unsaved content unavailable.
 - [x] Check owner recap options: user chose daily email; no built-in sender domain is configured. No per-call emails or silent audio recording enabled.
