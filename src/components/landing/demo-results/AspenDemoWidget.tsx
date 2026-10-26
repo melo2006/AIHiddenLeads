@@ -17,7 +17,7 @@ function AspenDemoWidgetContent({ voiceRequested = false, onClosed, ...chatProps
   const [recommendedPlan, setRecommendedPlan] = useState<string | null>(null);
   const expanded = open || voiceRequested;
   const close = () => { setOpen(false); onClosed(); };
-  return <DraggableFloating initialX={12} initialY={window.innerHeight - 90} anchorRight resetKey={expanded ? 'open' : 'closed'}>
+  return <DraggableFloating initialX={12} initialY={window.innerHeight - 90} anchorRight anchorBottom resetKey={expanded ? 'open' : 'closed'}>
     {expanded ? <div className={`aspen-panel w-[min(24rem,calc(100vw-24px))] ${mode === 'chat' ? 'overflow-hidden' : 'overflow-y-auto'} overscroll-contain rounded-lg border-2 border-primary/40 bg-card shadow-2xl`}>
       <header className="flex items-center gap-2 border-b border-border p-2">
         <img src={avatar} alt="Aspen" className="h-8 w-8 rounded-full object-cover" />

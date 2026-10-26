@@ -1,7 +1,8 @@
 import { useState, useRef, useCallback, useEffect, type ReactNode } from "react";
 import { GripVertical } from "lucide-react";
 import { Button } from '@/components/ui/button';
-import { fitFloatingPosition, type FloatingViewport } from '@/lib/floatingViewport';
+import { createPortal } from 'react-dom';
+import { fitFloatingPosition, floatingCornerPosition, type FloatingViewport } from '@/lib/floatingViewport';
 
 const VIEWPORT_PADDING = 12;
 
@@ -13,6 +14,7 @@ interface DraggableFloatingProps {
   initialY: number;
   /** If set, initialX is treated as pixels from the RIGHT edge instead of left */
   anchorRight?: boolean;
+  anchorBottom?: boolean;
   dragLabel?: string;
   resetKey?: string | number;
 }
@@ -22,6 +24,7 @@ const DraggableFloating = ({
   initialX,
   initialY,
   anchorRight = false,
+  anchorBottom = false,
   dragLabel = "Drag me",
   resetKey,
 }: DraggableFloatingProps) => {
@@ -31,6 +34,7 @@ const DraggableFloating = ({
   }));
   const [hasInitialized, setHasInitialized] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [hasMoved, setHasMoved] = useState(false);
   const dragging = useRef(false);
   const activePointerId = useRef<number | null>(null);
   const offset = useRef({ x: 0, y: 0 });
@@ -67,6 +71,7 @@ const DraggableFloating = ({
 
   useEffect(() => {
     if (resetKey === undefined) return;
+    setHasMoved(false);
     const frame = requestAnimationFrame(() => {
       const el = containerRef.current;
       if (!el) return;
@@ -131,6 +136,7 @@ const DraggableFloating = ({
     if (!rect) return;
 
     dragging.current = true;
+    setHasMoved(true);
     activePointerId.current = e.pointerId;
     setIsDragging(true);
     offset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
@@ -189,8 +195,10 @@ const DraggableFloating = ({
     };
   }, [isDragging, stopDragging]);
 
-  const visiblePosition = fitFloatingPosition(pos, dimensions, viewport);
-  return (
+  const visiblePosition = anchorRight && anchorBottom && !hasMoved
+    ? floatingCornerPosition(dimensions, viewport, initialX)
+    : fitFloatingPosition(pos, dimensions, viewport);
+  return createPortal(
     <div
       ref={containerRef}
       onPointerDown={onPointerDown}
@@ -217,7 +225,7 @@ const DraggableFloating = ({
         </Button>
         {children}
       </div>
-    </div>
+    </div>, document.body
   );
 };
 

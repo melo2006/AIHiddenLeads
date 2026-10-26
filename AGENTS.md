@@ -16,7 +16,7 @@
 - Apply saved reading size through root rem sizing, with wrapping and scrollable navigation rather than CSS page zoom, to avoid horizontal clipping.
 - Keep microphone amplitude filtering browser-side with silence frames and speech-tail hangover; Gemini language and provider VAD remain server-side.
 - Render transcript messages with AI Elements MessageResponse; the demo shares one floating shell around existing chat and Gemini voice transports, ending microphone capture when leaving voice mode so text chat never captures audio.
-- Share launcher face/label across Aspen widgets. Use one floating owner; reset on open/close, clamp to VisualViewport without changing saved position, keep composer outside transcript, and layer dialogs/selects above widgets.
+- Share launcher face/label across Aspen widgets. Portal floating shells to the document body and derive the default lower-right corner from current viewport and measured size, so loading/keyboard resizing cannot leave a stale top position. Preserve manual dragging until open/close reset, keep composer outside transcript, and layer dialogs/selects above widgets.
 - Prebundle transcript renderer dependencies and recover stale Vite chunk loads once per minute; preview updates must not leave open tabs blank or cause reload loops.
 - Build prospect simulation configurations separately from homepage sales configurations, sharing only voice identity so platform greetings never leak into business roleplay.
 - Store editable prospect simulation templates separately from homepage sales templates; platform actions require explicit on-screen confirmation and never act for the simulated business.
