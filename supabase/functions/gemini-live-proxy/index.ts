@@ -1,3 +1,4 @@
+import { homepagePacingAction } from '../_shared/homepage-pacing.ts'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { LANGUAGE_POLICY } from '../_shared/voice-config.ts'
@@ -134,7 +135,7 @@ Deno.serve(async (req) => {
     if (closed) return
     closed = true
     releaseSocket?.()
-    clearTimeout(sessionTimer)
+    clearTimeout(sessionTimer); clearInterval(pacingTimer)
     clearInterval(heartbeat)
     const duration = Math.round((Date.now() - started) / 1000)
     EdgeRuntime.waitUntil((async () => {
@@ -151,7 +152,22 @@ Deno.serve(async (req) => {
     try { clientSocket.close() } catch { /* ignore */ }
   }
 
+  let lastCallerSpeech = Date.now(), wrapupSent = false, pacingTimer: number | undefined
   clientSocket.onopen = () => {
+    const openedAt = Date.now()
+    if (config.homepageSales === true && !preview) pacingTimer = setInterval(() => {
+      const action = homepagePacingAction((Date.now() - openedAt) / 1000, (Date.now() - lastCallerSpeech) / 1000, wrapupSent)
+      if (!action || geminiWs?.readyState !== WebSocket.OPEN) return
+      if (action === 'wrapup') {
+        wrapupSent = true
+        geminiWs.send(JSON.stringify({clientContent:{turns:[{role:'user',parts:[{text:'About seven minutes have passed. At the next natural pause, without rushing or pressuring, warmly ask whether they have any other questions, would like to book a 15 to 20 minute call with a sales specialist, or want to try the free live demo now: all it takes is their website address to hear a natural receptionist voice speaking about their own business. If they want to keep talking, happily continue.'}]}],turnComplete:true}}))
+      } else {
+        endReason = 'engagement_timeout'
+        geminiWs.send(JSON.stringify({clientContent:{turns:[{role:'user',parts:[{text:'The caller has been quiet for a while. Briefly thank them, mention they can start the free demo any time with their website address, and say goodbye. Do not ask a question.'}]}],turnComplete:true}}))
+        clearInterval(pacingTimer)
+        setTimeout(() => { if (clientSocket.readyState === WebSocket.OPEN) clientSocket.send(JSON.stringify({ type: 'closed', reason: 'Conversation ended after a quiet period' })); closeAll() }, 12000)
+      }
+    }, 5000)
     sessionTimer = setTimeout(() => { endReason='time_limit'; if (clientSocket.readyState === WebSocket.OPEN) clientSocket.send(JSON.stringify({ type: 'closed', reason: 'Voice time limit reached' })); closeAll() }, preview ? Math.min(session.max_seconds, 30) * 1000 : session.max_seconds * 1000)
     geminiWs = new WebSocket(`${GEMINI_WS}?key=${apiKey}`)
 
@@ -269,6 +285,7 @@ Deno.serve(async (req) => {
             clientSocket.send(JSON.stringify({ type: 'aspen_transcript', text: sc.outputTranscription.text }))
           }
           if (sc.inputTranscription?.text) {
+            lastCallerSpeech = Date.now()
             if (transcript.length < 2000) transcript.push({ role: 'caller', text: sc.inputTranscription.text })
             clientSocket.send(JSON.stringify({ type: 'user_transcript', text: sc.inputTranscription.text }))
           }

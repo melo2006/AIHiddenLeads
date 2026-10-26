@@ -38,3 +38,4 @@
 - Use plain imperative Leaflet (`L.map` in useEffect), never react-leaflet: react-leaflet v5 requires React 19 and crashes on React 18 with "render2 is not a function".
 - Share the isolated Leaflet street-map renderer between homepage illustrations and measured audits; public demo examples prefill editable inputs without opening paid scans or voice sessions.
 - Live rank audits go through the `demo-rank-audit` function (Serper), cached 7 days in `rank_scan_cache` with a 30-scan daily cap; failed cells stay null, never fabricated.
+- Homepage voice pacing runs server-side in the Live proxy: a one-time soft wrap-up, then calls continue only while the caller keeps speaking, under a server safety ceiling; this saves minutes without cutting off engaged visitors.
