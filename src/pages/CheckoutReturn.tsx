@@ -1,11 +1,16 @@
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Shield, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useEffect, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { getStripeEnvironment } from '@/lib/stripe';
 
 export default function CheckoutReturn() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const sessionId = searchParams.get("session_id");
+  const [paid,setPaid]=useState(false),[message,setMessage]=useState('Confirming your payment…');
+  useEffect(()=>{let active=true;if(sessionId)void supabase.functions.invoke('customer-billing',{body:{action:'verify',sessionId,environment:getStripeEnvironment()}}).then(({data,error})=>{if(!active)return;setPaid(data?.paid===true);setMessage(data?.paid?'Your payment is verified. You can now configure your business assistant.':error?'We could not verify this payment for your account. Sign in and check again.':'Payment is still pending. Setup opens once it succeeds.');});return()=>{active=false;};},[sessionId]);
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center">
@@ -13,9 +18,9 @@ export default function CheckoutReturn() {
         {sessionId ? (
           <>
             <Shield className="w-16 h-16 text-primary mx-auto" />
-            <h1 className="text-3xl font-bold text-foreground">Payment confirmation needed</h1>
+            <h1 className="text-3xl font-bold text-foreground">{paid?'Payment confirmed':'Payment confirmation needed'}</h1>
             <p className="text-muted-foreground">
-              Returning from checkout does not confirm payment. Customer setup will only open after payment is verified. Book a quick call if you need help with your order.
+              {message}
             </p>
             <div className="rounded-xl border border-border bg-card p-5 text-left space-y-2">
               <h3 className="font-semibold text-foreground">What happens next:</h3>
@@ -25,8 +30,8 @@ export default function CheckoutReturn() {
                 <li>3. Test your assistant before installation</li>
               </ul>
             </div>
-            <Button onClick={() => navigate("/book")} className="w-full">
-              Book a quick call
+            <Button onClick={() => navigate(paid?'/setup':'/book')} className="w-full">
+              {paid?'Start guided setup':'Book a quick call'}
             </Button>
           </>
         ) : (
