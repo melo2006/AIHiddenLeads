@@ -1,5 +1,10 @@
 # Current work
 
+- [ ] Fix clipped voice settings with a simple three-level noise menu; visible street maps and distinct business-center marker.
+- [ ] Make homepage business name optional, use scanned identity, and provide reusable B2B audit searches/results.
+- [ ] Add editable simulation greeting/system prompt, five-minute duration visibility, confirmed visitor contact capture and platform-only calendar booking.
+- [ ] Verify connected personal calendar availability and demo/appointment flows; diagnose premature voice disconnects.
+
 - [x] Improve homepage and live rank marker readability over real street maps; homepage remains explicitly illustrative.
 - [x] Add four verified editable public business examples and direct audit access on /demo; explain required inputs and local versus nationwide limitations.
 - [x] Verify example selection, validation and street tiles without paid Google Maps calls; 21 tests passed. Fresh live Google Maps behavior awaits user validation on the deployed authorized origin; testing guide in docs/RANK-AUDIT-TESTING.md.
