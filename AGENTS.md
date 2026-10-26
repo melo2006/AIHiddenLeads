@@ -1,5 +1,7 @@
 # Architecture rules
 
+- Keep a factual, public-only HTML fallback in the entry document for non-JavaScript readers; React replaces it on startup, and it must never contain tenant data or imply route-specific rendering.
+
 - Keep demo progress pending until scan data arrives and render captured screenshots eagerly while iframe checks run; preload only cached public voice identity before interaction, never single-use voice capabilities or microphone capture, to reduce startup waits without premature usage.
 
 - Keep demo rank audits and homepage comparison data isolated from website and voice rendering; use explicitly simulated deterministic pins and shared homepage search-offer arithmetic, reserving authenticated live-provider adapters so examples never become claimed measurements.
