@@ -18,6 +18,8 @@ import { microphonePcm, shouldSendMicrophone, microphoneGate, microphoneAutoGain
 import VoiceActionConfirmation, { type VoiceAction } from "./VoiceActionConfirmation";
 import BrowserVoiceHandoff from "@/components/BrowserVoiceHandoff";
 import { voiceIdleAction, homepageWalkthroughDue, type VoiceIdleStage } from '@/lib/voiceIdle';
+import { voiceDisconnectMessage } from '@/lib/voiceDisconnect';
+import {campaignVisit, trackCampaignEvent} from '@/lib/campaignTracking';
 
 const VOICES = [
   { id: "Kore", label: "Kore — warm female (default)" },
@@ -46,6 +48,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const [actionNotice, setActionNotice] = useState('');
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
   const deadlineRef = useRef(0);
+  const [consentReady,setConsentReady]=useState(false);
+  const consentReadyRef=useRef(false);
   useEffect(() => { const timer = window.setInterval(() => { if (liveRef.current && deadlineRef.current) setRemainingSeconds(Math.max(0, Math.ceil((deadlineRef.current-Date.now())/1000))); }, 1000); return () => window.clearInterval(timer); }, []);
   const [handoffToken, setHandoffToken] = useState<string | null>(null);
   const [handoffActive, setHandoffActive] = useState(false);
@@ -122,7 +126,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         wsRef.current.send(JSON.stringify({type:'idle_prompt',stage:'continue'}));
         return;
       }
-      if (idle.stage === 'goodbye') { stopEverything(); return; }
+      if (idle.stage === 'goodbye') { wsRef.current?.send(JSON.stringify({type:'end_session',reason:'silence_timeout'})); stopEverything(); setStatus(voiceDisconnectMessage(1000,'silence_timeout')); return; }
       const action = voiceIdleAction(idle.stage, idle.quietSince, Date.now());
       if ((action === 'checkin' || action === 'goodbye') && wsRef.current?.readyState === WebSocket.OPEN) {
         idle.stage = action;
@@ -186,6 +190,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     setHandoffToken(null);
     handoffRef.current = false;
     setHandoffActive(false);
+    if(liveRef.current&&!isPreviewRef.current) {wsRef.current?.send(JSON.stringify({type:'end_session',reason:'user_ended'}));void trackCampaignEvent('voice_ended');}
     generationRef.current += 1;
     startingRef.current = false;
     liveRef.current = false;
@@ -300,6 +305,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
   const startConversation = useCallback(async (preview = false) => {
     if (startingRef.current || liveRef.current) return;
+    if (!preview && !consentReadyRef.current) { setConsentReady(false); return; }
     startingRef.current = true;
     clearPlayback();
     const generation = ++generationRef.current;
@@ -347,7 +353,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         return stream;
       });
       const [session, stream] = await Promise.all([
-        supabase.functions.invoke("gemini-session", { body: { visitorKey, agentId, leadId, prospectId, draft, preview, voice: previewVoice || voice, model: testModel, hour: new Date().getHours(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, visitorName, consent } }),
+        supabase.functions.invoke("gemini-session", { body: { visitorKey, agentId, leadId, prospectId, draft, preview, voice: previewVoice || voice, model: testModel, campaign:campaignVisit(), hour: new Date().getHours(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, visitorName, consent } }),
         microphoneReady,
         playResume,
         micResume,
@@ -396,6 +402,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           case "ready": {
             clearTimeout(readyTimeout);
             liveRef.current = true;
+            if(!preview)void trackCampaignEvent('voice_started');
             setPhase(preview ? "preview" : "live");
             setStatus(preview ? "Playing voice preview…" : captureMode === "hold" ? "Live — hold to talk" : "Live — hands-free");
             if (!micCtx || !stream) break;
@@ -494,11 +501,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         setError("Could not connect to the voice service.");
         stopEverything();
       };
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         clearTimeout(readyTimeout);
         if (generation !== generationRef.current) return;
         if (liveRef.current) {
           stopEverything();
+          setError(voiceDisconnectMessage(event.code, event.reason));
         } else {
           setPhase("idle");
           setStatus("Conversation ended. Press Start to begin again.");
@@ -526,7 +534,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   useEffect(() => {
     if (!compact || !autoStart || autoStartedRef.current) return;
     autoStartedRef.current = true;
-    void startConversation();
+    if(consentReadyRef.current)void startConversation();
   }, [compact, autoStart, startConversation]);
 
   const onHandoffActive = (active: boolean) => {
@@ -544,6 +552,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   };
   const confirmation = pendingAction ? <VoiceActionConfirmation key={pendingAction.id} action={pendingAction} onAnswer={(approved, contact) => { wsRef.current?.send(JSON.stringify({type:'confirm_action',id:pendingAction.id,approved,contact})); setPendingAction(null); }}/> : null;
   const transferControl = phase === 'live' && handoffToken ? <BrowserVoiceHandoff token={handoffToken} onActive={onHandoffActive} microphone={microphone}/> : null;
+
+  if (!previewOnly && !consentReady) return <div className="space-y-3 p-3 text-foreground">
+    <p className="text-sm font-semibold">Before you talk to Aspen</p>
+    <p className="text-xs text-muted-foreground">Audio is processed live to answer you. Audio recordings are not saved. You may optionally allow a written transcript and service-interest review to be saved privately for our team.</p>
+    <label className="flex items-start gap-2 text-xs"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)} />Allow my transcript and call review to be saved</label>
+    <Button className="w-full" onClick={()=>{consentReadyRef.current=true;setConsentReady(true);void startConversation();}}><Mic className="mr-2 h-4 w-4"/>Start conversation</Button>
+  </div>;
 
   if (previewOnly) return <div className="space-y-2">
     <div className="flex flex-wrap items-center gap-2">

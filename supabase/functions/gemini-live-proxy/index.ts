@@ -5,6 +5,7 @@ import { pcmSeconds, audioCost, validPricing } from '../_shared/voice-usage.ts'
 import { platformAvailability, bookPlatformCall, voiceAvailability } from '../_shared/platform-calendar.ts'
 import { confirmedVisitorContact, CONTACT_READBACK_POLICY } from '../_shared/visitor-followup.ts'
 import { DEFAULT_LIVE_MODEL, officialLivePricing } from '../_shared/live-models.ts'
+import { callReview } from '../_shared/call-review.ts'
 
 const GEMINI_WS =
   'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent'
@@ -116,10 +117,19 @@ Deno.serve(async (req) => {
   const usage = () => ({ model, input_audio_seconds: inputAudioSeconds, output_audio_seconds: outputAudioSeconds, audio_estimate_usd: audioCost(inputAudioSeconds, outputAudioSeconds, pricing), pricing, provider_reports: providerReports, cost_basis: pricing ? 'published_audio_estimate_excludes_text_context_and_scanning' : 'pricing_unverified' })
   let heartbeat: ReturnType<typeof setInterval> | undefined
   const persistUsage = async () => {
+    if(closed)return;
     const { error } = await db.from('gemini_voice_sessions').update({ status: 'live', duration_seconds: Math.round((Date.now()-started)/1000), last_activity_at: new Date().toISOString(), usage: usage(), ...(config.recordTranscript ? {transcript} : {}) }).eq('id',session.id)
     if (error) console.error('usage checkpoint failed',error.message)
+    if(!preview&&!closed){
+      const review=config.recordTranscript&&config.homepageSales ? callReview(transcript) : null;
+      const {data:previous}=await db.from('call_history').select('metadata').eq('retell_call_id',`gemini_${session.id}`).maybeSingle();
+      const {error:historyError}=await db.from('call_history').upsert({retell_call_id:`gemini_${session.id}`,lead_id:session.lead_id,prospect_id:session.prospect_id,business_name:String(config.businessName),call_status:'live',duration_seconds:Math.round((Date.now()-started)/1000),transcript:config.recordTranscript?transcript.map(t=>`${t.role}: ${t.text}`).join('\n'):null,...(review?{summary:review.summary}:{}),metadata:{...previous?.metadata,provider:'gemini',session_id:session.id,campaign:config.campaign||null,transcript_consent:config.recordTranscript,review,usage:usage()}},{onConflict:'retell_call_id'});
+      if(historyError)console.error('call checkpoint failed',historyError.message);
+    }
   }
   let sessionTimer: ReturnType<typeof setTimeout> | undefined
+  let endReason = 'connection_closed';
+  let closeCode = 0;
   const closeAll = () => {
     if (closed) return
     closed = true
@@ -128,10 +138,12 @@ Deno.serve(async (req) => {
     clearInterval(heartbeat)
     const duration = Math.round((Date.now() - started) / 1000)
     EdgeRuntime.waitUntil((async () => {
-      const { error } = await db.from('gemini_voice_sessions').update({ status: 'ended', ended_at: new Date().toISOString(), last_activity_at: new Date().toISOString(), duration_seconds: duration, usage: usage(), transcript: config.recordTranscript ? transcript : [] }).eq('id', session.id)
+      const { error } = await db.from('gemini_voice_sessions').update({ status: 'ended', ended_at: new Date().toISOString(), last_activity_at: new Date().toISOString(), duration_seconds: duration, usage: usage(), last_error: `${endReason} (code ${closeCode})`, transcript: config.recordTranscript ? transcript : [] }).eq('id', session.id)
       if (error) console.error('session persistence failed', error.message)
       if (!preview) {
-        const {error:historyError} = await db.from('call_history').upsert({ retell_call_id: `gemini_${session.id}`, lead_id: session.lead_id, prospect_id: session.prospect_id, business_name: String(config.businessName), call_status: 'ended', duration_seconds: duration, started_at: new Date(started).toISOString(), ended_at: new Date().toISOString(), transcript: config.recordTranscript ? transcript.map(t => `${t.role}: ${t.text}`).join('\n') : null, metadata: { provider: 'gemini', session_id: session.id, agent_id: session.agent_id, transcript_consent: config.recordTranscript, usage: usage() } },{onConflict:'retell_call_id'})
+        const review = config.recordTranscript && config.homepageSales ? callReview(transcript) : null;
+        const {data:previous}=await db.from('call_history').select('metadata').eq('retell_call_id',`gemini_${session.id}`).maybeSingle();
+        const {error:historyError} = await db.from('call_history').upsert({ retell_call_id: `gemini_${session.id}`, lead_id: session.lead_id, prospect_id: session.prospect_id, business_name: String(config.businessName), call_status: 'ended', duration_seconds: duration, started_at: new Date(started).toISOString(), ended_at: new Date().toISOString(), transcript: config.recordTranscript ? transcript.map(t => `${t.role}: ${t.text}`).join('\n') : null, ...(review ? {summary:review.summary,key_points:review.interest} : {}), metadata: { ...previous?.metadata, provider: 'gemini', session_id: session.id, agent_id: session.agent_id, campaign:config.campaign || null, transcript_consent: config.recordTranscript, end_reason:endReason,close_code:closeCode,review,usage: usage() } },{onConflict:'retell_call_id'})
         if (historyError) console.error('call history persistence',historyError.message)
       }
     })())
@@ -140,7 +152,7 @@ Deno.serve(async (req) => {
   }
 
   clientSocket.onopen = () => {
-    sessionTimer = setTimeout(() => { if (clientSocket.readyState === WebSocket.OPEN) clientSocket.send(JSON.stringify({ type: 'closed', reason: 'Voice time limit reached' })); closeAll() }, preview ? Math.min(session.max_seconds, 30) * 1000 : session.max_seconds * 1000)
+    sessionTimer = setTimeout(() => { endReason='time_limit'; if (clientSocket.readyState === WebSocket.OPEN) clientSocket.send(JSON.stringify({ type: 'closed', reason: 'Voice time limit reached' })); closeAll() }, preview ? Math.min(session.max_seconds, 30) * 1000 : session.max_seconds * 1000)
     geminiWs = new WebSocket(`${GEMINI_WS}?key=${apiKey}`)
 
     geminiWs.onopen = () => {
@@ -288,8 +300,9 @@ Deno.serve(async (req) => {
     }
 
     geminiWs.onclose = (e) => {
+      if (!closed) {endReason='provider_closed';closeCode=e.code;console.info('voice provider closed',JSON.stringify({code:e.code,clean:e.wasClean,sessionId:session.id}));}
       if (!closed && clientSocket.readyState === WebSocket.OPEN) {
-        clientSocket.send(JSON.stringify({ type: 'closed', reason: e.reason || 'Gemini session ended' }))
+        clientSocket.send(JSON.stringify({ type: 'closed', reason: `Voice provider connection ended (code ${e.code}). Press Talk to reconnect.`, code:e.code }))
       }
       closeAll()
     }
@@ -301,6 +314,7 @@ Deno.serve(async (req) => {
     try {
       if (typeof event.data !== 'string' || event.data.length > 65536) { closeAll(); return }
       const msg = JSON.parse(event.data)
+      if(msg.type==='end_session' && (msg.reason==='silence_timeout' || msg.reason==='user_ended')) {if(endReason==='connection_closed'){endReason=msg.reason;closeCode=1000;}closeAll();return;}
       if (msg.type === 'confirm_action' && typeof msg.id === 'string') {
         const action = pendingActions.get(msg.id);
         if (!action) return;
@@ -354,7 +368,7 @@ Deno.serve(async (req) => {
     }
   }
 
-  clientSocket.onclose = closeAll
+  clientSocket.onclose = (event) => {if(!closed) {closeCode=event.code;console.info('voice browser closed',JSON.stringify({code:event.code,clean:event.wasClean,sessionId:session.id}));}closeAll();}
   clientSocket.onerror = closeAll
 
   return response

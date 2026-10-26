@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
 import "./i18n";
+import {Button} from '@/components/ui/button';
 
 // An open tab can retain an old chunk URL after a preview update. Recover
 // once instead of leaving the route blank, without creating a reload loop.
@@ -36,17 +37,14 @@ class ErrorBoundary extends React.Component<
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ padding: 40, color: "#fff", background: "#0a0f1a", minHeight: "100vh" }}>
-          <h1 style={{ color: "#f87171" }}>Something went wrong</h1>
-          <pre style={{ whiteSpace: "pre-wrap", marginTop: 16, color: "#94a3b8" }}>
-            {this.state.error?.message}
-          </pre>
-          <button
+        <div role="alert" className="min-h-screen bg-background text-foreground p-6 sm:p-10">
+          <h1 className="text-xl font-semibold">The page needs to restart</h1>
+          <p className="mt-4 text-sm text-muted-foreground">Please reload to continue. Your private account data has not been cleared.</p>
+          <Button className="mt-5"
             onClick={() => window.location.reload()}
-            style={{ marginTop: 20, padding: "10px 20px", background: "#10b981", color: "#000", border: "none", borderRadius: 8, cursor: "pointer" }}
           >
             Reload Page
-          </button>
+          </Button>
         </div>
       );
     }

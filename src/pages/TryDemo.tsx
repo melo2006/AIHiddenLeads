@@ -33,6 +33,7 @@ import LanguageSwitcher from "@/components/LanguageSwitcher";
 import type { DemoLeadData } from "@/components/landing/demo-results/demoResultsUtils";
 import RankAuditPanel from "@/components/landing/demo-results/RankAuditPanel";
 import { rankAuditExamples, type RankAuditExample } from "@/lib/rankAuditExamples";
+import {trackCampaignEvent} from '@/lib/campaignTracking';
 
 const LAST_DEMO_STORAGE_KEY = "lastDemoLeadData";
 const MAX_FILES = 3;
@@ -185,7 +186,9 @@ const TryDemo = () => {
 
     try {
       // Always use the safe public demo helper. Public visitors cannot query the private leads table directly.
+      void trackCampaignEvent('scan_started');
       const { data: leadId, error } = await (supabase as any).rpc("create_demo_lead", {
+        // Track only milestones, never form contact fields.
         _business_name: businessName,
         _full_name: name,
         _phone: ph,
