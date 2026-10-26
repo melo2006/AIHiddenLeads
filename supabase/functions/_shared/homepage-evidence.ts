@@ -1,0 +1,6 @@
+// Attributed external benchmarks, not AI Hidden Leads performance claims.
+export const HOMEPAGE_EVIDENCE = [
+  { value: '26%', label: 'Calls went unanswered', source: 'Invoca customer-platform data', url: 'https://www.invoca.com/blog/how-to-turn-missed-sales-calls-into-revenue-opportunities', caveat: 'About 26% in Invoca’s dataset; sample size and observation period are not specified on this article.' },
+  { value: '41%', label: 'Qualified phone-lead conversion', source: 'Invoca customer-platform data', url: 'https://www.invoca.com/blog/how-to-turn-missed-sales-calls-into-revenue-opportunities', caveat: 'Average for qualified phone leads in Invoca’s dataset—not all calls or our clients’ results.' },
+  { value: '88%', label: 'Would use a business replying to every review', source: 'BrightLocal • 2024 • 1,141 US consumers', url: 'https://www.brightlocal.com/research/local-consumer-review-survey-2024/', caveat: 'Stated consumer preference, versus 47% for businesses not replying; not a guaranteed sale.' },
+] as const;

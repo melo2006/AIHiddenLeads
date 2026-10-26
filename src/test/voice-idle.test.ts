@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { expect, test } from 'vitest';
-import { voiceIdleAction } from '../lib/voiceIdle';
+import { voiceIdleAction, homepageWalkthroughDue } from '../lib/voiceIdle';
 
 test('homepage silence check-in waits fifteen seconds', () => {
   expect(voiceIdleAction('waiting', 1000, 15999)).toBeNull();
@@ -12,4 +12,10 @@ test('caller has another fifteen seconds after check-in playback', () => {
 });
 test('resumed conversation resets the silence deadline', () => {
   expect(voiceIdleAction('waiting', 35000, 35001)).toBeNull();
+});
+test('permission question allows one short continuation after six seconds', () => {
+  expect(homepageWalkthroughDue('Shall we explore the other advantages?', false, 1000, 6999)).toBe(false);
+  expect(homepageWalkthroughDue('Shall we explore the other advantages?', false, 1000, 7000)).toBe(true);
+  expect(homepageWalkthroughDue('Shall we explore the other advantages?', true, 1000, 7000)).toBe(false);
+  expect(homepageWalkthroughDue('What is your business name?', false, 1000, 7000)).toBe(false);
 });

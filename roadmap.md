@@ -1,5 +1,8 @@
 # Current work
 
+- [x] Strengthen homepage and saved Aspen sales pitch around five ordered services, two practical advantages each, $99/50-lead offer and early demo invitation. Actual provider greeting, saved draft/live equality, editable admin prompt, three attributed research figures and demo/add-on CTAs verified. Written source/playbook saved; GitHub remote sync and existing prerecorded video replacement are not verified.
+- [x] Disable automatic microphone gain in Strong filtering where supported; retain hold-to-talk for loud wind/engine noise. Bounded six-second next-service continuation and fifteen-second silence closure tested; 41 tests passed and phone/desktop homepage verified. Physical boat/headset performance remains owner-device verification.
+
 - [x] Refresh saved homepage greeting/knowledge and translated ranking headline without assuming #1; retain session-free preloading. Real Aspen greeting and $99/$199/$349 with 50/100/200 leads verified.
 - [x] Set server-authorized homepage allowance to 600 seconds; simulations stay 300. Verify automatic 15-second silence check-in, additional reply grace, spoken goodbye and closed socket using silent microphone input; 37 tests passed.
 - [x] Give sourced review-response/approval and social-scheduling recommendations without connecting a paid service; live homepage had no page errors and clean build.

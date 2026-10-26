@@ -28,11 +28,11 @@ const Index = () => {
     <div className="min-h-screen bg-background overflow-x-hidden">
       <LandingNavbar />
       <HeroSection niche={selectedNiche} onGetDemo={scrollToDemo} />
+      <ServicesGrid />
       <BeforeAfterSection niche={selectedNiche} />
       <MapVisibilitySection />
       <TryWebsiteCTA />
       <StatsSection niche={selectedNiche} />
-      <ServicesGrid />
       <HowItWorksSection />
       <TryWebsiteCTA />
       <DemoDifferentiator />

@@ -1,126 +1,47 @@
-import { motion } from "framer-motion";
-import {
-  Phone,
-  MessageSquare,
-  Search,
-  Star,
-  Send,
-  Share2,
-  DatabaseZap,
-} from "lucide-react";
+import { Phone, Users, MapPin, Star, Video, ArrowRight, Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
+import { homepageSalesCopy } from "@/data/homepageSalesCopy";
 
-const serviceIcons = {
-  voice: Phone,
-  chat: MessageSquare,
-  reactivation: DatabaseZap,
-  leadgen: Search,
-  reviews: Star,
-  outreach: Send,
-  social: Share2,
-};
-
-const highlighted: Array<keyof typeof serviceIcons> = ["voice", "chat", "reactivation"];
-const other: Array<keyof typeof serviceIcons> = ["leadgen", "reviews", "outreach", "social"];
-
+const icons = [Phone, Users, MapPin, Star, Video];
 const ServicesGrid = () => {
-  const { t } = useTranslation();
-
+  const { i18n } = useTranslation();
+  const copy = homepageSalesCopy(i18n.language);
+  const navigate = useNavigate();
   return (
-    <section id="services" className="py-16 sm:py-24 relative">
-      <div className="absolute inset-0 bg-gradient-to-b from-background via-card/50 to-background" />
-      <div className="container mx-auto px-5 sm:px-6 relative z-10">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          className="text-center mb-10 sm:mb-14"
-        >
-          <h2 className="text-2xl sm:text-4xl lg:text-5xl font-bold mb-4">
-            {t("services.title")}{" "}
-            <span className="text-gradient-primary">{t("services.titleAccent")}</span>
-          </h2>
-          <p className="text-muted-foreground text-sm sm:text-lg max-w-3xl mx-auto">
-            {t("services.sub")}
-            <span className="block mt-2 text-foreground font-medium">
-              {t("services.subStrong")}
-            </span>
-          </p>
-        </motion.div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5 max-w-5xl mx-auto mb-4">
-          {highlighted.map((key, i) => {
-            const Icon = serviceIcons[key];
-            const badgeLabel = key === "reactivation" ? t("services.quickWins") : t("services.core");
-            return (
-              <motion.div
-                key={key}
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.08 }}
-                className="group rounded-2xl border p-5 sm:p-6 transition-all duration-300 card-glow border-primary/40 bg-primary/5 hover:border-primary/60"
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="w-12 h-12 rounded-xl flex items-center justify-center transition-colors bg-primary/20 border border-primary/30">
-                    <Icon className="w-6 h-6 text-primary" />
-                  </div>
-                  <Badge variant="outline" className="border-primary/30 text-primary text-xs px-2 py-0.5">
-                    {badgeLabel}
-                  </Badge>
-                </div>
-                <h3 className="text-lg sm:text-xl font-semibold mb-2">{t(`services.items.${key}.title`)}</h3>
-                <p className="text-sm sm:text-base text-muted-foreground leading-relaxed">
-                  {t(`services.items.${key}.desc`)}
-                </p>
-              </motion.div>
-            );
-          })}
+    <section id="services" className="border-y border-border py-12 sm:py-16">
+      <div className="container mx-auto px-5 sm:px-6">
+        <div className="max-w-3xl mb-8">
+          <p className="text-xs font-semibold uppercase text-primary mb-3">AI Hidden Leads</p>
+          <h2 className="text-2xl sm:text-4xl font-bold">{copy.title}</h2>
+          <p className="mt-4 text-muted-foreground">{copy.description}</p>
+          <p className="mt-3 text-sm text-foreground">{copy.technology}</p>
         </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 max-w-5xl mx-auto">
-          {other.map((key, i) => {
-            const Icon = serviceIcons[key];
-            return (
-              <motion.div
-                key={key}
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.08 }}
-                className="group rounded-2xl border p-5 sm:p-6 transition-all duration-300 card-glow border-border bg-card hover:border-primary/30"
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="w-12 h-12 rounded-xl flex items-center justify-center transition-colors bg-primary/10 border border-primary/20 group-hover:bg-primary/20">
-                    <Icon className="w-6 h-6 text-primary" />
-                  </div>
-                </div>
-                <h3 className="text-lg sm:text-xl font-semibold mb-2">{t(`services.items.${key}.title`)}</h3>
-                <p className="text-sm sm:text-base text-muted-foreground leading-relaxed">
-                  {t(`services.items.${key}.desc`)}
-                </p>
-              </motion.div>
-            );
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {copy.services.map((service, index) => {
+            const Icon = icons[index] || Phone;
+            return <article key={service.id} className="min-w-0 rounded-lg border border-border bg-card p-5 sm:p-6">
+              <div className="flex items-center justify-between gap-3 mb-5">
+                <Icon className="h-12 w-12 text-primary" aria-hidden="true" />
+                <span className="text-sm text-muted-foreground">0{index + 1}</span>
+              </div>
+              <p className="text-xs font-medium text-primary mb-2">{service.scope}</p>
+              <h3 className="text-xl font-semibold mb-4">{service.name}</h3>
+              <ul className="space-y-3">
+                {service.benefits.map(benefit => <li key={benefit} className="flex gap-2 text-sm text-muted-foreground leading-relaxed"><Check className="h-4 w-4 shrink-0 text-primary mt-1" />{benefit}</li>)}
+              </ul>
+            </article>;
           })}
-        </div>
-
-        <motion.div
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          className="mt-8 max-w-3xl mx-auto"
-        >
-          <div className="rounded-xl border border-border bg-card/50 p-5 text-center">
-            <p className="text-sm sm:text-base text-muted-foreground leading-relaxed">
-              <span className="font-semibold text-foreground">{t("services.alsoAvailable")}</span>{" "}
-              {t("services.alsoList")}
-            </p>
+          <div className="flex flex-col justify-center min-w-0 py-5 md:px-5">
+            <p className="text-xl font-semibold">{copy.start}</p>
+            <Button className="mt-5 h-auto min-h-12 whitespace-normal" onClick={() => navigate('/demo')}>{copy.demo}<ArrowRight className="ml-2 h-4 w-4 shrink-0" /></Button>
+            <Button variant="link" className="mt-2 h-auto whitespace-normal" onClick={() => document.getElementById('addons')?.scrollIntoView({behavior:'smooth'})}>{copy.addons}</Button>
           </div>
-        </motion.div>
+        </div>
+        <p className="mt-6 max-w-4xl text-xs text-muted-foreground leading-relaxed">{copy.scope}</p>
       </div>
     </section>
   );
 };
-
 export default ServicesGrid;

@@ -1,35 +1,17 @@
-// Official ~90-second homepage intro transcript for AIHiddenLeads.com
-// Record this in HeyGen / TalkingPhotos.ai with a transparent background
-// and drop it into the PreRollVideo slot before Aspen takes over live.
-// NOTE: This is the VIDEO script only — it does NOT drive the live Retell agent.
+// Homepage video reference only. Live Aspen uses the separately saved agent greeting.
+export const homepageIntroScript = `Hi, welcome to A-I Hidden Leads. We help small and mid-sized businesses compete with practical AI tools in 2026.
 
-export const homepageIntroScript = `Hey, thank you for stopping by! I'm Ron from A I Hidden Leads dot com.
+Here are our five service areas: conversational AI reception, fresh B2B prospects, Google Maps and AI search, reviews and reputation, and optional social content and creation.
 
-Quick question — did you know that seventy-eight percent of leads buy from whoever answers first? Not the cheapest. Not the best. The fastest.
+Start with reception. When you are helping a customer or away from the phone, a voicemail greeting cannot answer their questions. A configured AI receptionist can have a natural conversation and capture what they need. Hear our live voice and chat for yourself: enter your name and website in the free demo. It learns from readable website content; it is a simulation, not a completed phone or calendar installation.
 
-Right now, while you're busy on a job, stuck in a meeting, or asleep at night, potential customers are calling your competitors because nobody picked up your phone or replied fast enough on your website. Every missed call is hundreds — sometimes thousands — of dollars walking straight out your door.
+With A-I Hidden Leads, Essentials starts at 99 dollars a month for website voice, chat and 50 qualified B2B prospects in weekly batches. Phone routing and carrier usage are separate. We target businesses by industry and region and review available contact evidence—not guaranteed buyers or appointments.
 
-That's exactly why we built AI Hidden Leads.
+With A-I Hidden Leads, search starts with evidence: a 25-location Google Maps audit can reveal how visibility changes beyond your office. Optional search packages prioritize business-profile improvements and AI-readable website information, without ranking guarantees.
 
-We give you five powerful AI tools that capture more leads, book more appointments, and grow your revenue — while you focus on running your business.
+With A-I Hidden Leads, reputation support means honest review requests, monitoring and AI-assisted reply drafts with approval—not fake five-star reviews.
 
-One — a human-like AI Voice Agent that answers your phone twenty-four hours a day, seven days a week. It sounds completely natural, like a real person. It can handle multiple calls at the same time, so your customers never get a busy signal and never sit on hold. It answers questions, books appointments, handles objections, and transfers hot leads straight to you. And it costs a fraction of what you'd pay an answering service or a full-time receptionist.
+With A-I Hidden Leads, optional social work includes agreed posts, ad creative and AI-video concepts. Scheduling and permitted message replies need connected accounts, approval and an agreed scope.
 
-Two — an AI Chat Widget on your website that instantly engages visitors, answers their questions, and turns them into booked leads while you sleep.
-
-Three — we reactivate your old, sleepy contact database with AI-powered outbound calls and texts, bringing past customers back with fresh offers and promotions.
-
-Four — we find you brand-new leads using hidden techniques across the internet, social media, and local directories. We also help increase your review ratings and improve your Google rankings, especially for high-quality B2B prospects, so your pipeline never runs dry.
-
-Five — we create a custom AI Video Avatar intro, just like the one you're watching right now, to personally welcome visitors to your own website and guide them to take action.
-
-Want to learn more? Click the "Talk to Aspen" button right here on the page. Aspen will answer any questions about our services.
-
-Or better yet, scroll down and try the free live demo. Enter your business name and website, and in under two minutes you'll see your own website running with a live Voice Agent, a Chat AI, and even a Video Avatar intro — all working for your business.
-
-Try it now. Your next customer is already looking for you.`;
-
-export const homepageIntroSegments = homepageIntroScript
-  .split("\n")
-  .map((line) => line.trim())
-  .filter(Boolean);
+Explore the add-on packages below. Start small with reception and fresh prospects, or book a 15-to-20-minute introduction with a sales specialist. Try your website demo today.`;
+export const homepageIntroSegments = homepageIntroScript.split('\n').map(line => line.trim()).filter(Boolean);

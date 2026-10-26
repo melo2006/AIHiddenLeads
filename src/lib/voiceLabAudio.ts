@@ -1,5 +1,9 @@
 export type CaptureMode = "handsfree" | "hold";
 export type NoiseFilter = "light" | "balanced" | "strong";
+// Automatic gain can amplify steady engine/wind noise; strong filtering disables it.
+export function microphoneAutoGain(mode: CaptureMode, filter: NoiseFilter) {
+  return mode !== 'hold' && filter !== 'strong';
+}
 export const noiseThresholds: Record<NoiseFilter, number> = { light: 0.004, balanced: 0.012, strong: 0.025 };
 // Send silence (not dropped frames) below the gate so server speech-end detection keeps working.
 export function microphoneGate(rms: number, filter: NoiseFilter, now: number, openUntil: number) {
