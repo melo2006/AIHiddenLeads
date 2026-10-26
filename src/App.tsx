@@ -23,6 +23,7 @@ const TranscriptPage = lazy(() => import("./pages/TranscriptPage.tsx"));
 const VoiceLab = lazy(() => import("./pages/VoiceLab.tsx"));
 const ClientVoiceAgent = lazy(() => import("./pages/ClientVoiceAgent.tsx"));
 const BookCall = lazy(() => import("./pages/BookCall.tsx"));
+const Plans = lazy(() => import("./pages/Plans.tsx"));
 
 const queryClient = new QueryClient();
 
@@ -61,6 +62,7 @@ const App = () => {
             <Route path="/ad-previews" element={<AdPreviews />} />
             <Route path="/marketing" element={<MarketingHub />} />
             <Route path="/checkout" element={<Checkout />} />
+            <Route path="/plans" element={<Plans />} />
             <Route path="/checkout/return" element={<CheckoutReturn />} />
             <Route path="/transcript" element={<TranscriptPage />} />
             <Route path="/voice-lab" element={<VoiceLab />} />

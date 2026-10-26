@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Phone, Search, Star, Users, Video } from "lucide-react";
+import { Phone, Search, Star, Users, Video, Calendar, ArrowRight } from "lucide-react";
 import { homepageSalesCopy } from "@/data/homepageSalesCopy";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -80,13 +80,14 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
                 {copy.demo}
               </Button>
               <Button
-                onClick={onGetDemo}
+                onClick={() => navigate('/book')}
                 variant="outline"
                 size="lg"
                 className="h-auto min-h-12 max-w-full whitespace-normal break-words text-base sm:text-lg px-4 py-3 border-border hover:bg-secondary rounded-xl"
               >
-                {t("hero.ctaSecondary")}
+                <Calendar className="h-4 w-4 shrink-0" />{i18n.language === 'pt-BR' ? 'Agende uma conversa' : i18n.language === 'es' ? 'Reserva una llamada' : 'Book a quick call'}
               </Button>
+              <Button onClick={() => navigate('/plans?plan=essentials')} variant="outline" size="lg" className="h-auto min-h-12 whitespace-normal px-4 py-3"><ArrowRight className="h-4 w-4 shrink-0" />{i18n.language === 'pt-BR' ? 'Comece agora' : i18n.language === 'es' ? 'Empieza ahora' : 'Start now'}</Button>
             </motion.div>
 
             {/* Trust line */}

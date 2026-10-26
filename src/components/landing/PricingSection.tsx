@@ -163,7 +163,7 @@ const FEATURES: Record<string, Record<string, string[]>> = {
   },
 };
 
-const PricingSection = () => {
+const PricingSection = ({ recommendedPlan }: { recommendedPlan?: string } = {}) => {
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
   const lang = (FEATURES[i18n.language] ? i18n.language : "en") as keyof typeof FEATURES;
@@ -198,12 +198,13 @@ const PricingSection = () => {
             const features = FEATURES[lang][tier.key];
             return (
               <motion.div
+                id={`plan-${tier.checkoutPlan}`}
                 key={tier.key}
                 initial={{ opacity: 0, y: 30 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.1 }}
-                className={`relative rounded-2xl border p-6 sm:p-8 flex flex-col ${
+                className={`relative scroll-mt-6 rounded-2xl border p-6 sm:p-8 flex flex-col ${recommendedPlan === tier.checkoutPlan ? 'ring-2 ring-primary ring-offset-2 ring-offset-background' : ''} ${
                   tier.popular
                     ? "border-primary bg-primary/5 shadow-lg shadow-primary/10"
                     : "border-border bg-card"

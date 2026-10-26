@@ -8,6 +8,7 @@ import { preloadVoiceIdentity } from '@/lib/voicePreload';
 import { useIsMobile } from '@/hooks/use-mobile';
 import ChatWidget from '@/components/landing/demo-results/ChatWidget';
 import AspenLauncherContent from '@/components/AspenLauncherContent';
+import AspenSalesActions from '@/components/AspenSalesActions';
 
 interface Props { agentId?: string; leadId?: string; prospectId?: string; businessName?: string; callerName?: string; onClose?: () => void; floating?: boolean; autoStart?: boolean; }
 export default function GeminiAgentWidget({ agentId, leadId, prospectId, businessName, callerName, onClose, floating = false, autoStart = false }: Props) {
@@ -29,6 +30,7 @@ export default function GeminiAgentWidget({ agentId, leadId, prospectId, busines
     <Button className="flex-1" variant={mode==='voice'?'default':'outline'} aria-pressed={mode==='voice'} onClick={()=>setMode('voice')}><Mic />Voice</Button>
     <Button className="flex-1" variant={mode==='chat'?'default':'outline'} aria-pressed={mode==='chat'} onClick={()=>{setChatVisited(true);setMode('chat');}}><MessageSquare />Chat</Button>
    </div>
+   {(!agentId || leadId || prospectId) && <AspenSalesActions />}
    {hasOpened && mode==='voice' && <GeminiConversation compact autoStart={clickedOpen || autoStart} agentId={agentId} leadId={leadId} prospectId={prospectId} name={identity.name} visitorName={callerName} />}
    {chatVisited && <div className={mode==='chat'?'aspen-chat-content':'hidden'}><ChatWidget embedded active={open && mode==='chat'} businessName={businessName || identity.businessName} businessNiche="general" websiteUrl={window.location.origin} businessInfo="AI Hidden Leads provides AI voice and chat assistants, B2B lead generation and search growth services. Refer visitors to the current homepage for pricing and package details." callerName={callerName} leadId={leadId} prospectId={prospectId} /></div>}
   </div>
