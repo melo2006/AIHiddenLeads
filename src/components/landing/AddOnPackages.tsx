@@ -43,7 +43,7 @@ const AddOnPackages = () => {
   };
 
   return (
-    <section className="py-16 sm:py-20 relative">
+    <section id="addons" className="py-16 sm:py-20 relative">
       <div className="absolute inset-0 bg-gradient-to-b from-background via-card/30 to-background" />
       <div className="container mx-auto px-4 sm:px-6 relative z-10">
         <motion.div
