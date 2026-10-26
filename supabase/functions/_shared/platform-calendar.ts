@@ -1,4 +1,5 @@
 import { generateSlots, isValidSlot, SLOT_MINUTES } from './booking-slots.ts';
+declare const Deno: { env: { get(name: string): string | undefined } };
 
 export const PLATFORM_CALENDAR = 'melo2006@gmail.com';
 type Busy = { start: string; end: string };
