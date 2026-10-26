@@ -17,6 +17,7 @@ import { microphonePcm, shouldSendMicrophone, microphoneGate, type NoiseFilter, 
 
 import VoiceActionConfirmation, { type VoiceAction } from "./VoiceActionConfirmation";
 import BrowserVoiceHandoff from "@/components/BrowserVoiceHandoff";
+import { voiceIdleAction, type VoiceIdleStage } from '@/lib/voiceIdle';
 
 const VOICES = [
   { id: "Kore", label: "Kore — warm female (default)" },
@@ -102,6 +103,25 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const currentAudioRef = useRef<string[]>([]);
   const lastAudioRef = useRef<string[]>([]);
   const transcriptEndRef = useRef<HTMLDivElement | null>(null);
+  const idleRef = useRef({ enabled: false, stage: 'waiting' as VoiceIdleStage, quietSince: 0, generating: false, requestedAt: 0 });
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const idle = idleRef.current;
+      const capture = captureRef.current;
+      if (!liveRef.current || !idle.enabled) return;
+      if (handoffRef.current || capture.paused || capture.muted || capture.replaying || capture.held || pendingAction || sourcesRef.current.size > 0) { idle.quietSince = Date.now(); return; }
+      if (idle.generating) return;
+      if (idle.stage === 'goodbye') { stopEverything(); return; }
+      const action = voiceIdleAction(idle.stage, idle.quietSince, Date.now());
+      if ((action === 'checkin' || action === 'goodbye') && wsRef.current?.readyState === WebSocket.OPEN) {
+        idle.stage = action;
+        idle.generating = true;
+        idle.requestedAt = Date.now();
+        wsRef.current.send(JSON.stringify({ type: 'idle_prompt', stage: action }));
+      }
+    }, 250);
+    return () => window.clearInterval(timer);
+  }, [pendingAction]);
 
   const refreshMicrophones = useCallback(async (_requestPermission = false) => {
     try {
@@ -147,6 +167,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   }, []);
 
   const stopEverything = useCallback(() => {
+    idleRef.current = { enabled: false, stage: 'waiting', quietSince: 0, generating: false, requestedAt: 0 };
     setPendingAction(null);
     deadlineRef.current = 0;
     setRemainingSeconds(null);
@@ -335,6 +356,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       }
       if (generation !== generationRef.current) { stream?.getTracks().forEach(t => t.stop()); return; }
       deadlineRef.current = Date.now() + Number(authorized.maxSeconds || 300) * 1000;
+      idleRef.current = { enabled: authorized.homepageSales === true && !preview, stage: 'waiting', quietSince: Date.now(), generating: true, requestedAt: 0 };
       setHandoffToken(authorized.handoffToken || null);
       const ws = new WebSocket(`${WS_URL}?token=${encodeURIComponent(authorized.token)}&capture=${captureMode}`);
       wsRef.current = ws;
@@ -382,6 +404,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
               if (capture.paused) return;
               if (!shouldSendMicrophone(capture.mode, capture.held, capture.muted, capture.replaying)) return;
               const gate = microphoneGate(rms, noiseFilterRef.current, performance.now(), gateOpenUntil);
+              if (gate.open && sourcesRef.current.size === 0 && !idleRef.current.generating) {
+                idleRef.current.stage = 'waiting';
+                idleRef.current.quietSince = Date.now();
+              }
               gateOpenUntil = gate.openUntil;
               const pcm = microphonePcm(capture.mode === "hold" || gate.open ? input : new Float32Array(input.length), e.inputBuffer.sampleRate);
               const bytes = new Uint8Array(pcm.buffer);
@@ -403,6 +429,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             setActionNotice(msg.error ? String(msg.error) : msg.calendarConfirmed ? "Appointment confirmed on the AI Hidden Leads sales calendar." : msg.saved ? "Your confirmed follow-up details are saved." : "No action taken.");
             break;
           case "audio":
+            idleRef.current.generating = true;
             if (handoffRef.current) break;
             // Keep the last response locally, never request a new model generation to replay.
             if (currentAudioRef.current.length < 6000) currentAudioRef.current.push(msg.data as string);
@@ -419,10 +446,14 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             setPartialAspen(aspenLineRef.current);
             break;
           case "user_transcript":
+            idleRef.current.stage = 'waiting';
+            idleRef.current.quietSince = Date.now();
             userLineRef.current += msg.text as string;
             setPartialUser(userLineRef.current);
             break;
           case "turn_complete":
+            idleRef.current.generating = false;
+            idleRef.current.quietSince = Date.now();
             if (currentAudioRef.current.length) { lastAudioRef.current = currentAudioRef.current; setHasReplay(true); }
             currentAudioRef.current = [];
             flushLine("user");
