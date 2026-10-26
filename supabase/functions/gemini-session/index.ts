@@ -39,7 +39,7 @@ Deno.serve(async req=>{
   } else {
     let query=db.from('voice_agents').select('*'); query=b.agentId?query.eq('id',b.agentId):query.eq('slug','aspen-homepage');
     const {data:agent}=await query.maybeSingle(); if(!agent?.published) return json({error:'Voice agent is not published yet'},409);
-    config=agent.published as Record<string,unknown>; agentId=agent.id; orgId=agent.organization_id;
+    config={...(agent.published as Record<string,unknown>), homepageSales:agent.slug==='aspen-homepage'}; agentId=agent.id; orgId=agent.organization_id;
   }
   const requestedModel = b.model;
   if(requestedModel && (!(b.draft || b.preview) || !officialLivePricing(requestedModel))) return json({error:'Model comparison is available only for authorized draft tests and previews.'},400);
@@ -67,6 +67,6 @@ Deno.serve(async req=>{
       handoffToken=capability;
     }
   }
-  return json({token,sessionId:id,maxSeconds:s?.max_seconds,name:config.name,businessName:config.businessName,voice:config.voice,avatarUrl,handoffToken});
+  return json({token,sessionId:id,maxSeconds:s?.max_seconds,homepageSales:config.homepageSales===true,name:config.name,businessName:config.businessName,voice:config.voice,avatarUrl,handoffToken});
  } catch(e) {console.error('gemini-session',e);return json({error:'Could not authorize the voice session'},500);}
 });
