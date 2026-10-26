@@ -78,6 +78,13 @@
       "when": 1793004048582,
       "tag": "0010_engaged_prospect_demo_ceiling",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793005786659,
+      "tag": "0011_paid_customer_workspaces",
+      "breakpoints": true
     }
   ]
 }

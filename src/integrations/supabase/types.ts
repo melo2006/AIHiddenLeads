@@ -545,6 +545,48 @@ export type Database = {
         }
         Relationships: []
       }
+      customer_workspaces: {
+        Row: {
+          agent_id: string
+          created_at: string
+          environment: string
+          id: string
+          organization_id: string
+          user_id: string
+        }
+        Insert: {
+          agent_id: string
+          created_at?: string
+          environment: string
+          id?: string
+          organization_id: string
+          user_id: string
+        }
+        Update: {
+          agent_id?: string
+          created_at?: string
+          environment?: string
+          id?: string
+          organization_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_workspaces_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "voice_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_workspaces_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "voice_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       demo_call_attempts: {
         Row: {
           allowed: boolean
@@ -2121,6 +2163,10 @@ export type Database = {
       }
       is_admin_email: { Args: { _email: string }; Returns: boolean }
       is_voice_admin: { Args: never; Returns: boolean }
+      provision_paid_workspace: {
+        Args: { _config: Json; _env: string; _user: string }
+        Returns: string
+      }
       refresh_prospect_enrichment_job: {
         Args: { _job_id: string }
         Returns: {
