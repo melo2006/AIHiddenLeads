@@ -1,5 +1,9 @@
 # Current work
 
+- [ ] Refresh homepage sales knowledge/greeting and ranking headline without assuming #1; preserve safe public-only preloading.
+- [ ] Set homepage sales allowance to ten minutes and add a 15-second silence check-in with a reply grace period; keep simulations at five minutes.
+- [ ] Verify sales startup/knowledge and give sourced reputation-automation recommendations; do not enable a new paid integration.
+
 - [x] Explain session-bound voice settings and add explicit end-to-edit and start-with-settings controls; noise filtering remains adjustable during calls.
 - [x] Narrow Aspen launcher with stacked label and larger face; update matching homepage device images. Verified 390px phone and desktop rendering.
 - [x] Restore independently scrolling chat with compact keyboard-safe composer; keep voice settings and all choices above the assistant. Verified real chat reply, selectable Strong filtering, simulated keyboard bounds and nine tests; actual Android keyboard remains device-dependent.
