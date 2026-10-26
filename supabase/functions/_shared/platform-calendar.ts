@@ -1,4 +1,4 @@
-import { generateSlots, isValidSlot, SLOT_MINUTES } from './booking-slots.ts';
+import { generateSlots, isValidSlot, SLOT_MINUTES, BUSINESS_TZ, etDateStr } from './booking-slots.ts';
 declare const Deno: { env: { get(name: string): string | undefined } };
 
 export const PLATFORM_CALENDAR = 'melo2006@gmail.com';
@@ -15,14 +15,20 @@ export function timedBusyIntervals(events: CalendarEvent[]): Busy[] {
     return [{ start, end }];
   });
 }
-export function voiceAvailability(slots: ReturnType<typeof generateSlots>, now = new Date()) {
+export function voiceAvailability(slots: ReturnType<typeof generateSlots>, now = new Date(), requestedSlot?: string) {
   const firstThreeDates = new Set(Array.from({ length: 3 }, (_, i) => {
     const date = new Date(now); date.setUTCDate(date.getUTCDate() + i);
     return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
   }));
   const days = [...new Set(slots.map(s => s.dateStr))].slice(0, 2);
+  const requestedTime = requestedSlot ? Date.parse(requestedSlot) : NaN;
+  const requested = Number.isFinite(requestedTime) ? new Date(requestedTime).toISOString() : undefined;
+  const requestedDate = requested ? etDateStr(new Date(requested)) : undefined;
+  const sameDay = slots.filter(s => s.dateStr === requestedDate && Date.parse(s.iso) >= requestedTime);
+  const alternatives = requested ? [...sameDay, ...slots.filter(s => !sameDay.some(candidate => candidate.iso === s.iso) && Date.parse(s.iso) >= requestedTime), ...slots.filter(s => Date.parse(s.iso) < requestedTime)].slice(0, 2) : slots.slice(0, 2);
   return {
-    platform: 'AI Hidden Leads', timeZone: 'America/New_York', businessHours: 'Weekdays 8 AM–6 PM Eastern', searchDays: 14,
+    platform: 'AI Hidden Leads', timeZone: BUSINESS_TZ, businessHours: 'Weekdays 8 AM–6 PM Eastern', searchDays: 14, durationMinutes: SLOT_MINUTES,
+    ...(requested ? { requestedSlot: requested, requestedAvailable: slots.some(s => s.iso === requested), alternatives } : {}),
     nextThreeDaysFull: !slots.some(s => firstThreeDates.has(s.dateStr)),
     nextAvailable: slots[0] || null,
     slots: days.flatMap(day => slots.filter(s => s.dateStr === day)),
@@ -74,7 +80,7 @@ export async function bookPlatformCall(db: any, details: { name: string; email: 
     const event = await calendarRequest(`/calendars/${encodeURIComponent(PLATFORM_CALENDAR)}/events?sendUpdates=none`, {
       id: eventId, summary: `AI Hidden Leads implementation call — ${details.name}`,
       description: `Confirmed by visitor for AI Hidden Leads, not the simulated business.\nName: ${details.name}\nEmail: ${details.email}\nPhone: ${details.phone || 'Not supplied'}\nBusiness: ${details.businessName || ''}\n${details.notes || ''}`,
-      start: { dateTime: details.slotStart }, end: { dateTime: new Date(Date.parse(details.slotStart) + SLOT_MINUTES * 60000).toISOString() },
+      start: { dateTime: details.slotStart, timeZone: BUSINESS_TZ }, end: { dateTime: new Date(Date.parse(details.slotStart) + SLOT_MINUTES * 60000).toISOString(), timeZone: BUSINESS_TZ },
     });
     if (!event.id) throw new Error('Calendar did not confirm the appointment.');
     const { error: updateError } = await db.from('implementation_calls').update({ status: 'confirmed' }).eq('id', data.id);

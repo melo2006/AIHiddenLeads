@@ -1,5 +1,6 @@
 # Current work
 
+- [ ] Add brief sales introductions, requested-time checks and two real alternatives; preserve Eastern booking during travel and verify calendar reads.
 - [x] Correct platform calendar availability: ignore all-day events, honor timed busy events, use 8am–6pm Eastern and offer next openings within two weeks. Deployed and verified live /book openings October 26 through November 6; selected 8am without creating an event. Calendar/slot tests passed; live spoken booking confirmation remains unverified.
 - [ ] Fix clipped voice settings with a simple three-level noise menu; visible street maps and distinct business-center marker.
 - [ ] Make homepage business name optional, use scanned identity, and provide reusable B2B audit searches/results.
