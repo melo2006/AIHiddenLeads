@@ -28,6 +28,7 @@ export async function getStripePriceId(priceId: string): Promise<string> {
   if (error || !data?.stripeId) {
     throw new Error(`Failed to resolve price: ${priceId}`);
   }
+  if(data.ready===false)throw new Error(data.message||'Payment setup is incomplete');
   return data.stripeId;
 }
 

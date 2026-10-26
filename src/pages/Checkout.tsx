@@ -70,6 +70,7 @@ export default function Checkout() {
   const planKey = searchParams.get("plan") || "essentials";
   const plan = planDetails[planKey] || planDetails.essentials;
   const [paymentFailed, setPaymentFailed] = useState(false);
+  const [paymentNotice,setPaymentNotice]=useState('');
   const [priceReady, setPriceReady] = useState(false);
   const [user,setUser]=useState<User|null>(null);
   useEffect(()=>{void supabase.auth.getUser().then(({data})=>setUser(data.user));const {data:{subscription}}=supabase.auth.onAuthStateChange((_event,session)=>setUser(session?.user||null));return()=>subscription.unsubscribe();},[]);
@@ -78,7 +79,7 @@ export default function Checkout() {
     let active = true;
     setPriceReady(false);
     setPaymentFailed(false);
-    if (paymentsAvailable) void getStripePriceId(plan.priceId).then(() => { if (active) setPriceReady(true); }).catch(() => { if (active) setPaymentFailed(true); });
+    if (paymentsAvailable) void getStripePriceId(plan.priceId).then(() => { if (active) setPriceReady(true); }).catch(e => { if (active) {setPaymentFailed(true);setPaymentNotice(e instanceof Error?e.message:'Payment setup incomplete');} });
     return () => { active = false; };
   }, [plan.priceId, paymentsAvailable]);
 
@@ -148,7 +149,7 @@ export default function Checkout() {
                 priceId={plan.priceId}
                 returnUrl={`${window.location.origin}/checkout/return?session_id={CHECKOUT_SESSION_ID}`}
                 onUnavailable={() => setPaymentFailed(true)}
-              /> : <div className="space-y-3 p-5" role="status"><h3 className="font-semibold">Online checkout is not available yet</h3><p className="text-sm text-muted-foreground">No payment has been taken. Book a quick 15-minute call to discuss this plan and setup.</p><Button onClick={() => navigate('/book')}>Book a quick call</Button></div>}
+              /> : <div className="space-y-3 p-5" role="status"><h3 className="font-semibold">Online checkout is not available yet</h3><p className="text-sm text-muted-foreground">{paymentNotice || 'Payment setup is incomplete.'} No payment has been taken. Book a quick 15-minute call to discuss this plan and setup.</p><Button onClick={() => navigate('/book')}>Book a quick call</Button></div>}
             </div>
           </div>
         </div>
