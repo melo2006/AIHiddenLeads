@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { microphonePcm, shouldSendMicrophone, microphoneGate } from "../lib/voiceLabAudio";
+import { microphonePcm, shouldSendMicrophone, microphoneGate, microphoneAutoGain } from "../lib/voiceLabAudio";
 
 describe("Voice Lab microphone privacy controls", () => {
+  it('strong filtering does not automatically amplify background noise', () => {
+    expect(microphoneAutoGain('handsfree', 'strong')).toBe(false);
+    expect(microphoneAutoGain('handsfree', 'balanced')).toBe(true);
+    expect(microphoneAutoGain('hold', 'balanced')).toBe(false);
+  });
   it("strong noise filtering blocks quiet background sound but lets louder speech through", () => {
     expect(microphoneGate(0.015, "strong", 1000, 0).open).toBe(false);
     expect(microphoneGate(0.03, "strong", 1000, 0).open).toBe(true);

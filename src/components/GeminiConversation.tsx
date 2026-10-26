@@ -13,11 +13,11 @@ import {
 import { Mic, MicOff, Volume2, FlaskConical, PhoneOff, Loader2, Play, Pause, Save, RotateCcw, RefreshCw, Settings2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { FunctionsHttpError } from "@supabase/supabase-js";
-import { microphonePcm, shouldSendMicrophone, microphoneGate, type NoiseFilter, type CaptureMode } from "@/lib/voiceLabAudio";
+import { microphonePcm, shouldSendMicrophone, microphoneGate, microphoneAutoGain, type NoiseFilter, type CaptureMode } from "@/lib/voiceLabAudio";
 
 import VoiceActionConfirmation, { type VoiceAction } from "./VoiceActionConfirmation";
 import BrowserVoiceHandoff from "@/components/BrowserVoiceHandoff";
-import { voiceIdleAction, type VoiceIdleStage } from '@/lib/voiceIdle';
+import { voiceIdleAction, homepageWalkthroughDue, type VoiceIdleStage } from '@/lib/voiceIdle';
 
 const VOICES = [
   { id: "Kore", label: "Kore — warm female (default)" },
@@ -68,6 +68,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   });
   const noiseFilterRef = useRef(noiseFilter);
   useEffect(() => {
+    const track = micStreamRef.current?.getAudioTracks()[0];
+    if (track) void track.applyConstraints({autoGainControl: microphoneAutoGain(captureMode, noiseFilter)}).catch(() => { /* Browser may not support gain adjustment. */ });
+  }, [noiseFilter, captureMode]);
+  useEffect(() => {
     noiseFilterRef.current = noiseFilter;
     try { localStorage.setItem("voice-noise-filter", noiseFilter); localStorage.setItem("voice-capture-mode", captureMode); } catch { /* Keep controls available without storage. */ }
   }, [noiseFilter, captureMode]);
@@ -103,6 +107,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const currentAudioRef = useRef<string[]>([]);
   const lastAudioRef = useRef<string[]>([]);
   const transcriptEndRef = useRef<HTMLDivElement | null>(null);
+  const walkthroughRef = useRef({ text: '', continued: false });
   const idleRef = useRef({ enabled: false, stage: 'waiting' as VoiceIdleStage, quietSince: 0, generating: false, requestedAt: 0 });
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -111,6 +116,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       if (!liveRef.current || !idle.enabled) return;
       if (handoffRef.current || capture.paused || capture.muted || capture.replaying || capture.held || pendingAction || sourcesRef.current.size > 0) { idle.quietSince = Date.now(); return; }
       if (idle.generating) return;
+      if (idle.stage === 'waiting' && homepageWalkthroughDue(walkthroughRef.current.text, walkthroughRef.current.continued, idle.quietSince, Date.now()) && wsRef.current?.readyState === WebSocket.OPEN) {
+        walkthroughRef.current.continued = true;
+        idle.generating = true;
+        wsRef.current.send(JSON.stringify({type:'idle_prompt',stage:'continue'}));
+        return;
+      }
       if (idle.stage === 'goodbye') { stopEverything(); return; }
       const action = voiceIdleAction(idle.stage, idle.quietSince, Date.now());
       if ((action === 'checkin' || action === 'goodbye') && wsRef.current?.readyState === WebSocket.OPEN) {
@@ -167,6 +178,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   }, []);
 
   const stopEverything = useCallback(() => {
+    walkthroughRef.current = {text:'', continued:false};
     idleRef.current = { enabled: false, stage: 'waiting', quietSince: 0, generating: false, requestedAt: 0 };
     setPendingAction(null);
     deadlineRef.current = 0;
@@ -328,7 +340,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       if (!visitorKey) { visitorKey = crypto.randomUUID(); localStorage.setItem("gemini-visitor-key", visitorKey); }
       // Prepare the server's business snapshot alongside permission/audio setup, only after a tap.
       const microphoneReady = preview ? Promise.resolve(null) : navigator.mediaDevices.getUserMedia({
-        audio: { deviceId: microphone === "default" ? undefined : { exact: microphone }, echoCancellation: true, noiseSuppression: true, autoGainControl: captureMode !== "hold" },
+        audio: { deviceId: microphone === "default" ? undefined : { exact: microphone }, echoCancellation: true, noiseSuppression: true, autoGainControl: microphoneAutoGain(captureMode, noiseFilterRef.current) },
       }).then(stream => {
         if (generation !== generationRef.current) { stream.getTracks().forEach(t => t.stop()); return null; }
         micStreamRef.current = stream;
@@ -446,12 +458,14 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             setPartialAspen(aspenLineRef.current);
             break;
           case "user_transcript":
+            walkthroughRef.current.continued = false;
             idleRef.current.stage = 'waiting';
             idleRef.current.quietSince = Date.now();
             userLineRef.current += msg.text as string;
             setPartialUser(userLineRef.current);
             break;
           case "turn_complete":
+            walkthroughRef.current.text = aspenLineRef.current;
             idleRef.current.generating = false;
             idleRef.current.quietSince = Date.now();
             if (currentAudioRef.current.length) { lastAudioRef.current = currentAudioRef.current; setHasReplay(true); }

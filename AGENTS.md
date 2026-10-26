@@ -25,6 +25,7 @@
 - Keep WebSocket lifetime work pending until close to avoid early worker retirement; server session deadlines remain authoritative and hard hosting limits still apply.
 - Keep scraped business contacts in source knowledge, not visitor contact fields; confirmed visitor data is recorded in call history without overwriting populated lead fields.
 - Seed homepage-only reviewed sales knowledge into draft/published snapshots; never scrape marketing for offers. Identify sales sessions by saved slug, separate their allowance from simulations, and wait for playback before silence check-ins; suspend for pauses, handoffs and confirmations.
+- Share ordered homepage service positioning and attributed evidence between public copy and server sales knowledge; allow one bounded next-service continuation after a permission question, preserving silence closure and explicit-action consent.
 - Persist voice audio measurements and raw provider reports server-side with periodic checkpoints; apply only model-matched explicit rate snapshots and label estimates separately from invoices.
 - Keep documented Live model comparison limited to authorized draft tests and voice auditions; published conversations retain the default, and model-specific published audio rates are versioned separately from recorded measurements.
 - Share model-matched conversation planning totals between Voice Agents and Voice Costs, with explicit input/output assumptions; recorded per-session estimates remain separate from provider invoices.
