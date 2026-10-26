@@ -1,5 +1,8 @@
 # Current work
 
+- [ ] Strengthen homepage and saved Aspen sales pitch around five ordered service areas, two practical advantages each, $99/50-lead entry offer and early demo invitation; verify claims and admin consistency.
+- [ ] Improve noisy-environment voice guidance without claiming perfect cancellation; verify focused tests and phone/desktop homepage.
+
 - [x] Refresh saved homepage greeting/knowledge and translated ranking headline without assuming #1; retain session-free preloading. Real Aspen greeting and $99/$199/$349 with 50/100/200 leads verified.
 - [x] Set server-authorized homepage allowance to 600 seconds; simulations stay 300. Verify automatic 15-second silence check-in, additional reply grace, spoken goodbye and closed socket using silent microphone input; 37 tests passed.
 - [x] Give sourced review-response/approval and social-scheduling recommendations without connecting a paid service; live homepage had no page errors and clean build.
