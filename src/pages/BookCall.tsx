@@ -85,10 +85,10 @@ export default function BookCall() {
           <>
             <h1 className="text-2xl sm:text-3xl font-bold mb-2">Book Your Free Implementation Call</h1>
             <p className="text-muted-foreground mb-8">
-              15 minutes, one-on-one with our team. We'll answer your questions and plan your setup. Times shown in Eastern Time (ET).
+              15 minutes, one-on-one with our team. We'll answer your questions and plan your setup. Weekdays, 8 AM–6 PM Eastern Time (ET), up to two weeks ahead.
             </p>
 
-            <h2 className="text-sm font-semibold mb-3">1. Pick a day</h2>{checking && <p className="text-sm text-muted-foreground">Checking Google Calendar…</p>}{!checking && !days.length && <p className="text-sm text-muted-foreground">No available sales appointments in the next 14 days.</p>}
+            <h2 className="text-sm font-semibold mb-3">1. Pick a day</h2>{checking && <p className="text-sm text-muted-foreground">Checking Google Calendar…</p>}{!checking && !error && !days.length && <p className="text-sm text-muted-foreground">No openings during normal business hours in the next two weeks. Ask Aspen for sales follow-up or an evening appointment by arrangement.</p>}
             <div className="flex gap-2 overflow-x-auto pb-2 mb-6">
               {days.map(([d]) => (
                 <Button variant="outline"

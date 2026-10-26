@@ -1,10 +1,10 @@
 // Slot generation for the free implementation-call booking page.
-// Slots are 15 minutes, 9:00–16:45 America/New_York, Monday–Friday, up to 14 days ahead.
+// Slots are 15 minutes, 8:00–17:45 America/New_York, Monday–Friday, up to 14 days ahead.
 
 export const SLOT_MINUTES = 15;
 export const BUSINESS_TZ = "America/New_York";
-const START_HOUR = 9;
-const END_HOUR = 17; // last slot starts at 16:45
+const START_HOUR = 8;
+const END_HOUR = 18; // last slot ends at 18:00
 const DAYS_AHEAD = 14;
 const MIN_LEAD_HOURS = 2;
 
