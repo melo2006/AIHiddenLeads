@@ -9,6 +9,8 @@ const AuthCallback = () => {
 
   useEffect(() => {
     let active = true;
+    const destination=sessionStorage.getItem('customer-auth-return');
+    const returnPath=destination?.startsWith('/checkout')||destination?.startsWith('/setup')?destination:'/dashboard/calls';
 
     const openDashboard = async () => {
       const { data, error } = await supabase.auth.getSession();
@@ -20,7 +22,7 @@ const AuthCallback = () => {
       }
 
       if (data.session) {
-        navigate("/dashboard/calls", { replace: true });
+        navigate(returnPath, { replace: true });
         return;
       }
 
@@ -30,7 +32,7 @@ const AuthCallback = () => {
     void openDashboard();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (active && session) navigate("/dashboard/calls", { replace: true });
+      if (active && session) navigate(returnPath, { replace: true });
     });
 
     const timeout = window.setTimeout(() => {

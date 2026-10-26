@@ -42,3 +42,4 @@
 - Prospect demos use a five-minute soft checkpoint and a fifteen-minute server ceiling; silence closure is shared, but reviewed platform sales knowledge stays separate from website roleplay and is used only after an explicitly announced transition.
 - Share compact sales actions across public Aspen shells; server-validated plan recommendations open the matching plan-selection anchor in a new tab, never charge or navigate a live conversation automatically. Do not show platform sales actions on tenant agent pages.
 - Never treat a checkout return URL as proof of payment; paid onboarding and customer provisioning must wait for server-verified payment linked to a verified account.
+- Provision customer workspaces atomically from verified payments; use stable price lookup keys and environment-scoped entitlements, rechecking server-side for agent edits and sessions. Customer billing changes verify ownership and never grant platform roles.
