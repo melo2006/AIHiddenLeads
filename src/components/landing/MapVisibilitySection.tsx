@@ -7,8 +7,8 @@ import { homepageMapComparison } from "@/lib/homepageMapComparison";
 import RankStreetMap from "./RankStreetMap";
 
 const comparisonStreetPoints = {
-  before: homepageMapComparison.map(p => ({ index: p.index, lat: 26.1224 + (2 - p.row) * 0.01447, lng: -80.1373 + (p.col - 2) * 0.016, rank: p.beforeRank })),
-  after: homepageMapComparison.map(p => ({ index: p.index, lat: 26.1224 + (2 - p.row) * 0.01447, lng: -80.1373 + (p.col - 2) * 0.016, rank: p.afterRank })),
+  before: homepageMapComparison.map(p => ({ index: p.index, businessCenter: p.index === 12, lat: 26.1224 + (2 - p.row) * 0.01447, lng: -80.1373 + (p.col - 2) * 0.016, rank: p.beforeRank })),
+  after: homepageMapComparison.map(p => ({ index: p.index, businessCenter: p.index === 12, lat: 26.1224 + (2 - p.row) * 0.01447, lng: -80.1373 + (p.col - 2) * 0.016, rank: p.afterRank })),
 };
 
 export default function MapVisibilitySection() {

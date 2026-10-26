@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { supabase } from "@/integrations/supabase/client";
+import { rankAuditExamples } from "@/lib/rankAuditExamples";
 import { auditOffers, simulatedRankGrid } from "@/lib/demoRankGrid";
 
 interface Props { businessName: string; city?: string; niche?: string; websiteUrl?: string; initialKeyword?: string; initialMode?: ScanMode }
@@ -35,6 +36,9 @@ export default function RankAuditPanel({ businessName, city = "", niche = "", we
   const [scanMode, setScanMode] = useState<ScanMode>(initialMode);
   const [auditName, setAuditName] = useState(businessName);
   useEffect(() => { setLocalCity(city); setKeyword(initialKeyword || (niche && niche !== "general" ? niche : "")); setAuditName(businessName); setScanMode(initialMode); setLive(null); setScanError(null); }, [city, initialKeyword, businessName, initialMode, niche]);
+  const [recent, setRecent] = useState<{name:string;city:string;keyword:string;mode:ScanMode;website:string;result:LiveResult;at:string}[]>(() => { try { const value=JSON.parse(localStorage.getItem('rank-audit-recent') || '[]'); return Array.isArray(value)?value.slice(0,5):[]; } catch { return []; } });
+  const [auditWebsite,setAuditWebsite] = useState(websiteUrl);
+  useEffect(()=>setAuditWebsite(websiteUrl),[websiteUrl]);
   const [loading, setLoading] = useState(false);
   const [live, setLive] = useState<LiveResult | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
@@ -42,7 +46,7 @@ export default function RankAuditPanel({ businessName, city = "", niche = "", we
 
   const runLiveScan = async () => {
     const kw = keyword.trim();
-    const invalid = validateAuditInputs(scanMode, auditName, localCity, kw, websiteUrl);
+    const invalid = validateAuditInputs(scanMode, auditName, localCity, kw, auditWebsite);
     if (invalid) {
       setScanError(invalid);
       return;
@@ -51,7 +55,7 @@ export default function RankAuditPanel({ businessName, city = "", niche = "", we
     setScanError(null);
     try {
       const { data, error } = await supabase.functions.invoke("demo-rank-audit", {
-        body: { businessName: auditName.trim(), city: localCity.trim(), keyword: kw, niche, websiteUrl, mode: scanMode },
+        body: { businessName: auditName.trim(), city: localCity.trim(), keyword: kw, niche, websiteUrl: auditWebsite, mode: scanMode },
       });
       if (error) {
         if (error instanceof FunctionsHttpError) {
@@ -64,6 +68,9 @@ export default function RankAuditPanel({ businessName, city = "", niche = "", we
       if (result?.error) throw new Error(result.error);
       if (result?.mode === "live" && result.grid) {
         setLive(result);
+        const entry={name:auditName.trim(),city:localCity.trim(),keyword:kw,mode:scanMode,website:auditWebsite,result,at:new Date().toISOString()};
+        const next=[entry,...recent.filter(r=>!(r.name===entry.name && r.city===entry.city && r.keyword===entry.keyword && r.mode===entry.mode))].slice(0,5);
+        setRecent(next); try {localStorage.setItem('rank-audit-recent',JSON.stringify(next));} catch { /* optional history */ }
       } else {
         setLive(null);
         setScanError(
@@ -97,6 +104,8 @@ export default function RankAuditPanel({ businessName, city = "", niche = "", we
           <SheetDescription>{businessName}{niche && niche !== "general" ? ` · ${niche}` : ""}</SheetDescription>
         </SheetHeader>
         <div className="mt-5 space-y-5">
+          <div className="space-y-2"><p className="text-xs font-semibold">B2B examples</p><div className="flex flex-wrap gap-2">{rankAuditExamples.filter(e=>e.id==='manufacturer'||e.id==='supplier').map(e=><Button key={e.id} variant="outline" size="sm" className="h-auto whitespace-normal text-xs" onClick={()=>{setAuditName(e.name);setAuditWebsite(e.website);setLocalCity(e.location);setKeyword(e.keyword);setScanMode(e.mode);setLive(null);}}>{e.name}</Button>)}</div><p className="text-xs text-muted-foreground">Buyer searches: commercial cleaning, fleet repair, custom manufacturing, industrial supplies, business IT support.</p></div>
+          {recent.length>0 && <div className="space-y-2"><p className="text-xs font-semibold">Recent audits</p>{recent.map((r,i)=><Button key={i} variant="outline" size="sm" className="h-auto w-full justify-start whitespace-normal text-left text-xs" onClick={()=>{setAuditName(r.name);setAuditWebsite(r.website);setLocalCity(r.city);setKeyword(r.keyword);setScanMode(r.mode);setLive(r.result);setScanError(null);}}>{r.name} · {r.keyword} · {new Date(r.at).toLocaleDateString()}</Button>)}</div>}
           {!live && (
             <div className="flex items-start gap-2 rounded-md border border-border bg-muted p-3 text-xs text-muted-foreground">
               <ShieldCheck className="h-4 w-4 shrink-0 text-primary" />
@@ -111,6 +120,7 @@ export default function RankAuditPanel({ businessName, city = "", niche = "", we
           )}
 
           <div><label htmlFor="audit-business" className="mb-1 block text-xs font-medium">Exact business / branch name</label><Input id="audit-business" value={auditName} onChange={e => { setAuditName(e.target.value); setLive(null); }} maxLength={200} /></div>
+          <div><label htmlFor="audit-website" className="mb-1 block text-xs font-medium">Business website</label><Input id="audit-website" value={auditWebsite} onChange={e=>{setAuditWebsite(e.target.value);setLive(null);}} maxLength={255}/></div>
           <div className="grid grid-cols-2 gap-2" role="group" aria-label="Audit type">
             <Button type="button" size="sm" variant={scanMode === "maps" ? "default" : "outline"} className="h-auto min-h-9 whitespace-normal text-xs" onClick={() => { setScanMode("maps"); setLive(null); }}>
               📍 Local Maps Grid
@@ -144,8 +154,9 @@ export default function RankAuditPanel({ businessName, city = "", niche = "", we
             <figure aria-label="Live 25-point map audit" className="space-y-3">
               <figcaption className="text-sm font-semibold">{live.center.formatted || localCity} · 25 live checkpoints</figcaption>
               <div className="overflow-hidden rounded-md border border-border">
-                <div className="h-80"><RankStreetMap points={(live.grid || []).flatMap(p => typeof p.lat === "number" && typeof p.lng === "number" ? [{ lat: p.lat, lng: p.lng, rank: p.rank }] : [])} /></div>
+                <div className="h-80"><RankStreetMap points={(live.grid || []).flatMap(p => typeof p.lat === "number" && typeof p.lng === "number" ? [{ lat: p.lat, lng: p.lng, rank: p.rank, businessCenter:p.row === 2 && p.col === 2 }] : [])} address={live.center.formatted || localCity} /></div>
               </div>
+              <p className="text-xs text-muted-foreground">Double outline and pointer = business location. Grid spacing: about 1 mile; corners about 2.8 miles from the business. Unknown checkpoints are not confirmed low rankings.</p>
             </figure>
           )}
 

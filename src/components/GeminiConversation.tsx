@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
@@ -14,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { microphonePcm, shouldSendMicrophone, microphoneGate, type NoiseFilter, type CaptureMode } from "@/lib/voiceLabAudio";
 
+import VoiceActionConfirmation, { type VoiceAction } from "./VoiceActionConfirmation";
 import BrowserVoiceHandoff from "@/components/BrowserVoiceHandoff";
 
 const VOICES = [
@@ -39,6 +41,11 @@ const WS_URL = SUPABASE_URL.replace(/^https/, "wss") + "/functions/v1/gemini-liv
 
 export interface GeminiConversationProps { agentId?: string; leadId?: string; prospectId?: string; draft?: boolean; compact?: boolean; name?: string; visitorName?: string; previewVoice?: string; autoStart?: boolean; previewOnly?: boolean; testModel?: string; }
 const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compact = false, name = "Aspen", visitorName = "", previewVoice, autoStart = false, previewOnly = false, testModel }: GeminiConversationProps) => {
+  const [pendingAction, setPendingAction] = useState<VoiceAction | null>(null);
+  const [actionNotice, setActionNotice] = useState('');
+  const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
+  const deadlineRef = useRef(0);
+  useEffect(() => { const timer = window.setInterval(() => { if (liveRef.current && deadlineRef.current) setRemainingSeconds(Math.max(0, Math.ceil((deadlineRef.current-Date.now())/1000))); }, 1000); return () => window.clearInterval(timer); }, []);
   const [handoffToken, setHandoffToken] = useState<string | null>(null);
   const [handoffActive, setHandoffActive] = useState(false);
   const handoffRef = useRef(false);
@@ -143,6 +150,9 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   }, []);
 
   const stopEverything = useCallback(() => {
+    setPendingAction(null);
+    deadlineRef.current = 0;
+    setRemainingSeconds(null);
     setHandoffToken(null);
     handoffRef.current = false;
     setHandoffActive(false);
@@ -304,7 +314,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         return stream;
       });
       const [session, stream] = await Promise.all([
-        supabase.functions.invoke("gemini-session", { body: { visitorKey, agentId, leadId, prospectId, draft, preview, voice: previewVoice || voice, model: testModel, hour: new Date().getHours(), visitorName, consent } }),
+        supabase.functions.invoke("gemini-session", { body: { visitorKey, agentId, leadId, prospectId, draft, preview, voice: previewVoice || voice, model: testModel, hour: new Date().getHours(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, visitorName, consent } }),
         microphoneReady,
         playResume,
         micResume,
@@ -324,6 +334,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         return;
       }
       if (generation !== generationRef.current) { stream?.getTracks().forEach(t => t.stop()); return; }
+      deadlineRef.current = Date.now() + Number(authorized.maxSeconds || 300) * 1000;
       setHandoffToken(authorized.handoffToken || null);
       const ws = new WebSocket(`${WS_URL}?token=${encodeURIComponent(authorized.token)}&capture=${captureMode}`);
       wsRef.current = ws;
@@ -382,6 +393,15 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             node.connect(micCtx.destination);
             break;
           }
+          case "confirm_action":
+            setPendingAction(msg as unknown as VoiceAction);
+            break;
+          case "cancel_action":
+            setPendingAction(null);
+            break;
+          case "action_result":
+            setActionNotice(msg.error ? String(msg.error) : msg.calendarConfirmed ? "Appointment confirmed on the AI Hidden Leads sales calendar." : msg.saved ? "Your confirmed follow-up details are saved." : "No action taken.");
+            break;
           case "audio":
             if (handoffRef.current) break;
             // Keep the last response locally, never request a new model generation to replay.
@@ -476,6 +496,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       if (wsRef.current?.readyState === WebSocket.OPEN) wsRef.current.send(JSON.stringify({type:'text',text:'The human handoff has ended or was unavailable. Briefly welcome the caller back and continue helping in your business role. Do not claim a manager answered.'}));
     }
   };
+  const confirmation = pendingAction ? <VoiceActionConfirmation key={pendingAction.id} action={pendingAction} onAnswer={(approved, contact) => { wsRef.current?.send(JSON.stringify({type:'confirm_action',id:pendingAction.id,approved,contact})); setPendingAction(null); }}/> : null;
   const transferControl = phase === 'live' && handoffToken ? <BrowserVoiceHandoff token={handoffToken} onActive={onHandoffActive} microphone={microphone}/> : null;
 
   if (previewOnly) return <div className="space-y-2">
@@ -523,6 +544,9 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           <div ref={transcriptEndRef} />
         </div>
 
+        {confirmation}
+        {actionNotice && <p role="status" className="text-xs text-primary">{actionNotice}</p>}
+        {remainingSeconds !== null && <p className="text-[11px] text-muted-foreground">Demo time remaining: {Math.floor(remainingSeconds/60)}:{String(remainingSeconds%60).padStart(2,'0')}</p>}
         {transferControl}
         <div className="voice-controls flex flex-wrap items-center justify-center gap-1 [&_button]:h-auto [&_button]:min-h-11 [&_button]:w-auto [&_button]:min-w-11 [&_button]:flex-col [&_button]:gap-1 [&_button]:px-1.5 [&_button]:py-1.5 [&_span]:text-[10px] [&_span]:leading-tight">
           {phase === "idle" ? (
@@ -633,11 +657,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         {error && <p className="text-[11px] font-semibold text-destructive">{error}</p>}
 
         {showSettings && (
-          <div className="space-y-2 border-t border-border pt-2">
-            <label className="block space-y-1 text-xs">Microphone sensitivity
+          <Dialog open={showSettings} onOpenChange={setShowSettings}><DialogContent className="max-h-[85dvh] w-[calc(100vw-24px)] max-w-sm overflow-y-auto"><DialogTitle>Voice settings</DialogTitle><DialogDescription>Microphone and background noise</DialogDescription><div className="space-y-3">
+            <label className="block space-y-1 text-xs">Background noise filtering
               <Select value={noiseFilter} onValueChange={value => setNoiseFilter(value as NoiseFilter)}>
                 <SelectTrigger aria-label="Microphone sensitivity" className="h-auto min-h-9 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="light">High — quiet room</SelectItem><SelectItem value="balanced">Medium — default</SelectItem><SelectItem value="strong">Low — filter quieter sounds</SelectItem></SelectContent>
+                <SelectContent><SelectItem value="light">Minimum filtering — quiet room</SelectItem><SelectItem value="balanced">Balanced filtering — everyday</SelectItem><SelectItem value="strong">Strong filtering — noisy room</SelectItem></SelectContent>
               </Select>
             </label>
             <label className="flex items-start gap-2 text-[11px] text-muted-foreground">
@@ -676,7 +700,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
                 <Play className="mr-1.5 h-3.5 w-3.5" /> Preview voice
               </Button>
             )}
-          </div>
+          </div></DialogContent></Dialog>
         )}
       </div>
     );
@@ -696,7 +720,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
       <main className={compact ? "space-y-3" : "mx-auto max-w-3xl px-4 py-6 space-y-4"}>
         <Card className="p-4 space-y-3">
-          {transferControl}
+          {confirmation}
+        {actionNotice && <p role="status" className="text-xs text-primary">{actionNotice}</p>}
+        {remainingSeconds !== null && <p className="text-[11px] text-muted-foreground">Demo time remaining: {Math.floor(remainingSeconds/60)}:{String(remainingSeconds%60).padStart(2,'0')}</p>}
+        {transferControl}
           <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
             {!compact && <div className="flex-1">
               <label className="text-xs font-semibold text-muted-foreground">Voice</label>
@@ -728,10 +755,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
           <label className="flex items-start gap-2 text-xs text-muted-foreground"><input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} disabled={phase !== "idle"} />Allow saving this conversation transcript when enabled by the business</label>
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block space-y-1 text-xs">Microphone sensitivity
+            <label className="block space-y-1 text-xs">Background noise filtering
               <Select value={noiseFilter} onValueChange={value => setNoiseFilter(value as NoiseFilter)}>
                 <SelectTrigger aria-label="Microphone sensitivity"><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="light">High — quiet room</SelectItem><SelectItem value="balanced">Medium — default</SelectItem><SelectItem value="strong">Low — filter quieter sounds</SelectItem></SelectContent>
+                <SelectContent><SelectItem value="light">Minimum filtering — quiet room</SelectItem><SelectItem value="balanced">Balanced filtering — everyday</SelectItem><SelectItem value="strong">Strong filtering — noisy room</SelectItem></SelectContent>
               </Select>
             </label>
             <div>

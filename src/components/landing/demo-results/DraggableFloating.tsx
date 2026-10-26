@@ -86,6 +86,14 @@ const DraggableFloating = ({
     return () => window.removeEventListener("resize", handleResize);
   }, [clampPosition, initialX, anchorRight]);
 
+  useEffect(() => {
+    const element = containerRef.current;
+    if (!element) return;
+    const observer = new ResizeObserver(() => clampPosition());
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [clampPosition]);
+
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
     if (!target.closest("[data-drag-handle]")) return;

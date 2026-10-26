@@ -5,14 +5,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
-import { generateSlots, type Slot } from "@/lib/bookingSlots";
+import { type Slot } from "@/lib/bookingSlots";
 
 const dayLabel = (dateStr: string) =>
   new Date(`${dateStr}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
 
 export default function BookCall() {
   const navigate = useNavigate();
-  const slots = useMemo(() => generateSlots(), []);
+  const [slots, setSlots] = useState<Slot[]>([]);
+  const [checking, setChecking] = useState(true);
   const [taken, setTaken] = useState<Set<string>>(new Set());
   const [day, setDay] = useState<string | null>(null);
   const [slot, setSlot] = useState<Slot | null>(null);
@@ -22,12 +23,11 @@ export default function BookCall() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    supabase
-      .from("implementation_call_slots" as never)
-      .select("slot_start")
-      .then(({ data }) => {
-        if (data) setTaken(new Set((data as { slot_start: string }[]).map((r) => new Date(r.slot_start).toISOString())));
-      });
+    void supabase.functions.invoke('platform-availability').then(async ({data,error}) => {
+      setChecking(false);
+      if (error || !data?.calendarVerified) { setError(data?.error || 'Calendar availability could not be verified. Please try again later.'); return; }
+      setSlots(data.slots || []);
+    });
   }, []);
 
   const days = useMemo(() => {
@@ -51,7 +51,7 @@ export default function BookCall() {
     }
     setSubmitting(true);
     const { data, error: fnErr } = await supabase.functions.invoke("book-implementation-call", {
-      body: { ...form, slotStart: slot.iso },
+      body: { ...form, slotStart: slot.iso, confirmed: true },
     });
     setSubmitting(false);
     if (fnErr || !data?.ok) {
@@ -73,11 +73,11 @@ export default function BookCall() {
             <CalendarCheck className="w-12 h-12 text-primary mx-auto mb-4" />
             <h1 className="text-2xl font-bold mb-2">You're booked!</h1>
             <p className="text-muted-foreground">
-              Your free implementation call is requested for{" "}
+              Your free implementation call is confirmed on our sales calendar for{" "}
               <span className="text-foreground font-medium">
                 {slot && new Date(slot.iso).toLocaleString("en-US", { dateStyle: "full", timeStyle: "short", timeZone: "America/New_York" })} (ET)
               </span>
-              . We'll confirm by email shortly.
+              . Your details are saved; no email confirmation has been sent.
             </p>
             <Button className="mt-6" onClick={() => navigate("/")}>Back to Home</Button>
           </div>
@@ -88,10 +88,10 @@ export default function BookCall() {
               15 minutes, one-on-one with our team. We'll answer your questions and plan your setup. Times shown in Eastern Time (ET).
             </p>
 
-            <h2 className="text-sm font-semibold mb-3">1. Pick a day</h2>
+            <h2 className="text-sm font-semibold mb-3">1. Pick a day</h2>{checking && <p className="text-sm text-muted-foreground">Checking Google Calendar…</p>}{!checking && !days.length && <p className="text-sm text-muted-foreground">No available sales appointments in the next 14 days.</p>}
             <div className="flex gap-2 overflow-x-auto pb-2 mb-6">
               {days.map(([d]) => (
-                <button
+                <Button variant="outline"
                   key={d}
                   onClick={() => { setDay(d); setSlot(null); }}
                   className={`shrink-0 rounded-xl border px-4 py-2 text-sm font-medium transition-colors ${
@@ -99,14 +99,14 @@ export default function BookCall() {
                   }`}
                 >
                   {dayLabel(d)}
-                </button>
+                </Button>
               ))}
             </div>
 
             <h2 className="text-sm font-semibold mb-3">2. Pick a time</h2>
             <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 mb-8">
               {daySlots.map((s) => (
-                <button
+                <Button variant="outline"
                   key={s.iso}
                   onClick={() => setSlot(s)}
                   className={`rounded-lg border px-2 py-2 text-xs font-medium transition-colors ${
@@ -114,7 +114,7 @@ export default function BookCall() {
                   }`}
                 >
                   {s.label}
-                </button>
+                </Button>
               ))}
             </div>
 

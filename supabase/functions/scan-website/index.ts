@@ -1421,6 +1421,7 @@ Deno.serve(async (req) => {
 
     // Save initial results immediately so the demo can load
     const updateResult = await supabase.from('leads').update({
+      business_name: profile.businessName,
       niche: profile.detectedNiche,
       website_url: formattedUrl,
       brand_colors: branding.colors || null,
@@ -1433,8 +1434,7 @@ Deno.serve(async (req) => {
       website_title: title || null,
       website_description: description || null,
       scan_status: 'completed',
-      ...(primaryPhone && !existingLeadPhone ? { phone: primaryPhone } : {}),
-      ...(primaryEmail && !existingLeadEmail ? { email: primaryEmail } : {}),
+      // Scraped business contact data belongs in source knowledge, never visitor fields.
     }).eq('id', leadId);
 
     if (updateResult.error) {

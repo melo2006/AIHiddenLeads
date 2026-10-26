@@ -16,6 +16,10 @@
 - Render voice transcript messages with AI Elements MessageResponse; voice-only surfaces omit text composers because input is the existing PCM microphone stream.
 - Prebundle transcript renderer dependencies and recover stale Vite chunk loads once per minute; preview updates must not leave open tabs blank or cause reload loops.
 - Build prospect simulation configurations separately from homepage sales configurations, sharing only voice identity so platform greetings never leak into business roleplay.
+- Store editable prospect simulation templates separately from homepage sales templates; platform actions require explicit on-screen confirmation and never act for the simulated business.
+- Use a session-bound pending-action registry for Gemini native tools; only browser-confirmed contact data can be saved, and platform bookings share verified Google Calendar availability and slot rules with the booking page.
+- Keep WebSocket lifetime work pending until close to avoid early worker retirement; server session deadlines remain authoritative and hard hosting limits still apply.
+- Keep scraped business contacts in source knowledge, not visitor contact fields; confirmed visitor data is recorded in call history without overwriting populated lead fields.
 - Keep a reviewed server-side homepage sales reference for offer facts and seed only the homepage agent with it; update saved draft/published snapshots explicitly and do not rely on scraping interactive marketing or reuse historical sales offers.
 - Persist voice audio measurements and raw provider reports server-side with periodic checkpoints; apply only model-matched explicit rate snapshots and label estimates separately from invoices.
 - Keep documented Live model comparison limited to authorized draft tests and voice auditions; published conversations retain the default, and model-specific published audio rates are versioned separately from recorded measurements.

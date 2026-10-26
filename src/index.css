@@ -124,6 +124,9 @@
   .audit-rank-unknown { background: hsl(var(--muted)); color: hsl(var(--muted-foreground)); }
   .rank-map-pin.audit-rank-unknown { border-color: hsl(var(--muted-foreground)); background: hsl(var(--rank-map-paper)); color: hsl(var(--rank-map-ink)); }
   .rank-map-selected .rank-map-pin { outline: 2px solid hsl(var(--rank-map-ink)); outline-offset: 2px; }
+  .rank-map-business .rank-map-pin { border-width: 5px; outline: 3px solid hsl(var(--rank-map-ink)); outline-offset: 3px; }
+  .rank-map-business .rank-map-pin::after { content: ''; position: absolute; bottom: -12px; border: 5px solid transparent; border-top-color: hsl(var(--rank-map-ink)); }
+  .rank-street-map .leaflet-tile { opacity: 1; filter: none; }
   @media (max-width: 1023px) {
     section button:not([aria-label]) {
       max-width: 100%;

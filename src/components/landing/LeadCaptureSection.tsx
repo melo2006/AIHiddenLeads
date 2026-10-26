@@ -82,7 +82,7 @@ const looksLikeDomain = (value: string) => {
 
 const leadFormSchema = z.object({
   name: z.string().trim().min(1, "Please enter your name").max(100, "Name is too long"),
-  businessName: z.string().trim().min(1, "Please enter your business name").max(150, "Business name is too long"),
+  businessName: z.string().trim().max(150, "Business name is too long"),
   email: optionalEmailSchema,
   website: z
     .string()
@@ -207,7 +207,7 @@ const LeadCaptureSection = ({ selectedNiche }: LeadCaptureSectionProps) => {
     setScanData(null);
     try {
       const { data: leadId, error } = await (supabase as any).rpc("create_demo_lead", {
-        _business_name: parsed.data.businessName,
+        _business_name: parsed.data.businessName || new URL(parsed.data.website).hostname.replace(/^www\./, ''),
         _full_name: parsed.data.name,
         _phone: parsed.data.phone || null,
         _email: parsed.data.email || null,
@@ -375,14 +375,13 @@ const LeadCaptureSection = ({ selectedNiche }: LeadCaptureSectionProps) => {
               </div>
               <div className="space-y-1">
                 <label className="text-xs sm:text-sm font-medium text-foreground flex items-center gap-1.5">
-                  <Building2 className="w-3.5 h-3.5 text-muted-foreground" /> {t("leadForm.business")} <span className="text-destructive">*</span>
+                  <Building2 className="w-3.5 h-3.5 text-muted-foreground" /> {t("leadForm.business")} <span className="text-xs text-muted-foreground">{t("leadForm.optional")}</span>
                 </label>
                 <Input
                   placeholder="Sunrise Dental Studio"
                   value={formData.businessName}
                   onChange={(e) => updateFormData({ businessName: e.target.value })}
                   className="bg-secondary border-border"
-                  required
                 />
               </div>
             </div>
