@@ -82,7 +82,8 @@ const ChatWidget = ({
   }, []);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const panel = messagesEndRef.current?.parentElement;
+    if (panel) panel.scrollTop = panel.scrollHeight;
   }, [messages, isThinking]);
 
   const quickPrompts = useMemo(() => {
@@ -310,7 +311,7 @@ CRITICAL RULES:
         </div>
       ) : (
       <>
-      <div className="max-h-[22rem] overflow-y-auto p-3 space-y-2.5">
+      <div className={`${embedded ? 'max-h-[28dvh]' : 'max-h-[22rem]'} overflow-y-auto p-3 space-y-2.5`}>
         {messages.map((msg, i) => (
           <div key={i} className={`flex gap-2 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
             <div
@@ -326,7 +327,7 @@ CRITICAL RULES:
             </div>
             <div
               className={`max-w-[80%] rounded-xl px-3 py-2 text-xs leading-relaxed whitespace-pre-line ${
-                msg.role === "assistant" ? "bg-accent/10 text-foreground" : "bg-primary/10 text-foreground"
+                msg.role === "assistant" ? "text-foreground" : "bg-primary text-primary-foreground"
               }`}
             >
               <MessageResponse>{msg.content}</MessageResponse>
@@ -387,7 +388,7 @@ CRITICAL RULES:
       </div>
 
       {/* CTA Banner */}
-      <a
+      {!embedded && <a
         href="https://aihiddenleads.com"
         target="_blank"
         rel="noopener noreferrer"
@@ -395,7 +396,7 @@ CRITICAL RULES:
       >
         <ExternalLink className="h-3 w-3" />
         🚀 Take advantage of our promo — Visit AIHiddenLeads.com
-      </a>
+      </a>}
       </>
       )}
     </div>
