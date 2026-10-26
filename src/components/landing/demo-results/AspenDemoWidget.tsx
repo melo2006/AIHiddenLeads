@@ -14,6 +14,7 @@ function AspenDemoWidgetContent({ voiceRequested = false, onClosed, ...chatProps
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<'voice' | 'chat'>('voice');
   const [chatVisited, setChatVisited] = useState(false);
+  const [recommendedPlan, setRecommendedPlan] = useState<string | null>(null);
   const expanded = open || voiceRequested;
   const close = () => { setOpen(false); onClosed(); };
   return <DraggableFloating initialX={12} initialY={window.innerHeight - 90} anchorRight resetKey={expanded ? 'open' : 'closed'}>
@@ -27,8 +28,8 @@ function AspenDemoWidgetContent({ voiceRequested = false, onClosed, ...chatProps
         <Button size="sm" className="flex-1" variant={mode === 'voice' ? 'default' : 'outline'} aria-pressed={mode === 'voice'} onClick={() => setMode('voice')}><Mic />Voice</Button>
         <Button size="sm" className="flex-1" variant={mode === 'chat' ? 'default' : 'outline'} aria-pressed={mode === 'chat'} onClick={() => { setChatVisited(true); setMode('chat'); }}><MessageSquare />Chat</Button>
       </div>
-      <AspenSalesActions />
-      {mode === 'voice' && <GeminiConversation compact autoStart leadId={chatProps.leadId} prospectId={chatProps.prospectId} visitorName={chatProps.callerName} />}
+      <AspenSalesActions plan={recommendedPlan} />
+      {mode === 'voice' && <GeminiConversation compact autoStart leadId={chatProps.leadId} prospectId={chatProps.prospectId} visitorName={chatProps.callerName} onRecommendedPlan={setRecommendedPlan} />}
       {chatVisited && <div className={mode === 'chat' ? 'aspen-chat-content' : 'hidden'}><ChatWidget {...chatProps} embedded active={mode === 'chat'} /></div>}
     </div> : <Button onClick={() => { setMode('voice'); setOpen(true); }} className="h-auto max-w-[calc(100vw-24px)] gap-2 px-2 py-1.5 shadow-lg" aria-label="Open Aspen chat and voice"><AspenLauncherContent /></Button>}
   </DraggableFloating>;
