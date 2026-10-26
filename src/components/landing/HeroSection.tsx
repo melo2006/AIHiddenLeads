@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import type { NicheData } from "@/data/nicheData";
 import aspenHero from "@/assets/aspen-hero.jpg";
+import AspenWindowPreview from './AspenWindowPreview';
 
 interface HeroSectionProps {
   niche: NicheData;
@@ -148,37 +149,7 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
             transition={{ duration: 0.7, delay: 0.3 }}
             className="flex-shrink-0 w-full lg:w-[420px] flex flex-col items-center"
           >
-            {/* Aspen image */}
-            <div className="relative mb-4">
-              <div className="w-60 h-60 sm:w-72 sm:h-72 lg:w-80 lg:h-80 rounded-full overflow-hidden border-4 border-primary/30 shadow-[0_0_60px_rgba(16,185,129,0.2)]">
-                <img
-                  src={aspenHero}
-                  alt="Aspen — Your AI Assistant"
-                  className="w-full h-full object-cover object-top"
-                  width={768}
-                  height={1024}
-                />
-              </div>
-              {/* Name badge */}
-              <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-5 py-2 bg-primary rounded-full shadow-lg">
-                <span className="text-base font-bold text-primary-foreground">{t("hero.meetAspen")}</span>
-              </div>
-            </div>
-
-            {/* Speech bubble */}
-            <div className="relative bg-card/80 backdrop-blur border border-border rounded-2xl p-5 sm:p-6 max-w-sm">
-              {/* Triangle pointer */}
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[12px] border-r-[12px] border-b-[12px] border-l-transparent border-r-transparent border-b-border" />
-              <div className="absolute -top-[10px] left-1/2 -translate-x-1/2 w-0 h-0 border-l-[11px] border-r-[11px] border-b-[11px] border-l-transparent border-r-transparent border-b-card/80" />
-              
-              <p className="text-base sm:text-lg text-foreground italic leading-relaxed">
-                <Trans i18nKey="hero.aspenQuote" components={{ strong: <span className="text-primary font-semibold" /> }} />
-              </p>
-              <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border/50">
-                <MessageCircle className="w-4 h-4 text-primary" />
-                <span className="text-sm text-muted-foreground">{t("hero.aspenHint")}</span>
-              </div>
-            </div>
+            <AspenWindowPreview />
           </motion.div>
         </div>
       </div>

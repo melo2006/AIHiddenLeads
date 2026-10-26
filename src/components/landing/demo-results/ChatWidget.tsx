@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { Send, Bot, User, Maximize2, Minimize2, X, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { MessageResponse } from '@/components/ai-elements/message';
+import { PromptInput, PromptInputTextarea, PromptInputFooter, PromptInputSubmit } from '@/components/ai-elements/prompt-input';
 
 interface ChatWidgetProps {
   businessName: string;
@@ -47,7 +48,7 @@ const ChatWidget = ({
   const [isStreaming, setIsStreaming] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const initialized = useRef(false);
   const mounted = useRef(true);
   const sessionId = useRef(`chat_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
@@ -311,7 +312,7 @@ CRITICAL RULES:
         </div>
       ) : (
       <>
-      <div className={`${embedded ? 'max-h-[28dvh]' : 'max-h-[22rem]'} overflow-y-auto p-3 space-y-2.5`}>
+      <div className={`${embedded ? 'min-h-0 flex-1 max-h-[35dvh]' : 'max-h-[22rem]'} overflow-y-auto p-3 space-y-2.5`}>
         {messages.map((msg, i) => (
           <div key={i} className={`flex gap-2 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
             <div
@@ -366,25 +367,26 @@ CRITICAL RULES:
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="flex gap-2 p-3 border-t border-border">
-        <input
+      <div className="shrink-0 p-3 border-t border-border">
+       <PromptInput onSubmit={() => { void handleSend(); }}>
+        <PromptInputTextarea
           ref={inputRef}
           aria-label="Message Aspen"
-          type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && void handleSend()}
           placeholder="Ask Aspen anything..."
-          className="flex-1 rounded-lg border border-border bg-background/50 px-3 py-2 text-sm outline-none focus:border-accent/50"
+          className="min-h-12 max-h-24 w-full min-w-0 text-base"
           disabled={isBusy}
         />
-        <button
-          onClick={() => void handleSend()}
+        <PromptInputFooter className="justify-end">
+        <PromptInputSubmit
           disabled={!input.trim() || isBusy}
-          className="flex items-center justify-center rounded-lg bg-accent px-3 py-2 text-accent-foreground transition-colors hover:bg-accent/90 disabled:opacity-50"
-        >
-          <Send className="h-4 w-4" />
-        </button>
+          status={isThinking ? 'submitted' : isStreaming ? 'streaming' : 'ready'}
+          aria-label="Send message to Aspen"
+          className="h-9 w-9 shrink-0"
+        />
+        </PromptInputFooter>
+       </PromptInput>
       </div>
 
       {/* CTA Banner */}
