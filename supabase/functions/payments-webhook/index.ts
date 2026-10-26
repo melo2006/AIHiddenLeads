@@ -1,96 +1,17 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { type StripeEnv, verifyWebhook } from "../_shared/stripe.ts";
-
-const supabase = createClient(
-  Deno.env.get("SUPABASE_URL")!,
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-);
-
-serve(async (req) => {
-  if (req.method !== "POST") {
-    return new Response("Method not allowed", { status: 405 });
-  }
-
-  const url = new URL(req.url);
-  const env = (url.searchParams.get('env') || 'sandbox') as StripeEnv;
-
-  try {
-    const event = await verifyWebhook(req, env);
-    console.log("Received event:", event.type, "env:", env);
-
-    switch (event.type) {
-      case "checkout.session.completed":
-        console.log("Checkout completed:", event.data.object.id);
-        break;
-      case "customer.subscription.created":
-        await handleSubscription(event.data.object, env);
-        break;
-      case "customer.subscription.updated":
-        await handleSubscriptionUpdate(event.data.object, env);
-        break;
-      case "customer.subscription.deleted":
-        await supabase
-          .from("subscriptions")
-          .update({ status: "canceled", updated_at: new Date().toISOString() })
-          .eq("stripe_subscription_id", event.data.object.id)
-          .eq("environment", env);
-        break;
-      default:
-        console.log("Unhandled event:", event.type);
-    }
-
-    return new Response(JSON.stringify({ received: true }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
-  } catch (e) {
-    console.error("Webhook error:", e);
-    return new Response("Webhook error", { status: 400 });
-  }
+import { createClient } from 'npm:@supabase/supabase-js@2';
+import { createStripeClient, verifyWebhook } from '../_shared/stripe.ts';
+import { syncSubscription, provisionCustomer } from '../_shared/customer-payments.ts';
+Deno.serve(async req=>{
+ if(req.method!=='POST')return new Response('POST required',{status:405});const env=new URL(req.url).searchParams.get('env');if(env!=='sandbox'&&env!=='live')return new Response('Invalid environment',{status:400});
+ try{
+ const event=await verifyWebhook(req,env);const obj=event.data.object;const db=createClient(Deno.env.get('SUPABASE_URL')||'',Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')||'');const stripe=createStripeClient(env);
+ if(event.type.startsWith('customer.subscription.'))await syncSubscription(db,stripe,obj.id,env);
+ if(event.type==='checkout.session.completed'||event.type==='checkout.session.async_payment_succeeded'){
+  const session=await stripe.checkout.sessions.retrieve(obj.id);if(session.payment_status==='paid'&&session.subscription&&session.metadata?.userId){const sub=await syncSubscription(db,stripe,typeof session.subscription==='string'?session.subscription:session.subscription.id,env);if(sub?.status==='active')await provisionCustomer(db,session.metadata.userId,env);}
+ }
+ if(event.type==='invoice.paid'){
+  const subscription=obj.parent?.subscription_details?.subscription||obj.subscription;if(subscription)await syncSubscription(db,stripe,typeof subscription==='string'?subscription:subscription.id,env);
+ }
+ return new Response(JSON.stringify({received:true}),{headers:{'Content-Type':'application/json'}});
+ }catch(e){console.error('Payment notification failed',e instanceof Error?e.message:'Unknown error');return new Response('Notification processing failed',{status:400});}
 });
-
-async function handleSubscription(subscription: any, env: StripeEnv) {
-  const userId = subscription.metadata?.userId;
-  if (!userId) return;
-
-  const item = subscription.items?.data?.[0];
-  const priceId = item?.price?.metadata?.lovable_external_id || item?.price?.id;
-  const productId = item?.price?.product;
-
-  await supabase.from("subscriptions").upsert(
-    {
-      user_id: userId,
-      stripe_subscription_id: subscription.id,
-      stripe_customer_id: subscription.customer,
-      product_id: productId,
-      price_id: priceId,
-      status: subscription.status,
-      current_period_start: subscription.current_period_start ? new Date(subscription.current_period_start * 1000).toISOString() : null,
-      current_period_end: subscription.current_period_end ? new Date(subscription.current_period_end * 1000).toISOString() : null,
-      environment: env,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "stripe_subscription_id" }
-  );
-}
-
-async function handleSubscriptionUpdate(subscription: any, env: StripeEnv) {
-  const item = subscription.items?.data?.[0];
-  const priceId = item?.price?.metadata?.lovable_external_id || item?.price?.id;
-  const productId = item?.price?.product;
-
-  await supabase
-    .from("subscriptions")
-    .update({
-      status: subscription.status,
-      product_id: productId,
-      price_id: priceId,
-      current_period_start: subscription.current_period_start ? new Date(subscription.current_period_start * 1000).toISOString() : null,
-      current_period_end: subscription.current_period_end ? new Date(subscription.current_period_end * 1000).toISOString() : null,
-      cancel_at_period_end: subscription.cancel_at_period_end || false,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("stripe_subscription_id", subscription.id)
-    .eq("environment", env);
-}
