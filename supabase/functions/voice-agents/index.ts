@@ -5,6 +5,7 @@ import { DEFAULT_AGENT, VOICES, isPublicUrl, SIMULATION_GREETING, SIMULATION_PRO
 import { HOMEPAGE_KNOWLEDGE, HOMEPAGE_SALES_PROMPT } from '../_shared/homepage-knowledge.ts';
 import { DEFAULT_LIVE_MODEL, LIVE_MODELS, officialLivePricing } from '../_shared/live-models.ts';
 import { validPricing } from '../_shared/voice-usage.ts';
+import { workspaceAccess } from '../_shared/customer-payments.ts';
 
 const configSchema = z.object({ name:z.string().min(1).max(80), businessName:z.string().min(1).max(160), voice:z.enum(VOICES as [string,...string[]]), avatarPath:z.string().max(500).default(''), greeting:z.string().min(1).max(1500), systemPrompt:z.string().min(1).max(12000), simulationGreeting:z.string().min(1).max(1500).default(SIMULATION_GREETING), simulationPrompt:z.string().min(1).max(12000).default(SIMULATION_PROMPT), knowledge:z.string().max(60000).default(''), crawlDepth:z.union([z.literal(1),z.literal(2)]).default(1), recordTranscript:z.boolean().default(false), transferPhone:z.string().regex(/^$|^\+[1-9]\d{7,14}$/,'Use an international phone number, starting with +').default(''), transferManagerName:z.string().max(80).default('') });
 const requestSchema = z.object({ action:z.enum(['list','usage','pricing','create','save','publish','source','refresh','removeSource','member','rollback']), agentId:z.string().uuid().optional(), sourceId:z.string().uuid().optional(), config:configSchema.optional(), businessName:z.string().min(1).max(160).optional(), userEmail:z.string().email().optional(), kind:z.enum(['url','document']).optional(), label:z.string().min(1).max(255).optional(), url:z.string().max(2000).optional(), storagePath:z.string().max(500).optional(), pricing:z.object({model:z.literal('gemini-3.8-live'),inputAudioPerMinute:z.number().finite().min(0).max(100),outputAudioPerMinute:z.number().finite().min(0).max(100),source:z.string().url().max(2000)}).optional() });
@@ -57,6 +58,7 @@ Deno.serve(async req=>{
     if(!agent) return json({error:'Agent not found'},404);
     const {data:membership}=await db.from('voice_memberships').select('id').eq('organization_id',agent.organization_id).eq('user_id',user.id).eq('role','editor').maybeSingle();
     if(!admin && !membership) return json({error:'Access denied'},403);
+    if(!admin && !(await workspaceAccess(db,agent.organization_id))) return json({error:'Your paid subscription period has ended.'},403);
     if(body.action==='member') {
       if(!admin || !body.userEmail) return json({error:'Administrator and client email required'},403);
       // Existing accounts only: no public signup or silent creation of user identities.
