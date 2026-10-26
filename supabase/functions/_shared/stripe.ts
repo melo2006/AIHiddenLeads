@@ -10,7 +10,7 @@ export function getConnectionApiKey(env: StripeEnv): string {
   return key;
 }
 
-import Stripe from "https://esm.sh/stripe@18.5.0";
+import Stripe from "https://esm.sh/stripe@22.0.2";
 
 const GATEWAY_STRIPE_BASE = 'https://connector-gateway.lovable.dev/stripe';
 
@@ -20,12 +20,14 @@ export function createStripeClient(env: StripeEnv): Stripe {
   if (!lovableApiKey) throw new Error('LOVABLE_API_KEY is not configured');
 
   return new Stripe(connectionApiKey, {
-    httpClient: Stripe.createFetchHttpClient((url: string | URL, init?: RequestInit) => {
-      const gatewayUrl = url.toString().replace('https://api.stripe.com', GATEWAY_STRIPE_BASE);
+    apiVersion: '2026-03-25.dahlia',
+    httpClient: Stripe.createFetchHttpClient((input, init) => {
+      const stripeUrl = input instanceof Request ? input.url : input.toString();
+      const gatewayUrl = stripeUrl.replace('https://api.stripe.com', GATEWAY_STRIPE_BASE);
       return fetch(gatewayUrl, {
         ...init,
         headers: {
-          ...Object.fromEntries(new Headers(init?.headers).entries()),
+          ...Object.fromEntries(new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined)).entries()),
           'X-Connection-Api-Key': connectionApiKey,
           'Lovable-API-Key': lovableApiKey,
         },
