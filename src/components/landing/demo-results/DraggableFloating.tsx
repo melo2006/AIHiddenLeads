@@ -12,6 +12,7 @@ interface DraggableFloatingProps {
   /** If set, initialX is treated as pixels from the RIGHT edge instead of left */
   anchorRight?: boolean;
   dragLabel?: string;
+  resetKey?: string | number;
 }
 
 const DraggableFloating = ({
@@ -20,6 +21,7 @@ const DraggableFloating = ({
   initialY,
   anchorRight = false,
   dragLabel = "Drag me",
+  resetKey,
 }: DraggableFloatingProps) => {
   const [pos, setPos] = useState(() => ({
     x: anchorRight ? Math.max(VIEWPORT_PADDING, window.innerWidth - 200 - initialX) : Math.min(initialX, window.innerWidth - 80),
@@ -49,6 +51,16 @@ const DraggableFloating = ({
       return prev.x === clamped.x && prev.y === clamped.y ? prev : clamped;
     });
   }, []);
+
+  useEffect(() => {
+    if (resetKey === undefined) return;
+    const frame = requestAnimationFrame(() => {
+      const el = containerRef.current;
+      if (!el) return;
+      clampPosition({ x: anchorRight ? window.innerWidth - el.offsetWidth - initialX : initialX, y: initialY });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [resetKey, anchorRight, initialX, initialY, clampPosition]);
 
   // After first render, reposition right-anchored widgets using actual element width
   useEffect(() => {

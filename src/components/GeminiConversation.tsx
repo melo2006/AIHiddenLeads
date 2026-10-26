@@ -93,6 +93,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const sourcesRef = useRef(new Set<AudioBufferSourceNode>());
   const micNodeRef = useRef<ScriptProcessorNode | null>(null);
   const generationRef = useRef(0);
+  const startingRef = useRef(false);
   const previewDoneRef = useRef(false);
   const isPreviewRef = useRef(false);
   const aspenLineRef = useRef("");
@@ -102,12 +103,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const lastAudioRef = useRef<string[]>([]);
   const transcriptEndRef = useRef<HTMLDivElement | null>(null);
 
-  const refreshMicrophones = useCallback(async (requestPermission = false) => {
+  const refreshMicrophones = useCallback(async (_requestPermission = false) => {
     try {
-      if (requestPermission) {
-        const permissionStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        permissionStream.getTracks().forEach(track => track.stop());
-      }
       setMicrophones((await navigator.mediaDevices.enumerateDevices()).filter(device => device.kind === "audioinput"));
     } catch { setError("Could not list microphones. Allow microphone access in Chrome."); }
   }, []);
@@ -157,6 +154,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     handoffRef.current = false;
     setHandoffActive(false);
     generationRef.current += 1;
+    startingRef.current = false;
     liveRef.current = false;
     captureRef.current.held = false;
     captureRef.current.replaying = false;
@@ -268,6 +266,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   }, [pauseCapture, clearPlayback, playPcmChunk]);
 
   const startConversation = useCallback(async (preview = false) => {
+    if (startingRef.current || liveRef.current) return;
+    startingRef.current = true;
     clearPlayback();
     const generation = ++generationRef.current;
     captureRef.current = { mode: captureMode, held: false, muted: false, replaying: false, paused: false };
@@ -468,6 +468,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           : e instanceof Error ? e.message : "Could not start. Check your microphone and try again."
       );
     } finally {
+      if (generation === generationRef.current) startingRef.current = false;
       window.clearTimeout(startupTimeout);
     }
   }, [voice, microphone, captureMode, refreshMicrophones, playPcmChunk, clearPlayback, flushLine, stopEverything, agentId, leadId, prospectId, draft, previewVoice, visitorName, consent, testModel]);

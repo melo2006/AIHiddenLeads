@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { Send, Bot, User, Maximize2, Minimize2, X, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { MessageResponse } from '@/components/ai-elements/message';
 
 interface ChatWidgetProps {
   businessName: string;
@@ -14,6 +15,8 @@ interface ChatWidgetProps {
   leadId?: string;
   prospectId?: string;
   onClose?: () => void;
+  embedded?: boolean;
+  active?: boolean;
 }
 
 interface Message {
@@ -35,6 +38,8 @@ const ChatWidget = ({
   leadId,
   prospectId,
   onClose,
+  embedded = false,
+  active = true,
 }: ChatWidgetProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -42,12 +47,14 @@ const ChatWidget = ({
   const [isStreaming, setIsStreaming] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const initialized = useRef(false);
   const mounted = useRef(true);
   const sessionId = useRef(`chat_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
 
   const ownerLabel = ownerName?.trim() || callerName?.trim() || "the business owner";
   const isBusy = isThinking || isStreaming;
+  useEffect(() => { if (active && !isBusy) inputRef.current?.focus({ preventScroll: true }); }, [active, isBusy]);
 
   const logChatMessage = useCallback((role: string, content: string) => {
     if (!content.trim()) return;
@@ -258,8 +265,8 @@ CRITICAL RULES:
   const lastAssistantMessage = [...messages].reverse().find((m) => m.role === "assistant")?.content;
 
   return (
-    <div className="rounded-2xl border border-accent/20 bg-card shadow-2xl overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 bg-accent/10 border-b border-accent/20">
+    <div className={embedded ? 'overflow-hidden bg-card' : 'rounded-2xl border border-accent/20 bg-card shadow-2xl overflow-hidden'}>
+      {!embedded && <div className="flex items-center justify-between px-4 py-3 bg-accent/10 border-b border-accent/20">
         <div className="flex items-center gap-2.5">
           <div className="relative">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent/20">
@@ -290,7 +297,7 @@ CRITICAL RULES:
             </button>
           )}
         </div>
-      </div>
+      </div>}
 
       {isMinimized ? (
         <div className="p-3">
@@ -322,7 +329,7 @@ CRITICAL RULES:
                 msg.role === "assistant" ? "bg-accent/10 text-foreground" : "bg-primary/10 text-foreground"
               }`}
             >
-              {msg.content}
+              <MessageResponse>{msg.content}</MessageResponse>
             </div>
           </div>
         ))}
@@ -360,6 +367,8 @@ CRITICAL RULES:
 
       <div className="flex gap-2 p-3 border-t border-border">
         <input
+          ref={inputRef}
+          aria-label="Message Aspen"
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
