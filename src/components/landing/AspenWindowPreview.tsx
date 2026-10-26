@@ -8,8 +8,8 @@ export default function AspenWindowPreview() {
   const [mode, setMode] = useState<'chat' | 'voice'>('chat');
   return <div className="w-full max-w-sm overflow-hidden rounded-lg border-2 border-primary/40 bg-card shadow-xl" aria-label="Aspen window preview">
     <header className="flex items-center gap-3 border-b border-border p-4">
-      <img src={avatar} alt="Aspen" className="h-14 w-14 rounded-full object-cover" />
-      <div><p className="text-lg font-semibold">Ask Aspen</p><p className="text-xs text-muted-foreground">AI Hidden Leads · Preview</p></div>
+      <img src={avatar} alt="Aspen" className="h-20 w-20 shrink-0 rounded-full object-cover" />
+      <div><p className="text-lg font-semibold leading-tight"><span className="block">Ask</span><span className="block">Aspen</span></p><p className="text-xs text-muted-foreground">AI Hidden Leads · Preview</p></div>
       <span className="ml-auto h-2.5 w-2.5 rounded-full bg-primary" />
     </header>
     <div className="flex gap-2 border-b border-border p-3">
