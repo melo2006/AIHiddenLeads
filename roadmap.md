@@ -1,5 +1,8 @@
 # Current work
 
+- [x] Enlarge Aspen faces from 48px to 72px and label launchers “Ask Aspen”; add homepage Voice/Chat toggle and prominent session-free preview; replace default phone/laptop two-icon imagery.
+- [x] Keep composer above VisualViewport keyboard bounds and restore saved position; verified 707px Fold-sized browser, simulated keyboard shrink, 13 tests and clean build. Actual Android keyboard behavior requires owner device confirmation.
+
 - [x] Add public-only HTML summary and logo for non-JavaScript readers; verified text/image visibility, normal homepage replacement and no browser errors. Published site already returns HTTP 200 and allows crawlers; update publication to apply fallback. Full-page scraping still requires browser rendering; private protections unchanged.
 
 - [x] Combine demo chat/voice into one Aspen widget and restore closed corner position. Browser verified live text reply, one microphone acquisition per voice open and one drag wrapper; 15 tests passed. Spoken contact spelling policy deployed; Android permission layers and spoken readback still need the owner's device test.
