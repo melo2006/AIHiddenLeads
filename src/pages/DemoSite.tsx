@@ -1,16 +1,14 @@
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect, useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { MessageSquare, Mic, ArrowLeft, Phone } from "lucide-react";
+import { ArrowLeft, Phone } from "lucide-react";
 import type { DemoLeadData } from "@/components/landing/demo-results/demoResultsUtils";
 import { getResponsiveScreenshotSrc, getSiteName, withCacheKey } from "@/components/landing/demo-results/demoResultsUtils";
-import GeminiAgentWidget from "@/components/GeminiAgentWidget";
-import ChatWidget from "@/components/landing/demo-results/ChatWidget";
+import AspenDemoWidget from "@/components/landing/demo-results/AspenDemoWidget";
 import WebsiteShowcase from "@/components/landing/demo-results/WebsiteShowcase";
 import GeoGridWidget from "@/components/landing/demo-results/GeoGridWidget";
 import RankAuditPanel from "@/components/landing/demo-results/RankAuditPanel";
 import DemoWatermark from "@/components/landing/demo-results/DemoWatermark";
-import DraggableFloating from "@/components/landing/demo-results/DraggableFloating";
 import ScanningAnimation from "@/components/landing/ScanningAnimation";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { supabase } from "@/integrations/supabase/client";
@@ -233,7 +231,6 @@ const DemoSite = () => {
 
   const latestLeadData = location.state?.leadData as DemoLeadData | undefined;
   const [leadData, setLeadData] = useState<DemoLeadData | undefined>(latestLeadData);
-  const [chatOpen, setChatOpen] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [iframeBlocked, setIframeBlocked] = useState(false);
   const [iframeFailureMode, setIframeFailureMode] = useState<"blocked" | "unreachable" | null>(null);
@@ -421,7 +418,6 @@ const DemoSite = () => {
 
     setLeadData(seededLeadData);
     setIsScanning(true);
-    setChatOpen(false);
     setVoiceOpen(false);
     setIframeBlocked(false);
     setIframeFailureMode(null);
@@ -539,7 +535,6 @@ const DemoSite = () => {
   useEffect(() => {
     if (!latestLeadData) return;
     setLeadData(latestLeadData);
-    setChatOpen(false);
     setVoiceOpen(false);
     setIframeBlocked(false);
     setIframeFailureMode(null);
@@ -1065,73 +1060,26 @@ const DemoSite = () => {
             businessName={siteName}
             websiteUrl={homepageUrl}
             defaultKeyword={leadData.niche && leadData.niche !== "general" ? `${leadData.niche} near me` : ""}
-            onVoiceCall={() => { setVoiceOpen(true); setChatOpen(false); }}
+            onVoiceCall={() => { setVoiceOpen(true); }}
             onBookCall={() => navigate("/#pricing")}
           />
         )}
 
-        {/* ===== AI Widget buttons — draggable floating ===== */}
-
-        {hasAnyPreview && (
-          <>
-            <DraggableFloating initialX={24} initialY={window.innerHeight - 100} anchorRight={false}>
-              {chatOpen ? (
-                <div className="w-[min(20rem,calc(100vw-3rem))] max-h-[60vh] overflow-y-auto animate-in slide-in-from-bottom-4 fade-in duration-300">
-                  <ChatWidget
-                    key={`chat-${leadData.websiteUrl}`}
-                    businessName={siteName}
-                    businessNiche={leadData.niche || "general"}
-                    websiteUrl={homepageUrl}
-                    businessInfo={leadData.websiteContent || leadData.description || ""}
-                    ownerName={followUpName}
-                    callerName={knownCallerName}
-                    callerEmail={knownCallerEmail}
-                    callerPhone={knownCallerPhone}
-                    leadId={leadData.leadId}
-                    prospectId={leadData.prospectId}
-                    onClose={() => setChatOpen(false)}
-                  />
-                </div>
-              ) : (
-                <button
-                  onClick={() => { setChatOpen(true); setVoiceOpen(false); }}
-                  className="group flex items-center gap-2 rounded-xl bg-accent px-3 py-2 text-accent-foreground shadow-lg transition-all hover:scale-105 hover:shadow-xl sm:px-4 sm:py-2.5"
-                >
-                  <div className="relative">
-                    <MessageSquare className="h-4 w-4" />
-                    <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-primary ring-2 ring-accent" />
-                  </div>
-                  <div className="text-left">
-                    <p className="text-xs font-semibold leading-tight sm:text-sm">{t("demo.chatWithAspen")}</p>
-                    <p className="hidden text-[9px] opacity-80 sm:block">{t("demo.aiChat")}</p>
-                  </div>
-                </button>
-              )}
-            </DraggableFloating>
-
-            <DraggableFloating initialX={24} initialY={window.innerHeight - 100} anchorRight={true}>
-              {voiceOpen ? (
-                <div className="w-[min(20rem,calc(100vw-3rem))] max-h-[60vh] overflow-y-auto animate-in slide-in-from-bottom-4 fade-in duration-300">
-                  <GeminiAgentWidget autoStart leadId={leadData.leadId} prospectId={leadData.prospectId || prospectIdParam || undefined} businessName={siteName} callerName={knownCallerName} onClose={() => setVoiceOpen(false)} />
-                </div>
-              ) : (
-                <button
-                  onClick={() => { setVoiceOpen(true); setChatOpen(false); }}
-                  className="group flex items-center gap-2 rounded-xl bg-primary px-3 py-2 text-primary-foreground shadow-lg transition-all hover:scale-105 hover:shadow-xl sm:px-4 sm:py-2.5"
-                >
-                  <div className="relative">
-                    <Mic className="h-4 w-4" />
-                    <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-accent ring-2 ring-primary" />
-                  </div>
-                  <div className="text-left">
-                    <p className="text-xs font-semibold leading-tight sm:text-sm">{t("demo.talkToAspen")}</p>
-                    <p className="hidden text-[9px] opacity-80 sm:block">{t("demo.aiVoice")}</p>
-                  </div>
-                </button>
-              )}
-            </DraggableFloating>
-          </>
-        )}
+        {hasAnyPreview && <AspenDemoWidget
+          key={leadData.websiteUrl}
+          businessName={siteName}
+          businessNiche={leadData.niche || "general"}
+          websiteUrl={homepageUrl}
+          businessInfo={leadData.websiteContent || leadData.description || ""}
+          ownerName={followUpName}
+          callerName={knownCallerName}
+          callerEmail={knownCallerEmail}
+          callerPhone={knownCallerPhone}
+          leadId={leadData.leadId}
+          prospectId={leadData.prospectId || prospectIdParam || undefined}
+          voiceRequested={voiceOpen}
+          onClosed={() => setVoiceOpen(false)}
+        />}
 
       </div>
 

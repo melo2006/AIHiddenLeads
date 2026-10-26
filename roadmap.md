@@ -1,5 +1,7 @@
 # Current work
 
+- [x] Combine demo chat/voice into one Aspen widget and restore closed corner position. Browser verified live text reply, one microphone acquisition per voice open and one drag wrapper; 15 tests passed. Spoken contact spelling policy deployed; Android permission layers and spoken readback still need the owner's device test.
+
 - [x] Add brief sales introductions, requested-time checks and two real alternatives; preserve Eastern booking during travel. Deployed; 21 tests passed and live calendar/booking page rechecked without creating events. Spoken Aspen confirmation still needs the owner's call test.
 - [x] Correct platform calendar availability: ignore all-day events, honor timed busy events, use 8am–6pm Eastern and offer next openings within two weeks. Deployed and verified live /book openings October 26 through November 6; selected 8am without creating an event. Calendar/slot tests passed; live spoken booking confirmation remains unverified.
 - [ ] Fix clipped voice settings with a simple three-level noise menu; visible street maps and distinct business-center marker.
@@ -62,4 +64,4 @@
 - [x] RankAuditPanel: live Leaflet map (OSM tiles), mode toggle, 3-part timeline
 - [x] MapVisibilitySection: 3-part growth timeline (en/es/pt-BR)
 - [x] Verified live maps + nationwide scans end-to-end; cache hits cost 0 credits
-- [ ] Aspen widget Type Chat toggle (voice-only today; needs proxy text turns)
+- [x] Demo Aspen chat/voice toggle shares one floating shell while preserving existing text and voice transports.
