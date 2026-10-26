@@ -20,6 +20,7 @@ import BrowserVoiceHandoff from "@/components/BrowserVoiceHandoff";
 import { voiceIdleAction, homepageWalkthroughDue, type VoiceIdleStage } from '@/lib/voiceIdle';
 import { voiceDisconnectMessage } from '@/lib/voiceDisconnect';
 import {campaignVisit, trackCampaignEvent} from '@/lib/campaignTracking';
+import { salesPlans, type SalesPlan } from '@/lib/salesActions';
 
 const VOICES = [
   { id: "Kore", label: "Kore — warm female (default)" },
@@ -42,8 +43,8 @@ type Phase = "idle" | "connecting" | "live" | "preview";
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const WS_URL = SUPABASE_URL.replace(/^https/, "wss") + "/functions/v1/gemini-live-proxy";
 
-export interface GeminiConversationProps { agentId?: string; leadId?: string; prospectId?: string; draft?: boolean; compact?: boolean; name?: string; visitorName?: string; previewVoice?: string; autoStart?: boolean; previewOnly?: boolean; testModel?: string; }
-const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compact = false, name = "Aspen", visitorName = "", previewVoice, autoStart = false, previewOnly = false, testModel }: GeminiConversationProps) => {
+export interface GeminiConversationProps { agentId?: string; leadId?: string; prospectId?: string; draft?: boolean; compact?: boolean; name?: string; visitorName?: string; previewVoice?: string; autoStart?: boolean; previewOnly?: boolean; testModel?: string; onRecommendedPlan?: (plan: SalesPlan) => void; }
+const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compact = false, name = "Aspen", visitorName = "", previewVoice, autoStart = false, previewOnly = false, testModel, onRecommendedPlan }: GeminiConversationProps) => {
   const [pendingAction, setPendingAction] = useState<VoiceAction | null>(null);
   const [actionNotice, setActionNotice] = useState('');
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
@@ -112,6 +113,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const lastAudioRef = useRef<string[]>([]);
   const transcriptEndRef = useRef<HTMLDivElement | null>(null);
   const walkthroughRef = useRef({ text: '', continued: false });
+  const homepageWalkthroughRef = useRef(false);
   const idleRef = useRef({ enabled: false, stage: 'waiting' as VoiceIdleStage, quietSince: 0, generating: false, requestedAt: 0 });
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -120,7 +122,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       if (!liveRef.current || !idle.enabled) return;
       if (handoffRef.current || capture.paused || capture.muted || capture.replaying || capture.held || pendingAction || sourcesRef.current.size > 0) { idle.quietSince = Date.now(); return; }
       if (idle.generating) return;
-      if (idle.stage === 'waiting' && homepageWalkthroughDue(walkthroughRef.current.text, walkthroughRef.current.continued, idle.quietSince, Date.now()) && wsRef.current?.readyState === WebSocket.OPEN) {
+      if (homepageWalkthroughRef.current && idle.stage === 'waiting' && homepageWalkthroughDue(walkthroughRef.current.text, walkthroughRef.current.continued, idle.quietSince, Date.now()) && wsRef.current?.readyState === WebSocket.OPEN) {
         walkthroughRef.current.continued = true;
         idle.generating = true;
         wsRef.current.send(JSON.stringify({type:'idle_prompt',stage:'continue'}));
@@ -374,7 +376,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       }
       if (generation !== generationRef.current) { stream?.getTracks().forEach(t => t.stop()); return; }
       deadlineRef.current = Date.now() + Number(authorized.maxSeconds || 300) * 1000;
-      idleRef.current = { enabled: authorized.homepageSales === true && !preview, stage: 'waiting', quietSince: Date.now(), generating: true, requestedAt: 0 };
+      homepageWalkthroughRef.current = authorized.homepageSales === true;
+      idleRef.current = { enabled: (authorized.idleChecks === true || authorized.homepageSales === true) && !preview, stage: 'waiting', quietSince: Date.now(), generating: true, requestedAt: 0 };
       setHandoffToken(authorized.handoffToken || null);
       const ws = new WebSocket(`${WS_URL}?token=${encodeURIComponent(authorized.token)}&capture=${captureMode}`);
       wsRef.current = ws;
@@ -436,6 +439,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             };
             source.connect(node);
             node.connect(micCtx.destination);
+            break;
+          }
+          case "recommended_plan": {
+            const plan = salesPlans.find(value => value === msg.plan);
+            if (plan) onRecommendedPlan?.(plan);
             break;
           }
           case "confirm_action":
@@ -524,7 +532,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       if (generation === generationRef.current) startingRef.current = false;
       window.clearTimeout(startupTimeout);
     }
-  }, [voice, microphone, captureMode, refreshMicrophones, playPcmChunk, clearPlayback, flushLine, stopEverything, agentId, leadId, prospectId, draft, previewVoice, visitorName, consent, testModel]);
+  }, [voice, microphone, captureMode, refreshMicrophones, playPcmChunk, clearPlayback, flushLine, stopEverything, agentId, leadId, prospectId, draft, previewVoice, visitorName, consent, testModel, onRecommendedPlan]);
 
   useEffect(() => stopEverything, [stopEverything]);
 

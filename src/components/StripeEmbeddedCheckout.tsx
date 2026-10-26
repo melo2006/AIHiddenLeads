@@ -8,6 +8,7 @@ interface StripeEmbeddedCheckoutProps {
   customerEmail?: string;
   userId?: string;
   returnUrl?: string;
+  onUnavailable?: () => void;
 }
 
 export function StripeEmbeddedCheckout({
@@ -16,12 +17,14 @@ export function StripeEmbeddedCheckout({
   customerEmail,
   userId,
   returnUrl,
+  onUnavailable,
 }: StripeEmbeddedCheckoutProps) {
   const fetchClientSecret = async (): Promise<string> => {
     const { data, error } = await supabase.functions.invoke("create-checkout", {
       body: { priceId, quantity, customerEmail, userId, returnUrl, environment: getStripeEnvironment() },
     });
     if (error || !data?.clientSecret) {
+      onUnavailable?.();
       throw new Error(error?.message || "Failed to create checkout session");
     }
     return data.clientSecret;

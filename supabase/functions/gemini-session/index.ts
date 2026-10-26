@@ -68,6 +68,6 @@ Deno.serve(async req=>{
       handoffToken=capability;
     }
   }
-  return json({token,sessionId:id,maxSeconds:s?.max_seconds,homepageSales:config.homepageSales===true,name:config.name,businessName:config.businessName,voice:config.voice,avatarUrl,handoffToken});
+  return json({token,sessionId:id,maxSeconds:s?.max_seconds,homepageSales:config.homepageSales===true,idleChecks:config.homepageSales===true || config.simulation===true,name:config.name,businessName:config.businessName,voice:config.voice,avatarUrl,handoffToken});
  } catch(e) {console.error('gemini-session',e);return json({error:'Could not authorize the voice session'},500);}
 });
