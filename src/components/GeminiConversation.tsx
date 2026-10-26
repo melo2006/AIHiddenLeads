@@ -659,6 +659,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
         {showSettings && (
           <Dialog open={showSettings} onOpenChange={setShowSettings}><DialogContent className="max-h-[85dvh] w-[calc(100vw-24px)] max-w-sm overflow-y-auto"><DialogTitle>Voice settings</DialogTitle><DialogDescription>Microphone and background noise</DialogDescription><div className="space-y-3">
+            {phase !== "idle" && <div className="space-y-2 rounded-md border border-border p-3">
+              <p role="status" className="text-xs text-foreground">Noise filtering can change now. Transcript permission, microphone and conversation mode are set before each call.</p>
+              <Button variant="outline" size="sm" onClick={stopEverything}><PhoneOff className="mr-1.5 h-3.5 w-3.5" />End call to edit settings</Button>
+            </div>}
             <label className="block space-y-1 text-xs">Background noise filtering
               <Select value={noiseFilter} onValueChange={value => setNoiseFilter(value as NoiseFilter)}>
                 <SelectTrigger aria-label="Microphone sensitivity" className="h-auto min-h-9 text-xs"><SelectValue /></SelectTrigger>
@@ -701,6 +705,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
                 <Play className="mr-1.5 h-3.5 w-3.5" /> Preview voice
               </Button>
             )}
+            {phase === "idle" && <Button className="w-full" onClick={() => { setShowSettings(false); void startConversation(); }}><Mic className="mr-1.5 h-4 w-4" />Start call with these settings</Button>}
           </div></DialogContent></Dialog>
         )}
       </div>
@@ -784,6 +789,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             </div>
           </div>
 
+          {phase !== "idle" && <div className="flex flex-wrap items-center gap-2">
+            <p role="status" className="text-xs text-muted-foreground">Transcript permission, microphone and conversation mode can be changed after ending this call. Noise filtering stays adjustable.</p>
+            <Button variant="outline" size="sm" onClick={stopEverything}><PhoneOff className="mr-1.5 h-4 w-4" />End call to edit settings</Button>
+          </div>}
           <div className="flex flex-wrap items-center gap-2">
             {(!compact || draft) && <Button variant="outline" size="sm" disabled={phase !== "idle"} onClick={() => void startConversation(true)} aria-label="Play selected voice preview" title="Play selected voice preview">
               <Play className="h-4 w-4 mr-2" /> Preview voice
