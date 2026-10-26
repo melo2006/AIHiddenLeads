@@ -1,5 +1,6 @@
 # Current work
 
+- [ ] Correct platform calendar availability: ignore all-day events, honor timed busy events, use 8am–6pm Eastern and offer next openings within two weeks; verify live calendar and booking page.
 - [ ] Fix clipped voice settings with a simple three-level noise menu; visible street maps and distinct business-center marker.
 - [ ] Make homepage business name optional, use scanned identity, and provide reusable B2B audit searches/results.
 - [ ] Add editable simulation greeting/system prompt, five-minute duration visibility, confirmed visitor contact capture and platform-only calendar booking.
