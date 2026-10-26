@@ -464,6 +464,36 @@ export type Database = {
           },
         ]
       }
+      campaign_visit_events: {
+        Row: {
+          campaign: string
+          created_at: string
+          event: string
+          id: string
+          path: string
+          source: string
+          visit_id: string
+        }
+        Insert: {
+          campaign?: string
+          created_at?: string
+          event: string
+          id?: string
+          path: string
+          source?: string
+          visit_id: string
+        }
+        Update: {
+          campaign?: string
+          created_at?: string
+          event?: string
+          id?: string
+          path?: string
+          source?: string
+          visit_id?: string
+        }
+        Relationships: []
+      }
       campaigns: {
         Row: {
           created_at: string

@@ -57,6 +57,13 @@
       "when": 1792993336656,
       "tag": "0007_homepage_sales_voice_duration",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792996617141,
+      "tag": "0008_campaign_visit_events",
+      "breakpoints": true
     }
   ]
 }
