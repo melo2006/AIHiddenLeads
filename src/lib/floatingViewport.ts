@@ -1,5 +1,9 @@
 export type FloatingViewport = { left: number; top: number; width: number; height: number };
 
+export function floatingCornerPosition(size: { width: number; height: number }, viewport: FloatingViewport, inset = 12) {
+  return fitFloatingPosition({ x: viewport.left + viewport.width - size.width - inset, y: viewport.top + viewport.height - size.height - inset }, size, viewport);
+}
+
 export function fitFloatingPosition(position: { x: number; y: number }, size: { width: number; height: number }, viewport: FloatingViewport, padding = 12) {
   return {
     x: Math.min(Math.max(position.x, viewport.left + padding), Math.max(viewport.left + padding, viewport.left + viewport.width - size.width - padding)),
