@@ -418,7 +418,6 @@ const DemoSite = () => {
 
     setLeadData(seededLeadData);
     setIsScanning(true);
-    setChatOpen(false);
     setVoiceOpen(false);
     setIframeBlocked(false);
     setIframeFailureMode(null);
@@ -536,7 +535,6 @@ const DemoSite = () => {
   useEffect(() => {
     if (!latestLeadData) return;
     setLeadData(latestLeadData);
-    setChatOpen(false);
     setVoiceOpen(false);
     setIframeBlocked(false);
     setIframeFailureMode(null);
