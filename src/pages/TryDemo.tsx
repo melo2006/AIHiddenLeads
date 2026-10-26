@@ -186,6 +186,7 @@ const TryDemo = () => {
 
     try {
       // Always use the safe public demo helper. Public visitors cannot query the private leads table directly.
+      void trackCampaignEvent('scan_started');
       const { data: leadId, error } = await (supabase as any).rpc("create_demo_lead", {
         // Track only milestones, never form contact fields.
         _business_name: businessName,

@@ -136,7 +136,7 @@ Deno.serve(async (req) => {
       if (!preview) {
         const review = config.recordTranscript && config.homepageSales ? callReview(transcript) : null;
         const {data:previous}=await db.from('call_history').select('metadata').eq('retell_call_id',`gemini_${session.id}`).maybeSingle();
-        const {error:historyError} = await db.from('call_history').upsert({ retell_call_id: `gemini_${session.id}`, lead_id: session.lead_id, prospect_id: session.prospect_id, business_name: String(config.businessName), call_status: 'ended', duration_seconds: duration, started_at: new Date(started).toISOString(), ended_at: new Date().toISOString(), transcript: config.recordTranscript ? transcript.map(t => `${t.role}: ${t.text}`).join('\n') : null, ...(review ? {summary:review.summary,key_points:review.interest} : {}), metadata: { ...previous?.metadata, provider: 'gemini', session_id: session.id, agent_id: session.agent_id, transcript_consent: config.recordTranscript, end_reason:endReason,close_code:closeCode,review,usage: usage() } },{onConflict:'retell_call_id'})
+        const {error:historyError} = await db.from('call_history').upsert({ retell_call_id: `gemini_${session.id}`, lead_id: session.lead_id, prospect_id: session.prospect_id, business_name: String(config.businessName), call_status: 'ended', duration_seconds: duration, started_at: new Date(started).toISOString(), ended_at: new Date().toISOString(), transcript: config.recordTranscript ? transcript.map(t => `${t.role}: ${t.text}`).join('\n') : null, ...(review ? {summary:review.summary,key_points:review.interest} : {}), metadata: { ...previous?.metadata, provider: 'gemini', session_id: session.id, agent_id: session.agent_id, campaign:config.campaign || null, transcript_consent: config.recordTranscript, end_reason:endReason,close_code:closeCode,review,usage: usage() } },{onConflict:'retell_call_id'})
         if (historyError) console.error('call history persistence',historyError.message)
       }
     })())
@@ -307,7 +307,7 @@ Deno.serve(async (req) => {
     try {
       if (typeof event.data !== 'string' || event.data.length > 65536) { closeAll(); return }
       const msg = JSON.parse(event.data)
-      if(msg.type==='end_session' && (msg.reason==='silence_timeout' || msg.reason==='user_ended')) {endReason=msg.reason;closeCode=1000;closeAll();return;}
+      if(msg.type==='end_session' && (msg.reason==='silence_timeout' || msg.reason==='user_ended')) {if(endReason==='connection_closed'){endReason=msg.reason;closeCode=1000;}closeAll();return;}
       if (msg.type === 'confirm_action' && typeof msg.id === 'string') {
         const action = pendingActions.get(msg.id);
         if (!action) return;

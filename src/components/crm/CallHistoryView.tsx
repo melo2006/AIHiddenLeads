@@ -344,6 +344,7 @@ const CallRow = ({ call }: { call: CallRecord }) => {
 
       {expanded && (
         <div className="px-4 pb-4 space-y-3 border-t border-border pt-3">
+          {call.retell_call_id.startsWith('gemini_') && <p className="text-xs text-muted-foreground">Audio recording is not saved for Gemini. Transcript: {call.transcript ? 'saved with permission' : 'not saved'}. End reason: {String(call.metadata?.end_reason || 'not captured for this historical call')}.</p>}
           {call.retell_call_id.startsWith('gemini_') && <Link to="/dashboard/voice-costs" className="text-xs text-primary underline">Gemini Voice Costs — call and per-minute estimates</Link>}
           {/* Recording */}
           {!call.retell_call_id.startsWith('gemini_') && <div>
