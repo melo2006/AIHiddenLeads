@@ -117,8 +117,15 @@ Deno.serve(async (req) => {
   const usage = () => ({ model, input_audio_seconds: inputAudioSeconds, output_audio_seconds: outputAudioSeconds, audio_estimate_usd: audioCost(inputAudioSeconds, outputAudioSeconds, pricing), pricing, provider_reports: providerReports, cost_basis: pricing ? 'published_audio_estimate_excludes_text_context_and_scanning' : 'pricing_unverified' })
   let heartbeat: ReturnType<typeof setInterval> | undefined
   const persistUsage = async () => {
+    if(closed)return;
     const { error } = await db.from('gemini_voice_sessions').update({ status: 'live', duration_seconds: Math.round((Date.now()-started)/1000), last_activity_at: new Date().toISOString(), usage: usage(), ...(config.recordTranscript ? {transcript} : {}) }).eq('id',session.id)
     if (error) console.error('usage checkpoint failed',error.message)
+    if(!preview&&!closed){
+      const review=config.recordTranscript&&config.homepageSales ? callReview(transcript) : null;
+      const {data:previous}=await db.from('call_history').select('metadata').eq('retell_call_id',`gemini_${session.id}`).maybeSingle();
+      const {error:historyError}=await db.from('call_history').upsert({retell_call_id:`gemini_${session.id}`,lead_id:session.lead_id,prospect_id:session.prospect_id,business_name:String(config.businessName),call_status:'live',duration_seconds:Math.round((Date.now()-started)/1000),transcript:config.recordTranscript?transcript.map(t=>`${t.role}: ${t.text}`).join('\n'):null,...(review?{summary:review.summary}:{}),metadata:{...previous?.metadata,provider:'gemini',session_id:session.id,campaign:config.campaign||null,transcript_consent:config.recordTranscript,review,usage:usage()}},{onConflict:'retell_call_id'});
+      if(historyError)console.error('call checkpoint failed',historyError.message);
+    }
   }
   let sessionTimer: ReturnType<typeof setTimeout> | undefined
   let endReason = 'connection_closed';
