@@ -1,5 +1,9 @@
 # Current work
 
+- [ ] Diagnose dropped homepage call/white screen; isolate widget failure, show explicit disconnect reasons and preserve diagnostics.
+- [ ] Surface call retention, transcripts, service-interest evidence and engagement reporting in private call dashboard; explain consent and campaign attribution limits.
+- [ ] Check owner email recap options without automatically emailing every test call or recording without visitor consent.
+
 - [x] Strengthen homepage and saved Aspen sales pitch around five ordered services, two practical advantages each, $99/50-lead offer and early demo invitation. Actual provider greeting, saved draft/live equality, editable admin prompt, three attributed research figures and demo/add-on CTAs verified. Written source/playbook saved; GitHub remote sync and existing prerecorded video replacement are not verified.
 - [x] Disable automatic microphone gain in Strong filtering where supported; retain hold-to-talk for loud wind/engine noise. Bounded six-second next-service continuation and fifteen-second silence closure tested; 41 tests passed and phone/desktop homepage verified. Physical boat/headset performance remains owner-device verification.
 
