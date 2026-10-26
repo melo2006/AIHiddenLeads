@@ -1,4 +1,4 @@
-import { HOMEPAGE_SERVICE_AREAS } from '../../supabase/functions/_shared/homepage-services';
+import { HOMEPAGE_SERVICE_AREAS, HOMEPAGE_STARTER } from '../../supabase/functions/_shared/homepage-services';
 
 type SalesCopy = { badge: string; headline: string; headlineAccent: string; sub: string; start: string; trust: string; title: string; description: string; technology: string; demo: string; addons: string; scope: string; services: ReadonlyArray<{ id: string; name: string; scope: string; benefits: readonly string[] }> };
 
@@ -7,7 +7,7 @@ const english: SalesCopy = {
   headline: 'AI Hidden Leads',
   headlineAccent: 'Beyond voicemail.',
   sub: 'Conversational reception, fresh B2B prospects, location-aware search, reputation and social content for small and mid-sized businesses.',
-  start: 'Start with voice + chat + 50 B2B prospects/month for $99/mo.',
+  start: `Start with voice + chat + ${HOMEPAGE_STARTER.leadsPerMonth} B2B prospects/month for $${HOMEPAGE_STARTER.monthlyUsd}/mo.`,
   trust: 'Free website simulation · Your name + website · No credit card',
   title: 'Five ways to compete. One place to start.',
   description: 'Start by catching inquiries and finding fresh prospects. Add search, reputation and social support as your business grows.',
@@ -21,7 +21,7 @@ const english: SalesCopy = {
 const spanish: SalesCopy = {
   badge: 'Herramientas de IA de 2026. Ventajas prácticas.', headline: 'AI Hidden Leads', headlineAccent: 'Más que un buzón de voz.',
   sub: 'Recepción conversacional, prospectos B2B, búsqueda local, reputación y contenido social para pequeñas y medianas empresas.',
-  start: 'Empieza con voz + chat + 50 prospectos B2B/mes por US$99/mes.', trust: 'Simulación web gratis · Tu nombre + sitio web · Sin tarjeta',
+  start: `Empieza con voz + chat + ${HOMEPAGE_STARTER.leadsPerMonth} prospectos B2B/mes por US$${HOMEPAGE_STARTER.monthlyUsd}/mes.`, trust: 'Simulación web gratis · Tu nombre + sitio web · Sin tarjeta',
   title: 'Cinco formas de competir. Un punto de partida.', description: 'Empieza captando consultas y nuevos prospectos. Añade búsqueda, reputación y redes sociales a medida que creces.',
   technology: 'Escucha la diferencia: voz conversacional en vivo, conocimiento de tu sitio y chat integrado; no un saludo de buzón pregrabado.',
   demo: 'Probar en mi sitio — gratis', addons: 'Ver paquetes adicionales',
@@ -38,7 +38,7 @@ const spanish: SalesCopy = {
 const portuguese: SalesCopy = {
   badge:'Ferramentas de IA de 2026. Vantagens práticas.',headline:'AI Hidden Leads',headlineAccent:'Além da caixa postal.',
   sub:'Recepção por IA, novos prospects B2B, busca local, reputação e conteúdo social para pequenas e médias empresas.',
-  start:'Comece com voz + chat + 50 prospects B2B/mês por US$99/mês.',trust:'Simulação gratuita · Seu nome + site · Sem cartão',
+  start:`Comece com voz + chat + ${HOMEPAGE_STARTER.leadsPerMonth} prospects B2B/mês por US$${HOMEPAGE_STARTER.monthlyUsd}/mês.`,trust:'Simulação gratuita · Seu nome + site · Sem cartão',
   title:'Cinco formas de competir. Um ponto de partida.',description:'Comece atendendo consultas e encontrando novos prospects. Adicione busca, reputação e redes sociais conforme sua empresa cresce.',
   technology:'Ouça a diferença: voz conversacional ao vivo, conhecimento do seu site e chat integrado — não uma saudação gravada de caixa postal.',
   demo:'Testar no meu site — grátis',addons:'Ver pacotes adicionais',
