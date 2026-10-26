@@ -1,10 +1,9 @@
 import { motion } from "framer-motion";
-import { Phone, PhoneOff, Zap, TrendingUp, MessageCircle } from "lucide-react";
-import { useTranslation, Trans } from "react-i18next";
+import { Phone, PhoneOff, Zap, TrendingUp } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import type { NicheData } from "@/data/nicheData";
-import aspenHero from "@/assets/aspen-hero.jpg";
 import AspenWindowPreview from './AspenWindowPreview';
 
 interface HeroSectionProps {

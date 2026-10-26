@@ -1,10 +1,10 @@
 # Architecture rules
 
-- Keep a factual, public-only HTML fallback in the entry document for non-JavaScript readers; React replaces it on startup, and it must never contain tenant data or imply route-specific rendering.
+- Keep a public-only HTML fallback for non-JavaScript readers; React replaces it. Never include tenant data or imply route-specific rendering.
 
 - Keep demo progress pending until scan data arrives and render captured screenshots eagerly while iframe checks run; preload only cached public voice identity before interaction, never single-use voice capabilities or microphone capture, to reduce startup waits without premature usage.
 
-- Keep demo rank audits and homepage comparison data isolated from website and voice rendering; use explicitly simulated deterministic pins and shared homepage search-offer arithmetic, reserving authenticated live-provider adapters so examples never become claimed measurements.
+- Isolate rank audits and homepage comparisons from voice/site rendering; label deterministic examples simulated and share offer arithmetic. Keep the homepage Aspen window preview session-free.
 
 - Keep Gemini Live session instructions and audio-detection settings server-side in its proxy; this keeps language policy consistent and private credentials out of the browser.
 - Keep live provider verification tests opt-in through an environment URL; routine tests must not consume third-party call usage.
@@ -16,7 +16,7 @@
 - Apply saved reading size through root rem sizing, with wrapping and scrollable navigation rather than CSS page zoom, to avoid horizontal clipping.
 - Keep microphone amplitude filtering browser-side with silence frames and speech-tail hangover; Gemini language and provider VAD remain server-side.
 - Render transcript messages with AI Elements MessageResponse; the demo shares one floating shell around existing chat and Gemini voice transports, ending microphone capture when leaving voice mode so text chat never captures audio.
-- Reset the floating demo shell to its corner on open/close state changes; use one positioning owner to prevent nested fixed containers from drifting.
+- Use one floating positioning owner; reset on open/close, clamp to VisualViewport without changing saved keyboard-free position, and keep the composer outside the scrolling transcript.
 - Prebundle transcript renderer dependencies and recover stale Vite chunk loads once per minute; preview updates must not leave open tabs blank or cause reload loops.
 - Build prospect simulation configurations separately from homepage sales configurations, sharing only voice identity so platform greetings never leak into business roleplay.
 - Store editable prospect simulation templates separately from homepage sales templates; platform actions require explicit on-screen confirmation and never act for the simulated business.
