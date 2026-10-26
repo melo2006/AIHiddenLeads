@@ -1,8 +1,9 @@
 # Current work
 
-- [ ] Diagnose dropped homepage call/white screen; isolate widget failure, show explicit disconnect reasons and preserve diagnostics.
-- [ ] Surface call retention, transcripts, service-interest evidence and engagement reporting in private call dashboard; explain consent and campaign attribution limits.
-- [ ] Check owner email recap options without automatically emailing every test call or recording without visitor consent.
+- [x] Investigate dropped call/white screen: latest call ended at 122s of 600s, no fatal browser error or saved close reason. Added isolated assistant recovery, explicit disconnect notices and new-call close diagnostics; original cause remains unproven.
+- [x] Add private Campaign Results, contact-free UTM milestones, consented written transcript checkpoints and rule-based service-mention/coverage review. Real consented call saved 1,331 transcript characters and user-ended reason; private desktop/phone dashboard verified. No full audio recording or AI assessment; historical unsaved content unavailable.
+- [x] Check owner recap options: user chose daily email; no built-in sender domain is configured. No per-call emails or silent audio recording enabled.
+- [ ] Enable daily owner operational report and schedule after sender-domain verification; blocked on email setup. Full audio recording needs separate recording/retention setup and consent policy.
 
 - [x] Strengthen homepage and saved Aspen sales pitch around five ordered services, two practical advantages each, $99/50-lead offer and early demo invitation. Actual provider greeting, saved draft/live equality, editable admin prompt, three attributed research figures and demo/add-on CTAs verified. Written source/playbook saved; GitHub remote sync and existing prerecorded video replacement are not verified.
 - [x] Disable automatic microphone gain in Strong filtering where supported; retain hold-to-talk for loud wind/engine noise. Bounded six-second next-service continuation and fifteen-second silence closure tested; 41 tests passed and phone/desktop homepage verified. Physical boat/headset performance remains owner-device verification.
