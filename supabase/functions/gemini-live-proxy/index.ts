@@ -135,7 +135,7 @@ Deno.serve(async (req) => {
     if (closed) return
     closed = true
     releaseSocket?.()
-    clearTimeout(sessionTimer)
+    clearTimeout(sessionTimer); clearInterval(pacingTimer)
     clearInterval(heartbeat)
     const duration = Math.round((Date.now() - started) / 1000)
     EdgeRuntime.waitUntil((async () => {
