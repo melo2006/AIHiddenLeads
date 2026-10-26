@@ -5,7 +5,7 @@ import { DEFAULT_AGENT, VOICES, greeting, businessDemoConfig } from '../_shared/
 import { DEFAULT_LIVE_MODEL, officialLivePricing } from '../_shared/live-models.ts';
 import { voiceQuotaClass, voiceLimitResponse } from '../_shared/voice-session-limit.ts';
 import { transferDestination } from '../_shared/browser-handoff.ts';
-const schema=z.object({ visitorKey:z.string().min(16).max(100), model:z.string().max(100).optional(), agentId:z.string().uuid().optional(), leadId:z.string().uuid().optional(), prospectId:z.string().uuid().optional(), draft:z.boolean().default(false), preview:z.boolean().default(false), voice:z.enum(VOICES as [string,...string[]]).optional(), hour:z.number().int().min(0).max(23).optional(), visitorName:z.string().max(100).default(''), consent:z.boolean().default(false) });
+const schema=z.object({ visitorKey:z.string().min(16).max(100), model:z.string().max(100).optional(), agentId:z.string().uuid().optional(), leadId:z.string().uuid().optional(), prospectId:z.string().uuid().optional(), draft:z.boolean().default(false), preview:z.boolean().default(false), voice:z.enum(VOICES as [string,...string[]]).optional(), hour:z.number().int().min(0).max(23).optional(), visitorName:z.string().max(100).default(''), timeZone:z.string().max(100).default('UTC'), consent:z.boolean().default(false) });
 const json=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
 export async function hash(value:string) { return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)))).map(b=>b.toString(16).padStart(2,'0')).join(''); }
 Deno.serve(async req=>{
@@ -30,12 +30,12 @@ Deno.serve(async req=>{
     if(b.voice) config.voice=b.voice;
   } else if(b.leadId || b.prospectId) {
     if(b.leadId && b.prospectId) { const {data:p}=await db.from('prospects').select('website_url').eq('id',b.prospectId).maybeSingle(); const {data:l}=await db.from('leads').select('website_url').eq('id',b.leadId).maybeSingle(); if(!p || !l || p.website_url!==l.website_url) return json({error:'Prospect and demo website do not match'},400); }
-    let knowledge='', businessName='';
-    if(b.leadId) { const {data:lead}=await db.from('leads').select('business_name,website_url,website_content,scan_status').eq('id',b.leadId).maybeSingle(); if(!lead || !lead.website_content || !['completed','enriched'].includes(lead.scan_status)) return json({error:'This business demo has not finished learning its website. Please wait for the scan.'},409); knowledge=lead.website_content; businessName=lead.business_name; }
+    let knowledge='', businessName=''; let visitorContact: Record<string,unknown> = {};
+    if(b.leadId) { const {data:lead}=await db.from('leads').select('business_name,website_url,website_content,scan_status,full_name,email,phone').eq('id',b.leadId).maybeSingle(); if(!lead || !lead.website_content || !['completed','enriched'].includes(lead.scan_status)) return json({error:'This business demo has not finished learning its website. Please wait for the scan.'},409); knowledge=lead.website_content; businessName=lead.business_name; visitorContact={name:lead.full_name,email:lead.email || '',phone:lead.phone || ''}; }
     else { const {data:p}=await db.from('prospects').select('business_name,business_data,ai_analysis').eq('id',b.prospectId).maybeSingle(); if(!p) return json({error:'Demo business not found'},404); knowledge=JSON.stringify(p.business_data || {}); businessName=p.business_name; if(knowledge.length<20) return json({error:'Prepare this prospect website demo before starting a call.'},409); }
     const {data:aspen}=await db.from('voice_agents').select('published').eq('slug','aspen-homepage').maybeSingle();
     const published=aspen?.published as Record<string,unknown>|undefined;
-    config=businessDemoConfig(businessName,knowledge,published);
+    config={...businessDemoConfig(businessName,knowledge,published), visitorContact, platformFollowup:true};
   } else {
     let query=db.from('voice_agents').select('*'); query=b.agentId?query.eq('id',b.agentId):query.eq('slug','aspen-homepage');
     const {data:agent}=await query.maybeSingle(); if(!agent?.published) return json({error:'Voice agent is not published yet'},409);
@@ -43,7 +43,7 @@ Deno.serve(async req=>{
   }
   const requestedModel = b.model;
   if(requestedModel && (!(b.draft || b.preview) || !officialLivePricing(requestedModel))) return json({error:'Model comparison is available only for authorized draft tests and previews.'},400);
-  config={...config,quotaClass:voiceQuotaClass(role?.role==='admin',b.preview),model:requestedModel || DEFAULT_LIVE_MODEL,opening:greeting(config,b.hour,b.visitorName),preview:b.preview,recordTranscript:Boolean(config.recordTranscript)&&b.consent};
+  config={...config,timeZone:b.timeZone,quotaClass:voiceQuotaClass(role?.role==='admin',b.preview),model:requestedModel || DEFAULT_LIVE_MODEL,opening:greeting(config,b.hour,b.visitorName || String((config.visitorContact as Record<string,unknown>|undefined)?.name || '')),preview:b.preview,recordTranscript:Boolean(config.recordTranscript)&&b.consent};
   const token=crypto.randomUUID()+crypto.randomUUID();
   const visitor=await hash(`${b.visitorKey}|${req.headers.get('x-forwarded-for')?.split(',')[0] || ''}`);
   const {data:id,error}=await db.rpc('authorize_gemini_session',{_visitor:visitor,_token:await hash(token),_config:config,_agent:agentId,_org:orgId,_lead:b.leadId || null,_prospect:b.prospectId || null});
