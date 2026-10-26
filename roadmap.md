@@ -1,7 +1,7 @@
 # Current work
 
-- [ ] Narrow Aspen launcher with stacked label and larger face; update matching homepage device images.
-- [ ] Restore independently scrolling chat with compact keyboard-safe composer; keep voice settings and all choices above the assistant.
+- [x] Narrow Aspen launcher with stacked label and larger face; update matching homepage device images. Verified 390px phone and desktop rendering.
+- [x] Restore independently scrolling chat with compact keyboard-safe composer; keep voice settings and all choices above the assistant. Verified real chat reply, selectable Strong filtering, simulated keyboard bounds and nine tests; actual Android keyboard remains device-dependent.
 
 - [x] Enlarge Aspen faces from 48px to 72px and label launchers “Ask Aspen”; add homepage Voice/Chat toggle and prominent session-free preview; replace default phone/laptop two-icon imagery.
 - [x] Keep composer above VisualViewport keyboard bounds and restore saved position; verified 707px Fold-sized browser, simulated keyboard shrink, 13 tests and clean build. Actual Android keyboard behavior requires owner device confirmation.
