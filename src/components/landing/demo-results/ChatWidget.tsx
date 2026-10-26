@@ -48,6 +48,7 @@ const ChatWidget = ({
   const [isStreaming, setIsStreaming] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const followLatest = useRef(true);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const initialized = useRef(false);
   const mounted = useRef(true);
@@ -84,7 +85,7 @@ const ChatWidget = ({
 
   useEffect(() => {
     const panel = messagesEndRef.current?.parentElement;
-    if (panel) panel.scrollTop = panel.scrollHeight;
+    if (panel && followLatest.current) panel.scrollTop = panel.scrollHeight;
   }, [messages, isThinking]);
 
   const quickPrompts = useMemo(() => {
@@ -242,6 +243,7 @@ CRITICAL RULES:
     }
 
     const updated = [...messages, { role: "user" as const, content: userMsg }];
+    followLatest.current = true;
     setMessages(updated);
     setIsThinking(true);
     logChatMessage("user", userMsg);
@@ -312,7 +314,7 @@ CRITICAL RULES:
         </div>
       ) : (
       <>
-      <div className={`${embedded ? 'min-h-0 flex-1 max-h-[35dvh]' : 'max-h-[22rem]'} overflow-y-auto p-3 space-y-2.5`}>
+      <div aria-label="Aspen chat messages" role="region" onScroll={event => { const panel = event.currentTarget; followLatest.current = panel.scrollHeight - panel.scrollTop - panel.clientHeight < 48; }} className={`${embedded ? 'min-h-0 flex-1 max-h-[35dvh]' : 'max-h-[22rem]'} overflow-y-auto overscroll-contain touch-pan-y p-3 space-y-2.5`}>
         {messages.map((msg, i) => (
           <div key={i} className={`flex gap-2 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
             <div
@@ -375,10 +377,11 @@ CRITICAL RULES:
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Ask Aspen anything..."
-          className="min-h-12 max-h-24 w-full min-w-0 text-base"
+          rows={2}
+          className="h-14 min-h-14 max-h-20 flex-none w-full min-w-0 py-2 text-base"
           disabled={isBusy}
         />
-        <PromptInputFooter className="justify-end">
+        <PromptInputFooter className="justify-end px-2 pb-2 pt-0">
         <PromptInputSubmit
           disabled={!input.trim() || isBusy}
           status={isThinking ? 'submitted' : isStreaming ? 'streaming' : 'ready'}

@@ -6,9 +6,9 @@ import type { NicheData } from "@/data/nicheData";
 
 // Realtors
 import oldPhoneRealtors from "@/assets/old-website-phone.png";
-import newPhoneRealtors from "@/assets/new-website-phone-aspen.png";
+import newPhoneRealtors from "@/assets/new-website-phone-aspen-stacked.png";
 import oldLaptopRealtors from "@/assets/old-website-laptop.png";
-import newLaptopRealtors from "@/assets/new-website-laptop-aspen.png";
+import newLaptopRealtors from "@/assets/new-website-laptop-aspen-stacked.png";
 
 // Med Spas
 import oldPhoneMedspa from "@/assets/old-medspa-phone.png";

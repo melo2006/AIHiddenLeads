@@ -199,7 +199,7 @@ const DraggableFloating = ({
         position: "fixed",
         left: visiblePosition.x,
         top: visiblePosition.y,
-        zIndex: 60,
+        zIndex: 'var(--layer-floating)',
         touchAction: isDragging ? "none" : "auto",
         '--aspen-available-height': `${Math.max(140, viewport.height - 56)}px`,
       } as React.CSSProperties}
