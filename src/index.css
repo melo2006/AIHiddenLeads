@@ -107,6 +107,11 @@
 }
 
 @layer utilities {
+  .aspen-panel { display: flex; flex-direction: column; max-height: min(70dvh, var(--aspen-available-height, 70dvh)); }
+  .aspen-panel.hidden { display: none; }
+  .aspen-panel > header, .aspen-panel > div:first-child, .aspen-panel > div[aria-label] { flex-shrink: 0; }
+  .aspen-chat-content { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+  .aspen-chat-content > div { display: flex; flex: 1; min-height: 0; flex-direction: column; }
   .visibility-map { background: hsl(var(--muted) / 0.45); }
   .visibility-map button.audit-rank-good:hover { color: hsl(var(--primary-foreground)); background: hsl(var(--primary)); }
   .visibility-map button.audit-rank-warning:hover { color: hsl(var(--primary-foreground)); background: hsl(var(--audit-rank-warning)); }

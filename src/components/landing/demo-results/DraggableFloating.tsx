@@ -1,5 +1,7 @@
 import { useState, useRef, useCallback, useEffect, type ReactNode } from "react";
 import { GripVertical } from "lucide-react";
+import { Button } from '@/components/ui/button';
+import { fitFloatingPosition, type FloatingViewport } from '@/lib/floatingViewport';
 
 const VIEWPORT_PADDING = 12;
 
@@ -33,6 +35,17 @@ const DraggableFloating = ({
   const activePointerId = useRef<number | null>(null);
   const offset = useRef({ x: 0, y: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
+  const [viewport, setViewport] = useState<FloatingViewport>(() => ({ left: 0, top: 0, width: window.innerWidth, height: window.innerHeight }));
+  const [dimensions, setDimensions] = useState({ width: 200, height: 80 });
+  useEffect(() => {
+    const visual = window.visualViewport;
+    const update = () => setViewport({ left: visual?.offsetLeft ?? 0, top: visual?.offsetTop ?? 0, width: visual?.width ?? window.innerWidth, height: visual?.height ?? window.innerHeight });
+    update();
+    visual?.addEventListener('resize', update);
+    visual?.addEventListener('scroll', update);
+    window.addEventListener('resize', update);
+    return () => { visual?.removeEventListener('resize', update); visual?.removeEventListener('scroll', update); window.removeEventListener('resize', update); };
+  }, []);
 
   const clampPosition = useCallback((nextPosition?: { x: number; y: number }) => {
     const el = containerRef.current;
@@ -101,7 +114,7 @@ const DraggableFloating = ({
   useEffect(() => {
     const element = containerRef.current;
     if (!element) return;
-    const observer = new ResizeObserver(() => clampPosition());
+    const observer = new ResizeObserver(() => { setDimensions({ width: element.offsetWidth, height: element.offsetHeight }); });
     observer.observe(element);
     return () => observer.disconnect();
   }, [clampPosition]);
@@ -172,6 +185,7 @@ const DraggableFloating = ({
     };
   }, [isDragging, stopDragging]);
 
+  const visiblePosition = fitFloatingPosition(pos, dimensions, viewport);
   return (
     <div
       ref={containerRef}
@@ -179,22 +193,24 @@ const DraggableFloating = ({
       onLostPointerCapture={() => stopDragging()}
       style={{
         position: "fixed",
-        left: pos.x,
-        top: pos.y,
+        left: visiblePosition.x,
+        top: visiblePosition.y,
         zIndex: 50,
         touchAction: isDragging ? "none" : "auto",
-      }}
+        '--aspen-available-height': `${Math.max(140, viewport.height - 56)}px`,
+      } as React.CSSProperties}
     >
       <div className="flex flex-col items-center">
-        <button
+        <Button
           type="button"
           data-drag-handle
-          className="mb-1 flex cursor-grab touch-none select-none items-center gap-1 rounded-full border border-border bg-card/95 px-2 py-0.5 text-muted-foreground shadow-md backdrop-blur-sm transition-colors hover:bg-accent hover:text-foreground active:cursor-grabbing"
+          variant="ghost"
+          className="mb-1 h-5 flex cursor-grab touch-none select-none items-center gap-1 rounded-full border border-border bg-card/95 px-2 py-0.5 text-muted-foreground shadow-md backdrop-blur-sm transition-colors hover:bg-accent hover:text-foreground active:cursor-grabbing"
           aria-label="Drag widget"
         >
           <GripVertical className="h-3 w-3" />
           <span className="text-[8px] font-bold uppercase tracking-wider">{isDragging ? "Moving" : "Drag"}</span>
-        </button>
+        </Button>
         {children}
       </div>
     </div>
