@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Mic, MessageSquare, Send, SlidersHorizontal, RotateCcw } from 'lucide-react';
+import { Mic, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MessageResponse } from '@/components/ai-elements/message';
 import avatar from '@/assets/aspen_blonde_avatar.jpg';

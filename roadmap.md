@@ -102,3 +102,7 @@
 - [ ] Reuse homepage navigation/footer on checkout and setup; close paid setup into a private customer dashboard.
 - [ ] Add customer agent website/URL and appearance editing with reviewed website-derived suggestions.
 - [ ] Add detailed WordPress/Wix installation guidance and verify customer navigation and saved appearance.
+- [x] Voice selected in homepage preview; real Voice/Chat opening action added without microphone preloading.
+- [x] Branded checkout/setup and private /account navigation added; editor restricted to workspace agent.
+- [x] Validated versioned colors/fonts, website URL and assistant slug editing added; scan-derived reviewed suggestions, safe public appearance rendering and WordPress/Wix instructions deployed.
+- [ ] Verify full paid customer save/publish/install flow. No paid workspace in the available signed-in test account; payment-account/address setup remains the purchase blocker.
