@@ -96,3 +96,9 @@
 - [x] MapVisibilitySection: 3-part growth timeline (en/es/pt-BR)
 - [x] Verified live maps + nationwide scans end-to-end; cache hits cost 0 credits
 - [x] Demo Aspen chat/voice toggle shares one floating shell while preserving existing text and voice transports.
+
+## Customer dashboard and homepage voice
+- [ ] Default the homepage Aspen preview to Voice, keeping Chat available.
+- [ ] Reuse homepage navigation/footer on checkout and setup; close paid setup into a private customer dashboard.
+- [ ] Add customer agent website/URL and appearance editing with reviewed website-derived suggestions.
+- [ ] Add detailed WordPress/Wix installation guidance and verify customer navigation and saved appearance.

@@ -6,7 +6,7 @@ import avatar from '@/assets/aspen_blonde_avatar.jpg';
 import AspenSalesActions from '@/components/AspenSalesActions';
 
 export default function AspenWindowPreview() {
-  const [mode, setMode] = useState<'chat' | 'voice'>('chat');
+  const [mode, setMode] = useState<'chat' | 'voice'>('voice');
   return <div className="w-full max-w-sm overflow-hidden rounded-lg border-2 border-primary/40 bg-card shadow-xl" aria-label="Aspen window preview">
     <header className="flex items-center gap-3 border-b border-border p-4">
       <img src={avatar} alt="Aspen" className="h-20 w-20 shrink-0 rounded-full object-cover" />
