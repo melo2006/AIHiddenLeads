@@ -1,4 +1,4 @@
-import { Routes, Route, useNavigate } from "react-router-dom";
+import { Routes, Route, useNavigate, Navigate } from "react-router-dom";
 import { type FormEvent, useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
@@ -19,7 +19,6 @@ import PipelinePageView from "@/components/crm/PipelinePageView";
 import TemplatesView from "@/components/crm/TemplatesView";
 import VoiceAgentsView from "@/components/crm/VoiceAgentsView";
 import VoiceCostsView from "@/components/crm/VoiceCostsView";
-import GuardrailsView from "@/components/crm/GuardrailsView";
 import CallHistoryView from "@/components/crm/CallHistoryView";
 import DemoSessionsView from "@/components/crm/DemoSessionsView";
 import ImportedListsView from "@/components/crm/ImportedListsView";
@@ -256,7 +255,8 @@ const CRM = () => {
               <Route path="ad-hijack" element={<AdHijack />} />
               <Route path="voice-agents" element={<VoiceAgentsView />} />
               <Route path="voice-costs" element={<VoiceCostsView />} />
-              <Route path="guardrails" element={<GuardrailsView />} />
+              <Route path="guardrails" element={<Navigate to="/dashboard/voice-costs#limits" replace />} />
+              <Route path="video-avatars" element={<div className="space-y-2 p-4 text-sm"><h1 className="text-lg font-bold">Video Avatars</h1><p className="text-muted-foreground">Coming next: let visitors choose voice only (Gemini Live), a Simli video avatar, or a HeyGen video avatar. Not connected yet.</p></div>} />
               <Route path="*" element={<CRMDashboard />} />
             </Routes>
           </main>

@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard, Search, Megaphone, LayoutGrid, FileText, Radar, PhoneIncoming, FolderInput, Monitor, Play, Activity, Image, Brain, Target, MessageSquare, Presentation, ShieldCheck
+  LayoutDashboard, Search, Megaphone, LayoutGrid, FileText, Radar, PhoneIncoming, FolderInput, Monitor, Play, Activity, Image, Brain, Target, MessageSquare, Presentation, ShieldCheck, Video
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
@@ -8,24 +8,35 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 
-const crmItems = [
-  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-  { title: "Ad Hijack 🆕", url: "/dashboard/ad-hijack", icon: Target },
-  { title: "Prospects", url: "/dashboard/prospects", icon: Search },
-  { title: "Intent Leads", url: "/dashboard/intent-leads", icon: Radar },
-  { title: "Campaigns", url: "/dashboard/campaigns", icon: Megaphone },
-  { title: 'Campaign Results', url: '/dashboard/campaign-results', icon: Activity },
-  { title: "Pipeline", url: "/dashboard/pipeline", icon: LayoutGrid },
-  { title: "Call History", url: "/dashboard/calls", icon: PhoneIncoming },
-  { title: "Demo History", url: "/dashboard/sessions", icon: Presentation },
-  { title: "Imported Lists", url: "/dashboard/imported", icon: FolderInput },
-  { title: "Engagement", url: "/dashboard/engagement", icon: Activity },
-  { title: "SMS Delivery", url: "/dashboard/sms", icon: MessageSquare },
-  { title: "AI Follow-Up", url: "/dashboard/follow-up", icon: Brain },
-  { title: "Templates", url: "/dashboard/templates", icon: FileText },
-  { title: "Voice Agents", url: "/dashboard/voice-agents", icon: PhoneIncoming },
-  { title: "Voice Costs", url: "/dashboard/voice-costs", icon: Activity },
-  { title: "Voice Guardrails", url: "/dashboard/guardrails", icon: ShieldCheck },
+type NavItem = { title: string; url: string; icon: typeof LayoutDashboard; soon?: boolean };
+const navGroups: { label: string; items: NavItem[] }[] = [
+  { label: "Overview", items: [
+    { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+    { title: "Pipeline", url: "/dashboard/pipeline", icon: LayoutGrid },
+  ]},
+  { label: "Find leads", items: [
+    { title: "Prospects", url: "/dashboard/prospects", icon: Search },
+    { title: "Imported Lists", url: "/dashboard/imported", icon: FolderInput },
+    { title: "Intent Leads", url: "/dashboard/intent-leads", icon: Radar },
+    { title: "Ad Hijack", url: "/dashboard/ad-hijack", icon: Target },
+  ]},
+  { label: "Outreach", items: [
+    { title: "Campaigns", url: "/dashboard/campaigns", icon: Megaphone },
+    { title: "Templates", url: "/dashboard/templates", icon: FileText },
+    { title: "SMS Delivery", url: "/dashboard/sms", icon: MessageSquare },
+    { title: "AI Follow-Up", url: "/dashboard/follow-up", icon: Brain },
+  ]},
+  { label: "Results", items: [
+    { title: "Campaign Results", url: "/dashboard/campaign-results", icon: Activity },
+    { title: "Engagement", url: "/dashboard/engagement", icon: Activity },
+    { title: "Demo History", url: "/dashboard/sessions", icon: Presentation },
+    { title: "Call History", url: "/dashboard/calls", icon: PhoneIncoming },
+  ]},
+  { label: "Voice & avatars", items: [
+    { title: "Voice Agents", url: "/dashboard/voice-agents", icon: PhoneIncoming },
+    { title: "Voice Usage & Costs", url: "/dashboard/voice-costs", icon: ShieldCheck },
+    { title: "Video Avatars (soon)", url: "/dashboard/video-avatars", icon: Video, soon: true },
+  ]},
 ];
 
 const marketingItems = [
@@ -59,31 +70,33 @@ export function CRMSidebar() {
           )}
         </div>
 
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-[10px] uppercase tracking-widest text-muted-foreground">
-            {!collapsed && "CRM"}
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {crmItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <NavLink
-                      to={item.url}
-                      end={item.url === "/"}
-                      className="hover:bg-muted/50"
-                      activeClassName="bg-primary/10 text-primary font-medium"
-                      onClick={handleNavClick}
-                    >
-                      <item.icon className="mr-2 h-4 w-4" />
-                      {!collapsed && <span>{item.title}</span>}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {navGroups.map((group) => (
+          <SidebarGroup key={group.label}>
+            <SidebarGroupLabel className="text-[10px] uppercase tracking-widest text-muted-foreground">
+              {!collapsed && group.label}
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {group.items.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild>
+                      <NavLink
+                        to={item.url}
+                        end={item.url === "/dashboard"}
+                        className={item.soon ? "opacity-60 hover:bg-muted/50" : "hover:bg-muted/50"}
+                        activeClassName="bg-primary/10 text-primary font-medium"
+                        onClick={handleNavClick}
+                      >
+                        <item.icon className="mr-2 h-4 w-4" />
+                        {!collapsed && <span>{item.title}</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
 
         <SidebarGroup>
           <SidebarGroupLabel className="text-[10px] uppercase tracking-widest text-muted-foreground">
