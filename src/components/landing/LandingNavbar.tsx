@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import TextSizeControl from "@/components/TextSizeControl";
+import AccountMenu from "@/components/AccountMenu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 const LandingNavbar = () => {
@@ -24,7 +25,7 @@ const LandingNavbar = () => {
     <div aria-hidden className="h-14 sm:h-16" />
     <nav className="fixed top-0 inset-x-0 z-[90] bg-background/80 backdrop-blur-xl border-b border-border">
       <div className="container mx-auto px-4 sm:px-6 flex items-center justify-between h-14 sm:h-16">
-        <Link to="/" className="flex min-w-0 flex-1 lg:flex-none items-center gap-1.5" onDoubleClick={(e) => { e.preventDefault(); window.location.href = "/dashboard"; }}>
+        <Link to="/" className="flex min-w-0 flex-1 lg:flex-none items-center gap-1.5">
           <img src="/logo.png" alt="AI Hidden Leads" className="w-6 h-6 shrink-0 sm:w-9 sm:h-9" />
           <span className="min-w-0 text-sm sm:text-lg leading-tight font-extrabold text-foreground">
             AI <span className="text-primary">Hidden</span> Leads
@@ -55,22 +56,17 @@ const LandingNavbar = () => {
             <FileText className="h-3.5 w-3.5" />
             Script
           </Link>
-          <Link to="/account" className="text-sm text-muted-foreground hover:text-foreground">My account</Link>
           <LanguageSwitcher />
           <Popover><PopoverTrigger asChild><Button size="icon" variant="ghost" aria-label="Text size" title="Text size"><Type /></Button></PopoverTrigger><PopoverContent className="z-[100] w-72"><TextSizeControl /></PopoverContent></Popover>
           <Button size="sm" onClick={() => scrollTo("demo-form")}>
             {t("nav.getFreeDemo")}
           </Button>
-          <Link to="/marketing" className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors ml-2" title="Marketing Hub">
-            📣
-          </Link>
-          <Link to="/dashboard" className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors ml-2" title="Admin">
-            ⚙
-          </Link>
+          <AccountMenu />
         </div>
 
         <div className="lg:hidden flex items-center gap-1">
           <LanguageSwitcher />
+          <AccountMenu compact />
           <Button size="icon" variant="ghost" aria-label={open ? "Close menu" : "Open menu"} aria-expanded={open} onClick={() => setOpen(!open)} className="shrink-0 text-muted-foreground hover:text-foreground">
             {open ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </Button>
@@ -101,7 +97,7 @@ const LandingNavbar = () => {
           >
             Script
           </Link>
-          <Button asChild variant="ghost" className="w-full justify-start"><Link to="/account" onClick={()=>setOpen(false)}>My account</Link></Button>
+          <Button asChild variant="ghost" className="w-full justify-start"><Link to="/account?mode=signup" onClick={()=>setOpen(false)}>Create account</Link></Button>
           <TextSizeControl />
           <Button size="lg" className="h-auto min-h-11 whitespace-normal w-full mt-2 py-3 text-base" onClick={() => scrollTo("demo-form")}>
             {t("nav.getFreeDemo")}

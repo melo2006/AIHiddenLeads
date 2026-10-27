@@ -15,6 +15,8 @@ function TabbedPage({ tabs }: { tabs: { id: string; label: string; el: ReactNode
 import { type FormEvent, useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import AccountMenu from "@/components/AccountMenu";
+import { Link } from "react-router-dom";
 import { CRMSidebar } from "@/components/crm/CRMSidebar";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
@@ -235,18 +237,17 @@ const CRM = () => {
       <div className="min-h-screen flex w-full">
         <CRMSidebar />
         <div className="flex-1 flex flex-col min-w-0">
-          <header className="sticky top-0 z-40 h-14 flex items-center border-b border-border px-4 bg-background/95 backdrop-blur-sm">
-            <SidebarTrigger className="mr-3" />
-            <img src="/logo.png" alt="AI Hidden Leads" className="w-9 h-9 mr-2" />
-            <span className="text-lg font-extrabold text-foreground tracking-tight">AI <span className="text-primary">Hidden</span> Leads</span>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="ml-auto h-8 text-xs"
-              onClick={() => supabase.auth.signOut()}
-            >
-              Sign out
-            </Button>
+          <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur-sm">
+            <div className="flex h-14 items-center gap-2 px-4">
+              <Link to="/" className="flex min-w-0 items-center gap-2">
+                <img src="/logo.png" alt="AI Hidden Leads" className="h-9 w-9" />
+                <span className="truncate text-lg font-extrabold tracking-tight text-foreground">AI <span className="text-primary">Hidden</span> Leads</span>
+              </Link>
+              <div className="ml-auto"><AccountMenu /></div>
+            </div>
+            <div className="flex h-9 items-center border-t border-border/60 px-2">
+              <SidebarTrigger className="h-8 w-auto gap-1.5 px-2 text-xs" aria-label="Toggle menu"><span>Menu</span></SidebarTrigger>
+            </div>
           </header>
           <main className="flex-1 p-4 sm:p-6 overflow-y-auto">
             <Routes>
