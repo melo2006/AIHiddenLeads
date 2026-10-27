@@ -99,7 +99,7 @@ export default function GuardrailsView() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
-              <DollarSign className="h-4 w-4 text-primary" /> Limits
+              <DollarSign className="h-4 w-4 text-primary" /> Call limits
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
