@@ -218,8 +218,7 @@ const CRM = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              You signed in as <strong className="text-foreground">{userEmail}</strong>, but this admin console is only
-              authorized for <strong className="text-foreground">{ADMIN_EMAIL}</strong>.
+              You're signed in as <strong className="text-foreground">{userEmail}</strong>. This area is for AI Hidden Leads staff. Your business assistant, setup and subscription are in your own dashboard.
             </p>
             <Button asChild className="w-full"><Link to="/account">Go to my dashboard</Link></Button>
             <Button variant="outline" className="w-full" onClick={() => supabase.auth.signOut()}>
