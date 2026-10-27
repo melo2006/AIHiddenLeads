@@ -1,14 +1,21 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
-import { OWNER_MAILBOX, bookingAlert, followupAlert, visitorFollowup, dailySummary, sendOwnerMail } from '../_shared/hostinger-mail.ts';
+import { createClient } from 'npm:@supabase/supabase-js@2';
+import { OWNER_MAILBOX, bookingAlert, bookingConfirmation, followupAlert, visitorFollowup, dailySummary, sendOwnerMail } from '../_shared/hostinger-mail.ts';
 
 // Sends fixed sample emails only to the owner's own inbox; no caller input is used.
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
-  const sample = { name: 'Test Visitor', email: OWNER_MAILBOX, phone: '+1 561-275-5757', businessName: 'Sample Business (TEST)' };
+  const db = createClient(Deno.env.get('SUPABASE_URL') || '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '');
+  const { data: shotLead } = await db.from('leads').select('website_screenshot,business_name').like('website_screenshot', 'https://%').order('created_at', { ascending: false }).limit(1).maybeSingle();
+  const sample = { name: 'Test Visitor', email: OWNER_MAILBOX, phone: '+1 561-275-5757', businessName: shotLead?.business_name || 'Sample Business (TEST)' };
+  const slotStart = new Date(Date.now() + 2 * 864e5).toISOString();
+  const copy = (m: { to: string; subject: string; text: string; html?: string }) => ({ ...m, to: OWNER_MAILBOX, subject: '[TEST copy] ' + m.subject });
   const mails = [
-    bookingAlert({ ...sample, slotStart: new Date(Date.now() + 2 * 864e5).toISOString(), notes: 'TEST booking alert' }),
+    bookingAlert({ ...sample, slotStart, notes: 'TEST booking alert' }),
+    copy(bookingConfirmation({ ...sample, slotStart })),
     followupAlert(sample),
-    { ...visitorFollowup(sample), to: OWNER_MAILBOX, subject: '[TEST copy] ' + visitorFollowup(sample).subject },
+    copy(visitorFollowup({ ...sample, screenshot: shotLead?.website_screenshot, didDemo: true })),
+    copy(visitorFollowup({ ...sample, businessName: '' })),
     dailySummary({ day: 'TEST', visits: 12, scans: 3, voiceCalls: 2, followups: ['Test Visitor <info@aihiddenleads.com>'], bookings: [] }),
   ];
   const results: Record<string, string> = {};
