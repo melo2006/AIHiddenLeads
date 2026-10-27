@@ -9,8 +9,8 @@ const AuthCallback = () => {
 
   useEffect(() => {
     let active = true;
-    const destination=sessionStorage.getItem('customer-auth-return');
-    const returnPath=destination?.startsWith('/checkout')||destination?.startsWith('/setup')?destination:'/dashboard/calls';
+    const destination=new URLSearchParams(window.location.search).get('next')||sessionStorage.getItem('customer-auth-return');
+    const returnPath=destination&&!destination.startsWith('//')&&(destination.startsWith('/checkout')||destination.startsWith('/setup'))?destination:'/dashboard/calls';
 
     const openDashboard = async () => {
       const { data, error } = await supabase.auth.getSession();
