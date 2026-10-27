@@ -17,8 +17,6 @@ const navGroups: { label: string; items: NavItem[] }[] = [
   { label: "Find leads", items: [
     { title: "Prospects", url: "/dashboard/prospects", icon: Search },
     { title: "Imported Lists", url: "/dashboard/imported", icon: FolderInput },
-    { title: "Intent Leads", url: "/dashboard/intent-leads", icon: Radar },
-    { title: "Ad Hijack", url: "/dashboard/ad-hijack", icon: Target },
   ]},
   { label: "Outreach", items: [
     { title: "Campaigns", url: "/dashboard/campaigns", icon: Megaphone },
@@ -28,9 +26,7 @@ const navGroups: { label: string; items: NavItem[] }[] = [
   ]},
   { label: "Results", items: [
     { title: "Campaign Results", url: "/dashboard/campaign-results", icon: Activity },
-    { title: "Engagement", url: "/dashboard/engagement", icon: Activity },
     { title: "Demo History", url: "/dashboard/sessions", icon: Presentation },
-    { title: "Call History", url: "/dashboard/calls", icon: PhoneIncoming },
   ]},
   { label: "Voice & avatars", items: [
     { title: "Voice Agents", url: "/dashboard/voice-agents", icon: PhoneIncoming },
