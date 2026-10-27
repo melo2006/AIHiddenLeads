@@ -16,10 +16,11 @@ import GeminiConversation from "@/components/GeminiConversation";
 import AgentInstallationGuide from "@/components/AgentInstallationGuide";
 import SitePreview from "./SitePreview";
 import {
-  EMPTY, INDUSTRIES, LABELS, SAMPLES, STEPS, VOICES, faqKnowledge, nameFromUrl, renderGreeting, stepReady, type WizardState,
+  EMPTY, INDUSTRIES, LABELS, STEPS, VOICES, faqKnowledge, nameFromUrl, renderGreeting, stepReady, type WizardState,
 } from "./wizardModel";
 
 const ICONS = [Building2, BookOpen, Mic, Palette, Rocket];
+type Source = { id: string; label: string; kind: string; url?: string; status: string; last_error?: string; content?: string };
 const FAQ_MARK = "--- Wizard FAQs ---";
 
 async function request(body: Record<string, unknown>) {
@@ -55,7 +56,11 @@ type Draft = Record<string, unknown> & { knowledge?: string; theme?: Record<stri
 
 export default function SetupWizard({ preview = false, agentId }: { preview?: boolean; agentId?: string }) {
   const [step, setStep] = useState(0);
-  const [s, setS] = useState<WizardState>(preview ? SAMPLES.roofer : EMPTY);
+  const [s, setS] = useState<WizardState>(EMPTY);
+  const [selectedId, setSelectedId] = useState(agentId);
+  const [agents, setAgents] = useState<{ id: string; draft: Draft }[]>([]);
+  const [sources, setSources] = useState<Source[]>([]);
+  const [voiceReady, setVoiceReady] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState(false);
   const [linkInput, setLinkInput] = useState("");
@@ -65,16 +70,17 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
   const fileRef = useRef<HTMLInputElement>(null);
   const set = (patch: Partial<WizardState>) => setS((p) => ({ ...p, ...patch }));
 
-  useEffect(() => {
-    if (preview || !agentId) return;
-    void request({ action: "list" }).then((data) => {
-      const a = data.agents?.find((x: { id: string }) => x.id === agentId);
-      if (!a) return;
+  async function load(id = selectedId) {
+    const data = await request({ action: "list" });
+    setAgents(data.agents || []);
+      const a = data.agents?.find((x: { id: string }) => x.id === id);
+      if (!a) { setDraft(null); setSources([]); return; }
+      setSources(a.voice_agent_sources || []);
       const d = a.draft as Draft;
       setDraft(d);
       const knowledge = String(d.knowledge || "");
       const faqText = knowledge.includes(FAQ_MARK) ? knowledge.split(FAQ_MARK)[1] : "";
-      const faqs = faqText.split(/\n\n+/).map((b) => b.match(/^Q: (.*)\nA: ([\s\S]*)$/)).filter(Boolean).map((m) => ({ q: m![1], a: m![2] }));
+      const faqs = faqText.split(/\n\n+/).map((b) => b.match(/^Q: (.*)\nA: ([\s\S]*)$/)).filter(Boolean).flatMap((m) => m ? [{ q: m[1], a: m[2] }] : []);
       setS({
         websiteUrl: String(d.websiteUrl || ""), businessName: String(d.businessName || ""), industry: String(d.industry || ""),
         links: (a.voice_agent_sources || []).filter((x: { kind: string }) => x.kind === "url").map((x: { url?: string; label: string }) => x.url || x.label),
@@ -84,25 +90,37 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
         corner: d.launcherCorner === "bottom-left" ? "bottom-left" : "bottom-right",
       });
       setPublished(Boolean(a.published));
-    }).catch((e) => toast.error(e instanceof Error ? e.message : "Could not load your assistant"));
-  }, [agentId, preview]);
+  }
+  useEffect(() => {
+    void load().catch((e) => toast.error(e instanceof Error ? e.message : "Could not load your assistant"));
+  }, [selectedId]);
 
   async function save() {
-    if (preview || !agentId || !draft) return true;
+    if (!selectedId || !draft) return false;
     const base = String(draft.knowledge || "").split(FAQ_MARK)[0].trimEnd();
     const faq = faqKnowledge(s.faqs);
     const config = {
-      ...draft, websiteUrl: s.websiteUrl, businessName: s.businessName || "My business", industry: s.industry, name: s.name || "Aspen",
+      ...draft, websiteUrl: s.websiteUrl ? (/^https?:\/\//i.test(s.websiteUrl) ? s.websiteUrl : `https://${s.websiteUrl}`) : "", businessName: s.businessName || "My business", industry: s.industry, name: s.name || "Aspen",
       greeting: s.greeting, voice: s.voice, theme: { ...(draft.theme || {}), primary: s.color }, launcherLabel: s.label, launcherCorner: s.corner,
       knowledge: faq ? `${base}\n\n${FAQ_MARK}\n${faq}`.trim() : base,
     };
-    try { await request({ action: "save", agentId, config }); setDraft(config); return true; }
+    try { await request({ action: "save", agentId: selectedId, config }); setDraft(config); return true; }
     catch (e) { toast.error(e instanceof Error ? e.message : "Could not save"); return false; }
   }
 
   async function go(next: number) {
     setBusy(true);
-    const ok = await save();
+    let ok = false;
+    try {
+      if (!selectedId && preview) {
+        const data = await request({ action: "create", businessName: s.businessName });
+        const id = data.agent?.id;
+        if (!id) throw new Error("Could not create assistant");
+        const config = { ...data.agent.draft, ...s, websiteUrl: s.websiteUrl ? (/^https?:\/\//i.test(s.websiteUrl) ? s.websiteUrl : `https://${s.websiteUrl}`) : "", theme: { primary: s.color, background: "#09090b", foreground: "#fafafa", font: "system" }, launcherLabel: s.label, launcherCorner: s.corner };
+        await request({ action: "save", agentId: id, config });
+        setSelectedId(id); setDraft(config); ok = true;
+      } else ok = await save();
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Could not save assistant"); }
     setBusy(false);
     if (ok) { setStep(next); window.scrollTo({ top: 0, behavior: "smooth" }); }
   }
@@ -111,69 +129,94 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
     const url = linkInput.trim();
     if (!url) return;
     const full = /^https?:\/\//i.test(url) ? url : `https://${url}`;
-    if (!preview && agentId) {
-      try { await request({ action: "source", agentId, kind: "url", label: full.slice(0, 255), url: full }); }
-      catch (e) { toast.error(e instanceof Error ? e.message : "Could not add link"); return; }
-    }
-    set({ links: [...s.links, full] });
+    if (!selectedId) return;
+    setBusy(true);
+    try { if (!await save()) return; await learnSource({ kind: "url", label: full.slice(0,255), url: full }); }
+    catch (e) { toast.error(e instanceof Error ? e.message : "Could not learn page"); }
+    finally { setBusy(false); }
     setLinkInput("");
+  }
+
+  async function learnSource(body: Record<string, unknown>) {
+    await request({ action: "source", agentId: selectedId, ...body });
+    const data = await request({ action: "list" });
+    const a = data.agents?.find((a: { id: string }) => a.id === selectedId);
+    const source = a?.voice_agent_sources?.filter((x: Source) => x.label === body.label).at(-1);
+    if (!source) throw new Error("Source was not saved");
+    try { await request({ action: "refresh", agentId: selectedId, sourceId: source.id }); }
+    finally { await load(); }
+  }
+
+  async function learnWebsite() {
+    if (!s.websiteUrl || !selectedId) return;
+    setBusy(true);
+    try {
+      if (!await save()) return;
+      const full = /^https?:\/\//i.test(s.websiteUrl) ? s.websiteUrl : `https://${s.websiteUrl}`;
+      const existing = sources.find(x => x.url === full);
+      if (existing) { await request({ action: "refresh", agentId: selectedId, sourceId: existing.id }); await load(); }
+      else await learnSource({ kind: "url", label: full.slice(0,255), url: full });
+      toast.success("Website learned");
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Could not learn website"); }
+    finally { setBusy(false); }
   }
 
   async function addFiles(list: FileList | null) {
     for (const file of Array.from(list || [])) {
       if (!/\.(pdf|txt|md|csv)$/i.test(file.name)) { toast.error(`${file.name}: use PDF, text or CSV`); continue; }
       if (file.size > 10 * 1024 * 1024) { toast.error(`${file.name}: maximum 10 MB`); continue; }
-      if (!preview && agentId) {
-        const path = `voice/${agentId}/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+      if (selectedId) {
+        setBusy(true);
+        try {
+        const path = `voice/${selectedId}/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
         const { error } = await supabase.storage.from("lead-uploads").upload(path, file);
         if (error) { toast.error(error.message); continue; }
-        try { await request({ action: "source", agentId, kind: "document", label: file.name, storagePath: path }); }
+        try { await learnSource({ kind: "document", label: file.name, storagePath: path }); }
         catch (e) { toast.error(e instanceof Error ? e.message : "Could not add file"); continue; }
+        } finally { setBusy(false); }
       }
-      setS((p) => ({ ...p, files: [...p.files, file.name] }));
+
     }
   }
 
   async function suggest() {
     setBusy(true);
     try {
-      const data = await request({ action: "suggestGreeting", ...(agentId && !preview ? { agentId } : {}), businessName: s.businessName || undefined, industry: s.industry || undefined, url: s.websiteUrl || undefined });
+      setVoiceReady(false);
+      const data = await request({ action: "suggestGreeting", ...(selectedId ? { agentId: selectedId } : {}), businessName: s.businessName || undefined, industry: s.industry || undefined, url: s.websiteUrl || undefined });
       if (data?.greeting) set({ greeting: data.greeting });
     } catch (e) { toast.error(e instanceof Error ? e.message : "Could not get a suggestion"); }
     finally { setBusy(false); }
   }
 
-  function hearSample() {
-    if (!("speechSynthesis" in window)) { toast.error("This browser can't play the sample"); return; }
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(new SpeechSynthesisUtterance(renderGreeting(s)));
+  async function prepareVoice(call = false) {
+    setBusy(true);
+    if (await save()) { if (call) setCalling(true); else setVoiceReady(true); }
+    setBusy(false);
   }
 
   async function publish() {
-    if (preview || !agentId) { setPublished(true); toast.success("Preview: this is where the assistant goes live"); return; }
+    if (!selectedId) return;
+    if (preview && !window.confirm("Publish this assistant for website visitors? This does not create or charge a customer subscription.")) return;
     setBusy(true);
-    try { if (await save()) { await request({ action: "publish", agentId }); setPublished(true); toast.success("Your assistant is live"); } }
+    try { if (await save()) { await request({ action: "publish", agentId: selectedId }); setPublished(true); toast.success("Your assistant is live"); } }
     catch (e) { toast.error(e instanceof Error ? e.message : "Could not publish"); }
     finally { setBusy(false); }
   }
 
   const ready = stepReady(step, s);
-  const realVoice = !preview && agentId;
+  const realVoice = selectedId;
 
   return (
     <TooltipProvider delayDuration={150}>
       <div className="mx-auto w-full max-w-5xl space-y-5">
         {preview && (
           <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/40 bg-primary/10 px-3 py-2 text-xs">
-            <strong className="text-primary">Preview mode</strong>
-            <span className="text-muted-foreground">Nothing is saved, published or charged.</span>
-            <Select onValueChange={(k) => set(SAMPLES[k] ?? EMPTY)}>
-              <SelectTrigger className="ml-auto h-8 w-44" aria-label="Sample business"><SelectValue placeholder="Sample business" /></SelectTrigger>
-              <SelectContent className="z-[130]">
-                <SelectItem value="roofer">Roofing company</SelectItem>
-                <SelectItem value="dentist">Dental office</SelectItem>
-                <SelectItem value="empty">Start empty</SelectItem>
-              </SelectContent>
+            <strong className="text-primary">Assisted setup</strong>
+            <span className="text-muted-foreground">Saved business drafts · real voice usage · no purchase required</span>
+            <Select value={selectedId || "new"} onValueChange={(id) => { setDraft(null); setPublished(false); setSelectedId(id === "new" ? undefined : id); setStep(0); setVoiceReady(false); setCalling(false); if(id === "new") setS(EMPTY); }}>
+              <SelectTrigger className="ml-auto h-8 w-full sm:w-64" aria-label="Choose business"><SelectValue placeholder="New business" /></SelectTrigger>
+              <SelectContent className="z-[130]"><SelectItem value="new">New business</SelectItem>{agents.map(a => <SelectItem key={a.id} value={a.id}>{String(a.draft.businessName)}</SelectItem>)}</SelectContent>
             </Select>
           </div>
         )}
@@ -216,13 +259,15 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
                   </Select>
                 </label>
               </div>
-              <div className="hidden md:block"><SitePreview state={s} open={false} /></div>
+              <div className="hidden md:block"><SitePreview screenshot={typeof draft?.previewScreenshot === "string" ? draft.previewScreenshot : undefined} state={s} open={false} /></div>
             </div>
           )}
 
           {step === 1 && (
             <div className="space-y-5">
               <StepHead title="Teach your assistant" hint="Add pages, files or quick answers. All optional." help="Your website is already included. Add price sheets, menus, service area pages or common questions to make answers more accurate." />
+              <Button variant="outline" disabled={busy || !s.websiteUrl} onClick={() => void learnWebsite()}><RefreshCw className={`mr-2 h-4 w-4 ${busy ? "animate-spin" : ""}`} />{busy ? "Learning…" : "Learn website & capture preview"}</Button>
+              {sources.length > 0 && <div className="divide-y divide-border">{sources.map(source => <div key={source.id} className="flex items-start gap-2 py-2 text-xs"><div className="min-w-0 flex-1"><p className="break-words font-medium">{source.label}</p><p className={source.status === "failed" ? "text-destructive" : "text-muted-foreground"}>{source.status === "ready" ? `Learned · ${source.content?.length || 0} characters` : source.last_error || source.status}</p></div><Button size="icon" variant="ghost" disabled={busy} aria-label={`Retry ${source.label}`} onClick={async () => { setBusy(true); try { await request({ action: "refresh", agentId: selectedId, sourceId: source.id }); } catch(e) { toast.error(e instanceof Error ? e.message : "Learning failed"); } finally { await load(); setBusy(false); } }}><RefreshCw className="h-4 w-4" /></Button></div>)}</div>}
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="space-y-2 rounded-xl border border-border p-3">
                   <p className="flex items-center gap-2 text-sm font-semibold"><Link2 className="h-4 w-4 text-primary" /> Extra pages</p>
@@ -271,7 +316,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
                       {busy ? <RefreshCw className="mr-1 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1 h-4 w-4" />}AI suggest
                     </Button>
                   </div>
-                  <Textarea rows={3} aria-label="Greeting" value={s.greeting} onChange={(e) => set({ greeting: e.target.value })} />
+                  <Textarea rows={3} aria-label="Greeting" value={s.greeting} onChange={(e) => { set({ greeting: e.target.value }); setVoiceReady(false); }} />
                   <p className="rounded-lg bg-muted p-2 text-xs italic text-muted-foreground">"{renderGreeting(s)}"</p>
                 </div>
               </div>
@@ -279,7 +324,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
                 <p className="flex items-center gap-1.5 text-sm font-semibold">Pick a voice<Help>Each voice is the real Gemini voice your callers will hear.</Help></p>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   {VOICES.map((v) => (
-                    <button key={v.id} type="button" onClick={() => set({ voice: v.id })}
+                    <button key={v.id} type="button" onClick={() => { set({ voice: v.id }); setVoiceReady(false); }}
                       className={`rounded-xl border-2 p-3 text-left transition ${s.voice === v.id ? "border-primary bg-primary/10" : "border-border hover:border-primary/50"}`}>
                       <Mic className={`mb-1 h-4 w-4 ${s.voice === v.id ? "text-primary" : "text-muted-foreground"}`} />
                       <p className="text-sm font-semibold">{v.label}</p>
@@ -287,14 +332,8 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
                     </button>
                   ))}
                 </div>
-                {realVoice ? (
-                  <div className="rounded-xl border border-border p-2">
-                    <GeminiConversation key={`${agentId}-${s.voice}`} previewOnly draft agentId={agentId} name={s.name} previewVoice={s.voice} compact />
-                  </div>
-                ) : (
-                  <Button variant="outline" className="w-full" onClick={hearSample}><Play className="mr-2 h-4 w-4" />Hear the greeting (sample voice)</Button>
-                )}
-                {!realVoice && <p className="text-[11px] text-muted-foreground">Preview uses your browser's voice. Customers hear the real {s.voice} voice.</p>}
+                {realVoice && (voiceReady ? <div className="rounded-lg border border-border p-2"><GeminiConversation key={`${selectedId}-${s.voice}-${s.greeting}`} previewOnly draft agentId={selectedId} name={s.name} previewVoice={s.voice} compact /></div> : <Button variant="outline" className="w-full" disabled={busy} onClick={() => void prepareVoice()}><Play className="mr-2 h-4 w-4" />Hear my greeting · {s.voice}</Button>)}
+
               </div>
             </div>
           )}
@@ -319,7 +358,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
                   ))}</div>
                 </div>
               </div>
-              <SitePreview state={s} />
+              <SitePreview screenshot={typeof draft?.previewScreenshot === "string" ? draft.previewScreenshot : undefined} state={s} />
             </div>
           )}
 
@@ -328,17 +367,15 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
               <div className="space-y-4">
                 <StepHead title={published ? "You're live!" : "Try it, then go live"} hint={published ? "Add it to your website with the steps below." : "Make a test call, then publish."} help="Test calls use your saved draft. Publishing makes it available to your website visitors." />
                 {realVoice ? (
-                  calling ? <div className="rounded-xl border border-border p-2"><GeminiConversation key={`call-${agentId}`} draft agentId={agentId} name={s.name} compact /></div>
-                    : <Button size="lg" variant="outline" className="w-full" onClick={() => setCalling(true)}><Phone className="mr-2 h-5 w-5" />Try a test call</Button>
-                ) : (
-                  <Button size="lg" variant="outline" className="w-full" onClick={() => toast.info(`Preview: ${s.name} would answer "${renderGreeting(s)}"`)}><Phone className="mr-2 h-5 w-5" />Try a test call (simulated)</Button>
-                )}
-                <Button size="lg" className="w-full" disabled={busy || published} onClick={() => void publish()}><Rocket className="mr-2 h-5 w-5" />{published ? "Published" : "Publish my assistant"}</Button>
+                  calling ? <div className="rounded-xl border border-border p-2"><GeminiConversation key={`call-${selectedId}`} draft agentId={selectedId} name={s.name} compact /></div>
+                    : <Button size="lg" variant="outline" className="w-full" disabled={busy || sources.some(x => x.status !== "ready")} onClick={() => void prepareVoice(true)}><Phone className="mr-2 h-5 w-5" />Try a test call</Button>
+                ) : null}
+                <Button size="lg" className="w-full" disabled={busy || published || sources.some(x => x.status !== "ready")} onClick={() => void publish()}><Rocket className="mr-2 h-5 w-5" />{published ? "Published" : "Publish my assistant"}</Button>
                 {published && <Button asChild variant="ghost" className="w-full"><Link to={preview ? "/dashboard" : "/account"}>Go to my dashboard</Link></Button>}
               </div>
-              <SitePreview state={s} />
-              {published && (agentId && !preview
-                ? <div className="md:col-span-2"><AgentInstallationGuide agentId={agentId} /></div>
+              <SitePreview screenshot={typeof draft?.previewScreenshot === "string" ? draft.previewScreenshot : undefined} state={s} />
+              {published && (selectedId
+                ? <div className="md:col-span-2"><AgentInstallationGuide agentId={selectedId} /></div>
                 : <p className="text-xs text-muted-foreground md:col-span-2">Customers see WordPress, Wix and HTML install steps with a copy button here.</p>)}
             </div>
           )}
@@ -347,7 +384,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
         <div className="sticky bottom-0 z-10 flex items-center justify-between gap-3 border-t border-border bg-background/95 py-3 backdrop-blur">
           <Button variant="outline" size="lg" disabled={step === 0 || busy} onClick={() => void go(step - 1)}><ChevronLeft className="mr-1 h-5 w-5" />Back</Button>
           {step < STEPS.length - 1 && (
-            <Button size="lg" disabled={!ready || busy} onClick={() => void go(step + 1)}>Next<ChevronRight className="ml-1 h-5 w-5" /></Button>
+            <Button size="lg" disabled={!ready || busy || Boolean(selectedId && !draft)} onClick={() => void go(step + 1)}>Next<ChevronRight className="ml-1 h-5 w-5" /></Button>
           )}
         </div>
       </div>
