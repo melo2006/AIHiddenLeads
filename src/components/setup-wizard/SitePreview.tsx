@@ -6,6 +6,7 @@ import { renderGreeting, type WizardState } from "./wizardModel";
 /** Shows the customer's real site (when it allows embedding) with the floating assistant drawn on top. */
 export default function SitePreview({ state, open = true }: { state: WizardState; open?: boolean }) {
   const [embeddable, setEmbeddable] = useState<boolean | null>(null);
+  const [standIn, setStandIn] = useState(false);
   const url = state.websiteUrl && (/^https?:\/\//i.test(state.websiteUrl) ? state.websiteUrl : `https://${state.websiteUrl}`);
 
   useEffect(() => {
@@ -24,9 +25,10 @@ export default function SitePreview({ state, open = true }: { state: WizardState
       <div className="flex h-6 items-center gap-1.5 border-b border-border bg-card px-2">
         <span className="h-2 w-2 rounded-full bg-destructive/70" /><span className="h-2 w-2 rounded-full bg-accent" /><span className="h-2 w-2 rounded-full bg-primary/70" />
         <span className="ml-2 truncate text-[10px] text-muted-foreground">{url || "yourwebsite.com"}</span>
+        {embeddable && <button type="button" onClick={() => setStandIn(!standIn)} className="ml-auto shrink-0 text-[10px] text-primary underline">{standIn ? "Show my site" : "Site looks wrong?"}</button>}
       </div>
       <div className="relative h-[calc(100%-1.5rem)]">
-        {embeddable && url ? (
+        {embeddable && url && !standIn ? (
           <iframe title="Your website" src={url} className="pointer-events-none h-[200%] w-[200%] origin-top-left scale-50 border-0 bg-background" sandbox="allow-scripts allow-same-origin" />
         ) : (
           <div className="space-y-3 p-4" aria-label="Sample website layout">
