@@ -106,3 +106,6 @@
 - [x] Branded checkout/setup and private /account navigation added; editor restricted to workspace agent.
 - [x] Validated versioned colors/fonts, website URL and assistant slug editing added; scan-derived reviewed suggestions, safe public appearance rendering and WordPress/Wix instructions deployed.
 - [ ] Verify full paid customer save/publish/install flow. No paid workspace in the available signed-in test account; payment-account/address setup remains the purchase blocker.
+
+- [ ] Google billing export → show actual Gemini charges on Voice Usage & Costs (waiting on owner Google Cloud setup)
+- [ ] Phase 2: Video avatars (Simli, HeyGen) + voice-only choice, pricing table update
