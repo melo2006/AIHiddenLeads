@@ -1,7 +1,7 @@
 import { homepagePacingAction } from '../_shared/homepage-pacing.ts'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { LANGUAGE_POLICY } from '../_shared/voice-config.ts'
+import { LANGUAGE_POLICY, voicePreviewInstruction } from '../_shared/voice-config.ts'
 import { pcmSeconds, audioCost, validPricing } from '../_shared/voice-usage.ts'
 import { platformAvailability, bookPlatformCall, voiceAvailability } from '../_shared/platform-calendar.ts'
 import { confirmedVisitorContact, CONTACT_READBACK_POLICY } from '../_shared/visitor-followup.ts'
@@ -240,7 +240,7 @@ Deno.serve(async (req) => {
           geminiWs?.send(JSON.stringify({
             clientContent: {
               turns: [{ role: 'user', parts: [{ text: preview
-                ? 'For a voice preview, say exactly this in English and nothing else: "Hi, I am Aspen. I can answer your calls, help your customers, and book appointments. How can I help you today?"'
+                ? voicePreviewInstruction(config.opening)
                 : `The caller just connected. Say this greeting now in English: ${config.opening}. Do not wait for them to speak first.` }] }],
               turnComplete: true,
             },

@@ -31,7 +31,7 @@ const navGroups: { label: string; items: NavItem[] }[] = [
   { label: "Voice & avatars", items: [
     { title: "Voice Agents", url: "/dashboard/voice-agents", icon: PhoneIncoming },
     { title: "Voice Usage & Costs", url: "/dashboard/voice-costs", icon: ShieldCheck },
-    { title: "Customer Wizard (preview)", url: "/dashboard/wizard-preview", icon: Wand2 },
+    { title: "Customer Setup", url: "/dashboard/wizard-preview", icon: Wand2 },
     { title: "Video Avatars (soon)", url: "/dashboard/video-avatars", icon: Video, soon: true },
   ]},
 ];

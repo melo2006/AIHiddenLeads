@@ -1,6 +1,11 @@
 // @vitest-environment node
 import { expect, test } from 'vitest';
-import { greeting, timeGreeting, isPublicUrl, DEFAULT_AGENT, businessDemoConfig } from '../../supabase/functions/_shared/voice-config';
+import { greeting, timeGreeting, isPublicUrl, DEFAULT_AGENT, businessDemoConfig, voicePreviewInstruction } from '../../supabase/functions/_shared/voice-config';
+test('real voice audition speaks the saved business greeting',()=>{
+  const opening=greeting({...DEFAULT_AGENT,businessName:'Client Roofing',greeting:'{timeGreeting}, this is {agentName} at {businessName}.'},9);
+  expect(voicePreviewInstruction(opening)).toContain('Good morning, this is Aspen at Client Roofing.');
+  expect(voicePreviewInstruction(opening)).not.toContain('book appointments');
+});
 test('greeting uses visitor morning time',()=>expect(timeGreeting(9)).toBe('Good morning'));
 test('greeting uses visitor afternoon time',()=>expect(timeGreeting(15)).toBe('Good afternoon'));
 test('greeting uses visitor evening time',()=>expect(timeGreeting(20)).toBe('Good evening'));
