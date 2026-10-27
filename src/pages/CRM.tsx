@@ -1,4 +1,17 @@
-import { Routes, Route, useNavigate, Navigate } from "react-router-dom";
+import { Routes, Route, useNavigate, Navigate, useSearchParams } from "react-router-dom";
+import type { ReactNode } from "react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+function TabbedPage({ tabs }: { tabs: { id: string; label: string; el: ReactNode }[] }) {
+  const [params, setParams] = useSearchParams();
+  const active = tabs.some((t) => t.id === params.get("tab")) ? params.get("tab")! : tabs[0].id;
+  return (
+    <Tabs value={active} onValueChange={(v) => setParams({ tab: v }, { replace: true })}>
+      <TabsList className="mb-3">{tabs.map((t) => <TabsTrigger key={t.id} value={t.id}>{t.label}</TabsTrigger>)}</TabsList>
+      {tabs.map((t) => <TabsContent key={t.id} value={t.id}>{t.el}</TabsContent>)}
+    </Tabs>
+  );
+}
 import { type FormEvent, useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
@@ -243,12 +256,12 @@ const CRM = () => {
               <Route path="campaigns" element={<CampaignsView />} />
               <Route path="campaigns/:id" element={<CampaignDetailView />} />
               <Route path="pipeline" element={<PipelinePageView />} />
-              <Route path="calls" element={<CallHistoryView />} />
-              <Route path="sessions" element={<DemoSessionsView />} />
+              <Route path="calls" element={<Navigate to="/dashboard/sessions?tab=calls" replace />} />
+              <Route path="sessions" element={<TabbedPage tabs={[{ id: "demos", label: "Demo sessions", el: <DemoSessionsView /> }, { id: "calls", label: "Call history", el: <CallHistoryView /> }]} />} />
               <Route path="imported" element={<ImportedListsView />} />
               <Route path="imported/:id" element={<ImportedListDetailView />} />
-              <Route path="engagement" element={<EngagementDashboard />} />
-              <Route path="campaign-results" element={<CampaignResultsView />} />
+              <Route path="engagement" element={<Navigate to="/dashboard/campaign-results?tab=engagement" replace />} />
+              <Route path="campaign-results" element={<TabbedPage tabs={[{ id: "results", label: "Campaign results", el: <CampaignResultsView /> }, { id: "engagement", label: "Engagement", el: <EngagementDashboard /> }]} />} />
               <Route path="sms" element={<SMSDashboard />} />
               <Route path="follow-up" element={<FollowUpIntelligence />} />
               <Route path="templates" element={<TemplatesView />} />
