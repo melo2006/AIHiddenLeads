@@ -247,7 +247,7 @@ const CRM = () => {
               <div className="ml-auto"><AccountMenu /></div>
             </div>
             <div className="flex h-9 items-center border-t border-border/60 px-2">
-              <SidebarTrigger className="h-8 w-auto gap-1.5 px-2 text-xs" aria-label="Toggle menu"><span>Menu</span></SidebarTrigger>
+              <SidebarTrigger className="h-8 w-8" aria-label="Toggle menu" /><span className="text-xs text-muted-foreground">Menu</span>
             </div>
           </header>
           <main className="flex-1 p-4 sm:p-6 overflow-y-auto">
