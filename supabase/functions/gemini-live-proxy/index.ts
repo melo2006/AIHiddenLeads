@@ -365,7 +365,7 @@ Deno.serve(async (req) => {
             if(historyError)throw new Error('Confirmed follow-up could not be recorded.');
             confirmedContact=contact; response={saved:true,platform:'AI Hidden Leads'};
             const mailContact={...contact,businessName:String(config.businessName||'')};
-            void trySend(followupAlert(mailContact)); void trySend(visitorFollowup({...mailContact,screenshot:(lead as {website_screenshot?:string|null}).website_screenshot,didDemo:!!session.prospect_id || config.mode!=='sales'}));
+            void trySend(followupAlert(mailContact)); void trySend(visitorFollowup({...mailContact,screenshot:(lead as {website_screenshot?:string|null}).website_screenshot,didDemo:!!session.prospect_id}));
           } else {
             if(!confirmedContact || !action.slotStart)throw new Error('Confirm contact details and appointment first.');
             response=await bookPlatformCall(db,{...confirmedContact,businessName:String(config.businessName),slotStart:action.slotStart});
