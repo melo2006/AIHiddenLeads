@@ -1,5 +1,7 @@
 # Current work
 
+- [ ] Replace admin wizard simulation with saved business drafts, real Gemini auditions/calls, learned documents and authentic website screenshot fallback; verify signed-in flow without a purchase.
+
 - [x] Add compact Try your website / Book a quick call / Start now actions to the homepage and Aspen window; Essentials-first plan selection and new-tab phone actions verified without overflow. Server plan recommendations select the matching plan.
 - [x] Deploy engaged prospect demos with five-minute soft checkpoint, fifteen-minute server ceiling, shared silence closure and explicit roleplay-to-platform sales policy. Forty focused tests passed; saved homepage instructions refreshed. Extended real spoken call and model recommendation remain owner testing, not claimed verified.
 - [x] Inspect existing Stripe scaffolding: no Stripe payment credentials in deployed secret inventory; checkout price preflight now handles unavailable payments without page errors, and return URLs no longer claim confirmed payment. Document secure paid onboarding and WordPress/Wix installation scope in docs/SELF-SERVICE-ONBOARDING.md.
