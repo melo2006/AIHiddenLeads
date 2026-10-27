@@ -221,7 +221,8 @@ const CRM = () => {
               You signed in as <strong className="text-foreground">{userEmail}</strong>, but this admin console is only
               authorized for <strong className="text-foreground">{ADMIN_EMAIL}</strong>.
             </p>
-            <Button className="w-full" onClick={() => supabase.auth.signOut()}>
+            <Button asChild className="w-full"><Link to="/account">Go to my dashboard</Link></Button>
+            <Button variant="outline" className="w-full" onClick={() => supabase.auth.signOut()}>
               Sign out and try again
             </Button>
           </CardContent>
