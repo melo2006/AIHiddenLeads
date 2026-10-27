@@ -7,10 +7,20 @@ import { DEFAULT_LIVE_MODEL, LIVE_MODELS, officialLivePricing } from '../_shared
 import { validPricing } from '../_shared/voice-usage.ts';
 import { websiteTheme, THEME_FONTS, DEFAULT_WIDGET_THEME } from '../_shared/widget-theme.ts';
 import { workspaceAccess } from '../_shared/customer-payments.ts';
+import { createResponsesCall } from './responses.ts';
+
+async function suggestGreeting(req:Request,input:{businessName:string;industry?:string;websiteUrl?:string;tone?:string}){
+  const apiKey=Deno.env.get('LOVABLE_API_KEY'); if(!apiKey) throw Object.assign(new Error('AI is not configured'),{status:500});
+  const {result}=createResponsesCall(req,{baseURL:'https://ai.gateway.lovable.dev/v1',apiKey,model:'openai/gpt-6-astra'},[{role:'user',content:`Business: ${input.businessName}\nIndustry: ${input.industry||'general'}\nWebsite: ${input.websiteUrl||'unknown'}\nTone: ${input.tone||'warm and professional'}`}],
+    'Write one spoken greeting for a website voice receptionist. 1-2 short sentences, under 35 words. Use the placeholders {timeGreeting} at the start and {agentName} and {businessName} exactly once each. End with a simple question about how you can help. No promises, prices, or claims. Return only the greeting text.');
+  const text=(await result.text).trim().replace(/^"|"$/g,'');
+  if(!text) throw Object.assign(new Error('No suggestion returned. Please try again.'),{status:502});
+  return text.slice(0,600);
+}
 
 const themeSchema=z.object({primary:z.string().regex(/^#[0-9a-f]{6}$/i),background:z.string().regex(/^#[0-9a-f]{6}$/i),foreground:z.string().regex(/^#[0-9a-f]{6}$/i),font:z.enum(THEME_FONTS)});
 const configSchema = z.object({ websiteUrl:z.string().max(2000).refine(v=>!v || isPublicUrl(v),'Use a public website URL').default(''), theme:themeSchema.default(DEFAULT_WIDGET_THEME), suggestedTheme:themeSchema.nullable().optional(), name:z.string().min(1).max(80), businessName:z.string().min(1).max(160), voice:z.enum(VOICES as [string,...string[]]), avatarPath:z.string().max(500).default(''), greeting:z.string().min(1).max(1500), systemPrompt:z.string().min(1).max(12000), simulationGreeting:z.string().min(1).max(1500).default(SIMULATION_GREETING), simulationPrompt:z.string().min(1).max(12000).default(SIMULATION_PROMPT), knowledge:z.string().max(60000).default(''), crawlDepth:z.union([z.literal(1),z.literal(2)]).default(1), recordTranscript:z.boolean().default(false), transferPhone:z.string().regex(/^$|^\+[1-9]\d{7,14}$/,'Use an international phone number, starting with +').default(''), transferManagerName:z.string().max(80).default('') });
-const requestSchema = z.object({ action:z.enum(['list','usage','pricing','create','save','publish','source','refresh','removeSource','member','rollback']), agentId:z.string().uuid().optional(), slug:z.string().min(3).max(80).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(), sourceId:z.string().uuid().optional(), config:configSchema.optional(), businessName:z.string().min(1).max(160).optional(), userEmail:z.string().email().optional(), kind:z.enum(['url','document']).optional(), label:z.string().min(1).max(255).optional(), url:z.string().max(2000).optional(), storagePath:z.string().max(500).optional(), pricing:z.object({model:z.literal('gemini-3.8-live'),inputAudioPerMinute:z.number().finite().min(0).max(100),outputAudioPerMinute:z.number().finite().min(0).max(100),source:z.string().url().max(2000)}).optional() });
+const requestSchema = z.object({ action:z.enum(['suggestGreeting','list','usage','pricing','create','save','publish','source','refresh','removeSource','member','rollback']), agentId:z.string().uuid().optional(), industry:z.string().max(80).optional(), tone:z.string().max(40).optional(), slug:z.string().min(3).max(80).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(), sourceId:z.string().uuid().optional(), config:configSchema.optional(), businessName:z.string().min(1).max(160).optional(), userEmail:z.string().email().optional(), kind:z.enum(['url','document']).optional(), label:z.string().min(1).max(255).optional(), url:z.string().max(2000).optional(), storagePath:z.string().max(500).optional(), pricing:z.object({model:z.literal('gemini-3.8-live'),inputAudioPerMinute:z.number().finite().min(0).max(100),outputAudioPerMinute:z.number().finite().min(0).max(100),source:z.string().url().max(2000)}).optional() });
 const json = (data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
 Deno.serve(async req=>{
   if(req.method==='OPTIONS') return new Response('ok',{headers:corsHeaders});
@@ -38,6 +48,16 @@ Deno.serve(async req=>{
       const {data:sessions,error}=await db.from('gemini_voice_sessions').select('id,created_at,started_at,ended_at,last_activity_at,duration_seconds,status,agent_id,organization_id,lead_id,prospect_id,config,usage').order('created_at',{ascending:false}).limit(500); if(error) throw error;
       const {data:guard}=await db.from('voice_guardrails').select('gemini_pricing').limit(1).maybeSingle();
       return json({model:DEFAULT_LIVE_MODEL,models:LIVE_MODELS.map(m=>({...m,pricing:officialLivePricing(m.id)})),pricing:officialLivePricing(DEFAULT_LIVE_MODEL) || guard?.gemini_pricing || {},sessions:(sessions || []).map(({config,...s})=>({...s,businessName:config?.businessName || 'Voice lab',preview:config?.preview===true,transcriptEnabled:config?.recordTranscript===true}))});
+    }
+    if(body.action==='suggestGreeting') {
+      if(!admin){
+        if(!body.agentId) return json({error:'Agent required'},400);
+        const {data:a}=await db.from('voice_agents').select('organization_id').eq('id',body.agentId).maybeSingle();
+        const {data:m}=a?await db.from('voice_memberships').select('id').eq('organization_id',a.organization_id).eq('user_id',user.id).eq('role','editor').maybeSingle():{data:null};
+        if(!a || !m || !(await workspaceAccess(db,a.organization_id))) return json({error:'Access denied'},403);
+      }
+      try { return json({greeting:await suggestGreeting(req,{businessName:body.businessName||'our business',industry:body.industry,websiteUrl:body.url,tone:body.tone})}); }
+      catch(e){ const status=(e as {status?:number}).status ?? (e as {statusCode?:number}).statusCode ?? 502; return json({error:e instanceof Error?e.message:'Suggestion failed'},[400,402,403,429].includes(status)?status:502); }
     }
     if(body.action==='list') {
       const {data:members}=await db.from('voice_memberships').select('organization_id').eq('user_id',user.id).eq('role','editor');
