@@ -5,7 +5,7 @@ import { LANGUAGE_POLICY } from '../_shared/voice-config.ts'
 import { pcmSeconds, audioCost, validPricing } from '../_shared/voice-usage.ts'
 import { platformAvailability, bookPlatformCall, voiceAvailability } from '../_shared/platform-calendar.ts'
 import { confirmedVisitorContact, CONTACT_READBACK_POLICY } from '../_shared/visitor-followup.ts'
-import { bookingAlert, followupAlert, visitorFollowup, trySend } from '../_shared/hostinger-mail.ts'
+import { bookingAlert, bookingConfirmation, followupAlert, visitorFollowup, trySend } from '../_shared/hostinger-mail.ts'
 import { DEFAULT_LIVE_MODEL, officialLivePricing } from '../_shared/live-models.ts'
 import { callReview } from '../_shared/call-review.ts'
 import { demoPacingAction, DEMO_SALES_POLICY, SALES_ACTION_POLICY, salesRecommendation } from '../_shared/demo-sales.ts'
@@ -357,7 +357,7 @@ Deno.serve(async (req) => {
           else if (action.call.name === 'request_platform_followup') {
             const contact=confirmedVisitorContact(msg.contact);
             if (!session.lead_id) throw new Error('This demo has no visitor record for follow-up.');
-            const {data:lead,error:readError}=await db.from('leads').select('full_name,email,phone').eq('id',session.lead_id).single();
+            const {data:lead,error:readError}=await db.from('leads').select('full_name,email,phone,website_screenshot').eq('id',session.lead_id).single();
             if(readError || !lead)throw new Error('Visitor record unavailable.');
             const {error}=await db.from('leads').update({full_name:lead.full_name || contact.name,email:lead.email || contact.email,phone:lead.phone || contact.phone || null}).eq('id',session.lead_id);
             if(error)throw new Error('Contact details could not be saved.');
@@ -365,11 +365,11 @@ Deno.serve(async (req) => {
             if(historyError)throw new Error('Confirmed follow-up could not be recorded.');
             confirmedContact=contact; response={saved:true,platform:'AI Hidden Leads'};
             const mailContact={...contact,businessName:String(config.businessName||'')};
-            void trySend(followupAlert(mailContact)); void trySend(visitorFollowup(mailContact));
+            void trySend(followupAlert(mailContact)); void trySend(visitorFollowup({...mailContact,screenshot:(lead as {website_screenshot?:string|null}).website_screenshot,didDemo:!!session.prospect_id}));
           } else {
             if(!confirmedContact || !action.slotStart)throw new Error('Confirm contact details and appointment first.');
             response=await bookPlatformCall(db,{...confirmedContact,businessName:String(config.businessName),slotStart:action.slotStart});
-            if((response as {ok?:boolean}).ok) void trySend(bookingAlert({...confirmedContact,businessName:String(config.businessName||''),slotStart:action.slotStart}));
+            if((response as {ok?:boolean}).ok){const bc={...confirmedContact,businessName:String(config.businessName||''),slotStart:action.slotStart}; void trySend(bookingAlert(bc)); void trySend(bookingConfirmation(bc));}
           }
         } catch(e) {response={error:e instanceof Error?e.message:'Action failed'};}
         clientSocket.send(JSON.stringify({type:'action_result',id:msg.id,...response}));
