@@ -38,9 +38,10 @@
 - Use plain imperative Leaflet (`L.map` in useEffect), never react-leaflet: react-leaflet v5 requires React 19 and crashes on React 18 with "render2 is not a function".
 - Share the isolated Leaflet street-map renderer between homepage illustrations and measured audits; public demo examples prefill editable inputs without opening paid scans or voice sessions.
 - Live rank audits go through the `demo-rank-audit` function (Serper), cached 7 days in `rank_scan_cache` with a 30-scan daily cap; failed cells stay null, never fabricated.
-- Homepage voice pacing runs server-side in the Live proxy: a one-time soft wrap-up, then calls continue only while the caller keeps speaking, under a server safety ceiling; this saves minutes without cutting off engaged visitors.
-- Prospect demos use a five-minute soft checkpoint and a fifteen-minute server ceiling; silence closure is shared, but reviewed platform sales knowledge stays separate from website roleplay and is used only after an explicitly announced transition.
 - Share compact sales actions across public Aspen shells; server-validated plan recommendations open the matching plan-selection anchor in a new tab, never charge or navigate a live conversation automatically. Do not show platform sales actions on tenant agent pages.
 - Provision private customer workspaces atomically only from server-verified payments; recheck environment-scoped entitlements for edits/sessions. Never infer payment from return URLs or grant platform roles. Customer /account is separate from admin; scope its editor to the paid agent and share public header/footer.
 - Version validated appearance in agent JSON; expose only public color/font tokens. Website style suggestions use captured scan evidence for review, never arbitrary CSS or private prompts.
 - Send owner/operational app emails through the owner's Hostinger mailbox SMTP helper (_shared/hostinger-mail.ts); Hostinger cannot delegate subdomains and the owner wants a portable setup.
+- Public headers show one AccountMenu: signed-out Log in/Create account links to /account; admin menu entries appear only from the protected platform role table, never hidden gestures or client flags.
+
+- Subdirectories have their own AGENTS.md; read it before changing files there.
