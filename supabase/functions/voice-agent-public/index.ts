@@ -1,5 +1,6 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { normalizeTheme } from '../_shared/widget-theme.ts';
 Deno.serve(async req=>{
  if(req.method==='OPTIONS') return new Response('ok',{headers:corsHeaders});
  const json=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
@@ -11,5 +12,5 @@ Deno.serve(async req=>{
  const {data:agent}=await query.maybeSingle();if(!agent?.published)return json({error:'Agent not published'},404);
  const c=agent.published as Record<string,unknown>;
  let avatarUrl='';if(c.avatarPath){const {data}=await db.storage.from('lead-uploads').createSignedUrl(String(c.avatarPath),3600);avatarUrl=data?.signedUrl||'';}
- return json({id:agent.id,name:c.name,businessName:c.businessName,avatarUrl});
+ return json({id:agent.id,name:c.name,businessName:c.businessName,avatarUrl,theme:normalizeTheme(c.theme)});
 });

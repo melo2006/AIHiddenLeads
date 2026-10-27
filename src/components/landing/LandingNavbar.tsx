@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Menu, X, FileText, Type } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -8,11 +8,14 @@ import TextSizeControl from "@/components/TextSizeControl";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 const LandingNavbar = () => {
+  const location=useLocation();
+  const navigate=useNavigate();
   const [open, setOpen] = useState(false);
   const { t } = useTranslation();
 
   const scrollTo = (id: string) => {
     setOpen(false);
+    if(location.pathname !== '/') { navigate(`/#${id}`); return; }
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
   };
 
@@ -52,6 +55,7 @@ const LandingNavbar = () => {
             <FileText className="h-3.5 w-3.5" />
             Script
           </Link>
+          <Link to="/account" className="text-sm text-muted-foreground hover:text-foreground">My account</Link>
           <LanguageSwitcher />
           <Popover><PopoverTrigger asChild><Button size="icon" variant="ghost" aria-label="Text size" title="Text size"><Type /></Button></PopoverTrigger><PopoverContent className="z-[100] w-72"><TextSizeControl /></PopoverContent></Popover>
           <Button size="sm" onClick={() => scrollTo("demo-form")}>
@@ -97,6 +101,7 @@ const LandingNavbar = () => {
           >
             Script
           </Link>
+          <Button asChild variant="ghost" className="w-full justify-start"><Link to="/account" onClick={()=>setOpen(false)}>My account</Link></Button>
           <TextSizeControl />
           <Button size="lg" className="h-auto min-h-11 whitespace-normal w-full mt-2 py-3 text-base" onClick={() => scrollTo("demo-form")}>
             {t("nav.getFreeDemo")}

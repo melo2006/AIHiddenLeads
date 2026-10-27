@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react';
 import { getStripePriceId } from '@/lib/stripe';
 import { supabase } from '@/integrations/supabase/client';
 import CustomerSignIn from '@/components/CustomerSignIn';
+import CustomerPageLayout from '@/components/CustomerPageLayout';
 import type { User } from '@supabase/supabase-js';
 
 const planDetails: Record<string, { name: string; price: string; features: string[]; priceId: string }> = {
@@ -84,7 +85,7 @@ export default function Checkout() {
   }, [plan.priceId, paymentsAvailable]);
 
   return (
-    <div className="min-h-screen bg-background">
+    <CustomerPageLayout>
       <PaymentTestModeBanner />
       <div className="max-w-5xl mx-auto px-4 py-8">
         <Button variant="ghost" size="sm" onClick={() => navigate("/")} className="mb-6">
@@ -154,6 +155,6 @@ export default function Checkout() {
           </div>
         </div>
       </div>
-    </div>
+    </CustomerPageLayout>
   );
 }

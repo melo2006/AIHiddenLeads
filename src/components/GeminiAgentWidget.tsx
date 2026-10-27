@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { Mic, MessageSquare, X, Minus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import GeminiConversation from './GeminiConversation';
@@ -10,6 +10,8 @@ import ChatWidget from '@/components/landing/demo-results/ChatWidget';
 import AspenLauncherContent from '@/components/AspenLauncherContent';
 import AspenSalesActions from '@/components/AspenSalesActions';
 
+import { themeVariables, type WidgetTheme } from '../../supabase/functions/_shared/widget-theme';
+
 interface Props { agentId?: string; leadId?: string; prospectId?: string; businessName?: string; callerName?: string; onClose?: () => void; floating?: boolean; autoStart?: boolean; }
 export default function GeminiAgentWidget({ agentId, leadId, prospectId, businessName, callerName, onClose, floating = false, autoStart = false }: Props) {
  const [open,setOpen]=useState(!floating);
@@ -19,7 +21,7 @@ export default function GeminiAgentWidget({ agentId, leadId, prospectId, busines
  const [mode,setMode]=useState<'voice'|'chat'>('voice');
  const [chatVisited,setChatVisited]=useState(false);
  const [recommendedPlan,setRecommendedPlan]=useState<string|null>(null);
- const [identity,setIdentity]=useState({name:'Aspen',businessName:businessName||'AI Hidden Leads',avatarUrl:''});
+ const [identity,setIdentity]=useState<{name:string;businessName:string;avatarUrl:string;theme?:WidgetTheme}>({name:'Aspen',businessName:businessName||'AI Hidden Leads',avatarUrl:''});
  const isMobile=useIsMobile();
  useEffect(()=>{let active=true;void preloadVoiceIdentity(agentId).then(data=>{if(active&&data?.name)setIdentity({...data,businessName:businessName||data.businessName});});return()=>{active=false;};},[agentId,leadId,prospectId,businessName]);
  const openWidget=()=>{setHasOpened(true);setClickedOpen(true);setOpen(true);};
@@ -41,5 +43,6 @@ export default function GeminiAgentWidget({ agentId, leadId, prospectId, busines
  </>;
  useEffect(()=>{if(!floating && !open && !hasOpened) onClose?.();},[open,floating,onClose,hasOpened]);
  if(dismissed) return null;
-  return (floating || isMobile) ? <DraggableFloating initialX={12} initialY={window.innerHeight-90} anchorRight anchorBottom resetKey={open ? 'open' : 'closed'}>{content}</DraggableFloating> : content;
+ const themedContent=<div style={agentId ? themeVariables(identity.theme) as CSSProperties : undefined}>{content}</div>;
+  return (floating || isMobile) ? <DraggableFloating initialX={12} initialY={window.innerHeight-90} anchorRight anchorBottom resetKey={open ? 'open' : 'closed'}>{themedContent}</DraggableFloating> : themedContent;
 }
