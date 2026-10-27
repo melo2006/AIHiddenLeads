@@ -44,3 +44,4 @@
 - Provision private customer workspaces atomically only from server-verified payments; recheck environment-scoped entitlements for edits/sessions. Never infer payment from return URLs or grant platform roles. Customer /account is separate from admin; scope its editor to the paid agent and share public header/footer.
 - Version validated appearance in agent JSON; expose only public color/font tokens. Website style suggestions use captured scan evidence for review, never arbitrary CSS or private prompts.
 - Send owner/operational app emails through the owner's Hostinger mailbox SMTP helper (_shared/hostinger-mail.ts); Hostinger cannot delegate subdomains and the owner wants a portable setup.
+- Public headers show one AccountMenu: signed-out Log in/Create account links to /account; admin menu entries appear only from the protected platform role table, never hidden gestures or client flags.
