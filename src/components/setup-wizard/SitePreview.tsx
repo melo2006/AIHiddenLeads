@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
 import avatar from "@/assets/aspen_blonde_avatar.jpg";
 import { renderGreeting, type WizardState } from "./wizardModel";
 
 /** Shows the customer's real site (when it allows embedding) with the floating assistant drawn on top. */
-export default function SitePreview({ state, open = true }: { state: WizardState; open?: boolean }) {
+export default function SitePreview({ state, open = true, screenshot }: { state: WizardState; open?: boolean; screenshot?: string }) {
   const [embeddable, setEmbeddable] = useState<boolean | null>(null);
   const [standIn, setStandIn] = useState(false);
   const url = state.websiteUrl && (/^https?:\/\//i.test(state.websiteUrl) ? state.websiteUrl : `https://${state.websiteUrl}`);
@@ -25,17 +26,17 @@ export default function SitePreview({ state, open = true }: { state: WizardState
       <div className="flex h-6 items-center gap-1.5 border-b border-border bg-card px-2">
         <span className="h-2 w-2 rounded-full bg-destructive/70" /><span className="h-2 w-2 rounded-full bg-accent" /><span className="h-2 w-2 rounded-full bg-primary/70" />
         <span className="ml-2 truncate text-[10px] text-muted-foreground">{url || "yourwebsite.com"}</span>
-        {embeddable && <button type="button" onClick={() => setStandIn(!standIn)} className="ml-auto shrink-0 text-[10px] text-primary underline">{standIn ? "Show my site" : "Site looks wrong?"}</button>}
+        {embeddable && screenshot && <Button variant="link" size="sm" onClick={() => setStandIn(!standIn)} className="ml-auto h-5 shrink-0 p-0 text-[10px]">{standIn ? "Live site" : "Captured site"}</Button>}
       </div>
       <div className="relative h-[calc(100%-1.5rem)]">
-        {embeddable && url && !standIn ? (
+        {screenshot && (standIn || embeddable !== true) ? (
+          <img src={screenshot} alt={`Captured website for ${state.businessName}`} className="h-full w-full object-cover object-top" />
+        ) : embeddable && url && !standIn ? (
           <iframe title="Your website" src={url} className="pointer-events-none h-[200%] w-[200%] origin-top-left scale-50 border-0 bg-background" sandbox="allow-scripts allow-same-origin" />
         ) : (
-          <div className="space-y-3 p-4" aria-label="Sample website layout">
-            <div className="h-4 w-1/3 rounded bg-foreground/15" />
-            <div className="h-16 rounded-lg bg-foreground/10" />
-            <div className="grid grid-cols-3 gap-2">{[0, 1, 2].map((i) => <div key={i} className="h-12 rounded bg-foreground/10" />)}</div>
-            {embeddable === false && url && <p className="text-[10px] text-muted-foreground">Your site blocks previews here, so this is a stand-in page.</p>}
+          <div className="p-4 text-xs text-muted-foreground" role="status">
+            {url ? embeddable === null ? "Checking website…" : "Learn your website in step 2 to capture its original appearance." : "Add your website to see it here."}
+            {url && <Button asChild variant="link" size="sm"><a href={url} target="_blank" rel="noopener noreferrer">Open original website</a></Button>}
           </div>
         )}
         {open && (
