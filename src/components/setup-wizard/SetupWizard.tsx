@@ -131,7 +131,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
     const full = /^https?:\/\//i.test(url) ? url : `https://${url}`;
     if (!selectedId) return;
     setBusy(true);
-    try { await save(); await learnSource({ kind: "url", label: full.slice(0,255), url: full }); }
+    try { if (!await save()) return; await learnSource({ kind: "url", label: full.slice(0,255), url: full }); }
     catch (e) { toast.error(e instanceof Error ? e.message : "Could not learn page"); }
     finally { setBusy(false); }
     setLinkInput("");
@@ -175,13 +175,14 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
         catch (e) { toast.error(e instanceof Error ? e.message : "Could not add file"); continue; }
         } finally { setBusy(false); }
       }
-      setS((p) => ({ ...p, files: [...p.files, file.name] }));
+
     }
   }
 
   async function suggest() {
     setBusy(true);
     try {
+      setVoiceReady(false);
       const data = await request({ action: "suggestGreeting", ...(selectedId ? { agentId: selectedId } : {}), businessName: s.businessName || undefined, industry: s.industry || undefined, url: s.websiteUrl || undefined });
       if (data?.greeting) set({ greeting: data.greeting });
     } catch (e) { toast.error(e instanceof Error ? e.message : "Could not get a suggestion"); }
@@ -213,7 +214,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
           <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/40 bg-primary/10 px-3 py-2 text-xs">
             <strong className="text-primary">Assisted setup</strong>
             <span className="text-muted-foreground">Saved business drafts · real voice usage · no purchase required</span>
-            <Select value={selectedId || "new"} onValueChange={(id) => { setSelectedId(id === "new" ? undefined : id); setStep(0); setVoiceReady(false); setCalling(false); if(id === "new") setS(EMPTY); }}>
+            <Select value={selectedId || "new"} onValueChange={(id) => { setDraft(null); setPublished(false); setSelectedId(id === "new" ? undefined : id); setStep(0); setVoiceReady(false); setCalling(false); if(id === "new") setS(EMPTY); }}>
               <SelectTrigger className="ml-auto h-8 w-full sm:w-64" aria-label="Choose business"><SelectValue placeholder="New business" /></SelectTrigger>
               <SelectContent className="z-[130]"><SelectItem value="new">New business</SelectItem>{agents.map(a => <SelectItem key={a.id} value={a.id}>{String(a.draft.businessName)}</SelectItem>)}</SelectContent>
             </Select>
@@ -383,7 +384,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
         <div className="sticky bottom-0 z-10 flex items-center justify-between gap-3 border-t border-border bg-background/95 py-3 backdrop-blur">
           <Button variant="outline" size="lg" disabled={step === 0 || busy} onClick={() => void go(step - 1)}><ChevronLeft className="mr-1 h-5 w-5" />Back</Button>
           {step < STEPS.length - 1 && (
-            <Button size="lg" disabled={!ready || busy} onClick={() => void go(step + 1)}>Next<ChevronRight className="ml-1 h-5 w-5" /></Button>
+            <Button size="lg" disabled={!ready || busy || Boolean(selectedId && !draft)} onClick={() => void go(step + 1)}>Next<ChevronRight className="ml-1 h-5 w-5" /></Button>
           )}
         </div>
       </div>
