@@ -1,5 +1,7 @@
 # Current work
 
+- [ ] Test Customer Setup end to end with an authenticated admin, saved business draft, real PDF learning, Gemini playback and original website capture; fix client-presentation blockers without publishing or purchasing.
+
 - [x] Replace admin wizard simulation with saved business drafts, real Gemini auditions/calls, learned documents and authentic website screenshot fallback. Signed-in admin created/reopened a draft, PDF parsed 95 characters, website learned, provider audio delivered, real draft call reached Listening with business greeting, captured original displayed, and phone layout had no overflow; 19 tests passed. No payment or publication performed; customer purchase/installation checks remain below.
 
 - [x] Add compact Try your website / Book a quick call / Start now actions to the homepage and Aspen window; Essentials-first plan selection and new-tab phone actions verified without overflow. Server plan recommendations select the matching plan.
