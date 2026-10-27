@@ -5,6 +5,7 @@ import { LANGUAGE_POLICY } from '../_shared/voice-config.ts'
 import { pcmSeconds, audioCost, validPricing } from '../_shared/voice-usage.ts'
 import { platformAvailability, bookPlatformCall, voiceAvailability } from '../_shared/platform-calendar.ts'
 import { confirmedVisitorContact, CONTACT_READBACK_POLICY } from '../_shared/visitor-followup.ts'
+import { bookingAlert, followupAlert, visitorFollowup, trySend } from '../_shared/hostinger-mail.ts'
 import { DEFAULT_LIVE_MODEL, officialLivePricing } from '../_shared/live-models.ts'
 import { callReview } from '../_shared/call-review.ts'
 import { demoPacingAction, DEMO_SALES_POLICY, SALES_ACTION_POLICY, salesRecommendation } from '../_shared/demo-sales.ts'
@@ -363,9 +364,12 @@ Deno.serve(async (req) => {
             const {error:historyError}=await db.from('call_history').upsert({retell_call_id:`gemini_${session.id}`,lead_id:session.lead_id,prospect_id:session.prospect_id,business_name:String(config.businessName),caller_name:contact.name,caller_email:contact.email,caller_phone:contact.phone || null,call_status:'live',metadata:{provider:'gemini',session_id:session.id,followup_consent_at:new Date().toISOString()}},{onConflict:'retell_call_id'});
             if(historyError)throw new Error('Confirmed follow-up could not be recorded.');
             confirmedContact=contact; response={saved:true,platform:'AI Hidden Leads'};
+            const mailContact={...contact,businessName:String(config.businessName||'')};
+            void trySend(followupAlert(mailContact)); void trySend(visitorFollowup(mailContact));
           } else {
             if(!confirmedContact || !action.slotStart)throw new Error('Confirm contact details and appointment first.');
             response=await bookPlatformCall(db,{...confirmedContact,businessName:String(config.businessName),slotStart:action.slotStart});
+            if((response as {ok?:boolean}).ok) void trySend(bookingAlert({...confirmedContact,businessName:String(config.businessName||''),slotStart:action.slotStart}));
           }
         } catch(e) {response={error:e instanceof Error?e.message:'Action failed'};}
         clientSocket.send(JSON.stringify({type:'action_result',id:msg.id,...response}));
