@@ -98,10 +98,10 @@
 - [x] Demo Aspen chat/voice toggle shares one floating shell while preserving existing text and voice transports.
 
 ## Customer dashboard and homepage voice
-- [ ] Default the homepage Aspen preview to Voice, keeping Chat available.
-- [ ] Reuse homepage navigation/footer on checkout and setup; close paid setup into a private customer dashboard.
-- [ ] Add customer agent website/URL and appearance editing with reviewed website-derived suggestions.
-- [ ] Add detailed WordPress/Wix installation guidance and verify customer navigation and saved appearance.
+- [x] Default the homepage Aspen preview to Voice, keeping Chat available.
+- [x] Reuse homepage navigation/footer on checkout and setup; close paid setup into a private customer dashboard.
+- [x] Add customer agent website/URL and appearance editing with reviewed website-derived suggestions.
+- [x] Add detailed WordPress/Wix installation guidance and verify customer navigation. Saved appearance end-to-end needs a paid workspace.
 - [x] Voice selected in homepage preview; real Voice/Chat opening action added without microphone preloading.
 - [x] Branded checkout/setup and private /account navigation added; editor restricted to workspace agent.
 - [x] Validated versioned colors/fonts, website URL and assistant slug editing added; scan-derived reviewed suggestions, safe public appearance rendering and WordPress/Wix instructions deployed.
