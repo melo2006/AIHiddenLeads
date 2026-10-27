@@ -66,6 +66,7 @@ const App = () => {
             <Route path="/checkout" element={<Checkout />} />
             <Route path="/plans" element={<Plans />} />
             <Route path="/setup" element={<CustomerSetup />} />
+            <Route path="/account" element={<CustomerSetup dashboard />} />
             <Route path="/embed/:id" element={<AgentEmbed />} />
             <Route path="/checkout/return" element={<CheckoutReturn />} />
             <Route path="/transcript" element={<TranscriptPage />} />

@@ -5,10 +5,12 @@ import { DEFAULT_AGENT, VOICES, isPublicUrl, SIMULATION_GREETING, SIMULATION_PRO
 import { HOMEPAGE_KNOWLEDGE, HOMEPAGE_SALES_PROMPT } from '../_shared/homepage-knowledge.ts';
 import { DEFAULT_LIVE_MODEL, LIVE_MODELS, officialLivePricing } from '../_shared/live-models.ts';
 import { validPricing } from '../_shared/voice-usage.ts';
+import { websiteTheme, THEME_FONTS, DEFAULT_WIDGET_THEME } from '../_shared/widget-theme.ts';
 import { workspaceAccess } from '../_shared/customer-payments.ts';
 
-const configSchema = z.object({ name:z.string().min(1).max(80), businessName:z.string().min(1).max(160), voice:z.enum(VOICES as [string,...string[]]), avatarPath:z.string().max(500).default(''), greeting:z.string().min(1).max(1500), systemPrompt:z.string().min(1).max(12000), simulationGreeting:z.string().min(1).max(1500).default(SIMULATION_GREETING), simulationPrompt:z.string().min(1).max(12000).default(SIMULATION_PROMPT), knowledge:z.string().max(60000).default(''), crawlDepth:z.union([z.literal(1),z.literal(2)]).default(1), recordTranscript:z.boolean().default(false), transferPhone:z.string().regex(/^$|^\+[1-9]\d{7,14}$/,'Use an international phone number, starting with +').default(''), transferManagerName:z.string().max(80).default('') });
-const requestSchema = z.object({ action:z.enum(['list','usage','pricing','create','save','publish','source','refresh','removeSource','member','rollback']), agentId:z.string().uuid().optional(), sourceId:z.string().uuid().optional(), config:configSchema.optional(), businessName:z.string().min(1).max(160).optional(), userEmail:z.string().email().optional(), kind:z.enum(['url','document']).optional(), label:z.string().min(1).max(255).optional(), url:z.string().max(2000).optional(), storagePath:z.string().max(500).optional(), pricing:z.object({model:z.literal('gemini-3.8-live'),inputAudioPerMinute:z.number().finite().min(0).max(100),outputAudioPerMinute:z.number().finite().min(0).max(100),source:z.string().url().max(2000)}).optional() });
+const themeSchema=z.object({primary:z.string().regex(/^#[0-9a-f]{6}$/i),background:z.string().regex(/^#[0-9a-f]{6}$/i),foreground:z.string().regex(/^#[0-9a-f]{6}$/i),font:z.enum(THEME_FONTS)});
+const configSchema = z.object({ websiteUrl:z.string().max(2000).refine(v=>!v || isPublicUrl(v),'Use a public website URL').default(''), theme:themeSchema.default(DEFAULT_WIDGET_THEME), suggestedTheme:themeSchema.nullable().optional(), name:z.string().min(1).max(80), businessName:z.string().min(1).max(160), voice:z.enum(VOICES as [string,...string[]]), avatarPath:z.string().max(500).default(''), greeting:z.string().min(1).max(1500), systemPrompt:z.string().min(1).max(12000), simulationGreeting:z.string().min(1).max(1500).default(SIMULATION_GREETING), simulationPrompt:z.string().min(1).max(12000).default(SIMULATION_PROMPT), knowledge:z.string().max(60000).default(''), crawlDepth:z.union([z.literal(1),z.literal(2)]).default(1), recordTranscript:z.boolean().default(false), transferPhone:z.string().regex(/^$|^\+[1-9]\d{7,14}$/,'Use an international phone number, starting with +').default(''), transferManagerName:z.string().max(80).default('') });
+const requestSchema = z.object({ action:z.enum(['list','usage','pricing','create','save','publish','source','refresh','removeSource','member','rollback']), agentId:z.string().uuid().optional(), slug:z.string().min(3).max(80).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(), sourceId:z.string().uuid().optional(), config:configSchema.optional(), businessName:z.string().min(1).max(160).optional(), userEmail:z.string().email().optional(), kind:z.enum(['url','document']).optional(), label:z.string().min(1).max(255).optional(), url:z.string().max(2000).optional(), storagePath:z.string().max(500).optional(), pricing:z.object({model:z.literal('gemini-3.8-live'),inputAudioPerMinute:z.number().finite().min(0).max(100),outputAudioPerMinute:z.number().finite().min(0).max(100),source:z.string().url().max(2000)}).optional() });
 const json = (data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
 Deno.serve(async req=>{
   if(req.method==='OPTIONS') return new Response('ok',{headers:corsHeaders});
@@ -71,7 +73,7 @@ Deno.serve(async req=>{
     if(body.action==='save') {
       if(!body.config) return json({error:'Settings required'},400);
       if(body.config.avatarPath && !body.config.avatarPath.startsWith(`voice/${agent.id}/`)) return json({error:'Avatar must belong to this agent'},400);
-      const {error}=await db.from('voice_agents').update({draft:body.config,updated_at:new Date().toISOString()}).eq('id',agent.id); if(error) throw error; return json({success:true});
+      const {error}=await db.from('voice_agents').update({draft:body.config,...(body.slug && agent.slug!=='aspen-homepage'?{slug:body.slug}:{}),updated_at:new Date().toISOString()}).eq('id',agent.id); if(error) throw error; return json({success:true});
     }
     if(body.action==='publish') {
       const parsedConfig=configSchema.safeParse(agent.draft); if(!parsedConfig.success) return json({error:'Save valid settings first'},400);
@@ -116,7 +118,9 @@ Deno.serve(async req=>{
         if(!isPublicUrl(websiteUrl)) throw new Error('Invalid source URL');
         const {data:lead,error}=await db.from('leads').insert({business_name:String(config.businessName),full_name:'Voice knowledge ingestion',website_url:websiteUrl,niche:'general',scan_status:'pending'}).select('id').single(); if(error) throw error;
         const {error:scanError}=await db.functions.invoke('scan-website',{body:{leadId:lead.id,websiteUrl,businessName:config.businessName,crawlDepth:config.crawlDepth,uploadedFiles:source.storage_path?[source.storage_path]:[]}}); if(scanError) throw new Error('Website learning failed; try refreshing the source again.');
-        const {data:result}=await db.from('leads').select('website_content,scan_status').eq('id',lead.id).single();
+        const {data:result}=await db.from('leads').select('website_content,scan_status,brand_colors,brand_fonts').eq('id',lead.id).single();
+        const suggestedTheme=websiteTheme(result?.brand_colors,result?.brand_fonts);
+        if(suggestedTheme){const {error:themeError}=await db.from('voice_agents').update({draft:{...config,websiteUrl:config.websiteUrl || websiteUrl,suggestedTheme}}).eq('id',agent.id);if(themeError)throw themeError;}
         content=result?.website_content || ''; if(!content || result?.scan_status==='failed') throw new Error('No readable knowledge was found.');
       }
       if(!content.trim()) throw new Error('This source is empty.');

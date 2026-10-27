@@ -11,7 +11,7 @@ const AuthCallback = () => {
   useEffect(() => {
     let active = true;
     const destination=new URLSearchParams(window.location.search).get('next')||sessionStorage.getItem('customer-auth-return');
-    const returnPath=destination&&!destination.startsWith('//')&&(destination.startsWith('/checkout')||destination.startsWith('/setup'))?destination:'/dashboard/calls';
+    const returnPath=destination&&!destination.startsWith('//')&&(destination.startsWith('/checkout')||destination.startsWith('/setup')||destination==='/account')?destination:'/dashboard/calls';
 
     const isCustomer=returnPath!=='/dashboard/calls';
     const hash=new URLSearchParams(window.location.hash.slice(1));

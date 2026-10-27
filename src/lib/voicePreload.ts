@@ -1,6 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 
-type Identity = { name: string; businessName: string; avatarUrl: string };
+import type { WidgetTheme } from '../../supabase/functions/_shared/widget-theme';
+
+type Identity = { id: string; name: string; businessName: string; avatarUrl: string; theme?: WidgetTheme };
 const identities = new Map<string, { expires: number; promise: Promise<Identity | null> }>();
 let lastWarmup = 0;
 // Only public display identity is cached. Never preload session capabilities or private prompts.
