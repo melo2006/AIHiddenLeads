@@ -44,4 +44,5 @@
 - Send owner/operational app emails through the owner's Hostinger mailbox SMTP helper (_shared/hostinger-mail.ts); Hostinger cannot delegate subdomains and the owner wants a portable setup.
 - Public headers show one AccountMenu: signed-out Log in/Create account links to /account; admin menu entries appear only from the protected platform role table, never hidden gestures or client flags.
 
-- Subdirectories have their own AGENTS.md; read it before changing files there.- The customer setup wizard (src/components/setup-wizard) is shared by /setup and the admin preview; preview mode must never write, publish or open paid voice sessions.
+- Read subdirectory AGENTS.md before edits.
+- Share paid customer and protected admin setup; admin drafts use real ingestion/Gemini tests without granting customer payment access. Publish only explicitly, so demonstrations match production safely.
