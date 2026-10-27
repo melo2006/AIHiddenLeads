@@ -43,3 +43,4 @@
 - Share compact sales actions across public Aspen shells; server-validated plan recommendations open the matching plan-selection anchor in a new tab, never charge or navigate a live conversation automatically. Do not show platform sales actions on tenant agent pages.
 - Never treat a checkout return URL as proof of payment; paid onboarding and customer provisioning must wait for server-verified payment linked to a verified account.
 - Provision customer workspaces atomically from verified payments; use stable price lookup keys and environment-scoped entitlements, rechecking server-side for agent edits and sessions. Customer billing changes verify ownership and never grant platform roles.
+- Send owner/operational app emails through the owner's Hostinger mailbox SMTP helper (_shared/hostinger-mail.ts); Hostinger cannot delegate subdomains and the owner wants a portable setup.
