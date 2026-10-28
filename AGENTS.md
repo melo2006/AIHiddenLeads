@@ -46,4 +46,4 @@
 - Read subdirectory AGENTS.md before edits.
 - Share customer/admin setup with real ingestion/Gemini tests; admin drafts never grant payment access. Publish only explicitly. Prefer captured originals over iframe checks; guard loading and save before switching drafts to prevent lost work.
 - Share drafts only via hashed, expiring server-resolved tokens: appearance-only responses, visitor quota, no handoff.
-- Simli video faces only lip-sync Gemini Live audio (downsampled 24→16 kHz in the browser); Simli keys and session tokens stay server-side in `simli-avatar`, which resolves the face from published/shared/authorized draft agent config, never from public callers. Calls fall back to voice-only if the face fails.
+- Simli faces only lip-sync Gemini audio; `simli-avatar` keeps keys/tokens server-side and resolves faces from agent config, never callers. Fall back to voice-only.
