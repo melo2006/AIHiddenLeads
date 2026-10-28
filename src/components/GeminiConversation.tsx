@@ -554,7 +554,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       if (generation === generationRef.current) startingRef.current = false;
       window.clearTimeout(startupTimeout);
     }
-  }, [voice, microphone, captureMode, refreshMicrophones, playPcmChunk, clearPlayback, flushLine, stopEverything, agentId, leadId, prospectId, draft, previewVoice, previewAudioContext, visitorName, consent, testModel, shareToken, onRecommendedPlan]);
+  }, [voice, microphone, captureMode, refreshMicrophones, playPcmChunk, clearPlayback, flushLine, stopEverything, agentId, leadId, prospectId, draft, previewVoice, previewAudioContext, visitorName, consent, testModel, shareToken, onRecommendedPlan, videoAvatar]);
 
   useEffect(() => stopEverything, [stopEverything]);
 
