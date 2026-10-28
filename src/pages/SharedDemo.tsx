@@ -3,8 +3,9 @@ import { useParams } from "react-router-dom";
 import GeminiConversation from "@/components/GeminiConversation";
 import SitePreview from "@/components/setup-wizard/SitePreview";
 import { EMPTY, type WizardState } from "@/components/setup-wizard/wizardModel";
+import type { VideoAvatar } from "../../supabase/functions/_shared/video-avatar";
 
-type ShareInfo = { name: string; businessName: string; websiteUrl: string; industry: string; greeting: string; previewScreenshot: string; launcherLabel: string; launcherCorner: string; theme?: { primary?: string } };
+type ShareInfo = { name: string; businessName: string; websiteUrl: string; industry: string; greeting: string; previewScreenshot: string; launcherLabel: string; launcherCorner: string; theme?: { primary?: string }; videoAvatar?: VideoAvatar };
 
 /** Public client demo: only the shared draft's public appearance and a voice call; no admin controls or other tenants. */
 export default function SharedDemo() {
@@ -42,7 +43,7 @@ export default function SharedDemo() {
               </div>
               <div className="grid gap-4 md:grid-cols-[1fr_360px]">
                 <SitePreview state={state} screenshot={info?.previewScreenshot || undefined} />
-                <div className="rounded-xl border border-border p-2"><GeminiConversation shareToken={token} name={state.name} compact /></div>
+                <div className="rounded-xl border border-border p-2"><GeminiConversation shareToken={token} name={state.name} compact videoAvatar={info?.videoAvatar} /></div>
               </div>
             </>}
       </main>

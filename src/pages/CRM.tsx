@@ -17,6 +17,7 @@ import type { Session } from "@supabase/supabase-js";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import AccountMenu from "@/components/AccountMenu";
 import SetupWizard from "@/components/setup-wizard/SetupWizard";
+import VideoAvatarsView from "@/components/crm/VideoAvatarsView";
 import { Link } from "react-router-dom";
 import { CRMSidebar } from "@/components/crm/CRMSidebar";
 import { supabase } from "@/integrations/supabase/client";
@@ -272,7 +273,7 @@ const CRM = () => {
               <Route path="voice-costs" element={<VoiceCostsView />} />
               <Route path="guardrails" element={<Navigate to="/dashboard/voice-costs#limits" replace />} />
               <Route path="wizard-preview" element={<SetupWizard preview />} />
-              <Route path="video-avatars" element={<div className="space-y-2 p-4 text-sm"><h1 className="text-lg font-bold">Video Avatars</h1><p className="text-muted-foreground">Coming next: let visitors choose voice only (Gemini Live), a Simli video avatar, or a HeyGen video avatar. Not connected yet.</p></div>} />
+              <Route path="video-avatars" element={<VideoAvatarsView />} />
               <Route path="*" element={<CRMDashboard />} />
             </Routes>
           </main>

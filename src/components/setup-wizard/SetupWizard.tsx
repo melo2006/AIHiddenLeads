@@ -4,8 +4,10 @@ import { FunctionsHttpError } from "@supabase/supabase-js";
 import { toast } from "sonner";
 import {
   Building2, BookOpen, Mic, Palette, Rocket, ChevronLeft, ChevronRight, Info, Sparkles, RefreshCw, Play, Plus, X,
-  UploadCloud, Link2, FileText, Check, Phone,
+  UploadCloud, Link2, FileText, Check, Phone, UserRound,
 } from "lucide-react";
+import AvatarSettings from "@/components/AvatarSettings";
+import { normalizeVideoAvatar } from "../../../supabase/functions/_shared/video-avatar";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,7 +24,7 @@ import {
   EMPTY, INDUSTRIES, SPECIALTIES, industryName, LABELS, askLabel, isAskLabel, labelOptions, STEPS, VOICES, faqKnowledge, nameFromUrl, renderGreeting, stepReady, type WizardState,
 } from "./wizardModel";
 
-const ICONS = [Building2, BookOpen, Mic, Palette, Rocket];
+const ICONS = [Building2, BookOpen, Mic, UserRound, Palette, Rocket];
 type Source = { id: string; label: string; kind: string; url?: string; status: string; last_error?: string; content?: string };
 const FAQ_MARK = "--- Wizard FAQs ---";
 
@@ -115,7 +117,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
         files: (a.voice_agent_sources || []).filter((x: { kind: string }) => x.kind === "document").map((x: { label: string }) => x.label),
         faqs, name: String(d.name || "Aspen"), greeting: String(d.greeting || EMPTY.greeting), voice: String(d.voice || "Kore"),
         color: d.theme?.primary || EMPTY.color, label: (() => { const l = String(d.launcherLabel || ""); return !l || isAskLabel(l) ? askLabel(String(d.name || "Aspen")) : l; })(),
-        corner: d.launcherCorner === "bottom-left" ? "bottom-left" : "bottom-right",
+        corner: d.launcherCorner === "bottom-left" ? "bottom-left" : "bottom-right", videoAvatar: normalizeVideoAvatar(d.videoAvatar),
       });
       setPublished(Boolean(a.published));
     } finally { if (generation === loadGeneration.current) setLoading(false); }
@@ -130,7 +132,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
     const faq = faqKnowledge(s.faqs);
     const config = {
       ...draft, websiteUrl: s.websiteUrl ? (/^https?:\/\//i.test(s.websiteUrl) ? s.websiteUrl : `https://${s.websiteUrl}`) : "", businessName: s.businessName || "My business", industry: industryName(s), subNiche: s.subNiche || "", businessNotes: s.businessNotes || "", knowledgeGuidance: s.knowledgeGuidance || "", assistantRestrictions: s.assistantRestrictions || "", systemPrompt: replaceSection(String(draft.systemPrompt || ""), GUARDRAILS_MARK, s.assistantRestrictions || ""), name: s.name || "Aspen",
-      greeting: s.greeting, voice: s.voice, theme: { background: "#101216", foreground: "#F4F6F8", font: "system", ...(draft.theme || {}), primary: s.color }, launcherLabel: s.label, launcherCorner: s.corner,
+      greeting: s.greeting, voice: s.voice, theme: { background: "#101216", foreground: "#F4F6F8", font: "system", ...(draft.theme || {}), primary: s.color }, launcherLabel: s.label, launcherCorner: s.corner, videoAvatar: normalizeVideoAvatar(s.videoAvatar),
       knowledge: faq ? `${base}\n\n${FAQ_MARK}\n${faq}`.trim() : base,
     };
     try { await request({ action: "save", agentId: selectedId, config }); setDraft(config); return true; }
@@ -405,6 +407,13 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
           )}
 
           {step === 3 && (
+            <div className="space-y-4">
+              <StepHead title="Give your assistant a face" hint="Optional: a live video face that speaks with your chosen voice." help="Voice only works everywhere. A video face lip-syncs the same Gemini voice and uses extra video minutes." />
+              <AvatarSettings value={normalizeVideoAvatar(s.videoAvatar)} onChange={(videoAvatar) => set({ videoAvatar })} agentId={selectedId} beforePreview={save} />
+            </div>
+          )}
+
+          {step === 4 && (
             <div className="grid gap-6 md:grid-cols-[1fr_1.4fr]">
               <div className="space-y-4">
                 <StepHead title="How it looks on your site" hint="Pick a color, a label and a corner." />
@@ -428,12 +437,12 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
             </div>
           )}
 
-          {step === 4 && (
+          {step === 5 && (
             <div className="grid gap-6 md:grid-cols-2">
               <div className="space-y-4">
                 <StepHead title={published ? "You're live!" : "Try it, then go live"} hint={published ? "Add it to your website with the steps below." : "Make a test call, then publish."} help="Test calls use your saved draft. Publishing makes it available to your website visitors." />
                 {realVoice ? (
-                  calling ? <div className="rounded-xl border border-border p-2"><GeminiConversation key={`call-${selectedId}`} draft agentId={selectedId} name={s.name} compact /></div>
+                  calling ? <div className="rounded-xl border border-border p-2"><GeminiConversation key={`call-${selectedId}`} draft agentId={selectedId} name={s.name} compact videoAvatar={normalizeVideoAvatar(s.videoAvatar)} /></div>
                     : <Button size="lg" variant="outline" className="w-full" disabled={busy || sources.some(x => x.status !== "ready")} onClick={() => void prepareVoice(true)}><Phone className="mr-2 h-5 w-5" />Try a test call</Button>
                 ) : null}
                 <Button size="lg" className="w-full" disabled={busy || published || sources.some(x => x.status !== "ready")} onClick={() => void publish()}><Rocket className="mr-2 h-5 w-5" />{published ? "Published" : "Publish my assistant"}</Button>

@@ -1,0 +1,144 @@
+import { useEffect, useRef, useState } from "react";
+import { FunctionsHttpError } from "@supabase/supabase-js";
+import { toast } from "sonner";
+import { Mic, UploadCloud, Video, Play, Square, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Slider } from "@/components/ui/slider";
+import SimliAvatar, { type SimliAvatarHandle } from "@/components/SimliAvatar";
+import aspenFace from "@/assets/aspen_blonde_avatar.jpg";
+import {
+  AVATAR_MAX_SIZE, AVATAR_MIN_SIZE, AVATAR_POSITIONS, AVATAR_SHAPES, PRESET_FACES, type VideoAvatar,
+} from "../../supabase/functions/_shared/video-avatar";
+
+const POSITION_LABEL: Record<VideoAvatar["position"], string> = { "bottom-right": "Lower right", "bottom-left": "Lower left", "top-right": "Upper right", "top-left": "Upper left", center: "Center" };
+const SHAPE_LABEL: Record<VideoAvatar["shape"], string> = { circle: "Circle", rounded: "Rounded square", square: "Square" };
+
+async function call(body: Record<string, unknown>) {
+  const { data, error } = await supabase.functions.invoke("simli-avatar", { body });
+  if (error) {
+    const detail = error instanceof FunctionsHttpError ? await error.context.json().catch(() => null) : null;
+    throw new Error(typeof detail?.error === "string" ? detail.error : error.message);
+  }
+  return data;
+}
+
+type Face = { id: string; name: string };
+interface Props {
+  value: VideoAvatar;
+  onChange: (v: VideoAvatar) => void;
+  agentId?: string;
+  /** Saves the draft before a preview so the server uses the chosen face. */
+  beforePreview?: () => Promise<boolean>;
+  faces?: Face[];
+  /** Admin page: preview any face without an agent. */
+  adminPreview?: boolean;
+}
+
+/** Shared video-face picker for the setup wizard and the admin Video Avatars page. */
+export default function AvatarSettings({ value, onChange, agentId, beforePreview, faces = [], adminPreview = false }: Props) {
+  const set = (patch: Partial<VideoAvatar>) => onChange({ ...value, ...patch });
+  const [uploading, setUploading] = useState(false);
+  const [pending, setPending] = useState<{ faceId: string; status: string } | null>(null);
+  const [faceName, setFaceName] = useState("");
+  const [previewing, setPreviewing] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const avatarRef = useRef<SimliAvatarHandle>(null);
+  const allFaces: Face[] = [...PRESET_FACES, ...faces.filter((f) => !PRESET_FACES.some((p) => p.id === f.id))];
+  if (!allFaces.some((f) => f.id === value.faceId)) allFaces.push({ id: value.faceId, name: "Custom face" });
+
+  // Poll a new face's generation; Simli spaces generations about ten minutes apart.
+  useEffect(() => {
+    if (!pending || pending.status === "completed" || pending.status === "failed") return;
+    const timer = window.setInterval(() => {
+      void call({ action: "status", faceId: pending.faceId }).then((d) => {
+        setPending((p) => p && { ...p, status: d.status });
+        if (d.status === "completed") { toast.success("Your new face is ready"); set({ faceId: pending.faceId, enabled: true }); }
+        if (d.status === "failed") toast.error("Simli could not build this face. Try a clearer, front-facing photo.");
+      }).catch(() => {});
+    }, 15000);
+    return () => window.clearInterval(timer);
+  }, [pending?.faceId, pending?.status]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function upload(file?: File) {
+    if (!file) return;
+    if (!/^image\/(png|jpeg|webp)$/.test(file.type)) { toast.error("Use a PNG, JPG or WebP photo"); return; }
+    if (file.size > 10 * 1024 * 1024) { toast.error("Maximum 10 MB"); return; }
+    setUploading(true);
+    try {
+      const buf = new Uint8Array(await file.arrayBuffer());
+      let bin = ""; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+      const d = await call({ action: "createFace", agentId, name: (faceName || file.name.replace(/\.\w+$/, "")).slice(0, 60), imageBase64: btoa(bin), mimeType: file.type });
+      setPending({ faceId: d.faceId, status: "pending" });
+      toast.success(d.dispatchAfter ? "Photo accepted. Simli queued it; it can take 10+ minutes." : "Photo accepted. Building your face — usually a few minutes.");
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Upload failed"); }
+    finally { setUploading(false); if (fileRef.current) fileRef.current.value = ""; }
+  }
+
+  async function togglePreview() {
+    if (previewing) { avatarRef.current?.stop(); setPreviewing(false); return; }
+    if (beforePreview && !await beforePreview()) return;
+    setPreviewing(true);
+    const ok = await avatarRef.current?.start();
+    if (!ok) setPreviewing(false);
+  }
+
+  const choice = (active: boolean) => `rounded-xl border-2 p-3 text-left text-sm transition ${active ? "border-primary bg-primary/10" : "border-border hover:border-primary/50"}`;
+  return (
+    <div className="grid gap-6 md:grid-cols-[1fr_1fr]">
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" className={choice(!value.enabled)} onClick={() => set({ enabled: false })}><Mic className="mb-1 h-4 w-4 text-primary" /><p className="font-semibold">Voice only</p><p className="text-[11px] text-muted-foreground">Launcher photo + voice</p></button>
+          <button type="button" className={choice(value.enabled)} onClick={() => set({ enabled: true })}><Video className="mb-1 h-4 w-4 text-primary" /><p className="font-semibold">Live video face</p><p className="text-[11px] text-muted-foreground">Lip-synced during calls</p></button>
+        </div>
+
+        {value.enabled && <>
+          <div className="space-y-1.5">
+            <p className="text-sm font-medium">Choose a face</p>
+            <div className="grid grid-cols-2 gap-2">
+              {allFaces.map((f) => (
+                <button key={f.id} type="button" className={choice(value.faceId === f.id)} onClick={() => set({ faceId: f.id })}>
+                  {f.id === PRESET_FACES[0].id && <img src={aspenFace} alt="" className="mb-1 h-12 w-12 rounded-full object-cover" />}
+                  <p className="text-xs font-semibold">{f.name}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2 rounded-xl border-2 border-dashed border-border p-3">
+            <p className="flex items-center gap-2 text-sm font-semibold"><UploadCloud className="h-4 w-4 text-primary" />Or create a face from a photo</p>
+            <p className="text-[11px] text-muted-foreground">One person facing the camera, waist-up, good light. Simli frames it and keeps the photo's background, so a plain or transparent-background PNG looks cleanest. Each new face uses one Simli avatar generation.</p>
+            <Input aria-label="Face name" placeholder="Face name, e.g. Lucy" maxLength={60} value={faceName} onChange={(e) => setFaceName(e.target.value)} />
+            <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => void upload(e.target.files?.[0])} />
+            <Button variant="outline" className="w-full" disabled={uploading} onClick={() => fileRef.current?.click()}>{uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UploadCloud className="mr-2 h-4 w-4" />}{uploading ? "Sending photo…" : "Upload photo"}</Button>
+            {pending && <p role="status" className="text-xs text-primary">New face: {pending.status === "completed" ? "ready and selected" : pending.status === "failed" ? "failed" : `building (${pending.status}) — you can keep going; it's selected when ready`}</p>}
+          </div>
+
+          <div className="space-y-1.5">
+            <p className="text-sm font-medium">Where it appears</p>
+            <div className="flex flex-wrap gap-2">{AVATAR_POSITIONS.map((p) => <button key={p} type="button" onClick={() => set({ position: p })} className={`rounded-full border px-3 py-1 text-xs ${value.position === p ? "border-primary bg-primary/10 text-primary" : "border-border"}`}>{POSITION_LABEL[p]}</button>)}</div>
+          </div>
+          <div className="space-y-2">
+            <p className="flex justify-between text-sm font-medium">Size<span className="text-xs text-muted-foreground">{value.size}px</span></p>
+            <Slider aria-label="Avatar size" min={AVATAR_MIN_SIZE} max={AVATAR_MAX_SIZE} step={8} value={[value.size]} onValueChange={([v]) => set({ size: v })} />
+          </div>
+          <div className="space-y-1.5">
+            <p className="text-sm font-medium">Shape</p>
+            <div className="flex flex-wrap gap-2">{AVATAR_SHAPES.map((sh) => <button key={sh} type="button" onClick={() => set({ shape: sh })} className={`rounded-full border px-3 py-1 text-xs ${value.shape === sh ? "border-primary bg-primary/10 text-primary" : "border-border"}`}>{SHAPE_LABEL[sh]}</button>)}</div>
+          </div>
+        </>}
+      </div>
+
+      {value.enabled && <div className="space-y-3">
+        <div className="relative flex min-h-[320px] items-center justify-center overflow-hidden rounded-xl border border-border bg-muted/40">
+          {!previewing && <div className={`overflow-hidden border-2 border-primary/50 ${value.shape === "circle" ? "rounded-full" : value.shape === "rounded" ? "rounded-3xl" : "rounded-md"}`} style={{ width: Math.min(value.size, 300), height: Math.min(value.size, 300) }}><img src={aspenFace} alt="Face preview placeholder" className="h-full w-full object-cover" /></div>}
+          <div className={previewing ? "" : "hidden"}><SimliAvatar ref={avatarRef} inline avatar={{ ...value, size: Math.min(value.size, 300) }} agentId={agentId} draft={Boolean(agentId)} faceOverride={adminPreview ? value.faceId : undefined} onLiveChange={(live) => { if (!live) setPreviewing(false); }} /></div>
+          <span className="absolute bottom-2 left-2 rounded bg-background/80 px-2 py-0.5 text-[10px] text-muted-foreground">On the site: {POSITION_LABEL[value.position].toLowerCase()}</span>
+        </div>
+        {(agentId || adminPreview) && <Button variant="outline" className="w-full" onClick={() => void togglePreview()}>{previewing ? <><Square className="mr-2 h-4 w-4" />Stop face preview</> : <><Play className="mr-2 h-4 w-4" />Preview live face (silent)</>}</Button>}
+        <p className="text-[11px] text-muted-foreground">The preview shows the real face moving; hear it talk with your voice in the test call on the last step. Video minutes are billed by Simli.</p>
+      </div>}
+    </div>
+  );
+}
