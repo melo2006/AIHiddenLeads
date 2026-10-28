@@ -1,5 +1,7 @@
 # Current work
 
+- [ ] Fix rejected campaign milestones from admin voice tests; verify public tracking remains intact and analytics failures cannot interrupt the UI.
+
 - [x] Replaced oversized public examples with commercial cleaning, contract machining, commercial HVAC and packaging suppliers; shared new-business wizard picker, service-matched buyer keywords (not volume research), 12 tests and authenticated desktop/phone selection passed. No scan, purchase, call or publication. Existing saved QA drafts retained; custom avatar-picture uploads remain unimplemented.
 
 - [x] Tested authenticated Customer Setup: created/reopened BankUnited · Presentation QA, learned a clearly labeled real test PDF (198 characters), verified Gemini greeting audio and spoken ORCHID-742 answer from the PDF, displayed a loaded 3808×14096 original website capture, and checked phone layout without overflow or page errors. Fixed blocked iframe default, business-name autofill race, late draft loading and unsaved draft switching; 26 tests passed and build OK. No purchase or publication. Physical microphone/headset remains device-dependent.
