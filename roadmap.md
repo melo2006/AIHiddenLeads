@@ -1,7 +1,7 @@
 # Current work
 
-- [ ] Add custom industries/sub-niches, evidence-labelled reviewed knowledge generation/regeneration and assistant guardrails; number and scroll wizard steps.
-- [ ] Improve explicit voice audition startup feedback and safe reuse; clarify saved credentials and sequential setup without exposing keys.
+- [x] Add custom industries/sub-niches, review-before-accept knowledge generation/regeneration and restrictions; numbered scrollable steps. Authenticated QA draft saved/reopened industry, specialty, accepted knowledge and restrictions; generated guidance returned 200, no phone overflow or page errors, 32 focused tests passed.
+- [x] Remove extra audition click, unlock audio before save, add loading stages and local replay. Real Gemini greeting audio arrived in 11.9 seconds; no session before tap and no new authorization on replay. Connected services shows one provider at a time with links and saved presence only. The six-key screenshot belongs to another editor, not this project's wizard; no replacement secrets requested.
 
 - [x] Fixed shared voice tracking sending private wizard paths to public-only campaign-events; central route gate, sanitized UTM labels and contained analytics failures. Fourteen regression tests passed; authenticated loaded wizard suppressed voice-start/end requests and public demo page views saved with HTTP 200, no page errors. No paid voice call required.
 

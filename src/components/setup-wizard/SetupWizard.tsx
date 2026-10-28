@@ -79,6 +79,9 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
   const loadGeneration = useRef(0);
   const fileRef = useRef<HTMLInputElement>(null);
   const previewAudioRef = useRef<AudioContext>();
+  const progressRef = useRef<HTMLOListElement>(null);
+  useEffect(() => { progressRef.current?.querySelector('[aria-current="step"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }, [step]);
+  useEffect(() => { setSuggestedIndustry(''); setKnowledgeProposal(''); }, [selectedId]);
   const set = (patch: Partial<WizardState>) => setS((p) => ({ ...p, ...patch }));
 
   async function load(id = selectedId) {
@@ -255,7 +258,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
           </div>
         )}
 
-        <ol className="flex items-center gap-2 overflow-x-auto pb-2" aria-label="Setup progress">
+        <ol ref={progressRef} className="flex items-center gap-2 overflow-x-auto pb-2" aria-label="Setup progress">
           {STEPS.map((st, i) => {
             const done = i < step;
             return (
