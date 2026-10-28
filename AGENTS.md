@@ -46,3 +46,4 @@
 
 - Read subdirectory AGENTS.md before edits.
 - Share customer/admin setup with real ingestion/Gemini tests; admin drafts never grant payment access. Publish only explicitly. Prefer captured originals over iframe checks; guard loading and save before switching drafts to prevent lost work.
+- Share admin drafts with clients only through hashed, expiring, revocable demo-share tokens resolved server-side; public responses expose appearance fields only, calls count as visitor usage and never enable telephone handoff.
