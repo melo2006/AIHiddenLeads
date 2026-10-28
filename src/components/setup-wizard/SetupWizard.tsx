@@ -80,7 +80,15 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
   const fileRef = useRef<HTMLInputElement>(null);
   const previewAudioRef = useRef<AudioContext>();
   const progressRef = useRef<HTMLOListElement>(null);
-  useEffect(() => { progressRef.current?.querySelector('[aria-current="step"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }, [step]);
+  useEffect(() => {
+    const progress = progressRef.current;
+    const active = progress?.querySelector<HTMLElement>('[aria-current="step"]');
+    if (!progress || !active) return;
+    const bounds = progress.getBoundingClientRect();
+    const current = active.getBoundingClientRect();
+    if (current.right > bounds.right) progress.scrollLeft += current.right - bounds.right;
+    else if (current.left < bounds.left) progress.scrollLeft -= bounds.left - current.left;
+  }, [step]);
   useEffect(() => { setSuggestedIndustry(''); setKnowledgeProposal(''); }, [selectedId]);
   const set = (patch: Partial<WizardState>) => setS((p) => ({ ...p, ...patch }));
 
