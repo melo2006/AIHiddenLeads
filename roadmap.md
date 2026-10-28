@@ -1,5 +1,7 @@
 # Current work
 
+- [x] Replaced oversized public examples with commercial cleaning, contract machining, commercial HVAC and packaging suppliers; shared new-business wizard picker, service-matched buyer keywords (not volume research), 12 tests and authenticated desktop/phone selection passed. No scan, purchase, call or publication. Existing saved QA drafts retained; custom avatar-picture uploads remain unimplemented.
+
 - [x] Tested authenticated Customer Setup: created/reopened BankUnited · Presentation QA, learned a clearly labeled real test PDF (198 characters), verified Gemini greeting audio and spoken ORCHID-742 answer from the PDF, displayed a loaded 3808×14096 original website capture, and checked phone layout without overflow or page errors. Fixed blocked iframe default, business-name autofill race, late draft loading and unsaved draft switching; 26 tests passed and build OK. No purchase or publication. Physical microphone/headset remains device-dependent.
 
 - [x] Replace admin wizard simulation with saved business drafts, real Gemini auditions/calls, learned documents and authentic website screenshot fallback. Signed-in admin created/reopened a draft, PDF parsed 95 characters, website learned, provider audio delivered, real draft call reached Listening with business greeting, captured original displayed, and phone layout had no overflow; 19 tests passed. No payment or publication performed; customer purchase/installation checks remain below.

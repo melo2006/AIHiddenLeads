@@ -3,7 +3,7 @@
 ## Fastest route
 
 1. Open `/demo`.
-2. Select a real business example: South Florida Plumbing and Backflow, Industrial Technology, Nationwide Industrial Supply, or BankUnited.
+2. Select a regional B2B example: Willing Cleaning Company (commercial cleaning), ARZ Machining (contract CNC machining), Shobu’s (commercial HVAC on Oʻahu), or Seal-Tec (industrial packaging supplies). The same examples are available when starting a new business in Customer Setup.
 3. Confirm the exact business name, website, branch address/city + state, and customer keyword. Examples are public businesses, not clients or verified rankings.
 4. Open **View 25-Point Google Maps Rank Grid**. Website scraping and Aspen are not required to run this separate audit.
 5. Select **Local Maps Grid** for one branch, or **Nationwide Google Search** for domain visibility across 25 buyer queries.
@@ -12,10 +12,11 @@
 
 ## Inputs and coverage
 
-- Local: exact listing name, branch address or city + state, and customer service keyword. ZIP is optional; a full address helps disambiguate branches. A bank homepage alone does not identify a branch.
+- Local: exact listing name, branch address or city + state, and customer service keyword. ZIP is optional; a full address helps disambiguate locations. A service area does not identify an exact listing address.
 - Local spacing is fixed at 1.6 km; the corner is approximately 2.8 miles from the center. This is not a whole-city or nationwide branch audit.
 - Nationwide: website and service keyword, no city required. The current adapter searches Google organic results with 25 related queries; it does not measure AI citations and is not a 25-city nationwide sample.
-- Use BankUnited with a specific branch address and `bank`. Use Industrial Technology with `custom manufacturing`. Use Nationwide Industrial Supply with `industrial supplies` in nationwide mode. Being a real business does not ensure it appears in provider results.
+- Try `commercial cleaning` in Grand Rapids, `CNC machine shop` in Grafton, or `commercial HVAC service` in Kapolei for local Maps. Seal-Tec defaults to nationwide organic search with `industrial packaging supplies`; switch to Maps for local Grand Rapids visibility. These are service-matched buyer keyword suggestions, not verified keyword-volume/difficulty research. Being a real business does not ensure it appears in provider results.
+- Public website sources: [Willing Cleaning Company](https://willingcleaningco.com/), [ARZ Machining](https://www.arzmachining.com/), [Shobu’s](https://www.shobusac.com/solutions/commercial-hvac-oahu), [Seal-Tec](https://www.seal-tec.com/). These are examples, not customers or endorsements; no employee-size claims are made.
 
 ## Status and costs
 
