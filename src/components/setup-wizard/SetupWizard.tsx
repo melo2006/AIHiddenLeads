@@ -130,7 +130,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
     const faq = faqKnowledge(s.faqs);
     const config = {
       ...draft, websiteUrl: s.websiteUrl ? (/^https?:\/\//i.test(s.websiteUrl) ? s.websiteUrl : `https://${s.websiteUrl}`) : "", businessName: s.businessName || "My business", industry: industryName(s), subNiche: s.subNiche || "", businessNotes: s.businessNotes || "", knowledgeGuidance: s.knowledgeGuidance || "", assistantRestrictions: s.assistantRestrictions || "", systemPrompt: replaceSection(String(draft.systemPrompt || ""), GUARDRAILS_MARK, s.assistantRestrictions || ""), name: s.name || "Aspen",
-      greeting: s.greeting, voice: s.voice, theme: { ...(draft.theme || {}), primary: s.color }, launcherLabel: s.label, launcherCorner: s.corner,
+      greeting: s.greeting, voice: s.voice, theme: { background: "#101216", foreground: "#F4F6F8", font: "system", ...(draft.theme || {}), primary: s.color }, launcherLabel: s.label, launcherCorner: s.corner,
       knowledge: faq ? `${base}\n\n${FAQ_MARK}\n${faq}`.trim() : base,
     };
     try { await request({ action: "save", agentId: selectedId, config }); setDraft(config); return true; }
