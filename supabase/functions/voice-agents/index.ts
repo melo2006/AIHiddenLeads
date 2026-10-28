@@ -8,6 +8,7 @@ import { validPricing } from '../_shared/voice-usage.ts';
 import { websiteTheme, THEME_FONTS, DEFAULT_WIDGET_THEME } from '../_shared/widget-theme.ts';
 import { workspaceAccess } from '../_shared/customer-payments.ts';
 import { createResponsesCall } from './responses.ts';
+import { sha256 } from '../_shared/demo-share.ts';
 
 async function suggestGreeting(req:Request,input:{businessName:string;industry?:string;websiteUrl?:string;tone?:string}){
   const apiKey=Deno.env.get('LOVABLE_API_KEY'); if(!apiKey) throw Object.assign(new Error('AI is not configured'),{status:500});
@@ -20,7 +21,7 @@ async function suggestGreeting(req:Request,input:{businessName:string;industry?:
 
 const themeSchema=z.object({primary:z.string().regex(/^#[0-9a-f]{6}$/i),background:z.string().regex(/^#[0-9a-f]{6}$/i),foreground:z.string().regex(/^#[0-9a-f]{6}$/i),font:z.enum(THEME_FONTS)});
 const configSchema = z.object({ previewScreenshot:z.string().max(2000).optional(), industry:z.string().max(80).optional(), launcherLabel:z.string().max(40).optional(), launcherCorner:z.enum(['bottom-left','bottom-right']).optional(), websiteUrl:z.string().max(2000).refine(v=>!v || isPublicUrl(v),'Use a public website URL').default(''), theme:themeSchema.default(DEFAULT_WIDGET_THEME), suggestedTheme:themeSchema.nullable().optional(), name:z.string().min(1).max(80), businessName:z.string().min(1).max(160), voice:z.enum(VOICES as [string,...string[]]), avatarPath:z.string().max(500).default(''), greeting:z.string().min(1).max(1500), systemPrompt:z.string().min(1).max(12000), simulationGreeting:z.string().min(1).max(1500).default(SIMULATION_GREETING), simulationPrompt:z.string().min(1).max(12000).default(SIMULATION_PROMPT), knowledge:z.string().max(60000).default(''), crawlDepth:z.union([z.literal(1),z.literal(2)]).default(1), recordTranscript:z.boolean().default(false), transferPhone:z.string().regex(/^$|^\+[1-9]\d{7,14}$/,'Use an international phone number, starting with +').default(''), transferManagerName:z.string().max(80).default('') });
-const requestSchema = z.object({ action:z.enum(['suggestGreeting','list','usage','pricing','create','save','publish','source','refresh','removeSource','member','rollback']), agentId:z.string().uuid().optional(), industry:z.string().max(80).optional(), tone:z.string().max(40).optional(), slug:z.string().min(3).max(80).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(), sourceId:z.string().uuid().optional(), config:configSchema.optional(), businessName:z.string().min(1).max(160).optional(), userEmail:z.string().email().optional(), kind:z.enum(['url','document']).optional(), label:z.string().min(1).max(255).optional(), url:z.string().max(2000).optional(), storagePath:z.string().max(500).optional(), pricing:z.object({model:z.literal('gemini-3.8-live'),inputAudioPerMinute:z.number().finite().min(0).max(100),outputAudioPerMinute:z.number().finite().min(0).max(100),source:z.string().url().max(2000)}).optional() });
+const requestSchema = z.object({ action:z.enum(['suggestGreeting','list','usage','pricing','create','save','publish','source','refresh','removeSource','member','rollback','share','unshare']), agentId:z.string().uuid().optional(), industry:z.string().max(80).optional(), tone:z.string().max(40).optional(), slug:z.string().min(3).max(80).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(), sourceId:z.string().uuid().optional(), config:configSchema.optional(), businessName:z.string().min(1).max(160).optional(), userEmail:z.string().email().optional(), kind:z.enum(['url','document']).optional(), label:z.string().min(1).max(255).optional(), url:z.string().max(2000).optional(), storagePath:z.string().max(500).optional(), pricing:z.object({model:z.literal('gemini-3.8-live'),inputAudioPerMinute:z.number().finite().min(0).max(100),outputAudioPerMinute:z.number().finite().min(0).max(100),source:z.string().url().max(2000)}).optional() });
 const json = (data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
 Deno.serve(async req=>{
   if(req.method==='OPTIONS') return new Response('ok',{headers:corsHeaders});
@@ -81,6 +82,15 @@ Deno.serve(async req=>{
     const {data:membership}=await db.from('voice_memberships').select('id').eq('organization_id',agent.organization_id).eq('user_id',user.id).eq('role','editor').maybeSingle();
     if(!admin && !membership) return json({error:'Access denied'},403);
     if(!admin && !(await workspaceAccess(db,agent.organization_id))) return json({error:'Your paid subscription period has ended.'},403);
+    if(body.action==='share' || body.action==='unshare') {
+      if(!admin) return json({error:'Administrator access required'},403);
+      const {error:revokeError}=await db.from('voice_demo_shares').update({revoked_at:new Date().toISOString()}).eq('agent_id',agent.id).is('revoked_at',null); if(revokeError) throw revokeError;
+      if(body.action==='unshare') return json({success:true});
+      const token=Array.from(crypto.getRandomValues(new Uint8Array(32))).map(b=>b.toString(16).padStart(2,'0')).join('');
+      const expiresAt=new Date(Date.now()+14*86400000).toISOString();
+      const {error}=await db.from('voice_demo_shares').insert({agent_id:agent.id,token_hash:await sha256(token),created_by:user.id,expires_at:expiresAt}); if(error) throw error;
+      return json({token,expiresAt});
+    }
     if(body.action==='member') {
       if(!admin || !body.userEmail) return json({error:'Administrator and client email required'},403);
       // Existing accounts only: no public signup or silent creation of user identities.
