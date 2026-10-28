@@ -1,5 +1,7 @@
 # Current work
 
+- [ ] Make homepage Simli test visible and confirm real session startup; keep idle page-load usage zero and pricing unchanged.
+
 - [x] Hide unstyled public crawler fallback behind themed startup until React mounts; public no-JS text remains readable. Browser verified both states.
 - [x] Share five dimension-labelled device layouts, face/photo mode, voice selection and saved-draft conversation test in admin/wizard. Authenticated admin saved moving face/Aoede and prepared test; no paid voice/Simli session started. Nine tests passed, phone no overflow, build OK. Homepage activation removed from this screen.
 - [x] Verify advertised Simli face-only $0.01/min rate and propose $79 video add-on with bounded allowances; no public offer changes.
