@@ -1,1 +1,2 @@
 - Use plain imperative Leaflet (`L.map` in useEffect), never react-leaflet: react-leaflet v5 requires React 19 and crashes on React 18 with "render2 is not a function".
+- Gate all campaign milestones in the shared tracker to server-accepted public paths; private/tenant tests are not campaign conversions, and analytics errors must never reject into the UI.
