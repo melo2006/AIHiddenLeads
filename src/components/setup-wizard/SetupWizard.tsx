@@ -17,8 +17,9 @@ import AgentInstallationGuide from "@/components/AgentInstallationGuide";
 import SitePreview from "./SitePreview";
 import ShareDemoLink from "./ShareDemoLink";
 import { rankAuditExamples } from "@/lib/rankAuditExamples";
+import { GUARDRAILS_MARK, REVIEWED_KNOWLEDGE_MARK, replaceSection } from "../../../supabase/functions/_shared/wizard-knowledge";
 import {
-  EMPTY, INDUSTRIES, LABELS, STEPS, VOICES, faqKnowledge, nameFromUrl, renderGreeting, stepReady, type WizardState,
+  EMPTY, INDUSTRIES, SPECIALTIES, industryName, LABELS, STEPS, VOICES, faqKnowledge, nameFromUrl, renderGreeting, stepReady, type WizardState,
 } from "./wizardModel";
 
 const ICONS = [Building2, BookOpen, Mic, Palette, Rocket];
@@ -70,6 +71,11 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
   const [published, setPublished] = useState(false);
   const [calling, setCalling] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [suggestedIndustry, setSuggestedIndustry] = useState("");
+  const [knowledgeProposal, setKnowledgeProposal] = useState("");
+  const [knowledgeMode, setKnowledgeMode] = useState<'website' | 'generic'>('website');
+  const [services, setServices] = useState<Record<string, boolean>>({});
+  const [serviceStep, setServiceStep] = useState(0);
   const loadGeneration = useRef(0);
   const fileRef = useRef<HTMLInputElement>(null);
   const set = (patch: Partial<WizardState>) => setS((p) => ({ ...p, ...patch }));
@@ -81,6 +87,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
     const data = await request({ action: "list" });
     if (generation !== loadGeneration.current) return;
     setAgents(data.agents || []);
+    setServices(data.services || {});
       const a = data.agents?.find((x: { id: string }) => x.id === id);
       if (!a) { setDraft(null); setSources([]); return; }
       setSources(a.voice_agent_sources || []);
@@ -90,7 +97,8 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
       const faqText = knowledge.includes(FAQ_MARK) ? knowledge.split(FAQ_MARK)[1] : "";
       const faqs = faqText.split(/\n\n+/).map((b) => b.match(/^Q: (.*)\nA: ([\s\S]*)$/)).filter(Boolean).flatMap((m) => m ? [{ q: m[1], a: m[2] }] : []);
       setS({
-        websiteUrl: String(d.websiteUrl || ""), businessName: String(d.businessName || ""), industry: String(d.industry || ""),
+        websiteUrl: String(d.websiteUrl || ""), businessName: String(d.businessName || ""), industry: INDUSTRIES.includes(String(d.industry || "")) ? String(d.industry || "") : d.industry ? "Other" : "",
+        customIndustry: INDUSTRIES.includes(String(d.industry || "")) ? "" : String(d.industry || ""), subNiche: String(d.subNiche || ""), businessNotes: String(d.businessNotes || ""), knowledgeGuidance: String(d.knowledgeGuidance || ""), assistantRestrictions: String(d.assistantRestrictions || ""),
         links: (a.voice_agent_sources || []).filter((x: { kind: string }) => x.kind === "url").map((x: { url?: string; label: string }) => x.url || x.label),
         files: (a.voice_agent_sources || []).filter((x: { kind: string }) => x.kind === "document").map((x: { label: string }) => x.label),
         faqs, name: String(d.name || "Aspen"), greeting: String(d.greeting || EMPTY.greeting), voice: String(d.voice || "Kore"),
@@ -106,10 +114,10 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
 
   async function save() {
     if (!selectedId || !draft) return false;
-    const base = String(draft.knowledge || "").split(FAQ_MARK)[0].trimEnd();
+    const base = replaceSection(String(draft.knowledge || "").split(FAQ_MARK)[0], REVIEWED_KNOWLEDGE_MARK, s.knowledgeGuidance || "");
     const faq = faqKnowledge(s.faqs);
     const config = {
-      ...draft, websiteUrl: s.websiteUrl ? (/^https?:\/\//i.test(s.websiteUrl) ? s.websiteUrl : `https://${s.websiteUrl}`) : "", businessName: s.businessName || "My business", industry: s.industry, name: s.name || "Aspen",
+      ...draft, websiteUrl: s.websiteUrl ? (/^https?:\/\//i.test(s.websiteUrl) ? s.websiteUrl : `https://${s.websiteUrl}`) : "", businessName: s.businessName || "My business", industry: industryName(s), subNiche: s.subNiche || "", businessNotes: s.businessNotes || "", knowledgeGuidance: s.knowledgeGuidance || "", assistantRestrictions: s.assistantRestrictions || "", systemPrompt: replaceSection(String(draft.systemPrompt || ""), GUARDRAILS_MARK, s.assistantRestrictions || ""), name: s.name || "Aspen",
       greeting: s.greeting, voice: s.voice, theme: { ...(draft.theme || {}), primary: s.color }, launcherLabel: s.label, launcherCorner: s.corner,
       knowledge: faq ? `${base}\n\n${FAQ_MARK}\n${faq}`.trim() : base,
     };
@@ -127,7 +135,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
         const data = await request({ action: "create", businessName });
         const id = data.agent?.id;
         if (!id) throw new Error("Could not create assistant");
-        const config = { ...data.agent.draft, ...s, businessName, websiteUrl: s.websiteUrl ? (/^https?:\/\//i.test(s.websiteUrl) ? s.websiteUrl : `https://${s.websiteUrl}`) : "", theme: { primary: s.color, background: "#09090b", foreground: "#fafafa", font: "system" }, launcherLabel: s.label, launcherCorner: s.corner };
+        const config = { ...data.agent.draft, ...s, industry: industryName(s), businessName, websiteUrl: s.websiteUrl ? (/^https?:\/\//i.test(s.websiteUrl) ? s.websiteUrl : `https://${s.websiteUrl}`) : "", theme: { primary: s.color, background: "#09090b", foreground: "#fafafa", font: "system" }, launcherLabel: s.label, launcherCorner: s.corner };
         await request({ action: "save", agentId: id, config });
         setSelectedId(id); setDraft(config); ok = true;
       } else ok = await save();
@@ -194,9 +202,19 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
     setBusy(true);
     try {
       setVoiceReady(false);
-      const data = await request({ action: "suggestGreeting", ...(selectedId ? { agentId: selectedId } : {}), businessName: s.businessName || undefined, industry: s.industry || undefined, url: s.websiteUrl || undefined });
+      const data = await request({ action: "suggestGreeting", ...(selectedId ? { agentId: selectedId } : {}), businessName: s.businessName || undefined, industry: [industryName(s), s.subNiche].filter(Boolean).join(' · ').slice(0,80) || undefined, url: s.websiteUrl || undefined });
       if (data?.greeting) set({ greeting: data.greeting });
     } catch (e) { toast.error(e instanceof Error ? e.message : "Could not get a suggestion"); }
+    finally { setBusy(false); }
+  }
+
+  async function assist(action: 'suggestKnowledge' | 'suggestIndustry') {
+    setBusy(true);
+    try {
+      const data = await request({ action, agentId: selectedId, businessName: s.businessName || nameFromUrl(s.websiteUrl) || undefined, industry: industryName(s) || undefined, subNiche: s.subNiche || undefined, businessNotes: s.businessNotes || undefined, mode: knowledgeMode });
+      if (action === 'suggestIndustry') setSuggestedIndustry(data.suggestion);
+      else setKnowledgeProposal(data.suggestion);
+    } catch(e) { toast.error(e instanceof Error ? e.message : 'Could not generate suggestions'); }
     finally { setBusy(false); }
   }
 
@@ -232,17 +250,14 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
           </div>
         )}
 
-        <ol className="flex items-center gap-1 sm:gap-2" aria-label="Setup progress">
+        <ol className="flex items-center gap-2 overflow-x-auto pb-2" aria-label="Setup progress">
           {STEPS.map((st, i) => {
-            const Icon = ICONS[i];
             const done = i < step;
             return (
-              <li key={st.id} className="flex flex-1 items-center gap-1 sm:gap-2">
-                <button type="button" onClick={() => i < step && void go(i)} disabled={i > step} aria-current={i === step ? "step" : undefined}
-                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 transition ${i === step ? "border-primary bg-primary text-primary-foreground" : done ? "border-primary bg-primary/15 text-primary" : "border-border text-muted-foreground"}`}>
-                  {done ? <Check className="h-5 w-5" /> : <Icon className="h-5 w-5" />}
-                </button>
-                <span className={`hidden text-xs lg:inline ${i === step ? "font-semibold text-foreground" : "text-muted-foreground"}`}>{st.title}</span>
+              <li key={st.id} className="flex shrink-0 items-center gap-2">
+                <Button variant={i === step ? 'default' : 'outline'} onClick={() => i < step && void go(i)} disabled={i > step || busy || loading} aria-current={i === step ? "step" : undefined} className="gap-2 whitespace-nowrap text-xs">
+                  <span>{i + 1}.</span>{st.title}{done && <Check className="h-3 w-3" />}
+                </Button>
                 {i < STEPS.length - 1 && <span className={`h-0.5 flex-1 rounded ${done ? "bg-primary" : "bg-border"}`} />}
               </li>
             );
@@ -254,7 +269,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
           {step === 0 && (
             <div className="grid gap-6 md:grid-cols-2">
               <div className="space-y-4">
-                <StepHead title="Tell us about your business" hint="Paste your website. We fill in the rest." help="We read your public pages so your assistant knows your services, hours and area. You can change anything later." />
+                <StepHead title="Tell us about your business" hint="Start with your name, industry and specialty." help="A website is optional. You can add your own business details or review general industry guidance in the next step." />
                 {(preview ? !selectedId : !draft?.websiteUrl && !draft?.businessName) && <div className="space-y-2">
                   <Select disabled={loading || busy} onValueChange={(id) => {
                     const example = rankAuditExamples.find(e => e.id === id);
@@ -265,7 +280,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
                   </Select>
                   <p className="text-xs text-muted-foreground">Public business examples—not customers or endorsements.</p>
                 </div>}
-                <label className="block space-y-1 text-sm font-medium">Website
+                <label className="block space-y-1 text-sm font-medium">Website (optional)
                   <Input type="url" inputMode="url" placeholder="yourbusiness.com" value={s.websiteUrl}
                     disabled={loading} onChange={(e) => set({ websiteUrl: e.target.value })} />
                 </label>
@@ -273,11 +288,17 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
                   <Input disabled={loading} placeholder={nameFromUrl(s.websiteUrl) || "Your commercial business"} value={s.businessName} onChange={(e) => set({ businessName: e.target.value })} />
                 </label>
                 <label className="block space-y-1 text-sm font-medium">Industry
-                  <Select value={s.industry} onValueChange={(v) => set({ industry: v })}>
+                  <Select value={s.industry} onValueChange={(v) => set({ industry: v, subNiche: '' })}>
                     <SelectTrigger aria-label="Industry"><SelectValue placeholder="Choose one" /></SelectTrigger>
                     <SelectContent className="z-[130]">{INDUSTRIES.map((i) => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent>
                   </Select>
                 </label>
+                {s.industry === 'Other' && <label className="block space-y-1 text-sm font-medium">Your industry<Input aria-label="Your industry" maxLength={80} value={s.customIndustry || ''} placeholder="e.g. Laboratory equipment supplier" onChange={e => set({ customIndustry: e.target.value })} /></label>}
+                <label className="block space-y-1 text-sm font-medium">Specialty / sub-niche (optional)<Input aria-label="Specialty / sub-niche" maxLength={160} value={s.subNiche || ''} placeholder="e.g. Commercial refrigeration" onChange={e => set({ subNiche: e.target.value })} /></label>
+                <div className="flex flex-wrap gap-1">{(SPECIALTIES[s.industry] || []).map(v => <Button key={v} size="sm" variant="outline" className="h-auto whitespace-normal py-1 text-xs" onClick={() => set({ subNiche: v })}>{v}</Button>)}</div>
+                <label className="block space-y-1 text-sm font-medium">What do you offer? (optional)<Textarea aria-label="Business details" rows={3} maxLength={6000} value={s.businessNotes || ''} placeholder="Services, customers, service area and what makes your business different" onChange={e => set({ businessNotes: e.target.value })} /></label>
+                <Button variant="outline" disabled={busy || loading || !(s.businessNotes || s.businessName || selectedId)} onClick={() => void assist('suggestIndustry')}><Sparkles className="mr-2 h-4 w-4" />{busy ? 'Thinking…' : 'Suggest industry & specialties'}</Button>
+                {suggestedIndustry && <div role="status" className="whitespace-pre-wrap border-l-2 border-primary pl-3 text-sm">{suggestedIndustry}<p className="mt-2 text-xs text-muted-foreground">Review these suggestions, then enter your preferred industry and specialty above.</p></div>}
               </div>
               <div className="hidden md:block"><SitePreview screenshot={typeof draft?.previewScreenshot === "string" ? draft.previewScreenshot : undefined} state={s} open={false} /></div>
             </div>
@@ -285,7 +306,16 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
 
           {step === 1 && (
             <div className="space-y-5">
-              <StepHead title="Teach your assistant" hint="Add pages, files or quick answers. All optional." help="Your website is already included. Add price sheets, menus, service area pages or common questions to make answers more accurate." />
+              <StepHead title="Teach your assistant" hint="Learn your sources, add details, or review an AI draft." help="Learning starts only when you choose it. General industry guidance is not verified information about your business." />
+              <div className="space-y-3 border-b border-border pb-5">
+                <p className="text-sm font-semibold">Industry knowledge · {industryName(s) || 'General'}{s.subNiche ? ` / ${s.subNiche}` : ''}</p>
+                <Textarea aria-label="Knowledge inputs" rows={3} maxLength={6000} placeholder="Add services, policies or questions the assistant should know" value={s.businessNotes || ''} onChange={e => set({ businessNotes: e.target.value })} />
+                <div className="flex flex-wrap gap-2">{(['website','generic'] as const).map(mode => <Button key={mode} size="sm" variant={knowledgeMode === mode ? 'default' : 'outline'} onClick={() => setKnowledgeMode(mode)}>{mode === 'website' ? 'Use learned website & files' : 'General industry guidance'}</Button>)}</div>
+                <Button variant="outline" disabled={busy || !selectedId} onClick={() => void assist('suggestKnowledge')}><Sparkles className={`mr-2 h-4 w-4 ${busy ? 'animate-pulse' : ''}`} />{busy ? 'Preparing your draft…' : knowledgeProposal || s.knowledgeGuidance ? 'Regenerate knowledge draft' : 'Generate knowledge draft'}</Button>
+                {knowledgeProposal && <div className="space-y-2"><p className="text-xs text-muted-foreground">Not yet used by your assistant. Review business facts and remove anything unconfirmed.</p><Textarea aria-label="Knowledge draft for review" rows={12} maxLength={12000} value={knowledgeProposal} onChange={e => setKnowledgeProposal(e.target.value)} /><div className="flex gap-2"><Button disabled={busy} onClick={() => { set({ knowledgeGuidance: knowledgeProposal }); setKnowledgeProposal(''); toast.success('Accepted. Saved when you continue.'); }}><Check className="mr-2 h-4 w-4" />Accept reviewed draft</Button><Button variant="ghost" onClick={() => setKnowledgeProposal('')}>Discard</Button></div></div>}
+                {s.knowledgeGuidance && <label className="block space-y-1 text-sm font-medium">Accepted guidance<Textarea aria-label="Accepted guidance" rows={8} maxLength={12000} value={s.knowledgeGuidance} onChange={e => set({ knowledgeGuidance: e.target.value })} /></label>}
+                <label className="block space-y-1 text-sm font-medium">Assistant restrictions (optional)<Textarea aria-label="Assistant restrictions" rows={3} maxLength={4000} placeholder="e.g. Do not quote prices. Do not give technical safety advice. Ask the team when unsure." value={s.assistantRestrictions || ''} onChange={e => set({ assistantRestrictions: e.target.value })} /></label>
+              </div>
               <Button variant="outline" disabled={busy || !s.websiteUrl} onClick={() => void learnWebsite()}><RefreshCw className={`mr-2 h-4 w-4 ${busy ? "animate-spin" : ""}`} />{busy ? "Learning…" : "Learn website & capture preview"}</Button>
               {sources.length > 0 && <div className="divide-y divide-border">{sources.map(source => <div key={source.id} className="flex items-start gap-2 py-2 text-xs"><div className="min-w-0 flex-1"><p className="break-words font-medium">{source.label}</p><p className={source.status === "failed" ? "text-destructive" : "text-muted-foreground"}>{source.status === "ready" ? `Learned · ${source.content?.length || 0} characters` : source.last_error || source.status}</p></div><Button size="icon" variant="ghost" disabled={busy} aria-label={`Retry ${source.label}`} onClick={async () => { setBusy(true); try { await request({ action: "refresh", agentId: selectedId, sourceId: source.id }); } catch(e) { toast.error(e instanceof Error ? e.message : "Learning failed"); } finally { await load(); setBusy(false); } }}><RefreshCw className="h-4 w-4" /></Button></div>)}</div>}
               <div className="grid gap-4 md:grid-cols-3">
@@ -352,7 +382,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
                     </button>
                   ))}
                 </div>
-                {realVoice && (voiceReady ? <div className="rounded-lg border border-border p-2"><GeminiConversation key={`${selectedId}-${s.voice}-${s.greeting}`} previewOnly draft agentId={selectedId} name={s.name} previewVoice={s.voice} compact /></div> : <Button variant="outline" className="w-full" disabled={busy} onClick={() => void prepareVoice()}><Play className="mr-2 h-4 w-4" />Hear my greeting · {s.voice}</Button>)}
+                {realVoice && (voiceReady ? <div className="rounded-lg border border-border p-2"><GeminiConversation key={`${selectedId}-${s.voice}-${s.greeting}`} previewOnly autoStart draft agentId={selectedId} name={s.name} previewVoice={s.voice} compact /></div> : <Button variant="outline" className="w-full" disabled={busy} onClick={() => void prepareVoice()}>{busy ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}{busy ? 'Saving & preparing voice…' : `Hear my greeting · ${s.voice}`}</Button>)}
 
               </div>
             </div>
@@ -401,6 +431,8 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
             </div>
           )}
         </section>
+
+        {preview && <details className="border-t border-border pt-3"><summary className="cursor-pointer text-sm font-medium">Connected services</summary><div className="mt-3 space-y-3 text-sm"><div className="flex flex-wrap gap-2">{['Website learning','Website capture','Gemini voice'].map((label,i) => <Button key={label} size="sm" variant={serviceStep === i ? 'default' : 'outline'} onClick={() => setServiceStep(i)}>{i+1}. {label}</Button>)}</div><p>{['Website learning uses your saved Firecrawl connection.','Website capture uses your saved Browserbase connection and project.','Real voice uses your saved Google AI key.'][serviceStep]}</p><p className="text-primary">{services[['websiteLearning','websiteCapture','voice'][serviceStep]] ? 'Configured securely · no need to enter it again.' : 'Not configured · ask to connect this service securely.'}</p><Button asChild variant="link" className="px-0"><a href={['https://www.firecrawl.dev/app/api-keys','https://www.browserbase.com/settings','https://aistudio.google.com/apikey'][serviceStep]} target="_blank" rel="noopener noreferrer">Open provider settings<Link2 className="ml-1 h-3 w-3" /></a></Button><p className="text-xs text-muted-foreground">Keys stay in secure project storage, not in customer records. To replace one, request secure entry for that service only.</p></div></details>}
 
         <div className="sticky bottom-0 z-10 flex items-center justify-between gap-3 border-t border-border bg-background/95 py-3 backdrop-blur">
           <Button variant="outline" size="lg" disabled={step === 0 || busy || loading} onClick={() => void go(step - 1)}><ChevronLeft className="mr-1 h-5 w-5" />Back</Button>
