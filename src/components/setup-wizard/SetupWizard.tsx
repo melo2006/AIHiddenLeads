@@ -86,8 +86,8 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
     if (!progress || !active) return;
     const bounds = progress.getBoundingClientRect();
     const current = active.getBoundingClientRect();
-    if (current.right > bounds.right) progress.scrollLeft += current.right - bounds.right;
-    else if (current.left < bounds.left) progress.scrollLeft -= bounds.left - current.left;
+    if (current.right > bounds.right) progress.scrollLeft += current.right - bounds.right + 2;
+    else if (current.left < bounds.left) progress.scrollLeft -= bounds.left - current.left + 2;
   }, [step]);
   useEffect(() => { setSuggestedIndustry(''); setKnowledgeProposal(''); }, [selectedId]);
   const set = (patch: Partial<WizardState>) => setS((p) => ({ ...p, ...patch }));
