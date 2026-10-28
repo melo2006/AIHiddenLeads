@@ -32,7 +32,7 @@ const navGroups: { label: string; items: NavItem[] }[] = [
     { title: "Voice Agents", url: "/dashboard/voice-agents", icon: PhoneIncoming },
     { title: "Voice Usage & Costs", url: "/dashboard/voice-costs", icon: ShieldCheck },
     { title: "Customer Setup", url: "/dashboard/wizard-preview", icon: Wand2 },
-    { title: "Video Avatars (soon)", url: "/dashboard/video-avatars", icon: Video, soon: true },
+    { title: "Video Avatars", url: "/dashboard/video-avatars", icon: Video },
   ]},
 ];
 
