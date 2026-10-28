@@ -1,5 +1,9 @@
 # Current work
 
+- [ ] Remove visible unstyled crawler fallback during JavaScript startup while retaining public no-JavaScript content.
+- [ ] Add phone/tablet portrait/landscape and desktop avatar layout previews, shared voice selection and explicit conversation test in admin/wizard; no homepage activation.
+- [ ] Research video add-on pricing and present proposals only; supplied face catalog IDs and final commercial terms await owner.
+
 - [x] Simli video face: admin Video Avatars page, wizard step 4 "Face & avatar" (preset Aspen face, photo-to-face upload, position/size/shape), Gemini voice lip-sync on homepage, demo room, shared demos and customer widgets. Server minted a real session; video frames not confirmed in the sandbox browser.
 - [ ] Owner device check: live face preview and lip-synced call on phone/desktop. HeyGen later.
 
