@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
@@ -54,8 +54,18 @@ class ErrorBoundary extends React.Component<
 
 const root = document.getElementById("root");
 if (!root) throw new Error("The page container is missing");
+function StartupReady({ children }: { children: React.ReactNode }) {
+  useEffect(() => {
+    document.documentElement.classList.remove("app-starting");
+    document.documentElement.classList.add("app-ready");
+    document.getElementById("startup-status")?.remove();
+  }, []);
+  return children;
+}
 createRoot(root).render(
   <ErrorBoundary>
+    <StartupReady>
     <App />
+    </StartupReady>
   </ErrorBoundary>
 );
