@@ -62,12 +62,20 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
         clientRef.current = client;
         client.on("stop", () => { if (clientRef.current === client) { setLive(false); setState("idle"); } });
         client.on("error", (detail) => { setReason(String(detail || "Avatar disconnected")); });
-        await client.start();
+        let deadline: ReturnType<typeof setTimeout> | undefined;
+        try {
+          await Promise.race([
+            client.start(),
+            new Promise<never>((_, reject) => { deadline = setTimeout(() => reject(new Error("Video connection timed out. Voice remains available; try again on your device.")), 25000); }),
+          ]);
+        } finally { if (deadline) clearTimeout(deadline); }
         if (clientRef.current !== client) return false;
         setLive(true); setState("live");
         return true;
       } catch (e) {
-        clientRef.current = null; setLive(false); setState("failed");
+        const client = clientRef.current; clientRef.current = null;
+        if (client) void client.stop().catch(() => {});
+        setLive(false); setState("failed");
         setReason(e instanceof Error ? e.message : String(e || "Video avatar could not start"));
         return false;
       }

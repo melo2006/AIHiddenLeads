@@ -346,7 +346,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     setPhase("connecting");
     setStatus(preview ? "Preparing your saved greeting…" : "Connecting to Gemini Live…");
     avatarLiveRef.current = false; avatarPendingRef.current = false;
-    if (!preview && videoAvatar?.enabled) void avatarRef.current?.start().then(ok => {
+    // Consent renders the avatar on this same click; wait for its ref to mount.
+    if (!preview && videoAvatar?.enabled) void new Promise<void>(resolve => requestAnimationFrame(() => resolve())).then(() => avatarRef.current?.start()).then(ok => {
       if (generation !== generationRef.current) { if (ok) avatarRef.current?.stop(); return; }
       if (ok) { if (sourcesRef.current.size === 0) avatarLiveRef.current = true; else avatarPendingRef.current = true; }
     });
@@ -554,7 +555,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       if (generation === generationRef.current) startingRef.current = false;
       window.clearTimeout(startupTimeout);
     }
-  }, [voice, microphone, captureMode, refreshMicrophones, playPcmChunk, clearPlayback, flushLine, stopEverything, agentId, leadId, prospectId, draft, previewVoice, previewAudioContext, visitorName, consent, testModel, shareToken, onRecommendedPlan]);
+  }, [voice, microphone, captureMode, refreshMicrophones, playPcmChunk, clearPlayback, flushLine, stopEverything, agentId, leadId, prospectId, draft, previewVoice, previewAudioContext, visitorName, consent, testModel, shareToken, onRecommendedPlan, videoAvatar]);
 
   useEffect(() => stopEverything, [stopEverything]);
 
@@ -585,7 +586,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const transferControl = phase === 'live' && handoffToken ? <BrowserVoiceHandoff token={handoffToken} onActive={onHandoffActive} microphone={microphone}/> : null;
 
   if (!previewOnly && !consentReady) return <div className="space-y-3 p-3 text-foreground">
-    <p className="text-sm font-semibold">Before you talk to Aspen</p>
+    <p className="text-sm font-semibold">Before you talk to {name}</p>
     <p className="text-xs text-muted-foreground">Audio is processed live to answer you. Audio recordings are not saved. You may optionally allow a written transcript and service-interest review to be saved privately for our team.</p>
     <label className="flex items-start gap-2 text-xs"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)} />Allow my transcript and call review to be saved</label>
     <Button className="w-full" onClick={()=>{consentReadyRef.current=true;setConsentReady(true);void startConversation();}}><Mic className="mr-2 h-4 w-4"/>Start conversation</Button>

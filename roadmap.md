@@ -1,5 +1,8 @@
 # Current work
 
+- [x] Homepage launcher now identifies video/voice; live face is inside homepage call panel. Fixed missing avatar config dependency and first-click consent/ref race. Real test returned voice 200 and Simli session 200; zero session requests before click. Added bounded video startup failure with voice fallback; seven avatar tests pass.
+- [ ] Confirm homepage live video frames/lip-sync on owner device: sandbox real sessions authorized but video frames did not arrive, so rendering is not verified. No public pricing changes or publication performed.
+
 - [x] Hide unstyled public crawler fallback behind themed startup until React mounts; public no-JS text remains readable. Browser verified both states.
 - [x] Share five dimension-labelled device layouts, face/photo mode, voice selection and saved-draft conversation test in admin/wizard. Authenticated admin saved moving face/Aoede and prepared test; no paid voice/Simli session started. Nine tests passed, phone no overflow, build OK. Homepage activation removed from this screen.
 - [x] Verify advertised Simli face-only $0.01/min rate and propose $79 video add-on with bounded allowances; no public offer changes.
