@@ -5,6 +5,11 @@ export type WizardState = {
   websiteUrl: string;
   businessName: string;
   industry: string;
+  customIndustry?: string;
+  subNiche?: string;
+  businessNotes?: string;
+  knowledgeGuidance?: string;
+  assistantRestrictions?: string;
   links: string[];
   files: string[];
   faqs: Faq[];
@@ -29,6 +34,18 @@ export const VOICES = [
   { id: "Charon", label: "Charon", vibe: "Deep, steady" },
   { id: "Zephyr", label: "Zephyr", vibe: "Light, clear" },
 ];
+
+export const SPECIALTIES: Record<string, string[]> = {
+  HVAC: ['Commercial refrigeration', 'Industrial ventilation', 'Heat pumps', 'Maintenance contracts'],
+  'Commercial cleaning': ['Office cleaning', 'Medical facilities', 'Industrial facilities', 'Floor care'],
+  'B2B / industrial': ['Contract machining', 'Industrial packaging', 'Small-batch manufacturing', 'Equipment maintenance'],
+  Roofing: ['Commercial flat roofs', 'Roof repairs', 'Metal roofing'],
+  Plumbing: ['Commercial plumbing', 'Drain services', 'New construction'],
+};
+
+export function industryName(s: Pick<WizardState, 'industry' | 'customIndustry'>) {
+  return (s.industry === 'Other' ? s.customIndustry || '' : s.industry).trim();
+}
 
 export const LABELS = ["Ask Aspen", "Talk to us", "Chat or call", "Need help?"];
 
@@ -83,7 +100,7 @@ export function nameFromUrl(url: string) {
 
 /** Which steps are complete enough to move on. */
 export function stepReady(step: number, s: WizardState) {
-  if (step === 0) return Boolean(s.businessName.trim() || nameFromUrl(s.websiteUrl));
+  if (step === 0) return Boolean(s.businessName.trim() || nameFromUrl(s.websiteUrl)) && (s.industry !== 'Other' || Boolean(s.customIndustry?.trim()));
   if (step === 2) return s.greeting.trim().length >= 5;
   return true;
 }

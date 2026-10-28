@@ -1,7 +1,16 @@
 import { describe, it, expect } from "vitest";
-import { renderGreeting, nameFromUrl, stepReady, faqKnowledge, EMPTY } from "./wizardModel";
+import { renderGreeting, nameFromUrl, stepReady, faqKnowledge, industryName, SPECIALTIES, EMPTY } from "./wizardModel";
 
 describe("setup wizard rules", () => {
+  it('uses the custom industry instead of Other', () => {
+    expect(industryName({ industry: 'Other', customIndustry: 'Industrial filtration' })).toBe('Industrial filtration');
+    expect(stepReady(0, { ...EMPTY, businessName: 'Filter Works', industry: 'Other' })).toBe(false);
+    expect(stepReady(0, { ...EMPTY, businessName: 'Filter Works', industry: 'Other', customIndustry: 'Industrial filtration' })).toBe(true);
+  });
+  it('allows optional specialties for any industry without requiring a website', () => {
+    expect(stepReady(0, { ...EMPTY, businessName: 'Cold Works', industry: 'HVAC', subNiche: 'Commercial refrigeration' })).toBe(true);
+    expect(SPECIALTIES.HVAC).toContain('Commercial refrigeration');
+  });
   it("fills greeting placeholders by time of day", () => {
     expect(renderGreeting({ greeting: "{timeGreeting}! I'm {agentName} with {businessName}.", name: "Aspen", businessName: "Apex" }, 9))
       .toBe("Good morning! I'm Aspen with Apex.");
