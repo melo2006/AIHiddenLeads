@@ -18,7 +18,7 @@ export type WizardState = {
 
 export const INDUSTRIES = [
   "Home services", "Roofing", "HVAC", "Plumbing", "Dental", "Medical clinic", "Legal", "Real estate",
-  "Restaurant", "Salon & spa", "Auto services", "Insurance", "Financial services", "B2B / industrial", "Other",
+  "Restaurant", "Salon & spa", "Auto services", "Insurance", "Financial services", "Commercial cleaning", "B2B / industrial", "Other",
 ];
 
 export const VOICES = [

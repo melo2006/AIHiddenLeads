@@ -16,6 +16,7 @@ import GeminiConversation from "@/components/GeminiConversation";
 import AgentInstallationGuide from "@/components/AgentInstallationGuide";
 import SitePreview from "./SitePreview";
 import ShareDemoLink from "./ShareDemoLink";
+import { rankAuditExamples } from "@/lib/rankAuditExamples";
 import {
   EMPTY, INDUSTRIES, LABELS, STEPS, VOICES, faqKnowledge, nameFromUrl, renderGreeting, stepReady, type WizardState,
 } from "./wizardModel";
@@ -254,12 +255,22 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
             <div className="grid gap-6 md:grid-cols-2">
               <div className="space-y-4">
                 <StepHead title="Tell us about your business" hint="Paste your website. We fill in the rest." help="We read your public pages so your assistant knows your services, hours and area. You can change anything later." />
+                {(preview ? !selectedId : !draft?.websiteUrl && !draft?.businessName) && <div className="space-y-2">
+                  <Select disabled={loading || busy} onValueChange={(id) => {
+                    const example = rankAuditExamples.find(e => e.id === id);
+                    if (example) set({ websiteUrl: example.website, businessName: example.name, industry: example.industry });
+                  }}>
+                    <SelectTrigger aria-label="Choose a B2B example"><SelectValue placeholder="Choose a B2B example" /></SelectTrigger>
+                    <SelectContent className="z-[130]">{rankAuditExamples.map(e => <SelectItem key={e.id} value={e.id}>{e.category} · {e.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">Public business examples—not customers or endorsements.</p>
+                </div>}
                 <label className="block space-y-1 text-sm font-medium">Website
                   <Input type="url" inputMode="url" placeholder="yourbusiness.com" value={s.websiteUrl}
                     disabled={loading} onChange={(e) => set({ websiteUrl: e.target.value })} />
                 </label>
                 <label className="block space-y-1 text-sm font-medium">Business name
-                  <Input disabled={loading} placeholder={nameFromUrl(s.websiteUrl) || "Apex Roofing"} value={s.businessName} onChange={(e) => set({ businessName: e.target.value })} />
+                  <Input disabled={loading} placeholder={nameFromUrl(s.websiteUrl) || "Your commercial business"} value={s.businessName} onChange={(e) => set({ businessName: e.target.value })} />
                 </label>
                 <label className="block space-y-1 text-sm font-medium">Industry
                   <Select value={s.industry} onValueChange={(v) => set({ industry: v })}>
