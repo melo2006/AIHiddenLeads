@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import GeminiConversation from "@/components/GeminiConversation";
 import AgentInstallationGuide from "@/components/AgentInstallationGuide";
 import SitePreview from "./SitePreview";
+import ShareDemoLink from "./ShareDemoLink";
 import {
   EMPTY, INDUSTRIES, LABELS, STEPS, VOICES, faqKnowledge, nameFromUrl, renderGreeting, stepReady, type WizardState,
 } from "./wizardModel";
@@ -379,6 +380,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
                     : <Button size="lg" variant="outline" className="w-full" disabled={busy || sources.some(x => x.status !== "ready")} onClick={() => void prepareVoice(true)}><Phone className="mr-2 h-5 w-5" />Try a test call</Button>
                 ) : null}
                 <Button size="lg" className="w-full" disabled={busy || published || sources.some(x => x.status !== "ready")} onClick={() => void publish()}><Rocket className="mr-2 h-5 w-5" />{published ? "Published" : "Publish my assistant"}</Button>
+                {preview && selectedId && <ShareDemoLink agentId={selectedId} beforeShare={save} />}
                 {published && <Button asChild variant="ghost" className="w-full"><Link to={preview ? "/dashboard" : "/account"}>Go to my dashboard</Link></Button>}
               </div>
               <SitePreview screenshot={typeof draft?.previewScreenshot === "string" ? draft.previewScreenshot : undefined} state={s} />
