@@ -7,7 +7,8 @@ import { voiceQuotaClass, voiceLimitResponse } from '../_shared/voice-session-li
 import { transferDestination } from '../_shared/browser-handoff.ts';
 import { transcriptAllowed } from '../_shared/transcript-consent.ts';
 import { workspaceAccess } from '../_shared/customer-payments.ts';
-const schema=z.object({ visitorKey:z.string().min(16).max(100), model:z.string().max(100).optional(), agentId:z.string().uuid().optional(), leadId:z.string().uuid().optional(), prospectId:z.string().uuid().optional(), draft:z.boolean().default(false), preview:z.boolean().default(false), voice:z.enum(VOICES as [string,...string[]]).optional(), hour:z.number().int().min(0).max(23).optional(), visitorName:z.string().max(100).default(''), timeZone:z.string().max(100).default('UTC'), campaign:z.object({visitId:z.string().uuid(),source:z.string().max(100),campaign:z.string().max(100)}).nullable().optional(), consent:z.boolean().default(false) });
+import { resolveDemoShare } from '../_shared/demo-share.ts';
+const schema=z.object({ visitorKey:z.string().min(16).max(100), model:z.string().max(100).optional(), agentId:z.string().uuid().optional(), leadId:z.string().uuid().optional(), prospectId:z.string().uuid().optional(), draft:z.boolean().default(false), preview:z.boolean().default(false), voice:z.enum(VOICES as [string,...string[]]).optional(), hour:z.number().int().min(0).max(23).optional(), visitorName:z.string().max(100).default(''), timeZone:z.string().max(100).default('UTC'), campaign:z.object({visitId:z.string().uuid(),source:z.string().max(100),campaign:z.string().max(100)}).nullable().optional(), consent:z.boolean().default(false), share:z.string().max(100).optional() });
 const json=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
 export async function hash(value:string) { return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)))).map(b=>b.toString(16).padStart(2,'0')).join(''); }
 Deno.serve(async req=>{
@@ -20,7 +21,11 @@ Deno.serve(async req=>{
   const {data:{user}}=await db.auth.getUser(bearer);
   const {data:role}=user ? await db.from('voice_platform_roles').select('role').eq('user_id',user.id).maybeSingle() : {data:null};
   let config:Record<string,unknown>, agentId=null, orgId=null;
-  if(b.draft || b.preview) {
+  if(b.share) {
+    const agent=await resolveDemoShare(db,b.share); if(!agent) return json({error:'This demo link has expired or was turned off.'},404);
+    const {data:sources}=await db.from('voice_agent_sources').select('content').eq('agent_id',agent.id).eq('status','ready');
+    config={...(agent.draft as Record<string,unknown>),sourceKnowledge:(sources || []).map(s=>s.content || '').join('\n').slice(0,100000),sharedDemo:true}; agentId=agent.id; orgId=agent.organization_id;
+  } else if(b.draft || b.preview) {
     if(!user) return json({error:'Sign in to preview voices'},401);
     if(!b.agentId) { if(role?.role!=='admin') return json({error:'Administrator access required'},403); config={...DEFAULT_AGENT}; }
     else {
@@ -46,8 +51,8 @@ Deno.serve(async req=>{
     config={...(agent.published as Record<string,unknown>), homepageSales:agent.slug==='aspen-homepage'}; agentId=agent.id; orgId=agent.organization_id;
   }
   const requestedModel = b.model;
-  if(requestedModel && (!(b.draft || b.preview) || !officialLivePricing(requestedModel))) return json({error:'Model comparison is available only for authorized draft tests and previews.'},400);
-  config={...config,timeZone:b.timeZone,quotaClass:voiceQuotaClass(role?.role==='admin',b.preview),model:requestedModel || DEFAULT_LIVE_MODEL,opening:greeting(config,b.hour,b.visitorName || String((config.visitorContact as Record<string,unknown>|undefined)?.name || '')),preview:b.preview,campaign:b.campaign || null,recordTranscript:transcriptAllowed(config.homepageSales===true,Boolean(config.recordTranscript),b.consent)};
+  if(requestedModel && (b.share || !(b.draft || b.preview) || !officialLivePricing(requestedModel))) return json({error:'Model comparison is available only for authorized draft tests and previews.'},400);
+  config={...config,timeZone:b.timeZone,quotaClass:b.share?'visitor':voiceQuotaClass(role?.role==='admin',b.preview),model:requestedModel || DEFAULT_LIVE_MODEL,opening:greeting(config,b.hour,b.visitorName || String((config.visitorContact as Record<string,unknown>|undefined)?.name || '')),preview:b.preview,campaign:b.campaign || null,recordTranscript:transcriptAllowed(config.homepageSales===true,Boolean(config.recordTranscript),b.consent)};
   const token=crypto.randomUUID()+crypto.randomUUID();
   const visitor=await hash(`${b.visitorKey}|${req.headers.get('x-forwarded-for')?.split(',')[0] || ''}`);
   const {data:id,error}=await db.rpc('authorize_gemini_session',{_visitor:visitor,_token:await hash(token),_config:config,_agent:agentId,_org:orgId,_lead:b.leadId || null,_prospect:b.prospectId || null});
@@ -61,7 +66,7 @@ Deno.serve(async req=>{
   let avatarUrl=''; if(config.avatarPath) { const {data}=await db.storage.from('lead-uploads').createSignedUrl(String(config.avatarPath),3600); avatarUrl=data?.signedUrl || ''; }
   let handoffToken: string | undefined;
   const destination=transferDestination(config);
-  if(destination && !b.preview) {
+  if(destination && !b.preview && !b.share) {
     const {data:history,error:historyError}=await db.from('call_history').upsert({retell_call_id:`gemini_${id}`,lead_id:b.leadId||null,prospect_id:b.prospectId||null,business_name:String(config.businessName),call_status:'connecting',caller_name:b.visitorName||null,metadata:{provider:'gemini',session_id:id,agent_id:agentId,transcript_consent:config.recordTranscript}},{onConflict:'retell_call_id'}).select('id').single();
     if(historyError)throw historyError;
     if(history){

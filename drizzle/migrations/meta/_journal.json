@@ -85,6 +85,13 @@
       "when": 1793005786659,
       "tag": "0011_paid_customer_workspaces",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793147310682,
+      "tag": "0012_voice_demo_shares",
+      "breakpoints": true
     }
   ]
 }

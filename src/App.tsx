@@ -21,6 +21,7 @@ const AdPreviews = lazy(() => import("./pages/AdPreviews.tsx"));
 const MarketingHub = lazy(() => import("./pages/MarketingHub.tsx"));
 const TranscriptPage = lazy(() => import("./pages/TranscriptPage.tsx"));
 const VoiceLab = lazy(() => import("./pages/VoiceLab.tsx"));
+const SharedDemo = lazy(() => import("./pages/SharedDemo.tsx"));
 const ClientVoiceAgent = lazy(() => import("./pages/ClientVoiceAgent.tsx"));
 const BookCall = lazy(() => import("./pages/BookCall.tsx"));
 const Plans = lazy(() => import("./pages/Plans.tsx"));
@@ -73,6 +74,7 @@ const App = () => {
             <Route path="/voice-lab" element={<VoiceLab />} />
             <Route path="/book" element={<BookCall />} />
             <Route path="/agent/:id" element={<ClientVoiceAgent />} />
+            <Route path="/demo-share/:token" element={<SharedDemo />} />
             <Route path="/d/:slug" element={<ShortLinkRedirect />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/dashboard/*" element={<CRM />} />

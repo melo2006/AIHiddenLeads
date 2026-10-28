@@ -43,8 +43,8 @@ type Phase = "idle" | "connecting" | "live" | "preview";
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const WS_URL = SUPABASE_URL.replace(/^https/, "wss") + "/functions/v1/gemini-live-proxy";
 
-export interface GeminiConversationProps { agentId?: string; leadId?: string; prospectId?: string; draft?: boolean; compact?: boolean; name?: string; visitorName?: string; previewVoice?: string; autoStart?: boolean; previewOnly?: boolean; testModel?: string; onRecommendedPlan?: (plan: SalesPlan) => void; }
-const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compact = false, name = "Aspen", visitorName = "", previewVoice, autoStart = false, previewOnly = false, testModel, onRecommendedPlan }: GeminiConversationProps) => {
+export interface GeminiConversationProps { agentId?: string; leadId?: string; prospectId?: string; draft?: boolean; compact?: boolean; name?: string; visitorName?: string; previewVoice?: string; autoStart?: boolean; previewOnly?: boolean; testModel?: string; shareToken?: string; onRecommendedPlan?: (plan: SalesPlan) => void; }
+const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compact = false, name = "Aspen", visitorName = "", previewVoice, autoStart = false, previewOnly = false, testModel, shareToken, onRecommendedPlan }: GeminiConversationProps) => {
   const [pendingAction, setPendingAction] = useState<VoiceAction | null>(null);
   const [actionNotice, setActionNotice] = useState('');
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
@@ -355,7 +355,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         return stream;
       });
       const [session, stream] = await Promise.all([
-        supabase.functions.invoke("gemini-session", { body: { visitorKey, agentId, leadId, prospectId, draft, preview, voice: previewVoice || voice, model: testModel, campaign:campaignVisit(), hour: new Date().getHours(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, visitorName, consent } }),
+        supabase.functions.invoke("gemini-session", { body: { visitorKey, agentId, leadId, prospectId, draft, preview, voice: previewVoice || voice, model: testModel, campaign:campaignVisit(), hour: new Date().getHours(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, visitorName, consent, share: shareToken } }),
         microphoneReady,
         playResume,
         micResume,
@@ -532,7 +532,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       if (generation === generationRef.current) startingRef.current = false;
       window.clearTimeout(startupTimeout);
     }
-  }, [voice, microphone, captureMode, refreshMicrophones, playPcmChunk, clearPlayback, flushLine, stopEverything, agentId, leadId, prospectId, draft, previewVoice, visitorName, consent, testModel, onRecommendedPlan]);
+  }, [voice, microphone, captureMode, refreshMicrophones, playPcmChunk, clearPlayback, flushLine, stopEverything, agentId, leadId, prospectId, draft, previewVoice, visitorName, consent, testModel, shareToken, onRecommendedPlan]);
 
   useEffect(() => stopEverything, [stopEverything]);
 
