@@ -43,8 +43,11 @@ type Phase = "idle" | "connecting" | "live" | "preview";
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const WS_URL = SUPABASE_URL.replace(/^https/, "wss") + "/functions/v1/gemini-live-proxy";
 
-export interface GeminiConversationProps { agentId?: string; leadId?: string; prospectId?: string; draft?: boolean; compact?: boolean; name?: string; visitorName?: string; previewVoice?: string; autoStart?: boolean; previewOnly?: boolean; previewAudioContext?: AudioContext; testModel?: string; shareToken?: string; onRecommendedPlan?: (plan: SalesPlan) => void; }
-const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compact = false, name = "Aspen", visitorName = "", previewVoice, autoStart = false, previewOnly = false, previewAudioContext, testModel, shareToken, onRecommendedPlan }: GeminiConversationProps) => {
+export interface GeminiConversationProps { agentId?: string; leadId?: string; prospectId?: string; draft?: boolean; compact?: boolean; name?: string; visitorName?: string; previewVoice?: string; autoStart?: boolean; previewOnly?: boolean; previewAudioContext?: AudioContext; testModel?: string; shareToken?: string; onRecommendedPlan?: (plan: SalesPlan) => void; videoAvatar?: VideoAvatar; }
+const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compact = false, name = "Aspen", visitorName = "", previewVoice, autoStart = false, previewOnly = false, previewAudioContext, testModel, shareToken, onRecommendedPlan, videoAvatar }: GeminiConversationProps) => {
+  const avatarRef = useRef<SimliAvatarHandle>(null);
+  const avatarLiveRef = useRef(false);
+  const muteNodeRef = useRef<GainNode | null>(null);
   const [pendingAction, setPendingAction] = useState<VoiceAction | null>(null);
   const [actionNotice, setActionNotice] = useState('');
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
@@ -207,6 +210,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     for (const source of sourcesRef.current) { try { source.stop(); } catch { /* Already stopped. */ } }
     sourcesRef.current.clear();
     setMicLevel(0);
+    avatarRef.current?.stop();
+    avatarLiveRef.current = false;
     try { wsRef.current?.close() } catch { /* ignore */ }
     wsRef.current = null;
     micStreamRef.current?.getTracks().forEach((t) => t.stop());
@@ -215,6 +220,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     micCtxRef.current = null;
     playCtxRef.current?.close().catch(() => {});
     playCtxRef.current = null;
+    muteNodeRef.current = null;
     flushLine("user");
     flushLine("assistant");
     setAspenSpeaking(false);
@@ -241,7 +247,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     buffer.getChannelData(0).set(floats);
     const source = ctx.createBufferSource();
     source.buffer = buffer;
-    source.connect(ctx.destination);
+    // With a live video face, Simli plays the lip-synced audio; keep local timing silent so speaking state still works.
+    if (avatarLiveRef.current && !captureRef.current.replaying) {
+      if (!muteNodeRef.current || muteNodeRef.current.context !== ctx) { const mute = ctx.createGain(); mute.gain.value = 0; mute.connect(ctx.destination); muteNodeRef.current = mute; }
+      source.connect(muteNodeRef.current);
+      avatarRef.current?.sendPcm24k(base64);
+    } else source.connect(ctx.destination);
 
     const now = ctx.currentTime;
     const startAt = Math.max(now, playTimeRef.current);
@@ -266,6 +277,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     setReplaying(false);
     for (const source of sourcesRef.current) { try { source.stop(); } catch { /* Already stopped. */ } }
     sourcesRef.current.clear();
+    avatarRef.current?.clear();
     playTimeRef.current = playCtxRef.current?.currentTime ?? 0;
     setAspenSpeaking(false);
   }, []);
