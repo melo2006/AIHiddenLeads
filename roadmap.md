@@ -1,6 +1,6 @@
 # Current work
 
-- [ ] Fix rejected campaign milestones from admin voice tests; verify public tracking remains intact and analytics failures cannot interrupt the UI.
+- [x] Fixed shared voice tracking sending private wizard paths to public-only campaign-events; central route gate, sanitized UTM labels and contained analytics failures. Fourteen regression tests passed; authenticated loaded wizard suppressed voice-start/end requests and public demo page views saved with HTTP 200, no page errors. No paid voice call required.
 
 - [x] Replaced oversized public examples with commercial cleaning, contract machining, commercial HVAC and packaging suppliers; shared new-business wizard picker, service-matched buyer keywords (not volume research), 12 tests and authenticated desktop/phone selection passed. No scan, purchase, call or publication. Existing saved QA drafts retained; custom avatar-picture uploads remain unimplemented.
 
