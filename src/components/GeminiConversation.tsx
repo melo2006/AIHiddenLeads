@@ -43,8 +43,8 @@ type Phase = "idle" | "connecting" | "live" | "preview";
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const WS_URL = SUPABASE_URL.replace(/^https/, "wss") + "/functions/v1/gemini-live-proxy";
 
-export interface GeminiConversationProps { agentId?: string; leadId?: string; prospectId?: string; draft?: boolean; compact?: boolean; name?: string; visitorName?: string; previewVoice?: string; autoStart?: boolean; previewOnly?: boolean; testModel?: string; shareToken?: string; onRecommendedPlan?: (plan: SalesPlan) => void; }
-const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compact = false, name = "Aspen", visitorName = "", previewVoice, autoStart = false, previewOnly = false, testModel, shareToken, onRecommendedPlan }: GeminiConversationProps) => {
+export interface GeminiConversationProps { agentId?: string; leadId?: string; prospectId?: string; draft?: boolean; compact?: boolean; name?: string; visitorName?: string; previewVoice?: string; autoStart?: boolean; previewOnly?: boolean; previewAudioContext?: AudioContext; testModel?: string; shareToken?: string; onRecommendedPlan?: (plan: SalesPlan) => void; }
+const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compact = false, name = "Aspen", visitorName = "", previewVoice, autoStart = false, previewOnly = false, previewAudioContext, testModel, shareToken, onRecommendedPlan }: GeminiConversationProps) => {
   const [pendingAction, setPendingAction] = useState<VoiceAction | null>(null);
   const [actionNotice, setActionNotice] = useState('');
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
@@ -327,7 +327,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     aspenLineRef.current = "";
     userLineRef.current = "";
     setPhase("connecting");
-    setStatus("Connecting to Gemini Live…");
+    setStatus(preview ? "Preparing your saved greeting…" : "Connecting to Gemini Live…");
     const startupTimeout = window.setTimeout(() => {
       if (generation === generationRef.current && !liveRef.current) {
         stopEverything();
@@ -337,7 +337,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
     try {
       // Unlock audio while still inside the user's click, before permissions/network awaits.
-      const playCtx = new AudioContext();
+      const playCtx = preview && previewAudioContext?.state !== 'closed' && previewAudioContext ? previewAudioContext : new AudioContext();
       playCtxRef.current = playCtx;
       playTimeRef.current = 0;
       const playResume = playCtx.resume();
@@ -382,7 +382,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       const ws = new WebSocket(`${WS_URL}?token=${encodeURIComponent(authorized.token)}&capture=${captureMode}`);
       wsRef.current = ws;
 
-      ws.onopen = () => setStatus("Connected — waiting for Gemini…");
+      ws.onopen = () => setStatus(preview ? "Voice connected · generating your greeting…" : "Connected — waiting for Gemini…");
 
       // If Gemini never signals ready, don't hang on "connecting" forever
       const readyTimeout = setTimeout(() => {
@@ -407,7 +407,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             liveRef.current = true;
             if(!preview)void trackCampaignEvent('voice_started');
             setPhase(preview ? "preview" : "live");
-            setStatus(preview ? "Playing voice preview…" : captureMode === "hold" ? "Live — hold to talk" : "Live — hands-free");
+            setStatus(preview ? "Preparing greeting audio…" : captureMode === "hold" ? "Live — hold to talk" : "Live — hands-free");
             if (!micCtx || !stream) break;
             void micCtx.resume();
             const source = micCtx.createMediaStreamSource(stream);
@@ -532,7 +532,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       if (generation === generationRef.current) startingRef.current = false;
       window.clearTimeout(startupTimeout);
     }
-  }, [voice, microphone, captureMode, refreshMicrophones, playPcmChunk, clearPlayback, flushLine, stopEverything, agentId, leadId, prospectId, draft, previewVoice, visitorName, consent, testModel, shareToken, onRecommendedPlan]);
+  }, [voice, microphone, captureMode, refreshMicrophones, playPcmChunk, clearPlayback, flushLine, stopEverything, agentId, leadId, prospectId, draft, previewVoice, previewAudioContext, visitorName, consent, testModel, shareToken, onRecommendedPlan]);
 
   useEffect(() => stopEverything, [stopEverything]);
 
@@ -542,8 +542,9 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   useEffect(() => {
     if (!compact || !autoStart || autoStartedRef.current) return;
     autoStartedRef.current = true;
-    if(consentReadyRef.current)void startConversation();
-  }, [compact, autoStart, startConversation]);
+    if (previewOnly) void startConversation(true);
+    else if(consentReadyRef.current)void startConversation();
+  }, [compact, autoStart, previewOnly, startConversation]);
 
   const onHandoffActive = (active: boolean) => {
     handoffRef.current = active;
@@ -570,9 +571,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
   if (previewOnly) return <div className="space-y-2">
     <div className="flex flex-wrap items-center gap-2">
-      <Button size="sm" variant="outline" disabled={phase !== "idle"} onClick={() => void startConversation(true)} aria-label="Play selected voice"><Play className="mr-2 h-4 w-4"/>Play voice</Button>
-      <Button size="sm" variant="outline" disabled={phase === "idle"} onClick={stopEverything} aria-label="Stop voice preview"><PhoneOff className="mr-2 h-4 w-4"/>Stop</Button>
-      <span role="status" className="text-xs text-muted-foreground">{phase === "connecting" ? "Connecting…" : phase === "preview" ? `Playing ${previewVoice || voice}` : `${previewVoice || voice} selected`}</span>
+      <Button size="sm" variant="outline" disabled={phase !== "idle" || replaying} onClick={() => void startConversation(true)} aria-label="Play selected voice">{phase === 'connecting' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4"/>}Play voice</Button>
+      <Button size="sm" variant="outline" disabled={phase === "idle" && !replaying} onClick={stopEverything} aria-label="Stop voice preview"><PhoneOff className="mr-2 h-4 w-4"/>Stop</Button>
+      {hasReplay && <Button size="sm" variant="outline" disabled={phase !== 'idle' || replaying} onClick={() => void replayLastMessage()} title="Replay saved greeting without another paid request"><RotateCcw className="mr-2 h-4 w-4" />Replay</Button>}
+      <span role="status" className="text-xs text-muted-foreground">{replaying ? 'Replaying saved greeting' : phase === "connecting" || phase === 'preview' && !aspenSpeaking ? status : phase === "preview" ? `Playing ${previewVoice || voice}` : `${previewVoice || voice} selected`}</span>
     </div>
     {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
   </div>;

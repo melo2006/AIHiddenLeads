@@ -78,6 +78,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
   const [serviceStep, setServiceStep] = useState(0);
   const loadGeneration = useRef(0);
   const fileRef = useRef<HTMLInputElement>(null);
+  const previewAudioRef = useRef<AudioContext>();
   const set = (patch: Partial<WizardState>) => setS((p) => ({ ...p, ...patch }));
 
   async function load(id = selectedId) {
@@ -220,8 +221,12 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
 
   async function prepareVoice(call = false) {
     setBusy(true);
-    if (await save()) { if (call) setCalling(true); else setVoiceReady(true); }
-    setBusy(false);
+    try {
+      if (!call) { const ctx = new AudioContext(); previewAudioRef.current = ctx; await ctx.resume(); }
+      if (await save()) { if (call) setCalling(true); else setVoiceReady(true); }
+      else { await previewAudioRef.current?.close(); previewAudioRef.current = undefined; }
+    } catch(e) { toast.error(e instanceof Error ? e.message : 'Could not prepare voice'); }
+    finally { setBusy(false); }
   }
 
   async function publish() {
