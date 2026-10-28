@@ -1,6 +1,6 @@
 # Architecture rules
 
-- Keep a public-only HTML fallback for non-JavaScript readers; React replaces it. Never include tenant data or imply route-specific rendering.
+- Keep public-only no-JS HTML; hide it behind themed startup until React mounts. Never include tenant data or imply route-specific rendering.
 
 - Keep demo progress pending until scan data arrives and render captured screenshots eagerly while iframe checks run; preload only cached public voice identity before interaction, never single-use voice capabilities or microphone capture, to reduce startup waits without premature usage.
 
@@ -46,4 +46,4 @@
 - Read subdirectory AGENTS.md before edits.
 - Share customer/admin setup with real ingestion/Gemini tests; admin drafts never grant payment access. Publish only explicitly. Prefer captured originals over iframe checks; guard loading and save before switching drafts to prevent lost work.
 - Share drafts only via hashed, expiring server-resolved tokens: appearance-only responses, visitor quota, no handoff.
-- Simli faces only lip-sync Gemini audio; `simli-avatar` keeps keys/tokens server-side and resolves faces from agent config, never callers. Fall back to voice-only.
+- Simli lip-syncs Gemini; server-resolved faces, private secrets, voice fallback. Share scaled device layouts and click-gated draft voice/face tests in admin/wizard.
