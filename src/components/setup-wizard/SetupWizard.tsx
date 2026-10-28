@@ -409,7 +409,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
           {step === 3 && (
             <div className="space-y-4">
               <StepHead title="Give your assistant a face" hint="Optional: a live video face that speaks with your chosen voice." help="Voice only works everywhere. A video face lip-syncs the same Gemini voice and uses extra video minutes." />
-              <AvatarSettings value={normalizeVideoAvatar(s.videoAvatar)} onChange={(videoAvatar) => set({ videoAvatar })} agentId={selectedId} beforePreview={save} />
+              <AvatarSettings value={normalizeVideoAvatar(s.videoAvatar)} onChange={(videoAvatar) => set({ videoAvatar })} agentId={selectedId} beforePreview={save} voice={s.voice} onVoiceChange={voice => { set({ voice }); setVoiceReady(false); }} name={s.name} />
             </div>
           )}
 
@@ -442,7 +442,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
               <div className="space-y-4">
                 <StepHead title={published ? "You're live!" : "Try it, then go live"} hint={published ? "Add it to your website with the steps below." : "Make a test call, then publish."} help="Test calls use your saved draft. Publishing makes it available to your website visitors." />
                 {realVoice ? (
-                  calling ? <div className="rounded-xl border border-border p-2"><GeminiConversation key={`call-${selectedId}`} draft agentId={selectedId} name={s.name} compact videoAvatar={normalizeVideoAvatar(s.videoAvatar)} /></div>
+                  calling ? <div className="rounded-xl border border-border p-2"><GeminiConversation key={`call-${selectedId}`} draft agentId={selectedId} name={s.name} previewVoice={s.voice} compact videoAvatar={normalizeVideoAvatar(s.videoAvatar)} /></div>
                     : <Button size="lg" variant="outline" className="w-full" disabled={busy || sources.some(x => x.status !== "ready")} onClick={() => void prepareVoice(true)}><Phone className="mr-2 h-5 w-5" />Try a test call</Button>
                 ) : null}
                 <Button size="lg" className="w-full" disabled={busy || published || sources.some(x => x.status !== "ready")} onClick={() => void publish()}><Rocket className="mr-2 h-5 w-5" />{published ? "Published" : "Publish my assistant"}</Button>

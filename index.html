@@ -41,9 +41,23 @@
     }
   </script>
   <link rel="icon" href="/favicon.png" type="image/png">
+  <style>
+    :root { --startup-background: 220 20% 4%; --startup-foreground: 210 40% 96%; --startup-primary: 160 84% 50%; }
+    html, body { margin: 0; background: hsl(var(--startup-background)); color: hsl(var(--startup-foreground)); }
+    #root > main { max-width: 960px; margin: auto; padding: 24px; font-family: system-ui, sans-serif; line-height: 1.6; }
+    #root > main a { color: hsl(var(--startup-primary)); }
+    #root > main img { width: 72px; height: 72px; }
+    html.app-starting #root > main { display: none; }
+    #startup-status { display: none; }
+    html.app-starting #startup-status { display: grid; min-height: 100dvh; place-content: center; gap: 12px; text-align: center; font-family: system-ui, sans-serif; }
+    #startup-status img { width: 64px; height: 64px; margin: auto; }
+    html.app-ready #startup-status { display: none; }
+  </style>
+  <script>document.documentElement.classList.add('app-starting');</script>
 </head>
 
   <body>
+    <div id="startup-status" role="status"><img src="/logo.png" alt="" /><strong>AI Hidden Leads</strong><span>Loading…</span></div>
     <div id="root">
       <!-- Public content for readers without JavaScript; React replaces this when it starts. -->
       <main>

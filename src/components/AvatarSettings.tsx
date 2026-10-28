@@ -7,6 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import SimliAvatar, { type SimliAvatarHandle } from "@/components/SimliAvatar";
+import AvatarDevicePreview from "@/components/AvatarDevicePreview";
+import GeminiConversation from "@/components/GeminiConversation";
+import { VOICES } from "@/components/setup-wizard/wizardModel";
 import aspenFace from "@/assets/aspen_blonde_avatar.jpg";
 import {
   AVATAR_MAX_SIZE, AVATAR_MIN_SIZE, AVATAR_POSITIONS, AVATAR_SHAPES, PRESET_FACES, type VideoAvatar,
@@ -34,15 +37,21 @@ interface Props {
   faces?: Face[];
   /** Admin page: preview any face without an agent. */
   adminPreview?: boolean;
+  voice?: string;
+  onVoiceChange?: (voice: string) => void;
+  name?: string;
 }
 
 /** Shared video-face picker for the setup wizard and the admin Video Avatars page. */
-export default function AvatarSettings({ value, onChange, agentId, beforePreview, faces = [], adminPreview = false }: Props) {
+export default function AvatarSettings({ value, onChange, agentId, beforePreview, faces = [], adminPreview = false, voice = "Kore", onVoiceChange, name = "Aspen" }: Props) {
   const set = (patch: Partial<VideoAvatar>) => onChange({ ...value, ...patch });
   const [uploading, setUploading] = useState(false);
   const [pending, setPending] = useState<{ faceId: string; status: string } | null>(null);
   const [faceName, setFaceName] = useState("");
   const [previewing, setPreviewing] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [preparing, setPreparing] = useState(false);
+  useEffect(() => { setTesting(false); avatarRef.current?.stop(); setPreviewing(false); }, [agentId, voice, value.faceId, value.enabled]);
   const fileRef = useRef<HTMLInputElement>(null);
   const avatarRef = useRef<SimliAvatarHandle>(null);
   const allFaces: Face[] = [...PRESET_FACES, ...faces.filter((f) => !PRESET_FACES.some((p) => p.id === f.id))];
@@ -84,24 +93,30 @@ export default function AvatarSettings({ value, onChange, agentId, beforePreview
     if (!ok) setPreviewing(false);
   }
 
-  const choice = (active: boolean) => `rounded-xl border-2 p-3 text-left text-sm transition ${active ? "border-primary bg-primary/10" : "border-border hover:border-primary/50"}`;
+  async function testConversation() {
+    if (testing) { setTesting(false); return; }
+    avatarRef.current?.stop(); setPreviewing(false); setPreparing(true);
+    try { if (!beforePreview || await beforePreview()) setTesting(true); }
+    finally { setPreparing(false); }
+  }
+  const choice = (active: boolean) => `h-auto justify-start whitespace-normal rounded-lg border-2 p-3 text-left text-sm transition ${active ? "border-primary bg-primary/10" : "border-border hover:border-primary/50"}`;
   return (
     <div className="grid gap-6 md:grid-cols-[1fr_1fr]">
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-2">
-          <button type="button" className={choice(!value.enabled)} onClick={() => set({ enabled: false })}><Mic className="mb-1 h-4 w-4 text-primary" /><p className="font-semibold">Voice only</p><p className="text-[11px] text-muted-foreground">Launcher photo + voice</p></button>
-          <button type="button" className={choice(value.enabled)} onClick={() => set({ enabled: true })}><Video className="mb-1 h-4 w-4 text-primary" /><p className="font-semibold">Live video face</p><p className="text-[11px] text-muted-foreground">Lip-synced during calls</p></button>
+          <Button variant="outline" className={choice(!value.enabled)} aria-pressed={!value.enabled} onClick={() => set({ enabled: false })}><Mic className="h-4 w-4 text-primary" /><span>Photo + voice</span></Button>
+          <Button variant="outline" className={choice(value.enabled)} aria-pressed={value.enabled} onClick={() => set({ enabled: true })}><Video className="h-4 w-4 text-primary" /><span>Moving avatar + voice</span></Button>
         </div>
 
         {value.enabled && <>
           <div className="space-y-1.5">
             <p className="text-sm font-medium">Choose a face</p>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid max-h-72 grid-cols-2 gap-2 overflow-y-auto">
               {allFaces.map((f) => (
-                <button key={f.id} type="button" className={choice(value.faceId === f.id)} onClick={() => set({ faceId: f.id })}>
+                <Button variant="outline" key={f.id} className={`${choice(value.faceId === f.id)} flex-col items-start`} aria-pressed={value.faceId === f.id} onClick={() => set({ faceId: f.id })}>
                   {f.id === PRESET_FACES[0].id && <img src={aspenFace} alt="" className="mb-1 h-12 w-12 rounded-full object-cover" />}
                   <p className="text-xs font-semibold">{f.name}</p>
-                </button>
+                </Button>
               ))}
             </div>
           </div>
@@ -117,7 +132,7 @@ export default function AvatarSettings({ value, onChange, agentId, beforePreview
 
           <div className="space-y-1.5">
             <p className="text-sm font-medium">Where it appears</p>
-            <div className="flex flex-wrap gap-2">{AVATAR_POSITIONS.map((p) => <button key={p} type="button" onClick={() => set({ position: p })} className={`rounded-full border px-3 py-1 text-xs ${value.position === p ? "border-primary bg-primary/10 text-primary" : "border-border"}`}>{POSITION_LABEL[p]}</button>)}</div>
+            <div className="flex flex-wrap gap-2">{AVATAR_POSITIONS.map((p) => <Button key={p} size="sm" variant={value.position === p ? "default" : "outline"} onClick={() => set({ position: p })} className="text-xs">{POSITION_LABEL[p]}</Button>)}</div>
           </div>
           <div className="space-y-2">
             <p className="flex justify-between text-sm font-medium">Size<span className="text-xs text-muted-foreground">{value.size}px</span></p>
@@ -125,20 +140,18 @@ export default function AvatarSettings({ value, onChange, agentId, beforePreview
           </div>
           <div className="space-y-1.5">
             <p className="text-sm font-medium">Shape</p>
-            <div className="flex flex-wrap gap-2">{AVATAR_SHAPES.map((sh) => <button key={sh} type="button" onClick={() => set({ shape: sh })} className={`rounded-full border px-3 py-1 text-xs ${value.shape === sh ? "border-primary bg-primary/10 text-primary" : "border-border"}`}>{SHAPE_LABEL[sh]}</button>)}</div>
+            <div className="flex flex-wrap gap-2">{AVATAR_SHAPES.map((sh) => <Button key={sh} size="sm" variant={value.shape === sh ? "default" : "outline"} onClick={() => set({ shape: sh })} className="text-xs">{SHAPE_LABEL[sh]}</Button>)}</div>
           </div>
         </>}
+        {onVoiceChange && <div className="space-y-2"><p className="text-sm font-medium">Gemini Live voice</p><div className="grid grid-cols-2 gap-2">{VOICES.map(v => <Button key={v.id} variant={voice === v.id ? 'default' : 'outline'} className="h-auto flex-col items-start whitespace-normal p-3" onClick={() => onVoiceChange(v.id)} aria-pressed={voice === v.id}><span>{v.label}</span><span className="text-[11px]">{v.vibe}</span></Button>)}</div></div>}
       </div>
 
-      {value.enabled && <div className="space-y-3">
-        <div className="relative flex min-h-[320px] items-center justify-center overflow-hidden rounded-xl border border-border bg-muted/40">
-          {!previewing && <div className={`overflow-hidden border-2 border-primary/50 ${value.shape === "circle" ? "rounded-full" : value.shape === "rounded" ? "rounded-3xl" : "rounded-md"}`} style={{ width: Math.min(value.size, 300), height: Math.min(value.size, 300) }}><img src={aspenFace} alt="Face preview placeholder" className="h-full w-full object-cover" /></div>}
-          <div className={previewing ? "" : "hidden"}><SimliAvatar ref={avatarRef} inline avatar={{ ...value, size: Math.min(value.size, 300) }} agentId={agentId} draft={Boolean(agentId)} faceOverride={adminPreview ? value.faceId : undefined} onLiveChange={(live) => { if (!live) setPreviewing(false); }} /></div>
-          <span className="absolute bottom-2 left-2 rounded bg-background/80 px-2 py-0.5 text-[10px] text-muted-foreground">On the site: {POSITION_LABEL[value.position].toLowerCase()}</span>
-        </div>
-        {(agentId || adminPreview) && <Button variant="outline" className="w-full" onClick={() => void togglePreview()}>{previewing ? <><Square className="mr-2 h-4 w-4" />Stop face preview</> : <><Play className="mr-2 h-4 w-4" />Preview live face (silent)</>}</Button>}
-        <p className="text-[11px] text-muted-foreground">The preview shows the real face moving; hear it talk with your voice in the test call on the last step. Video minutes are billed by Simli.</p>
-      </div>}
+      <div className="min-w-0 space-y-3">
+        <AvatarDevicePreview avatar={value} />
+        {value.enabled && <><div className={previewing ? "" : "hidden"}><SimliAvatar ref={avatarRef} inline avatar={{ ...value, size: Math.min(value.size, 300) }} agentId={agentId} draft={Boolean(agentId)} faceOverride={adminPreview ? value.faceId : undefined} onLiveChange={(live) => { if (!live) setPreviewing(false); }} /></div>{(agentId || adminPreview) && <Button variant="outline" className="w-full" disabled={testing || preparing} onClick={() => void togglePreview()}>{previewing ? <><Square />Stop face preview</> : <><Play />Preview live face (silent)</>}</Button>}</>}
+        {agentId && <><Button className="w-full" disabled={preparing} onClick={() => void testConversation()}>{preparing ? <Loader2 className="animate-spin"/> : testing ? <Square/> : <Mic/>}{preparing ? 'Saving your choices…' : testing ? 'Close test' : `Test ${name} · ${voice}`}</Button>{testing && <GeminiConversation draft agentId={agentId} compact name={name} previewVoice={voice} videoAvatar={value} avatarInline />}</>}
+        <p className="text-[11px] text-muted-foreground">Test usage counts toward voice and video limits. Video plan pricing is not finalized.</p>
+      </div>
     </div>
   );
 }

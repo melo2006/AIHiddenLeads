@@ -1,5 +1,11 @@
 # Current work
 
+- [x] Hide unstyled public crawler fallback behind themed startup until React mounts; public no-JS text remains readable. Browser verified both states.
+- [x] Share five dimension-labelled device layouts, face/photo mode, voice selection and saved-draft conversation test in admin/wizard. Authenticated admin saved moving face/Aoede and prepared test; no paid voice/Simli session started. Nine tests passed, phone no overflow, build OK. Homepage activation removed from this screen.
+- [x] Verify advertised Simli face-only $0.01/min rate and propose $79 video add-on with bounded allowances; no public offer changes.
+- [ ] Expand customer-ready face gallery to 10–15 curated faces: waiting for owner-supplied IDs, names and matching portraits. Existing Aspen preset remains selectable; admin can refresh provider faces.
+- [ ] Finalize video commercial terms and $0.15 voice billing interpretation with owner before implementing customer price/entitlement changes. Live spoken/video playback remains owner-device testing.
+
 - [x] Simli video face: admin Video Avatars page, wizard step 4 "Face & avatar" (preset Aspen face, photo-to-face upload, position/size/shape), Gemini voice lip-sync on homepage, demo room, shared demos and customer widgets. Server minted a real session; video frames not confirmed in the sandbox browser.
 - [ ] Owner device check: live face preview and lip-synced call on phone/desktop. HeyGen later.
 
