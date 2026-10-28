@@ -7,7 +7,6 @@ create table public.voice_demo_shares (
   revoked_at timestamptz,
   created_at timestamptz not null default now()
 );
-alter table public.voice_demo_shares enable row level security;
-revoke all on public.voice_demo_shares from anon, authenticated;
 grant all on public.voice_demo_shares to service_role;
+alter table public.voice_demo_shares enable row level security;
 create index voice_demo_shares_agent_idx on public.voice_demo_shares(agent_id);
