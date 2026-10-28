@@ -67,11 +67,17 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
   const [drag, setDrag] = useState(false);
   const [published, setPublished] = useState(false);
   const [calling, setCalling] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const loadGeneration = useRef(0);
   const fileRef = useRef<HTMLInputElement>(null);
   const set = (patch: Partial<WizardState>) => setS((p) => ({ ...p, ...patch }));
 
   async function load(id = selectedId) {
+    const generation = ++loadGeneration.current;
+    setLoading(true);
+    try {
     const data = await request({ action: "list" });
+    if (generation !== loadGeneration.current) return;
     setAgents(data.agents || []);
       const a = data.agents?.find((x: { id: string }) => x.id === id);
       if (!a) { setDraft(null); setSources([]); return; }
@@ -90,6 +96,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
         corner: d.launcherCorner === "bottom-left" ? "bottom-left" : "bottom-right",
       });
       setPublished(Boolean(a.published));
+    } finally { if (generation === loadGeneration.current) setLoading(false); }
   }
   useEffect(() => {
     void load().catch((e) => toast.error(e instanceof Error ? e.message : "Could not load your assistant"));
@@ -109,14 +116,16 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
   }
 
   async function go(next: number) {
+    if (loading) return;
     setBusy(true);
     let ok = false;
     try {
       if (!selectedId && preview) {
-        const data = await request({ action: "create", businessName: s.businessName });
+        const businessName = s.businessName.trim() || nameFromUrl(s.websiteUrl);
+        const data = await request({ action: "create", businessName });
         const id = data.agent?.id;
         if (!id) throw new Error("Could not create assistant");
-        const config = { ...data.agent.draft, ...s, websiteUrl: s.websiteUrl ? (/^https?:\/\//i.test(s.websiteUrl) ? s.websiteUrl : `https://${s.websiteUrl}`) : "", theme: { primary: s.color, background: "#09090b", foreground: "#fafafa", font: "system" }, launcherLabel: s.label, launcherCorner: s.corner };
+        const config = { ...data.agent.draft, ...s, businessName, websiteUrl: s.websiteUrl ? (/^https?:\/\//i.test(s.websiteUrl) ? s.websiteUrl : `https://${s.websiteUrl}`) : "", theme: { primary: s.color, background: "#09090b", foreground: "#fafafa", font: "system" }, launcherLabel: s.label, launcherCorner: s.corner };
         await request({ action: "save", agentId: id, config });
         setSelectedId(id); setDraft(config); ok = true;
       } else ok = await save();
@@ -214,7 +223,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
           <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/40 bg-primary/10 px-3 py-2 text-xs">
             <strong className="text-primary">Assisted setup</strong>
             <span className="text-muted-foreground">Saved business drafts · real voice usage · no purchase required</span>
-            <Select value={selectedId || "new"} onValueChange={(id) => { setDraft(null); setPublished(false); setSelectedId(id === "new" ? undefined : id); setStep(0); setVoiceReady(false); setCalling(false); if(id === "new") setS(EMPTY); }}>
+            <Select disabled={busy || loading} value={selectedId || "new"} onValueChange={(id) => { void (async () => { setBusy(true); try { if (selectedId && !await save()) return; setDraft(null); setPublished(false); setSelectedId(id === "new" ? undefined : id); setStep(0); setVoiceReady(false); setCalling(false); if(id === "new") setS(EMPTY); } finally { setBusy(false); } })(); }}>
               <SelectTrigger className="ml-auto h-8 w-full sm:w-64" aria-label="Choose business"><SelectValue placeholder="New business" /></SelectTrigger>
               <SelectContent className="z-[130]"><SelectItem value="new">New business</SelectItem>{agents.map(a => <SelectItem key={a.id} value={a.id}>{String(a.draft.businessName)}</SelectItem>)}</SelectContent>
             </Select>
@@ -246,11 +255,10 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
                 <StepHead title="Tell us about your business" hint="Paste your website. We fill in the rest." help="We read your public pages so your assistant knows your services, hours and area. You can change anything later." />
                 <label className="block space-y-1 text-sm font-medium">Website
                   <Input type="url" inputMode="url" placeholder="yourbusiness.com" value={s.websiteUrl}
-                    onChange={(e) => set({ websiteUrl: e.target.value })}
-                    onBlur={() => !s.businessName && s.websiteUrl && set({ businessName: nameFromUrl(s.websiteUrl) })} />
+                    disabled={loading} onChange={(e) => set({ websiteUrl: e.target.value })} />
                 </label>
                 <label className="block space-y-1 text-sm font-medium">Business name
-                  <Input placeholder="Apex Roofing" value={s.businessName} onChange={(e) => set({ businessName: e.target.value })} />
+                  <Input disabled={loading} placeholder={nameFromUrl(s.websiteUrl) || "Apex Roofing"} value={s.businessName} onChange={(e) => set({ businessName: e.target.value })} />
                 </label>
                 <label className="block space-y-1 text-sm font-medium">Industry
                   <Select value={s.industry} onValueChange={(v) => set({ industry: v })}>
@@ -382,9 +390,9 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
         </section>
 
         <div className="sticky bottom-0 z-10 flex items-center justify-between gap-3 border-t border-border bg-background/95 py-3 backdrop-blur">
-          <Button variant="outline" size="lg" disabled={step === 0 || busy} onClick={() => void go(step - 1)}><ChevronLeft className="mr-1 h-5 w-5" />Back</Button>
+          <Button variant="outline" size="lg" disabled={step === 0 || busy || loading} onClick={() => void go(step - 1)}><ChevronLeft className="mr-1 h-5 w-5" />Back</Button>
           {step < STEPS.length - 1 && (
-            <Button size="lg" disabled={!ready || busy || Boolean(selectedId && !draft)} onClick={() => void go(step + 1)}>Next<ChevronRight className="ml-1 h-5 w-5" /></Button>
+            <Button size="lg" disabled={!ready || busy || loading || Boolean(selectedId && !draft)} onClick={() => void go(step + 1)}>Next<ChevronRight className="ml-1 h-5 w-5" /></Button>
           )}
         </div>
       </div>

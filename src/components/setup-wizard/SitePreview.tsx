@@ -7,10 +7,13 @@ import { renderGreeting, type WizardState } from "./wizardModel";
 /** Shows the customer's real site (when it allows embedding) with the floating assistant drawn on top. */
 export default function SitePreview({ state, open = true, screenshot }: { state: WizardState; open?: boolean; screenshot?: string }) {
   const [embeddable, setEmbeddable] = useState<boolean | null>(null);
-  const [standIn, setStandIn] = useState(false);
+  const [liveSite, setLiveSite] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
   const url = state.websiteUrl && (/^https?:\/\//i.test(state.websiteUrl) ? state.websiteUrl : `https://${state.websiteUrl}`);
 
   useEffect(() => {
+    setLiveSite(false);
+    setImageFailed(false);
     if (!url) { setEmbeddable(false); return; }
     let active = true;
     setEmbeddable(null);
@@ -19,6 +22,7 @@ export default function SitePreview({ state, open = true, screenshot }: { state:
       .catch(() => { if (active) setEmbeddable(false); });
     return () => { active = false; };
   }, [url]);
+  useEffect(() => { setImageFailed(false); }, [screenshot]);
 
   const side = state.corner === "bottom-left" ? "left-3" : "right-3";
   return (
@@ -26,16 +30,16 @@ export default function SitePreview({ state, open = true, screenshot }: { state:
       <div className="flex h-6 items-center gap-1.5 border-b border-border bg-card px-2">
         <span className="h-2 w-2 rounded-full bg-destructive/70" /><span className="h-2 w-2 rounded-full bg-accent" /><span className="h-2 w-2 rounded-full bg-primary/70" />
         <span className="ml-2 truncate text-[10px] text-muted-foreground">{url || "yourwebsite.com"}</span>
-        {embeddable && screenshot && <Button variant="link" size="sm" onClick={() => setStandIn(!standIn)} className="ml-auto h-5 shrink-0 p-0 text-[10px]">{standIn ? "Live site" : "Captured site"}</Button>}
+        {embeddable && screenshot && <Button variant="link" size="sm" onClick={() => setLiveSite(!liveSite)} className="ml-auto h-5 shrink-0 p-0 text-[10px]">{liveSite ? "Captured site" : "Live site"}</Button>}
       </div>
       <div className="relative h-[calc(100%-1.5rem)]">
-        {screenshot && (standIn || embeddable !== true) ? (
-          <img src={screenshot} alt={`Captured website for ${state.businessName}`} className="h-full w-full object-cover object-top" />
-        ) : embeddable && url && !standIn ? (
+        {screenshot && !imageFailed && !liveSite ? (
+          <img src={screenshot} alt={`Captured website for ${state.businessName}`} onError={() => setImageFailed(true)} className="h-full w-full object-cover object-top" />
+        ) : embeddable && url && liveSite ? (
           <iframe title="Your website" src={url} className="pointer-events-none h-[200%] w-[200%] origin-top-left scale-50 border-0 bg-background" sandbox="allow-scripts allow-same-origin" />
         ) : (
           <div className="p-4 text-xs text-muted-foreground" role="status">
-            {url ? embeddable === null ? "Checking website…" : "Learn your website in step 2 to capture its original appearance." : "Add your website to see it here."}
+            {url ? imageFailed ? "The saved capture is unavailable. Learn your website again to refresh it." : embeddable === null ? "Checking website…" : "Learn your website in step 2 to capture its original appearance." : "Add your website to see it here."}
             {url && <Button asChild variant="link" size="sm"><a href={url} target="_blank" rel="noopener noreferrer">Open original website</a></Button>}
           </div>
         )}

@@ -83,7 +83,7 @@ export function nameFromUrl(url: string) {
 
 /** Which steps are complete enough to move on. */
 export function stepReady(step: number, s: WizardState) {
-  if (step === 0) return Boolean(s.businessName.trim());
+  if (step === 0) return Boolean(s.businessName.trim() || nameFromUrl(s.websiteUrl));
   if (step === 2) return s.greeting.trim().length >= 5;
   return true;
 }
