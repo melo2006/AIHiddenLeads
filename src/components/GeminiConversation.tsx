@@ -21,6 +21,8 @@ import { voiceIdleAction, homepageWalkthroughDue, type VoiceIdleStage } from '@/
 import { voiceDisconnectMessage } from '@/lib/voiceDisconnect';
 import {campaignVisit, trackCampaignEvent} from '@/lib/campaignTracking';
 import { salesPlans, type SalesPlan } from '@/lib/salesActions';
+import SimliAvatar, { type SimliAvatarHandle } from '@/components/SimliAvatar';
+import type { VideoAvatar } from '../../supabase/functions/_shared/video-avatar';
 
 const VOICES = [
   { id: "Kore", label: "Kore — warm female (default)" },
@@ -48,6 +50,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const avatarRef = useRef<SimliAvatarHandle>(null);
   const avatarLiveRef = useRef(false);
   const muteNodeRef = useRef<GainNode | null>(null);
+  const avatarPendingRef = useRef(false);
   const [pendingAction, setPendingAction] = useState<VoiceAction | null>(null);
   const [actionNotice, setActionNotice] = useState('');
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
@@ -248,6 +251,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     const source = ctx.createBufferSource();
     source.buffer = buffer;
     // With a live video face, Simli plays the lip-synced audio; keep local timing silent so speaking state still works.
+    // Switch to the face only between sentences so a reply never jumps mid-word.
+    if (avatarPendingRef.current && sourcesRef.current.size === 0) { avatarPendingRef.current = false; avatarLiveRef.current = true; }
     if (avatarLiveRef.current && !captureRef.current.replaying) {
       if (!muteNodeRef.current || muteNodeRef.current.context !== ctx) { const mute = ctx.createGain(); mute.gain.value = 0; mute.connect(ctx.destination); muteNodeRef.current = mute; }
       source.connect(muteNodeRef.current);
@@ -340,6 +345,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     userLineRef.current = "";
     setPhase("connecting");
     setStatus(preview ? "Preparing your saved greeting…" : "Connecting to Gemini Live…");
+    avatarLiveRef.current = false; avatarPendingRef.current = false;
+    if (!preview && videoAvatar?.enabled) void avatarRef.current?.start().then(ok => {
+      if (generation !== generationRef.current) { if (ok) avatarRef.current?.stop(); return; }
+      if (ok) { if (sourcesRef.current.size === 0) avatarLiveRef.current = true; else avatarPendingRef.current = true; }
+    });
     const startupTimeout = window.setTimeout(() => {
       if (generation === generationRef.current && !liveRef.current) {
         stopEverything();
@@ -593,9 +603,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
   // Compact mode: minimal floating-widget layout for phones — status line,
   // two-line scrolling transcript, and a single row of icon buttons.
+  const avatarView = videoAvatar?.enabled && !previewOnly ? <SimliAvatar ref={avatarRef} avatar={videoAvatar} agentId={agentId} shareToken={shareToken} draft={draft} onLiveChange={live => { if (!live) { avatarLiveRef.current = false; avatarPendingRef.current = false; } }} /> : null;
   if (compact) {
     return (
       <div className="space-y-2 p-2 text-foreground">
+        {avatarView}
         <div className="flex items-center gap-1.5">
           {phase === "connecting" && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" />}
           {phase === "live" && !aspenSpeaking && <Mic className="h-3.5 w-3.5 shrink-0 animate-pulse text-primary" />}
@@ -807,6 +819,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       </header>}
 
       <main className={compact ? "space-y-3" : "mx-auto max-w-3xl px-4 py-6 space-y-4"}>
+        {avatarView}
         <Card className="p-4 space-y-3">
           {confirmation}
         {actionNotice && <p role="status" className="text-xs text-primary">{actionNotice}</p>}
