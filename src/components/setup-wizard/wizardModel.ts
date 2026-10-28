@@ -108,3 +108,10 @@ export function stepReady(step: number, s: WizardState) {
 export function faqKnowledge(faqs: Faq[]) {
   return faqs.filter((f) => f.q.trim() && f.a.trim()).map((f) => `Q: ${f.q.trim()}\nA: ${f.a.trim()}`).join("\n\n");
 }
+
+/** "Ask <name>" label for the current agent name. */
+export const askLabel = (name: string) => `Ask ${(name || "Aspen").trim() || "Aspen"}`;
+/** Button label choices, with the first one following the agent's name. */
+export const labelOptions = (name: string) => [askLabel(name), ...LABELS.slice(1)];
+/** True when a label is a name-based "Ask …" label that should follow renames. */
+export const isAskLabel = (label: string) => /^Ask \S.{0,30}$/.test(label || "") && !LABELS.slice(1).includes(label);
