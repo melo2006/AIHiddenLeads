@@ -19,7 +19,7 @@ import ShareDemoLink from "./ShareDemoLink";
 import { rankAuditExamples } from "@/lib/rankAuditExamples";
 import { GUARDRAILS_MARK, REVIEWED_KNOWLEDGE_MARK, replaceSection } from "../../../supabase/functions/_shared/wizard-knowledge";
 import {
-  EMPTY, INDUSTRIES, SPECIALTIES, industryName, LABELS, STEPS, VOICES, faqKnowledge, nameFromUrl, renderGreeting, stepReady, type WizardState,
+  EMPTY, INDUSTRIES, SPECIALTIES, industryName, LABELS, askLabel, isAskLabel, labelOptions, STEPS, VOICES, faqKnowledge, nameFromUrl, renderGreeting, stepReady, type WizardState,
 } from "./wizardModel";
 
 const ICONS = [Building2, BookOpen, Mic, Palette, Rocket];
@@ -114,7 +114,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
         links: (a.voice_agent_sources || []).filter((x: { kind: string }) => x.kind === "url").map((x: { url?: string; label: string }) => x.url || x.label),
         files: (a.voice_agent_sources || []).filter((x: { kind: string }) => x.kind === "document").map((x: { label: string }) => x.label),
         faqs, name: String(d.name || "Aspen"), greeting: String(d.greeting || EMPTY.greeting), voice: String(d.voice || "Kore"),
-        color: d.theme?.primary || EMPTY.color, label: String(d.launcherLabel || "Ask Aspen"),
+        color: d.theme?.primary || EMPTY.color, label: (() => { const l = String(d.launcherLabel || ""); return !l || isAskLabel(l) ? askLabel(String(d.name || "Aspen")) : l; })(),
         corner: d.launcherCorner === "bottom-left" ? "bottom-left" : "bottom-right",
       });
       setPublished(Boolean(a.published));
@@ -374,7 +374,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
               <div className="space-y-4">
                 <StepHead title="How should it say hello?" hint="Write a greeting or let AI suggest one." help="{timeGreeting} becomes Good morning/afternoon/evening. {agentName} and {businessName} are filled in automatically." />
                 <label className="block space-y-1 text-sm font-medium">Assistant name
-                  <Input value={s.name} onChange={(e) => set({ name: e.target.value })} />
+                  <Input value={s.name} onChange={(e) => set(isAskLabel(s.label) ? { name: e.target.value, label: askLabel(e.target.value) } : { name: e.target.value })} />
                 </label>
                 <div className="space-y-1">
                   <div className="flex items-center justify-between text-sm font-medium">Greeting
@@ -413,7 +413,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
                 </label>
                 <div className="space-y-1.5">
                   <p className="text-sm font-medium">Button label</p>
-                  <div className="flex flex-wrap gap-2">{LABELS.map((l) => (
+                  <div className="flex flex-wrap gap-2">{labelOptions(s.name).map((l) => (
                     <button key={l} type="button" onClick={() => set({ label: l })} className={`rounded-full border px-3 py-1 text-xs ${s.label === l ? "border-primary bg-primary/10 text-primary" : "border-border"}`}>{l}</button>
                   ))}</div>
                 </div>
