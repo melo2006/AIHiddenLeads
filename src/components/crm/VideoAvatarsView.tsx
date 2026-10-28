@@ -15,6 +15,7 @@ export default function VideoAvatarsView() {
   const [agents, setAgents] = useState<{id: string; slug?: string; draft: Record<string, unknown>}[]>([]);
   const [selectedId, setSelectedId] = useState('');
   const [voice, setVoice] = useState('Kore');
+  const [loading, setLoading] = useState(true);
   const selected = agents.find(a => a.id === selectedId);
 
   async function loadFaces() {
@@ -25,11 +26,12 @@ export default function VideoAvatarsView() {
   useEffect(() => {
     void loadFaces();
     void supabase.functions.invoke("voice-agents", { body: { action: 'list' } }).then(({ data, error }) => {
-      if (error) { toast.error('Could not load saved assistants'); return; }
+      if (error) { toast.error('Could not load saved assistants'); setLoading(false); return; }
       const drafts = (data?.agents || []).filter((a: {slug?: string}) => a.slug !== 'aspen-homepage');
       setAgents(drafts);
       const first = drafts[0];
       if (first) { setSelectedId(first.id); setAvatar(normalizeVideoAvatar(first.draft.videoAvatar)); setVoice(String(first.draft.voice || 'Kore')); }
+      setLoading(false);
     });
   }, []);
 
@@ -57,7 +59,7 @@ export default function VideoAvatarsView() {
       </div>
       <Select value={selectedId} disabled={busy} onValueChange={id => { const a = agents.find(a => a.id === id); if (!a) return; setSelectedId(id); setAvatar(normalizeVideoAvatar(a.draft.videoAvatar)); setVoice(String(a.draft.voice || 'Kore')); }}><SelectTrigger aria-label="Assistant to test"><SelectValue placeholder="Choose a saved business draft"/></SelectTrigger><SelectContent>{agents.map(a => <SelectItem key={a.id} value={a.id}>{String(a.draft.businessName || a.draft.name || 'Business assistant')}</SelectItem>)}</SelectContent></Select>
       {!selected && <p className="text-sm text-muted-foreground">Create a business draft in Customer Setup to test its face, voice and knowledge here.</p>}
-      <AvatarSettings value={avatar} onChange={setAvatar} faces={faces} adminPreview agentId={selectedId || undefined} beforePreview={apply} voice={voice} onVoiceChange={setVoice} name={String(selected?.draft.name || 'Aspen')} />
+      {loading ? <p role="status" className="text-sm text-muted-foreground">Loading saved assistants…</p> : <AvatarSettings key={selectedId} value={avatar} onChange={setAvatar} faces={faces} adminPreview agentId={selectedId || undefined} beforePreview={apply} voice={voice} onVoiceChange={setVoice} name={String(selected?.draft.name || 'Aspen')} />}
       <p className="text-[11px] text-muted-foreground">Draft tests do not publish or change the homepage. Customer Setup offers the same face and voice choices. HeyGen: coming later.</p>
     </div>
   );
