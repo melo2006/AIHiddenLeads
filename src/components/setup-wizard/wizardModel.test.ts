@@ -9,9 +9,13 @@ describe("setup wizard rules", () => {
   it("guesses a business name from the website address", () => {
     expect(nameFromUrl("https://www.apex-roofing.com/about")).toBe("Apex Roofing");
   });
-  it("needs a business name before leaving step 1", () => {
+  it("needs a business name or a website-derived name before leaving step 1", () => {
     expect(stepReady(0, EMPTY)).toBe(false);
     expect(stepReady(0, { ...EMPTY, businessName: "Apex" })).toBe(true);
+  });
+  it("allows website-only setup without overwriting the provided business name", () => {
+    expect(stepReady(0, { ...EMPTY, websiteUrl: "https://www.bankunited.com" })).toBe(true);
+    expect(nameFromUrl("https://www.bankunited.com")).toBe("Bankunited");
   });
   it("skips half-filled FAQs", () => {
     expect(faqKnowledge([{ q: "Hours?", a: "9-5" }, { q: "Empty", a: "" }])).toBe("Q: Hours?\nA: 9-5");
