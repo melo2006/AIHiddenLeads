@@ -1,3 +1,4 @@
+import { DEFAULT_VIDEO_AVATAR, type VideoAvatar } from "../../../supabase/functions/_shared/video-avatar";
 export type Faq = { q: string; a: string };
 export type Corner = "bottom-right" | "bottom-left";
 
@@ -19,6 +20,7 @@ export type WizardState = {
   color: string;
   label: string;
   corner: Corner;
+  videoAvatar?: VideoAvatar;
 };
 
 export const INDUSTRIES = [
@@ -53,6 +55,7 @@ export const STEPS = [
   { id: "business", title: "Your business" },
   { id: "teach", title: "Teach your assistant" },
   { id: "greeting", title: "Greeting & voice" },
+  { id: "face", title: "Face & avatar" },
   { id: "look", title: "Look on your site" },
   { id: "launch", title: "Test & go live" },
 ] as const;
@@ -76,7 +79,7 @@ export const SAMPLES: Record<string, WizardState> = {
 export const EMPTY: WizardState = {
   websiteUrl: "", businessName: "", industry: "", links: [], files: [], faqs: [], name: "Aspen",
   greeting: "{timeGreeting}! I'm {agentName} with {businessName}. How can I help you today?",
-  voice: "Kore", color: "#10b981", label: "Ask Aspen", corner: "bottom-right",
+  voice: "Kore", color: "#10b981", label: "Ask Aspen", corner: "bottom-right", videoAvatar: DEFAULT_VIDEO_AVATAR,
 };
 
 /** Fill greeting placeholders for previews. */
