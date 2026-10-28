@@ -73,6 +73,7 @@ const App = () => {
             <Route path="/voice-lab" element={<VoiceLab />} />
             <Route path="/book" element={<BookCall />} />
             <Route path="/agent/:id" element={<ClientVoiceAgent />} />
+            <Route path="/demo-share/:token" element={<SharedDemo />} />
             <Route path="/d/:slug" element={<ShortLinkRedirect />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/dashboard/*" element={<CRM />} />
