@@ -1,0 +1,1 @@
+- Use plain imperative Leaflet (`L.map` in useEffect), never react-leaflet: react-leaflet v5 requires React 19 and crashes on React 18 with "render2 is not a function".
