@@ -45,4 +45,4 @@
 - Public headers show one AccountMenu: signed-out Log in/Create account links to /account; admin menu entries appear only from the protected platform role table, never hidden gestures or client flags.
 
 - Read subdirectory AGENTS.md before edits.
-- Share paid customer and protected admin setup; admin drafts use real ingestion/Gemini tests without granting customer payment access. Publish only explicitly, so demonstrations match production safely.
+- Share customer/admin setup with real ingestion/Gemini tests; admin drafts never grant payment access. Publish only explicitly. Prefer captured originals over iframe checks; guard loading and save before switching drafts to prevent lost work.
