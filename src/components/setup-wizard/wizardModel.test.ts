@@ -30,3 +30,13 @@ describe("setup wizard rules", () => {
     expect(faqKnowledge([{ q: "Hours?", a: "9-5" }, { q: "Empty", a: "" }])).toBe("Q: Hours?\nA: 9-5");
   });
 });
+
+import { askLabel, isAskLabel, labelOptions } from "./wizardModel";
+describe("launcher label follows agent name", () => {
+  it("uses the renamed agent", () => {
+    expect(askLabel("Lucy")).toBe("Ask Lucy");
+    expect(labelOptions("Lucy")[0]).toBe("Ask Lucy");
+    expect(isAskLabel("Ask Aspen")).toBe(true);
+    expect(isAskLabel("Talk to us")).toBe(false);
+  });
+});
