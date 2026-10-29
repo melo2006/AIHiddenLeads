@@ -149,8 +149,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     let frame = 0;
     const update = () => {
       const ctx = playCtxRef.current;
-      const next = ctx ? captionClockRef.current.at(ctx.currentTime) : null;
-      setPlaybackCaption(previous => previous?.text === next?.text && previous?.word === next?.word ? previous : next);
+      const live = ctx ? captionClockRef.current.at(ctx.currentTime) : null;
+      // Keep the last spoken line in the same large caption style (no highlight) after she stops talking.
+      setPlaybackCaption(previous => {
+        const next = live ?? (previous ? { ...previous, word: -1 } : null);
+        return previous?.text === next?.text && previous?.word === next?.word ? previous : next;
+      });
       frame = requestAnimationFrame(update);
     };
     frame = requestAnimationFrame(update);
@@ -721,10 +725,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         </div>
         {phase === 'idle' && endedByVisitor && <p className="text-xs text-muted-foreground">Press play to reconnect to {name}.</p>}
 
-        {faceFirst && <Button size="icon" variant="ghost" className="h-8 w-8" aria-label={captions ? 'Hide captions' : 'Show captions'} title={captions ? 'Hide captions' : 'Show captions'} aria-expanded={captions} onClick={() => setCaptions(v => !v)}><ChevronsUpDown className="h-4 w-4" /></Button>}
-        <div className={faceFirst ? 'aspen-caption-space' : ''}>
-        {playbackCaption && (!faceFirst || captions) && <div className="rounded-md border border-border bg-background/95 p-1.5"><PlaybackCaption caption={playbackCaption} /></div>}
-        <div aria-label="Conversation transcript" tabIndex={0} className={`${playbackCaption || faceFirst && !captions ? 'hidden' : ''} ${faceFirst ? 'h-[72px]' : 'max-h-[4.5rem]'} space-y-1 overflow-y-auto overscroll-contain rounded-md border border-border bg-background/95 p-1.5`}>
+        {faceFirst && <Button size="icon" variant="outline" className="h-8 w-8 border-primary/60 bg-transparent text-primary hover:bg-primary/10 hover:text-primary" aria-label={captions ? 'Hide captions' : 'Show captions'} title={captions ? 'Hide captions' : 'Show captions'} aria-expanded={captions} onClick={() => setCaptions(v => !v)}><ChevronsUpDown className="h-4 w-4" /></Button>}
+        <div className={faceFirst ? (captions ? 'aspen-caption-space' : 'hidden') : ''}>
+        {playbackCaption && !partialUser && (!faceFirst || captions) && <div className="rounded-md border border-border bg-background/95 p-1.5"><PlaybackCaption caption={playbackCaption} /></div>}
+        <div aria-label="Conversation transcript" tabIndex={0} className={`${playbackCaption && !partialUser || faceFirst && !captions ? 'hidden' : ''} ${faceFirst ? 'h-[72px]' : 'max-h-[4.5rem]'} space-y-1 overflow-y-auto overscroll-contain rounded-md border border-border bg-background/95 p-1.5`}>
           {turns.length === 0 && !partialAspen && !partialUser && (
             <p className="py-1 text-center text-[11px] text-muted-foreground">No conversation yet.</p>
           )}
