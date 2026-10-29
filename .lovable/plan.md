@@ -2,6 +2,7 @@
 
 ## Result
 Replace the floating boxed voice presentation with Aspen’s professional cut-out portrait, while retaining chat and all existing Gemini voice features. The square transparent portrait is already created and downloadable.
+Use the optimized 512×512 transparent image for the floating person: approximately 34 KB WebP for page loading, with a 305 KB PNG download for upload compatibility. Preserve the high-resolution original separately. Avoid aggressive palette compression that visibly damages skin detail.
 
 ## Presentation
 - Show the person without a surrounding frame in the lower corner. Use the new Aspen portrait by default; retain each customer’s own saved face and assistant name.
