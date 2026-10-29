@@ -16,7 +16,7 @@ test('Connected Bundle costs $79 monthly', () => expect(HOMEPAGE_ADDONS.find(a =
 test('Warm Transfer add-on costs $49 monthly', () => expect(HOMEPAGE_ADDONS.find(a => a.name.startsWith('Warm Transfer'))).toMatchObject({usd:49,cadence:'monthly'}));
 test('SMS notifications add-on costs $19 monthly', () => expect(HOMEPAGE_ADDONS.find(a => a.name.startsWith('SMS Lead Notifications'))).toMatchObject({usd:19,cadence:'monthly'}));
 test('Appointment reminders add-on costs $29 monthly', () => expect(HOMEPAGE_ADDONS.find(a => a.name.startsWith('SMS/Email Appointment Reminders'))).toMatchObject({usd:29,cadence:'monthly'}));
-test('Website Refresh costs $99 one time', () => expect(HOMEPAGE_ADDONS.find(a => a.name === 'Website Refresh')).toMatchObject({usd:99,cadence:'one-time'}));
+test('Website Modernization costs $99 one time for up to 5 pages', () => expect(HOMEPAGE_ADDONS.find(a => a.name.startsWith('Website Modernization (up to 5 pages'))).toMatchObject({usd:99,cadence:'one-time'}));
 test('SEO audit is free', () => expect(HOMEPAGE_ADDONS.find(a => a.name === 'SEO Audit')?.usd).toBe(0));
 test('GEO costs $249 monthly', () => expect(HOMEPAGE_ADDONS.find(a => a.name === 'AI Search Optimization / GEO')).toMatchObject({usd:249,cadence:'monthly'}));
 test('Maps Boost costs $149 monthly', () => expect(HOMEPAGE_ADDONS.find(a => a.name === 'Google Maps Boost')).toMatchObject({usd:149,cadence:'monthly'}));
