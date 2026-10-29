@@ -594,9 +594,9 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   if (!previewOnly && !consentReady) return <div className="space-y-3 p-3 text-foreground">
     {faceFirst && <PersonPortrait name={name} avatarUrl={avatarUrl} />}
     <div className="space-y-3 rounded-md bg-card p-3">
-    <p className="text-sm font-semibold">Before you talk to {name}</p>
-    <p className="text-xs text-muted-foreground">Audio is processed live to answer you. Audio recordings are not saved. You may optionally allow a written transcript and service-interest review to be saved privately for our team.</p>
-    <label className="flex items-start gap-2 text-xs"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)} />Allow my transcript and call review to be saved</label>
+    <p className="text-sm font-semibold">Try a live demo with {name}</p>
+    <p className="text-xs text-muted-foreground">Audio is processed live, not recorded. Saving a transcript is optional.</p>
+    <label className="flex items-start gap-2 text-xs"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)} />Allow a private transcript and service-interest review for our team</label>
     <Button className="w-full" onClick={()=>{consentReadyRef.current=true;setConsentReady(true);void startConversation();}}><Mic className="mr-2 h-4 w-4"/>Start conversation</Button>
     </div>
   </div>;
