@@ -1,4 +1,5 @@
 - Use plain imperative Leaflet (`L.map` in useEffect), never react-leaflet: react-leaflet v5 requires React 19 and crashes on React 18 with "render2 is not a function".
+- Export only authorized call rows with formula-neutralized CSV cells. Zapier sends require reviewed single-record confirmation to HTTPS Catch Hooks; exclude private audio/transcripts/drafts and confirm opaque delivery in Zap history.
 - Gate all campaign milestones in the shared tracker to server-accepted public paths; private/tenant tests are not campaign conversions, and analytics errors must never reject into the UI.
 - Drive highlighted caption overlays from local AudioContext scheduling on animation frames, never rewind during stream extension; keep original AI Elements transcripts and treat word positions as estimates without provider timestamps.
 - Invalidate pending voice/video callbacks on intentional stop; preserve the keyed last frame locally without keeping a paid session alive.
