@@ -384,7 +384,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         return stream;
       });
       const [session, stream] = await Promise.all([
-        supabase.functions.invoke("gemini-session", { body: { visitorKey, agentId, leadId, prospectId, draft, preview, voice: previewVoice || voice, model: testModel, campaign:campaignVisit(), hour: new Date().getHours(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, visitorName, consent, share: shareToken } }),
+        supabase.functions.invoke("gemini-session", { body: { visitorKey, agentId, leadId, prospectId, draft, preview, voice: previewVoice || voice, model: testModel, campaign:campaignVisit(), hour: new Date().getHours(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, visitorName, consent:consentReadyRef.current, share: shareToken } }),
         microphoneReady,
         playResume,
         micResume,
