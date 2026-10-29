@@ -24,6 +24,7 @@ import { salesPlans, type SalesPlan } from '@/lib/salesActions';
 import SimliAvatar, { type SimliAvatarHandle } from '@/components/SimliAvatar';
 import type { VideoAvatar } from '../../supabase/functions/_shared/video-avatar';
 import { PersonPortrait } from '@/components/FloatingPersonFrame';
+import { avatarAudioReady } from '@/lib/avatarAudioTransition';
 
 const VOICES = [
   { id: "Kore", label: "Kore — warm female (default)" },
@@ -271,7 +272,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     setAspenSpeaking(true);
     source.onended = () => {
       sourcesRef.current.delete(source);
-      if (sourcesRef.current.size === 0 && avatarPendingRef.current) { avatarPendingRef.current = false; avatarLiveRef.current = true; }
+      if (avatarAudioReady(avatarPendingRef.current, sourcesRef.current.size)) { avatarPendingRef.current = false; avatarLiveRef.current = true; }
       if (ctx.currentTime >= playTimeRef.current - 0.05) setAspenSpeaking(false);
       if (sourcesRef.current.size === 0 && captureRef.current.replaying) {
         captureRef.current.replaying = false;
