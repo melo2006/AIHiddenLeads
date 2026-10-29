@@ -217,7 +217,7 @@ const DraggableFloating = ({
           type="button"
           data-drag-handle
           variant="ghost"
-          className="mb-1 h-5 flex cursor-grab touch-none select-none items-center gap-1 rounded-full border border-border bg-card/95 px-2 py-0.5 text-muted-foreground shadow-md backdrop-blur-sm transition-colors hover:bg-accent hover:text-foreground active:cursor-grabbing"
+          className="mb-1 h-5 flex cursor-grab touch-none select-none items-center gap-1 rounded-full border border-primary/60 bg-card/95 px-2 py-0.5 text-primary shadow-md backdrop-blur-sm transition-colors hover:bg-secondary hover:text-primary active:cursor-grabbing"
           aria-label="Drag widget"
         >
           <GripVertical className="h-3 w-3" />
