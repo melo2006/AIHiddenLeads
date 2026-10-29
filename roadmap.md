@@ -1,5 +1,6 @@
 # Current work
 
+- [ ] Optimize the same transparent Aspen portrait for fast page loading; preserve original, provide a crisp smaller PNG and compare size/alpha/visual quality.
 - [x] Create and inspect a 1920×1920 transparent portrait preserving the existing blonde Aspen identity; downloadable PNG verified with alpha channel and light/dark inspection.
 - [ ] Implement face-first floating assistant on homepage, demo and customer widgets: unboxed portrait, Talk to agent name, drag/minimize/close, two-line transcript and shared call controls. Awaiting focused presentation plan approval.
 - [ ] Create/select the new Aspen face in Simli and verify returned video/lip-sync and background behavior before replacing the current live face; transparent source alone does not prove alpha video.
