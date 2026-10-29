@@ -19,7 +19,7 @@ const tiers = [
     icon: Zap,
     popular: false,
     checkoutPlan: "essentials",
-    featureCount: 7,
+    featureCount: 10,
     minutes: 400,
     normalMinutes: 200,
     perMin: "0.25",
@@ -38,7 +38,7 @@ const tiers = [
     icon: Sparkles,
     popular: true,
     checkoutPlan: "growth",
-    featureCount: 8,
+    featureCount: 10,
     minutes: 1200,
     normalMinutes: 600,
     perMin: "0.17",
@@ -57,7 +57,7 @@ const tiers = [
     icon: Crown,
     popular: false,
     checkoutPlan: "fullservice",
-    featureCount: 8,
+    featureCount: 10,
     minutes: 2500,
     normalMinutes: 1250,
     perMin: "0.14",
@@ -70,8 +70,11 @@ const tiers = [
 const FEATURES: Record<string, Record<string, string[]>> = {
   en: {
     essentials: [
-      "Natural neural voice — live two-way conversation, not robotic text-to-speech",
+      "State-of-the-art neural voice — natural, human-like speech, not robotic text-to-speech",
+      "Real two-way conversation — callers can interrupt and she responds instantly",
+      "Optional live talking video avatar (add-on)",
       "AI Chat Widget on your website",
+      "SMS confirmations & reminders (coming soon — carrier fees separate)",
       "Lead capture & appointment booking",
       "400 browser voice minutes/mo (≈ $0.25/min value)",
       "50 qualified B2B leads/month (weekly batches)",
@@ -79,7 +82,9 @@ const FEATURES: Record<string, Record<string, string[]>> = {
       "Basic analytics dashboard",
     ],
     growth: [
-      "Everything in Natural Voice",
+      "Everything in Premium",
+      "Optional live talking video avatar — 1,200 minutes (add-on)",
+      "SMS follow-up & reminders (coming soon)",
       "1,200 browser voice minutes/mo (≈ $0.17/min value)",
       "100 qualified B2B leads/month",
       "Database Reactivation (revive old leads)",
@@ -90,6 +95,8 @@ const FEATURES: Record<string, Record<string, string[]>> = {
     ],
     full: [
       "Everything in Pro",
+      "Optional live talking video avatar — 2,500 minutes (add-on)",
+      "SMS follow-up & reminders (coming soon)",
       "2,500 browser voice minutes/mo (≈ $0.14/min value)",
       "200 qualified B2B leads/month",
       "Social media content & posting",
@@ -110,7 +117,7 @@ const FEATURES: Record<string, Record<string, string[]>> = {
       "Painel básico de análises",
     ],
     growth: [
-      "Tudo do Voz Natural",
+      "Tudo do Premium",
       "1.200 minutos de voz no site/mês (≈ US$ 0,17/min)",
       "100 leads B2B qualificados por mês",
       "Reativação de Base (recupera leads antigos)",
@@ -141,7 +148,7 @@ const FEATURES: Record<string, Record<string, string[]>> = {
       "Panel básico de analítica",
     ],
     growth: [
-      "Todo lo de Voz Natural",
+      "Todo lo de Premium",
       "1,200 minutos de voz web/mes (≈ $0.17/min)",
       "100 leads B2B calificados al mes",
       "Reactivación de Base (recupera leads viejos)",
@@ -322,7 +329,7 @@ const PricingSection = ({ recommendedPlan }: { recommendedPlan?: string } = {}) 
           <div className="rounded-xl border border-border bg-card/50 p-5">
             <p className="text-sm text-center text-muted-foreground leading-relaxed">
               <span className="font-semibold text-foreground">Live video avatar add-on — matches your plan's minutes.</span>{" "}
-              Every plan includes natural voice with a still photo of your assistant. Add a live, lip-synced video face: <span className="text-primary font-medium">Natural Voice +$79/mo</span> (400 video minutes, $178/mo total), <span className="text-primary font-medium">Pro +$180/mo</span> (1,200 minutes at 15¢/min), <span className="text-primary font-medium">Premium +$250/mo</span> (2,500 minutes at 10¢/min). Pick any face from our avatar library <span className="text-primary font-medium">free</span>, or have a custom avatar built from your own photo for a <span className="text-primary font-medium">$50 one-time fee</span>. Custom faces can take several minutes up to about 24 hours to build. Your free website demo uses our live video assistant so you can see the full experience.
+              Every plan includes natural voice with a still photo of your assistant. Add a live, lip-synced video face: <span className="text-primary font-medium">Premium +$79/mo</span> (400 video minutes, $178/mo total), <span className="text-primary font-medium">Pro +$180/mo</span> (1,200 minutes at 15¢/min), <span className="text-primary font-medium">Platinum +$250/mo</span> (2,500 minutes at 10¢/min). Pick any face from our avatar library <span className="text-primary font-medium">free</span>, or have a custom avatar built from your own photo for a <span className="text-primary font-medium">$50 one-time fee</span>. Custom faces can take several minutes up to about 24 hours to build. Your free website demo uses our live video assistant so you can see the full experience.
             </p>
           </div>
         </motion.div>

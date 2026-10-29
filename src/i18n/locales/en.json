@@ -167,8 +167,8 @@
     "promoMinutes": "Launch promo: normally {{n}} min — doubled FREE",
     "mostPopular": "Most Popular",
     "essentials": {
-      "name": "Natural Voice",
-      "tag": "Natural Voice + Chat + 50 B2B Leads Monthly",
+      "name": "Premium",
+      "tag": "Premium + Chat + 50 B2B Leads Monthly",
       "cta": "Start for $99/mo"
     },
     "growth": {
@@ -177,14 +177,14 @@
       "cta": "Grow My Business"
     },
     "full": {
-      "name": "Premium",
+      "name": "Platinum",
       "tag": "We Run Your Entire Marketing Machine",
-      "cta": "Go Premium"
+      "cta": "Go Platinum"
     },
     "transparencyTitle": "Full Transparency: What's Included",
     "transparencyBody": "Every plan includes a generous block of <strong>browser voice minutes</strong> (visitors talking to your AI on your website) — the bigger the plan, the cheaper your per-minute rate. Phone-line services (warm transfer to your cell, SMS notifications, appointment reminders) use real carrier networks and are billed separately — see the Connected bundle below. You'll always see your usage in your dashboard before you're billed.",
     "compareTitle": "How we compare:",
-    "compareBody": "Public 2026 prices for comparison: Smith.ai's AI receptionist Pro starts at $150/mo for 75 calls, and Ruby's live receptionists start at $250/mo for 50 minutes. Natural Voice is <strong>$99/mo</strong> with 400 website voice minutes, chat, booking and <strong>50 real B2B leads every month</strong>. Phone lines are billed separately, so compare the features you need.",
+    "compareBody": "Public 2026 prices for comparison: Smith.ai's AI receptionist Pro starts at $150/mo for 75 calls, and Ruby's live receptionists start at $250/mo for 50 minutes. Premium is <strong>$99/mo</strong> with 400 website voice minutes, chat, booking and <strong>50 real B2B leads every month</strong>. Phone lines are billed separately, so compare the features you need.",
     "telephonyTitle": "Need phone lines? Add the Connected Bundle — $79/mo:",
     "telephonyBody": "Adds <strong>warm transfer</strong> of hot leads to your phone, <strong>SMS lead notifications</strong>, and <strong>SMS/email appointment reminders</strong> to any plan. Phone carrier usage is billed at cost on top. Also available separately: warm transfer $49/mo, SMS notifications $19/mo, reminders $29/mo."
   },
@@ -519,7 +519,7 @@
     "items": [
       {
         "q": "What exactly counts as an 'AI interaction' in the $99 plan?",
-        "a": "One AI interaction = one conversation on your website (voice or chat) up to 5 minutes long. The $99 Natural Voice plan includes 100 of these per month — enough to cover most small-business website traffic. If you go over, additional conversations are billed at just $0.50 each so you never miss a lead. You'll get a friendly SMS warning at 80 and again at 100 conversations."
+        "a": "One AI interaction = one conversation on your website (voice or chat) up to 5 minutes long. The $99 Premium plan includes 100 of these per month — enough to cover most small-business website traffic. If you go over, additional conversations are billed at just $0.50 each so you never miss a lead. You'll get a friendly SMS warning at 80 and again at 100 conversations."
       },
       {
         "q": "What happens if I go over my monthly limits?",
@@ -535,7 +535,7 @@
       },
       {
         "q": "What if I need more than 50 leads per month?",
-        "a": "Additional verified B2B leads are available at $1.50 each (our cost is $0.30–$0.80, billed at honest passthrough margins). Just let us know your target volume and we'll set up overage billing or move you to the Premium plan, where lead generation is unlimited and we run the outreach for you."
+        "a": "Additional verified B2B leads are available at $1.50 each (our cost is $0.30–$0.80, billed at honest passthrough margins). Just let us know your target volume and we'll set up overage billing or move you to the Platinum plan, where lead generation is unlimited and we run the outreach for you."
       },
       {
         "q": "What voice does Aspen use? Is it expensive AI?",
@@ -551,7 +551,7 @@
       },
       {
         "q": "How fast do you go live?",
-        "a": "2–3 business days for Natural Voice and Pro. Premium is 5–7 business days because we also set up your outreach sequences, CRM imports, and live transfer routing."
+        "a": "2–3 business days for Premium and Pro. Platinum is 5–7 business days because we also set up your outreach sequences, CRM imports, and live transfer routing."
       },
       {
         "q": "Can I cancel anytime?",
