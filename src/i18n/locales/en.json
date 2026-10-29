@@ -172,7 +172,7 @@
       "cta": "Start for $99/mo"
     },
     "growth": {
-      "name": "Pro",
+      "name": "Professional",
       "tag": "More Voice + 100 Leads + Reactivation",
       "cta": "Grow My Business"
     },
@@ -530,7 +530,7 @@
         "a": "Live phone transfers use Twilio at our cost — approximately $0.02 per minute. A typical 4–5 minute live transfer call adds about $0.10. Even with heavy usage this rarely adds more than $30–$90/month, and we bill it transparently at cost, not marked up."
       },
       {
-        "q": "Where do the 50 new leads in the Pro plan come from?",
+        "q": "Where do the 50 new leads in the Professional plan come from?",
         "a": "We source B2B leads from public business directories — Google Maps, Apollo.io, LinkedIn company pages, Yelp, and industry-specific directories. Every lead is verified for a real phone number using Twilio line-type lookup and a valid business email before delivery. These are 100% B2B leads (businesses, not consumers), fully compliant with CAN-SPAM and TCPA, with opt-out language built into every outbound message. No gray-market data, no scraping of private info."
       },
       {
