@@ -2,8 +2,9 @@
 
 - [x] Optimize the same transparent Aspen portrait: inspected 512×512 PNG (305 KB, 93% smaller) and WebP (34 KB, 99% smaller) on dark/light; rejected blotchy palette compression. Original preserved. WebP will be used with the planned floating presentation.
 - [x] Create and inspect a 1920×1920 transparent portrait preserving the existing blonde Aspen identity; downloadable PNG verified with alpha channel and light/dark inspection.
-- [ ] Implement face-first floating assistant on homepage, demo and customer widgets: unboxed portrait, Talk to agent name, drag/minimize/close, two-line transcript and shared call controls. Awaiting focused presentation plan approval.
-- [ ] Create/select the new Aspen face in Simli and verify returned video/lip-sync and background behavior before replacing the current live face; transparent source alone does not prove alpha video.
+- [x] Implement shared unboxed face-first assistant on homepage/demo/customer widgets with optimized portrait, Talk to saved name, drag/minimize/close, two-line scrolling transcript and existing controls. Desktop/phone portrait, consent, chat composer, drag/reset/close checked; 12 tests pass. Kept consent/controls opaque after finding underlying page text interfered with readability. No paid session before consent.
+- [x] Add admin “Create face from Aspen photo” with explicit generation confirmation and optimized photo upload. Authenticated admin confirmation verified without generating or changing current face.
+- [ ] Create/select new Aspen face in Simli and verify video/lip-sync/background: waiting for owner's explicit generation confirmation in Video Avatars, then provider completion and owner-device playback. Existing live face remains unchanged; transparent photo alone does not prove alpha video.
 
 - [x] Homepage launcher now identifies video/voice; live face is inside homepage call panel. Fixed missing avatar config dependency and first-click consent/ref race. Real test returned voice 200 and Simli session 200; zero session requests before click. Added bounded video startup failure with voice fallback; seven avatar tests pass.
 - [ ] Confirm homepage live video frames/lip-sync on owner device: sandbox real sessions authorized but video frames did not arrive, so rendering is not verified. No public pricing changes or publication performed.

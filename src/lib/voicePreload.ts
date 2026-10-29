@@ -18,7 +18,7 @@ export function preloadVoiceIdentity(agentId?: string) {
   if (cached && cached.expires > Date.now()) return cached.promise;
   const promise = supabase.functions.invoke(`voice-agent-public${agentId ? `?agentId=${agentId}` : ""}`, { method: "GET" }).then(({ data, error }) => {
     if (error || !data?.name) { identities.delete(key); return null; }
-    if (data.avatarUrl) { const image = new Image(); image.src = data.avatarUrl; }
+    if (agentId && data.avatarUrl) { const image = new Image(); image.src = data.avatarUrl; }
     return data as Identity;
   }).catch(() => { identities.delete(key); return null; });
   identities.set(key, { expires: Date.now() + 5 * 60 * 1000, promise });

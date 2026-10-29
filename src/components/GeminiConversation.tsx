@@ -23,6 +23,7 @@ import {campaignVisit, trackCampaignEvent} from '@/lib/campaignTracking';
 import { salesPlans, type SalesPlan } from '@/lib/salesActions';
 import SimliAvatar, { type SimliAvatarHandle } from '@/components/SimliAvatar';
 import type { VideoAvatar } from '../../supabase/functions/_shared/video-avatar';
+import { PersonPortrait } from '@/components/FloatingPersonFrame';
 
 const VOICES = [
   { id: "Kore", label: "Kore — warm female (default)" },
@@ -45,9 +46,10 @@ type Phase = "idle" | "connecting" | "live" | "preview";
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const WS_URL = SUPABASE_URL.replace(/^https/, "wss") + "/functions/v1/gemini-live-proxy";
 
-export interface GeminiConversationProps { agentId?: string; leadId?: string; prospectId?: string; draft?: boolean; compact?: boolean; name?: string; visitorName?: string; previewVoice?: string; autoStart?: boolean; previewOnly?: boolean; previewAudioContext?: AudioContext; testModel?: string; shareToken?: string; onRecommendedPlan?: (plan: SalesPlan) => void; videoAvatar?: VideoAvatar; avatarInline?: boolean; }
-const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compact = false, name = "Aspen", visitorName = "", previewVoice, autoStart = false, previewOnly = false, previewAudioContext, testModel, shareToken, onRecommendedPlan, videoAvatar, avatarInline = false }: GeminiConversationProps) => {
+export interface GeminiConversationProps { agentId?: string; leadId?: string; prospectId?: string; draft?: boolean; compact?: boolean; name?: string; visitorName?: string; previewVoice?: string; autoStart?: boolean; previewOnly?: boolean; previewAudioContext?: AudioContext; testModel?: string; shareToken?: string; onRecommendedPlan?: (plan: SalesPlan) => void; videoAvatar?: VideoAvatar; avatarInline?: boolean; faceFirst?: boolean; avatarUrl?: string; }
+const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compact = false, name = "Aspen", visitorName = "", previewVoice, autoStart = false, previewOnly = false, previewAudioContext, testModel, shareToken, onRecommendedPlan, videoAvatar, avatarInline = false, faceFirst = false, avatarUrl }: GeminiConversationProps) => {
   const avatarRef = useRef<SimliAvatarHandle>(null);
+  const [faceLive, setFaceLive] = useState(false);
   const avatarLiveRef = useRef(false);
   const muteNodeRef = useRef<GainNode | null>(null);
   const avatarPendingRef = useRef(false);
@@ -586,10 +588,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const transferControl = phase === 'live' && handoffToken ? <BrowserVoiceHandoff token={handoffToken} onActive={onHandoffActive} microphone={microphone}/> : null;
 
   if (!previewOnly && !consentReady) return <div className="space-y-3 p-3 text-foreground">
+    {faceFirst && <PersonPortrait name={name} avatarUrl={avatarUrl} />}
+    <div className="space-y-3 rounded-md bg-card p-3">
     <p className="text-sm font-semibold">Before you talk to {name}</p>
     <p className="text-xs text-muted-foreground">Audio is processed live to answer you. Audio recordings are not saved. You may optionally allow a written transcript and service-interest review to be saved privately for our team.</p>
     <label className="flex items-start gap-2 text-xs"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)} />Allow my transcript and call review to be saved</label>
     <Button className="w-full" onClick={()=>{consentReadyRef.current=true;setConsentReady(true);void startConversation();}}><Mic className="mr-2 h-4 w-4"/>Start conversation</Button>
+    </div>
   </div>;
 
   if (previewOnly) return <div className="space-y-2">
@@ -604,11 +609,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
   // Compact mode: minimal floating-widget layout for phones — status line,
   // two-line scrolling transcript, and a single row of icon buttons.
-  const avatarView = videoAvatar?.enabled && !previewOnly ? <SimliAvatar ref={avatarRef} inline={avatarInline} avatar={videoAvatar} agentId={agentId} shareToken={shareToken} draft={draft} onLiveChange={live => { if (!live) { avatarLiveRef.current = false; avatarPendingRef.current = false; } }} /> : null;
+  const avatarView = videoAvatar?.enabled && !previewOnly ? <SimliAvatar ref={avatarRef} inline={avatarInline || faceFirst} unboxed={faceFirst} avatar={videoAvatar} agentId={agentId} shareToken={shareToken} draft={draft} onLiveChange={live => { setFaceLive(live); if (!live) { avatarLiveRef.current = false; avatarPendingRef.current = false; } }} /> : null;
   if (compact) {
     return (
       <div className="space-y-2 p-2 text-foreground">
-        {avatarView}
+        {faceFirst ? <><div className="aspen-person-portrait relative mx-auto"><div className={faceLive ? 'invisible' : ''}><PersonPortrait name={name} avatarUrl={avatarUrl} /></div>{avatarView}</div><p className="text-center text-sm font-semibold">Talk to {name}</p></> : avatarView}
+        <div className={faceFirst ? 'space-y-2 rounded-md bg-card p-2' : 'space-y-2'}>
         <div className="flex items-center gap-1.5">
           {phase === "connecting" && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" />}
           {phase === "live" && !aspenSpeaking && <Mic className="h-3.5 w-3.5 shrink-0 animate-pulse text-primary" />}
@@ -624,7 +630,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           </p>
         </div>
 
-        <div aria-label="Conversation transcript" tabIndex={0} className="max-h-[4.5rem] space-y-1 overflow-y-auto overscroll-contain rounded-md border border-border p-1.5">
+        <div aria-label="Conversation transcript" tabIndex={0} className={`${faceFirst ? 'h-12' : 'max-h-[4.5rem]'} space-y-1 overflow-y-auto overscroll-contain rounded-md border border-border bg-background/95 p-1.5`}>
           {turns.length === 0 && !partialAspen && !partialUser && (
             <p className="py-1 text-center text-[11px] text-muted-foreground">No conversation yet.</p>
           )}
@@ -803,6 +809,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             {phase === "idle" && <Button className="w-full" onClick={() => { setShowSettings(false); void startConversation(); }}><Mic className="mr-1.5 h-4 w-4" />Start call with these settings</Button>}
           </div></DialogContent></Dialog>
         )}
+        </div>
       </div>
     );
   }
