@@ -20,6 +20,9 @@ describe('intentional avatar stop', () => {
     expect(view.queryByRole('status')).toBeNull();
     expect(view.getByRole('img', { name: 'Video avatar' }).className).not.toContain('hidden');
     expect(view.container.querySelector('canvas')?.className).not.toContain('hidden');
+    act(() => ref.current?.stop());
+    expect(view.getByRole('img', { name: 'Video avatar' }).className).not.toContain('hidden');
+    expect(view.container.querySelector('canvas')?.className).not.toContain('hidden');
   });
   it('ignores a late connection rejection after the user stops', async () => {
     let reject: ((e: Error) => void) | undefined;

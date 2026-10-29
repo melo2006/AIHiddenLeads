@@ -65,14 +65,16 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
   const clientRef = useRef<SimliClient | null>(null);
   const liveRef = useRef(false);
   const lifecycleRef = useRef(0);
+  const frozenFrameRef = useRef(false);
   const [state, setState] = useState<"idle" | "connecting" | "live" | "failed" | "stopped">("idle");
   const [reason, setReason] = useState("");
   const setLive = (live: boolean) => { liveRef.current = live; onLiveChange?.(live); };
 
-  const stopKey = () => { keyStopRef.current?.(); keyStopRef.current = null; setKeyed(false); };
+  const stopKey = () => { keyStopRef.current?.(); keyStopRef.current = null; frozenFrameRef.current = false; setKeyed(false); };
   const stop = () => {
     lifecycleRef.current++;
-    const keepFrame = unboxed && liveRef.current && keyStopRef.current !== null;
+    const keepFrame = unboxed && (frozenFrameRef.current || liveRef.current && keyStopRef.current !== null);
+    frozenFrameRef.current = keepFrame;
     keyStopRef.current?.(); keyStopRef.current = null;
     if (!keepFrame) setKeyed(false);
     liveRef.current = false;
