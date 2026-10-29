@@ -165,7 +165,7 @@ export default function AvatarSettings({ value, onChange, agentId, beforePreview
         {agentId && <><Button className="w-full" disabled={preparing} onClick={() => void testConversation()}>{preparing ? <Loader2 className="animate-spin"/> : testing ? <Square/> : <Mic/>}{preparing ? 'Saving your choices…' : testing ? 'Close test' : `Test ${name} · ${voice}`}</Button>{testing && <GeminiConversation draft agentId={agentId} compact name={name} previewVoice={voice} videoAvatar={value} avatarInline />}</>}
         <p className="text-[11px] text-muted-foreground">Test usage counts toward voice and video limits. Video plan pricing is not finalized.</p>
       </div>
-      <Dialog open={confirmAspen} onOpenChange={setConfirmAspen}><DialogContent><DialogTitle>Create Aspen in Simli?</DialogTitle><DialogDescription>This sends the optimized portrait to Simli and uses one avatar generation. Your current live face stays unchanged until the new face is ready and you explicitly apply it.</DialogDescription><Button disabled={uploading} onClick={() => void createAspenFace()}><UploadCloud />Create Aspen face</Button></DialogContent></Dialog>
+      <Dialog open={confirmAspen} onOpenChange={setConfirmAspen}><DialogContent className="bg-card"><DialogTitle>Create Aspen in Simli?</DialogTitle><DialogDescription>This sends the optimized portrait to Simli and uses one avatar generation. Your current live face stays unchanged until the new face is ready and you explicitly apply it.</DialogDescription><Button disabled={uploading} onClick={() => void createAspenFace()}><UploadCloud />Create Aspen face</Button></DialogContent></Dialog>
     </div>
   );
 }

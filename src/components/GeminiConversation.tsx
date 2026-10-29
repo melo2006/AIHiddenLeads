@@ -589,10 +589,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
   if (!previewOnly && !consentReady) return <div className="space-y-3 p-3 text-foreground">
     {faceFirst && <PersonPortrait name={name} avatarUrl={avatarUrl} />}
+    <div className="space-y-3 rounded-md bg-card p-3">
     <p className="text-sm font-semibold">Before you talk to {name}</p>
     <p className="text-xs text-muted-foreground">Audio is processed live to answer you. Audio recordings are not saved. You may optionally allow a written transcript and service-interest review to be saved privately for our team.</p>
     <label className="flex items-start gap-2 text-xs"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)} />Allow my transcript and call review to be saved</label>
     <Button className="w-full" onClick={()=>{consentReadyRef.current=true;setConsentReady(true);void startConversation();}}><Mic className="mr-2 h-4 w-4"/>Start conversation</Button>
+    </div>
   </div>;
 
   if (previewOnly) return <div className="space-y-2">
@@ -612,6 +614,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     return (
       <div className="space-y-2 p-2 text-foreground">
         {faceFirst ? <><div className="aspen-person-portrait relative mx-auto"><div className={faceLive ? 'invisible' : ''}><PersonPortrait name={name} avatarUrl={avatarUrl} /></div>{avatarView}</div><p className="text-center text-sm font-semibold">Talk to {name}</p></> : avatarView}
+        <div className={faceFirst ? 'space-y-2 rounded-md bg-card p-2' : 'space-y-2'}>
         <div className="flex items-center gap-1.5">
           {phase === "connecting" && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" />}
           {phase === "live" && !aspenSpeaking && <Mic className="h-3.5 w-3.5 shrink-0 animate-pulse text-primary" />}
@@ -806,6 +809,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             {phase === "idle" && <Button className="w-full" onClick={() => { setShowSettings(false); void startConversation(); }}><Mic className="mr-1.5 h-4 w-4" />Start call with these settings</Button>}
           </div></DialogContent></Dialog>
         )}
+        </div>
       </div>
     );
   }
