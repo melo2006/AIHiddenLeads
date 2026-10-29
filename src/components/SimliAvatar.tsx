@@ -64,29 +64,38 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
   }, [debug]);
   const clientRef = useRef<SimliClient | null>(null);
   const liveRef = useRef(false);
-  const [state, setState] = useState<"idle" | "connecting" | "live" | "failed">("idle");
+  const lifecycleRef = useRef(0);
+  const [state, setState] = useState<"idle" | "connecting" | "live" | "failed" | "stopped">("idle");
   const [reason, setReason] = useState("");
   const setLive = (live: boolean) => { liveRef.current = live; onLiveChange?.(live); };
 
   const stopKey = () => { keyStopRef.current?.(); keyStopRef.current = null; setKeyed(false); };
   const stop = () => {
-    stopKey();
-    setLive(false);
+    lifecycleRef.current++;
+    const keepFrame = unboxed && liveRef.current && keyStopRef.current !== null;
+    keyStopRef.current?.(); keyStopRef.current = null;
+    if (!keepFrame) setKeyed(false);
+    liveRef.current = false;
+    onLiveChange?.(keepFrame);
+    pendingRef.current = new Uint8Array(0);
+    if (flushRef.current) clearTimeout(flushRef.current);
     const client = clientRef.current; clientRef.current = null;
     if (client) void client.stop().catch(() => {});
-    setState("idle");
+    setReason(''); setState(keepFrame ? 'stopped' : 'idle');
   };
   useEffect(() => () => stop(), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useImperativeHandle(ref, () => ({
     start: async () => {
       if (clientRef.current) return liveRef.current;
+      const lifecycle = ++lifecycleRef.current;
       setState("connecting"); setReason("");
       try {
         // Wait one frame so the portal's video/audio elements exist.
         await new Promise((r) => requestAnimationFrame(r));
         if (!videoRef.current || !audioRef.current) throw new Error("Avatar view is not ready");
         const { token, chromaKey } = await sessionToken({ agentId, shareToken, draft, faceId: faceOverride });
+        if (lifecycle !== lifecycleRef.current) return false;
         const client = new SimliClient(token, videoRef.current, audioRef.current, null, LogLevel.ERROR, "livekit");
         clientRef.current = client;
         client.on("stop", () => { if (clientRef.current === client) { clientRef.current = null; setLive(false); setState("failed"); setReason('Video disconnected'); } });
@@ -105,6 +114,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
         setLive(true); setState("live");
         return true;
       } catch (e) {
+        if (lifecycle !== lifecycleRef.current) return false;
         stopKey();
         const client = clientRef.current; clientRef.current = null;
         if (client) void client.stop().catch(() => {});
