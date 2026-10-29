@@ -143,3 +143,8 @@ export const dailySummary = (s: { day: string; visits: number; scans: number; vo
 export async function trySend(mail: Mail) {
   try { await sendOwnerMail(mail); return true; } catch (e) { console.error('mail send failed', (e as Error).message); return false; }
 }
+export const conversationCopy = (c: {name:string;email:string;url:string}): Mail => ({
+  to:c.email, subject:'Your Aspen conversation · private transcript and summary',
+  text:`Hi ${first(c.name)},\n\nHere is the private conversation copy you requested: ${c.url}\nThe link expires in seven days. Keep it private; anyone with it can read your transcript and AI summary. AI summaries may contain errors.\n\nThis request does not subscribe you to marketing.\n\nAI Hidden Leads`,
+  html:layout({preheader:'Your requested conversation copy',title:'Your conversation with Aspen',body:p(`Hi ${esc(first(c.name))}, here is the conversation copy you requested.`)+button(c.url,'View transcript & AI summary')+p('This private link expires in seven days. Anyone with the link can read it, so please do not forward it. AI summaries may contain errors.')+p('This request does not subscribe you to marketing.')})
+});
