@@ -70,7 +70,7 @@ const tiers = [
 const FEATURES: Record<string, Record<string, string[]>> = {
   en: {
     essentials: [
-      "AI Voice Agent (24/7 receptionist)",
+      "Natural neural voice — live two-way conversation, not robotic text-to-speech",
       "AI Chat Widget on your website",
       "Lead capture & appointment booking",
       "400 browser voice minutes/mo (≈ $0.25/min value)",
@@ -110,7 +110,7 @@ const FEATURES: Record<string, Record<string, string[]>> = {
       "Painel básico de análises",
     ],
     growth: [
-      "Tudo do IA Essencial",
+      "Tudo do Voz Natural",
       "1.200 minutos de voz no site/mês (≈ US$ 0,17/min)",
       "100 leads B2B qualificados por mês",
       "Reativação de Base (recupera leads antigos)",
@@ -120,7 +120,7 @@ const FEATURES: Record<string, Record<string, string[]>> = {
       "Pipeline e acompanhamento no CRM",
     ],
     full: [
-      "Tudo do Motor de Crescimento",
+      "Tudo do Pro",
       "2.500 minutos de voz no site/mês (≈ US$ 0,14/min)",
       "200 leads B2B qualificados por mês",
       "Conteúdo e posts em redes sociais",
@@ -141,7 +141,7 @@ const FEATURES: Record<string, Record<string, string[]>> = {
       "Panel básico de analítica",
     ],
     growth: [
-      "Todo lo de IA Esencial",
+      "Todo lo de Voz Natural",
       "1,200 minutos de voz web/mes (≈ $0.17/min)",
       "100 leads B2B calificados al mes",
       "Reactivación de Base (recupera leads viejos)",
@@ -151,7 +151,7 @@ const FEATURES: Record<string, Record<string, string[]>> = {
       "Pipeline y seguimiento en CRM",
     ],
     full: [
-      "Todo lo del Motor de Crecimiento",
+      "Todo lo del Pro",
       "2,500 minutos de voz web/mes (≈ $0.14/min)",
       "200 leads B2B calificados al mes",
       "Contenido y publicaciones en redes",

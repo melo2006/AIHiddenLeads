@@ -16,8 +16,8 @@ NOSSOS SERVIÇOS:
 - Geração de leads, reativação de base, gestão de avaliações Google
 
 PLANOS (sempre fale em reais, nunca diga "reais brasileiros"):
-- I.A. Essencial: R$ 499/mês — WhatsApp + Voz + Chat
-- Motor de Crescimento: R$ 999/mês — adiciona prospecção e campanhas
+- Voz Natural: R$ 499/mês — WhatsApp + Voz + Chat
+- Pro: R$ 999/mês — adiciona prospecção e campanhas
 - Premium: R$ 1749/mês — tudo ilimitado + gerente dedicado
 
 REGRAS:
