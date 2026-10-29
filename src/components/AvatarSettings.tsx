@@ -11,6 +11,7 @@ import AvatarDevicePreview from "@/components/AvatarDevicePreview";
 import GeminiConversation from "@/components/GeminiConversation";
 import { VOICES } from "@/components/setup-wizard/wizardModel";
 import { SIMLI_FACE_CATALOG, type AvatarFace } from '@/lib/simliFaceCatalog';
+import goodPhotoExample from "@/assets/avatar-photo-good-example.jpg";
 import aspenCutout from "@/assets/aspen-shoulders-512-v2.webp";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import {
@@ -150,6 +151,10 @@ export default function AvatarSettings({ value, onChange, agentId, beforePreview
           <div className="space-y-2 rounded-xl border-2 border-dashed border-border p-3">
             <p className="flex items-center gap-2 text-sm font-semibold"><UploadCloud className="h-4 w-4 text-primary" />Or create a face from a photo</p>
             <p className="text-[11px] text-muted-foreground">Library faces above are free. A custom face from your own photo is a <strong>$50 one-time add-on</strong>.</p>
+            <div className="flex items-start gap-3">
+              <figure className="shrink-0 text-center"><img src={goodPhotoExample} alt="Good example: front-facing, mouth closed, plain background" loading="lazy" width={816} height={816} className="h-20 w-20 rounded-md border-2 border-primary object-cover" /><figcaption className="mt-1 text-[10px] font-semibold text-primary">Good example</figcaption></figure>
+              <p className="text-[11px] text-muted-foreground"><span className="font-semibold text-foreground">Avoid:</span> side angles, selfies held at arm's length, big toothy smiles, sunglasses or hats, group photos, busy backgrounds, dark or blurry pictures.</p>
+            </div>
             <ul className="list-disc pl-4 space-y-0.5 text-[11px] text-muted-foreground">
               <li>PNG or JPG, at least 1024×1024 px, square, under 10 MB.</li>
               <li>One person, head and shoulders, facing straight at the camera at eye level.</li>
@@ -158,7 +163,7 @@ export default function AvatarSettings({ value, onChange, agentId, beforePreview
               <li>Plain background. A transparent photo does not guarantee a transparent live video.</li>
               <li>Building the face can take several minutes up to about 24 hours. Your current face stays live until it is ready.</li>
             </ul>
-            {!photoUnlocked && <p role="status" className="rounded-md border border-border bg-muted p-2 text-[11px] text-muted-foreground">Locked: add the $50 custom avatar option at checkout to unlock photo upload, or contact support at info@aihiddenleads.com.</p>}
+            {!photoUnlocked && <p role="status" className="rounded-md border border-border bg-muted p-2 text-[11px] text-muted-foreground">Locked: add the $50 custom avatar option at checkout to unlock photo upload, or contact support at info@aihiddenleads.com. <a className="font-semibold text-primary underline" href="/checkout?addon=custom-avatar">Buy custom avatar ($50)</a></p>}
             <Input aria-label="Face name" placeholder="Face name, e.g. Lucy" maxLength={60} value={faceName} onChange={(e) => setFaceName(e.target.value)} />
             <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => void upload(e.target.files?.[0])} />
             <Button variant="outline" className="w-full" disabled={uploading || !photoUnlocked} onClick={() => fileRef.current?.click()}>{uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UploadCloud className="mr-2 h-4 w-4" />}{uploading ? "Sending photo…" : "Upload photo"}</Button>
