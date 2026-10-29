@@ -643,6 +643,36 @@ export type Database = {
         }
         Relationships: []
       }
+      custom_avatar_credits: {
+        Row: {
+          checkout_session_id: string
+          created_at: string
+          environment: string
+          face_id: string | null
+          id: string
+          used_at: string | null
+          user_id: string
+        }
+        Insert: {
+          checkout_session_id: string
+          created_at?: string
+          environment: string
+          face_id?: string | null
+          id?: string
+          used_at?: string | null
+          user_id: string
+        }
+        Update: {
+          checkout_session_id?: string
+          created_at?: string
+          environment?: string
+          face_id?: string | null
+          id?: string
+          used_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       customer_workspaces: {
         Row: {
           agent_id: string
