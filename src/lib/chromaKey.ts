@@ -6,9 +6,6 @@
 /** Key-green distance thresholds in normalised CbCr space; shared by the shader and the JS reference. */
 export const CHROMA_LOW = 0.12;
 export const CHROMA_HIGH = 0.22;
-const KEY_CB = -0.331264 * 0 + -0.168736 * 0 + 0.5 * 0; // placeholder overwritten below for clarity
-void KEY_CB;
-
 function cbcr(r: number, g: number, b: number): [number, number] {
   return [-0.168736 * r - 0.331264 * g + 0.5 * b, 0.5 * r - 0.418688 * g - 0.081312 * b];
 }
