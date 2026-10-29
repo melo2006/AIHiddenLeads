@@ -1,5 +1,7 @@
 # Current work
 
+- [ ] Match active/still face sizing, hide active Talk label, add playback-clock highlighted captions and verify recording navigation. Live word alignment is approximate because the voice stream supplies no word timestamps.
+
 - [x] Removed transcript checkboxes in call start/settings, added Start & agree disclosure; new voice PCM caller/assistant segments checkpoint privately with transcripts. Real call produced three private WAV segments (signed read 200), 44 transcript fragments and a genuine AI summary. Admin Demo History → Call history review/draft panel checked desktop/390px; 14 tests/build pass.
 - [x] Shared chat notice/private records and optional email copy: real commercial-cleaning chat saved, AI summary ready, requested link SMTP sent to owner test mailbox. Voice copy native tool requires spoken readback and separate on-screen email permission; not a marketing subscription. Seven-day hashed link omits audio/admin draft, signed-out list denied/invalid link denied. Real spoken voice-copy request and owner email link click remain unverified.
 - [ ] Full mixed continuous recording, telephone-leg recordings, automatic outreach and retention purge are not implemented. Current recordings are provider-received speaker-specific segments, not a synchronized mixed track; automatic calling/campaign enrollment requires separate authorization/compliance setup. No historical recovery.
