@@ -220,7 +220,7 @@ const SessionCard = ({
                       <audio controls preload="none" src={c.recording_url} className="w-full h-8" />
                     ) : (
                       <p className="text-[11px] text-muted-foreground italic">
-                        {c.retell_call_id.startsWith('gemini_') ? 'Gemini audio is not recorded; transcripts require visitor consent.' : 'No recording stored — open Call History to fetch it from Retell.'}
+                        {c.retell_call_id.startsWith('gemini_') ? 'New agreed audio and transcripts: open Call history → Private conversation records. Historical unsaved audio is unavailable.' : 'No recording stored — open Call History to fetch it from Retell.'}
                       </p>
                     )}
                     {c.summary && (

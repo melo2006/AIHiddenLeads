@@ -8,6 +8,7 @@ const schema=z.discriminatedUnion('action',[
  z.object({action:z.literal('summarize'),id:z.string().uuid()}),
  z.object({action:z.literal('copy'),token:z.string().min(50).max(100)}),
  z.object({action:z.literal('chat'),capability:z.string().min(32).max(100),businessName:z.string().max(200),role:z.enum(['user','assistant']),content:z.string().min(1).max(20000),agreed:z.literal(true)}),
+ z.object({action:z.literal('chatCopy'),capability:z.string().min(32).max(100),email:z.string().email().max(255),consent:z.literal(true)}),
 ]);
 Deno.serve(async req=>{
  if(req.method==='OPTIONS')return new Response('ok',{headers:corsHeaders});
@@ -21,7 +22,17 @@ Deno.serve(async req=>{
    const {data:r}=await db.from('conversation_records').select('business_name,transcript,summary,summary_status,created_at').eq('id',link.record_id).single();
    return r?json({record:{...r,summary:r.summary?{summary:r.summary.summary,needs:r.summary.needs,nextSteps:r.summary.nextSteps}:null}}):json({error:'Conversation unavailable'},404);
   }
+  if(b.action==='chatCopy'){
+   const {data:r}=await db.from('conversation_records').select('id,copy_requested_at').eq('session_ref',`chat_${await digest(b.capability)}`).maybeSingle();
+   if(!r)return json({error:'Start a conversation before requesting a copy'},404);
+   if(r.copy_requested_at)return json({error:'A copy has already been requested'},409);
+   const {error}=await db.from('conversation_records').update({recipient_email:b.email,copy_requested_at:new Date().toISOString(),status:'ended'}).eq('id',r.id);
+   if(error)return json({error:'Could not save the copy request'},500);
+   EdgeRuntime.waitUntil(finalizeRecord(db,r.id));return json({requested:true});
+  }
   if(b.action==='chat'){
+   const {count}=await db.from('conversation_records').select('id',{count:'exact',head:true}).eq('channel','chat').gte('created_at',new Date(Date.now()-3600000).toISOString());
+   if((count||0)>100)return json({error:'Chat record capacity reached. Try later.'},429);
    const ref=`chat_${await digest(b.capability)}`;
    const {data:r}=await db.from('conversation_records').select('id,transcript').eq('session_ref',ref).maybeSingle();
    if(r?.transcript?.length>=300)return json({error:'Chat record limit reached'},429);

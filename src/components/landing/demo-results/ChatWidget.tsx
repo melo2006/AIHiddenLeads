@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { MessageResponse } from '@/components/ai-elements/message';
 import { PromptInput, PromptInputTextarea, PromptInputFooter, PromptInputSubmit } from '@/components/ai-elements/prompt-input';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 interface ChatWidgetProps {
   businessName: string;
@@ -45,6 +46,9 @@ const ChatWidget = ({
 }: ChatWidgetProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [recordingAgreed,setRecordingAgreed]=useState(false);
+  const [copyEmail,setCopyEmail]=useState('');
+  const [copyOpen,setCopyOpen]=useState(false);
+  const [copyStatus,setCopyStatus]=useState('');
   const [input, setInput] = useState("");
   const [isThinking, setIsThinking] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -376,6 +380,7 @@ CRITICAL RULES:
       </div>
 
       <div className="shrink-0 p-3 border-t border-border">
+       {messages.some(m=>m.role==='user') && <div className="mb-2 space-y-2"><Button size="sm" variant="ghost" onClick={()=>setCopyOpen(v=>!v)}>Email transcript & AI summary</Button>{copyOpen&&<form className="space-y-2" onSubmit={async e=>{e.preventDefault();await recordQueue.current;const {error}=await supabase.functions.invoke('conversation-records',{body:{action:'chatCopy',capability:sessionId.current,email:copyEmail,consent:true}});setCopyStatus(error?'Copy request unavailable.':'Private copy requested.');}}><Input aria-label="Conversation copy email" type="email" required value={copyEmail} onChange={e=>setCopyEmail(e.target.value)} placeholder="Your email"/><Button type="submit" size="sm">Confirm email & send copy only</Button><p className="text-xs text-muted-foreground">No marketing subscription. The private link expires in seven days.</p></form>}{copyStatus&&<p role="status" className="text-xs">{copyStatus}</p>}</div>}
        <PromptInput onSubmit={() => { void handleSend(); }}>
         <PromptInputTextarea
           ref={inputRef}
