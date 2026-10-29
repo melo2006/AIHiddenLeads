@@ -1,3 +1,4 @@
+import CompetitorComparison from "./CompetitorComparison";
 import { motion } from "framer-motion";
 import { Check, Sparkles, Zap, Crown, Info } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
@@ -78,11 +79,16 @@ const FEATURES: Record<string, Record<string, string[]>> = {
       "Lead capture & appointment booking",
       "400 browser voice minutes/mo (≈ $0.25/min value)",
       "50 qualified B2B leads/month (weekly batches)",
-      "Email lead notifications",
-      "Basic analytics dashboard",
+      "Call summary emails — after every call, daily or weekly",
+      "Google Calendar booking",
+      "CSV export of calls & leads",
+      "Zapier & CRM connections (coming soon)",
+      "SMS summary after each call (coming soon)",
+      "14-day money-back guarantee",
     ],
     growth: [
       "Everything in Premium",
+      "Live transfer to your phone + 1 free local number (phone minutes 5¢/min)",
       "Optional live talking video avatar — 1,200 minutes (add-on)",
       "SMS follow-up & reminders (coming soon)",
       "1,200 browser voice minutes/mo (≈ $0.17/min value)",
@@ -94,7 +100,7 @@ const FEATURES: Record<string, Record<string, string[]>> = {
       "CRM pipeline & tracking",
     ],
     full: [
-      "Everything in Pro",
+      "Everything in Professional",
       "Optional live talking video avatar — 2,500 minutes (add-on)",
       "SMS follow-up & reminders (coming soon)",
       "2,500 browser voice minutes/mo (≈ $0.14/min value)",
@@ -291,6 +297,8 @@ const PricingSection = ({ recommendedPlan }: { recommendedPlan?: string } = {}) 
             );
           })}
         </div>
+
+        <div className="mt-8 max-w-5xl mx-auto"><CompetitorComparison /></div>
 
         <motion.div
           initial={{ opacity: 0 }}
