@@ -12,9 +12,9 @@ export class PlaybackCaptions {
     }
     return this.current;
   }
-  audio(start: number, end: number) {
-    // Audio may be held for face startup after the text's turn_complete arrives.
-    const run = this.current ?? this.runs[this.runs.length - 1] ?? this.run();
+  reserve() { return this.run(); }
+  audio(start: number, end: number, reserved?: CaptionRun) {
+    const run = reserved ?? this.run();
     run.start ??= start;
     run.end = Math.max(run.end, end);
   }

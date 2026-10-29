@@ -64,8 +64,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // While the face is still connecting, hold Gemini's audio so voice and lips start together.
   const avatarStartingRef = useRef(false);
   const avatarRequestedRef = useRef(false);
-  const heldAudioRef = useRef<string[]>([]);
-  const playChunkRef = useRef<(b: string) => void>(() => {});
+  const heldAudioRef = useRef<{ audio: string; captionRun: ReturnType<PlaybackCaptions['reserve']> }[]>([]);
+  const playChunkRef = useRef<(b: string, run?: ReturnType<PlaybackCaptions['reserve']>) => void>(() => {});
   const [pendingAction, setPendingAction] = useState<VoiceAction | null>(null);
   const [actionNotice, setActionNotice] = useState('');
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
@@ -262,8 +262,9 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   }, [flushLine]);
 
   // Play a 24 kHz PCM chunk (base64) with gapless scheduling
-  const playPcmChunk = useCallback((base64: string) => {
-    if (avatarStartingRef.current && !captureRef.current.replaying) { heldAudioRef.current.push(base64); return; }
+  const playPcmChunk = useCallback((base64: string, reserved?: ReturnType<PlaybackCaptions['reserve']>) => {
+    const captionRun = reserved ?? captionClockRef.current.reserve();
+    if (avatarStartingRef.current && !captureRef.current.replaying) { heldAudioRef.current.push({ audio: base64, captionRun }); return; }
     if (!playCtxRef.current) {
       playCtxRef.current = new AudioContext({ sampleRate: 24000 });
       playTimeRef.current = 0;
@@ -293,7 +294,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     sourcesRef.current.add(source);
     source.start(startAt);
     playTimeRef.current = startAt + buffer.duration;
-    captionClockRef.current.audio(startAt, playTimeRef.current);
+    captionClockRef.current.audio(startAt, playTimeRef.current, captionRun);
     setAspenSpeaking(true);
     source.onended = () => {
       sourcesRef.current.delete(source);
@@ -352,7 +353,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       captureRef.current.replaying = true;
       setReplaying(true);
       captionClockRef.current.text(lastCaptionRef.current);
-      lastAudioRef.current.forEach(playPcmChunk);
+      lastAudioRef.current.forEach(audio => playPcmChunk(audio));
       captionClockRef.current.complete();
     } catch { captureRef.current.replaying = false; setReplaying(false); setError("Could not replay audio. Check your speaker connection."); }
   }, [pauseCapture, clearPlayback, playPcmChunk]);
@@ -369,7 +370,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       if (!avatarStartingRef.current) return;
       avatarStartingRef.current = false; setFaceWaiting(false);
       const held = heldAudioRef.current; heldAudioRef.current = [];
-      held.forEach(b => playChunkRef.current(b));
+      held.forEach(b => playChunkRef.current(b.audio, b.captionRun));
     };
     const timer = hold ? window.setTimeout(release, AVATAR_HOLD_MS) : 0;
     // The avatar view mounts on the same render as the tap; wait one frame for its ref.

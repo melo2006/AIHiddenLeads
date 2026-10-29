@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { PlaybackCaptions } from '@/lib/playbackCaptions';
 describe('audible playback captions', () => {
   it('holds captions until held face audio actually starts', () => {
-    const c = new PlaybackCaptions(); c.text('Hello there'); c.complete(); c.audio(12, 14);
+    const c = new PlaybackCaptions(); const run = c.reserve(); c.text('Hello there'); c.complete(); c.audio(12, 14, run);
     expect(c.at(10)).toBeNull(); expect(c.at(12)?.word).toBe(0); expect(c.at(13)?.word).toBe(1);
     expect(c.at(14)).toBeNull();
   });
