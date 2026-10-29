@@ -1,6 +1,6 @@
 # Current work
 
-- [ ] Build customer incoming telephone answering with forwarding, customer spending caps and a verified manager-transfer flow. Owner chose separate reliable call hosting; identify/connect deployable host before activating routing. Current edge host has documented 400-second worker limit. Twilio credentials and one voice-capable number verified, routing unchanged.
+- [ ] Build customer incoming telephone answering with forwarding, customer spending caps and a verified manager-transfer flow. Owner chose separate reliable call hosting. Blocker: no configured external call runtime/deployment access; Classic project cannot host a persistent server. Current edge host has documented 400-second worker limit. Twilio credentials and one voice-capable number verified; existing routing untouched. Do not claim caps/transfer/forwarding built or tested.
 - [ ] Connect and verify reviewed report to owner's actual Zapier Catch Hook; supplied “[your Catch Hook URL]” is a placeholder, so real destination is missing.
 - [x] Provided Zapier creation link and official Catch Hook setup/test/publish steps; real hook still needed for delivery verification.
 
