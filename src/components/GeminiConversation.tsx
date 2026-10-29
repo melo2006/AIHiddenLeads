@@ -254,15 +254,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     buffer.getChannelData(0).set(floats);
     const source = ctx.createBufferSource();
     source.buffer = buffer;
-    // With a live video face, Simli plays the lip-synced audio; keep local timing silent so speaking state still works.
-    // Switch to the face only between sentences so a reply never jumps mid-word.
-    if (avatarPendingRef.current && sourcesRef.current.size === 0) { avatarPendingRef.current = false; avatarLiveRef.current = true; }
-    if (avatarLiveRef.current && !captureRef.current.replaying) {
-      if (!muteNodeRef.current || muteNodeRef.current.context !== ctx) { const mute = ctx.createGain(); mute.gain.value = 0; mute.connect(ctx.destination); muteNodeRef.current = mute; }
-      const sent = avatarRef.current?.sendPcm24k(base64);
-      if (sent) source.connect(muteNodeRef.current);
-      else { avatarLiveRef.current = false; avatarPendingRef.current = false; source.connect(ctx.destination); }
-    } else source.connect(ctx.destination);
+    // Voice always plays locally so callers never hear silence if the face's own audio is blocked;
+    // the live face only receives a copy to drive its lips (its audio element stays muted).
+    if (avatarPendingRef.current) { avatarPendingRef.current = false; avatarLiveRef.current = true; }
+    if (avatarLiveRef.current && !captureRef.current.replaying && !avatarRef.current?.sendPcm24k(base64)) { avatarLiveRef.current = false; }
+    source.connect(ctx.destination);
 
     const now = ctx.currentTime;
     const startAt = Math.max(now, playTimeRef.current);
@@ -355,7 +351,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     // Consent renders the avatar on this same click; wait for its ref to mount.
     if (!preview && videoAvatar?.enabled) void new Promise<void>(resolve => requestAnimationFrame(() => resolve())).then(() => avatarRef.current?.start()).then(ok => {
       if (generation !== generationRef.current) { if (ok) avatarRef.current?.stop(); return; }
-      if (ok) { if (sourcesRef.current.size === 0) avatarLiveRef.current = true; else avatarPendingRef.current = true; }
+      if (ok) avatarLiveRef.current = true;
     });
     const startupTimeout = window.setTimeout(() => {
       if (generation === generationRef.current && !liveRef.current) {
