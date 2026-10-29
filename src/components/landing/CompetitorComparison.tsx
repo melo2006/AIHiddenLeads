@@ -15,7 +15,7 @@ const ROWS: { label: string; cells: Cell[] }[] = [
   { label: "New B2B leads every month", cells: ["50 included", false, false, false] },
   { label: "Calendar booking", cells: [true, true, true, true] },
   { label: "Call summaries emailed", cells: ["Daily (per call & weekly soon)", "Not listed", true, true] },
-  { label: "CSV export / Zapier", cells: ["CSV + Zapier (coming soon)", "Zapier", true, "Not listed"] },
+  { label: "CSV export / Zapier", cells: ["Coming soon", "Zapier", true, "Not listed"] },
   { label: "Live transfer to your phone", cells: ["Professional & up", true, true, true] },
   { label: "SMS after each call", cells: ["Coming soon", "Not listed", "Not listed", "Not listed"] },
   { label: "14-day money-back guarantee", cells: [true, false, "Not listed", "Not listed"] },
