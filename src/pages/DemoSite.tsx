@@ -1065,6 +1065,16 @@ const DemoSite = () => {
           />
         )}
 
+        {hasAnyPreview && (
+          <div className="pointer-events-none fixed left-1/2 top-2 z-40 w-[min(96vw,34rem)] -translate-x-1/2">
+            <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-full border border-primary/60 bg-background/90 px-3 py-1.5 text-center text-[11px] text-foreground shadow-lg backdrop-blur">
+              <span className="font-semibold text-primary">Simulation preview</span>
+              <span className="text-muted-foreground">Your real website is not changed.</span>
+              <a href="/plans" target="_blank" rel="noopener noreferrer" className="font-semibold text-primary underline underline-offset-2">Get the install code</a>
+            </div>
+          </div>
+        )}
+
         {hasAnyPreview && <AspenDemoWidget
           key={leadData.websiteUrl}
           businessName={siteName}
