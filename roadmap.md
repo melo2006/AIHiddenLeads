@@ -1,5 +1,8 @@
 # Current work
 
+- [ ] Review owner Simli Hobby/generation screenshots and documented public face/image catalog; explain generation vs minutes and manual-ID requirements.
+- [ ] Restore matching Aspen moving face after allowance restoration and verify real frames/lip-sync; enlarge only compact face 30% and microphone badge 50%, shorten pre-call notice.
+
 - [x] Reduced Aspen to head/neck/shoulder tops with closed-mouth smile; phone/tablet icon controls, collapsed optional captions, sticky gray minimize/expand/close, 96×100 tiny minimized footprint. Real Gemini speech/transcript checked on 338×638, captions expand/hide, page scrolled 700px, no page errors or old Simli session. Thirteen tests pass.
 - [x] Diagnosed legacy-face swap and startup lip-sync race; public Aspen filters the old preset, deterministic speech-drain switch and guarded send failure restore local voice. Voice disconnect cause remains unproven: recent function logs show only boot/shutdown. Matching live video repair cannot be verified until generation is available.
 - [x] Optimize the same transparent Aspen portrait: inspected 512×512 PNG (305 KB, 93% smaller) and WebP (34 KB, 99% smaller) on dark/light; rejected blotchy palette compression. Original preserved. WebP will be used with the planned floating presentation.
