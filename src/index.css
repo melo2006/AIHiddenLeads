@@ -111,6 +111,15 @@
 }
 
 @layer utilities {
+  .aspen-person-shell { display: flex; flex-direction: column; gap: .375rem; max-width: calc(100vw - 24px); max-height: var(--aspen-available-height, calc(100dvh - 56px)); overflow-y: auto; overscroll-behavior: contain; }
+  .aspen-person-collapsed { width: 180px; }
+  .aspen-person-expanded { width: 320px; }
+  .aspen-person-portrait { width: 180px; height: 180px; flex-shrink: 0; }
+  .aspen-person-expanded .aspen-person-portrait { width: 208px; height: 208px; }
+  @media (max-width: 640px), (max-height: 700px) {
+    .aspen-person-collapsed { width: 144px; }
+    .aspen-person-portrait, .aspen-person-expanded .aspen-person-portrait { width: 144px; height: 144px; }
+  }
   .aspen-panel { display: flex; flex-direction: column; max-height: min(70dvh, var(--aspen-available-height, 70dvh)); }
   .aspen-panel.hidden { display: none; }
   .aspen-panel > header, .aspen-panel > div:first-child, .aspen-panel > div[aria-label] { flex-shrink: 0; }
