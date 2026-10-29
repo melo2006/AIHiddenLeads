@@ -69,7 +69,8 @@ export default function Checkout() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const planKey = searchParams.get("plan") || "essentials";
-  const plan = planDetails[planKey] || planDetails.essentials;
+  const addonOnly = searchParams.get("addon") === "custom-avatar";
+  const plan = addonOnly ? { name: "Custom Avatar From Your Photo", price: "$50 one-time", priceId: "custom_avatar_once", features: ["A live video avatar built from your own photo", "Unlocks photo upload in your setup", "Building can take several minutes up to about 24 hours", "Library avatars remain free"] } : (planDetails[planKey] || planDetails.essentials);
   const [paymentFailed, setPaymentFailed] = useState(false);
   const [paymentNotice,setPaymentNotice]=useState('');
   const [priceReady, setPriceReady] = useState(false);
@@ -145,14 +146,14 @@ export default function Checkout() {
           {/* Payment Form */}
           <div className="space-y-4">
             <h2 className="text-lg font-semibold text-foreground">Complete Your Order</h2>
-            <label className="flex items-start gap-3 rounded-xl border border-border bg-card p-4 cursor-pointer">
+            {!addonOnly && <label className="flex items-start gap-3 rounded-xl border border-border bg-card p-4 cursor-pointer">
               <input type="checkbox" className="mt-1 h-4 w-4 accent-primary" checked={customAvatar} onChange={e => setCustomAvatar(e.target.checked)} />
               <span className="text-sm"><span className="font-semibold text-foreground">Add a custom avatar from your own photo: +$50 one-time</span><span className="block text-xs text-muted-foreground mt-1">Optional. Choosing a face from our avatar library is free. A custom face can take from several minutes up to about 24 hours to build. The video avatar add-on is $79/mo.</span></span>
-            </label>
+            </label>}
             <div className="rounded-xl border border-border bg-card p-1 min-h-[400px]">
               {!user ? <CustomerSignIn /> : paymentsAvailable && !paymentFailed && !priceReady ? <p role="status" className="p-5 text-sm text-muted-foreground">Checking checkout availability…</p> : paymentsAvailable && !paymentFailed && priceReady ? <StripeEmbeddedCheckout
                 key={`${user.id}-${plan.priceId}-${customAvatar}`}
-                customAvatar={customAvatar}
+                customAvatar={addonOnly ? undefined : customAvatar}
                 priceId={plan.priceId}
                 returnUrl={`${window.location.origin}/checkout/return?session_id={CHECKOUT_SESSION_ID}`}
                 onUnavailable={() => setPaymentFailed(true)}
