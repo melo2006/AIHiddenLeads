@@ -1,7 +1,8 @@
 # Current work
 
-- [ ] Build customer incoming telephone answering with forwarding, customer spending caps and a verified manager-transfer flow; preserve browser Aspen and existing Twilio routing. Check hosting support before activation.
+- [ ] Build customer incoming telephone answering with forwarding, customer spending caps and a verified manager-transfer flow; blocked on reliable telephone-host choice. Official current edge-host documentation lists 400-second maximum worker lifetime; no separate persistent call host exists in project. Twilio credentials and one voice-capable number verified, routing unchanged.
 - [ ] Connect and verify reviewed report to owner's actual Zapier Catch Hook; supplied “[your Catch Hook URL]” is a placeholder, so real destination is missing.
+- [x] Provided Zapier creation link and official Catch Hook setup/test/publish steps; real hook still needed for delivery verification.
 
 - [x] Audited telephone/calendar/report scope and researched official Goodcall, Smith.ai and Twilio prices. Recommended 25/75/200 callbacks (not configured); customer-choice coverage and separate 5¢ telephone direction preserved. Customer inbound AI answering and calendar connection remain separate rollout work, not claimed live.
 - [x] Added CSV downloads and reviewed single-report Zapier sending to authorized admin call history/private records. Four privacy/CSV/destination tests pass; real signed-in CSV downloaded, invalid destination denied, intercepted send confirmed payload; phone dialog fits and build OK. No auto-send, raw audio/transcript/draft export or customer access expansion.
