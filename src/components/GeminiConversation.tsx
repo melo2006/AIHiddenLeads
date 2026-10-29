@@ -25,6 +25,8 @@ import SimliAvatar, { type SimliAvatarHandle } from '@/components/SimliAvatar';
 import type { VideoAvatar } from '../../supabase/functions/_shared/video-avatar';
 import { PersonPortrait } from '@/components/FloatingPersonFrame';
 import { avatarAudioReady } from '@/lib/avatarAudioTransition';
+import { PlaybackCaptions, type PlaybackCaption as Caption } from '@/lib/playbackCaptions';
+import PlaybackCaption from '@/components/PlaybackCaption';
 
 const VOICES = [
   { id: "Kore", label: "Kore — warm female (default)" },
@@ -62,8 +64,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // While the face is still connecting, hold Gemini's audio so voice and lips start together.
   const avatarStartingRef = useRef(false);
   const avatarRequestedRef = useRef(false);
-  const heldAudioRef = useRef<string[]>([]);
-  const playChunkRef = useRef<(b: string) => void>(() => {});
+  const heldAudioRef = useRef<{ audio: string; captionRun: ReturnType<PlaybackCaptions['reserve']> }[]>([]);
+  const playChunkRef = useRef<(b: string, run?: ReturnType<PlaybackCaptions['reserve']>) => void>(() => {});
   const [pendingAction, setPendingAction] = useState<VoiceAction | null>(null);
   const [actionNotice, setActionNotice] = useState('');
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
@@ -120,6 +122,9 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const micCtxRef = useRef<AudioContext | null>(null);
   const playCtxRef = useRef<AudioContext | null>(null);
   const playTimeRef = useRef(0);
+  const captionClockRef = useRef(new PlaybackCaptions());
+  const [playbackCaption, setPlaybackCaption] = useState<Caption | null>(null);
+  const lastCaptionRef = useRef('');
   const liveRef = useRef(false);
   const sourcesRef = useRef(new Set<AudioBufferSourceNode>());
   const micNodeRef = useRef<ScriptProcessorNode | null>(null);
@@ -133,6 +138,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const currentAudioRef = useRef<string[]>([]);
   const lastAudioRef = useRef<string[]>([]);
   const transcriptEndRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const ctx = playCtxRef.current;
+      setPlaybackCaption(ctx ? captionClockRef.current.at(ctx.currentTime) : null);
+    }, 80);
+    return () => window.clearInterval(timer);
+  }, []);
   const walkthroughRef = useRef({ text: '', continued: false });
   const homepageWalkthroughRef = useRef(false);
   const idleRef = useRef({ enabled: false, stage: 'waiting' as VoiceIdleStage, quietSince: 0, generating: false, requestedAt: 0 });
@@ -228,6 +240,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     heldAudioRef.current = [];
     for (const source of sourcesRef.current) { try { source.stop(); } catch { /* Already stopped. */ } }
     sourcesRef.current.clear();
+    captionClockRef.current.clear(); setPlaybackCaption(null);
     setMicLevel(0);
     avatarRef.current?.stop();
     avatarStartingRef.current = false; heldAudioRef.current = []; avatarRequestedRef.current = false; setFaceWaiting(false);
@@ -249,8 +262,9 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   }, [flushLine]);
 
   // Play a 24 kHz PCM chunk (base64) with gapless scheduling
-  const playPcmChunk = useCallback((base64: string) => {
-    if (avatarStartingRef.current && !captureRef.current.replaying) { heldAudioRef.current.push(base64); return; }
+  const playPcmChunk = useCallback((base64: string, reserved?: ReturnType<PlaybackCaptions['reserve']>) => {
+    const captionRun = reserved ?? captionClockRef.current.reserve();
+    if (avatarStartingRef.current && !captureRef.current.replaying) { heldAudioRef.current.push({ audio: base64, captionRun }); return; }
     if (!playCtxRef.current) {
       playCtxRef.current = new AudioContext({ sampleRate: 24000 });
       playTimeRef.current = 0;
@@ -280,6 +294,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     sourcesRef.current.add(source);
     source.start(startAt);
     playTimeRef.current = startAt + buffer.duration;
+    captionClockRef.current.audio(startAt, playTimeRef.current, captionRun);
     setAspenSpeaking(true);
     source.onended = () => {
       sourcesRef.current.delete(source);
@@ -296,11 +311,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
   // Interrupt: drop all queued playback instantly
   const clearPlayback = useCallback(() => {
+    heldAudioRef.current = [];
     captureRef.current.replaying = false;
     setReplaying(false);
     for (const source of sourcesRef.current) { try { source.stop(); } catch { /* Already stopped. */ } }
     sourcesRef.current.clear();
     avatarRef.current?.clear();
+    captionClockRef.current.clear(); setPlaybackCaption(null);
     playTimeRef.current = playCtxRef.current?.currentTime ?? 0;
     setAspenSpeaking(false);
   }, []);
@@ -336,7 +353,9 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       isPreviewRef.current = false;
       captureRef.current.replaying = true;
       setReplaying(true);
-      lastAudioRef.current.forEach(playPcmChunk);
+      captionClockRef.current.text(lastCaptionRef.current);
+      lastAudioRef.current.forEach(audio => playPcmChunk(audio));
+      captionClockRef.current.complete();
     } catch { captureRef.current.replaying = false; setReplaying(false); setError("Could not replay audio. Check your speaker connection."); }
   }, [pauseCapture, clearPlayback, playPcmChunk]);
 
@@ -352,7 +371,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       if (!avatarStartingRef.current) return;
       avatarStartingRef.current = false; setFaceWaiting(false);
       const held = heldAudioRef.current; heldAudioRef.current = [];
-      held.forEach(b => playChunkRef.current(b));
+      held.forEach(b => playChunkRef.current(b.audio, b.captionRun));
     };
     const timer = hold ? window.setTimeout(release, AVATAR_HOLD_MS) : 0;
     // The avatar view mounts on the same render as the tap; wait one frame for its ref.
@@ -532,6 +551,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             break;
           case "aspen_transcript":
             aspenLineRef.current += msg.text as string;
+            captionClockRef.current.text(msg.text as string);
             setPartialAspen(aspenLineRef.current);
             break;
           case "user_transcript":
@@ -542,6 +562,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             setPartialUser(userLineRef.current);
             break;
           case "turn_complete":
+            lastCaptionRef.current = aspenLineRef.current;
+            captionClockRef.current.complete();
             walkthroughRef.current.text = aspenLineRef.current;
             idleRef.current.generating = false;
             idleRef.current.quietSince = Date.now();
@@ -660,7 +682,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   if (compact) {
     return (
       <div className="space-y-2 p-2 text-foreground">
-        {faceFirst ? <><div className="aspen-person-portrait relative mx-auto"><div className={faceLive ? 'invisible' : ''}><PersonPortrait name={name} avatarUrl={avatarUrl} /></div>{avatarView}</div><p className="mx-auto w-fit rounded-md bg-card px-2 py-1 text-center text-xs font-semibold">Talk to {name}</p></> : avatarView}
+        {faceFirst ? <><div className="aspen-person-portrait relative mx-auto"><div className={faceLive ? 'invisible' : ''}><PersonPortrait name={name} avatarUrl={avatarUrl} /></div>{avatarView}</div>{phase === 'idle' && <p className="mx-auto w-fit rounded-md bg-card px-2 py-1 text-center text-xs font-semibold">Talk to {name}</p>}</> : avatarView}
         <div className={faceFirst ? 'space-y-2 rounded-lg border border-primary/40 bg-card p-2 shadow-lg ring-1 ring-foreground/10' : 'space-y-2'}>
         <div className="flex items-center gap-1.5">
           {shownPhase === "connecting" && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" />}
@@ -678,7 +700,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         </div>
 
         {faceFirst && <Button size="icon" variant="ghost" className="h-8 w-8" aria-label={captions ? 'Hide captions' : 'Show captions'} title={captions ? 'Hide captions' : 'Show captions'} aria-expanded={captions} onClick={() => setCaptions(v => !v)}><ChevronsUpDown className="h-4 w-4" /></Button>}
-        <div aria-label="Conversation transcript" tabIndex={0} className={`${faceFirst && !captions ? 'hidden' : ''} ${faceFirst ? 'h-12' : 'max-h-[4.5rem]'} space-y-1 overflow-y-auto overscroll-contain rounded-md border border-border bg-background/95 p-1.5`}>
+        {playbackCaption && (!faceFirst || captions) && <div className="rounded-md border border-border bg-background/95 p-1.5"><PlaybackCaption caption={playbackCaption} /></div>}
+        <div aria-label="Conversation transcript" tabIndex={0} className={`${playbackCaption || faceFirst && !captions ? 'hidden' : ''} ${faceFirst ? 'h-12' : 'max-h-[4.5rem]'} space-y-1 overflow-y-auto overscroll-contain rounded-md border border-border bg-background/95 p-1.5`}>
           {turns.length === 0 && !partialAspen && !partialUser && (
             <p className="py-1 text-center text-[11px] text-muted-foreground">No conversation yet.</p>
           )}
