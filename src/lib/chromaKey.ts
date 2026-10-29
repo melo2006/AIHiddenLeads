@@ -31,6 +31,21 @@ void main(){vec4 c=texture2D(t,uv);float d=distance(cc(c.rgb),cc(vec3(0.,1.,0.))
 c.g=min(c.g,max(c.r,c.b));gl_FragColor=vec4(c.rgb*a,a);}`;
 
 /** Starts drawing the keyed video into the canvas; returns a stop function. Returns null when WebGL is unavailable. */
+/** Bounding box (fractions 0..1) of opaque pixels in an RGBA buffer; null when nothing is opaque. */
+export function opaqueBounds(data: Uint8ClampedArray, w: number, h: number): { x0: number; x1: number; y0: number; y1: number } | null {
+  let x0 = w, x1 = -1, y0 = h, y1 = -1;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = (y * w + x) * 4;
+    if (chromaAlpha(data[i] / 255, data[i + 1] / 255, data[i + 2] / 255) > 0.5) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  }
+  return x1 < 0 ? null : { x0: x0 / w, x1: (x1 + 1) / w, y0: y0 / h, y1: (y1 + 1) / h };
+}
+
+/** Horizontal shift (fraction of width) that centres the person's opaque area. */
+export function centeringShift(b: { x0: number; x1: number }): number {
+  return 0.5 - (b.x0 + b.x1) / 2;
+}
+
 export function startChromaKey(video: HTMLVideoElement, canvas: HTMLCanvasElement): (() => void) | null {
   const gl = canvas.getContext('webgl', { premultipliedAlpha: true, alpha: true, antialias: false });
   if (!gl) return null;
@@ -51,7 +66,18 @@ export function startChromaKey(video: HTMLVideoElement, canvas: HTMLCanvasElemen
   gl.bindTexture(gl.TEXTURE_2D, tex);
   for (const [k, v] of [[gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE], [gl.TEXTURE_MIN_FILTER, gl.LINEAR], [gl.TEXTURE_MAG_FILTER, gl.LINEAR]]) gl.texParameteri(gl.TEXTURE_2D, k, v);
 
-  let stopped = false; let handle = 0;
+  let stopped = false; let handle = 0; let lastMeasure = 0;
+  const probe = document.createElement('canvas'); probe.width = 48; probe.height = 48;
+  const pctx = probe.getContext('2d', { willReadFrequently: true });
+  // Simli may place the face off-centre in its frame; re-centre the keyed person to match the still portrait.
+  const recentre = () => {
+    if (!pctx) return;
+    try {
+      pctx.drawImage(video, 0, 0, 48, 48);
+      const b = opaqueBounds(pctx.getImageData(0, 0, 48, 48).data, 48, 48);
+      if (b) canvas.style.transform = `translateX(${(centeringShift(b) * 100).toFixed(1)}%)`;
+    } catch { /* cross-origin frames cannot be sampled; keep original framing */ }
+  };
   const v = video as HTMLVideoElement & { requestVideoFrameCallback?: (cb: () => void) => number; cancelVideoFrameCallback?: (h: number) => void };
   const draw = () => {
     if (stopped) return;
@@ -61,12 +87,14 @@ export function startChromaKey(video: HTMLVideoElement, canvas: HTMLCanvasElemen
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
       gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      const now = performance.now();
+      if (now - lastMeasure > 1000) { lastMeasure = now; recentre(); }
     }
     handle = v.requestVideoFrameCallback ? v.requestVideoFrameCallback(draw) : requestAnimationFrame(draw);
   };
   draw();
   return () => {
-    stopped = true;
+    stopped = true; canvas.style.transform = '';
     if (v.cancelVideoFrameCallback) v.cancelVideoFrameCallback(handle); else cancelAnimationFrame(handle);
   };
 }
