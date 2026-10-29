@@ -67,7 +67,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
         await new Promise((r) => requestAnimationFrame(r));
         if (!videoRef.current || !audioRef.current) throw new Error("Avatar view is not ready");
         const { token, chromaKey } = await sessionToken({ agentId, shareToken, draft, faceId: faceOverride });
-        const client = new SimliClient(token, videoRef.current, audioRef.current, null, LogLevel.ERROR, "livekit");
+        const client = new SimliClient(token, videoRef.current, audioRef.current, null, LogLevel.ERROR, (localStorage.getItem("simli-transport") === "p2p" ? "p2p" : "livekit"));
         clientRef.current = client;
         client.on("stop", () => { if (clientRef.current === client) { clientRef.current = null; setLive(false); setState("failed"); setReason('Video disconnected'); } });
         client.on("warning" as never, ((m: unknown) => console.warn("Simli:", m)) as never);
