@@ -22,7 +22,9 @@ export default function GeminiAgentWidget({ agentId, leadId, prospectId, busines
  const [recommendedPlan,setRecommendedPlan]=useState<string|null>(null);
  const [identity,setIdentity]=useState<{id?:string;name:string;businessName:string;avatarUrl:string;theme?:WidgetTheme;videoAvatar?:VideoAvatar}>({name:'Aspen',businessName:businessName||'AI Hidden Leads',avatarUrl:''});
  const isMobile=useIsMobile();
- useEffect(()=>{let active=true;void preloadVoiceIdentity(agentId).then(data=>{if(active&&data?.name)setIdentity({...data,businessName:businessName||data.businessName});});return()=>{active=false;};},[agentId,leadId,prospectId,businessName]);
+ useEffect(()=>{let active=true;void preloadVoiceIdentity(agentId).then(data=>{if(!active)return;if(data?.name)setIdentity({...data,businessName:businessName||data.businessName});setIdentityReady(true);});return()=>{active=false;};},[agentId,leadId,prospectId,businessName]);
+ // Start only after the saved face/voice settings arrive; otherwise an early tap starts voice without the moving face.
+ const [identityReady,setIdentityReady]=useState(false);
  const openWidget=()=>{setHasOpened(true);setClickedOpen(true);setOpen(true);};
  useEffect(()=>{if(agentId || !floating)return;const show=(event:Event)=>{const next=(event as CustomEvent).detail?.mode==='chat'?'chat':'voice';setMode(next);setChatVisited(next==='chat');setHasOpened(true);setClickedOpen(false);setDismissed(false);setOpen(true);};window.addEventListener('open-homepage-aspen',show);return()=>window.removeEventListener('open-homepage-aspen',show);},[agentId,floating]);
  const faceUrl = agentId ? identity.avatarUrl : undefined;
@@ -30,7 +32,7 @@ export default function GeminiAgentWidget({ agentId, leadId, prospectId, busines
  const changeMode=(next:'voice'|'chat')=>{setMode(next);if(next==='chat')setChatVisited(true);};
  const content=<>
   <FloatingPersonFrame name={identity.name} avatarUrl={faceUrl} open={open} mode={mode} onOpen={openWidget} onMinimize={()=>setOpen(false)} onClose={closeAssistant} onMode={changeMode}>
-   {hasOpened && mode==='voice' && <GeminiConversation compact faceFirst avatarUrl={faceUrl} autoStart={clickedOpen || autoStart} agentId={identity.id || agentId} leadId={leadId} prospectId={prospectId} name={identity.name} visitorName={callerName} onRecommendedPlan={setRecommendedPlan} videoAvatar={agentId ? identity.videoAvatar : matchingAspenVideo(identity.videoAvatar)} avatarInline />}
+   {hasOpened && mode==='voice' && <GeminiConversation compact faceFirst avatarUrl={faceUrl} autoStart={identityReady && (clickedOpen || autoStart)} agentId={identity.id || agentId} leadId={leadId} prospectId={prospectId} name={identity.name} visitorName={callerName} onRecommendedPlan={setRecommendedPlan} videoAvatar={agentId ? identity.videoAvatar : matchingAspenVideo(identity.videoAvatar)} avatarInline />}
    {chatVisited && <div className={mode==='chat'?'aspen-panel min-h-80 overflow-hidden rounded-lg border border-border bg-card':'hidden'}><div className="aspen-chat-content"><ChatWidget embedded active={open && mode==='chat'} businessName={businessName || identity.businessName} businessNiche="general" websiteUrl={window.location.origin} businessInfo="AI Hidden Leads provides AI voice and chat assistants, B2B lead generation and search growth services. Refer visitors to the current homepage for pricing and package details." callerName={callerName} leadId={leadId} prospectId={prospectId} /></div></div>}
    {(!agentId || leadId || prospectId) && <div className="aspen-sales-actions"><AspenSalesActions plan={recommendedPlan} /></div>}
   </FloatingPersonFrame>
