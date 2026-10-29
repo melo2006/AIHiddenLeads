@@ -46,6 +46,10 @@ type Phase = "idle" | "connecting" | "live" | "preview";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const WS_URL = SUPABASE_URL.replace(/^https/, "wss") + "/functions/v1/gemini-live-proxy";
+/** Longest wait for the face before the voice starts anyway. */
+const AVATAR_HOLD_MS = 12000;
+/** Seconds of local-voice delay so Simli's lip movement lines up with what callers hear. */
+const AVATAR_LIP_LAG = 0.25;
 
 export interface GeminiConversationProps { agentId?: string; leadId?: string; prospectId?: string; draft?: boolean; compact?: boolean; name?: string; visitorName?: string; previewVoice?: string; autoStart?: boolean; previewOnly?: boolean; previewAudioContext?: AudioContext; testModel?: string; shareToken?: string; onRecommendedPlan?: (plan: SalesPlan) => void; videoAvatar?: VideoAvatar; avatarInline?: boolean; faceFirst?: boolean; avatarUrl?: string; }
 const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compact = false, name = "Aspen", visitorName = "", previewVoice, autoStart = false, previewOnly = false, previewAudioContext, testModel, shareToken, onRecommendedPlan, videoAvatar, avatarInline = false, faceFirst = false, avatarUrl }: GeminiConversationProps) => {
@@ -55,6 +59,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const avatarLiveRef = useRef(false);
   const muteNodeRef = useRef<GainNode | null>(null);
   const avatarPendingRef = useRef(false);
+  // While the face is still connecting, hold Gemini's audio so voice and lips start together.
+  const avatarStartingRef = useRef(false);
+  const heldAudioRef = useRef<string[]>([]);
+  const playChunkRef = useRef<(b: string) => void>(() => {});
   const [pendingAction, setPendingAction] = useState<VoiceAction | null>(null);
   const [actionNotice, setActionNotice] = useState('');
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
@@ -214,10 +222,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     setPaused(false);
     if (micNodeRef.current) { micNodeRef.current.onaudioprocess = null; micNodeRef.current.disconnect(); }
     micNodeRef.current = null;
+    heldAudioRef.current = [];
     for (const source of sourcesRef.current) { try { source.stop(); } catch { /* Already stopped. */ } }
     sourcesRef.current.clear();
     setMicLevel(0);
     avatarRef.current?.stop();
+    avatarStartingRef.current = false; heldAudioRef.current = [];
     avatarLiveRef.current = false;
     try { wsRef.current?.close() } catch { /* ignore */ }
     wsRef.current = null;
@@ -237,6 +247,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
   // Play a 24 kHz PCM chunk (base64) with gapless scheduling
   const playPcmChunk = useCallback((base64: string) => {
+    if (avatarStartingRef.current && !captureRef.current.replaying) { heldAudioRef.current.push(base64); return; }
     if (!playCtxRef.current) {
       playCtxRef.current = new AudioContext({ sampleRate: 24000 });
       playTimeRef.current = 0;
@@ -261,7 +272,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     source.connect(ctx.destination);
 
     const now = ctx.currentTime;
-    const startAt = Math.max(now, playTimeRef.current);
+    // Simli renders lips slightly behind the audio it receives; delay the start of each spoken run to match.
+    const startAt = Math.max(avatarLiveRef.current ? now + AVATAR_LIP_LAG : now, playTimeRef.current);
     sourcesRef.current.add(source);
     source.start(startAt);
     playTimeRef.current = startAt + buffer.duration;
@@ -277,6 +289,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       if (isPreviewRef.current && previewDoneRef.current && sourcesRef.current.size === 0) stopEverything();
     };
   }, [stopEverything]);
+  playChunkRef.current = playPcmChunk;
 
   // Interrupt: drop all queued playback instantly
   const clearPlayback = useCallback(() => {
@@ -347,12 +360,21 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     userLineRef.current = "";
     setPhase("connecting");
     setStatus(preview ? "Preparing your saved greeting…" : "Connecting to Gemini Live…");
-    avatarLiveRef.current = false; avatarPendingRef.current = false;
+    avatarLiveRef.current = false; avatarPendingRef.current = false; heldAudioRef.current = [];
+    avatarStartingRef.current = !preview && !!videoAvatar?.enabled;
+    const releaseHeld = () => {
+      if (!avatarStartingRef.current) return;
+      avatarStartingRef.current = false;
+      const held = heldAudioRef.current; heldAudioRef.current = [];
+      if (generation === generationRef.current) held.forEach(b => playChunkRef.current(b));
+    };
+    if (avatarStartingRef.current) window.setTimeout(releaseHeld, AVATAR_HOLD_MS);
     // Consent renders the avatar on this same click; wait for its ref to mount.
     if (!preview && videoAvatar?.enabled) void new Promise<void>(resolve => requestAnimationFrame(() => resolve())).then(() => avatarRef.current?.start()).then(ok => {
       if (generation !== generationRef.current) { if (ok) avatarRef.current?.stop(); return; }
       if (ok) avatarLiveRef.current = true;
-    });
+      releaseHeld();
+    }).catch(releaseHeld);
     const startupTimeout = window.setTimeout(() => {
       if (generation === generationRef.current && !liveRef.current) {
         stopEverything();
