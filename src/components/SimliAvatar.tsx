@@ -72,7 +72,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
   const stopKey = () => { keyStopRef.current?.(); keyStopRef.current = null; setKeyed(false); };
   const stop = () => {
     lifecycleRef.current++;
-    const keepFrame = unboxed && liveRef.current && keyed;
+    const keepFrame = unboxed && liveRef.current && keyStopRef.current !== null;
     keyStopRef.current?.(); keyStopRef.current = null;
     if (!keepFrame) setKeyed(false);
     liveRef.current = false;
