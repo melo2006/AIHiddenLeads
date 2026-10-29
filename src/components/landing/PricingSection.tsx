@@ -79,7 +79,7 @@ const FEATURES: Record<string, Record<string, string[]>> = {
       "Lead capture & appointment booking",
       "400 browser voice minutes/mo (≈ $0.25/min value)",
       "50 qualified B2B leads/month (weekly batches)",
-      "Call summary emails — after every call, daily or weekly",
+      "Daily call summary email (per-call & weekly options coming soon)",
       "Google Calendar booking",
       "CSV export of calls & leads",
       "Zapier & CRM connections (coming soon)",
