@@ -115,6 +115,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     "Pick a voice and press Start — then just talk, like a real phone call. You can interrupt her."
   );
   const [error, setError] = useState<string | null>(null);
+  const [endedByVisitor, setEndedByVisitor] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -261,6 +262,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     setStatus("Conversation ended. Press Start to begin again.");
   }, [flushLine]);
 
+  const endByVisitor = useCallback(() => {
+    stopEverything();
+    setError(null);
+    setEndedByVisitor(true);
+  }, [stopEverything]);
+
   // Play a 24 kHz PCM chunk (base64) with gapless scheduling
   const playPcmChunk = useCallback((base64: string, reserved?: ReturnType<PlaybackCaptions['reserve']>) => {
     const captionRun = reserved ?? captionClockRef.current.reserve();
@@ -399,6 +406,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     isPreviewRef.current = preview;
     previewDoneRef.current = false;
     setError(null);
+    setEndedByVisitor(false);
     setTurns([]);
     setPartialUser("");
     setPartialAspen("");
@@ -590,6 +598,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       };
 
       ws.onerror = () => {
+        if (generation !== generationRef.current) return;
         setError("Could not connect to the voice service.");
         stopEverything();
       };
@@ -606,6 +615,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         }
       };
     } catch (e) {
+      if (generation !== generationRef.current) return;
       stopEverything();
       setError(
         e instanceof Error && e.name === "NotAllowedError"
@@ -682,13 +692,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   if (compact) {
     return (
       <div className="space-y-2 p-2 text-foreground">
-        {faceFirst ? <><div className="aspen-person-portrait relative mx-auto"><div className={faceLive ? 'invisible' : ''}><PersonPortrait name={name} avatarUrl={avatarUrl} /></div>{avatarView}</div>{phase === 'idle' && <p className="mx-auto w-fit rounded-md bg-card px-2 py-1 text-center text-xs font-semibold">Talk to {name}</p>}</> : avatarView}
+        {faceFirst ? <div className="aspen-person-portrait relative mx-auto"><div className={faceLive ? 'invisible' : ''}><PersonPortrait name={name} avatarUrl={avatarUrl} /></div>{avatarView}</div> : avatarView}
         <div className={faceFirst ? 'space-y-2 rounded-lg border border-primary/40 bg-card p-2 shadow-lg ring-1 ring-foreground/10' : 'space-y-2'}>
         <div className="flex items-center gap-1.5">
           {shownPhase === "connecting" && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" />}
           {shownPhase === "live" && !aspenSpeaking && <Mic className="h-3.5 w-3.5 shrink-0 animate-pulse text-primary" />}
           {shownPhase === "live" && aspenSpeaking && <Volume2 className="h-3.5 w-3.5 shrink-0 animate-pulse text-primary" />}
-          {shownPhase === "idle" && <MicOff className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+          {shownPhase === "idle" && <Play className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
           <p className="min-w-0 break-words text-xs leading-snug text-foreground" role="status">
             {shownPhase === "live" && (
               <span className="font-semibold text-foreground">
@@ -698,6 +708,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             {shownPhase !== "live" && (shownPhase === "idle" ? "Ready to talk" : faceWaiting ? "Connecting…" : status)}
           </p>
         </div>
+        {phase === 'idle' && endedByVisitor && <p className="text-xs text-muted-foreground">Press play to reconnect to {name}.</p>}
 
         {faceFirst && <Button size="icon" variant="ghost" className="h-8 w-8" aria-label={captions ? 'Hide captions' : 'Show captions'} title={captions ? 'Hide captions' : 'Show captions'} aria-expanded={captions} onClick={() => setCaptions(v => !v)}><ChevronsUpDown className="h-4 w-4" /></Button>}
         {playbackCaption && (!faceFirst || captions) && <div className="rounded-md border border-border bg-background/95 p-1.5"><PlaybackCaption caption={playbackCaption} /></div>}
@@ -723,12 +734,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         {transferControl}
         <div className="voice-controls flex flex-wrap items-center justify-center gap-1 [&_button]:h-auto [&_button]:min-h-11 [&_button]:w-auto [&_button]:min-w-11 [&_button]:flex-col [&_button]:gap-1 [&_button]:px-1.5 [&_button]:py-1.5 [&_span]:text-[10px] [&_span]:leading-tight">
           {phase === "idle" ? (
-            <Button size="icon" onClick={() => void startConversation()} title="Start conversation" aria-label="Start conversation">
-              <Mic className="h-4 w-4" />
-              <span>Talk</span>
+            <Button size="icon" onClick={() => void startConversation()} title={`Play to connect to ${name}`} aria-label="Start conversation">
+              <Play className="h-4 w-4" />
+              <span>Play</span>
             </Button>
           ) : (
-            <Button size="icon" variant="destructive" onClick={stopEverything} title="End conversation" aria-label="End conversation">
+            <Button size="icon" variant="destructive" onClick={endByVisitor} title="End conversation" aria-label="End conversation">
               <PhoneOff className="h-4 w-4" />
               <span>End</span>
             </Button>

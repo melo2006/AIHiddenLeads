@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { MessageSquare, Mic, Minus, X, Maximize2 } from 'lucide-react';
+import { MessageSquare, Mic, Minus, X, Maximize2, AudioLines } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import aspenPortrait from '@/assets/aspen-video-frame-final.webp.asset.json';
 
@@ -24,7 +24,7 @@ export default function FloatingPersonFrame({ name = 'Aspen', avatarUrl, open, m
     </>}
     <div className={open ? 'min-h-0' : 'hidden'}>{children}</div>
     {open && <div className="mx-auto flex shrink-0 gap-1" aria-label="Conversation mode">
-      <Button size="icon" className="h-8 w-8" title="Voice" aria-label="Voice" variant={mode === 'voice' ? 'default' : 'outline'} aria-pressed={mode === 'voice'} onClick={() => onMode('voice')}><Mic className="h-3.5 w-3.5" /></Button>
+      {mode === 'chat' && <Button size="icon" className="h-8 w-8" title="Voice" aria-label="Voice" variant="outline" aria-pressed={false} onClick={() => onMode('voice')}><AudioLines className="h-3.5 w-3.5" /></Button>}
       <Button size="icon" className="h-8 w-8" title="Chat" aria-label="Chat" variant={mode === 'chat' ? 'default' : 'outline'} aria-pressed={mode === 'chat'} onClick={() => onMode('chat')}><MessageSquare className="h-3.5 w-3.5" /></Button>
     </div>}
   </section>;
