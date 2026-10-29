@@ -88,7 +88,7 @@ export function startChromaKey(video: HTMLVideoElement, canvas: HTMLCanvasElemen
       gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       const now = performance.now();
-      if (now - lastMeasure > 1000) { lastMeasure = now; recentre(); }
+      void now; void lastMeasure; void recentre;
     }
     handle = v.requestVideoFrameCallback ? v.requestVideoFrameCallback(draw) : requestAnimationFrame(draw);
   };
