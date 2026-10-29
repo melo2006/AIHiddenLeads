@@ -11,7 +11,7 @@ export default function PlaybackCaption({ caption }: { caption: Caption }) {
     if (!panel || !word || Date.now() < touchedUntil.current) return;
     panel.scrollTop = Math.max(0, word.offsetTop - panel.offsetTop - panel.clientHeight / 2);
   }, [caption.word, caption.text]);
-  return <div ref={panelRef} aria-label="Live playback captions" className="relative h-12 overflow-y-auto overscroll-contain text-xs leading-5" onTouchStart={() => { touchedUntil.current = Date.now() + 3000; }} onWheel={() => { touchedUntil.current = Date.now() + 3000; }}>
-    {caption.text.split(/\s+/).map((word, i) => <span key={i} ref={i === caption.word ? wordRef : undefined} className={i === caption.word ? 'rounded-sm bg-primary px-0.5 font-semibold text-primary-foreground' : 'text-foreground'}>{word} </span>)}
+  return <div ref={panelRef} aria-label="Live playback captions" className="relative h-[58px] overflow-y-auto overscroll-contain text-sm font-bold leading-6" onTouchStart={() => { touchedUntil.current = Date.now() + 3000; }} onWheel={() => { touchedUntil.current = Date.now() + 3000; }}>
+    {caption.text.split(/\s+/).map((word, i) => <span key={i} ref={i === caption.word ? wordRef : undefined} className={i === caption.word ? 'rounded-sm bg-primary px-0.5 font-extrabold text-primary-foreground ring-1 ring-primary' : 'text-foreground'}>{word} </span>)}
   </div>;
 }

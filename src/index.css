@@ -112,16 +112,17 @@
 
 @layer utilities {
   .aspen-person-shell { display: flex; flex-direction: column; gap: .25rem; max-width: calc(100vw - 24px); max-height: min(80dvh, var(--aspen-available-height, calc(100dvh - 56px))); overflow-y: auto; overscroll-behavior: auto; }
-  .aspen-person-collapsed { width: 152px; }
+  .aspen-person-collapsed { width: 280px; }
   .aspen-person-expanded { width: 280px; }
-  .aspen-person-portrait { width: 125px; height: 125px; flex-shrink: 0; }
-  .aspen-person-expanded .aspen-person-portrait { width: 163px; height: 163px; }
-  .aspen-person-live-media { transform: scale(1.15); transform-origin: center bottom; }
-  .aspen-person-expanded:has([aria-label="Conversation transcript"].hidden) { width: 240px; }
+  .aspen-person-portrait { width: 187px; height: 187px; flex-shrink: 0; }
+  .aspen-person-expanded .aspen-person-portrait { width: 187px; height: 187px; }
+  .aspen-person-live-media { transform: none; }
+  .aspen-voice-panel { min-height: 232px; }
+  .aspen-caption-space { height: 72px; min-width: 0; }
   @media (max-width: 1024px), (max-height: 700px) {
-    .aspen-person-collapsed { width: 132px; }
-    .aspen-person-portrait { width: 101px; height: 101px; }
-    .aspen-person-expanded .aspen-person-portrait { width: 125px; height: 125px; }
+    .aspen-person-collapsed { width: 280px; }
+    .aspen-person-portrait { width: 144px; height: 144px; }
+    .aspen-person-expanded .aspen-person-portrait { width: 144px; height: 144px; }
     .aspen-person-shell .voice-controls span { display: none; }
     .aspen-person-shell .voice-controls button { min-width: 36px; min-height: 36px; padding: 8px; }
     .aspen-person-shell .aspen-sales-actions { display: none; }

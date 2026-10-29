@@ -1,5 +1,7 @@
 # Current work
 
+- [x] Unified initial/minimized/active face dimensions (144px phone, 187px desktop) and removed speech-dependent panel width and live-only scale. Reserved caption space, enabled captions by default, strengthened current-word/caller text and switched to playback-frame updates with no stream-extension rewind. Nine tests and browser idle/expanded sizes pass, no overflow, build OK. Live speech alignment still needs device verification; provider word timestamps unavailable. Repository lint remains blocked by existing errors outside these changes.
+
 - [x] Enlarged initial/minimized portrait 20%; preserved WebGL last-frame pixels and repeated-stop state. Six focused tests pass; browser verified retained pixels and 101px minimized face without overflow; build OK. Actual live-call stop appearance still needs device verification.
 
 - [x] Cleaned expanded Aspen controls: removed under-face Talk label and redundant voice-mode mic, play to start/reconnect and neutral hint after visitor stop. Invalidated late voice/Simli errors and froze keyed video on intentional stop without keeping sessions open. Two stop regression tests plus audio tests pass, phone no overflow and build OK. Live end/restart appearance remains owner-device verification.
