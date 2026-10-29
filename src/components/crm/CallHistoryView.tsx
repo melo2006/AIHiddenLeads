@@ -7,6 +7,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import ConversationRecordsView from './ConversationRecordsView';
+import CallReportActions from './CallReportActions';
 
 
 
@@ -374,6 +375,7 @@ const CallRow = ({ call }: { call: CallRecord }) => {
           </div>}
 
           {/* Summary */}
+          <CallReportActions records={[call]} allowZapier />
           {call.summary && (
             <div>
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Summary</p>
@@ -458,6 +460,7 @@ const CallHistoryView = () => {
         <p className="text-xs text-muted-foreground">
           {totalCalls} call{totalCalls !== 1 ? "s" : ""} · {transferCalls} transfer{transferCalls !== 1 ? "s" : ""} attempted
         </p>
+        <div className="mt-2"><CallReportActions records={calls ?? []} /></div>
       </div>
 
       {isLoading ? (

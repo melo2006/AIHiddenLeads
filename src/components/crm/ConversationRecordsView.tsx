@@ -3,6 +3,7 @@ import { useQuery,useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import CallReportActions from './CallReportActions';
 type RecordRow={id:string;channel:string;business_name:string;created_at:string;summary_status:string;summary_error?:string;recipient_email?:string;summary?:{summary:string;needs:string[];nextSteps:string[];outreachDraft:string};transcript?:{role:string;text:string}[];audio?:{speaker:string;url:string}[]};
 export default function ConversationRecordsView(){
  const [selected,setSelected]=useState<RecordRow|null>(null);const [draft,setDraft]=useState('');const [busy,setBusy]=useState(false);const qc=useQueryClient();
