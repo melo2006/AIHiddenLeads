@@ -1,5 +1,7 @@
 # Current work
 
+- [ ] Fix long-caption active-word scrolling and add emerald outlines to drag/minimize/close; verify multi-line playback and layout without changing avatar size or voice.
+
 - [x] Unified initial/minimized/active face dimensions (144px phone, 187px desktop) and removed speech-dependent panel width and live-only scale. Reserved caption space, enabled captions by default, strengthened current-word/caller text and switched to playback-frame updates with no stream-extension rewind. Nine tests and browser idle/expanded sizes pass, no overflow, build OK. Live speech alignment still needs device verification; provider word timestamps unavailable. Repository lint remains blocked by existing errors outside these changes.
 
 - [x] Enlarged initial/minimized portrait 20%; preserved WebGL last-frame pixels and repeated-stop state. Six focused tests pass; browser verified retained pixels and 101px minimized face without overflow; build OK. Actual live-call stop appearance still needs device verification.

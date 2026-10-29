@@ -14,8 +14,8 @@ export default function FloatingPersonFrame({ name = 'Aspen', avatarUrl, open, m
 }) {
   return <section aria-label={`${name} floating assistant`} className={`aspen-person-shell ${open ? 'aspen-person-expanded' : 'aspen-person-collapsed'}`}>
     <div className="aspen-person-window-controls sticky top-0 z-10 flex shrink-0 justify-end gap-1">
-      <Button size="icon" variant="secondary" className="h-8 w-8 text-foreground" onClick={open ? onMinimize : onOpen} title={open ? 'Minimize assistant' : 'Expand assistant'} aria-label={open ? 'Minimize assistant' : 'Expand assistant'}>{open ? <Minus className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}</Button>
-      <Button size="icon" variant="secondary" className="h-8 w-8 text-foreground" onClick={onClose} title="Close assistant" aria-label="Close assistant"><X className="h-4 w-4" /></Button>
+      <Button size="icon" variant="secondary" className="h-8 w-8 border border-primary/60 text-foreground" onClick={open ? onMinimize : onOpen} title={open ? 'Minimize assistant' : 'Expand assistant'} aria-label={open ? 'Minimize assistant' : 'Expand assistant'}>{open ? <Minus className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}</Button>
+      <Button size="icon" variant="secondary" className="h-8 w-8 border border-primary/60 text-foreground" onClick={onClose} title="Close assistant" aria-label="Close assistant"><X className="h-4 w-4" /></Button>
     </div>
     {open && mode === 'chat' && <PersonPortrait name={name} avatarUrl={avatarUrl} />}
     {!open && <>
