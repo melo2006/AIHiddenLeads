@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react';
 import { MessageSquare, Mic, Minus, X, Maximize2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import aspenPortrait from '@/assets/aspen-shoulders-512-v2.webp';
+import aspenPortrait from '@/assets/aspen-video-frame-final.webp.asset.json';
 
 export function PersonPortrait({ name = 'Aspen', avatarUrl }: { name?: string; avatarUrl?: string }) {
-  return <img src={avatarUrl || aspenPortrait} alt={name} width={512} height={512} decoding="async" draggable={false} className="aspen-person-portrait mx-auto object-contain" />;
+  return <img src={avatarUrl || aspenPortrait.url} alt={name} width={512} height={512} decoding="async" draggable={false} className="aspen-person-portrait mx-auto object-contain" />;
 }
 
 /** Above her head: only minimize and close (drag lives on the shell). Voice/chat switching sits below the call panel. */
