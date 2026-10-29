@@ -140,11 +140,15 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const lastAudioRef = useRef<string[]>([]);
   const transcriptEndRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
-    const timer = window.setInterval(() => {
+    let frame = 0;
+    const update = () => {
       const ctx = playCtxRef.current;
-      setPlaybackCaption(ctx ? captionClockRef.current.at(ctx.currentTime) : null);
-    }, 80);
-    return () => window.clearInterval(timer);
+      const next = ctx ? captionClockRef.current.at(ctx.currentTime) : null;
+      setPlaybackCaption(previous => previous?.text === next?.text && previous?.word === next?.word ? previous : next);
+      frame = requestAnimationFrame(update);
+    };
+    frame = requestAnimationFrame(update);
+    return () => cancelAnimationFrame(frame);
   }, []);
   const walkthroughRef = useRef({ text: '', continued: false });
   const homepageWalkthroughRef = useRef(false);

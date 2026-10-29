@@ -1,12 +1,12 @@
 /** Playback-clock captions. Word positions are estimated: Live provides text, not word timestamps. */
-type CaptionRun = { text: string; start: number | null; end: number; complete: boolean };
+type CaptionRun = { text: string; start: number | null; end: number; complete: boolean; lastWord: number; lastTime: number };
 export type PlaybackCaption = { text: string; word: number };
 export class PlaybackCaptions {
   private runs: CaptionRun[] = [];
   private current: CaptionRun | null = null;
   private run() {
     if (!this.current) {
-      this.current = { text: '', start: null, end: 0, complete: false };
+      this.current = { text: '', start: null, end: 0, complete: false, lastWord: 0, lastTime: -1 };
       this.runs.push(this.current);
       this.runs = this.runs.slice(-8);
     }
@@ -30,6 +30,10 @@ export class PlaybackCaptions {
     let target = Math.max(0, (time - run.start) / Math.max(.01, run.end - run.start)) * weights.reduce((a, b) => a + b, 0);
     let word = 0;
     while (word < weights.length - 1 && target >= weights[word]) { target -= weights[word]; word++; }
+    // Streaming audio extends the end time; never rewind a highlighted word as that happens.
+    if (time >= run.lastTime) word = Math.max(word, run.lastWord);
+    run.lastTime = time;
+    run.lastWord = word;
     return { text: run.text.trim(), word };
   }
 }
