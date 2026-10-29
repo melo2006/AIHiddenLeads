@@ -65,7 +65,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const [handoffToken, setHandoffToken] = useState<string | null>(null);
   const [handoffActive, setHandoffActive] = useState(false);
   const handoffRef = useRef(false);
-  const [consent, setConsent] = useState(false);
+  const consent = consentReadyRef.current;
   const [voice, setVoice] = useState(() => {
     try { const saved = localStorage.getItem("gemini-aspen-voice"); return VOICES.some(v => v.id === saved) ? saved ?? "Kore" : "Kore"; } catch { return "Kore"; }
   });
@@ -384,7 +384,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         return stream;
       });
       const [session, stream] = await Promise.all([
-        supabase.functions.invoke("gemini-session", { body: { visitorKey, agentId, leadId, prospectId, draft, preview, voice: previewVoice || voice, model: testModel, campaign:campaignVisit(), hour: new Date().getHours(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, visitorName, consent, share: shareToken } }),
+        supabase.functions.invoke("gemini-session", { body: { visitorKey, agentId, leadId, prospectId, draft, preview, voice: previewVoice || voice, model: testModel, campaign:campaignVisit(), hour: new Date().getHours(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, visitorName, consent:consentReadyRef.current, share: shareToken } }),
         microphoneReady,
         playResume,
         micResume,
@@ -595,9 +595,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     {faceFirst && <PersonPortrait name={name} avatarUrl={avatarUrl} />}
     <div className="space-y-3 rounded-md bg-card p-3">
     <p className="text-sm font-semibold">Try a live demo with {name}</p>
-    <p className="text-xs text-muted-foreground">Audio is processed live, not recorded. Saving a transcript is optional.</p>
-    <label className="flex items-start gap-2 text-xs"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)} />Allow a private transcript and service-interest review for our team</label>
-    <Button className="w-full" onClick={()=>{consentReadyRef.current=true;setConsentReady(true);void startConversation();}}><Mic className="mr-2 h-4 w-4"/>Start conversation</Button>
+    <p className="text-xs text-muted-foreground">This call is recorded. Audio, transcript and AI summary are saved privately for our team to review. A copy is emailed only if you ask. Starting means you agree.</p>
+    <Button className="w-full" onClick={()=>{consentReadyRef.current=true;setConsentReady(true);void startConversation();}}><Mic className="mr-2 h-4 w-4"/>Start & agree</Button>
     </div>
   </div>;
 
@@ -766,7 +765,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         {showSettings && (
           <Dialog open={showSettings} onOpenChange={setShowSettings}><DialogContent className="max-h-[85dvh] w-[calc(100vw-24px)] max-w-sm overflow-y-auto"><DialogTitle>Voice settings</DialogTitle><DialogDescription>Microphone and background noise</DialogDescription><div className="space-y-3">
             {phase !== "idle" && <div className="space-y-2 rounded-md border border-border p-3">
-              <p role="status" className="text-xs text-foreground">Noise filtering can change now. Transcript permission, microphone and conversation mode are set before each call.</p>
+              <p role="status" className="text-xs text-foreground">Noise filtering can change now. Microphone and conversation mode are set before each call.</p>
               <Button variant="outline" size="sm" onClick={stopEverything}><PhoneOff className="mr-1.5 h-3.5 w-3.5" />End call to edit settings</Button>
             </div>}
             <label className="block space-y-1 text-xs">Background noise filtering
@@ -774,10 +773,6 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
                 <SelectTrigger aria-label="Microphone sensitivity" className="h-auto min-h-9 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent><SelectItem value="light">Minimum filtering — quiet room</SelectItem><SelectItem value="balanced">Balanced filtering — everyday</SelectItem><SelectItem value="strong">Strong filtering — noisy room</SelectItem></SelectContent>
               </Select>
-            </label>
-            <label className="flex items-start gap-2 text-[11px] text-muted-foreground">
-              <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} disabled={phase !== "idle"} />
-              Allow saving this conversation transcript when enabled by the business
             </label>
             <div>
               <label className="text-[11px] font-semibold text-muted-foreground">Microphone</label>
@@ -867,7 +862,6 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             )}
           </div>
 
-          <label className="flex items-start gap-2 text-xs text-muted-foreground"><input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} disabled={phase !== "idle"} />Allow saving this conversation transcript when enabled by the business</label>
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block space-y-1 text-xs">Background noise filtering
               <Select value={noiseFilter} onValueChange={value => setNoiseFilter(value as NoiseFilter)}>

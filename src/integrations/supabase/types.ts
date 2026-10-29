@@ -545,6 +545,104 @@ export type Database = {
         }
         Relationships: []
       }
+      conversation_copy_links: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          record_id: string
+          revoked_at: string | null
+          token_hash: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          record_id: string
+          revoked_at?: string | null
+          token_hash: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          record_id?: string
+          revoked_at?: string | null
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_copy_links_record_id_fkey"
+            columns: ["record_id"]
+            isOneToOne: false
+            referencedRelation: "conversation_records"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversation_records: {
+        Row: {
+          agent_id: string | null
+          audio_paths: Json
+          business_name: string
+          channel: string
+          copy_requested_at: string | null
+          copy_sent_at: string | null
+          created_at: string
+          ended_at: string | null
+          id: string
+          recipient_email: string | null
+          recipient_name: string | null
+          recording_agreed_at: string | null
+          session_ref: string
+          status: string
+          summary: Json | null
+          summary_error: string | null
+          summary_status: string
+          transcript: Json
+        }
+        Insert: {
+          agent_id?: string | null
+          audio_paths?: Json
+          business_name?: string
+          channel: string
+          copy_requested_at?: string | null
+          copy_sent_at?: string | null
+          created_at?: string
+          ended_at?: string | null
+          id?: string
+          recipient_email?: string | null
+          recipient_name?: string | null
+          recording_agreed_at?: string | null
+          session_ref: string
+          status?: string
+          summary?: Json | null
+          summary_error?: string | null
+          summary_status?: string
+          transcript?: Json
+        }
+        Update: {
+          agent_id?: string | null
+          audio_paths?: Json
+          business_name?: string
+          channel?: string
+          copy_requested_at?: string | null
+          copy_sent_at?: string | null
+          created_at?: string
+          ended_at?: string | null
+          id?: string
+          recipient_email?: string | null
+          recipient_name?: string | null
+          recording_agreed_at?: string | null
+          session_ref?: string
+          status?: string
+          summary?: Json | null
+          summary_error?: string | null
+          summary_status?: string
+          transcript?: Json
+        }
+        Relationships: []
+      }
       customer_workspaces: {
         Row: {
           agent_id: string

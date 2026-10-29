@@ -27,6 +27,7 @@ const BookCall = lazy(() => import("./pages/BookCall.tsx"));
 const Plans = lazy(() => import("./pages/Plans.tsx"));
 const CustomerSetup = lazy(() => import('./pages/CustomerSetup.tsx'));
 const AgentEmbed = lazy(() => import('./pages/AgentEmbed.tsx'));
+const ConversationCopy = lazy(() => import('./pages/ConversationCopy.tsx'));
 
 const queryClient = new QueryClient();
 
@@ -71,6 +72,7 @@ const App = () => {
             <Route path="/embed/:id" element={<AgentEmbed />} />
             <Route path="/checkout/return" element={<CheckoutReturn />} />
             <Route path="/transcript" element={<TranscriptPage />} />
+            <Route path="/conversation-copy" element={<ConversationCopy />} />
             <Route path="/voice-lab" element={<VoiceLab />} />
             <Route path="/book" element={<BookCall />} />
             <Route path="/agent/:id" element={<ClientVoiceAgent />} />
