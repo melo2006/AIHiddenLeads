@@ -23,7 +23,7 @@ export default function FloatingPersonFrame({ name = 'Aspen', avatarUrl, open, m
         <Button size="sm" variant={mode === 'voice' ? 'default' : 'outline'} aria-pressed={mode === 'voice'} onClick={() => onMode('voice')}><Mic className="h-3.5 w-3.5" />Voice</Button>
         <Button size="sm" variant={mode === 'chat' ? 'default' : 'outline'} aria-pressed={mode === 'chat'} onClick={() => onMode('chat')}><MessageSquare className="h-3.5 w-3.5" />Chat</Button>
       </div>
-      {children}
     </>}
+    <div className={open ? 'min-h-0' : 'hidden'}>{children}</div>
   </section>;
 }

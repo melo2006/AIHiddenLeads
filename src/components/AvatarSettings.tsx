@@ -11,6 +11,8 @@ import AvatarDevicePreview from "@/components/AvatarDevicePreview";
 import GeminiConversation from "@/components/GeminiConversation";
 import { VOICES } from "@/components/setup-wizard/wizardModel";
 import aspenFace from "@/assets/aspen_blonde_avatar.jpg";
+import aspenCutout from "@/assets/aspen-transparent-512.webp";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import {
   AVATAR_MAX_SIZE, AVATAR_MIN_SIZE, AVATAR_POSITIONS, AVATAR_SHAPES, PRESET_FACES, type VideoAvatar,
 } from "../../supabase/functions/_shared/video-avatar";
@@ -51,6 +53,7 @@ export default function AvatarSettings({ value, onChange, agentId, beforePreview
   const [previewing, setPreviewing] = useState(false);
   const [testing, setTesting] = useState(false);
   const [preparing, setPreparing] = useState(false);
+  const [confirmAspen, setConfirmAspen] = useState(false);
   useEffect(() => { setTesting(false); avatarRef.current?.stop(); setPreviewing(false); }, [agentId, voice, value.faceId, value.enabled]);
   const fileRef = useRef<HTMLInputElement>(null);
   const avatarRef = useRef<SimliAvatarHandle>(null);
@@ -93,6 +96,15 @@ export default function AvatarSettings({ value, onChange, agentId, beforePreview
     if (!ok) setPreviewing(false);
   }
 
+  async function createAspenFace() {
+    setConfirmAspen(false);
+    try {
+      const response = await fetch(aspenCutout);
+      if (!response.ok) throw new Error('Aspen photo could not load');
+      await upload(new File([await response.blob()], 'Aspen transparent.webp', { type: 'image/webp' }));
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Aspen photo could not load'); }
+  }
+
   async function testConversation() {
     if (testing) { setTesting(false); return; }
     avatarRef.current?.stop(); setPreviewing(false); setPreparing(true);
@@ -123,10 +135,11 @@ export default function AvatarSettings({ value, onChange, agentId, beforePreview
 
           <div className="space-y-2 rounded-xl border-2 border-dashed border-border p-3">
             <p className="flex items-center gap-2 text-sm font-semibold"><UploadCloud className="h-4 w-4 text-primary" />Or create a face from a photo</p>
-            <p className="text-[11px] text-muted-foreground">One person facing the camera, waist-up, good light. Simli frames it and keeps the photo's background, so a plain or transparent-background PNG looks cleanest. Each new face uses one Simli avatar generation.</p>
+            <p className="text-[11px] text-muted-foreground">One person facing the camera, good light. Each new face uses one Simli avatar generation. A transparent photo does not guarantee a transparent live video.</p>
             <Input aria-label="Face name" placeholder="Face name, e.g. Lucy" maxLength={60} value={faceName} onChange={(e) => setFaceName(e.target.value)} />
             <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => void upload(e.target.files?.[0])} />
             <Button variant="outline" className="w-full" disabled={uploading} onClick={() => fileRef.current?.click()}>{uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UploadCloud className="mr-2 h-4 w-4" />}{uploading ? "Sending photo…" : "Upload photo"}</Button>
+            {adminPreview && <div className="flex items-center gap-3"><img src={aspenCutout} width={64} height={64} alt="Transparent Aspen portrait" className="h-16 w-16 object-contain" /><Button variant="outline" disabled={uploading} className="h-auto whitespace-normal text-xs" onClick={() => setConfirmAspen(true)}>Create face from Aspen photo</Button></div>}
             {pending && <p role="status" className="text-xs text-primary">New face: {pending.status === "completed" ? "ready and selected" : pending.status === "failed" ? "failed" : `building (${pending.status}) — you can keep going; it's selected when ready`}</p>}
           </div>
 
@@ -152,6 +165,7 @@ export default function AvatarSettings({ value, onChange, agentId, beforePreview
         {agentId && <><Button className="w-full" disabled={preparing} onClick={() => void testConversation()}>{preparing ? <Loader2 className="animate-spin"/> : testing ? <Square/> : <Mic/>}{preparing ? 'Saving your choices…' : testing ? 'Close test' : `Test ${name} · ${voice}`}</Button>{testing && <GeminiConversation draft agentId={agentId} compact name={name} previewVoice={voice} videoAvatar={value} avatarInline />}</>}
         <p className="text-[11px] text-muted-foreground">Test usage counts toward voice and video limits. Video plan pricing is not finalized.</p>
       </div>
+      <Dialog open={confirmAspen} onOpenChange={setConfirmAspen}><DialogContent><DialogTitle>Create Aspen in Simli?</DialogTitle><DialogDescription>This sends the optimized portrait to Simli and uses one avatar generation. Your current live face stays unchanged until the new face is ready and you explicitly apply it.</DialogDescription><Button disabled={uploading} onClick={() => void createAspenFace()}><UploadCloud />Create Aspen face</Button></DialogContent></Dialog>
     </div>
   );
 }
