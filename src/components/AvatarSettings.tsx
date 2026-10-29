@@ -54,6 +54,8 @@ export default function AvatarSettings({ value, onChange, agentId, beforePreview
   const [testing, setTesting] = useState(false);
   const [preparing, setPreparing] = useState(false);
   const [confirmAspen, setConfirmAspen] = useState(false);
+  const [photoUnlocked, setPhotoUnlocked] = useState<boolean>(adminPreview);
+  useEffect(() => { if (adminPreview) { setPhotoUnlocked(true); return; } if (!agentId) { setPhotoUnlocked(false); return; } let live = true; void call({ action: "avatarCredit", agentId }).then(d => { if (live) setPhotoUnlocked(Boolean(d.unlocked)); }).catch(() => { if (live) setPhotoUnlocked(false); }); return () => { live = false; }; }, [agentId, adminPreview]);
   useEffect(() => { setTesting(false); avatarRef.current?.stop(); setPreviewing(false); }, [agentId, voice, value.faceId, value.enabled]);
   const fileRef = useRef<HTMLInputElement>(null);
   const avatarRef = useRef<SimliAvatarHandle>(null);
@@ -147,10 +149,19 @@ export default function AvatarSettings({ value, onChange, agentId, beforePreview
 
           <div className="space-y-2 rounded-xl border-2 border-dashed border-border p-3">
             <p className="flex items-center gap-2 text-sm font-semibold"><UploadCloud className="h-4 w-4 text-primary" />Or create a face from a photo</p>
-            <p className="text-[11px] text-muted-foreground">One person facing the camera, good light. Each new face uses one Simli avatar generation. A transparent photo does not guarantee a transparent live video.</p>
+            <p className="text-[11px] text-muted-foreground">Library faces above are free. A custom face from your own photo is a <strong>$50 one-time add-on</strong>.</p>
+            <ul className="list-disc pl-4 space-y-0.5 text-[11px] text-muted-foreground">
+              <li>PNG or JPG, at least 1024×1024 px, square, under 10 MB.</li>
+              <li>One person, head and shoulders, facing straight at the camera at eye level.</li>
+              <li>Natural, relaxed expression with mouth closed: no big smile, no teeth showing.</li>
+              <li>Even, soft light; no sunglasses, hats, hands or hair covering the face.</li>
+              <li>Plain background. A transparent photo does not guarantee a transparent live video.</li>
+              <li>Building the face can take several minutes up to about 24 hours. Your current face stays live until it is ready.</li>
+            </ul>
+            {!photoUnlocked && <p role="status" className="rounded-md border border-border bg-muted p-2 text-[11px] text-muted-foreground">Locked: add the $50 custom avatar option at checkout to unlock photo upload, or contact support at info@aihiddenleads.com.</p>}
             <Input aria-label="Face name" placeholder="Face name, e.g. Lucy" maxLength={60} value={faceName} onChange={(e) => setFaceName(e.target.value)} />
             <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => void upload(e.target.files?.[0])} />
-            <Button variant="outline" className="w-full" disabled={uploading} onClick={() => fileRef.current?.click()}>{uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UploadCloud className="mr-2 h-4 w-4" />}{uploading ? "Sending photo…" : "Upload photo"}</Button>
+            <Button variant="outline" className="w-full" disabled={uploading || !photoUnlocked} onClick={() => fileRef.current?.click()}>{uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UploadCloud className="mr-2 h-4 w-4" />}{uploading ? "Sending photo…" : "Upload photo"}</Button>
             {adminPreview && <div className="flex items-center gap-3"><img src={aspenCutout} width={64} height={64} alt="Transparent Aspen portrait" className="h-16 w-16 object-contain" /><Button variant="outline" disabled={uploading} className="h-auto whitespace-normal text-xs" onClick={() => setConfirmAspen(true)}>Create face from Aspen photo</Button></div>}
             {pending && <p role="status" className="text-xs text-primary">New face: {pending.status === "completed" ? "ready and selected" : pending.status === "failed" ? "failed" : `building (${pending.status}) — you can keep going; it's selected when ready`}</p>}
           </div>
