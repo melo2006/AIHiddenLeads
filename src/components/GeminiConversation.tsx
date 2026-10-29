@@ -255,7 +255,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     heldAudioRef.current = [];
     for (const source of sourcesRef.current) { try { source.stop(); } catch { /* Already stopped. */ } }
     sourcesRef.current.clear();
-    captionClockRef.current.clear(); setPlaybackCaption(null);
+    captionClockRef.current.clear(); setPlaybackCaption(p => p ? { ...p, word: -1 } : null);
     setMicLevel(0);
     avatarRef.current?.stop();
     avatarStartingRef.current = false; heldAudioRef.current = []; avatarRequestedRef.current = false; setFaceWaiting(false);
@@ -338,7 +338,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     for (const source of sourcesRef.current) { try { source.stop(); } catch { /* Already stopped. */ } }
     sourcesRef.current.clear();
     avatarRef.current?.clear();
-    captionClockRef.current.clear(); setPlaybackCaption(null);
+    captionClockRef.current.clear(); setPlaybackCaption(p => p ? { ...p, word: -1 } : null);
     playTimeRef.current = playCtxRef.current?.currentTime ?? 0;
     setAspenSpeaking(false);
   }, []);
@@ -404,7 +404,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     }).catch(() => { window.clearTimeout(timer); release(); });
   }, []);
 
+  const reconnectRef = useRef({ pending: false, count: 0 });
+  const startConversationRef = useRef<(preview?: boolean) => Promise<void>>(async () => {});
   const startConversation = useCallback(async (preview = false) => {
+    const reconnecting = reconnectRef.current.pending; reconnectRef.current.pending = false;
+    if (!reconnecting) reconnectRef.current.count = 0;
     if (startingRef.current || liveRef.current) return;
     if (!preview && !consentReadyRef.current) { setConsentReady(false); return; }
     startingRef.current = true;
@@ -459,7 +463,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         return stream;
       });
       const [session, stream] = await Promise.all([
-        supabase.functions.invoke("gemini-session", { body: { visitorKey, agentId, leadId, prospectId, draft, preview, voice: previewVoice || voice, model: testModel, campaign:campaignVisit(), hour: new Date().getHours(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, visitorName, consent:consentReadyRef.current, share: shareToken, resumeContext } }),
+        supabase.functions.invoke("gemini-session", { body: { visitorKey, agentId, leadId, prospectId, draft, preview, voice: previewVoice || voice, model: testModel, campaign:campaignVisit(), hour: new Date().getHours(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, visitorName, consent:consentReadyRef.current, share: shareToken, resumeContext, reconnect: reconnecting && !!resumeContext } }),
         microphoneReady,
         playResume,
         micResume,
@@ -622,6 +626,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         if (generation !== generationRef.current) return;
         if (liveRef.current) {
           stopEverything();
+          // Hosting can drop long-lived sockets (1006/1011); quietly resume the same conversation a few times.
+          if ((event.code === 1006 || event.code === 1011) && reconnectRef.current.count < 3) {
+            reconnectRef.current = { pending: true, count: reconnectRef.current.count + 1 };
+            setStatus("Reconnecting…");
+            window.setTimeout(() => { void startConversationRef.current(); }, 400);
+            return;
+          }
           setError(voiceDisconnectMessage(event.code, event.reason));
         } else {
           setPhase("idle");
@@ -643,6 +654,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     }
   }, [voice, microphone, captureMode, refreshMicrophones, playPcmChunk, clearPlayback, flushLine, stopEverything, agentId, leadId, prospectId, draft, previewVoice, previewAudioContext, visitorName, consent, testModel, shareToken, onRecommendedPlan, videoAvatar, startFace]);
 
+  startConversationRef.current = startConversation;
   useEffect(() => stopEverything, [stopEverything]);
 
   // Auto-connect once when the widget opens (the open tap is the user gesture
