@@ -7,7 +7,7 @@ Deno.serve(async req=>{
  const event=await verifyWebhook(req,env);const obj=event.data.object;const db=createClient(Deno.env.get('SUPABASE_URL')||'',Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')||'');const stripe=createStripeClient(env);
  if(event.type.startsWith('customer.subscription.'))await syncSubscription(db,stripe,obj.id,env);
  if(event.type==='checkout.session.completed'||event.type==='checkout.session.async_payment_succeeded'){
-  const session=await stripe.checkout.sessions.retrieve(obj.id);if(session.payment_status==='paid'&&session.subscription&&session.metadata?.userId){const sub=await syncSubscription(db,stripe,typeof session.subscription==='string'?session.subscription:session.subscription.id,env);if(sub?.status==='active')await provisionCustomer(db,session.metadata.userId,env);}
+  const session=await stripe.checkout.sessions.retrieve(obj.id);if(session.payment_status==='paid'&&session.subscription&&session.metadata?.userId){const sub=await syncSubscription(db,stripe,typeof session.subscription==='string'?session.subscription:session.subscription.id,env);if(sub?.status==='active')await provisionCustomer(db,session.metadata.userId,env);if(session.metadata.custom_avatar==='true'){const {error}=await db.from('custom_avatar_credits').upsert({user_id:session.metadata.userId,environment:env,checkout_session_id:session.id},{onConflict:'checkout_session_id',ignoreDuplicates:true});if(error)throw error;}}
  }
  if(event.type==='invoice.paid'){
   const subscription=obj.parent?.subscription_details?.subscription||obj.subscription;if(subscription)await syncSubscription(db,stripe,typeof subscription==='string'?subscription:subscription.id,env);

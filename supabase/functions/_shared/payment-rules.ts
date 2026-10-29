@@ -1,4 +1,5 @@
 export const PAYMENT_PLANS = { essentials_monthly: 9900, growth_monthly: 19900, fullservice_monthly: 34900 } as const;
+export const CUSTOM_AVATAR_PRICE = { id: 'custom_avatar_once', amount: 5000 } as const;
 export function validPaymentPlan(value: unknown): value is keyof typeof PAYMENT_PLANS { return typeof value === 'string' && value in PAYMENT_PLANS; }
 export function paidAccess(status: string, end: string | null, now = Date.now()) {
   return ['active','past_due','canceled'].includes(status) && (end ? Date.parse(end) > now : status !== 'canceled');

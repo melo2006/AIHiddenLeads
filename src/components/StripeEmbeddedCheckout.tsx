@@ -9,6 +9,7 @@ interface StripeEmbeddedCheckoutProps {
   userId?: string;
   returnUrl?: string;
   onUnavailable?: () => void;
+  customAvatar?: boolean;
 }
 
 export function StripeEmbeddedCheckout({
@@ -18,10 +19,11 @@ export function StripeEmbeddedCheckout({
   userId,
   returnUrl,
   onUnavailable,
+  customAvatar,
 }: StripeEmbeddedCheckoutProps) {
   const fetchClientSecret = async (): Promise<string> => {
     const { data, error } = await supabase.functions.invoke("create-checkout", {
-      body: { priceId, quantity, customerEmail, userId, returnUrl, environment: getStripeEnvironment() },
+      body: { priceId, quantity, customerEmail, userId, returnUrl, customAvatar, environment: getStripeEnvironment() },
     });
     if (error || !data?.clientSecret) {
       onUnavailable?.();
