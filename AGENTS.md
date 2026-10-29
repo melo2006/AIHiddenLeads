@@ -16,7 +16,7 @@
 - Apply saved reading size through root rem sizing, with wrapping and scrollable navigation rather than CSS page zoom, to avoid horizontal clipping.
 - Keep microphone amplitude filtering browser-side with silence frames and speech-tail hangover; Gemini language and provider VAD remain server-side.
 - Render transcript messages with AI Elements MessageResponse; the demo shares one floating shell around existing chat and Gemini voice transports, ending microphone capture when leaving voice mode so text chat never captures audio.
-- Share launcher face/label across Aspen widgets. Portal floating shells to body; derive lower-right corner from current viewport and measured size. Keep manual dragging until open/close reset, composer outside transcript, dialogs/selects above widgets.
+- Share FloatingPersonFrame/GeminiConversation across assistants. Portal to body; measure viewport corner, reset drag on open/close. Minimize keeps calls mounted; close unmounts. Keep composer separate and dialogs above.
 - Prebundle transcript renderer dependencies and recover stale Vite chunk loads once per minute; preview updates must not leave open tabs blank or cause reload loops.
 - Build prospect simulation configurations separately from homepage sales configurations, sharing only voice identity so platform greetings never leak into business roleplay.
 - Store editable prospect simulation templates separately from homepage sales templates; platform actions require explicit on-screen confirmation and never act for the simulated business.
@@ -46,4 +46,4 @@
 - Read subdirectory AGENTS.md before edits.
 - Share customer/admin setup with real ingestion/Gemini tests; admin drafts never grant payment access. Publish only explicitly. Prefer captured originals over iframe checks; guard loading and save before switching drafts to prevent lost work.
 - Share drafts only via hashed, expiring server-resolved tokens: appearance-only responses, visitor quota, no handoff.
-- Simli lip-syncs Gemini; server-resolved faces, private secrets, voice fallback. Share scaled device layouts and click-gated draft voice/face tests in admin/wizard.
+- Simli lip-syncs Gemini; server-resolved faces, private secrets, optimized photo fallback, no assumed video alpha. Share device layouts and click-gated tests.
