@@ -41,7 +41,27 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
   const [keyed, setKeyed] = useState(false);
   const pendingRef = useRef<Uint8Array>(new Uint8Array(0));
   const flushRef = useRef<ReturnType<typeof setTimeout>>();
-  const flushAudio = (client: SimliClient) => { const data = pendingRef.current; pendingRef.current = new Uint8Array(0); if (data.length) client.sendAudioData(data); };
+  const sentBytesRef = useRef(0);
+  const flushAudio = (client: SimliClient) => { const data = pendingRef.current; pendingRef.current = new Uint8Array(0); if (data.length) { client.sendAudioData(data); sentBytesRef.current += data.length; } };
+  // ?avatarDebug=1 shows Simli's raw frame and counters so device tests can report what actually arrives.
+  const debug = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('avatarDebug');
+  const [stats, setStats] = useState('');
+  useEffect(() => {
+    if (!debug) return;
+    const id = window.setInterval(() => {
+      const v = videoRef.current as (HTMLVideoElement & { getVideoPlaybackQuality?: () => { totalVideoFrames: number } }) | null;
+      setStats(v ? `${v.videoWidth}x${v.videoHeight} · frames ${v.getVideoPlaybackQuality?.().totalVideoFrames ?? '?'} · t ${v.currentTime.toFixed(1)}s · sent ${(sentBytesRef.current / 32000).toFixed(1)}s audio` : 'no video');
+    }, 500);
+    return () => window.clearInterval(id);
+  }, [debug]);
+  const debugCanvasRef = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    if (!debug) return;
+    let raf = 0;
+    const tick = () => { const v = videoRef.current, c = debugCanvasRef.current; if (v && c && v.videoWidth) { c.width = v.videoWidth; c.height = v.videoHeight; c.getContext('2d')?.drawImage(v, 0, 0); } raf = requestAnimationFrame(tick); };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [debug]);
   const clientRef = useRef<SimliClient | null>(null);
   const liveRef = useRef(false);
   const [state, setState] = useState<"idle" | "connecting" | "live" | "failed">("idle");
@@ -67,7 +87,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
         await new Promise((r) => requestAnimationFrame(r));
         if (!videoRef.current || !audioRef.current) throw new Error("Avatar view is not ready");
         const { token, chromaKey } = await sessionToken({ agentId, shareToken, draft, faceId: faceOverride });
-        const client = new SimliClient(token, videoRef.current, audioRef.current, null, LogLevel.ERROR, (localStorage.getItem("simli-transport") === "p2p" ? "p2p" : "livekit"));
+        const client = new SimliClient(token, videoRef.current, audioRef.current, null, LogLevel.ERROR, "livekit");
         clientRef.current = client;
         client.on("stop", () => { if (clientRef.current === client) { clientRef.current = null; setLive(false); setState("failed"); setReason('Video disconnected'); } });
         client.on("warning" as never, ((m: unknown) => console.warn("Simli:", m)) as never);
@@ -125,7 +145,8 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
       {state === "failed" && <div role="status" className={`${unboxed ? 'absolute bottom-0 inset-x-0 rounded-md bg-background/95' : 'absolute inset-0 bg-card/90'} flex items-center justify-center p-2 text-center text-[11px] text-destructive`}>{reason || "Video avatar unavailable"} · voice continues</div>}
     </div>
   );
-  return inline ? frame : createPortal(frame, document.body);
+  const debugPanel = debug && visible ? createPortal(<div className="fixed left-2 top-16 z-[200] w-56 rounded-md border border-primary bg-card p-1 text-[10px] text-foreground"><canvas ref={debugCanvasRef} className="w-full bg-muted" /><p>{state} · {stats}</p></div>, document.body) : null;
+  return <>{inline ? frame : createPortal(frame, document.body)}{debugPanel}</>;
 });
 SimliAvatar.displayName = "SimliAvatar";
 export default SimliAvatar;
