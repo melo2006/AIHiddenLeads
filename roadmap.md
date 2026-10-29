@@ -1,5 +1,9 @@
 # Current work
 
+- [x] Create and inspect a 1920×1920 transparent portrait preserving the existing blonde Aspen identity; downloadable PNG verified with alpha channel and light/dark inspection.
+- [ ] Implement face-first floating assistant on homepage, demo and customer widgets: unboxed portrait, Talk to agent name, drag/minimize/close, two-line transcript and shared call controls. Awaiting focused presentation plan approval.
+- [ ] Create/select the new Aspen face in Simli and verify returned video/lip-sync and background behavior before replacing the current live face; transparent source alone does not prove alpha video.
+
 - [x] Homepage launcher now identifies video/voice; live face is inside homepage call panel. Fixed missing avatar config dependency and first-click consent/ref race. Real test returned voice 200 and Simli session 200; zero session requests before click. Added bounded video startup failure with voice fallback; seven avatar tests pass.
 - [ ] Confirm homepage live video frames/lip-sync on owner device: sandbox real sessions authorized but video frames did not arrive, so rendering is not verified. No public pricing changes or publication performed.
 
