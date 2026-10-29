@@ -608,6 +608,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     startFace(generationRef.current);
   }, [videoAvatar?.enabled, phase, previewOnly, startFace]);
 
+  // A later launcher tap (after the recording notice was shown) also counts as agreement.
+  useEffect(() => { if (consentOnOpen && !consentReadyRef.current) { consentReadyRef.current = true; setConsentReady(true); } }, [consentOnOpen]);
   const autoStartedRef = useRef(false);
   useEffect(() => {
     if (!compact || !autoStart || autoStartedRef.current) return;

@@ -24,7 +24,7 @@ export default function GeminiAgentWidget({ agentId, leadId, prospectId, busines
  const isMobile=useIsMobile();
  useEffect(()=>{let active=true;void preloadVoiceIdentity(agentId).then(data=>{if(!active)return;if(data?.name)setIdentity({...data,businessName:businessName||data.businessName});});return()=>{active=false;};},[agentId,leadId,prospectId,businessName]);
  const openWidget=()=>{setHasOpened(true);setClickedOpen(true);setOpen(true);};
- useEffect(()=>{if(agentId || !floating)return;const show=(event:Event)=>{const next=(event as CustomEvent).detail?.mode==='chat'?'chat':'voice';setMode(next);setChatVisited(next==='chat');setHasOpened(true);setClickedOpen(false);setDismissed(false);setOpen(true);};window.addEventListener('open-homepage-aspen',show);return()=>window.removeEventListener('open-homepage-aspen',show);},[agentId,floating]);
+ useEffect(()=>{if(agentId || !floating)return;const show=(event:Event)=>{const next=(event as CustomEvent).detail?.mode==='chat'?'chat':'voice';setMode(next);setChatVisited(next==='chat');setHasOpened(true);setClickedOpen((event as CustomEvent).detail?.start===true);setDismissed(false);setOpen(true);};window.addEventListener('open-homepage-aspen',show);return()=>window.removeEventListener('open-homepage-aspen',show);},[agentId,floating]);
  const faceUrl = agentId ? identity.avatarUrl : undefined;
  const closeAssistant=()=>{setDismissed(true);onClose?.();};
  const changeMode=(next:'voice'|'chat')=>{setMode(next);if(next==='chat')setChatVisited(true);};
