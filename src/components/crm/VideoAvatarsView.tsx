@@ -47,6 +47,16 @@ export default function VideoAvatarsView() {
       toast.success('Face and voice saved to this draft. Homepage unchanged.'); return true;
     } finally { setBusy(false); }
   }
+  async function applyHomepageFace(faceId: string, label: string) {
+    setBusy(true);
+    try {
+      const { error: applyError } = await supabase.functions.invoke('simli-avatar', { body: { action: 'applyHomepage', avatar: { ...DEFAULT_VIDEO_AVATAR, enabled: true, faceId, size: 160, shape: 'rounded' } } });
+      if (applyError) { toast.error('Could not update the homepage face'); return false; }
+      toast.success(`${label} is now the homepage face. Refresh the homepage to test.`);
+      return true;
+    } finally { setBusy(false); }
+  }
+
   async function activateAspen() {
     const faceId = 'ed8fedd9-6c86-4dc5-bb3a-017c06146efc';
     setBusy(true);
@@ -55,9 +65,8 @@ export default function VideoAvatarsView() {
       if (error) { toast.error('Could not check Aspen'); return; }
       setAspenStatus(String(data.status));
       if (data.status !== 'completed') { toast.info('Aspen is still being created. The matching photo and voice remain available.'); return; }
-      const { error: applyError } = await supabase.functions.invoke('simli-avatar', { body: { action: 'applyHomepage', avatar: { ...DEFAULT_VIDEO_AVATAR, enabled: true, faceId, size: 160, shape: 'rounded' } } });
-      if (applyError) { toast.error('Could not activate Aspen'); return; }
-      toast.success('Matching Aspen face activated on homepage and demos. Refresh to test.');
+      setBusy(false);
+      await applyHomepageFace(faceId, 'Matching Aspen face');
     } finally { setBusy(false); }
   }
 
