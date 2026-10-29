@@ -46,6 +46,10 @@ type Phase = "idle" | "connecting" | "live" | "preview";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const WS_URL = SUPABASE_URL.replace(/^https/, "wss") + "/functions/v1/gemini-live-proxy";
+/** Longest wait for the face before the voice starts anyway. */
+const AVATAR_HOLD_MS = 12000;
+/** Seconds of local-voice delay so Simli's lip movement lines up with what callers hear. */
+const AVATAR_LIP_LAG = 0.25;
 
 export interface GeminiConversationProps { agentId?: string; leadId?: string; prospectId?: string; draft?: boolean; compact?: boolean; name?: string; visitorName?: string; previewVoice?: string; autoStart?: boolean; previewOnly?: boolean; previewAudioContext?: AudioContext; testModel?: string; shareToken?: string; onRecommendedPlan?: (plan: SalesPlan) => void; videoAvatar?: VideoAvatar; avatarInline?: boolean; faceFirst?: boolean; avatarUrl?: string; }
 const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compact = false, name = "Aspen", visitorName = "", previewVoice, autoStart = false, previewOnly = false, previewAudioContext, testModel, shareToken, onRecommendedPlan, videoAvatar, avatarInline = false, faceFirst = false, avatarUrl }: GeminiConversationProps) => {
@@ -223,6 +227,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     sourcesRef.current.clear();
     setMicLevel(0);
     avatarRef.current?.stop();
+    avatarStartingRef.current = false; heldAudioRef.current = [];
     avatarLiveRef.current = false;
     try { wsRef.current?.close() } catch { /* ignore */ }
     wsRef.current = null;
