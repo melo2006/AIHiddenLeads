@@ -6,6 +6,9 @@
 /** Key-green distance thresholds in normalised CbCr space; shared by the shader and the JS reference. */
 export const CHROMA_LOW = 0.12;
 export const CHROMA_HIGH = 0.22;
+/** Simli may pad the frame with pure black outside the backdrop; treat near-black padding as transparent too. */
+export const BLACK_LOW = 0.02;
+export const BLACK_HIGH = 0.06;
 function cbcr(r: number, g: number, b: number): [number, number] {
   return [-0.168736 * r - 0.331264 * g + 0.5 * b, 0.5 * r - 0.418688 * g - 0.081312 * b];
 }
@@ -16,7 +19,7 @@ const smooth = (e0: number, e1: number, x: number) => { const t = Math.min(1, Ma
 /** Alpha (0 transparent … 1 opaque) for one pixel with channels in 0..1. */
 export function chromaAlpha(r: number, g: number, b: number): number {
   const [cb, cr] = cbcr(r, g, b);
-  return smooth(CHROMA_LOW, CHROMA_HIGH, Math.hypot(cb - KCB, cr - KCR));
+  return smooth(CHROMA_LOW, CHROMA_HIGH, Math.hypot(cb - KCB, cr - KCR)) * smooth(BLACK_LOW, BLACK_HIGH, Math.max(r, g, b));
 }
 
 /** Removes green spill from hair and shoulder edges. */
@@ -27,7 +30,7 @@ export function despill(r: number, g: number, b: number): number {
 const VERT = `attribute vec2 p;varying vec2 uv;void main(){uv=vec2((p.x+1.)/2.,(1.-p.y)/2.);gl_Position=vec4(p,0.,1.);}`;
 const FRAG = `precision mediump float;varying vec2 uv;uniform sampler2D t;
 vec2 cc(vec3 c){return vec2(-0.168736*c.r-0.331264*c.g+0.5*c.b,0.5*c.r-0.418688*c.g-0.081312*c.b);}
-void main(){vec4 c=texture2D(t,uv);float d=distance(cc(c.rgb),cc(vec3(0.,1.,0.)));float a=smoothstep(${CHROMA_LOW.toFixed(3)},${CHROMA_HIGH.toFixed(3)},d);
+void main(){vec4 c=texture2D(t,uv);float d=distance(cc(c.rgb),cc(vec3(0.,1.,0.)));float a=smoothstep(${CHROMA_LOW.toFixed(3)},${CHROMA_HIGH.toFixed(3)},d);float mx=max(c.r,max(c.g,c.b));a*=smoothstep(${BLACK_LOW.toFixed(3)},${BLACK_HIGH.toFixed(3)},mx);
 c.g=min(c.g,max(c.r,c.b));gl_FragColor=vec4(c.rgb*a,a);}`;
 
 /** Starts drawing the keyed video into the canvas; returns a stop function. Returns null when WebGL is unavailable. */

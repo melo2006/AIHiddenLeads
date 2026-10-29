@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
       // Public sessions get a shorter idle window so an abandoned tab stops using avatar minutes.
       // A flat key-green backdrop lets the browser cut the person out so she floats like the static photo.
       const backgroundId = await chromaBackgroundId(apiKey).catch(() => null);
-      const config = { faceId, handleSilence: true, maxSessionLength: publicSession ? 1800 : 3600, maxIdleTime: publicSession ? 60 : 300, ...(backgroundId ? { background_id: backgroundId } : {}) };
+      const config = { faceId, handleSilence: true, maxSessionLength: publicSession ? 1800 : 3600, maxIdleTime: publicSession ? 60 : 300, ...(backgroundId ? { background_id: backgroundId, streaming_width: 512, streaming_height: 512, avatar_position_x: 0.5, avatar_position_y: 1 } : {}) };
       let res = await fetch(`${SIMLI}/compose/token`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-simli-api-key': apiKey }, body: JSON.stringify(config) });
       // Older (non Trinity-2) faces may reject the framing fields; retry with the face's own look.
       if (!res.ok && backgroundId && res.status === 422) res = await fetch(`${SIMLI}/compose/token`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-simli-api-key': apiKey }, body: JSON.stringify({ faceId, handleSilence: true, maxSessionLength: config.maxSessionLength, maxIdleTime: config.maxIdleTime }) });
