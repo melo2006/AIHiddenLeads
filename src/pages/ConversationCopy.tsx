@@ -1,0 +1,7 @@
+import { useEffect,useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+export default function ConversationCopy(){
+ const [record,setRecord]=useState<{transcript:{role:string;text:string}[];summary?:{summary:string;nextSteps:string[]};summary_status:string}|null>(null);const [error,setError]=useState('');
+ useEffect(()=>{const token=window.location.hash.slice(1);void supabase.functions.invoke('conversation-records',{body:{action:'copy',token}}).then(({data,error})=>{if(error)setError('This private link is unavailable or expired.');else setRecord(data.record);});},[]);
+ return <main className="mx-auto min-h-screen max-w-3xl space-y-6 bg-background p-6 text-foreground"><h1 className="text-2xl font-bold">Your Aspen conversation</h1>{error?<p role="alert">{error}</p>:!record?<p>Loading private copy…</p>:<><section><h2 className="text-lg font-semibold">AI summary</h2><p className="text-sm">{record.summary?.summary||'Summary is unavailable.'}</p>{record.summary?.nextSteps.map((s,i)=><p key={i} className="text-sm">{s}</p>)}<p className="text-xs text-muted-foreground">AI summaries can contain mistakes.</p></section><section className="space-y-2"><h2 className="text-lg font-semibold">Transcript</h2>{record.transcript.map((t,i)=><p key={i} className="whitespace-pre-wrap text-sm"><strong>{t.role}: </strong>{t.text}</p>)}</section></>}</main>;
+}

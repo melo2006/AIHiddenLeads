@@ -32,6 +32,7 @@ const PrivacyPolicy = () => {
               <li><strong className="text-foreground">Business Information:</strong> Publicly available business data including website content, contact details, ratings, and social media profiles obtained through our lead generation services.</li>
               <li><strong className="text-foreground">Usage Data:</strong> Browser type, IP address, pages visited, time spent on pages, and other analytics data.</li>
               <li><strong className="text-foreground">Communication Data:</strong> Records of calls, SMS messages, emails, and chat interactions processed through our platform.</li>
+              <li><strong className="text-foreground">Assistant conversations:</strong> After the recording notice and your agreement, voice audio, voice/chat transcripts and AI summaries are stored privately for authorized review and service quality. You may decline by not starting. Recording agreement is not marketing or model-training consent. A requested transcript/summary email uses a private link valid for seven days; anyone with that link can read the copy. Audio is not included in that visitor link. Contact info@aihiddenleads.com for access or deletion requests.</li>
             </ul>
           </section>
 
