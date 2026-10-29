@@ -12,6 +12,7 @@ const body = z.discriminatedUnion('action', [
   z.object({ action: z.literal('session'), agentId: z.string().max(80).optional(), shareToken: z.string().max(80).optional(), draft: z.boolean().optional(), faceId: z.string().max(80).optional() }),
   z.object({ action: z.literal('faces') }),
   z.object({ action: z.literal('createFace'), agentId: z.string().uuid().optional(), name: z.string().min(1).max(60), imageBase64: z.string().min(100).max(14_000_000), mimeType: z.enum(['image/png', 'image/jpeg', 'image/webp']) }),
+  z.object({ action: z.literal('avatarCredit'), agentId: z.string().uuid() }),
   z.object({ action: z.literal('status'), faceId: z.string().max(80) }),
   z.object({ action: z.literal('applyHomepage'), avatar: z.record(z.unknown()) }),
 ]);
@@ -87,8 +88,29 @@ Deno.serve(async (req) => {
     }
 
     if (!user) return json({ error: 'Sign in required' }, 401);
+    // Custom photo faces are a paid one-time add-on for customers; admins are exempt.
+    const unusedCredit = async (agentId: string) => {
+      const a = await editorOf(agentId); if (!a) return { agent: null, credit: null };
+      const { data: ws } = await db.from('customer_workspaces').select('user_id,environment').eq('organization_id', a.organization_id).maybeSingle();
+      if (!ws) return { agent: a, credit: null };
+      const { data: credit } = await db.from('custom_avatar_credits').select('id').eq('user_id', ws.user_id).eq('environment', ws.environment).is('used_at', null).limit(1).maybeSingle();
+      return { agent: a, credit };
+    };
+    if (b.action === 'avatarCredit') {
+      if (admin) return json({ unlocked: true, admin: true });
+      const { agent, credit } = await unusedCredit(b.agentId);
+      if (!agent) return json({ error: 'Access denied' }, 403);
+      return json({ unlocked: Boolean(credit) });
+    }
     if (b.action === 'createFace') {
-      if (!admin && !(b.agentId && await editorOf(b.agentId))) return json({ error: 'Access denied' }, 403);
+      let creditId: string | null = null;
+      if (!admin) {
+        if (!b.agentId) return json({ error: 'Access denied' }, 403);
+        const { agent, credit } = await unusedCredit(b.agentId);
+        if (!agent) return json({ error: 'Access denied' }, 403);
+        if (!credit) return json({ error: 'Custom photo avatars are a $50 one-time add-on. Library avatars are free.' }, 402);
+        creditId = credit.id;
+      }
       const bytes = Uint8Array.from(atob(b.imageBase64), (c) => c.charCodeAt(0));
       const form = new FormData();
       form.append('image', new Blob([bytes], { type: b.mimeType }), `face.${b.mimeType.split('/')[1]}`);
@@ -96,6 +118,7 @@ Deno.serve(async (req) => {
       const data = await res.json().catch(() => ({}));
       if (res.status === 403) return json({ error: 'No avatar generations left on the Simli plan.' }, 403);
       if (!res.ok) return json({ error: String(data.detail?.[0]?.msg || data.detail || 'Simli could not create this face') }, 502);
+      if (creditId) await db.from('custom_avatar_credits').update({ used_at: new Date().toISOString(), face_id: String(data.face_id) }).eq('id', creditId).is('used_at', null);
       return json({ faceId: data.face_id, message: data.message, dispatchAfter: data.dispatch_after ?? null, warnings: data.warnings || [] });
     }
     if (b.action === 'status') {
