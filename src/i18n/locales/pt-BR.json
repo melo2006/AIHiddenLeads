@@ -167,7 +167,7 @@
     "promoMinutes": "Promo de lançamento: normalmente {{n}} min — DOBRADO grátis",
     "mostPopular": "Mais Popular",
     "essentials": {
-      "name": "Voz Natural",
+      "name": "Premium",
       "tag": "Voz + Chat + 50 Leads B2B por Mês",
       "cta": "Começar por R$ 499/mês"
     },
@@ -177,9 +177,9 @@
       "cta": "Crescer Meu Negócio"
     },
     "full": {
-      "name": "Premium",
+      "name": "Platinum",
       "tag": "A Gente Cuida do Marketing Inteiro",
-      "cta": "Quero o Premium"
+      "cta": "Quero o Platinum"
     },
     "transparencyTitle": "Total Transparência: O Que Está Incluso",
     "transparencyBody": "Todo plano inclui um bloco generoso de <strong>minutos de voz no site</strong> (visitantes falando com a IA no seu site) — quanto maior o plano, mais barato o custo por minuto. Serviços de linha telefônica (transferência ao vivo pro seu celular, SMS, lembretes de agendamento) usam redes de operadora e são cobrados à parte — veja o pacote Conectado abaixo. Você sempre vê o consumo no painel antes de qualquer cobrança.",
@@ -518,7 +518,7 @@
     "items": [
       {
         "q": "O que exatamente conta como uma 'interação de IA' no plano de $99?",
-        "a": "Uma interação de IA = uma conversa no seu site (voz ou chat) de até 5 minutos. O plano Natural Voice de $99 inclui 100 interações por mês — suficiente para cobrir o tráfego da maioria dos pequenos negócios. Se ultrapassar, conversas adicionais custam apenas $0,50 cada, para que você nunca perca um lead. Você recebe um aviso amigável por SMS aos 80 e novamente aos 100 atendimentos."
+        "a": "Uma interação de IA = uma conversa no seu site (voz ou chat) de até 5 minutos. O plano Premium de $99 inclui 100 interações por mês — suficiente para cobrir o tráfego da maioria dos pequenos negócios. Se ultrapassar, conversas adicionais custam apenas $0,50 cada, para que você nunca perca um lead. Você recebe um aviso amigável por SMS aos 80 e novamente aos 100 atendimentos."
       },
       {
         "q": "O que acontece se eu ultrapassar meus limites mensais?",
@@ -534,7 +534,7 @@
       },
       {
         "q": "E se eu precisar de mais de 50 leads por mês?",
-        "a": "Leads B2B verificados adicionais custam $1,50 cada (nosso custo é $0,30–$0,80, cobrados com margem honesta). Basta nos informar seu volume desejado e configuramos a cobrança de excedente ou movemos você para o plano Premium, onde a geração de leads é ilimitada e cuidamos da prospecção para você."
+        "a": "Leads B2B verificados adicionais custam $1,50 cada (nosso custo é $0,30–$0,80, cobrados com margem honesta). Basta nos informar seu volume desejado e configuramos a cobrança de excedente ou movemos você para o plano Platinum, onde a geração de leads é ilimitada e cuidamos da prospecção para você."
       },
       {
         "q": "Que voz a Aspen usa? É uma IA cara?",
@@ -550,7 +550,7 @@
       },
       {
         "q": "Em quanto tempo entram no ar?",
-        "a": "2–3 dias úteis para Natural Voice e Pro. Premium em 5–7 dias úteis porque também configuramos suas sequências de prospecção, importações de CRM e roteamento de transferências ao vivo."
+        "a": "2–3 dias úteis para Premium e Pro. Platinum em 5–7 dias úteis porque também configuramos suas sequências de prospecção, importações de CRM e roteamento de transferências ao vivo."
       },
       {
         "q": "Posso cancelar a qualquer momento?",
