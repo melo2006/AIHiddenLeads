@@ -3,6 +3,7 @@ import { Bot, User, Maximize2, Minimize2, X, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { MessageResponse } from '@/components/ai-elements/message';
 import { PromptInput, PromptInputTextarea, PromptInputFooter, PromptInputSubmit } from '@/components/ai-elements/prompt-input';
+import { Button } from '@/components/ui/button';
 
 interface ChatWidgetProps {
   businessName: string;
@@ -43,6 +44,7 @@ const ChatWidget = ({
   active = true,
 }: ChatWidgetProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
+  const [recordingAgreed,setRecordingAgreed]=useState(false);
   const [input, setInput] = useState("");
   const [isThinking, setIsThinking] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -52,7 +54,8 @@ const ChatWidget = ({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const initialized = useRef(false);
   const mounted = useRef(true);
-  const sessionId = useRef(`chat_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
+  const sessionId = useRef(crypto.randomUUID()+crypto.randomUUID());
+  const recordQueue=useRef(Promise.resolve());
 
   const ownerLabel = ownerName?.trim() || callerName?.trim() || "the business owner";
   const isBusy = isThinking || isStreaming;
@@ -60,6 +63,8 @@ const ChatWidget = ({
 
   const logChatMessage = useCallback((role: string, content: string) => {
     if (!content.trim()) return;
+    if(!recordingAgreed)return;
+    recordQueue.current=recordQueue.current.then(async()=>{const {error}=await supabase.functions.invoke('conversation-records',{body:{action:'chat',capability:sessionId.current,businessName,role,content:content.trim(),agreed:true}});if(error)console.error('Private chat save failed');});
     supabase.from("demo_chat_interactions").insert({
       session_id: sessionId.current,
       lead_id: leadId || null,
@@ -74,7 +79,7 @@ const ChatWidget = ({
     }).then(({ error }) => {
       if (error) console.error("Failed to log chat interaction:", error);
     });
-  }, [leadId, prospectId, businessName, websiteUrl, callerName, callerEmail, callerPhone]);
+  }, [leadId, prospectId, businessName, websiteUrl, callerName, callerEmail, callerPhone,recordingAgreed]);
 
   useEffect(() => {
     mounted.current = true;
@@ -236,7 +241,7 @@ CRITICAL RULES:
 
   const handleSend = useCallback(async (prefill?: string) => {
     const userMsg = (prefill ?? input).trim();
-    if (!userMsg || isBusy) return;
+    if (!userMsg || isBusy || !recordingAgreed) return;
 
     if (!prefill) {
       setInput("");
@@ -268,6 +273,7 @@ CRITICAL RULES:
   const userHasMessaged = messages.some((m) => m.role === "user");
   const lastAssistantMessage = [...messages].reverse().find((m) => m.role === "assistant")?.content;
 
+  if(!recordingAgreed)return <div className="space-y-3 p-4 text-foreground"><p className="text-sm font-semibold">Try Aspen chat</p><p className="text-xs text-muted-foreground">This chat and its AI summary are saved privately for our team to review. Starting means you agree. A copy is sent only if requested.</p><Button onClick={()=>setRecordingAgreed(true)}>Start chat & agree</Button></div>;
   return (
     <div className={embedded ? 'overflow-hidden bg-card' : 'rounded-2xl border border-accent/20 bg-card shadow-2xl overflow-hidden'}>
       {!embedded && <div className="flex items-center justify-between px-4 py-3 bg-accent/10 border-b border-accent/20">
