@@ -1,5 +1,8 @@
 # Current work
 
+- [ ] Customer call-handling expansion: check inbound forwarding, customer calendars and report delivery; research competitor allowances before setting callback caps. Customers choose coverage; telephone usage stays separate at 5¢/min.
+- [ ] Add call-history CSV export and a deliberate Zapier webhook handoff for existing authorized records; never expose private audio or imply automatic CRM delivery before it is working.
+
 - [x] Fixed active-word scrolling with consistent viewport coordinates and timed return after manual scroll; added emerald drag/minimize/close outlines. Five caption tests pass; browser confirmed highlighted final word visible after scrolling, unchanged 144px face and no overflow; build OK. Real call/device retest remains recommended.
 
 - [x] Unified initial/minimized/active face dimensions (144px phone, 187px desktop) and removed speech-dependent panel width and live-only scale. Reserved caption space, enabled captions by default, strengthened current-word/caller text and switched to playback-frame updates with no stream-extension rewind. Nine tests and browser idle/expanded sizes pass, no overflow, build OK. Live speech alignment still needs device verification; provider word timestamps unavailable. Repository lint remains blocked by existing errors outside these changes.
