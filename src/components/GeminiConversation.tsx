@@ -61,6 +61,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const avatarPendingRef = useRef(false);
   // While the face is still connecting, hold Gemini's audio so voice and lips start together.
   const avatarStartingRef = useRef(false);
+  const avatarRequestedRef = useRef(false);
   const heldAudioRef = useRef<string[]>([]);
   const playChunkRef = useRef<(b: string) => void>(() => {});
   const [pendingAction, setPendingAction] = useState<VoiceAction | null>(null);
@@ -227,7 +228,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     sourcesRef.current.clear();
     setMicLevel(0);
     avatarRef.current?.stop();
-    avatarStartingRef.current = false; heldAudioRef.current = [];
+    avatarStartingRef.current = false; heldAudioRef.current = []; avatarRequestedRef.current = false;
     avatarLiveRef.current = false;
     try { wsRef.current?.close() } catch { /* ignore */ }
     wsRef.current = null;
@@ -370,7 +371,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     };
     if (avatarStartingRef.current) window.setTimeout(releaseHeld, AVATAR_HOLD_MS);
     // Consent renders the avatar on this same click; wait for its ref to mount.
-    if (!preview && videoAvatar?.enabled) void new Promise<void>(resolve => requestAnimationFrame(() => resolve())).then(() => avatarRef.current?.start()).then(ok => {
+    avatarRequestedRef.current = !preview && !!videoAvatar?.enabled;
+    if (avatarRequestedRef.current) void new Promise<void>(resolve => requestAnimationFrame(() => resolve())).then(() => avatarRef.current?.start()).then(ok => {
       if (generation !== generationRef.current) { if (ok) avatarRef.current?.stop(); return; }
       if (ok) avatarLiveRef.current = true;
       releaseHeld();
@@ -585,6 +587,17 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
   // Auto-connect once when the widget opens (the open tap is the user gesture
   // that unlocks microphone and audio).
+  // The saved face can arrive after an early tap; join it to the call already in progress.
+  useEffect(() => {
+    if (!videoAvatar?.enabled || previewOnly || isPreviewRef.current || phase === 'idle' || avatarRequestedRef.current) return;
+    avatarRequestedRef.current = true;
+    const generation = generationRef.current;
+    void new Promise<void>(r => requestAnimationFrame(() => r())).then(() => avatarRef.current?.start()).then(ok => {
+      if (generation !== generationRef.current) { if (ok) avatarRef.current?.stop(); return; }
+      if (ok) avatarLiveRef.current = true;
+    }).catch(() => {});
+  }, [videoAvatar?.enabled, phase, previewOnly]);
+
   const autoStartedRef = useRef(false);
   useEffect(() => {
     if (!compact || !autoStart || autoStartedRef.current) return;

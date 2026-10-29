@@ -22,7 +22,7 @@ export default function GeminiAgentWidget({ agentId, leadId, prospectId, busines
  const [recommendedPlan,setRecommendedPlan]=useState<string|null>(null);
  const [identity,setIdentity]=useState<{id?:string;name:string;businessName:string;avatarUrl:string;theme?:WidgetTheme;videoAvatar?:VideoAvatar}>({name:'Aspen',businessName:businessName||'AI Hidden Leads',avatarUrl:''});
  const isMobile=useIsMobile();
- useEffect(()=>{let active=true;void preloadVoiceIdentity(agentId).then(data=>{if(active&&data?.name)setIdentity({...data,businessName:businessName||data.businessName});});return()=>{active=false;};},[agentId,leadId,prospectId,businessName]);
+ useEffect(()=>{let active=true;void preloadVoiceIdentity(agentId).then(data=>{if(!active)return;if(data?.name)setIdentity({...data,businessName:businessName||data.businessName});});return()=>{active=false;};},[agentId,leadId,prospectId,businessName]);
  const openWidget=()=>{setHasOpened(true);setClickedOpen(true);setOpen(true);};
  useEffect(()=>{if(agentId || !floating)return;const show=(event:Event)=>{const next=(event as CustomEvent).detail?.mode==='chat'?'chat':'voice';setMode(next);setChatVisited(next==='chat');setHasOpened(true);setClickedOpen(false);setDismissed(false);setOpen(true);};window.addEventListener('open-homepage-aspen',show);return()=>window.removeEventListener('open-homepage-aspen',show);},[agentId,floating]);
  const faceUrl = agentId ? identity.avatarUrl : undefined;
