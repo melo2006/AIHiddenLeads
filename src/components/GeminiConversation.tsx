@@ -340,6 +340,30 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     } catch { captureRef.current.replaying = false; setReplaying(false); setError("Could not replay audio. Check your speaker connection."); }
   }, [pauseCapture, clearPlayback, playPcmChunk]);
 
+  // Starts the moving face. Until her first video frame is on screen, her voice is held back
+  // (only if she hasn't spoken yet) so voice and lips begin together; after AVATAR_HOLD_MS the voice goes on alone.
+  const startFace = useCallback((generation: number) => {
+    const hold = playTimeRef.current === 0 && sourcesRef.current.size === 0;
+    if (hold) { avatarStartingRef.current = true; setFaceWaiting(true); }
+    let released = false;
+    const release = () => {
+      if (released || generation !== generationRef.current) return;
+      released = true;
+      if (!avatarStartingRef.current) return;
+      avatarStartingRef.current = false; setFaceWaiting(false);
+      const held = heldAudioRef.current; heldAudioRef.current = [];
+      held.forEach(b => playChunkRef.current(b));
+    };
+    const timer = hold ? window.setTimeout(release, AVATAR_HOLD_MS) : 0;
+    // The avatar view mounts on the same render as the tap; wait one frame for its ref.
+    void new Promise<void>(r => requestAnimationFrame(() => r())).then(() => avatarRef.current?.start()).then(ok => {
+      window.clearTimeout(timer);
+      if (generation !== generationRef.current) { if (ok) avatarRef.current?.stop(); return; }
+      if (ok) avatarLiveRef.current = true;
+      release();
+    }).catch(() => { window.clearTimeout(timer); release(); });
+  }, []);
+
   const startConversation = useCallback(async (preview = false) => {
     if (startingRef.current || liveRef.current) return;
     if (!preview && !consentReadyRef.current) { setConsentReady(false); return; }
@@ -636,17 +660,17 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         {faceFirst ? <><div className="aspen-person-portrait relative mx-auto"><div className={faceLive ? 'invisible' : ''}><PersonPortrait name={name} avatarUrl={avatarUrl} /></div>{avatarView}</div><p className="mx-auto w-fit rounded-md bg-card px-2 py-1 text-center text-xs font-semibold">Talk to {name}</p></> : avatarView}
         <div className={faceFirst ? 'space-y-2 rounded-lg border border-primary/40 bg-card p-2 shadow-lg ring-1 ring-foreground/10' : 'space-y-2'}>
         <div className="flex items-center gap-1.5">
-          {phase === "connecting" && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" />}
-          {phase === "live" && !aspenSpeaking && <Mic className="h-3.5 w-3.5 shrink-0 animate-pulse text-primary" />}
-          {phase === "live" && aspenSpeaking && <Volume2 className="h-3.5 w-3.5 shrink-0 animate-pulse text-primary" />}
-          {phase === "idle" && <MicOff className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+          {shownPhase === "connecting" && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" />}
+          {shownPhase === "live" && !aspenSpeaking && <Mic className="h-3.5 w-3.5 shrink-0 animate-pulse text-primary" />}
+          {shownPhase === "live" && aspenSpeaking && <Volume2 className="h-3.5 w-3.5 shrink-0 animate-pulse text-primary" />}
+          {shownPhase === "idle" && <MicOff className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
           <p className="min-w-0 break-words text-xs leading-snug text-foreground" role="status">
-            {phase === "live" && (
+            {shownPhase === "live" && (
               <span className="font-semibold text-foreground">
                 {handoffActive ? "Manager handoff" : paused ? "Paused" : replaying ? "Replaying saved audio" : muted ? "Microphone muted" : aspenSpeaking ? `${name} speaking` : captureMode === "hold" && !held ? "Hold to talk" : "Listening"}
               </span>
             )}
-            {phase !== "live" && (phase === "idle" ? "Ready to talk" : status)}
+            {shownPhase !== "live" && (shownPhase === "idle" ? "Ready to talk" : faceWaiting ? "Connecting…" : status)}
           </p>
         </div>
 
