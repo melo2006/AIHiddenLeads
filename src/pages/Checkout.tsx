@@ -26,7 +26,7 @@ const planDetails: Record<string, { name: string; price: string; features: strin
     ],
   },
   growth: {
-    name: "Pro — More Voice + 100 Leads + Reactivation",
+    name: "Professional — More Voice + 100 Leads + Reactivation",
     price: "$199/mo",
     priceId: "growth_monthly",
     features: [
@@ -148,7 +148,7 @@ export default function Checkout() {
             <h2 className="text-lg font-semibold text-foreground">Complete Your Order</h2>
             {!addonOnly && <label className="flex items-start gap-3 rounded-xl border border-border bg-card p-4 cursor-pointer">
               <input type="checkbox" className="mt-1 h-4 w-4 accent-primary" checked={customAvatar} onChange={e => setCustomAvatar(e.target.checked)} />
-              <span className="text-sm"><span className="font-semibold text-foreground">Add a custom avatar from your own photo: +$50 one-time</span><span className="block text-xs text-muted-foreground mt-1">Optional. Choosing a face from our avatar library is free. A custom face can take from several minutes up to about 24 hours to build. The video avatar add-on is $79/mo on Premium, $180/mo on Pro and $250/mo on Platinum.</span></span>
+              <span className="text-sm"><span className="font-semibold text-foreground">Add a custom avatar from your own photo: +$50 one-time</span><span className="block text-xs text-muted-foreground mt-1">Optional. Choosing a face from our avatar library is free. A custom face can take from several minutes up to about 24 hours to build. The video avatar add-on is $79/mo on Premium, $180/mo on Professional and $250/mo on Platinum.</span></span>
             </label>}
             <div className="rounded-xl border border-border bg-card p-1 min-h-[400px]">
               {!user ? <CustomerSignIn /> : paymentsAvailable && !paymentFailed && !priceReady ? <p role="status" className="p-5 text-sm text-muted-foreground">Checking checkout availability…</p> : paymentsAvailable && !paymentFailed && priceReady ? <StripeEmbeddedCheckout
