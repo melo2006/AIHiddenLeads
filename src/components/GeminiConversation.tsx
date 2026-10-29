@@ -311,6 +311,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
   // Interrupt: drop all queued playback instantly
   const clearPlayback = useCallback(() => {
+    heldAudioRef.current = [];
     captureRef.current.replaying = false;
     setReplaying(false);
     for (const source of sourcesRef.current) { try { source.stop(); } catch { /* Already stopped. */ } }

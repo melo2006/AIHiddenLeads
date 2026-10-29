@@ -1,6 +1,6 @@
 # Current work
 
-- [ ] Match active/still face sizing, hide active Talk label, add playback-clock highlighted captions and verify recording navigation. Live word alignment is approximate because the voice stream supplies no word timestamps.
+- [x] Enlarged shared expanded still to 104px phone/136px desktop, scaled unboxed live media 15% without changing Simli framing, hid active Talk label. Added playback-clock green word captions, pause/interruption/replay support and three-second return after manual scrolling. Eight focused tests and phone/desktop/sample checks pass; recording navigation confirmed from source. Owner live-video size/word timing check remains needed; no provider word timestamps, so alignment is estimated.
 
 - [x] Removed transcript checkboxes in call start/settings, added Start & agree disclosure; new voice PCM caller/assistant segments checkpoint privately with transcripts. Real call produced three private WAV segments (signed read 200), 44 transcript fragments and a genuine AI summary. Admin Demo History → Call history review/draft panel checked desktop/390px; 14 tests/build pass.
 - [x] Shared chat notice/private records and optional email copy: real commercial-cleaning chat saved, AI summary ready, requested link SMTP sent to owner test mailbox. Voice copy native tool requires spoken readback and separate on-screen email permission; not a marketing subscription. Seven-day hashed link omits audio/admin draft, signed-out list denied/invalid link denied. Real spoken voice-copy request and owner email link click remain unverified.
