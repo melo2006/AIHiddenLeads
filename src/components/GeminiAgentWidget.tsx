@@ -6,6 +6,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import ChatWidget from '@/components/landing/demo-results/ChatWidget';
 import AspenSalesActions from '@/components/AspenSalesActions';
 import FloatingPersonFrame from '@/components/FloatingPersonFrame';
+import { matchingAspenVideo } from '@/lib/aspenFace';
 
 import { themeVariables, type WidgetTheme } from '../../supabase/functions/_shared/widget-theme';
 import type { VideoAvatar } from '../../supabase/functions/_shared/video-avatar';
@@ -29,7 +30,7 @@ export default function GeminiAgentWidget({ agentId, leadId, prospectId, busines
  const changeMode=(next:'voice'|'chat')=>{setMode(next);if(next==='chat')setChatVisited(true);};
  const content=<>
   <FloatingPersonFrame name={identity.name} avatarUrl={faceUrl} open={open} mode={mode} onOpen={openWidget} onMinimize={()=>setOpen(false)} onClose={closeAssistant} onMode={changeMode}>
-   {hasOpened && mode==='voice' && <GeminiConversation compact faceFirst avatarUrl={faceUrl} autoStart={clickedOpen || autoStart} agentId={identity.id || agentId} leadId={leadId} prospectId={prospectId} name={identity.name} visitorName={callerName} onRecommendedPlan={setRecommendedPlan} videoAvatar={identity.videoAvatar} avatarInline />}
+   {hasOpened && mode==='voice' && <GeminiConversation compact faceFirst avatarUrl={faceUrl} autoStart={clickedOpen || autoStart} agentId={identity.id || agentId} leadId={leadId} prospectId={prospectId} name={identity.name} visitorName={callerName} onRecommendedPlan={setRecommendedPlan} videoAvatar={agentId ? identity.videoAvatar : matchingAspenVideo(identity.videoAvatar)} avatarInline />}
    {chatVisited && <div className={mode==='chat'?'aspen-panel min-h-80 overflow-hidden rounded-lg border border-border bg-card':'hidden'}><div className="aspen-chat-content"><ChatWidget embedded active={open && mode==='chat'} businessName={businessName || identity.businessName} businessNiche="general" websiteUrl={window.location.origin} businessInfo="AI Hidden Leads provides AI voice and chat assistants, B2B lead generation and search growth services. Refer visitors to the current homepage for pricing and package details." callerName={callerName} leadId={leadId} prospectId={prospectId} /></div></div>}
    {(!agentId || leadId || prospectId) && <div className="aspen-sales-actions"><AspenSalesActions plan={recommendedPlan} /></div>}
   </FloatingPersonFrame>
