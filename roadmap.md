@@ -1,5 +1,7 @@
 # Current work
 
+- [x] Cleaned expanded Aspen controls: removed under-face Talk label and redundant voice-mode mic, play to start/reconnect and neutral hint after visitor stop. Invalidated late voice/Simli errors and froze keyed video on intentional stop without keeping sessions open. Two stop regression tests plus audio tests pass, phone no overflow and build OK. Live end/restart appearance remains owner-device verification.
+
 - [x] Replaced default floating Aspen still with the exact owner-supplied live-video screenshot cut-out (25 KB WebP); enlarged shared expanded still/live container another 20% to 125px phone/163px desktop. Kept Simli frame/audio transport unchanged. Phone/desktop render and five tests pass; live size transition still needs owner device check.
 
 - [x] Enlarged shared expanded still to 104px phone/136px desktop, scaled unboxed live media 15% without changing Simli framing, hid active Talk label. Added playback-clock green word captions, pause/interruption/replay support and three-second return after manual scrolling. Eight focused tests and phone/desktop/sample checks pass; recording navigation confirmed from source. Owner live-video size/word timing check remains needed; no provider word timestamps, so alignment is estimated.

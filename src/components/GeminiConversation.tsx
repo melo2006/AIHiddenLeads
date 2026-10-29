@@ -671,7 +671,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     <div className="space-y-3 rounded-md bg-card p-3">
     <p className="text-sm font-semibold">Try a live demo with {name}</p>
     <p className="text-xs text-muted-foreground">This call is recorded. Audio, transcript and AI summary are saved privately for our team to review. A copy is emailed only if you ask. Starting means you agree.</p>
-    <Button className="w-full" onClick={()=>{consentReadyRef.current=true;setConsentReady(true);void startConversation();}}><Mic className="mr-2 h-4 w-4"/>Start & agree</Button>
+    <Button className="w-full" onClick={()=>{consentReadyRef.current=true;setConsentReady(true);void startConversation();}}><Play className="mr-2 h-4 w-4"/>Start & agree</Button>
     </div>
   </div>;
 
