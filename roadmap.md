@@ -1,6 +1,6 @@
 # Current work
 
-- [ ] Enlarge initial/minimized portrait 20%; preserve WebGL last-frame pixels and repeated-stop state; verify layout and stop regression tests.
+- [x] Enlarged initial/minimized portrait 20%; preserved WebGL last-frame pixels and repeated-stop state. Six focused tests pass; browser verified retained pixels and 101px minimized face without overflow; build OK. Actual live-call stop appearance still needs device verification.
 
 - [x] Cleaned expanded Aspen controls: removed under-face Talk label and redundant voice-mode mic, play to start/reconnect and neutral hint after visitor stop. Invalidated late voice/Simli errors and froze keyed video on intentional stop without keeping sessions open. Two stop regression tests plus audio tests pass, phone no overflow and build OK. Live end/restart appearance remains owner-device verification.
 
