@@ -594,7 +594,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       if (generation === generationRef.current) startingRef.current = false;
       window.clearTimeout(startupTimeout);
     }
-  }, [voice, microphone, captureMode, refreshMicrophones, playPcmChunk, clearPlayback, flushLine, stopEverything, agentId, leadId, prospectId, draft, previewVoice, previewAudioContext, visitorName, consent, testModel, shareToken, onRecommendedPlan, videoAvatar]);
+  }, [voice, microphone, captureMode, refreshMicrophones, playPcmChunk, clearPlayback, flushLine, stopEverything, agentId, leadId, prospectId, draft, previewVoice, previewAudioContext, visitorName, consent, testModel, shareToken, onRecommendedPlan, videoAvatar, startFace]);
 
   useEffect(() => stopEverything, [stopEverything]);
 
@@ -653,6 +653,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
   // Compact mode: minimal floating-widget layout for phones — status line,
   // two-line scrolling transcript, and a single row of icon buttons.
+  const shownPhase: Phase = faceWaiting && phase === 'live' ? 'connecting' : phase;
   const avatarView = videoAvatar?.enabled && !previewOnly ? <SimliAvatar ref={avatarRef} inline={avatarInline || faceFirst} unboxed={faceFirst} avatar={videoAvatar} agentId={agentId} shareToken={shareToken} draft={draft} onLiveChange={live => { setFaceLive(live); if (!live) { avatarLiveRef.current = false; avatarPendingRef.current = false; } }} /> : null;
   if (compact) {
     return (
