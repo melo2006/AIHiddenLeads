@@ -268,7 +268,7 @@ CRITICAL RULES:
       const fallback = `Great question. I can help with that and also arrange a callback or a 15-minute demo with ${ownerLabel}.`;
       await typeAssistantResponse(fallback);
     }
-  }, [input, isBusy, messages, ownerLabel, typeAssistantResponse]);
+  }, [input, isBusy, messages, ownerLabel, typeAssistantResponse,recordingAgreed]);
 
   const userHasMessaged = messages.some((m) => m.role === "user");
   const lastAssistantMessage = [...messages].reverse().find((m) => m.role === "assistant")?.content;

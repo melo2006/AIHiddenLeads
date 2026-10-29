@@ -19,7 +19,7 @@ Deno.serve(async req=>{
    const {data:link}=await db.from('conversation_copy_links').select('record_id').eq('token_hash',await digest(b.token)).is('revoked_at',null).gt('expires_at',new Date().toISOString()).maybeSingle();
    if(!link)return json({error:'This private link has expired or was revoked.'},404);
    const {data:r}=await db.from('conversation_records').select('business_name,transcript,summary,summary_status,created_at').eq('id',link.record_id).single();
-   return r?json({record:r}):json({error:'Conversation unavailable'},404);
+   return r?json({record:{...r,summary:r.summary?{summary:r.summary.summary,needs:r.summary.needs,nextSteps:r.summary.nextSteps}:null}}):json({error:'Conversation unavailable'},404);
   }
   if(b.action==='chat'){
    const ref=`chat_${await digest(b.capability)}`;
