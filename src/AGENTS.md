@@ -1,3 +1,4 @@
 - Use plain imperative Leaflet (`L.map` in useEffect), never react-leaflet: react-leaflet v5 requires React 19 and crashes on React 18 with "render2 is not a function".
 - Gate all campaign milestones in the shared tracker to server-accepted public paths; private/tenant tests are not campaign conversions, and analytics errors must never reject into the UI.
+- Drive highlighted caption overlays from local AudioContext scheduling, not transcript arrival; keep original transcripts and treat word positions as estimates without provider timestamps.
 - Persist wizard specialties, accepted guidance and restrictions in authorized drafts; review proposals before acceptance, preserve sources/base safety rules, expose service presence only to admins. Auditions are click-gated, unlock playback before saving and replay response audio locally.
