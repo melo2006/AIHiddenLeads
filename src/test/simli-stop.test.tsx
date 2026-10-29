@@ -8,7 +8,7 @@ vi.mock('simli-client', () => ({ LogLevel: { ERROR: 0 }, SimliClient: class {
   on() {} start = mocks.start; stop = async () => {}; sendAudioData() {} ClearBuffer() {}
 } }));
 vi.mock('@/lib/chromaKey', () => ({ startChromaKey: () => () => {} }));
-const avatar = { enabled: true, faceId: 'test', position: 'bottom-right' as const, size: 200, shape: 'square' as const };
+const avatar = { provider: 'simli' as const, enabled: true, faceId: 'test', position: 'bottom-right' as const, size: 200, shape: 'square' as const };
 describe('intentional avatar stop', () => {
   it('retains the keyed frame and does not report a failure on deliberate stop', async () => {
     mocks.invoke.mockResolvedValue({ data: { sessionToken: 'test', chromaKey: true } });
