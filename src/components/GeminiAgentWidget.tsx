@@ -31,7 +31,7 @@ export default function GeminiAgentWidget({ agentId, leadId, prospectId, busines
   <FloatingPersonFrame name={identity.name} avatarUrl={faceUrl} open={open} mode={mode} onOpen={openWidget} onMinimize={()=>setOpen(false)} onClose={closeAssistant} onMode={changeMode}>
    {hasOpened && mode==='voice' && <GeminiConversation compact faceFirst avatarUrl={faceUrl} autoStart={clickedOpen || autoStart} agentId={identity.id || agentId} leadId={leadId} prospectId={prospectId} name={identity.name} visitorName={callerName} onRecommendedPlan={setRecommendedPlan} videoAvatar={identity.videoAvatar} avatarInline />}
    {chatVisited && <div className={mode==='chat'?'aspen-panel min-h-80 overflow-hidden rounded-lg border border-border bg-card':'hidden'}><div className="aspen-chat-content"><ChatWidget embedded active={open && mode==='chat'} businessName={businessName || identity.businessName} businessNiche="general" websiteUrl={window.location.origin} businessInfo="AI Hidden Leads provides AI voice and chat assistants, B2B lead generation and search growth services. Refer visitors to the current homepage for pricing and package details." callerName={callerName} leadId={leadId} prospectId={prospectId} /></div></div>}
-   {(!agentId || leadId || prospectId) && <AspenSalesActions plan={recommendedPlan} />}
+   {(!agentId || leadId || prospectId) && <div className="aspen-sales-actions"><AspenSalesActions plan={recommendedPlan} /></div>}
   </FloatingPersonFrame>
  </>;
  useEffect(()=>{if(!floating && !open && !hasOpened) onClose?.();},[open,floating,onClose,hasOpened]);

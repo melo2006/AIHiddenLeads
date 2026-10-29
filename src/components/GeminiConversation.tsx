@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Mic, MicOff, Volume2, FlaskConical, PhoneOff, Loader2, Play, Pause, Save, RotateCcw, RefreshCw, Settings2 } from "lucide-react";
+import { Mic, MicOff, Volume2, FlaskConical, PhoneOff, Loader2, Play, Pause, Save, RotateCcw, RefreshCw, Settings2, ChevronsUpDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { microphonePcm, shouldSendMicrophone, microphoneGate, microphoneAutoGain, type NoiseFilter, type CaptureMode } from "@/lib/voiceLabAudio";
@@ -50,6 +50,7 @@ export interface GeminiConversationProps { agentId?: string; leadId?: string; pr
 const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compact = false, name = "Aspen", visitorName = "", previewVoice, autoStart = false, previewOnly = false, previewAudioContext, testModel, shareToken, onRecommendedPlan, videoAvatar, avatarInline = false, faceFirst = false, avatarUrl }: GeminiConversationProps) => {
   const avatarRef = useRef<SimliAvatarHandle>(null);
   const [faceLive, setFaceLive] = useState(false);
+  const [captions, setCaptions] = useState(() => window.innerWidth > 1024);
   const avatarLiveRef = useRef(false);
   const muteNodeRef = useRef<GainNode | null>(null);
   const avatarPendingRef = useRef(false);
@@ -257,8 +258,9 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     if (avatarPendingRef.current && sourcesRef.current.size === 0) { avatarPendingRef.current = false; avatarLiveRef.current = true; }
     if (avatarLiveRef.current && !captureRef.current.replaying) {
       if (!muteNodeRef.current || muteNodeRef.current.context !== ctx) { const mute = ctx.createGain(); mute.gain.value = 0; mute.connect(ctx.destination); muteNodeRef.current = mute; }
-      source.connect(muteNodeRef.current);
-      avatarRef.current?.sendPcm24k(base64);
+      const sent = avatarRef.current?.sendPcm24k(base64);
+      if (sent) source.connect(muteNodeRef.current);
+      else { avatarLiveRef.current = false; avatarPendingRef.current = false; source.connect(ctx.destination); }
     } else source.connect(ctx.destination);
 
     const now = ctx.currentTime;
@@ -269,6 +271,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     setAspenSpeaking(true);
     source.onended = () => {
       sourcesRef.current.delete(source);
+      if (sourcesRef.current.size === 0 && avatarPendingRef.current) { avatarPendingRef.current = false; avatarLiveRef.current = true; }
       if (ctx.currentTime >= playTimeRef.current - 0.05) setAspenSpeaking(false);
       if (sourcesRef.current.size === 0 && captureRef.current.replaying) {
         captureRef.current.replaying = false;
@@ -630,7 +633,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           </p>
         </div>
 
-        <div aria-label="Conversation transcript" tabIndex={0} className={`${faceFirst ? 'h-12' : 'max-h-[4.5rem]'} space-y-1 overflow-y-auto overscroll-contain rounded-md border border-border bg-background/95 p-1.5`}>
+        {faceFirst && <Button size="icon" variant="ghost" className="h-8 w-8" aria-label={captions ? 'Hide captions' : 'Show captions'} title={captions ? 'Hide captions' : 'Show captions'} aria-expanded={captions} onClick={() => setCaptions(v => !v)}><ChevronsUpDown className="h-4 w-4" /></Button>}
+        <div aria-label="Conversation transcript" tabIndex={0} className={`${faceFirst && !captions ? 'hidden' : ''} ${faceFirst ? 'h-12' : 'max-h-[4.5rem]'} space-y-1 overflow-y-auto overscroll-contain rounded-md border border-border bg-background/95 p-1.5`}>
           {turns.length === 0 && !partialAspen && !partialUser && (
             <p className="py-1 text-center text-[11px] text-muted-foreground">No conversation yet.</p>
           )}
@@ -648,7 +652,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
         {confirmation}
         {actionNotice && <p role="status" className="text-xs text-primary">{actionNotice}</p>}
-        {remainingSeconds !== null && <p className="text-[11px] text-muted-foreground">Demo time remaining: {Math.floor(remainingSeconds/60)}:{String(remainingSeconds%60).padStart(2,'0')}</p>}
+        {remainingSeconds !== null && (!faceFirst || captions) && <p className="text-[11px] text-muted-foreground">Demo time remaining: {Math.floor(remainingSeconds/60)}:{String(remainingSeconds%60).padStart(2,'0')}</p>}
         {transferControl}
         <div className="voice-controls flex flex-wrap items-center justify-center gap-1 [&_button]:h-auto [&_button]:min-h-11 [&_button]:w-auto [&_button]:min-w-11 [&_button]:flex-col [&_button]:gap-1 [&_button]:px-1.5 [&_button]:py-1.5 [&_span]:text-[10px] [&_span]:leading-tight">
           {phase === "idle" ? (
@@ -749,7 +753,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           </Button>
         </div>
 
-        {phase === "live" && (
+        {phase === "live" && (!faceFirst || captions) && (
           <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
             <span>Mic</span>
             <meter min="0" max="100" value={micLevel} aria-label="Microphone level" className="h-2 w-16" />

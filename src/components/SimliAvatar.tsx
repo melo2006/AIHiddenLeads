@@ -11,7 +11,7 @@ export interface SimliAvatarHandle {
   start: () => Promise<boolean>;
   stop: () => void;
   /** Gemini's 24 kHz PCM16 chunk, base64. */
-  sendPcm24k: (base64: string) => void;
+  sendPcm24k: (base64: string) => boolean;
   clear: () => void;
 }
 export interface SimliAvatarProps { avatar: VideoAvatar; agentId?: string; shareToken?: string; draft?: boolean; faceOverride?: string; inline?: boolean; unboxed?: boolean; onLiveChange?: (live: boolean) => void; }
@@ -60,8 +60,8 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
         const token = await sessionToken({ agentId, shareToken, draft, faceId: faceOverride });
         const client = new SimliClient(token, videoRef.current, audioRef.current, null, LogLevel.ERROR, "livekit");
         clientRef.current = client;
-        client.on("stop", () => { if (clientRef.current === client) { setLive(false); setState("idle"); } });
-        client.on("error", (detail) => { setReason(String(detail || "Avatar disconnected")); });
+        client.on("stop", () => { if (clientRef.current === client) { clientRef.current = null; setLive(false); setState("failed"); setReason('Video disconnected'); } });
+        client.on("error", () => { if (clientRef.current === client) { setLive(false); setState('failed'); setReason('Video connection failed'); } });
         let deadline: ReturnType<typeof setTimeout> | undefined;
         try {
           await Promise.race([
@@ -83,12 +83,13 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
     stop,
     sendPcm24k: (base64) => {
       const client = clientRef.current;
-      if (!client || !liveRef.current) return;
+      if (!client || !liveRef.current) return false;
       const bin = atob(base64);
       const bytes = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
       const pcm = pcm24kTo16k(new Int16Array(bytes.buffer, 0, Math.floor(bytes.length / 2)));
-      client.sendAudioData(new Uint8Array(pcm.buffer));
+      try { client.sendAudioData(new Uint8Array(pcm.buffer)); return true; }
+      catch { setLive(false); setState('failed'); setReason('Video audio disconnected'); return false; }
     },
     clear: () => { try { clientRef.current?.ClearBuffer(); } catch { /* Session already closed. */ } },
   }), [agentId, shareToken, draft, faceOverride]); // eslint-disable-line react-hooks/exhaustive-deps
