@@ -5,6 +5,7 @@ import { SimliClient, LogLevel } from "simli-client";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { pcm24kTo16k, type VideoAvatar } from "../../supabase/functions/_shared/video-avatar";
+import { startChromaKey } from "@/lib/chromaKey";
 
 export interface SimliAvatarHandle {
   /** Resolves true once the face is on screen; false (with a visible reason) when Simli refuses or fails. */
@@ -28,20 +29,25 @@ async function sessionToken(body: Record<string, unknown>) {
     const detail = error instanceof FunctionsHttpError ? await error.context.json().catch(() => null) : null;
     throw new Error(typeof detail?.error === "string" ? detail.error : "Video avatar unavailable");
   }
-  return String(data.sessionToken);
+  return { token: String(data.sessionToken), chromaKey: data.chromaKey === true };
 }
 
 /** Owns one Simli session: the face lip-syncs Gemini's audio; Gemini remains the only conversation brain. */
 const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, agentId, shareToken, draft, faceOverride, inline = false, unboxed = false, onLiveChange }, ref) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const keyStopRef = useRef<(() => void) | null>(null);
+  const [keyed, setKeyed] = useState(false);
   const clientRef = useRef<SimliClient | null>(null);
   const liveRef = useRef(false);
   const [state, setState] = useState<"idle" | "connecting" | "live" | "failed">("idle");
   const [reason, setReason] = useState("");
   const setLive = (live: boolean) => { liveRef.current = live; onLiveChange?.(live); };
 
+  const stopKey = () => { keyStopRef.current?.(); keyStopRef.current = null; setKeyed(false); };
   const stop = () => {
+    stopKey();
     setLive(false);
     const client = clientRef.current; clientRef.current = null;
     if (client) void client.stop().catch(() => {});
@@ -57,10 +63,11 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
         // Wait one frame so the portal's video/audio elements exist.
         await new Promise((r) => requestAnimationFrame(r));
         if (!videoRef.current || !audioRef.current) throw new Error("Avatar view is not ready");
-        const token = await sessionToken({ agentId, shareToken, draft, faceId: faceOverride });
+        const { token, chromaKey } = await sessionToken({ agentId, shareToken, draft, faceId: faceOverride });
         const client = new SimliClient(token, videoRef.current, audioRef.current, null, LogLevel.ERROR, "livekit");
         clientRef.current = client;
         client.on("stop", () => { if (clientRef.current === client) { clientRef.current = null; setLive(false); setState("failed"); setReason('Video disconnected'); } });
+        client.on("warning" as never, ((m: unknown) => console.warn("Simli:", m)) as never);
         client.on("error", () => { if (clientRef.current === client) { setLive(false); setState('failed'); setReason('Video connection failed'); } });
         let deadline: ReturnType<typeof setTimeout> | undefined;
         try {
@@ -70,9 +77,12 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
           ]);
         } finally { if (deadline) clearTimeout(deadline); }
         if (clientRef.current !== client) return false;
+        // Cut the green backdrop out so she floats over the page like her static photo.
+        if (chromaKey && canvasRef.current) { const stopFn = startChromaKey(videoRef.current, canvasRef.current); if (stopFn) { keyStopRef.current = stopFn; setKeyed(true); } }
         setLive(true); setState("live");
         return true;
       } catch (e) {
+        stopKey();
         const client = clientRef.current; clientRef.current = null;
         if (client) void client.stop().catch(() => {});
         setLive(false); setState("failed");
@@ -96,8 +106,9 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
 
   const visible = state !== "idle";
   const frame = (
-    <div aria-label="Video avatar" role="img" className={`${unboxed ? 'absolute inset-0' : inline ? "relative mx-auto" : `fixed z-[120] ${POSITION[avatar.position]}`} ${visible ? "" : "hidden"} ${unboxed ? '' : `overflow-hidden border-2 border-primary/50 bg-card shadow-2xl ${SHAPE[avatar.shape]}`}`} style={unboxed ? undefined : { width: avatar.size, height: avatar.size, maxWidth: "70vw", maxHeight: "70vw" }}>
-      <video ref={videoRef} autoPlay playsInline muted className={`h-full w-full object-contain ${unboxed && state !== 'live' ? 'invisible' : ''}`} />
+    <div aria-label="Video avatar" role="img" className={`${unboxed ? 'absolute inset-0' : inline ? "relative mx-auto" : `fixed z-[120] ${POSITION[avatar.position]}`} ${visible ? "" : "hidden"} ${unboxed ? '' : `overflow-hidden ${SHAPE[avatar.shape]} ${keyed ? '' : 'border-2 border-primary/50 bg-card shadow-2xl'}`}`} style={unboxed ? undefined : { width: avatar.size, height: avatar.size, maxWidth: "70vw", maxHeight: "70vw" }}>
+      <video ref={videoRef} autoPlay playsInline muted className={`h-full w-full object-contain ${keyed ? 'absolute inset-0 opacity-0 pointer-events-none' : unboxed && state !== 'live' ? 'invisible' : ''}`} />
+      <canvas ref={canvasRef} aria-hidden className={`h-full w-full object-contain ${keyed ? 'relative' : 'hidden'}`} />
       <audio ref={audioRef} autoPlay muted />
       {state === "connecting" && <div className={`absolute ${unboxed ? 'bottom-1 right-1' : 'inset-0 bg-card/70'} flex items-center justify-center`}><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}
       {state === "failed" && <div role="status" className={`${unboxed ? 'absolute bottom-0 inset-x-0 rounded-md bg-background/95' : 'absolute inset-0 bg-card/90'} flex items-center justify-center p-2 text-center text-[11px] text-destructive`}>{reason || "Video avatar unavailable"} · voice continues</div>}
