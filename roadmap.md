@@ -1,5 +1,7 @@
 # Current work
 
+- [ ] Reduce face to neck/shoulders, phone compact controls with optional captions, visible gray minimize/expand/close and tiny minimized state; preserve page scrolling.
+- [ ] Diagnose lip-sync/disconnect and prevent old-face swap; create the revised Aspen face through authorized Simli generation, then apply only verified completed face.
 - [x] Optimize the same transparent Aspen portrait: inspected 512×512 PNG (305 KB, 93% smaller) and WebP (34 KB, 99% smaller) on dark/light; rejected blotchy palette compression. Original preserved. WebP will be used with the planned floating presentation.
 - [x] Create and inspect a 1920×1920 transparent portrait preserving the existing blonde Aspen identity; downloadable PNG verified with alpha channel and light/dark inspection.
 - [x] Implement shared unboxed face-first assistant on homepage/demo/customer widgets with optimized portrait, Talk to saved name, drag/minimize/close, two-line scrolling transcript and existing controls. Desktop/phone portrait, consent, chat composer, drag/reset/close checked; 12 tests pass. Kept consent/controls opaque after finding underlying page text interfered with readability. No paid session before consent.
