@@ -613,7 +613,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     return (
       <div className="space-y-2 p-2 text-foreground">
         {faceFirst ? <><div className="aspen-person-portrait relative mx-auto"><div className={faceLive ? 'invisible' : ''}><PersonPortrait name={name} avatarUrl={avatarUrl} /></div>{avatarView}</div><p className="mx-auto w-fit rounded-md bg-card px-2 py-1 text-center text-xs font-semibold">Talk to {name}</p></> : avatarView}
-        <div className={faceFirst ? 'space-y-2 rounded-md bg-card p-2' : 'space-y-2'}>
+        <div className={faceFirst ? 'space-y-2 rounded-lg border border-primary/40 bg-card p-2 shadow-lg ring-1 ring-foreground/10' : 'space-y-2'}>
         <div className="flex items-center gap-1.5">
           {phase === "connecting" && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" />}
           {phase === "live" && !aspenSpeaking && <Mic className="h-3.5 w-3.5 shrink-0 animate-pulse text-primary" />}
