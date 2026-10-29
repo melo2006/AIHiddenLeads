@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { selectedSalesPlan, salesPlanDestination } from '../lib/salesActions';
-test('Start now defaults to Natural Voice rather than immediate payment', () => {
+test('Start now defaults to Premium rather than immediate payment', () => {
   expect(salesPlanDestination()).toBe('/plans?plan=essentials');
 });
 test('recommended Growth opens Growth plan selection', () => {

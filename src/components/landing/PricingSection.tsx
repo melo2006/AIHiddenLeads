@@ -19,7 +19,7 @@ const tiers = [
     icon: Zap,
     popular: false,
     checkoutPlan: "essentials",
-    featureCount: 7,
+    featureCount: 10,
     minutes: 400,
     normalMinutes: 200,
     perMin: "0.25",
@@ -38,7 +38,7 @@ const tiers = [
     icon: Sparkles,
     popular: true,
     checkoutPlan: "growth",
-    featureCount: 8,
+    featureCount: 10,
     minutes: 1200,
     normalMinutes: 600,
     perMin: "0.17",
@@ -57,7 +57,7 @@ const tiers = [
     icon: Crown,
     popular: false,
     checkoutPlan: "fullservice",
-    featureCount: 8,
+    featureCount: 10,
     minutes: 2500,
     normalMinutes: 1250,
     perMin: "0.14",
@@ -70,8 +70,11 @@ const tiers = [
 const FEATURES: Record<string, Record<string, string[]>> = {
   en: {
     essentials: [
-      "Natural neural voice — live two-way conversation, not robotic text-to-speech",
+      "State-of-the-art neural voice — natural, human-like speech, not robotic text-to-speech",
+      "Real two-way conversation — callers can interrupt and she responds instantly",
+      "Optional live talking video avatar (add-on)",
       "AI Chat Widget on your website",
+      "SMS confirmations & reminders (coming soon — carrier fees separate)",
       "Lead capture & appointment booking",
       "400 browser voice minutes/mo (≈ $0.25/min value)",
       "50 qualified B2B leads/month (weekly batches)",
@@ -80,6 +83,8 @@ const FEATURES: Record<string, Record<string, string[]>> = {
     ],
     growth: [
       "Everything in Premium",
+      "Optional live talking video avatar — 1,200 minutes (add-on)",
+      "SMS follow-up & reminders (coming soon)",
       "1,200 browser voice minutes/mo (≈ $0.17/min value)",
       "100 qualified B2B leads/month",
       "Database Reactivation (revive old leads)",
@@ -90,6 +95,8 @@ const FEATURES: Record<string, Record<string, string[]>> = {
     ],
     full: [
       "Everything in Pro",
+      "Optional live talking video avatar — 2,500 minutes (add-on)",
+      "SMS follow-up & reminders (coming soon)",
       "2,500 browser voice minutes/mo (≈ $0.14/min value)",
       "200 qualified B2B leads/month",
       "Social media content & posting",
