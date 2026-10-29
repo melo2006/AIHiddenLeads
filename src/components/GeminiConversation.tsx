@@ -57,7 +57,7 @@ export interface GeminiConversationProps { agentId?: string; leadId?: string; pr
 const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compact = false, name = "Aspen", visitorName = "", previewVoice, autoStart = false, previewOnly = false, previewAudioContext, testModel, shareToken, onRecommendedPlan, videoAvatar, avatarInline = false, faceFirst = false, avatarUrl, consentOnOpen = false }: GeminiConversationProps) => {
   const avatarRef = useRef<SimliAvatarHandle>(null);
   const [faceLive, setFaceLive] = useState(false);
-  const [captions, setCaptions] = useState(() => window.innerWidth > 1024);
+  const [captions, setCaptions] = useState(true);
   const avatarLiveRef = useRef(false);
   const muteNodeRef = useRef<GainNode | null>(null);
   const avatarPendingRef = useRef(false);
@@ -693,7 +693,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     return (
       <div className="space-y-2 p-2 text-foreground">
         {faceFirst ? <div className="aspen-person-portrait relative mx-auto"><div className={faceLive ? 'invisible' : ''}><PersonPortrait name={name} avatarUrl={avatarUrl} /></div>{avatarView}</div> : avatarView}
-        <div className={faceFirst ? 'space-y-2 rounded-lg border border-primary/40 bg-card p-2 shadow-lg ring-1 ring-foreground/10' : 'space-y-2'}>
+        <div className={faceFirst ? 'aspen-voice-panel space-y-2 rounded-lg border border-primary/40 bg-card p-2 shadow-lg ring-1 ring-foreground/10' : 'space-y-2'}>
         <div className="flex items-center gap-1.5">
           {shownPhase === "connecting" && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" />}
           {shownPhase === "live" && !aspenSpeaking && <Mic className="h-3.5 w-3.5 shrink-0 animate-pulse text-primary" />}
@@ -711,8 +711,9 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         {phase === 'idle' && endedByVisitor && <p className="text-xs text-muted-foreground">Press play to reconnect to {name}.</p>}
 
         {faceFirst && <Button size="icon" variant="ghost" className="h-8 w-8" aria-label={captions ? 'Hide captions' : 'Show captions'} title={captions ? 'Hide captions' : 'Show captions'} aria-expanded={captions} onClick={() => setCaptions(v => !v)}><ChevronsUpDown className="h-4 w-4" /></Button>}
+        <div className={faceFirst ? 'aspen-caption-space' : ''}>
         {playbackCaption && (!faceFirst || captions) && <div className="rounded-md border border-border bg-background/95 p-1.5"><PlaybackCaption caption={playbackCaption} /></div>}
-        <div aria-label="Conversation transcript" tabIndex={0} className={`${playbackCaption || faceFirst && !captions ? 'hidden' : ''} ${faceFirst ? 'h-12' : 'max-h-[4.5rem]'} space-y-1 overflow-y-auto overscroll-contain rounded-md border border-border bg-background/95 p-1.5`}>
+        <div aria-label="Conversation transcript" tabIndex={0} className={`${playbackCaption || faceFirst && !captions ? 'hidden' : ''} ${faceFirst ? 'h-[72px]' : 'max-h-[4.5rem]'} space-y-1 overflow-y-auto overscroll-contain rounded-md border border-border bg-background/95 p-1.5`}>
           {turns.length === 0 && !partialAspen && !partialUser && (
             <p className="py-1 text-center text-[11px] text-muted-foreground">No conversation yet.</p>
           )}
@@ -723,9 +724,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
               </MessageContent>
             </Message>
           ))}
-          {partialUser && <Message from="user"><MessageContent className="bg-primary text-primary-foreground text-xs"><MessageResponse>{partialUser}</MessageResponse></MessageContent></Message>}
-          {partialAspen && <Message from="assistant"><MessageContent className="text-xs"><MessageResponse>{partialAspen}</MessageResponse></MessageContent></Message>}
+          {partialUser && <Message from="user"><MessageContent className="bg-primary text-primary-foreground text-sm font-bold"><span className="text-[10px] font-semibold">You</span><MessageResponse>{partialUser}</MessageResponse></MessageContent></Message>}
+          {partialAspen && <Message from="assistant"><MessageContent className="text-sm font-bold"><MessageResponse>{partialAspen}</MessageResponse></MessageContent></Message>}
           <div ref={transcriptEndRef} />
+        </div>
         </div>
 
         {confirmation}
