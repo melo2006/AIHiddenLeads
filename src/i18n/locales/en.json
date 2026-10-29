@@ -184,12 +184,9 @@
     "transparencyTitle": "Full Transparency: What's Included",
     "transparencyBody": "Every plan includes a generous block of <strong>browser voice minutes</strong> (visitors talking to your AI on your website) — the bigger the plan, the cheaper your per-minute rate. Phone-line services (warm transfer to your cell, SMS notifications, appointment reminders) use real carrier networks and are billed separately — see the Connected bundle below. You'll always see your usage in your dashboard before you're billed.",
     "compareTitle": "How we compare:",
-    "compareBody": "Public 2026 prices for comparison: Smith.ai's AI receptionist Pro starts at $150/mo for 75 calls, and Ruby's live receptionists start at $250/mo for 50 minutes. Premium is <strong>$99/mo</strong> with 400 website voice minutes, chat, booking and <strong>50 real B2B leads every month</strong>. Phone lines are billed separately, so compare the features you need.",
+    "compareBody": "Public 2026 prices for comparison: Smith.ai's AI receptionist Pro starts at $150/mo for 75 calls, and Ruby's live receptionists start at $250/mo for 50 minutes. Premium is <strong>$99/mo</strong> with 400 website voice minutes, chat, booking and <strong>50 real B2B leads every month</strong>. Goodcall starts at $79/mo for 100 unique callers. Phone lines are billed separately, so compare the features you need.",
     "telephonyTitle": "Need phone lines? Add the Connected Bundle — $79/mo:",
-    "telephonyBody": "Adds <strong>warm transfer</strong> of hot leads to your phone, <strong>SMS lead notifications</strong>, and <strong>SMS/email appointment reminders</strong> to any plan. Phone carrier usage is billed at cost on top. Also available separately: warm transfer $49/mo, SMS notifications $19/mo, reminders $29/mo."
-  },
-  "mapVisibility": {
-    "badge": "📍 NEW: 25-Point Local & Regional Map Audit",
+    "telephonyBody": "<strong>Professional and Platinum</strong> include <strong>live transfer</strong> of hot website visitors to your phone and <strong>one free local number</strong>. Phone and transfer minutes are billed separately at <strong>5¢ per minute</strong>, so your voice and video minutes stay yours. SMS summaries and reminders are coming soon.",
     "headlineStart": "Your Google Maps Ranking Changes With Location.",
     "headlineAccent": "How Visible Are You 1, 3 or 5 Miles Away?",
     "disclaimer": "Illustrative before & after — not measured rankings or a promise of 14-day results.",
