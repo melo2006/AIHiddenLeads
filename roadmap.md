@@ -1,5 +1,10 @@
 # Current work
 
+- [x] Audited telephone/calendar/report scope and researched official Goodcall, Smith.ai and Twilio prices. Recommended 25/75/200 callbacks (not configured); customer-choice coverage and separate 5¢ telephone direction preserved. Customer inbound AI answering and calendar connection remain separate rollout work, not claimed live.
+- [x] Added CSV downloads and reviewed single-report Zapier sending to authorized admin call history/private records. Four privacy/CSV/destination tests pass; real signed-in CSV downloaded, invalid destination denied, intercepted send confirmed payload; phone dialog fits and build OK. No auto-send, raw audio/transcript/draft export or customer access expansion.
+- [ ] Verify actual Zapier delivery: needs owner's Catch Hook URL and Zap run-history confirmation. No private report sent externally during tests.
+- [ ] Telephone rollout and automatic customer reports: require customer-specific number/routing/calendar authorization, agreed callback caps and billing basis, plus real end-to-end verification; not activated by report exports.
+
 - [x] Fixed active-word scrolling with consistent viewport coordinates and timed return after manual scroll; added emerald drag/minimize/close outlines. Five caption tests pass; browser confirmed highlighted final word visible after scrolling, unchanged 144px face and no overflow; build OK. Real call/device retest remains recommended.
 
 - [x] Unified initial/minimized/active face dimensions (144px phone, 187px desktop) and removed speech-dependent panel width and live-only scale. Reserved caption space, enabled captions by default, strengthened current-word/caller text and switched to playback-frame updates with no stream-extension rewind. Nine tests and browser idle/expanded sizes pass, no overflow, build OK. Live speech alignment still needs device verification; provider word timestamps unavailable. Repository lint remains blocked by existing errors outside these changes.
