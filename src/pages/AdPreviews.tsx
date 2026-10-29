@@ -319,7 +319,7 @@ const AdPreviews = () => {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Essentials Plan Price ($/mo)</label>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Natural Voice Plan Price ($/mo)</label>
                     <input type="number" min={49} max={499} step={10} value={essentialPrice} onChange={e => setEssentialPrice(Number(e.target.value))} className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-sm font-semibold text-foreground" />
                   </div>
                   <div>

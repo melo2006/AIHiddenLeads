@@ -7,6 +7,7 @@ import StatsSection from "@/components/landing/StatsSection";
 import ServicesGrid from "@/components/landing/ServicesGrid";
 import HowItWorksSection from "@/components/landing/HowItWorksSection";
 import DemoDifferentiator from "@/components/landing/DemoDifferentiator";
+import WhyUsSection from "@/components/landing/WhyUsSection";
 import PricingSection from "@/components/landing/PricingSection";
 import AddOnPackages from "@/components/landing/AddOnPackages";
 import FAQSection from "@/components/landing/FAQSection";
@@ -37,6 +38,7 @@ const Index = () => {
       <HowItWorksSection />
       <TryWebsiteCTA />
       <DemoDifferentiator />
+      <WhyUsSection />
       <PricingSection />
       <AddOnPackages />
       <FAQSection />

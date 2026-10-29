@@ -167,19 +167,19 @@
     "promoMinutes": "Promo de lanzamiento: normalmente {{n}} min — DUPLICADO gratis",
     "mostPopular": "Más Popular",
     "essentials": {
-      "name": "IA Esencial",
+      "name": "Voz Natural",
       "tag": "Voz + Chat + 50 Leads B2B al Mes",
       "cta": "Empezar por $99/mes"
     },
     "growth": {
-      "name": "Motor de Crecimiento",
+      "name": "Pro",
       "tag": "Más Voz + 100 Leads + Reactivación",
       "cta": "Hacer Crecer Mi Negocio"
     },
     "full": {
-      "name": "Full Service",
+      "name": "Premium",
       "tag": "Manejamos Todo Tu Marketing",
-      "cta": "Quiero Full Service"
+      "cta": "Quiero Premium"
     },
     "transparencyTitle": "Total Transparencia: Qué Está Incluido",
     "transparencyBody": "Cada plan incluye un bloque generoso de <strong>minutos de voz web</strong> (visitantes hablando con tu IA en tu sitio) — a mayor plan, más barato el costo por minuto. Los servicios de línea telefónica (transferencia en vivo a tu celular, SMS, recordatorios de citas) usan redes de operadora y se cobran aparte — mira el Paquete Conectado abajo. Siempre verás tu consumo en el panel antes de cualquier cobro.",
@@ -518,7 +518,7 @@
     "items": [
       {
         "q": "¿Qué cuenta exactamente como una 'interacción de IA' en el plan de $99?",
-        "a": "Una interacción de IA = una conversación en tu sitio (voz o chat) de hasta 5 minutos. El plan AI Essentials de $99 incluye 100 al mes — suficiente para cubrir el tráfico de la mayoría de pequeños negocios. Si te pasas, las conversaciones adicionales cuestan solo $0,50 cada una para no perder ningún lead. Recibes un aviso amistoso por SMS a las 80 y otra vez a las 100 conversaciones."
+        "a": "Una interacción de IA = una conversación en tu sitio (voz o chat) de hasta 5 minutos. El plan Natural Voice de $99 incluye 100 al mes — suficiente para cubrir el tráfico de la mayoría de pequeños negocios. Si te pasas, las conversaciones adicionales cuestan solo $0,50 cada una para no perder ningún lead. Recibes un aviso amistoso por SMS a las 80 y otra vez a las 100 conversaciones."
       },
       {
         "q": "¿Qué pasa si supero mis límites mensuales?",
@@ -529,12 +529,12 @@
         "a": "Las transferencias telefónicas en vivo usan Twilio a coste — aproximadamente $0,02 por minuto. Una llamada típica de 4–5 minutos suma unos $0,10. Incluso con uso intenso rara vez supera los $30–$90/mes, y se factura de forma transparente a coste, sin margen."
       },
       {
-        "q": "¿De dónde vienen los 50 nuevos leads del plan Growth Engine?",
+        "q": "¿De dónde vienen los 50 nuevos leads del plan Pro?",
         "a": "Obtenemos leads B2B de directorios públicos de empresas — Google Maps, Apollo.io, páginas de empresas en LinkedIn, Yelp y directorios sectoriales. Cada lead se verifica con un teléfono real vía Twilio line-type lookup y un correo empresarial válido antes de entregarse. Son 100% B2B (empresas, no consumidores), en total cumplimiento con CAN-SPAM y TCPA, con texto de baja en cada mensaje. Sin datos de mercado gris, sin scraping de información privada."
       },
       {
         "q": "¿Y si necesito más de 50 leads al mes?",
-        "a": "Leads B2B verificados adicionales por $1,50 cada uno (nuestro coste es $0,30–$0,80, facturado con margen honesto). Dinos tu volumen objetivo y configuramos la facturación de excedentes o te pasamos al plan Full Service, donde la generación de leads es ilimitada y nosotros hacemos la prospección por ti."
+        "a": "Leads B2B verificados adicionales por $1,50 cada uno (nuestro coste es $0,30–$0,80, facturado con margen honesto). Dinos tu volumen objetivo y configuramos la facturación de excedentes o te pasamos al plan Premium, donde la generación de leads es ilimitada y nosotros hacemos la prospección por ti."
       },
       {
         "q": "¿Qué voz usa Aspen? ¿Es una IA cara?",
@@ -550,7 +550,7 @@
       },
       {
         "q": "¿En cuánto tiempo se ponen en marcha?",
-        "a": "2–3 días hábiles para AI Essentials y Growth Engine. Full Service en 5–7 días hábiles porque también configuramos tus secuencias de prospección, importaciones de CRM y enrutamiento de transferencias en vivo."
+        "a": "2–3 días hábiles para Natural Voice y Pro. Premium en 5–7 días hábiles porque también configuramos tus secuencias de prospección, importaciones de CRM y enrutamiento de transferencias en vivo."
       },
       {
         "q": "¿Puedo cancelar en cualquier momento?",
