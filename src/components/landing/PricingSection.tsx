@@ -322,7 +322,7 @@ const PricingSection = ({ recommendedPlan }: { recommendedPlan?: string } = {}) 
           <div className="rounded-xl border border-border bg-card/50 p-5">
             <p className="text-sm text-center text-muted-foreground leading-relaxed">
               <span className="font-semibold text-foreground">Live video avatar add-on: $79/mo.</span>{" "}
-              Includes <span className="text-primary font-medium">400 video avatar minutes</span> on Natural Voice. Pick any face from our avatar library <span className="text-primary font-medium">free</span>, or have a custom avatar built from your own photo for a <span className="text-primary font-medium">$50 one-time fee</span>. Custom faces can take several minutes up to about 24 hours to build.
+              Every plan includes natural voice with a still photo of your assistant. Add a live, lip-synced video face for $79/mo with <span className="text-primary font-medium">400 video avatar minutes</span> — <span className="text-primary font-medium">$178/mo total</span> on Natural Voice ($99 + $79). Pick any face from our avatar library <span className="text-primary font-medium">free</span>, or have a custom avatar built from your own photo for a <span className="text-primary font-medium">$50 one-time fee</span>. Custom faces can take several minutes up to about 24 hours to build. Your free website demo uses our live video assistant so you can see the full experience.
             </p>
           </div>
         </motion.div>
