@@ -10,8 +10,9 @@ let lastWarmup = 0;
 export function preloadVoiceIdentity(agentId?: string) {
   if (Date.now() - lastWarmup > 5 * 60 * 1000) {
     lastWarmup = Date.now();
-    // This health endpoint returns before any capability consumption or Gemini connection.
-    void supabase.functions.invoke("gemini-live-proxy?ping=1", { method: "GET" }).catch(() => {});
+    // Health endpoints wake the voice and face services so the first tap connects faster.
+    // They return before any capability, Gemini connection or Simli session is created.
+    for (const fn of ["gemini-live-proxy?ping=1", "gemini-session?ping=1", "simli-avatar?ping=1"]) void supabase.functions.invoke(fn, { method: "GET" }).catch(() => {});
   }
   const key = agentId || "homepage";
   const cached = identities.get(key);
