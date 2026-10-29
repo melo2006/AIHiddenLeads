@@ -15,3 +15,14 @@ describe("live face background cut-out", () => {
     expect(despill(0.5, 0.9, 0.4)).toBe(0.5);
   });
 });
+
+import { opaqueBounds, centeringShift } from '@/lib/chromaKey';
+describe('person re-centring', () => {
+  it('shifts a right-offset person back to centre', () => {
+    const w = 10, h = 2, d = new Uint8ClampedArray(w * h * 4);
+    for (let i = 0; i < w * h; i++) { d[i * 4 + 1] = 255; d[i * 4 + 3] = 255; }
+    for (const x of [6, 7, 8, 9]) for (const y of [0, 1]) { const i = (y * w + x) * 4; d[i] = 200; d[i + 1] = 150; d[i + 2] = 120; }
+    const b = opaqueBounds(d, w, h)!;
+    expect(b.x0).toBeCloseTo(0.6); expect(centeringShift(b)).toBeCloseTo(-0.3);
+  });
+});
