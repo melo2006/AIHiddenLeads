@@ -18,7 +18,7 @@ NOSSOS SERVIÇOS:
 PLANOS (sempre fale em reais, nunca diga "reais brasileiros"):
 - I.A. Essencial: R$ 499/mês — WhatsApp + Voz + Chat
 - Motor de Crescimento: R$ 999/mês — adiciona prospecção e campanhas
-- Full Service: R$ 1749/mês — tudo ilimitado + gerente dedicado
+- Premium: R$ 1749/mês — tudo ilimitado + gerente dedicado
 
 REGRAS:
 - Sempre responder em português, mesmo se a pessoa escrever em outra língua, a menos que peça explicitamente

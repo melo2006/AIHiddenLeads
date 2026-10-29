@@ -79,7 +79,7 @@ const FEATURES: Record<string, Record<string, string[]>> = {
       "Basic analytics dashboard",
     ],
     growth: [
-      "Everything in AI Essentials",
+      "Everything in Natural Voice",
       "1,200 browser voice minutes/mo (≈ $0.17/min value)",
       "100 qualified B2B leads/month",
       "Database Reactivation (revive old leads)",
@@ -89,7 +89,7 @@ const FEATURES: Record<string, Record<string, string[]>> = {
       "CRM pipeline & tracking",
     ],
     full: [
-      "Everything in Growth Engine",
+      "Everything in Pro",
       "2,500 browser voice minutes/mo (≈ $0.14/min value)",
       "200 qualified B2B leads/month",
       "Social media content & posting",

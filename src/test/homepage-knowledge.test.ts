@@ -3,14 +3,14 @@ import { expect, test } from 'vitest';
 import { HOMEPAGE_PLANS, HOMEPAGE_ADDONS, HOMEPAGE_KNOWLEDGE } from '../../supabase/functions/_shared/homepage-knowledge';
 import { businessDemoConfig } from '../../supabase/functions/_shared/voice-config';
 
-test('AI Essentials has the approved price, minutes and leads', () => {
-  expect(HOMEPAGE_PLANS.find(p => p.name === 'AI Essentials')).toEqual({name:'AI Essentials',monthlyUsd:99,setupUsd:99,browserVoiceMinutes:400,normalMinutes:200,perMinEquivUsd:0.25,leadsPerMonth:50});
+test('Natural Voice has the approved price, minutes and leads', () => {
+  expect(HOMEPAGE_PLANS.find(p => p.name === 'Natural Voice')).toEqual({name:'Natural Voice',monthlyUsd:99,setupUsd:99,browserVoiceMinutes:400,normalMinutes:200,perMinEquivUsd:0.25,leadsPerMonth:50});
 });
-test('Growth Engine has the approved price, minutes and leads', () => {
-  expect(HOMEPAGE_PLANS.find(p => p.name === 'Growth Engine')).toEqual({name:'Growth Engine',monthlyUsd:199,setupUsd:199,browserVoiceMinutes:1200,normalMinutes:600,perMinEquivUsd:0.17,leadsPerMonth:100});
+test('Pro has the approved price, minutes and leads', () => {
+  expect(HOMEPAGE_PLANS.find(p => p.name === 'Pro')).toEqual({name:'Pro',monthlyUsd:199,setupUsd:199,browserVoiceMinutes:1200,normalMinutes:600,perMinEquivUsd:0.17,leadsPerMonth:100});
 });
-test('Full Service has the approved price, minutes and leads', () => {
-  expect(HOMEPAGE_PLANS.find(p => p.name === 'Full Service')).toEqual({name:'Full Service',monthlyUsd:349,setupUsd:349,browserVoiceMinutes:2500,normalMinutes:1250,perMinEquivUsd:0.14,leadsPerMonth:200});
+test('Premium has the approved price, minutes and leads', () => {
+  expect(HOMEPAGE_PLANS.find(p => p.name === 'Premium')).toEqual({name:'Premium',monthlyUsd:349,setupUsd:349,browserVoiceMinutes:2500,normalMinutes:1250,perMinEquivUsd:0.14,leadsPerMonth:200});
 });
 test('Connected Bundle costs $79 monthly', () => expect(HOMEPAGE_ADDONS.find(a => a.name.startsWith('Connected Bundle'))).toMatchObject({usd:79,cadence:'monthly'}));
 test('Warm Transfer add-on costs $49 monthly', () => expect(HOMEPAGE_ADDONS.find(a => a.name.startsWith('Warm Transfer'))).toMatchObject({usd:49,cadence:'monthly'}));

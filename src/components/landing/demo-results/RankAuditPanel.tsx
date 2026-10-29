@@ -213,7 +213,7 @@ export default function RankAuditPanel({ businessName, city = "", niche = "", we
           <div className="space-y-2 border-t border-border pt-4">
             <Button asChild className="h-auto min-h-11 w-full whitespace-normal py-3"><Link to="/checkout?plan=essentials">Claim ${auditOffers.founder}/mo Founder Plan</Link></Button>
             <Button asChild variant="outline" className="h-auto min-h-11 w-full whitespace-normal py-3"><Link to="/book?offer=google-maps-boost">Request ${auditOffers.mapsBoost}/mo Google Maps Boost</Link></Button>
-            <p className="text-xs text-muted-foreground">Founder Plan uses AI Essentials checkout. Google Maps Boost is confirmed during an implementation call; this button does not charge you.</p>
+            <p className="text-xs text-muted-foreground">Founder Plan uses Natural Voice checkout. Google Maps Boost is confirmed during an implementation call; this button does not charge you.</p>
           </div>
         </div>
       </SheetContent>

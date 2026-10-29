@@ -12,7 +12,7 @@ import type { User } from '@supabase/supabase-js';
 
 const planDetails: Record<string, { name: string; price: string; features: string[]; priceId: string }> = {
   essentials: {
-    name: "AI Essentials — Voice + Chat + 50 B2B Leads",
+    name: "Natural Voice — Voice + Chat + 50 B2B Leads",
     price: "$99/mo",
     priceId: "essentials_monthly",
     features: [
@@ -26,11 +26,11 @@ const planDetails: Record<string, { name: string; price: string; features: strin
     ],
   },
   growth: {
-    name: "Growth Engine — More Voice + 100 Leads + Reactivation",
+    name: "Pro — More Voice + 100 Leads + Reactivation",
     price: "$199/mo",
     priceId: "growth_monthly",
     features: [
-      "Everything in AI Essentials",
+      "Everything in Natural Voice",
       "1,200 browser voice minutes/mo (≈ $0.17/min value)",
       "100 qualified B2B leads per month",
       "Database Reactivation — revive old/cold leads",
@@ -41,11 +41,11 @@ const planDetails: Record<string, { name: string; price: string; features: strin
     ],
   },
   fullservice: {
-    name: "Full Service — Complete Marketing Machine",
+    name: "Premium — Complete Marketing Machine",
     price: "$349/mo",
     priceId: "fullservice_monthly",
     features: [
-      "Everything in Growth Engine",
+      "Everything in Pro",
       "2,500 browser voice minutes/mo (≈ $0.14/min value)",
       "200 qualified B2B leads per month",
       "Social media content creation & posting",

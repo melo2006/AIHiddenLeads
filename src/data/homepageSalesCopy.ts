@@ -27,11 +27,11 @@ const spanish: SalesCopy = {
   demo: 'Probar en mi sitio — gratis', addons: 'Ver paquetes adicionales',
   scope: 'La voz web está incluida. Telefonía y consumo se cobran aparte. Búsqueda, reputación y redes requieren alcance acordado y cuentas conectadas; sin resultados garantizados.',
   services: [
-    {id:'voice', name:'Recepción conversacional con IA',scope:'Empieza con Essentials',benefits:['Una conversación, no un buzón: responde preguntas y recoge el motivo de la consulta mientras tu equipo está ocupado.','Conocimiento compartido para voz y chat; calendarios y atención humana se conectan durante la configuración.']},
-    {id:'leads',name:'Nuevos prospectos B2B',scope:'50/mes en Essentials',benefits:['Selecciona empresas por industria y región y revisa la evidencia de contacto disponible; no una lista genérica comprada.','Entregas semanales incluidas; contacta tú o añade seguimiento autorizado y reactivación de tu base.']},
+    {id:'voice', name:'Recepción conversacional con IA',scope:'Empieza con Natural Voice',benefits:['Una conversación, no un buzón: responde preguntas y recoge el motivo de la consulta mientras tu equipo está ocupado.','Conocimiento compartido para voz y chat; calendarios y atención humana se conectan durante la configuración.']},
+    {id:'leads',name:'Nuevos prospectos B2B',scope:'50/mes en Natural Voice',benefits:['Selecciona empresas por industria y región y revisa la evidencia de contacto disponible; no una lista genérica comprada.','Entregas semanales incluidas; contacta tú o añade seguimiento autorizado y reactivación de tu base.']},
     {id:'search',name:'Google Maps y búsqueda con IA',scope:'Paquetes opcionales',benefits:['Mide 25 ubicaciones, no solo tu oficina: descubre cómo cambia tu visibilidad entre barrios.','Prioriza categorías del perfil, mejoras de búsqueda local y datos estructurados a partir del análisis.']},
     {id:'reputation',name:'Reseñas y reputación',scope:'Alcance opcional acordado',benefits:['Solicita opiniones honestas y supervisa reseñas nuevas, sin incentivos ni selección de clientes satisfechos.','Borradores de respuesta con IA ahorran tiempo; tu equipo aprueba las respuestas sensibles.']},
-    {id:'social',name:'Contenido y creación social',scope:'Full Service / cotización',benefits:['Planifica publicaciones, anuncios y videos con IA para tu empresa, con aprobación antes de publicar.','Acuerda programación diaria o semanal y respuestas permitidas tras conectar las cuentas; no mensajes autónomos sin configurar.']},
+    {id:'social',name:'Contenido y creación social',scope:'Premium / cotización',benefits:['Planifica publicaciones, anuncios y videos con IA para tu empresa, con aprobación antes de publicar.','Acuerda programación diaria o semanal y respuestas permitidas tras conectar las cuentas; no mensajes autónomos sin configurar.']},
   ],
 };
 
@@ -44,11 +44,11 @@ const portuguese: SalesCopy = {
   demo:'Testar no meu site — grátis',addons:'Ver pacotes adicionais',
   scope:'Voz no navegador incluída. Telefonia e uso da operadora são separados. Busca, reputação e redes exigem escopo acordado e contas conectadas; sem garantia de resultados.',
   services:[
-    {id:'voice',name:'Recepção conversacional com IA',scope:'Comece com Essentials',benefits:['Uma conversa, não uma caixa postal: responde perguntas e registra o motivo do contato enquanto sua equipe está ocupada.','Uma base de conhecimento para voz e chat; calendários e atendimento humano são conectados na configuração.']},
-    {id:'leads',name:'Novos prospects B2B',scope:'50/mês no Essentials',benefits:['Encontre empresas por setor e região e revise os dados de contato disponíveis — não uma lista genérica comprada.','Entregas semanais incluídas; faça o contato ou adicione campanhas autorizadas e reativação da sua base.']},
+    {id:'voice',name:'Recepção conversacional com IA',scope:'Comece com Natural Voice',benefits:['Uma conversa, não uma caixa postal: responde perguntas e registra o motivo do contato enquanto sua equipe está ocupada.','Uma base de conhecimento para voz e chat; calendários e atendimento humano são conectados na configuração.']},
+    {id:'leads',name:'Novos prospects B2B',scope:'50/mês no Natural Voice',benefits:['Encontre empresas por setor e região e revise os dados de contato disponíveis — não uma lista genérica comprada.','Entregas semanais incluídas; faça o contato ou adicione campanhas autorizadas e reativação da sua base.']},
     {id:'search',name:'Google Maps e busca com IA',scope:'Pacotes opcionais',benefits:['Meça 25 locais, não só seu escritório: veja como a visibilidade muda entre bairros.','Use o diagnóstico para priorizar categorias, melhorias de busca local e dados estruturados do site.']},
     {id:'reputation',name:'Avaliações e reputação',scope:'Escopo opcional acordado',benefits:['Peça avaliações honestas e monitore novas respostas, sem incentivos nem seleção de clientes satisfeitos.','Rascunhos com IA economizam tempo; sua equipe aprova respostas sensíveis antes da publicação.']},
-    {id:'social',name:'Conteúdo e criação social',scope:'Full Service / orçamento',benefits:['Planeje posts, anúncios e conceitos de vídeo com IA para sua empresa, com aprovação antes de publicar.','Combine agenda diária ou semanal e respostas permitidas após conectar as contas — sem DMs autônomas não configuradas.']},
+    {id:'social',name:'Conteúdo e criação social',scope:'Premium / orçamento',benefits:['Planeje posts, anúncios e conceitos de vídeo com IA para sua empresa, com aprovação antes de publicar.','Combine agenda diária ou semanal e respostas permitidas após conectar as contas — sem DMs autônomas não configuradas.']},
   ],
 };
 

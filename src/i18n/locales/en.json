@@ -167,19 +167,19 @@
     "promoMinutes": "Launch promo: normally {{n}} min — doubled FREE",
     "mostPopular": "Most Popular",
     "essentials": {
-      "name": "AI Essentials",
+      "name": "Natural Voice",
       "tag": "Voice + Chat + 50 B2B Leads Monthly",
       "cta": "Start for $99/mo"
     },
     "growth": {
-      "name": "Growth Engine",
+      "name": "Pro",
       "tag": "More Voice + 100 Leads + Reactivation",
       "cta": "Grow My Business"
     },
     "full": {
-      "name": "Full Service",
+      "name": "Premium",
       "tag": "We Run Your Entire Marketing Machine",
-      "cta": "Go Full Service"
+      "cta": "Go Premium"
     },
     "transparencyTitle": "Full Transparency: What's Included",
     "transparencyBody": "Every plan includes a generous block of <strong>browser voice minutes</strong> (visitors talking to your AI on your website) — the bigger the plan, the cheaper your per-minute rate. Phone-line services (warm transfer to your cell, SMS notifications, appointment reminders) use real carrier networks and are billed separately — see the Connected bundle below. You'll always see your usage in your dashboard before you're billed.",
@@ -519,7 +519,7 @@
     "items": [
       {
         "q": "What exactly counts as an 'AI interaction' in the $99 plan?",
-        "a": "One AI interaction = one conversation on your website (voice or chat) up to 5 minutes long. The $99 AI Essentials plan includes 100 of these per month — enough to cover most small-business website traffic. If you go over, additional conversations are billed at just $0.50 each so you never miss a lead. You'll get a friendly SMS warning at 80 and again at 100 conversations."
+        "a": "One AI interaction = one conversation on your website (voice or chat) up to 5 minutes long. The $99 Natural Voice plan includes 100 of these per month — enough to cover most small-business website traffic. If you go over, additional conversations are billed at just $0.50 each so you never miss a lead. You'll get a friendly SMS warning at 80 and again at 100 conversations."
       },
       {
         "q": "What happens if I go over my monthly limits?",
@@ -530,12 +530,12 @@
         "a": "Live phone transfers use Twilio at our cost — approximately $0.02 per minute. A typical 4–5 minute live transfer call adds about $0.10. Even with heavy usage this rarely adds more than $30–$90/month, and we bill it transparently at cost, not marked up."
       },
       {
-        "q": "Where do the 50 new leads in the Growth Engine plan come from?",
+        "q": "Where do the 50 new leads in the Pro plan come from?",
         "a": "We source B2B leads from public business directories — Google Maps, Apollo.io, LinkedIn company pages, Yelp, and industry-specific directories. Every lead is verified for a real phone number using Twilio line-type lookup and a valid business email before delivery. These are 100% B2B leads (businesses, not consumers), fully compliant with CAN-SPAM and TCPA, with opt-out language built into every outbound message. No gray-market data, no scraping of private info."
       },
       {
         "q": "What if I need more than 50 leads per month?",
-        "a": "Additional verified B2B leads are available at $1.50 each (our cost is $0.30–$0.80, billed at honest passthrough margins). Just let us know your target volume and we'll set up overage billing or move you to the Full Service plan, where lead generation is unlimited and we run the outreach for you."
+        "a": "Additional verified B2B leads are available at $1.50 each (our cost is $0.30–$0.80, billed at honest passthrough margins). Just let us know your target volume and we'll set up overage billing or move you to the Premium plan, where lead generation is unlimited and we run the outreach for you."
       },
       {
         "q": "What voice does Aspen use? Is it expensive AI?",
@@ -551,7 +551,7 @@
       },
       {
         "q": "How fast do you go live?",
-        "a": "2–3 business days for AI Essentials and Growth Engine. Full Service is 5–7 business days because we also set up your outreach sequences, CRM imports, and live transfer routing."
+        "a": "2–3 business days for Natural Voice and Pro. Premium is 5–7 business days because we also set up your outreach sequences, CRM imports, and live transfer routing."
       },
       {
         "q": "Can I cancel anytime?",
