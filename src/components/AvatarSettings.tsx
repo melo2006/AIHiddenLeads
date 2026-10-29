@@ -11,7 +11,7 @@ import AvatarDevicePreview from "@/components/AvatarDevicePreview";
 import GeminiConversation from "@/components/GeminiConversation";
 import { VOICES } from "@/components/setup-wizard/wizardModel";
 import aspenFace from "@/assets/aspen_blonde_avatar.jpg";
-import aspenCutout from "@/assets/aspen-transparent-512.webp";
+import aspenCutout from "@/assets/aspen-shoulders-512-v2.webp";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import {
   AVATAR_MAX_SIZE, AVATAR_MIN_SIZE, AVATAR_POSITIONS, AVATAR_SHAPES, PRESET_FACES, type VideoAvatar,
