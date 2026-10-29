@@ -13,6 +13,8 @@ const json=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,
 export async function hash(value:string) { return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)))).map(b=>b.toString(16).padStart(2,'0')).join(''); }
 Deno.serve(async req=>{
  if(req.method==='OPTIONS') return new Response('ok',{headers:corsHeaders});
+ // Warm-up only: wakes this function on page load without issuing any session or capability.
+ if(req.method==='GET' && new URL(req.url).searchParams.get('ping')==='1') return json({ok:true});
  if(req.method!=='POST') return json({error:'POST required'},405);
  try {
   const parsed=schema.safeParse(await req.json()); if(!parsed.success) return json({error:'Invalid voice session request'},400); const b=parsed.data;

@@ -18,8 +18,13 @@ const body = z.discriminatedUnion('action', [
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
-  if (req.method !== 'POST') return json({ error: 'POST required' }, 405);
   const apiKey = Deno.env.get('SIMLI_API_KEY');
+  // Warm-up only: wakes the function and caches the backdrop id on page load; never opens a Simli session.
+  if (req.method === 'GET' && new URL(req.url).searchParams.get('ping') === '1') {
+    if (apiKey) await chromaBackgroundId(apiKey).catch(() => null);
+    return json({ ok: true });
+  }
+  if (req.method !== 'POST') return json({ error: 'POST required' }, 405);
   if (!apiKey) return json({ error: 'Video avatar service is not configured' }, 503);
   try {
     const parsed = body.safeParse(await req.json());
@@ -66,7 +71,9 @@ Deno.serve(async (req) => {
       // Public sessions get a shorter idle window so an abandoned tab stops using avatar minutes.
       // A flat key-green backdrop lets the browser cut the person out so she floats like the static photo.
       const backgroundId = await chromaBackgroundId(apiKey).catch(() => null);
-      const config = { faceId, handleSilence: true, maxSessionLength: publicSession ? 1800 : 3600, maxIdleTime: publicSession ? 60 : 300, ...(backgroundId ? { background_id: backgroundId, streaming_width: 512, streaming_height: 512, avatar_position_x: 0.5, avatar_position_y: 1 } : {}) };
+      // Keep Simli's own square canvas (768): a smaller canvas crops a window out of the avatar's frame,
+      // which is what cut Aspen in half. Only the backdrop is swapped for the key green.
+      const config = { faceId, handleSilence: true, maxSessionLength: publicSession ? 1800 : 3600, maxIdleTime: publicSession ? 60 : 300, ...(backgroundId ? { background_id: backgroundId } : {}) };
       let res = await fetch(`${SIMLI}/compose/token`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-simli-api-key': apiKey }, body: JSON.stringify(config) });
       // Older (non Trinity-2) faces may reject the framing fields; retry with the face's own look.
       if (!res.ok && backgroundId && res.status === 422) res = await fetch(`${SIMLI}/compose/token`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-simli-api-key': apiKey }, body: JSON.stringify({ faceId, handleSilence: true, maxSessionLength: config.maxSessionLength, maxIdleTime: config.maxIdleTime }) });

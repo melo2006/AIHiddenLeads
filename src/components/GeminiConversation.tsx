@@ -51,8 +51,8 @@ const AVATAR_HOLD_MS = 12000;
 /** Seconds of local-voice delay so Simli's lip movement lines up with what callers hear. */
 const AVATAR_LIP_LAG = 0.25;
 
-export interface GeminiConversationProps { agentId?: string; leadId?: string; prospectId?: string; draft?: boolean; compact?: boolean; name?: string; visitorName?: string; previewVoice?: string; autoStart?: boolean; previewOnly?: boolean; previewAudioContext?: AudioContext; testModel?: string; shareToken?: string; onRecommendedPlan?: (plan: SalesPlan) => void; videoAvatar?: VideoAvatar; avatarInline?: boolean; faceFirst?: boolean; avatarUrl?: string; }
-const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compact = false, name = "Aspen", visitorName = "", previewVoice, autoStart = false, previewOnly = false, previewAudioContext, testModel, shareToken, onRecommendedPlan, videoAvatar, avatarInline = false, faceFirst = false, avatarUrl }: GeminiConversationProps) => {
+export interface GeminiConversationProps { agentId?: string; leadId?: string; prospectId?: string; draft?: boolean; compact?: boolean; name?: string; visitorName?: string; previewVoice?: string; autoStart?: boolean; previewOnly?: boolean; previewAudioContext?: AudioContext; testModel?: string; shareToken?: string; onRecommendedPlan?: (plan: SalesPlan) => void; videoAvatar?: VideoAvatar; avatarInline?: boolean; faceFirst?: boolean; avatarUrl?: string; /** The visitor tapped a launcher that already showed the recording notice; that tap is the agreement. */ consentOnOpen?: boolean; }
+const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compact = false, name = "Aspen", visitorName = "", previewVoice, autoStart = false, previewOnly = false, previewAudioContext, testModel, shareToken, onRecommendedPlan, videoAvatar, avatarInline = false, faceFirst = false, avatarUrl, consentOnOpen = false }: GeminiConversationProps) => {
   const avatarRef = useRef<SimliAvatarHandle>(null);
   const [faceLive, setFaceLive] = useState(false);
   const [captions, setCaptions] = useState(() => window.innerWidth > 1024);
@@ -68,8 +68,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const [actionNotice, setActionNotice] = useState('');
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
   const deadlineRef = useRef(0);
-  const [consentReady,setConsentReady]=useState(false);
-  const consentReadyRef=useRef(false);
+  const [consentReady,setConsentReady]=useState(consentOnOpen);
+  const consentReadyRef=useRef(consentOnOpen);
+  // True while the voice is held back so it starts together with the moving face.
+  const [faceWaiting, setFaceWaiting] = useState(false);
   useEffect(() => { const timer = window.setInterval(() => { if (liveRef.current && deadlineRef.current) setRemainingSeconds(Math.max(0, Math.ceil((deadlineRef.current-Date.now())/1000))); }, 1000); return () => window.clearInterval(timer); }, []);
   const [handoffToken, setHandoffToken] = useState<string | null>(null);
   const [handoffActive, setHandoffActive] = useState(false);
@@ -228,7 +230,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     sourcesRef.current.clear();
     setMicLevel(0);
     avatarRef.current?.stop();
-    avatarStartingRef.current = false; heldAudioRef.current = []; avatarRequestedRef.current = false;
+    avatarStartingRef.current = false; heldAudioRef.current = []; avatarRequestedRef.current = false; setFaceWaiting(false);
     avatarLiveRef.current = false;
     try { wsRef.current?.close() } catch { /* ignore */ }
     wsRef.current = null;
@@ -338,6 +340,30 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     } catch { captureRef.current.replaying = false; setReplaying(false); setError("Could not replay audio. Check your speaker connection."); }
   }, [pauseCapture, clearPlayback, playPcmChunk]);
 
+  // Starts the moving face. Until her first video frame is on screen, her voice is held back
+  // (only if she hasn't spoken yet) so voice and lips begin together; after AVATAR_HOLD_MS the voice goes on alone.
+  const startFace = useCallback((generation: number) => {
+    const hold = playTimeRef.current === 0 && sourcesRef.current.size === 0;
+    if (hold) { avatarStartingRef.current = true; setFaceWaiting(true); }
+    let released = false;
+    const release = () => {
+      if (released || generation !== generationRef.current) return;
+      released = true;
+      if (!avatarStartingRef.current) return;
+      avatarStartingRef.current = false; setFaceWaiting(false);
+      const held = heldAudioRef.current; heldAudioRef.current = [];
+      held.forEach(b => playChunkRef.current(b));
+    };
+    const timer = hold ? window.setTimeout(release, AVATAR_HOLD_MS) : 0;
+    // The avatar view mounts on the same render as the tap; wait one frame for its ref.
+    void new Promise<void>(r => requestAnimationFrame(() => r())).then(() => avatarRef.current?.start()).then(ok => {
+      window.clearTimeout(timer);
+      if (generation !== generationRef.current) { if (ok) avatarRef.current?.stop(); return; }
+      if (ok) avatarLiveRef.current = true;
+      release();
+    }).catch(() => { window.clearTimeout(timer); release(); });
+  }, []);
+
   const startConversation = useCallback(async (preview = false) => {
     if (startingRef.current || liveRef.current) return;
     if (!preview && !consentReadyRef.current) { setConsentReady(false); return; }
@@ -360,23 +386,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     aspenLineRef.current = "";
     userLineRef.current = "";
     setPhase("connecting");
-    setStatus(preview ? "Preparing your saved greeting…" : "Connecting to Gemini Live…");
+    setStatus(preview ? "Preparing your saved greeting…" : "Connecting…");
     avatarLiveRef.current = false; avatarPendingRef.current = false; heldAudioRef.current = [];
-    avatarStartingRef.current = !preview && !!videoAvatar?.enabled;
-    const releaseHeld = () => {
-      if (!avatarStartingRef.current) return;
-      avatarStartingRef.current = false;
-      const held = heldAudioRef.current; heldAudioRef.current = [];
-      if (generation === generationRef.current) held.forEach(b => playChunkRef.current(b));
-    };
-    if (avatarStartingRef.current) window.setTimeout(releaseHeld, AVATAR_HOLD_MS);
-    // Consent renders the avatar on this same click; wait for its ref to mount.
     avatarRequestedRef.current = !preview && !!videoAvatar?.enabled;
-    if (avatarRequestedRef.current) void new Promise<void>(resolve => requestAnimationFrame(() => resolve())).then(() => avatarRef.current?.start()).then(ok => {
-      if (generation !== generationRef.current) { if (ok) avatarRef.current?.stop(); return; }
-      if (ok) avatarLiveRef.current = true;
-      releaseHeld();
-    }).catch(releaseHeld);
+    if (avatarRequestedRef.current) startFace(generation);
     const startupTimeout = window.setTimeout(() => {
       if (generation === generationRef.current && !liveRef.current) {
         stopEverything();
@@ -431,12 +444,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       const ws = new WebSocket(`${WS_URL}?token=${encodeURIComponent(authorized.token)}&capture=${captureMode}`);
       wsRef.current = ws;
 
-      ws.onopen = () => setStatus(preview ? "Voice connected · generating your greeting…" : "Connected — waiting for Gemini…");
+      ws.onopen = () => setStatus(preview ? "Voice connected · generating your greeting…" : "Connecting…");
 
-      // If Gemini never signals ready, don't hang on "connecting" forever
+      // If the voice service never signals ready, don't hang on "connecting" forever
       const readyTimeout = setTimeout(() => {
         if (!liveRef.current) {
-          setError("Gemini did not respond in time. Check that your Google API key is valid and has Live API access, then try again.");
+          setError("The voice service did not respond in time. Please try again.");
           stopEverything();
         }
       }, 15000);
@@ -542,7 +555,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             }
             break;
           case "error":
-            setError(String(msg.message || "Gemini error"));
+            setError(String(msg.message || "Voice service error"));
             stopEverything();
             break;
           case "closed":
@@ -581,23 +594,22 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       if (generation === generationRef.current) startingRef.current = false;
       window.clearTimeout(startupTimeout);
     }
-  }, [voice, microphone, captureMode, refreshMicrophones, playPcmChunk, clearPlayback, flushLine, stopEverything, agentId, leadId, prospectId, draft, previewVoice, previewAudioContext, visitorName, consent, testModel, shareToken, onRecommendedPlan, videoAvatar]);
+  }, [voice, microphone, captureMode, refreshMicrophones, playPcmChunk, clearPlayback, flushLine, stopEverything, agentId, leadId, prospectId, draft, previewVoice, previewAudioContext, visitorName, consent, testModel, shareToken, onRecommendedPlan, videoAvatar, startFace]);
 
   useEffect(() => stopEverything, [stopEverything]);
 
   // Auto-connect once when the widget opens (the open tap is the user gesture
   // that unlocks microphone and audio).
-  // The saved face can arrive after an early tap; join it to the call already in progress.
+  // The saved face can arrive after an early tap; join it to the call already in progress
+  // (still holding her voice if she hasn't spoken yet).
   useEffect(() => {
     if (!videoAvatar?.enabled || previewOnly || isPreviewRef.current || phase === 'idle' || avatarRequestedRef.current) return;
     avatarRequestedRef.current = true;
-    const generation = generationRef.current;
-    void new Promise<void>(r => requestAnimationFrame(() => r())).then(() => avatarRef.current?.start()).then(ok => {
-      if (generation !== generationRef.current) { if (ok) avatarRef.current?.stop(); return; }
-      if (ok) avatarLiveRef.current = true;
-    }).catch(() => {});
-  }, [videoAvatar?.enabled, phase, previewOnly]);
+    startFace(generationRef.current);
+  }, [videoAvatar?.enabled, phase, previewOnly, startFace]);
 
+  // A later launcher tap (after the recording notice was shown) also counts as agreement.
+  useEffect(() => { if (consentOnOpen && !consentReadyRef.current) { consentReadyRef.current = true; setConsentReady(true); } }, [consentOnOpen]);
   const autoStartedRef = useRef(false);
   useEffect(() => {
     if (!compact || !autoStart || autoStartedRef.current) return;
@@ -643,6 +655,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
   // Compact mode: minimal floating-widget layout for phones — status line,
   // two-line scrolling transcript, and a single row of icon buttons.
+  const shownPhase: Phase = faceWaiting && phase === 'live' ? 'connecting' : phase;
   const avatarView = videoAvatar?.enabled && !previewOnly ? <SimliAvatar ref={avatarRef} inline={avatarInline || faceFirst} unboxed={faceFirst} avatar={videoAvatar} agentId={agentId} shareToken={shareToken} draft={draft} onLiveChange={live => { setFaceLive(live); if (!live) { avatarLiveRef.current = false; avatarPendingRef.current = false; } }} /> : null;
   if (compact) {
     return (
@@ -650,17 +663,17 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         {faceFirst ? <><div className="aspen-person-portrait relative mx-auto"><div className={faceLive ? 'invisible' : ''}><PersonPortrait name={name} avatarUrl={avatarUrl} /></div>{avatarView}</div><p className="mx-auto w-fit rounded-md bg-card px-2 py-1 text-center text-xs font-semibold">Talk to {name}</p></> : avatarView}
         <div className={faceFirst ? 'space-y-2 rounded-lg border border-primary/40 bg-card p-2 shadow-lg ring-1 ring-foreground/10' : 'space-y-2'}>
         <div className="flex items-center gap-1.5">
-          {phase === "connecting" && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" />}
-          {phase === "live" && !aspenSpeaking && <Mic className="h-3.5 w-3.5 shrink-0 animate-pulse text-primary" />}
-          {phase === "live" && aspenSpeaking && <Volume2 className="h-3.5 w-3.5 shrink-0 animate-pulse text-primary" />}
-          {phase === "idle" && <MicOff className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+          {shownPhase === "connecting" && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" />}
+          {shownPhase === "live" && !aspenSpeaking && <Mic className="h-3.5 w-3.5 shrink-0 animate-pulse text-primary" />}
+          {shownPhase === "live" && aspenSpeaking && <Volume2 className="h-3.5 w-3.5 shrink-0 animate-pulse text-primary" />}
+          {shownPhase === "idle" && <MicOff className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
           <p className="min-w-0 break-words text-xs leading-snug text-foreground" role="status">
-            {phase === "live" && (
+            {shownPhase === "live" && (
               <span className="font-semibold text-foreground">
                 {handoffActive ? "Manager handoff" : paused ? "Paused" : replaying ? "Replaying saved audio" : muted ? "Microphone muted" : aspenSpeaking ? `${name} speaking` : captureMode === "hold" && !held ? "Hold to talk" : "Listening"}
               </span>
             )}
-            {phase !== "live" && (phase === "idle" ? "Ready to talk" : status)}
+            {shownPhase !== "live" && (shownPhase === "idle" ? "Ready to talk" : faceWaiting ? "Connecting…" : status)}
           </p>
         </div>
 

@@ -22,8 +22,9 @@ export default function AspenWindowPreview() {
       <MessageResponse>{mode === 'chat' ? "Hi! I'm Aspen. What would you like to know about your business’s AI assistant?" : "Hi! I'm Aspen, your voice assistant. How can I help you today?"}</MessageResponse>
       {mode === 'chat' ? <><p className="ml-8 rounded-lg bg-primary px-3 py-2 text-primary-foreground">Can visitors talk or type to you?</p><MessageResponse>Yes — whichever feels more natural.</MessageResponse></> : <div className="flex h-14 items-center justify-center gap-1.5" aria-hidden="true">{[3,6,9,5,12,8,4,10,6,3].map((height,i)=><span key={i} className={`w-1.5 rounded-full bg-primary ${height > 8 ? 'h-12' : height > 5 ? 'h-8' : 'h-4'}`} />)}</div>}
     </div>
-    <footer className="flex items-center justify-between gap-3 border-t border-border p-4 text-muted-foreground">
-      <Button className="w-full" onClick={()=>window.dispatchEvent(new CustomEvent('open-homepage-aspen',{detail:{mode}}))}>{mode === 'voice' ? <><Mic/>Talk to Aspen</> : <><MessageSquare/>Chat with Aspen</>}</Button>
+    <footer className="flex flex-col items-stretch gap-1.5 border-t border-border p-4 text-muted-foreground">
+      <Button className="w-full" onClick={()=>window.dispatchEvent(new CustomEvent('open-homepage-aspen',{detail:{mode, start: mode === 'voice'}}))}>{mode === 'voice' ? <><Mic/>Talk to Aspen</> : <><MessageSquare/>Chat with Aspen</>}</Button>
+      {mode === 'voice' && <p className="text-center text-[11px]">Calls are recorded for quality. Tapping starts the call.</p>}
     </footer>
   </div>;
 }

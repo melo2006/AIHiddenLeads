@@ -7,6 +7,7 @@ export function PersonPortrait({ name = 'Aspen', avatarUrl }: { name?: string; a
   return <img src={avatarUrl || aspenPortrait} alt={name} width={512} height={512} decoding="async" draggable={false} className="aspen-person-portrait mx-auto object-contain" />;
 }
 
+/** Above her head: only minimize and close (drag lives on the shell). Voice/chat switching sits below the call panel. */
 export default function FloatingPersonFrame({ name = 'Aspen', avatarUrl, open, mode, onOpen, onMinimize, onClose, onMode, children }: {
   name?: string; avatarUrl?: string; open: boolean; mode: 'voice' | 'chat';
   onOpen: () => void; onMinimize: () => void; onClose: () => void; onMode: (mode: 'voice' | 'chat') => void; children?: ReactNode;
@@ -17,13 +18,14 @@ export default function FloatingPersonFrame({ name = 'Aspen', avatarUrl, open, m
       <Button size="icon" variant="secondary" className="h-8 w-8 text-foreground" onClick={onClose} title="Close assistant" aria-label="Close assistant"><X className="h-4 w-4" /></Button>
     </div>
     {open && mode === 'chat' && <PersonPortrait name={name} avatarUrl={avatarUrl} />}
-    {!open && <Button variant="ghost" onClick={onOpen} title={`Talk to ${name}`} aria-label={`Talk to ${name}`} className="relative mx-auto h-auto max-w-full p-0 [&_svg]:size-8"><PersonPortrait name={name} avatarUrl={avatarUrl} /><Mic className="absolute bottom-0 right-0 rounded-full bg-primary p-1.5 text-primary-foreground" /><span className="sr-only">Talk to {name}</span></Button>}
-    {open && <>
-      <div className="mx-auto flex shrink-0 gap-1" aria-label="Conversation mode">
-        <Button size="icon" title="Voice" aria-label="Voice" variant={mode === 'voice' ? 'default' : 'outline'} aria-pressed={mode === 'voice'} onClick={() => onMode('voice')}><Mic className="h-3.5 w-3.5" /></Button>
-        <Button size="icon" title="Chat" aria-label="Chat" variant={mode === 'chat' ? 'default' : 'outline'} aria-pressed={mode === 'chat'} onClick={() => onMode('chat')}><MessageSquare className="h-3.5 w-3.5" /></Button>
-      </div>
+    {!open && <>
+      <Button variant="ghost" onClick={onOpen} title={`Talk to ${name}`} aria-label={`Talk to ${name}`} className="relative mx-auto h-auto max-w-full p-0 [&_svg]:size-8"><PersonPortrait name={name} avatarUrl={avatarUrl} /><Mic className="absolute bottom-0 right-0 rounded-full bg-primary p-1.5 text-primary-foreground" /><span className="sr-only">Talk to {name}</span></Button>
+      <p className="mx-auto w-fit rounded-md bg-card/90 px-1.5 text-center text-[10px] leading-tight text-muted-foreground">Tap to talk · calls are recorded</p>
     </>}
     <div className={open ? 'min-h-0' : 'hidden'}>{children}</div>
+    {open && <div className="mx-auto flex shrink-0 gap-1" aria-label="Conversation mode">
+      <Button size="icon" className="h-8 w-8" title="Voice" aria-label="Voice" variant={mode === 'voice' ? 'default' : 'outline'} aria-pressed={mode === 'voice'} onClick={() => onMode('voice')}><Mic className="h-3.5 w-3.5" /></Button>
+      <Button size="icon" className="h-8 w-8" title="Chat" aria-label="Chat" variant={mode === 'chat' ? 'default' : 'outline'} aria-pressed={mode === 'chat'} onClick={() => onMode('chat')}><MessageSquare className="h-3.5 w-3.5" /></Button>
+    </div>}
   </section>;
 }
