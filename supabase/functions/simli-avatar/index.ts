@@ -1,3 +1,4 @@
+import { chromaBackgroundId } from '../_shared/chroma-background.ts';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { z } from 'npm:zod@3';
@@ -63,10 +64,19 @@ Deno.serve(async (req) => {
         faceId = v.faceId;
       }
       // Public sessions get a shorter idle window so an abandoned tab stops using avatar minutes.
-      const res = await fetch(`${SIMLI}/compose/token`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-simli-api-key': apiKey }, body: JSON.stringify({ faceId, handleSilence: true, maxSessionLength: publicSession ? 1800 : 3600, maxIdleTime: publicSession ? 60 : 300 }) });
+      // A flat key-green backdrop lets the browser cut the person out so she floats like the static photo.
+      const backgroundId = await chromaBackgroundId(apiKey).catch(() => null);
+      const config = { faceId, handleSilence: true, maxSessionLength: publicSession ? 1800 : 3600, maxIdleTime: publicSession ? 60 : 300, ...(backgroundId ? { background_id: backgroundId, streaming_width: 512, streaming_height: 512 } : {}) };
+      let res = await fetch(`${SIMLI}/compose/token`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-simli-api-key': apiKey }, body: JSON.stringify(config) });
+      // Older (non Trinity-2) faces may reject the framing fields; retry with the face's own look.
+      if (!res.ok && backgroundId && res.status === 422) res = await fetch(`${SIMLI}/compose/token`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-simli-api-key': apiKey }, body: JSON.stringify({ faceId, handleSilence: true, maxSessionLength: config.maxSessionLength, maxIdleTime: config.maxIdleTime }) });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.session_token) return json({ error: String(data.detail || 'Simli refused the avatar session') }, res.status === 400 ? 400 : 502);
-      return json({ sessionToken: data.session_token, faceId });
+      const warnings: string[] = Array.isArray(data.warnings) ? data.warnings.map(String) : [];
+      if (warnings.length) console.warn('simli token warnings', warnings);
+      const token = String(data.session_token);
+      const chromaKey = !!backgroundId && token.startsWith('trinity2') && !warnings.some(w => /background/i.test(w));
+      return json({ sessionToken: token, faceId, chromaKey });
     }
 
     if (!user) return json({ error: 'Sign in required' }, 401);

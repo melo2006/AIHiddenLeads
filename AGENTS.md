@@ -46,4 +46,4 @@
 - Read subdirectory AGENTS.md before edits.
 - Share customer/admin setup with real ingestion/Gemini tests; admin drafts never grant payment access. Publish only explicitly. Prefer captured originals over iframe checks; guard loading and save before switching drafts to prevent lost work.
 - Share drafts only via hashed, expiring server-resolved tokens: appearance-only responses, visitor quota, no handoff.
-- Simli lip-syncs Gemini; guard sends/drain switching, secrets and matching-photo fallback; no assumed alpha. Share official-ID/CDN-portrait catalog/device tests; check custom readiness before paid previews.
+- Simli lip-syncs Gemini; guard sends/drain, secrets, photo fallback. Transparency = server green backdrop + browser WebGL key, never assumed alpha. Share catalog/device tests; check custom readiness.
