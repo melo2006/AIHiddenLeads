@@ -318,6 +318,13 @@ const PricingSection = ({ recommendedPlan }: { recommendedPlan?: string } = {}) 
               <Trans i18nKey="pricing.telephonyBody" components={{ strong: <span className="text-primary font-medium" /> }} />
             </p>
           </div>
+
+          <div className="rounded-xl border border-border bg-card/50 p-5">
+            <p className="text-sm text-center text-muted-foreground leading-relaxed">
+              <span className="font-semibold text-foreground">Live video avatar add-on: $79/mo.</span>{" "}
+              Includes <span className="text-primary font-medium">400 video avatar minutes</span> on Natural Voice. Pick any face from our avatar library <span className="text-primary font-medium">free</span>, or have a custom avatar built from your own photo for a <span className="text-primary font-medium">$50 one-time fee</span>. Custom faces can take several minutes up to about 24 hours to build.
+            </p>
+          </div>
         </motion.div>
       </div>
     </section>
