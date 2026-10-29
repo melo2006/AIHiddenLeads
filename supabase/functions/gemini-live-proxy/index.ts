@@ -263,7 +263,9 @@ Deno.serve(async (req) => {
                 ? voicePreviewInstruction(config.opening)
                 : config.resumeContext
                   ? resumeInstruction(String(config.resumeContext))
-                  : `The caller just connected. Say this greeting now in English: ${config.opening}. Do not wait for them to speak first.` }] }],
+                  : config.simulation === true
+                    ? `The caller just connected. Say this greeting now in English: ${config.opening} Then, in the same turn and without pausing for a reply, switch into your business role and give a friendly 30 to 60 second overview of the business using only facts from your knowledge: what it does, who it serves, where, and two or three main products or services. Finish by asking the caller, as a website visitor, what they are looking for today or how you can help. Do not wait for them to speak first.`
+                    : `The caller just connected. Say this greeting now in English: ${config.opening}. Do not wait for them to speak first.` }] }],
               turnComplete: true,
             },
           }))

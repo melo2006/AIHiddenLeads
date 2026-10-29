@@ -657,13 +657,14 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
   // A later launcher tap (after the recording notice was shown) also counts as agreement.
   useEffect(() => { if (consentOnOpen && !consentReadyRef.current) { consentReadyRef.current = true; setConsentReady(true); } }, [consentOnOpen]);
+  // Only consume auto-start when a call actually begins, so a widget mounted before the
+  // launcher tap still starts on that single tap (no second "Tap to talk" needed).
   const autoStartedRef = useRef(false);
   useEffect(() => {
     if (!compact || !autoStart || autoStartedRef.current) return;
-    autoStartedRef.current = true;
-    if (previewOnly) void startConversation(true);
-    else if(consentReadyRef.current)void startConversation();
-  }, [compact, autoStart, previewOnly, startConversation]);
+    if (previewOnly) { autoStartedRef.current = true; void startConversation(true); }
+    else if (consentReadyRef.current || consentReady) { autoStartedRef.current = true; void startConversation(); }
+  }, [compact, autoStart, previewOnly, startConversation, consentReady]);
 
   const onHandoffActive = (active: boolean) => {
     handoffRef.current = active;
