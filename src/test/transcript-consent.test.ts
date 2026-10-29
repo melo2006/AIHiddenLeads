@@ -4,6 +4,6 @@ import {transcriptAllowed} from '../../supabase/functions/_shared/transcript-con
 test('no homepage or agent transcript is saved without visitor consent',()=>{
  expect(transcriptAllowed(true,true,false)).toBe(false);expect(transcriptAllowed(false,true,false)).toBe(false);
 });
-test('homepage allows an explicitly consented transcript while tenant choice remains authoritative',()=>{
- expect(transcriptAllowed(true,false,true)).toBe(true);expect(transcriptAllowed(false,false,true)).toBe(false);expect(transcriptAllowed(false,true,true)).toBe(true);
+test('agreed conversations are saved for homepage and customer assistants without an optional saving checkbox',()=>{
+ expect(transcriptAllowed(true,false,true)).toBe(true);expect(transcriptAllowed(false,false,true)).toBe(true);expect(transcriptAllowed(false,true,true)).toBe(true);
 });
