@@ -50,7 +50,8 @@ export function centeringShift(b: { x0: number; x1: number }): number {
 }
 
 export function startChromaKey(video: HTMLVideoElement, canvas: HTMLCanvasElement): (() => void) | null {
-  const gl = canvas.getContext('webgl', { premultipliedAlpha: true, alpha: true, antialias: false });
+  // Retain the last composited pixels when rendering stops; otherwise WebGL clears its buffer.
+  const gl = canvas.getContext('webgl', { premultipliedAlpha: true, alpha: true, antialias: false, preserveDrawingBuffer: true });
   if (!gl) return null;
   const shader = (type: number, src: string) => { const s = gl.createShader(type)!; gl.shaderSource(s, src); gl.compileShader(s); return s; };
   const prog = gl.createProgram()!;
