@@ -351,7 +351,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     // Consent renders the avatar on this same click; wait for its ref to mount.
     if (!preview && videoAvatar?.enabled) void new Promise<void>(resolve => requestAnimationFrame(() => resolve())).then(() => avatarRef.current?.start()).then(ok => {
       if (generation !== generationRef.current) { if (ok) avatarRef.current?.stop(); return; }
-      if (ok) { if (sourcesRef.current.size === 0) avatarLiveRef.current = true; else avatarPendingRef.current = true; }
+      if (ok) avatarLiveRef.current = true;
     });
     const startupTimeout = window.setTimeout(() => {
       if (generation === generationRef.current && !liveRef.current) {

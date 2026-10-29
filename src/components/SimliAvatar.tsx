@@ -98,7 +98,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
   const frame = (
     <div aria-label="Video avatar" role="img" className={`${unboxed ? 'absolute inset-0' : inline ? "relative mx-auto" : `fixed z-[120] ${POSITION[avatar.position]}`} ${visible ? "" : "hidden"} ${unboxed ? '' : `overflow-hidden border-2 border-primary/50 bg-card shadow-2xl ${SHAPE[avatar.shape]}`}`} style={unboxed ? undefined : { width: avatar.size, height: avatar.size, maxWidth: "70vw", maxHeight: "70vw" }}>
       <video ref={videoRef} autoPlay playsInline muted className={`h-full w-full object-contain ${unboxed && state !== 'live' ? 'invisible' : ''}`} />
-      <audio ref={audioRef} autoPlay />
+      <audio ref={audioRef} autoPlay muted />
       {state === "connecting" && <div className={`absolute ${unboxed ? 'bottom-1 right-1' : 'inset-0 bg-card/70'} flex items-center justify-center`}><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}
       {state === "failed" && <div role="status" className={`${unboxed ? 'absolute bottom-0 inset-x-0 rounded-md bg-background/95' : 'absolute inset-0 bg-card/90'} flex items-center justify-center p-2 text-center text-[11px] text-destructive`}>{reason || "Video avatar unavailable"} · voice continues</div>}
     </div>
