@@ -1,5 +1,9 @@
 # Current work
 
+- [x] Reviewed Simli Hobby screenshots: 1,000 minutes/month, one custom generation/month; $15 buys a generation, screenshot shows zero bought. Imported 28 official presets with verified thumbnails into shared admin/wizard gallery; no manual IDs/photos needed. Face-list API returned empty, so used official preset documentation.
+- [x] Enlarged only compact portrait 30% (84px phone/104px desktop) and microphone badge 32px; shortened pre-call disclosure with optional private review consent intact. Browser checked 390/707/1280 sizes, gallery thumbnail delivery and no horizontal overflow; 12 tests/build pass.
+- [ ] Matching Aspen generation accepted, ID ed8fedd9-6c86-4dc5-bb3a-017c06146efc, still pending at last check. Admin Video Avatars has explicit Check & activate when ready. Homepage remains matching static photo/voice until provider finishes; live frames/lip-sync not verified (preset preview also produced no frames in sandbox). No substitute face or extra generation.
+
 - [x] Reduced Aspen to head/neck/shoulder tops with closed-mouth smile; phone/tablet icon controls, collapsed optional captions, sticky gray minimize/expand/close, 96×100 tiny minimized footprint. Real Gemini speech/transcript checked on 338×638, captions expand/hide, page scrolled 700px, no page errors or old Simli session. Thirteen tests pass.
 - [x] Diagnosed legacy-face swap and startup lip-sync race; public Aspen filters the old preset, deterministic speech-drain switch and guarded send failure restore local voice. Voice disconnect cause remains unproven: recent function logs show only boot/shutdown. Matching live video repair cannot be verified until generation is available.
 - [x] Optimize the same transparent Aspen portrait: inspected 512×512 PNG (305 KB, 93% smaller) and WebP (34 KB, 99% smaller) on dark/light; rejected blotchy palette compression. Original preserved. WebP will be used with the planned floating presentation.

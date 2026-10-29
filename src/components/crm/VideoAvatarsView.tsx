@@ -16,6 +16,7 @@ export default function VideoAvatarsView() {
   const [selectedId, setSelectedId] = useState('');
   const [voice, setVoice] = useState('Kore');
   const [loading, setLoading] = useState(true);
+  const [aspenStatus, setAspenStatus] = useState('');
   const selected = agents.find(a => a.id === selectedId);
 
   async function loadFaces() {
@@ -46,6 +47,19 @@ export default function VideoAvatarsView() {
       toast.success('Face and voice saved to this draft. Homepage unchanged.'); return true;
     } finally { setBusy(false); }
   }
+  async function activateAspen() {
+    const faceId = 'ed8fedd9-6c86-4dc5-bb3a-017c06146efc';
+    setBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('simli-avatar', { body: { action: 'status', faceId } });
+      if (error) { toast.error('Could not check Aspen'); return; }
+      setAspenStatus(String(data.status));
+      if (data.status !== 'completed') { toast.info('Aspen is still being created. The matching photo and voice remain available.'); return; }
+      const { error: applyError } = await supabase.functions.invoke('simli-avatar', { body: { action: 'applyHomepage', avatar: { ...DEFAULT_VIDEO_AVATAR, enabled: true, faceId, size: 160, shape: 'rounded' } } });
+      if (applyError) { toast.error('Could not activate Aspen'); return; }
+      toast.success('Matching Aspen face activated on homepage and demos. Refresh to test.');
+    } finally { setBusy(false); }
+  }
 
   return (
     <div className="space-y-4 p-4">
@@ -57,6 +71,7 @@ export default function VideoAvatarsView() {
         <Button size="sm" variant="outline" onClick={() => void loadFaces()}><RefreshCw className="mr-1.5 h-3.5 w-3.5" />Refresh faces</Button>
         <Button size="sm" disabled={busy || !selected} onClick={() => void apply()}><Save className="mr-1.5 h-3.5 w-3.5" />Save draft choices</Button>
       </div>
+      <div className="flex flex-wrap items-center gap-2 border-b border-border pb-3"><span className="text-xs">Homepage Aspen{aspenStatus ? ` · ${aspenStatus}` : ' · generation submitted'}</span><Button size="sm" variant="outline" disabled={busy} onClick={() => void activateAspen()}>Check & activate Aspen when ready</Button></div>
       <Select value={selectedId} disabled={busy} onValueChange={id => { const a = agents.find(a => a.id === id); if (!a) return; setSelectedId(id); setAvatar(normalizeVideoAvatar(a.draft.videoAvatar)); setVoice(String(a.draft.voice || 'Kore')); }}><SelectTrigger aria-label="Assistant to test"><SelectValue placeholder="Choose a saved business draft"/></SelectTrigger><SelectContent>{agents.map(a => <SelectItem key={a.id} value={a.id}>{String(a.draft.businessName || a.draft.name || 'Business assistant')}</SelectItem>)}</SelectContent></Select>
       {!selected && <p className="text-sm text-muted-foreground">Create a business draft in Customer Setup to test its face, voice and knowledge here.</p>}
       {loading ? <p role="status" className="text-sm text-muted-foreground">Loading saved assistants…</p> : <AvatarSettings key={selectedId} value={avatar} onChange={setAvatar} faces={faces} adminPreview agentId={selectedId || undefined} beforePreview={apply} voice={voice} onVoiceChange={setVoice} name={String(selected?.draft.name || 'Aspen')} />}

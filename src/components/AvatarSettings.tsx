@@ -10,11 +10,11 @@ import SimliAvatar, { type SimliAvatarHandle } from "@/components/SimliAvatar";
 import AvatarDevicePreview from "@/components/AvatarDevicePreview";
 import GeminiConversation from "@/components/GeminiConversation";
 import { VOICES } from "@/components/setup-wizard/wizardModel";
-import aspenFace from "@/assets/aspen_blonde_avatar.jpg";
+import { SIMLI_FACE_CATALOG, type AvatarFace } from '@/lib/simliFaceCatalog';
 import aspenCutout from "@/assets/aspen-shoulders-512-v2.webp";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import {
-  AVATAR_MAX_SIZE, AVATAR_MIN_SIZE, AVATAR_POSITIONS, AVATAR_SHAPES, PRESET_FACES, type VideoAvatar,
+  AVATAR_MAX_SIZE, AVATAR_MIN_SIZE, AVATAR_POSITIONS, AVATAR_SHAPES, type VideoAvatar,
 } from "../../supabase/functions/_shared/video-avatar";
 
 const POSITION_LABEL: Record<VideoAvatar["position"], string> = { "bottom-right": "Lower right", "bottom-left": "Lower left", "top-right": "Upper right", "top-left": "Upper left", center: "Center" };
@@ -29,7 +29,7 @@ async function call(body: Record<string, unknown>) {
   return data;
 }
 
-type Face = { id: string; name: string };
+type Face = AvatarFace;
 interface Props {
   value: VideoAvatar;
   onChange: (v: VideoAvatar) => void;
@@ -57,7 +57,7 @@ export default function AvatarSettings({ value, onChange, agentId, beforePreview
   useEffect(() => { setTesting(false); avatarRef.current?.stop(); setPreviewing(false); }, [agentId, voice, value.faceId, value.enabled]);
   const fileRef = useRef<HTMLInputElement>(null);
   const avatarRef = useRef<SimliAvatarHandle>(null);
-  const allFaces: Face[] = [...PRESET_FACES, ...faces.filter((f) => !PRESET_FACES.some((p) => p.id === f.id))];
+  const allFaces: Face[] = [...SIMLI_FACE_CATALOG, ...faces.filter((f) => !SIMLI_FACE_CATALOG.some((p) => p.id === f.id))];
   if (!allFaces.some((f) => f.id === value.faceId)) allFaces.push({ id: value.faceId, name: "Custom face" });
 
   // Poll a new face's generation; Simli spaces generations about ten minutes apart.
@@ -83,13 +83,14 @@ export default function AvatarSettings({ value, onChange, agentId, beforePreview
       let bin = ""; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
       const d = await call({ action: "createFace", agentId, name: (faceName || file.name.replace(/\.\w+$/, "")).slice(0, 60), imageBase64: btoa(bin), mimeType: file.type });
       setPending({ faceId: d.faceId, status: "pending" });
-      toast.success(d.dispatchAfter ? "Photo accepted. Simli queued it; it can take 10+ minutes." : "Photo accepted. Building your face — usually a few minutes.");
+      toast.success("Photo accepted. Simli is building your face; it may take several hours.");
     } catch (e) { toast.error(e instanceof Error ? e.message : "Upload failed"); }
     finally { setUploading(false); if (fileRef.current) fileRef.current.value = ""; }
   }
 
   async function togglePreview() {
     if (previewing) { avatarRef.current?.stop(); setPreviewing(false); return; }
+    if (!await faceReady()) return;
     if (beforePreview && !await beforePreview()) return;
     setPreviewing(true);
     const ok = await avatarRef.current?.start();
@@ -107,9 +108,19 @@ export default function AvatarSettings({ value, onChange, agentId, beforePreview
 
   async function testConversation() {
     if (testing) { setTesting(false); return; }
+    if (value.enabled && !await faceReady()) return;
     avatarRef.current?.stop(); setPreviewing(false); setPreparing(true);
     try { if (!beforePreview || await beforePreview()) setTesting(true); }
     finally { setPreparing(false); }
+  }
+  async function faceReady() {
+    if (!allFaces.find(f => f.id === value.faceId)?.generation) return true;
+    try {
+      const d = await call({ action: 'status', faceId: value.faceId });
+      if (d.status === 'completed') return true;
+      toast.info(`Aspen is still being created (${d.status}). Choose a ready-made face to test now.`);
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Could not check face readiness'); }
+    return false;
   }
   const choice = (active: boolean) => `h-auto justify-start whitespace-normal rounded-lg border-2 p-3 text-left text-sm transition ${active ? "border-primary bg-primary/10" : "border-border hover:border-primary/50"}`;
   return (
@@ -126,8 +137,9 @@ export default function AvatarSettings({ value, onChange, agentId, beforePreview
             <div className="grid max-h-72 grid-cols-2 gap-2 overflow-y-auto">
               {allFaces.map((f) => (
                 <Button variant="outline" key={f.id} className={`${choice(value.faceId === f.id)} flex-col items-start`} aria-pressed={value.faceId === f.id} onClick={() => set({ faceId: f.id })}>
-                  {f.id === PRESET_FACES[0].id && <img src={aspenFace} alt="" className="mb-1 h-12 w-12 rounded-full object-cover" />}
+                  {f.image && <img src={f.image} alt={f.name} loading="lazy" width={240} height={240} className="mb-1 aspect-square w-full rounded-md object-contain" />}
                   <p className="text-xs font-semibold">{f.name}</p>
+                  {f.category && <span className="text-[10px] text-muted-foreground">{f.category}</span>}
                 </Button>
               ))}
             </div>
