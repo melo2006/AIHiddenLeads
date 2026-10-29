@@ -261,7 +261,9 @@ Deno.serve(async (req) => {
             clientContent: {
               turns: [{ role: 'user', parts: [{ text: preview
                 ? voicePreviewInstruction(config.opening)
-                : `The caller just connected. Say this greeting now in English: ${config.opening}. Do not wait for them to speak first.` }] }],
+                : config.resumeContext
+                  ? resumeInstruction(String(config.resumeContext))
+                  : `The caller just connected. Say this greeting now in English: ${config.opening}. Do not wait for them to speak first.` }] }],
               turnComplete: true,
             },
           }))

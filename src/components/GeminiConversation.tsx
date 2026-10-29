@@ -44,6 +44,12 @@ const VOICES = [
 ];
 
 type Turn = { role: "user" | "assistant"; text: string };
+// Same-page-visit memory so pressing play again after Stop resumes instead of re-greeting.
+const visitMemory = new Map<string, Turn[]>();
+export function resumeRecap(turns: Turn[]) {
+  if (!turns.some(t => t.role === "assistant")) return undefined;
+  return turns.slice(-8).map(t => `${t.role === "user" ? "Visitor" : "Assistant"}: ${t.text}`).join("\n").slice(-1500);
+}
 type Phase = "idle" | "connecting" | "live" | "preview";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
@@ -215,7 +221,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     const ref = role === "user" ? userLineRef : aspenLineRef;
     const text = ref.current.trim();
     if (text) {
-      setTurns((prev) => [...prev, { role, text }]);
+      setTurns((prev) => { const next = [...prev, { role, text }]; if (!isPreviewRef.current) visitMemory.set(agentId || "homepage", next); return next; });
     }
     ref.current = "";
     if (role === "user") setPartialUser(""); else setPartialAspen("");
@@ -411,6 +417,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     previewDoneRef.current = false;
     setError(null);
     setEndedByVisitor(false);
+    const resumeContext = preview ? undefined : resumeRecap(visitMemory.get(agentId || "homepage") || []);
     setTurns([]);
     setPartialUser("");
     setPartialAspen("");
@@ -448,7 +455,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         return stream;
       });
       const [session, stream] = await Promise.all([
-        supabase.functions.invoke("gemini-session", { body: { visitorKey, agentId, leadId, prospectId, draft, preview, voice: previewVoice || voice, model: testModel, campaign:campaignVisit(), hour: new Date().getHours(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, visitorName, consent:consentReadyRef.current, share: shareToken } }),
+        supabase.functions.invoke("gemini-session", { body: { visitorKey, agentId, leadId, prospectId, draft, preview, voice: previewVoice || voice, model: testModel, campaign:campaignVisit(), hour: new Date().getHours(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, visitorName, consent:consentReadyRef.current, share: shareToken, resumeContext } }),
         microphoneReady,
         playResume,
         micResume,
