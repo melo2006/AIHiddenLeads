@@ -39,6 +39,9 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const keyStopRef = useRef<(() => void) | null>(null);
   const [keyed, setKeyed] = useState(false);
+  const pendingRef = useRef<Uint8Array>(new Uint8Array(0));
+  const flushRef = useRef<ReturnType<typeof setTimeout>>();
+  const flushAudio = (client: SimliClient) => { const data = pendingRef.current; pendingRef.current = new Uint8Array(0); if (data.length) client.sendAudioData(data); };
   const clientRef = useRef<SimliClient | null>(null);
   const liveRef = useRef(false);
   const [state, setState] = useState<"idle" | "connecting" | "live" | "failed">("idle");
@@ -97,11 +100,19 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
       const bin = atob(base64);
       const bytes = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-      const pcm = pcm24kTo16k(new Int16Array(bytes.buffer, 0, Math.floor(bytes.length / 2)));
-      try { client.sendAudioData(new Uint8Array(pcm.buffer)); return true; }
-      catch { setLive(false); setState('failed'); setReason('Video audio disconnected'); return false; }
+      const pcm = new Uint8Array(pcm24kTo16k(new Int16Array(bytes.buffer, 0, Math.floor(bytes.length / 2))).buffer);
+      // Simli lip-syncs best with ~6000-byte PCM16 chunks; Gemini sends much smaller ones, so batch briefly.
+      const pending = pendingRef.current;
+      const merged = new Uint8Array(pending.length + pcm.length); merged.set(pending); merged.set(pcm, pending.length);
+      pendingRef.current = merged;
+      if (flushRef.current) clearTimeout(flushRef.current);
+      try {
+        if (merged.length >= 6000) flushAudio(client);
+        else flushRef.current = setTimeout(() => { try { if (clientRef.current === client) flushAudio(client); } catch { /* Session closed. */ } }, 80);
+        return true;
+      } catch { setLive(false); setState('failed'); setReason('Video audio disconnected'); return false; }
     },
-    clear: () => { try { clientRef.current?.ClearBuffer(); } catch { /* Session already closed. */ } },
+    clear: () => { pendingRef.current = new Uint8Array(0); if (flushRef.current) clearTimeout(flushRef.current); try { clientRef.current?.ClearBuffer(); } catch { /* Session already closed. */ } },
   }), [agentId, shareToken, draft, faceOverride]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const visible = state !== "idle";
