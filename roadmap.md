@@ -1,7 +1,9 @@
 # Current work
 
-- [ ] Customer call-handling expansion: check inbound forwarding, customer calendars and report delivery; research competitor allowances before setting callback caps. Customers choose coverage; telephone usage stays separate at 5¢/min.
-- [ ] Add call-history CSV export and a deliberate Zapier webhook handoff for existing authorized records; never expose private audio or imply automatic CRM delivery before it is working.
+- [x] Audited telephone/calendar/report scope and researched official Goodcall, Smith.ai and Twilio prices. Recommended 25/75/200 callbacks (not configured); customer-choice coverage and separate 5¢ telephone direction preserved. Customer inbound AI answering and calendar connection remain separate rollout work, not claimed live.
+- [x] Added CSV downloads and reviewed single-report Zapier sending to authorized admin call history/private records. Four privacy/CSV/destination tests pass; real signed-in CSV downloaded, invalid destination denied, intercepted send confirmed payload; phone dialog fits and build OK. No auto-send, raw audio/transcript/draft export or customer access expansion.
+- [ ] Verify actual Zapier delivery: needs owner's Catch Hook URL and Zap run-history confirmation. No private report sent externally during tests.
+- [ ] Telephone rollout and automatic customer reports: require customer-specific number/routing/calendar authorization, agreed callback caps and billing basis, plus real end-to-end verification; not activated by report exports.
 
 - [x] Fixed active-word scrolling with consistent viewport coordinates and timed return after manual scroll; added emerald drag/minimize/close outlines. Five caption tests pass; browser confirmed highlighted final word visible after scrolling, unchanged 144px face and no overflow; build OK. Real call/device retest remains recommended.
 
