@@ -1,5 +1,6 @@
 # Current work
 
+- [ ] Remove transcript checkboxes; require clear Start & agree recording notice, save private voice audio/transcripts and AI summaries, admin review/outreach drafts, optional confirmed emailed expiring transcript link.
 - [x] Reviewed Simli Hobby screenshots: 1,000 minutes/month, one custom generation/month; $15 buys a generation, screenshot shows zero bought. Imported 28 official presets with verified thumbnails into shared admin/wizard gallery; no manual IDs/photos needed. Face-list API returned empty, so used official preset documentation.
 - [x] Enlarged only compact portrait 30% (84px phone/104px desktop) and microphone badge 32px; shortened pre-call disclosure with optional private review consent intact. Browser checked 390/707/1280 sizes, gallery thumbnail delivery and no horizontal overflow; 12 tests/build pass.
 - [ ] Matching Aspen generation accepted, ID ed8fedd9-6c86-4dc5-bb3a-017c06146efc, still pending at last check. Admin Video Avatars has explicit Check & activate when ready. Homepage remains matching static photo/voice until provider finishes; live frames/lip-sync not verified (preset preview also produced no frames in sandbox). No substitute face or extra generation.
