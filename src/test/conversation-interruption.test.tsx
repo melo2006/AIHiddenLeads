@@ -3,8 +3,8 @@ import { act, cleanup, render, waitFor, fireEvent } from '@testing-library/react
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import GeminiConversation from '@/components/GeminiConversation';
 
-const mocks = vi.hoisted(() => ({ clear: vi.fn(), pcm: vi.fn(() => true) }));
-vi.mock('@/integrations/supabase/client', () => ({ supabase: { functions: { invoke: async () => ({ data: { token: 'test', maxSeconds: 900 } }) } } }));
+const mocks = vi.hoisted(() => ({ clear: vi.fn(), pcm: vi.fn(() => true), invoke: vi.fn(async () => ({ data: { token: 'test', maxSeconds: 900 } })) }));
+vi.mock('@/integrations/supabase/client', () => ({ supabase: { functions: { invoke: mocks.invoke } } }));
 vi.mock('@/lib/voiceSessionAuth', () => ({ voiceSessionHeaders: async () => undefined }));
 vi.mock('@/lib/campaignTracking', () => ({ campaignVisit: () => null, trackCampaignEvent: async () => {} }));
 vi.mock('@/components/ai-elements/message', () => ({ Message: ({ children }: React.PropsWithChildren) => <div>{children}</div>, MessageContent: ({ children }: React.PropsWithChildren) => <div>{children}</div>, MessageResponse: ({ children }: React.PropsWithChildren) => <div>{children}</div> }));
@@ -74,4 +74,18 @@ describe.each([{ paired: false, mode: 'handsfree' }, { paired: true, mode: 'hand
     fireEvent.click(view.getByRole('button', { name: 'Pause conversation' }));
     socket.send.mockClear(); speech(); expect(socket.send).not.toHaveBeenCalled();
   });
+});
+
+it('requires a real play tap before authorizing usage when mobile auto-start cannot unlock audio', async () => {
+  class PhoneContext extends Context { state = 'suspended'; resume = async () => {}; }
+  vi.stubGlobal('WebSocket', Socket); vi.stubGlobal('AudioContext', PhoneContext);
+  vi.stubGlobal('navigator', { mediaDevices: { addEventListener: vi.fn(), removeEventListener: vi.fn(), enumerateDevices: async () => [], getUserMedia: vi.fn() } });
+  const view = render(<GeminiConversation compact autoStart consentOnOpen />);
+  await waitFor(() => expect(view.getByText(/Your sign-in and demo allowance are unchanged/)).toBeTruthy());
+  expect(mocks.invoke).not.toHaveBeenCalled();
+  expect(Socket.current).toBeUndefined();
+  vi.stubGlobal('AudioContext', Context);
+  navigator.mediaDevices.getUserMedia = vi.fn(async () => ({ getTracks: () => [{ stop: vi.fn() }], getAudioTracks: () => [] }) as unknown as MediaStream);
+  fireEvent.click(view.getByRole('button', { name: /Start/ }));
+  await waitFor(() => expect(mocks.invoke).toHaveBeenCalledTimes(1));
 });
