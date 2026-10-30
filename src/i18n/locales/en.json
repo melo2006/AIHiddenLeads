@@ -31,39 +31,39 @@
     "aspenHint": "Click the \"Talk to Aspen\" button on the left to chat live"
   },
   "tryCta": {
-    "kicker": "Free Live Demo",
-    "title": "Hear YOUR Website Come Alive With AI — In Under 2 Minutes",
-    "sub": "Enter your website URL and hear what your Voice AI receptionist & Chat AI widget would sound like — totally free, no credit card needed.",
-    "cta": "🎙️ Try Your Website Now — Free"
+    "kicker": "Free Live Website Demo",
+    "title": "Try an AI receptionist on your own website",
+    "sub": "Start with your website URL and your name. Talk or type to an assistant using your public website content, with live video when available. No installation or credit card; preparation time varies by site.",
+    "cta": "Try my website — free"
   },
   "beforeAfter": {
-    "titleStart": "From",
+    "titleStart": "Give your website visitors",
     "outdated": "Outdated",
     "to": "to",
-    "aiPowered": "AI-Powered",
+    "aiPowered": "someone to talk to.",
     "after": "With AI Hidden Leads ✨",
     "desktopBefore": "Desktop — Before",
     "desktopAfter": "Desktop — With AI Hidden Leads ✨",
-    "cta": "Transform My Website Now",
+    "cta": "Try my own website — free",
     "niches": {
       "realtors": {
-        "subtitle": "Your listing site could look like this — with a built-in AI voice agent and smart chatbot that never misses a buyer",
+        "subtitle": "Illustrative website examples with voice and chat. Your free demo preserves your actual site and overlays an assistant—it does not redesign or install anything.",
         "before": "Your Realtor Site Today"
       },
       "medspa": {
-        "subtitle": "Your med spa site could look like this — with AI booking and a voice assistant that captures every consultation request",
+        "subtitle": "Illustrative website examples with voice and chat. Your free demo preserves your actual site and overlays an assistant—it does not redesign or install anything.",
         "before": "Your Med Spa Site Today"
       },
       "autodetail": {
-        "subtitle": "Your detailing site could look like this — with an AI assistant that books jobs while you're polishing a Tesla",
+        "subtitle": "Illustrative website examples with voice and chat. Your free demo preserves your actual site and overlays an assistant—it does not redesign or install anything.",
         "before": "Your Detail Site Today"
       },
       "veterinary": {
-        "subtitle": "Your vet clinic site could look like this — with AI triage and a voice agent that handles panicked pet parents 24/7",
+        "subtitle": "Illustrative website examples with voice and chat. Your free demo preserves your actual site and overlays an assistant—it does not redesign or install anything.",
         "before": "Your Vet Site Today"
       },
       "marine": {
-        "subtitle": "Your marine service site could look like this — with AI scheduling and a voice agent that books haul-outs while you're on the dock",
+        "subtitle": "Illustrative website examples with voice and chat. Your free demo preserves your actual site and overlays an assistant—it does not redesign or install anything.",
         "before": "Your Marine Site Today"
       }
     }
@@ -132,31 +132,31 @@
     }
   },
   "how": {
-    "title1": "From Sign-Up to Results in",
-    "title2": "4 Simple Steps",
-    "sub": "No tech skills needed. No long contracts. We handle the setup — you get the leads.",
+    "title1": "From website visit to",
+    "title2": "a real conversation.",
+    "sub": "Try the free demo first. Review your business knowledge and choose the next step that fits your team.",
     "s1": {
-      "title": "We Set Up Your AI",
-      "desc": "In under 48 hours, we install a custom AI voice agent and chat widget on your website — trained on YOUR business, services, and FAQs."
+      "title": "Share your website URL",
+      "desc": "Add your website address and your name. We learn readable public content and prepare a free simulation over a preview of your site."
     },
     "s2": {
-      "title": "AI Answers Every Call & Chat",
-      "desc": "24/7 — no missed calls, no hold times. Your AI books appointments, answers questions, and captures every lead automatically."
+      "title": "Talk to your AI receptionist",
+      "desc": "Ask real service questions by voice or chat. Hear natural two-way replies and see the optional live video experience."
     },
     "s3": {
-      "title": "Hot Leads Get Warm-Transferred",
-      "desc": "When a caller is ready to buy, AI warm-transfers them directly to your phone. You pick up a qualified, ready-to-close lead."
+      "title": "Review, then make it yours",
+      "desc": "Choose a plan and review your knowledge, voice and appearance in guided setup. Installation and any connected calendar or telephone workflow need verification."
     },
     "s4": {
-      "title": "You Grow — We Handle the Rest",
-      "desc": "Automated follow-ups, review requests, and lead nurturing run on autopilot. You focus on your business while we drive growth."
+      "title": "Follow up on opportunities",
+      "desc": "Review inquiries and targeted B2B prospects. Help your team focus on relevant conversations and closing deals, with additional workflows agreed separately."
     }
   },
   "pricing": {
     "badge": "Launch Special — Setup Fee Waived Through Nov 30",
-    "title": "Honest,",
-    "titleAccent": "Transparent Pricing",
-    "sub": "No hidden fees. No 12-month contracts. Cancel anytime.",
+    "title": "Choose your next",
+    "titleAccent": "growth advantage.",
+    "sub": "Premium $99 · Professional $199 · Platinum $349 per month. Website voice allowances and optional video are separate from telephone usage.",
     "perMo": "/mo",
     "launchPrice": "Launch price",
     "setup": "Setup:",
@@ -178,22 +178,22 @@
     },
     "full": {
       "name": "Platinum",
-      "tag": "We Run Your Entire Marketing Machine",
+      "tag": "More Voice + 200 Prospects + Agreed Growth Services",
       "cta": "Go Platinum"
     },
     "transparencyTitle": "Full Transparency: What's Included",
-    "transparencyBody": "Every plan includes a generous block of <strong>browser voice minutes</strong> (visitors talking to your AI on your website) — the bigger the plan, the cheaper your per-minute rate. Phone-line services (warm transfer to your cell, SMS notifications, appointment reminders) use real carrier networks and are billed separately — see the Connected bundle below. You'll always see your usage in your dashboard before you're billed.",
-    "compareTitle": "How we compare:",
-    "compareBody": "Public 2026 prices for comparison: Smith.ai's AI receptionist Pro starts at $150/mo for 75 calls, and Ruby's live receptionists start at $250/mo for 50 minutes. Premium is <strong>$99/mo</strong> with 400 website voice minutes, chat, booking and <strong>50 real B2B leads every month</strong>. Goodcall starts at $79/mo for 100 unique callers. Phone lines are billed separately, so compare the features you need.",
-    "telephonyTitle": "Need phone lines? Add the Connected Bundle — $79/mo:",
-    "telephonyBody": "<strong>Professional and Platinum</strong> include <strong>live transfer</strong> of hot website visitors to your phone and <strong>one free local number</strong>. Phone and transfer minutes are billed separately at <strong>5¢ per minute</strong>, so your voice and video minutes stay yours. SMS summaries and reminders are coming soon.",
+    "transparencyBody": "Your plan includes <strong>website voice minutes</strong>, chat and a monthly B2B prospect allowance. Live video is optional. Customer telephone answering, transfers and calendar connections require separate rollout, authorization and verification. <strong>SMS is coming soon</strong>; never assume it is active.",
+    "compareTitle": "Compare the channel, not just the price:",
+    "compareBody": "Premium combines <strong>website voice, chat and 50 B2B prospects/month for $99</strong>. Goodcall Starter is $79 for 100 unique customers; Smith.ai AI Pro is $150 for 75 calls and also has a free 25-call tier; Ruby Call Ruby 50 is $250 for 50 human receptionist minutes. These usage units and services differ.",
+    "telephonyTitle": "Telephone service — separate rollout:",
+    "telephonyBody": "The intended <strong>Professional and Platinum</strong> offer includes one local number and live transfer, with <strong>telephone usage separate at 5¢/minute</strong>. Customer forwarding and answering are not activated yet; routing, spend caps and transfers must be verified first. SMS remains coming soon.",
     "headlineStart": "Your Google Maps Ranking Changes With Location.",
     "headlineAccent": "How Visible Are You 1, 3 or 5 Miles Away?",
     "disclaimer": "Illustrative before & after — not measured rankings or a promise of 14-day results.",
     "beforeLabel": "Before",
     "afterLabel": "After · Illustrative goal",
     "beforeTitle": "Example: Visibility Before Optimization",
-    "afterTitle": "After Our 14-Day AI Map & Search Boost",
+    "afterTitle": "Illustrative Visibility Goal After Optimization",
     "pinLabel": "{{mode}} checkpoint {{n}}: illustrative rank {{rank}}",
     "topThree": "Checkpoints in the top 3",
     "legend": {
@@ -206,12 +206,12 @@
     "cta": "Check My 25-Point Map + Live AI Website Demo — Free",
     "auditNote": "Free demo includes a simulated grid. Live neighborhood measurements and weekly tracking require provider setup; rankings and AI citations are not guaranteed.",
     "timelineTitle": "Our 3-Part Growth Timeline",
-    "week1Title": "Week 1 — Immediate ROI, zero waiting on Google",
-    "week1Text": "Aspen goes live 24/7 on your website and phone lines, and your first batch of verified B2B leads (up to 50/mo) is delivered to your dashboard.",
-    "days1to14Title": "Days 1–14 — Fast-win technical & category fixes",
-    "days1to14Text": "We deploy AI Answer Engine Schema (llms.txt + JSON-LD for ChatGPT/Gemini), align your exact Google Business Profile categories, and flag keyword-stuffing competitors to capture low-hanging ranking jumps.",
-    "days15to60Title": "Days 15–60 — Compound map & search expansion",
-    "days15to60Text": "Automated weekly Google posts, review velocity, and AI citation pages steadily expand your green zone across surrounding areas and national buyer searches."
+    "week1Title": "First — Capture website conversations",
+    "week1Text": "Review your assistant’s business knowledge and installation, then start handling website inquiries. B2B prospect delivery follows the plan scope; phone service is a separate rollout.",
+    "days1to14Title": "Next — Prioritize profile and website improvements",
+    "days1to14Text": "Review search evidence, business-profile categories and AI-readable website data. Agree and implement relevant fixes; search platforms control ranking.",
+    "days15to60Title": "Ongoing — Measure, review and refine",
+    "days15to60Text": "Review visibility and inquiries over time. Profile posts, honest review requests and content improvements require authorization and an agreed scope—not guaranteed ranking expansion."
   },
   "addons": {
     "badge": "À La Carte",
@@ -230,12 +230,12 @@
       },
       "seoAudit": {
         "title": "25-Point Map & AI Audit Report (FREE)",
-        "description": "See the exact 25-spot neighborhood grid where competitors are stealing your calls, plus what to fix first.",
+        "description": "Compare visibility across 25 neighborhood checkpoints and identify what to investigate first. The homepage grid is illustrative; measured findings require a live audit.",
         "note": "Free simulated preview; live rankings require a verified audit."
       },
       "aiSearch": {
         "title": "AI Search Optimization",
-        "description": "Get your business cited by ChatGPT, Gemini, and Perplexity. The future of search isn't Google — it's AI. We optimize your presence for AI-powered results.",
+        "description": "Improve how clearly search and AI systems can understand your business through reviewed content and structured data. ChatGPT, Gemini and Perplexity decide which businesses they cite.",
         "note": "New — early adopter pricing"
       },
       "mapsBoost": {
@@ -248,41 +248,41 @@
     "bundle": {
       "badge": "Best Value Combo",
       "title": "🚀 Total Search Dominance Bundle",
-      "body": "Combine Google Maps Boost (${{maps}}) + AI Search Optimization (${{ai}}) for just ${{bundle}}/mo (Save ${{savings}}/mo) — Rank in the Google Map Pack AND get recommended by ChatGPT, Gemini & Google AI!",
+      "body": "Combine Google Maps Boost (${{maps}}) + AI Search Optimization (${{ai}}) for ${{bundle}}/mo (save ${{savings}}/mo versus separate services). Prioritize local visibility and AI-readable business information, without ranking or citation guarantees.",
       "note": "Optimization is an action plan, not a ranking or citation guarantee. Live weekly grid tracking requires provider setup; bundle arranged during your implementation call."
     }
   },
   "testimonials": {
-    "title1": "Real People. ",
-    "title2": "Real Results.",
-    "sub": "Business owners across every industry trust AI Hidden Leads to capture more customers.",
+    "title1": "What could your team ",
+    "title2": "do with AI?",
+    "sub": "Illustrative business scenarios—not customer testimonials or measured results.",
     "previous": "Previous testimonial",
     "next": "Next testimonial",
     "goTo": "Go to testimonial {{number}}",
     "items": {
       "sarah": {
-        "quote": "We never miss a call anymore. The AI voice agent picks up every single inquiry — evenings, weekends, holidays. Our bookings are up 40% since we started using AI Hidden Leads.",
-        "title": "Real Estate Broker · RE/MAX South Florida"
+        "quote": "A visitor asks about a listing after hours. A website assistant can explain published details and collect an inquiry for the team to review.",
+        "title": "Illustrative real estate scenario"
       },
       "mike": {
-        "quote": "I was skeptical at first, but the personalized demo blew me away. They showed me my own website with AI on it — I signed up that same day. Best decision for my business.",
-        "title": "Owner · Thompson Plumbing & HVAC"
+        "quote": "A business buyer has a service question while the team is on a job. Voice or chat can help them explain the request instead of leaving the website.",
+        "title": "Illustrative commercial services scenario"
       },
       "jessica": {
-        "quote": "Our front desk used to miss half the calls during busy hours. Now the AI handles overflow, books consultations, and even follows up with leads we would've lost.",
-        "title": "Founder · Glow Aesthetic Med Spa"
+        "quote": "Routine service questions can be answered from reviewed business information, leaving staff more time for the customers already in front of them.",
+        "title": "Illustrative reception scenario"
       },
       "carlos": {
-        "quote": "The speed-to-lead feature is a game-changer. A customer views our demo and within a minute they get a call from our AI — it's like having a tireless sales team.",
-        "title": "Owner · Prestige Auto Detail"
+        "quote": "A team combines captured website inquiries with researched B2B prospects, then reviews contacts and follows up appropriately. Sales results depend on the business.",
+        "title": "Illustrative prospecting scenario"
       }
     }
   },
   "leadForm": {
     "badge": "Free personalized demo",
-    "title1": "See Your AI Assistant",
-    "title2": "In Action",
-    "sub": "Enter your info below. In 60 seconds, you'll see your website with live AI chat and voice assistants.",
+    "title1": "Try Your Website’s",
+    "title2": "AI Receptionist — Free",
+    "sub": "Your website URL starts the learning; your name personalizes the conversation. Test voice and chat over your actual site preview. No credit card or installation. Preparation time varies.",
     "name": "Your Name",
     "business": "Business Name",
     "website": "Website URL",
@@ -297,7 +297,7 @@
     "clickBrowse": "click to browse",
     "filesSelected": "{{count}}/{{max}} files selected — click to add more",
     "submitting": "Submitting...",
-    "requiredNote": "Required: owner name, business name, and website URL. Email and phone are optional but recommended for recap + scheduling.",
+    "requiredNote": "Required: your name and website URL. Business name, email and phone are optional; no contact details are required to try the conversation.",
     "invalidFile": "Invalid file type",
     "invalidFileDesc": "{{file}} is not a PDF, TXT, or Word document.",
     "fileTooLarge": "File too large",
@@ -431,21 +431,21 @@
     "copyright": "AI-powered lead generation & sales automation."
   },
   "diff": {
-    "badge": "Why Businesses Choose Us",
-    "title1": "Stop Losing Leads.",
-    "title2": "Start Converting 24/7.",
-    "sub": "Most businesses lose 62% of calls after hours. Our AI answers every call, books appointments, and warm-transfers hot leads — so you never miss revenue again.",
+    "badge": "Try It Before You Decide",
+    "title1": "More than a visitor.",
+    "title2": "Start a conversation.",
+    "sub": "Help website visitors ask questions, explain what they need and take a useful next step. Start with a free live simulation—not a sales promise.",
     "c1": {
-      "title": "Live in 48 Hours",
-      "desc": "No months of setup. We scan your website, train your AI agent on your services, and go live — all within 2 business days."
+      "title": "Your business, your answers",
+      "desc": "Learn from your readable website pages, then review the assistant’s knowledge. Add FAQs and documents for facts your website does not cover."
     },
     "c2": {
-      "title": "No Hidden Costs",
-      "desc": "Transparent pricing from day one. No setup fees, no long-term contracts. Cancel anytime. What you see is what you pay."
+      "title": "Start small, grow deliberately",
+      "desc": "Premium pairs website voice and chat with 50 B2B prospects per month for $99. Live video and extra services have clear, separate pricing."
     },
     "c3": {
-      "title": "Try Before You Buy",
-      "desc": "See AI running on YOUR website in under 2 minutes — free. Talk to it, test it, then decide. No credit card required."
+      "title": "Experience it on your site",
+      "desc": "Enter your URL, test the conversation and ask Aspen your questions. The free demo leaves your real website untouched; scan and video readiness vary."
     }
   },
   "avatar": {
@@ -515,44 +515,44 @@
     "footer": "Still have questions? Talk to Aspen (bottom-right) or scroll up to book a live demo.",
     "items": [
       {
-        "q": "What exactly counts as an 'AI interaction' in the $99 plan?",
-        "a": "One AI interaction = one conversation on your website (voice or chat) up to 5 minutes long. The $99 Premium plan includes 100 of these per month — enough to cover most small-business website traffic. If you go over, additional conversations are billed at just $0.50 each so you never miss a lead. You'll get a friendly SMS warning at 80 and again at 100 conversations."
+        "q": "What is included in Premium for $99/month?",
+        "a": "Premium includes 400 browser voice minutes per month during the current launch promotion, website chat and 50 B2B prospects per month. Professional is $199 with 1,200 minutes and 100 prospects; Platinum is $349 with 2,500 minutes and 200 prospects. Live video is optional and telephone usage is separate."
       },
       {
-        "q": "What happens if I go over my monthly limits?",
-        "a": "We use a soft cap with SMS warnings, not a hard shut-off. At 80% usage you get a heads-up, at 100% another SMS, and any extra usage is auto-billed at the end of the month at transparent passthrough rates: $0.50 per extra AI conversation, ~$0.02/min for live human phone transfers via Twilio, $0.015 per SMS. You can set your own hard cap in settings if you prefer predictability over coverage."
+        "q": "Can I try it on my own website before paying?",
+        "a": "Yes. Start the free live demo with your website URL and your name. We learn readable public pages and overlay the assistant on a preview of your actual website. We do not change your live site. Scan and video preparation depend on the site and connection; there is no guaranteed two-minute completion."
       },
       {
-        "q": "How much does a live transfer to a human cost?",
-        "a": "Live phone transfers use Twilio at our cost — approximately $0.02 per minute. A typical 4–5 minute live transfer call adds about $0.10. Even with heavy usage this rarely adds more than $30–$90/month, and we bill it transparently at cost, not marked up."
+        "q": "Does a natural AI voice include live video?",
+        "a": "All plans include natural two-way website voice with a still portrait and chat. Live, lip-synced video is optional: Premium +$79/month for 400 video minutes ($178 total), Professional +$180 for 1,200, or Platinum +$250 for 2,500."
       },
       {
-        "q": "Where do the 50 new leads in the Professional plan come from?",
-        "a": "We source B2B leads from public business directories — Google Maps, Apollo.io, LinkedIn company pages, Yelp, and industry-specific directories. Every lead is verified for a real phone number using Twilio line-type lookup and a valid business email before delivery. These are 100% B2B leads (businesses, not consumers), fully compliant with CAN-SPAM and TCPA, with opt-out language built into every outbound message. No gray-market data, no scraping of private info."
+        "q": "Can it answer my business telephone number?",
+        "a": "Website voice is available now. Customer telephone answering and forwarding are a separate rollout and are not activated yet. The intended offer supports after-hours/missed-call or all-call forwarding; Professional and Platinum include one local number and transfer, with phone usage separate at 5¢/minute. Routing, billing and spend caps must be verified before activation."
       },
       {
-        "q": "What if I need more than 50 leads per month?",
-        "a": "Additional verified B2B leads are available at $1.50 each (our cost is $0.30–$0.80, billed at honest passthrough margins). Just let us know your target volume and we'll set up overage billing or move you to the Platinum plan, where lead generation is unlimited and we run the outreach for you."
+        "q": "Can I connect my calendar or CRM?",
+        "a": "You can book a meeting with our team through our live sales calendar. Your own calendar requires authorization and a verified connection. Admin call-report CSV export and reviewed single-report webhook sending exist; customer CRM synchronization and automated delivery are not live. A real Zapier destination still needs testing."
       },
       {
-        "q": "What voice does Aspen use? Is it expensive AI?",
-        "a": "Aspen uses Retell AI with ElevenLabs Flash v2.5 — a premium-sounding voice at a low cost (~$0.06/minute total). That's why we can offer 100 conversations on the $99 plan and still keep margins healthy without cutting quality."
+        "q": "Are calls recorded and can I receive a summary?",
+        "a": "Browser calls start with a recording disclosure. Private transcripts, AI summaries and speaker-specific audio segments support internal review; these are not a continuous mixed telephone recording. Visitors can request a transcript/summary link with explicit confirmation. Customer automatic per-call or weekly delivery requires further setup; no automatic marketing enrollment."
       },
       {
-        "q": "How long does the AI conversation typically last?",
-        "a": "Most lead conversations on a website last 2–4 minutes. A live human transfer call typically lasts 4–6 minutes. We budget 5 minutes per interaction in your plan, which fits the vast majority of real conversations."
+        "q": "Where do the included B2B prospects come from?",
+        "a": "Business prospects are researched from public business sources by target industry and region, with available contact evidence reviewed. Premium includes 50 per month, Professional 100 and Platinum 200. A prospect is not an opt-in buyer or a guaranteed sale, and not every record has a verified owner email or phone."
       },
       {
-        "q": "Is SMS included? What about the 1 SMS/second carrier limit?",
-        "a": "Yes — SMS is included for outbound recaps, lead replies, and overage warnings. We use Twilio with A2P 10DLC registration so your messages are properly registered with carriers, deliver reliably, and stay under the per-second throughput caps. Every outbound SMS includes 'Reply STOP to opt out' as required by TCPA."
+        "q": "Are SMS and social posting automatic?",
+        "a": "SMS confirmations, reminders and summaries are coming soon, pending carrier approval and separate fees. Social content, scheduling and permitted replies require agreed scope, connected accounts and approval; autonomous posting or messaging is not currently connected here."
       },
       {
-        "q": "How fast do you go live?",
-        "a": "2–3 business days for Premium and Pro. Platinum is 5–7 business days because we also set up your outreach sequences, CRM imports, and live transfer routing."
+        "q": "How long does setup take?",
+        "a": "Try the website simulation first, then review your business knowledge, voice and appearance in guided setup. Production readiness depends on your website, installation and any authorized calendar or phone connections. We do not promise a fixed deployment deadline."
       },
       {
-        "q": "Can I cancel anytime?",
-        "a": "Yes. Month-to-month, cancel anytime from your dashboard. No long-term contracts, no cancellation fees."
+        "q": "Can I cancel, and is there a guarantee?",
+        "a": "Plans are month-to-month. Cancellation takes effect at the end of the paid period; plan changes are immediately prorated. The monthly plan fee has a 14-day money-back guarantee. Review optional service and usage terms before checkout."
       }
     ]
   }
