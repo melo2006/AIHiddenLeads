@@ -34,6 +34,7 @@ describe('intentional avatar stop', () => {
     act(() => ref.current?.stop());
   });
   it('does not start paired speech before an actual video frame is displayed', async () => {
+    mocks.events.clear();
     mocks.invoke.mockResolvedValue({ data: { sessionToken: 'test', chromaKey: true } });
     mocks.start.mockImplementation(async () => {
       const video = document.querySelector('video');

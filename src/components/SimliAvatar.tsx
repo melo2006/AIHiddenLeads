@@ -114,6 +114,8 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
         audioRef.current.volume = 0;
         let rejectStartup: ((error: Error) => void) | undefined;
         const startupFailure = new Promise<never>((_, reject) => { rejectStartup = reject; });
+        // A stop can happen while token acquisition is pending, before the race attaches.
+        void startupFailure.catch(() => {});
         startupRejectRef.current = error => rejectStartup?.(error);
         const { token, chromaKey } = await sessionToken({ agentId, shareToken, draft, faceId: faceOverride });
         if (lifecycle !== lifecycleRef.current) return false;
