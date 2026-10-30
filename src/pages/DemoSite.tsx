@@ -835,6 +835,12 @@ const DemoSite = () => {
   );
   const isScanPreviewReady = !isScanning && !isPreviewAvailable && hasGeneratedPreviewData;
   const hasAnyPreview = !isPreviewLoading && (isPreviewAvailable || isScanPreviewReady);
+  // Hold the website behind the progress overlay until Aspen's live session is ready (or 25s passes).
+  useEffect(() => {
+    if (!hasAnyPreview || assistantReady) return;
+    const timer = window.setTimeout(() => setAssistantReady(true), 25000);
+    return () => window.clearTimeout(timer);
+  }, [hasAnyPreview, assistantReady]);
   const isScanFailed = !isScanning && !hasGeneratedPreviewData && !isPreviewAvailable && !isPreviewLoading;
 
   return (
@@ -1008,7 +1014,7 @@ const DemoSite = () => {
           </div>
         )}
 
-        {isPreviewLoading && <DemoLoadingState websiteUrl={homepageUrl} businessName={siteName} overlay />}
+        {(isPreviewLoading || (hasAnyPreview && !assistantReady)) && <DemoLoadingState websiteUrl={homepageUrl} businessName={siteName} overlay />}
 
         {/* ===== Local Google Maps Geo-Grid Blind-Spot Diagnostic ===== */}
         {hasAnyPreview && (
@@ -1035,6 +1041,7 @@ const DemoSite = () => {
           prospectId={leadData.prospectId || prospectIdParam || undefined}
           voiceRequested={voiceOpen}
           onClosed={() => setVoiceOpen(false)}
+          onAssistantReady={() => setAssistantReady(true)}
         />}
 
       </div>
