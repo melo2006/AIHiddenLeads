@@ -121,6 +121,8 @@
     .landing-page > .landing-hero { padding-top: 2rem; padding-bottom: 2.5rem; }
     .landing-page > .landing-demo-invitation { padding-block: 1.25rem; }
   }
+  /* Keeps a silently prepared live face decoding off-screen (display:none would stall its frames). */
+  .aspen-prewarm-offscreen { position: fixed; left: -200vw; top: 0; width: 22rem; opacity: 0; pointer-events: none; }
   .aspen-person-shell .aspen-portrait-trigger,
   .aspen-person-shell .aspen-portrait-trigger:hover,
   .aspen-person-shell .aspen-portrait-trigger:active { background: transparent; box-shadow: none; }
