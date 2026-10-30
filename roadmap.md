@@ -1,5 +1,7 @@
 # Current work
 
+- [ ] Reproduce reported synchronized-startup error with real Simli/Gemini sessions, repair first-frame delivery and verify a single paired output without audio preceding video.
+
 - [x] Moving-avatar calls now wait for displayed video and matching stream audio before opening Gemini; only the paired stream is audible, with local voice reserved for voice-only/replay. One connecting indicator; no greeting ahead of missing lips. Added server-verified caller language-switch tool and English-only complete opening; deployed proxy. Twenty regressions pass; live language tests remain opt-in. Browser confirmed no page errors and missing-frame startup fails safely without speaking.
 - [ ] Verify actual paired video/audio synchronization and spoken English/explicit Spanish/French changes on owner's Chrome: sandbox still received no video frames, so real moving speech and language behavior could not be verified end-to-end.
 
