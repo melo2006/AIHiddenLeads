@@ -2004,6 +2004,8 @@ export type Database = {
           notes: string | null
           number_sid: string | null
           organization_id: string | null
+          previous_voice_url: string | null
+          routed_to_aspen: boolean
           sms_number: string | null
           transfer_name: string | null
           transfer_phone: string | null
@@ -2024,6 +2026,8 @@ export type Database = {
           notes?: string | null
           number_sid?: string | null
           organization_id?: string | null
+          previous_voice_url?: string | null
+          routed_to_aspen?: boolean
           sms_number?: string | null
           transfer_name?: string | null
           transfer_phone?: string | null
@@ -2044,6 +2048,8 @@ export type Database = {
           notes?: string | null
           number_sid?: string | null
           organization_id?: string | null
+          previous_voice_url?: string | null
+          routed_to_aspen?: boolean
           sms_number?: string | null
           transfer_name?: string | null
           transfer_phone?: string | null
