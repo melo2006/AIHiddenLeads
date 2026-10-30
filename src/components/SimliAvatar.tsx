@@ -96,6 +96,11 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
         // Wait one frame so the portal's video/audio elements exist.
         await new Promise((r) => requestAnimationFrame(r));
         if (!videoRef.current || !audioRef.current) throw new Error("Avatar view is not ready");
+        // LiveKit resets `muted` when attaching its audio track. Volume must also
+        // be zero before attachment: Gemini is the sole audible voice owner.
+        audioRef.current.defaultMuted = true;
+        audioRef.current.muted = true;
+        audioRef.current.volume = 0;
         const { token, chromaKey } = await sessionToken({ agentId, shareToken, draft, faceId: faceOverride });
         if (lifecycle !== lifecycleRef.current) return false;
         const client = new SimliClient(token, videoRef.current, audioRef.current, null, LogLevel.ERROR, "livekit");
@@ -111,6 +116,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
           ]);
         } finally { if (deadline) clearTimeout(deadline); }
         if (clientRef.current !== client) return false;
+        if (audioRef.current) { audioRef.current.muted = true; audioRef.current.volume = 0; }
         // Cut the green backdrop out so she floats over the page like her static photo.
         if (chromaKey && canvasRef.current) { const stopFn = startChromaKey(videoRef.current, canvasRef.current); if (stopFn) { keyStopRef.current = stopFn; setKeyed(true); } }
         setLive(true); setState("live");

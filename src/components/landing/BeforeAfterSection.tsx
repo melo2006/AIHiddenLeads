@@ -97,10 +97,7 @@ const BeforeAfterSection = ({ niche }: BeforeAfterSectionProps) => {
           className="text-center mb-8 sm:mb-12"
         >
           <h2 className="text-2xl sm:text-4xl lg:text-5xl font-bold mb-3">
-            <span className="text-foreground">{t("beforeAfter.titleStart")} </span>
-            <span className="text-destructive">{t("beforeAfter.outdated")}</span>
-            <span className="text-foreground"> {t("beforeAfter.to")} </span>
-            <span className="text-gradient-primary">{t("beforeAfter.aiPowered")}</span>
+            {t("beforeAfter.titleStart")} <span className="text-primary">{t("beforeAfter.aiPowered")}</span>
           </h2>
           <p className="text-muted-foreground text-sm sm:text-lg max-w-2xl mx-auto">
             {t(`beforeAfter.niches.${niche.id}.subtitle`)}

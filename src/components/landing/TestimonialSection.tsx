@@ -11,22 +11,22 @@ import carlosImg from "@/assets/testimonial-carlos.png";
 const testimonials = [
   {
     key: "sarah",
-    name: "Sarah Mitchell",
+    name: "Listing inquiries",
     image: sarahImg,
   },
   {
     key: "mike",
-    name: "Mike Thompson",
+    name: "Service inquiries",
     image: mikeImg,
   },
   {
     key: "jessica",
-    name: "Dr. Jessica Reyes",
+    name: "Reception questions",
     image: jessicaImg,
   },
   {
     key: "carlos",
-    name: "Carlos Gutierrez",
+    name: "B2B prospecting",
     image: carlosImg,
   },
 ];
@@ -113,11 +113,7 @@ const TestimonialSection = () => {
             >
               <Quote className="w-8 h-8 text-primary/30 mb-4" />
 
-              <div className="flex justify-center gap-1 mb-5">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="w-4 h-4 fill-primary text-primary" />
-                ))}
-              </div>
+              <p className="text-center text-xs font-semibold text-primary mb-5">Illustrative scenario · not a customer endorsement</p>
 
               <blockquote className="text-lg sm:text-xl font-medium leading-relaxed mb-8 text-foreground text-center">
                 "{tr(`testimonials.items.${active.key}.quote`)}"
