@@ -1,5 +1,8 @@
 # Current work
 
+- [x] Moving-avatar calls now wait for displayed video and matching stream audio before opening Gemini; only the paired stream is audible, with local voice reserved for voice-only/replay. One connecting indicator; no greeting ahead of missing lips. Added server-verified caller language-switch tool and English-only complete opening; deployed proxy. Twenty regressions pass; live language tests remain opt-in. Browser confirmed no page errors and missing-frame startup fails safely without speaking.
+- [ ] Verify actual paired video/audio synchronization and spoken English/explicit Spanish/French changes on owner's Chrome: sandbox still received no video frames, so real moving speech and language behavior could not be verified end-to-end.
+
 - [x] Removed voice/video hold and per-chunk delays; public image/DNS/health prewarm remains session/mic-free. Lip PCM now flows after provider START/SILENT rather than first displayed frame; real Simli ACK/SPEAK confirmed and voice starts ~4.2s after click. Bounded token/start waits avoid hidden startup retries; buffering deadline and zero remote-volume tests added.
 - [ ] Verify actual moving frames/lip timing on owner's Chrome: sandbox received provider START/ACK/SPEAK but no displayed video frames. This remains unverified, not claimed fixed; no avatar regeneration or provider/model switch.
 

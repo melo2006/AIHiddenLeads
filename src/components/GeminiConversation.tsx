@@ -24,7 +24,7 @@ import { salesPlans, type SalesPlan } from '@/lib/salesActions';
 import SimliAvatar, { type SimliAvatarHandle } from '@/components/SimliAvatar';
 import type { VideoAvatar } from '../../supabase/functions/_shared/video-avatar';
 import { PersonPortrait } from '@/components/FloatingPersonFrame';
-import { nextVoiceChunkStart } from '@/lib/avatarAudioTransition';
+import { assistantOutput, nextVoiceChunkStart } from '@/lib/avatarAudioTransition';
 import { PlaybackCaptions, type PlaybackCaption as Caption } from '@/lib/playbackCaptions';
 import PlaybackCaption from '@/components/PlaybackCaption';
 
@@ -290,14 +290,16 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     buffer.getChannelData(0).set(floats);
     const source = ctx.createBufferSource();
     source.buffer = buffer;
-    // Voice always plays locally so callers never hear silence if the face's own audio is blocked;
-    // the live face only receives a copy to drive its lips (its audio element stays muted).
-    if (avatarRequestedRef.current && !captureRef.current.replaying) {
-      // The provider can accept lip audio after START, before its first displayed frame.
-      // Keep trying as it connects; do not permanently disable sends on an early false.
-      avatarRef.current?.sendPcm24k(base64);
-    }
-    source.connect(ctx.destination);
+    const output = assistantOutput(avatarRequestedRef.current, avatarLiveRef.current, captureRef.current.replaying);
+    const pairedVideo = output !== 'local';
+    if (pairedVideo) {
+      if (!avatarLiveRef.current || !avatarRef.current?.sendPcm24k(base64)) {
+        stopEverything(); setError('The moving face disconnected. Press play to reconnect.'); return;
+      }
+      // Use a silent local clock for captions/lifecycle, never a second audible voice.
+      const clockGain = ctx.createGain(); clockGain.gain.value = 0;
+      source.connect(clockGain); clockGain.connect(ctx.destination);
+    } else source.connect(ctx.destination);
 
     const now = ctx.currentTime;
     // Simli renders lips slightly behind the audio it receives; delay the start of each spoken run to match.
@@ -313,6 +315,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       if (sourcesRef.current.size === 0 && captureRef.current.replaying) {
         captureRef.current.replaying = false;
         setReplaying(false);
+        avatarRef.current?.setPlaybackMuted(false);
       }
       if (isPreviewRef.current && previewDoneRef.current && sourcesRef.current.size === 0) stopEverything();
     };
@@ -343,11 +346,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       captureRef.current.paused = false;
       setPaused(false);
       void playCtxRef.current?.resume().catch(() => {});
+      avatarRef.current?.setPlaybackMuted(false);
     } else {
       pauseCapture();
       captureRef.current.paused = true;
       setPaused(true);
       void playCtxRef.current?.suspend().catch(() => {});
+      avatarRef.current?.setPlaybackMuted(true);
     }
   }, [pauseCapture]);
 
@@ -360,6 +365,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       clearPlayback();
       isPreviewRef.current = false;
       captureRef.current.replaying = true;
+      avatarRef.current?.setPlaybackMuted(true);
       setReplaying(true);
       captionClockRef.current.text(lastCaptionRef.current);
       lastAudioRef.current.forEach(audio => playPcmChunk(audio));
@@ -367,14 +373,15 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     } catch { captureRef.current.replaying = false; setReplaying(false); setError("Could not replay audio. Check your speaker connection."); }
   }, [pauseCapture, clearPlayback, playPcmChunk]);
 
-  // Start video alongside voice, never hold audible speech behind an optional transport.
-  const startFace = useCallback((generation: number) => {
-    setFaceWaiting(false);
+  // Authorize voice concurrently, but never generate/play speech ahead of the face.
+  const startFace = useCallback(async (generation: number) => {
+    setFaceWaiting(true);
     // The avatar view mounts on the same render as the tap; wait one frame for its ref.
-    void new Promise<void>(r => requestAnimationFrame(() => r())).then(() => avatarRef.current?.start()).then(ok => {
-      if (generation !== generationRef.current) { if (ok) avatarRef.current?.stop(); return; }
-      if (ok) avatarLiveRef.current = true;
-    }).catch(() => { /* Voice continues independently. */ });
+    const ok = await new Promise<void>(r => requestAnimationFrame(() => r())).then(() => avatarRef.current?.start());
+    if (generation !== generationRef.current) { if (ok) avatarRef.current?.stop(); return false; }
+    setFaceWaiting(false);
+    avatarLiveRef.current = ok === true;
+    return ok === true;
   }, []);
 
   const reconnectRef = useRef({ pending: false, count: 0 });
@@ -408,7 +415,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     setStatus(preview ? "Preparing your saved greeting…" : "Connecting…");
     avatarLiveRef.current = false;
     avatarRequestedRef.current = !preview && !!videoAvatar?.enabled;
-    if (avatarRequestedRef.current) startFace(generation);
+    const faceReady = avatarRequestedRef.current ? startFace(generation) : Promise.resolve(true);
     const startupTimeout = window.setTimeout(() => {
       if (generation === generationRef.current && !liveRef.current) {
         stopEverything();
@@ -440,6 +447,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         microphoneReady,
         playResume,
         micResume,
+        faceReady.then(ok => { if (!ok) throw new Error('The moving face could not connect. Please press play to try again.'); }),
       ]);
       if (generation !== generationRef.current) { stream?.getTracks().forEach(t => t.stop()); return; }
       if (stream) void refreshMicrophones();
@@ -504,7 +512,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
                 setMicLevel(Math.min(100, Math.round(rms * 500)));
               }
               const capture = captureRef.current;
-              if (capture.paused) return;
+              if (capture.paused || idleRef.current.generating || sourcesRef.current.size > 0) return;
               if (!shouldSendMicrophone(capture.mode, capture.held, capture.muted, capture.replaying)) return;
               const gate = microphoneGate(rms, noiseFilterRef.current, performance.now(), gateOpenUntil);
               if (gate.open && sourcesRef.current.size === 0 && !idleRef.current.generating) {
@@ -637,7 +645,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   useEffect(() => {
     if (!videoAvatar?.enabled || previewOnly || isPreviewRef.current || phase === 'idle' || avatarRequestedRef.current) return;
     avatarRequestedRef.current = true;
-    startFace(generationRef.current);
+    // Do not join a late face halfway through speech; it starts with the next call.
+    avatarRequestedRef.current = false;
   }, [videoAvatar?.enabled, phase, previewOnly, startFace]);
 
   // A later launcher tap (after the recording notice was shown) also counts as agreement.

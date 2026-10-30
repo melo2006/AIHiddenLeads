@@ -42,6 +42,23 @@ async function conversation(prompts: string[]): Promise<string[]> {
   });
 }
 
+liveTest("keeps the entire first greeting in English before any caller request", async () => {
+  if (!liveUrl) throw new Error('Missing live test URL');
+  const opening = await new Promise<string>((resolve, reject) => {
+    const ws = new WebSocket(liveUrl);
+    let text = '';
+    const timeout = setTimeout(() => { ws.close(); reject(new Error('Greeting timed out')); }, 30000);
+    ws.onmessage = event => {
+      const msg = JSON.parse(String(event.data));
+      if (msg.type === 'aspen_transcript') text += msg.text;
+      if (msg.type === 'turn_complete') { clearTimeout(timeout); ws.close(); resolve(text); }
+      if (msg.type === 'error') { clearTimeout(timeout); ws.close(); reject(new Error('Greeting failed')); }
+    };
+  });
+  expect(opening).toMatch(/\b(hello|good|you|your|I|we)\b/i);
+  expect(opening).not.toMatch(/\b(hola|gracias|bienvenido|podemos|nuestros|bonjour|merci)\b/i);
+}, 40000);
+
 liveTest("defaults to English despite foreign greetings and reported airplane noise", async () => {
   const replies = await conversation([
     "Hola. Bonjour. I want to know about your services. There is airplane engine noise around me.",
