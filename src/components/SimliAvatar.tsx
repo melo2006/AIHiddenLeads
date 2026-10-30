@@ -60,16 +60,38 @@ export function unlockMediaElements(video: HTMLVideoElement, audio: HTMLAudioEle
   } catch { /* Best effort. */ }
 }
 
-async function sessionToken(body: Record<string, unknown>) {
-  const controller = new AbortController();
-  const deadline = setTimeout(() => controller.abort(), 8000);
-  const result = await supabase.functions.invoke("simli-avatar", { body: { action: "session", ...body }, signal: controller.signal }).finally(() => clearTimeout(deadline));
-  const { data, error } = result;
-  if (error) {
-    const detail = error instanceof FunctionsHttpError ? await error.context.json().catch(() => null) : null;
-    throw new Error(typeof detail?.error === "string" ? detail.error : "Video avatar unavailable");
+export const VIDEO_SLOW = "Aspen’s video is taking longer than usual to connect. Tap play to try again.";
+
+/**
+ * Asks the server for a single-use video token. A token is not a paid session, so a slow
+ * cold start or dropped phone request is retried once before the visitor sees an error.
+ */
+export async function sessionToken(body: Record<string, unknown>, attempts = 2, timeoutMs = 12000) {
+  let lastError: Error = new Error(VIDEO_SLOW);
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const controller = new AbortController();
+    const deadline = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const { data, error } = await supabase.functions.invoke("simli-avatar", { body: { action: "session", ...body }, signal: controller.signal });
+      if (!error && data?.sessionToken) return { token: String(data.sessionToken), chromaKey: data.chromaKey === true };
+      if (error instanceof FunctionsHttpError) {
+        const status = error.context?.status ?? 0;
+        const detail = await error.context.json().catch(() => null);
+        const message = typeof detail?.error === "string" ? detail.error : VIDEO_SLOW;
+        // A refusal (not enabled, access denied, bad request) will not change on retry.
+        if (status > 0 && status < 500) throw Object.assign(new Error(message), { final: true });
+        lastError = new Error(message);
+      } else {
+        lastError = new Error(VIDEO_SLOW);
+      }
+    } catch (e) {
+      if ((e as { final?: boolean })?.final) throw e;
+      lastError = new Error(VIDEO_SLOW);
+    } finally {
+      clearTimeout(deadline);
+    }
   }
-  return { token: String(data.sessionToken), chromaKey: data.chromaKey === true };
+  throw lastError;
 }
 
 /** Owns one Simli session: the face lip-syncs Gemini's audio; Gemini remains the only conversation brain. */
