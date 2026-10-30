@@ -9,7 +9,9 @@ import { startChromaKey } from "@/lib/chromaKey";
 
 export interface SimliAvatarHandle {
   /** Resolves true once the face is on screen; false (with a visible reason) when Simli refuses or fails. */
-  start: () => Promise<boolean>;
+  start: (options?: { silent?: boolean }) => Promise<boolean>;
+  /** Call inside the visitor's tap: enables the paired voice of a silently prepared face. */
+  activate: () => Promise<void>;
   stop: () => void;
   /** Gemini's 24 kHz PCM16 chunk, base64. */
   sendPcm24k: (base64: string) => boolean;
@@ -136,6 +138,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
   const startupRejectRef = useRef<((error: Error) => void) | null>(null);
   const tokenAbortRef = useRef<AbortController | null>(null);
   const frozenFrameRef = useRef(false);
+  const activatedRef = useRef(false);
   const [state, setState] = useState<"idle" | "connecting" | "live" | "failed" | "stopped">("idle");
   const [reason, setReason] = useState("");
   const setLive = (live: boolean) => { liveRef.current = live; onLiveChange?.(live); };
@@ -143,6 +146,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
   const stopKey = () => { keyStopRef.current?.(); keyStopRef.current = null; frozenFrameRef.current = false; setKeyed(false); };
   const stop = () => {
     lifecycleRef.current++;
+    activatedRef.current = false;
     startupRejectRef.current?.(new Error('Video startup cancelled'));
     startupRejectRef.current = null;
     tokenAbortRef.current?.abort(); tokenAbortRef.current = null;
@@ -164,7 +168,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
   useEffect(() => () => stop(), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useImperativeHandle(ref, () => ({
-    start: async () => {
+    start: async (options?: { silent?: boolean }) => {
       if (clientRef.current) return liveRef.current;
       const lifecycle = ++lifecycleRef.current;
       setState("connecting"); setReason("");
@@ -227,6 +231,8 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
         // Draw the first keyed frame before enabling the paired audio output.
         await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
         if (lifecycle !== lifecycleRef.current) return false;
+        // Prepared before any tap: keep the face live but silent until activate().
+        if (options?.silent && !activatedRef.current) { startupRejectRef.current = null; setLive(true); setState("live"); return true; }
         if (audioRef.current) {
           audioRef.current.muted = false; audioRef.current.volume = 1;
           try { await audioRef.current.play(); }
@@ -251,6 +257,15 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
         setReason(e instanceof Error ? e.message : String(e || "Video avatar could not start"));
         throw e instanceof Error ? e : new Error(String(e || 'Video connection failed'));
       }
+    },
+    activate: async () => {
+      activatedRef.current = true;
+      const audio = audioRef.current, video = videoRef.current;
+      if (!audio || !video) return;
+      if (!liveRef.current || !audio.srcObject) { unlockMediaElements(video, audio); return; }
+      audio.muted = false; audio.volume = 1;
+      try { await audio.play(); }
+      catch (playError) { if (playError instanceof Error && playError.name === 'NotAllowedError') throw new Error(SOUND_BLOCKED); throw playError; }
     },
     stop,
     setPlaybackMuted: (muted) => { if (audioRef.current) { audioRef.current.muted = muted; audioRef.current.volume = muted ? 0 : 1; } },
