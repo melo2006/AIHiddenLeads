@@ -15,7 +15,7 @@ vi.mock('@/components/SimliAvatar', () => ({ SOUND_BLOCKED: 'blocked', default: 
 
 class Socket {
   static OPEN = 1;
-  static current: Socket;
+  static current: Socket | undefined;
   readyState = 1;
   onopen?: () => void;
   onmessage?: (event: { data: string }) => void;
@@ -37,31 +37,38 @@ class Context {
   createBufferSource = () => { const source = { connect: vi.fn(), start: vi.fn(), stop: vi.fn(), buffer: null, onended: null }; Context.sources.push(source); return source; };
   createGain = () => ({ gain: { value: 1 }, connect: vi.fn() });
 }
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); Context.sources = []; Socket.current = undefined as unknown as Socket; vi.clearAllMocks(); });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); Context.sources = []; Socket.current = undefined; vi.clearAllMocks(); });
 
-describe.each([false, true])('caller interruption with paired video %s', paired => {
+describe.each([{ paired: false, mode: 'handsfree' }, { paired: true, mode: 'handsfree' }, { paired: false, mode: 'hold' }, { paired: true, mode: 'hold' }])('caller interruption $mode paired video $paired', ({ paired, mode }) => {
   it('streams speech during generation and queued playback, clears on interruption, and respects mute/pause', async () => {
     vi.stubGlobal('WebSocket', Socket); vi.stubGlobal('AudioContext', Context);
+    localStorage.setItem('voice-capture-mode', mode);
     vi.stubGlobal('navigator', { mediaDevices: { addEventListener: vi.fn(), removeEventListener: vi.fn(), getUserMedia: async () => ({ getTracks: () => [{ stop: vi.fn() }], getAudioTracks: () => [], }), enumerateDevices: async () => [] } });
     const view = render(<GeminiConversation compact autoStart consentOnOpen videoAvatar={paired ? { enabled: true, provider: 'simli', faceId: 'test', position: 'bottom-right', size: 200, shape: 'square' } : undefined} />);
     await waitFor(() => expect(Socket.current?.onmessage).toBeTypeOf('function'));
-    act(() => Socket.current.emit({ type: 'ready' }));
+    const socket = Socket.current;
+    if (!socket) throw new Error('Call socket was not created');
+    act(() => socket.emit({ type: 'ready' }));
     const speech = () => act(() => Context.capture.onaudioprocess?.({ inputBuffer: { sampleRate: 16000, getChannelData: () => new Float32Array(2048).fill(0.1) } }));
+    if (mode === 'hold') {
+      speech(); expect(socket.send).not.toHaveBeenCalled();
+      fireEvent.pointerDown(view.getByRole('button', { name: 'Hold to talk' }));
+    }
     speech();
-    expect(Socket.current.send).toHaveBeenCalledWith(expect.stringContaining('"type":"audio"'));
-    act(() => Socket.current.emit({ type: 'audio', data: btoa(String.fromCharCode(...new Uint8Array(4800))) }));
+    expect(socket.send).toHaveBeenCalledWith(expect.stringContaining('"type":"audio"'));
+    act(() => socket.emit({ type: 'audio', data: btoa(String.fromCharCode(...new Uint8Array(4800))) }));
     expect(Context.sources.length).toBeGreaterThan(0);
     if (paired) expect(mocks.pcm).toHaveBeenCalled();
-    Socket.current.send.mockClear();
+    socket.send.mockClear();
     speech();
-    expect(Socket.current.send).toHaveBeenCalledWith(expect.stringContaining('"type":"audio"'));
-    act(() => Socket.current.emit({ type: 'interrupted' }));
+    expect(socket.send).toHaveBeenCalledWith(expect.stringContaining('"type":"audio"'));
+    act(() => socket.emit({ type: 'interrupted' }));
     expect(Context.sources[0].stop).toHaveBeenCalled();
     if (paired) expect(mocks.clear).toHaveBeenCalled();
     fireEvent.click(view.getByRole('button', { name: 'Mute microphone' }));
-    Socket.current.send.mockClear(); speech(); expect(Socket.current.send).not.toHaveBeenCalled();
+    socket.send.mockClear(); speech(); expect(socket.send).not.toHaveBeenCalled();
     fireEvent.click(view.getByRole('button', { name: 'Unmute microphone' }));
     fireEvent.click(view.getByRole('button', { name: 'Pause conversation' }));
-    Socket.current.send.mockClear(); speech(); expect(Socket.current.send).not.toHaveBeenCalled();
+    socket.send.mockClear(); speech(); expect(socket.send).not.toHaveBeenCalled();
   });
 });
