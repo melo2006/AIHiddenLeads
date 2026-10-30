@@ -42,7 +42,7 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); Contex
 describe.each([false, true])('caller interruption with paired video %s', paired => {
   it('streams speech during generation and queued playback, clears on interruption, and respects mute/pause', async () => {
     vi.stubGlobal('WebSocket', Socket); vi.stubGlobal('AudioContext', Context);
-    vi.stubGlobal('navigator', { mediaDevices: { getUserMedia: async () => ({ getTracks: () => [{ stop: vi.fn() }], getAudioTracks: () => [], }), enumerateDevices: async () => [] } });
+    vi.stubGlobal('navigator', { mediaDevices: { addEventListener: vi.fn(), removeEventListener: vi.fn(), getUserMedia: async () => ({ getTracks: () => [{ stop: vi.fn() }], getAudioTracks: () => [], }), enumerateDevices: async () => [] } });
     const view = render(<GeminiConversation compact autoStart consentOnOpen videoAvatar={paired ? { enabled: true, provider: 'simli', faceId: 'test', position: 'bottom-right', size: 200, shape: 'square' } : undefined} />);
     await waitFor(() => expect(Socket.current?.onmessage).toBeTypeOf('function'));
     act(() => Socket.current.emit({ type: 'ready' }));
