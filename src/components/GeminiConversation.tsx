@@ -503,7 +503,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         return;
       }
       if (generation !== generationRef.current) { stream?.getTracks().forEach(t => t.stop()); return; }
-      if (!warm) deadlineRef.current = Date.now() + Number(authorized.maxSeconds || 300) * 1000;
+      deadlineRef.current = Date.now() + Number(authorized.maxSeconds || 300) * 1000;
       homepageWalkthroughRef.current = authorized.homepageSales === true;
       idleRef.current = { enabled: (authorized.idleChecks === true || authorized.homepageSales === true) && !preview, stage: 'waiting', quietSince: Date.now(), generating: true, requestedAt: 0 };
       setHandoffToken(authorized.handoffToken || null);
@@ -523,44 +523,44 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
       const goLive = () => {
         if (generation !== generationRef.current) return;
-      liveRef.current = true;
-      if(!preview)void trackCampaignEvent('voice_started');
-      setPhase(preview ? "preview" : "live");
-      setStatus(preview ? "Preparing greeting audio…" : captureMode === "hold" ? "Live — hold to talk" : "Live — hands-free");
-      const micCtx = micCtxRef.current, stream = micStreamRef.current;
-      if (!micCtx || !stream) return;
-      void micCtx.resume();
-      const source = micCtx.createMediaStreamSource(stream);
-      const node = micCtx.createScriptProcessor(2048, 1, 1);
-      micNodeRef.current = node;
-      let frame = 0;
-      let gateOpenUntil = 0;
-      node.onaudioprocess = (e) => {
-        if (!liveRef.current || handoffRef.current || ws.readyState !== WebSocket.OPEN) return;
-        const input = e.inputBuffer.getChannelData(0);
-        const rms = Math.sqrt(input.reduce((sum, x) => sum + x * x, 0) / input.length);
-        if (++frame % 4 === 0) {
-          setMicLevel(Math.min(100, Math.round(rms * 500)));
-        }
-        const capture = captureRef.current;
-        // Live caller audio must reach provider VAD even during speech (including
-        // silent paired-video clocks). Pause/mute/replay still block capture.
-        if (capture.paused) return;
-        if (!shouldSendMicrophone(capture.mode, capture.held, capture.muted, capture.replaying)) return;
-        const gate = microphoneGate(rms, noiseFilterRef.current, performance.now(), gateOpenUntil);
-        if (gate.open && sourcesRef.current.size === 0 && !idleRef.current.generating) {
-          idleRef.current.stage = 'waiting';
-          idleRef.current.quietSince = Date.now();
-        }
-        gateOpenUntil = gate.openUntil;
-        const pcm = microphonePcm(capture.mode === "hold" || gate.open ? input : new Float32Array(input.length), e.inputBuffer.sampleRate);
-        const bytes = new Uint8Array(pcm.buffer);
-        let binary = "";
-        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-        ws.send(JSON.stringify({ type: "audio", data: btoa(binary) }));
-      };
-      source.connect(node);
-      node.connect(micCtx.destination);
+        liveRef.current = true;
+        if(!preview)void trackCampaignEvent('voice_started');
+        setPhase(preview ? "preview" : "live");
+        setStatus(preview ? "Preparing greeting audio…" : captureMode === "hold" ? "Live — hold to talk" : "Live — hands-free");
+        const micCtx = micCtxRef.current, stream = micStreamRef.current;
+        if (!micCtx || !stream) return;
+        void micCtx.resume();
+        const source = micCtx.createMediaStreamSource(stream);
+        const node = micCtx.createScriptProcessor(2048, 1, 1);
+        micNodeRef.current = node;
+        let frame = 0;
+        let gateOpenUntil = 0;
+        node.onaudioprocess = (e) => {
+          if (!liveRef.current || handoffRef.current || ws.readyState !== WebSocket.OPEN) return;
+          const input = e.inputBuffer.getChannelData(0);
+          const rms = Math.sqrt(input.reduce((sum, x) => sum + x * x, 0) / input.length);
+          if (++frame % 4 === 0) {
+            setMicLevel(Math.min(100, Math.round(rms * 500)));
+          }
+          const capture = captureRef.current;
+          // Live caller audio must reach provider VAD even during speech (including
+          // silent paired-video clocks). Pause/mute/replay still block capture.
+          if (capture.paused) return;
+          if (!shouldSendMicrophone(capture.mode, capture.held, capture.muted, capture.replaying)) return;
+          const gate = microphoneGate(rms, noiseFilterRef.current, performance.now(), gateOpenUntil);
+          if (gate.open && sourcesRef.current.size === 0 && !idleRef.current.generating) {
+            idleRef.current.stage = 'waiting';
+            idleRef.current.quietSince = Date.now();
+          }
+          gateOpenUntil = gate.openUntil;
+          const pcm = microphonePcm(capture.mode === "hold" || gate.open ? input : new Float32Array(input.length), e.inputBuffer.sampleRate);
+          const bytes = new Uint8Array(pcm.buffer);
+          let binary = "";
+          for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+          ws.send(JSON.stringify({ type: "audio", data: btoa(binary) }));
+        };
+        source.connect(node);
+        node.connect(micCtx.destination);
       };
 
       ws.onmessage = (event) => {
@@ -740,7 +740,6 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       if (avatarRequestedRef.current && !avatarLiveRef.current) throw new Error('The moving face could not connect. Please press play to try again.');
       if (playCtx.state !== 'running' || micCtx.state !== 'running') throw new Error(AUDIO_TAP_NEEDED);
       if (wsRef.current?.readyState !== WebSocket.OPEN) throw new Error("The connection closed before the session started. Try again.");
-      deadlineRef.current = Date.now() + 15 * 60 * 1000;
       wsRef.current.send(JSON.stringify({ type: 'begin', consent: true }));
       w.goLive?.();
     } catch (e) {
