@@ -2,7 +2,6 @@ import { useEffect, useState, type CSSProperties } from 'react';
 import GeminiConversation from './GeminiConversation';
 import DraggableFloating from '@/components/landing/demo-results/DraggableFloating';
 import { preloadVoiceIdentity } from '@/lib/voicePreload';
-import { useIsMobile } from '@/hooks/use-mobile';
 import ChatWidget from '@/components/landing/demo-results/ChatWidget';
 import AspenSalesActions from '@/components/AspenSalesActions';
 import FloatingPersonFrame from '@/components/FloatingPersonFrame';
@@ -22,7 +21,6 @@ export default function GeminiAgentWidget({ agentId, leadId, prospectId, busines
  const [recommendedPlan,setRecommendedPlan]=useState<string|null>(null);
  const [identity,setIdentity]=useState<{id?:string;name:string;businessName:string;avatarUrl:string;theme?:WidgetTheme;videoAvatar?:VideoAvatar}>({name:'Aspen',businessName:businessName||'AI Hidden Leads',avatarUrl:''});
  const [identityReady,setIdentityReady]=useState(false);
- const isMobile=useIsMobile();
  useEffect(()=>{let active=true;setIdentityReady(false);void preloadVoiceIdentity(agentId).then(data=>{if(!active)return;if(data?.name){setIdentity({...data,businessName:businessName||data.businessName});setIdentityReady(true);}});return()=>{active=false;};},[agentId,leadId,prospectId,businessName]);
  const openWidget=()=>{setHasOpened(true);setClickedOpen(true);setMinimized(false);setOpen(true);};
  useEffect(()=>{if(agentId || !floating)return;const show=(event:Event)=>{const next=(event as CustomEvent).detail?.mode==='chat'?'chat':'voice';setMode(next);setChatVisited(next==='chat');setHasOpened(true);setClickedOpen((event as CustomEvent).detail?.start===true);setMinimized(false);setOpen(true);};window.addEventListener('open-homepage-aspen',show);return()=>window.removeEventListener('open-homepage-aspen',show);},[agentId,floating]);
@@ -38,5 +36,5 @@ export default function GeminiAgentWidget({ agentId, leadId, prospectId, busines
   </FloatingPersonFrame>
  </>;
  const themedContent=<div style={agentId ? themeVariables(identity.theme) as CSSProperties : undefined}>{content}</div>;
-  return (floating || isMobile || minimized) ? <DraggableFloating initialX={12} initialY={window.innerHeight-90} anchorRight anchorBottom resetKey={open ? 'open' : 'closed'}>{themedContent}</DraggableFloating> : themedContent;
+  return <DraggableFloating initialX={12} initialY={window.innerHeight-90} anchorRight anchorBottom resetKey={open ? 'open' : 'closed'}>{themedContent}</DraggableFloating>;
 }
