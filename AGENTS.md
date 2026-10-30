@@ -43,7 +43,7 @@
 - Send owner/operational app emails through the owner's Hostinger mailbox SMTP helper (_shared/hostinger-mail.ts); Hostinger cannot delegate subdomains and the owner wants a portable setup.
 - Public headers show one AccountMenu: signed-out Log in/Create account links to /account; admin menu entries appear only from the protected platform role table, never hidden gestures or client flags.
 
-- Read subdirectory AGENTS.md before edits.
+- Read nested AGENTS.md. Demo headers are normal-flow, not overlays.
 - Share customer/admin setup with real ingestion/Gemini tests; admin drafts never grant payment access. Publish only explicitly. Prefer captured originals over iframe checks; guard loading and save before switching drafts to prevent lost work.
-- Share drafts only via hashed, expiring server-resolved tokens: appearance-only responses, visitor quota, no handoff.
+- Share drafts via hashed expiring server tokens; appearance-only, visitor quota, no handoff.
 - Simli lip-syncs Gemini; guard sends/drain, secrets, photo fallback. Transparency = server green backdrop + browser WebGL key, never assumed alpha. Share catalog/device tests; check custom readiness.

@@ -30,6 +30,7 @@ import PlaybackCaption from '@/components/PlaybackCaption';
 import { voiceSessionHeaders } from '@/lib/voiceSessionAuth';
 
 const MICROPHONE_DENIED = "Microphone permission was denied — allow it in your browser and try again.";
+const AUDIO_TAP_NEEDED = 'Tap play to enable sound on this phone. Your sign-in and demo allowance are unchanged.';
 const VOICES = [
   { id: "Kore", label: "Kore — warm female (default)" },
   { id: "Aoede", label: "Aoede — bright female" },
@@ -113,6 +114,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     "Pick a voice and press Start — then just talk, like a real phone call. You can interrupt her."
   );
   const [error, setError] = useState<string | null>(null);
+  const [audioNeedsTap, setAudioNeedsTap] = useState(false);
   const [limitReached, setLimitReached] = useState(false);
   const signInAction = limitReached && error ? <a href={`/account?next=${encodeURIComponent(window.location.pathname + window.location.search)}`} className="inline-flex w-fit items-center rounded-md border border-primary px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/10">Sign in as administrator to keep testing</a> : null;
   const [endedByVisitor, setEndedByVisitor] = useState(false);
@@ -271,6 +273,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const endByVisitor = useCallback(() => {
     stopEverything();
     setError(null);
+    setAudioNeedsTap(false);
     setEndedByVisitor(true);
   }, [stopEverything]);
 
@@ -408,6 +411,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     isPreviewRef.current = preview;
     previewDoneRef.current = false;
     setError(null);
+    setAudioNeedsTap(false);
     setLimitReached(false);
     setEndedByVisitor(false);
     const resumeContext = preview ? undefined : resumeRecap(visitMemory.get(agentId || "homepage") || []);
@@ -420,7 +424,6 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     setStatus(preview ? "Preparing your saved greeting…" : "Connecting…");
     avatarLiveRef.current = false;
     avatarRequestedRef.current = !preview && !!videoAvatar?.enabled;
-    const faceReady = avatarRequestedRef.current ? startFace(generation) : Promise.resolve(true);
     const startupTimeout = window.setTimeout(() => {
       if (generation === generationRef.current && !liveRef.current) {
         stopEverything();
@@ -437,6 +440,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       const micCtx = preview ? null : new AudioContext({ sampleRate: 16000 });
       micCtxRef.current = micCtx;
       const micResume = micCtx?.resume();
+      // An auto-start effect may run after mobile user activation expires. Check
+      // audio before creating billable sessions; the existing play button retries
+      // directly from a real tap, rather than misreporting an admin/quota failure.
+      await Promise.all([playResume, micResume]);
+      if (generation !== generationRef.current) return;
+      if (playCtx.state !== 'running' || (micCtx && micCtx.state !== 'running')) throw new Error(AUDIO_TAP_NEEDED);
+      const faceReady = avatarRequestedRef.current ? startFace(generation) : Promise.resolve(true);
       let visitorKey = localStorage.getItem("gemini-visitor-key");
       if (!visitorKey) { visitorKey = crypto.randomUUID(); localStorage.setItem("gemini-visitor-key", visitorKey); }
       // Prepare the server's business snapshot alongside permission/audio setup, only after a tap.
@@ -463,7 +473,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       ]);
       if (generation !== generationRef.current) { stream?.getTracks().forEach(t => t.stop()); return; }
       if (stream) void refreshMicrophones();
-      if (playCtx.state !== "running" || (micCtx && micCtx.state !== "running")) throw new Error("Your browser paused audio. Press Start again to enable the microphone and speaker.");
+      if (playCtx.state !== "running" || (micCtx && micCtx.state !== "running")) {
+        await Promise.all([playCtx.resume(), micCtx?.resume()]);
+        if (playCtx.state !== 'running' || (micCtx && micCtx.state !== 'running')) throw new Error(AUDIO_TAP_NEEDED);
+      }
       const { data: authorized, error: authError } = session;
       if (authError) {
         const detail = authError instanceof FunctionsHttpError ? await authError.context.json().catch(() => null) : null;
@@ -639,6 +652,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     } catch (e) {
       if (generation !== generationRef.current) return;
       stopEverything();
+      if (e instanceof Error && (e.message === AUDIO_TAP_NEEDED || e.name === 'NotAllowedError' || e.message === SOUND_BLOCKED)) {
+        setAudioNeedsTap(true);
+        setStatus('Tap play to enable sound');
+        setError(null);
+        return;
+      }
       setError(
         e instanceof Error && e.name === "NotAllowedError"
           ? SOUND_BLOCKED
@@ -855,6 +874,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             <span>{micLevel > 3 ? "Sound" : "Quiet"}</span>
           </div>
         )}
+        {audioNeedsTap && <p role="status" className="text-[11px] text-muted-foreground">{AUDIO_TAP_NEEDED}</p>}
         {error && <p className="text-[11px] font-semibold text-destructive">{error}</p>}
         {signInAction}
 
@@ -1048,6 +1068,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             <span>Microphone</span><meter min="0" max="100" value={micLevel} aria-label="Microphone level" className="h-3 w-24" />
             <span>{micLevel > 3 ? "Sound detected" : "Quiet"}</span>
           </div>}
+          {audioNeedsTap && <p role="status" className="text-xs text-muted-foreground">{AUDIO_TAP_NEEDED}</p>}
           {error && <p className="text-xs text-destructive font-semibold">{error}</p>}
           {signInAction}
         </Card>
