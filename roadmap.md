@@ -1,6 +1,6 @@
 # Current work
 
-- [ ] Verify and restore caller interruption while Aspen generates/plays speech; retain pause, mute, replay, handoff and hold-to-talk protections.
+- [x] Restored caller audio during Aspen generation/playback, including paired-video silent clocks. Four component regressions exercise hands-free/hold-to-talk with voice/video, actual microphone callbacks and interruption cleanup; 24 targeted tests pass. Pause, mute, replay and handoff gates preserved. Real-device provider interruption remains unverified; no paid sessions used.
 
 - [x] Close/minimize retain a shared draggable microphone/expand bubble on homepage, demos and customer assistants. Twelve tests pass, including release-on-close/preserve-on-minimize for all three. Browser verified homepage and PBF demo close → drag → reopen → minimize → expand → close; shield prevents embedded-site drag interference. Build OK; no paid calls used for layout checks.
 
