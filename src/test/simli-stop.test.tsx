@@ -18,6 +18,23 @@ vi.mock('simli-client', () => ({ LogLevel: { ERROR: 0 }, SimliClient: class {
 vi.mock('@/lib/chromaKey', () => ({ startChromaKey: () => () => {} }));
 const avatar = { provider: 'simli' as const, enabled: true, faceId: 'test', position: 'bottom-right' as const, size: 200, shape: 'square' as const };
 describe('intentional avatar stop', () => {
+  it('does not start paired speech before an actual video frame is displayed', async () => {
+    mocks.invoke.mockResolvedValue({ data: { sessionToken: 'test', chromaKey: true } });
+    mocks.start.mockImplementation(async () => {
+      const video = document.querySelector('video');
+      if (video) Object.defineProperty(video, 'readyState', { configurable: true, value: 0 });
+    });
+    const ref = createRef<SimliAvatarHandle>();
+    const view = render(<SimliAvatar ref={ref} avatar={avatar} inline unboxed />);
+    let starting: Promise<boolean> | undefined;
+    act(() => { starting = ref.current?.start(); });
+    await waitFor(() => expect(mocks.events.has('silent')).toBe(true));
+    const audio = view.container.querySelector('audio');
+    expect(audio?.volume).toBe(0);
+    act(() => ref.current?.stop());
+    await act(async () => { await starting; });
+    expect(view.queryByRole('status')).toBeNull();
+  });
   it('sends lip audio after provider readiness without waiting for a displayed frame', async () => {
     mocks.send.mockClear(); mocks.events.clear();
     mocks.invoke.mockResolvedValue({ data: { sessionToken: 'test', chromaKey: true } });

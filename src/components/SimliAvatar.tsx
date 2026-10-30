@@ -78,6 +78,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
   const stopKey = () => { keyStopRef.current?.(); keyStopRef.current = null; frozenFrameRef.current = false; setKeyed(false); };
   const stop = () => {
     lifecycleRef.current++;
+    if (audioRef.current) { audioRef.current.muted = true; audioRef.current.volume = 0; }
     const keepFrame = unboxed && (frozenFrameRef.current || liveRef.current && keyStopRef.current !== null);
     frozenFrameRef.current = keepFrame;
     keyStopRef.current?.(); keyStopRef.current = null;
@@ -126,7 +127,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
           await Promise.race([
             client.start(),
             // Stop before the SDK's first 15s retry; no hidden second paid attempt.
-            new Promise<never>((_, reject) => { deadline = setTimeout(() => reject(new Error("Video could not connect. Voice remains available.")), 12000); }),
+            new Promise<never>((_, reject) => { deadline = setTimeout(() => reject(new Error("Video could not connect. Please try again.")), 12000); }),
           ]);
         } finally { if (deadline) clearTimeout(deadline); }
         if (clientRef.current !== client) return false;
