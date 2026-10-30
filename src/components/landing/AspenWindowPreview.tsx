@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { MessageResponse } from '@/components/ai-elements/message';
 import avatar from '@/assets/aspen_blonde_avatar.jpg';
 import AspenSalesActions from '@/components/AspenSalesActions';
+import { HOMEPAGE_GREETING } from '../../../supabase/functions/_shared/homepage-knowledge';
+import { greeting } from '../../../supabase/functions/_shared/voice-config';
 
 export default function AspenWindowPreview() {
   const [mode, setMode] = useState<'chat' | 'voice'>('voice');
@@ -19,7 +21,7 @@ export default function AspenWindowPreview() {
     </div>
     <AspenSalesActions />
     <div className="flex min-h-52 flex-col justify-center gap-4 p-5 text-sm leading-relaxed">
-      <MessageResponse>{mode === 'chat' ? "Hi! I'm Aspen. What would you like to know about your business’s AI assistant?" : "Hi! I'm Aspen, your voice assistant. How can I help you today?"}</MessageResponse>
+      <MessageResponse>{greeting({ greeting: HOMEPAGE_GREETING, name: 'Aspen' }, new Date().getHours())}</MessageResponse>
       {mode === 'chat' ? <><p className="ml-8 rounded-lg bg-primary px-3 py-2 text-primary-foreground">Can visitors talk or type to you?</p><MessageResponse>Yes — whichever feels more natural.</MessageResponse></> : <div className="flex h-14 items-center justify-center gap-1.5" aria-hidden="true">{[3,6,9,5,12,8,4,10,6,3].map((height,i)=><span key={i} className={`w-1.5 rounded-full bg-primary ${height > 8 ? 'h-12' : height > 5 ? 'h-8' : 'h-4'}`} />)}</div>}
     </div>
     <footer className="flex flex-col items-stretch gap-1.5 border-t border-border p-4 text-muted-foreground">

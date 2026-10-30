@@ -18,11 +18,9 @@ describe("same-visit resume", () => {
 });
 
 describe("homepage greeting", () => {
-  it("confirms a known visitor name", () => {
-    expect(greeting({ greeting: HOMEPAGE_GREETING, name: "Aspen" }, 9, "Mark Smith")).toContain("is your name Mark?");
-  });
-  it("asks for the name when unknown", () => {
-    expect(greeting({ greeting: HOMEPAGE_GREETING, name: "Aspen" }, 9, "")).toContain("what is your name?");
+  it("keeps name confirmation available for a later turn", () => {
+    expect(greeting({ greeting: '{nameConfirm}', name: "Aspen" }, 9, "Mark Smith")).toContain("is your name Mark?");
+    expect(greeting({ greeting: '{nameConfirm}', name: "Aspen" }, 9, "")).toContain("what is your name?");
   });
   it("prices the video avatar add-on at $79/month", () => {
     expect(HOMEPAGE_ADDONS.find(a => a.name.startsWith("Video Avatar"))?.usd).toBe(79);

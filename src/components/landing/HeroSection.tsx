@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import type { NicheData } from "@/data/nicheData";
 import AspenWindowPreview from './AspenWindowPreview';
+import { HOMEPAGE_GREETING } from '../../../supabase/functions/_shared/homepage-knowledge';
 
 interface HeroSectionProps {
   niche: NicheData;
@@ -64,6 +65,8 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
               {copy.sub}
               <span className="mt-3 block font-semibold text-foreground">{copy.start}</span>
             </motion.p>
+
+            {i18n.language.startsWith('en') && <p className="mb-5 text-sm font-medium text-foreground max-w-xl mx-auto lg:mx-0">“{HOMEPAGE_GREETING.split('Quick question: ')[1]}”</p>}
 
             {/* CTAs */}
             <motion.div
