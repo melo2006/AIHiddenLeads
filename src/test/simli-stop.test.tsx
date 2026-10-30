@@ -1,7 +1,7 @@
 import { createRef } from 'react';
 import { act, render, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import SimliAvatar, { type SimliAvatarHandle } from '@/components/SimliAvatar';
+import SimliAvatar, { SOUND_BLOCKED, type SimliAvatarHandle } from '@/components/SimliAvatar';
 const mocks = vi.hoisted(() => ({ invoke: vi.fn(), start: vi.fn(), send: vi.fn(), events: new Map<string, () => void>() }));
 vi.mock('@/integrations/supabase/client', () => ({ supabase: { functions: { invoke: mocks.invoke } } }));
 vi.mock('simli-client', () => ({ LogLevel: { ERROR: 0 }, SimliClient: class {
@@ -127,5 +127,36 @@ describe('intentional avatar stop', () => {
     act(() => ref.current?.stop());
     await act(async () => { reject?.(new Error('Late network error')); await starting; });
     expect(view.queryByRole('status')).toBeNull();
+  });
+});
+describe('phone/in-app browser sound unlock', () => {
+  it('plays the media elements inside the tap, before the video session token arrives', async () => {
+    mocks.events.clear();
+    mocks.invoke.mockImplementation(() => new Promise(() => {}));
+    const played: string[] = [];
+    const original = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function () { played.push(this.tagName); return Promise.resolve(); };
+    try {
+      const ref = createRef<SimliAvatarHandle>();
+      render(<SimliAvatar ref={ref} avatar={avatar} inline unboxed />);
+      act(() => { void ref.current?.start(); });
+      await waitFor(() => expect(played).toContain('AUDIO'));
+      expect(mocks.invoke).toHaveBeenCalled();
+      act(() => ref.current?.stop());
+    } finally { HTMLMediaElement.prototype.play = original; }
+  });
+  it('reports a blocked speaker as sound, never as a microphone refusal', async () => {
+    mocks.events.clear();
+    mocks.invoke.mockResolvedValue({ data: { sessionToken: 'test', chromaKey: true } });
+    mocks.start.mockImplementation(async () => {
+      const audio = document.querySelector('audio');
+      if (audio) audio.play = () => Promise.reject(Object.assign(new Error('play() can only be initiated by a user gesture.'), { name: 'NotAllowedError' }));
+    });
+    const ref = createRef<SimliAvatarHandle>();
+    render(<SimliAvatar ref={ref} avatar={avatar} inline unboxed />);
+    let outcome: unknown;
+    await act(async () => { outcome = await ref.current?.start().catch(error => error); });
+    expect((outcome as Error).message).toBe(SOUND_BLOCKED);
+    expect((outcome as Error).message).not.toContain('Microphone');
   });
 });
