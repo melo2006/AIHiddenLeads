@@ -24,7 +24,10 @@ const POSITION: Record<VideoAvatar["position"], string> = {
 const SHAPE: Record<VideoAvatar["shape"], string> = { circle: "rounded-full", rounded: "rounded-3xl", square: "rounded-md" };
 
 async function sessionToken(body: Record<string, unknown>) {
-  const { data, error } = await supabase.functions.invoke("simli-avatar", { body: { action: "session", ...body }, signal: AbortSignal.timeout(8000) });
+  const controller = new AbortController();
+  const deadline = setTimeout(() => controller.abort(), 8000);
+  const result = await supabase.functions.invoke("simli-avatar", { body: { action: "session", ...body }, signal: controller.signal }).finally(() => clearTimeout(deadline));
+  const { data, error } = result;
   if (error) {
     const detail = error instanceof FunctionsHttpError ? await error.context.json().catch(() => null) : null;
     throw new Error(typeof detail?.error === "string" ? detail.error : "Video avatar unavailable");
@@ -169,7 +172,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
   const visible = state !== "idle";
   const frame = (
     <div aria-label="Video avatar" role="img" className={`${unboxed ? 'absolute inset-0' : inline ? "relative mx-auto" : `fixed z-[120] ${POSITION[avatar.position]}`} ${visible ? "" : "hidden"} ${unboxed ? '' : `overflow-hidden ${SHAPE[avatar.shape]} ${keyed ? '' : 'border-2 border-primary/50 bg-card shadow-2xl'}`}`} style={unboxed ? undefined : { width: avatar.size, height: avatar.size, maxWidth: "70vw", maxHeight: "70vw" }}>
-      <video ref={videoRef} autoPlay playsInline muted className={`h-full w-full object-contain ${unboxed ? 'aspen-person-live-media' : ''} ${keyed ? 'absolute inset-0 opacity-0 pointer-events-none' : ''}`} />
+      <video ref={videoRef} autoPlay playsInline muted className={`h-full w-full object-contain ${unboxed ? 'aspen-person-live-media' : ''} ${keyed || unboxed && state !== 'live' ? 'absolute inset-0 opacity-0 pointer-events-none' : ''}`} />
       <canvas ref={canvasRef} aria-hidden className={`h-full w-full object-contain ${unboxed ? 'aspen-person-live-media' : ''} ${keyed ? 'relative' : 'hidden'}`} />
       <audio ref={audioRef} autoPlay muted />
       {state === "connecting" && <div className={`absolute ${unboxed ? 'bottom-1 right-1' : 'inset-0 bg-card/70'} flex items-center justify-center`}><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}
