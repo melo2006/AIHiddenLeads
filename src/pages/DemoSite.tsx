@@ -1,7 +1,7 @@
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect, useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, Phone } from "lucide-react";
+import { ArrowLeft, Phone, ExternalLink } from "lucide-react";
 import type { DemoLeadData } from "@/components/landing/demo-results/demoResultsUtils";
 import { getResponsiveScreenshotSrc, getSiteName, withCacheKey } from "@/components/landing/demo-results/demoResultsUtils";
 import AspenDemoWidget from "@/components/landing/demo-results/AspenDemoWidget";
@@ -11,6 +11,7 @@ import RankAuditPanel from "@/components/landing/demo-results/RankAuditPanel";
 import DemoWatermark from "@/components/landing/demo-results/DemoWatermark";
 import ScanningAnimation from "@/components/landing/ScanningAnimation";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
+import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { preloadVoiceIdentity } from "@/lib/voicePreload";
@@ -251,7 +252,7 @@ const DemoSite = () => {
   });
   const [viewportWidth, setViewportWidth] = useState(() => (typeof window !== "undefined" ? window.innerWidth : 1024));
   const previewBarRef = useRef<HTMLDivElement>(null);
-  const [previewBarHeight, setPreviewBarHeight] = useState(112);
+  const [previewBarHeight, setPreviewBarHeight] = useState(80);
 
   useEffect(() => { void preloadVoiceIdentity(); }, []);
 
@@ -838,68 +839,23 @@ const DemoSite = () => {
 
   return (
     <div className="relative min-h-[100dvh] bg-background">
-      <div className="pointer-events-none fixed inset-x-0 top-0 z-40">
-        <div ref={previewBarRef} className="pointer-events-auto flex min-h-16 w-full flex-wrap items-center justify-between gap-2 border-b border-border/60 bg-card/95 px-3 py-2 shadow-xl backdrop-blur-xl sm:min-h-[4.5rem] sm:gap-3 sm:px-5">
-          {/* Left: Back to Homepage */}
-          <button
-            onClick={() => navigate("/")}
-            className="group inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-border/50 bg-background/60 px-2.5 py-1.5 text-left transition-all hover:border-primary/40 hover:bg-primary/10 sm:px-3 sm:py-2"
-          >
-            <ArrowLeft className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform group-hover:-translate-x-0.5 group-hover:text-primary" />
-            <span className="text-[10px] font-semibold leading-tight text-muted-foreground group-hover:text-foreground sm:text-xs">{t("demo.homepage")}</span>
-          </button>
-
-          {/* Center: Demo info + admin controls */}
-          <div className="flex min-w-0 flex-1 items-center justify-center gap-2">
-            <div className="min-w-0 text-center">
-              <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-muted-foreground sm:text-[10px]">
-                {t("demo.liveDemo")}
-              </p>
-              <p className="truncate text-xs font-semibold text-foreground sm:text-sm">{siteName}</p>
+      <header className="relative z-40" aria-label="Business demo header">
+        <div ref={previewBarRef} className="border-b border-border bg-card px-3 py-2 sm:px-5">
+          <div className="flex min-w-0 items-center gap-2">
+            <Button size="icon" variant="outline" className="h-8 w-8 shrink-0" onClick={() => navigate("/")} aria-label="Back to homepage" title="Homepage"><ArrowLeft className="h-4 w-4" /></Button>
+            <a href={homepageUrl} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1" title={`Open ${siteName} website`}>
+              <span className="block text-[10px] font-semibold text-primary">Simulation preview {isScanning && "· Learning…"}</span>
+              <span className="block truncate text-xs font-semibold text-foreground">{siteName}</span>
+            </a>
+            <LanguageSwitcher variant="full" className="h-8 shrink-0" />
+            <Button asChild size="sm" className="h-8 shrink-0 text-xs"><a href="/plans" target="_blank" rel="noopener noreferrer"><span className="sm:hidden">Install</span><span className="hidden sm:inline">Get the install code</span><ExternalLink className="ml-1 h-3 w-3" /></a></Button>
+          </div>
+          <div className="mt-1.5 flex min-w-0 items-center justify-between gap-2">
+            <p className="text-[10px] leading-tight text-muted-foreground"><span className="sm:hidden">Original site unchanged</span><span className="hidden sm:inline">Your real website is not changed.</span></p>
+            <div className="flex min-w-0 items-center gap-1">
+              <RankAuditPanel businessName={searchParams.get("auditBusiness") || leadData.businessName || siteName} city={searchParams.get("city") || undefined} niche={leadData.niche} websiteUrl={leadData.websiteUrl} initialKeyword={searchParams.get("keyword") || undefined} initialMode={searchParams.get("auditMode") === "nationwide" ? "nationwide" : "maps"} compact />
+              <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0" onClick={() => setShowTestOverride(v => !v)} title="Test phone override" aria-label="Test phone override"><Phone className="h-3 w-3" /></Button>
             </div>
-
-            {isScanning && (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-primary">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
-                {t("demo.building")}
-              </span>
-            )}
-
-            <button
-              onClick={() => setShowTestOverride((v) => !v)}
-              className={`inline-flex h-7 w-7 items-center justify-center rounded-full border transition-colors ${showTestOverride ? "border-primary bg-primary/10 text-primary" : "border-transparent text-muted-foreground/40 hover:text-muted-foreground hover:border-border"}`}
-              title="Test phone override"
-            >
-              <Phone className="h-3 w-3" />
-            </button>
-
-            <button
-              onClick={() => navigate("/prospects")}
-              className="rounded-full border border-transparent bg-transparent px-1 py-0.5 text-[8px] text-muted-foreground/20 hover:text-muted-foreground hover:border-border transition-colors inline-flex"
-              title="Go to Prospects"
-            >
-              •
-            </button>
-          </div>
-
-          {/* Right: language + CTA */}
-          <div className="flex shrink-0 items-center gap-1.5">
-            <LanguageSwitcher variant="full" className="h-9 border border-border/50 bg-background/60" />
-            <button
-              onClick={() => navigate("/#pricing")}
-              className="group relative hidden overflow-hidden rounded-xl border border-primary/50 bg-primary px-3 py-1.5 text-left text-primary-foreground transition-all hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/20 sm:block sm:px-4 sm:py-2"
-            >
-              <p className="text-[10px] font-extrabold uppercase leading-tight tracking-wide sm:text-xs">
-                {t("demo.getMoreInfo")}
-              </p>
-              <p className="text-[8px] font-medium leading-tight text-primary-foreground/80 sm:text-[9px]">
-                {t("demo.brandTag")}
-              </p>
-            </button>
-          </div>
-
-          <div className="basis-full">
-            <RankAuditPanel businessName={searchParams.get("auditBusiness") || leadData.businessName || siteName} city={searchParams.get("city") || undefined} niche={leadData.niche} websiteUrl={leadData.websiteUrl} initialKeyword={searchParams.get("keyword") || undefined} initialMode={searchParams.get("auditMode") === "nationwide" ? "nationwide" : "maps"} />
           </div>
         </div>
 
@@ -925,16 +881,16 @@ const DemoSite = () => {
             </p>
           </div>
         )}
-      </div>
+      </header>
 
       {/* Website — iframe first, screenshot fallback */}
       {hasAnyPreview && <DemoWatermark />}
-      <div className="relative min-h-[100dvh]" style={{ paddingTop: previewBarHeight }}>
+      <div className="relative" style={{ minHeight: `calc(100dvh - ${previewBarHeight}px)` }}>
         {canRenderInlineIframe && (
           <iframe
             src={livePreviewUrl}
             className="w-full border-0"
-            style={{ minHeight: 'calc(100dvh - 4.5rem)' }}
+            style={{ height: `calc(100dvh - ${previewBarHeight}px)`, minHeight: 320 }}
             title={`${siteName} website`}
             onLoad={() => {
               setHasIframeLoaded(true);
@@ -968,7 +924,7 @@ const DemoSite = () => {
               <iframe
                 src={liveViewUrl}
                 className={`absolute inset-0 h-full w-full border-0 transition-opacity duration-300 ${hasLiveViewLoaded ? "opacity-100" : "opacity-0"}`}
-                style={{ minHeight: 'calc(100dvh - 4.5rem)' }}
+                style={{ height: `calc(100dvh - ${previewBarHeight}px)`, minHeight: 320 }}
                 title={`${siteName} website (live view)`}
                 allow="clipboard-read; clipboard-write"
                 onLoad={() => setHasLiveViewLoaded(true)}
@@ -1063,16 +1019,6 @@ const DemoSite = () => {
             onVoiceCall={() => { setVoiceOpen(true); }}
             onBookCall={() => navigate("/#pricing")}
           />
-        )}
-
-        {hasAnyPreview && (
-          <div className="pointer-events-none fixed left-1/2 top-2 z-40 w-[min(96vw,34rem)] -translate-x-1/2">
-            <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-full border border-primary/60 bg-background/90 px-3 py-1.5 text-center text-[11px] text-foreground shadow-lg backdrop-blur">
-              <span className="font-semibold text-primary">Simulation preview</span>
-              <span className="text-muted-foreground">Your real website is not changed.</span>
-              <a href="/plans" target="_blank" rel="noopener noreferrer" className="font-semibold text-primary underline underline-offset-2">Get the install code</a>
-            </div>
-          </div>
         )}
 
         {hasAnyPreview && <AspenDemoWidget
