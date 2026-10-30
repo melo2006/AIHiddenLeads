@@ -24,7 +24,7 @@ import { salesPlans, type SalesPlan } from '@/lib/salesActions';
 import SimliAvatar, { type SimliAvatarHandle } from '@/components/SimliAvatar';
 import type { VideoAvatar } from '../../supabase/functions/_shared/video-avatar';
 import { PersonPortrait } from '@/components/FloatingPersonFrame';
-import { nextVoiceChunkStart } from '@/lib/avatarAudioTransition';
+import { assistantOutput, nextVoiceChunkStart } from '@/lib/avatarAudioTransition';
 import { PlaybackCaptions, type PlaybackCaption as Caption } from '@/lib/playbackCaptions';
 import PlaybackCaption from '@/components/PlaybackCaption';
 
@@ -290,7 +290,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     buffer.getChannelData(0).set(floats);
     const source = ctx.createBufferSource();
     source.buffer = buffer;
-    const pairedVideo = avatarRequestedRef.current && !captureRef.current.replaying;
+    const output = assistantOutput(avatarRequestedRef.current, avatarLiveRef.current, captureRef.current.replaying);
+    const pairedVideo = output !== 'local';
     if (pairedVideo) {
       if (!avatarLiveRef.current || !avatarRef.current?.sendPcm24k(base64)) {
         stopEverything(); setError('The moving face disconnected. Press play to reconnect.'); return;
