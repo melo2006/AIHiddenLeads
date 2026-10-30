@@ -1,5 +1,8 @@
 # Current work
 
+- [x] Removed voice/video hold and per-chunk delays; public image/DNS/health prewarm remains session/mic-free. Lip PCM now flows after provider START/SILENT rather than first displayed frame; real Simli ACK/SPEAK confirmed and voice starts ~4.2s after click. Bounded token/start waits avoid hidden startup retries; buffering deadline and zero remote-volume tests added.
+- [ ] Verify actual moving frames/lip timing on owner's Chrome: sandbox received provider START/ACK/SPEAK but no displayed video frames. This remains unverified, not claimed fixed; no avatar regeneration or provider/model switch.
+
 - [x] Removed transparent portrait hover backdrop; blocked SDK-unmuted Simli speech with zero volume before track attachment. Regression tests and real Gemini voice passed (remote volume stayed zero); approved portrait publicly served unchanged. Real lip-sync alignment still needs owner Chrome check: sandbox Simli accepted sessions but delivered no video frames.
 - [x] Tightened homepage-only band spacing and navbar-to-content gap; benefit-led demo copy, sourced October 30 competitor comparison, truthful FAQ/scenarios and unchanged prices. Laptop/phone no overflow, free CTA opens /demo, 36 focused tests/build OK. Refreshed and verified real Aspen greeting; preparation timing is not guaranteed. External telephone host and real Zapier URL remain the earlier separate blockers below.
 
