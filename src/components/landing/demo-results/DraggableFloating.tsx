@@ -142,7 +142,8 @@ const DraggableFloating = ({
     offset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
     document.body.style.userSelect = "none";
     document.body.style.touchAction = "none";
-    e.currentTarget.setPointerCapture?.(e.pointerId);
+    const handle = target.closest<HTMLElement>('[data-drag-handle]');
+    handle?.setPointerCapture?.(e.pointerId);
     e.preventDefault();
   }, []);
 
@@ -182,12 +183,12 @@ const DraggableFloating = ({
 
     const handlePointerEnd = (e: PointerEvent) => stopDragging(e.pointerId);
 
-    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointermove", handlePointerMove, true);
     window.addEventListener("pointerup", handlePointerEnd);
     window.addEventListener("pointercancel", handlePointerEnd);
 
     return () => {
-      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointermove", handlePointerMove, true);
       window.removeEventListener("pointerup", handlePointerEnd);
       window.removeEventListener("pointercancel", handlePointerEnd);
       document.body.style.userSelect = "";
@@ -199,6 +200,8 @@ const DraggableFloating = ({
     ? floatingCornerPosition(dimensions, viewport, initialX)
     : fitFloatingPosition(pos, dimensions, viewport);
   return createPortal(
+    <>
+    {isDragging && <div className="fixed inset-0" style={{ zIndex: 'var(--layer-floating)' }} aria-hidden="true" />}
     <div
       ref={containerRef}
       onPointerDown={onPointerDown}
@@ -225,7 +228,8 @@ const DraggableFloating = ({
         </Button>
         {children}
       </div>
-    </div>, document.body
+    </div>
+    </>, document.body
   );
 };
 
