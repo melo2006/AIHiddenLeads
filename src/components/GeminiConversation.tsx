@@ -787,7 +787,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const confirmation = pendingAction ? <VoiceActionConfirmation key={pendingAction.id} action={pendingAction} onAnswer={(approved, contact) => { wsRef.current?.send(JSON.stringify({type:'confirm_action',id:pendingAction.id,approved,contact})); setPendingAction(null); }}/> : null;
   const transferControl = phase === 'live' && handoffToken ? <BrowserVoiceHandoff token={handoffToken} onActive={onHandoffActive} microphone={microphone}/> : null;
 
-  if (!previewOnly && !consentReady) return <div className="space-y-3 p-3 text-foreground">
+  if (!previewOnly && !consentReady && !prewarm) return <div className="space-y-3 p-3 text-foreground">
     {faceFirst && <PersonPortrait name={name} avatarUrl={avatarUrl} />}
     <div className="space-y-3 rounded-md bg-card p-3">
     <p className="text-sm font-semibold">Try a live demo with {name}</p>
