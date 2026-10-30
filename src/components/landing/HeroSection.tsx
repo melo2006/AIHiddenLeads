@@ -19,7 +19,7 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
   const icons = [Phone, Users, Search, Star, Video];
 
   return (
-    <section className="relative overflow-hidden pt-20 sm:pt-24 pb-8 sm:pb-10">
+    <section className="landing-hero relative overflow-hidden pt-6 sm:pt-8 pb-8 sm:pb-10">
       <div className="container mx-auto px-5 sm:px-6 relative z-10">
         {/* Two-column layout: Text left, Aspen right */}
         <div className="flex flex-col lg:flex-row items-center gap-8 lg:gap-10">
@@ -50,7 +50,7 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
             >
               <span className="text-foreground">{copy.headline}</span>
               <br />
-              <span className="text-gradient-primary glow-text">{copy.headlineAccent}</span>
+              <span className="text-primary">{copy.headlineAccent}</span>
               
             </motion.h1>
 
@@ -98,6 +98,7 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
               className="text-sm sm:text-base text-muted-foreground mb-8"
             >
               {copy.trust}
+              <span className="mt-2 block">{i18n.language.startsWith('pt') ? 'Dúvidas? Converse com Aspen por voz ou chat.' : i18n.language.startsWith('es') ? '¿Preguntas? Habla con Aspen por voz o chat.' : 'Questions? Talk to Aspen by voice or chat.'}</span>
             </motion.p>
 
             <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-3 text-left" aria-label={copy.title}>

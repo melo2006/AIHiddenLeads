@@ -5,11 +5,28 @@ import SimliAvatar, { type SimliAvatarHandle } from '@/components/SimliAvatar';
 const mocks = vi.hoisted(() => ({ invoke: vi.fn(), start: vi.fn() }));
 vi.mock('@/integrations/supabase/client', () => ({ supabase: { functions: { invoke: mocks.invoke } } }));
 vi.mock('simli-client', () => ({ LogLevel: { ERROR: 0 }, SimliClient: class {
+  constructor(_token: string, _video: HTMLVideoElement, audio: HTMLAudioElement) {
+    // Reproduce LiveKit's attachment behavior: a remote audio track unmutes.
+    audio.muted = false;
+  }
   on() {} start = mocks.start; stop = async () => {}; sendAudioData() {} ClearBuffer() {}
 } }));
 vi.mock('@/lib/chromaKey', () => ({ startChromaKey: () => () => {} }));
 const avatar = { provider: 'simli' as const, enabled: true, faceId: 'test', position: 'bottom-right' as const, size: 200, shape: 'square' as const };
 describe('intentional avatar stop', () => {
+  it('keeps remote audio inaudible even when the provider unmutes its track', async () => {
+    mocks.invoke.mockResolvedValue({ data: { sessionToken: 'test', chromaKey: true } });
+    mocks.start.mockResolvedValue(undefined);
+    const ref = createRef<SimliAvatarHandle>();
+    const view = render(<SimliAvatar ref={ref} avatar={avatar} inline unboxed />);
+    await act(async () => { await ref.current?.start(); });
+    const audio = view.container.querySelector('audio');
+    expect(audio).not.toBeNull();
+    if (!audio) return;
+    audio.muted = false;
+    expect(audio.volume).toBe(0);
+    act(() => ref.current?.stop());
+  });
   it('retains the keyed frame and does not report a failure on deliberate stop', async () => {
     mocks.invoke.mockResolvedValue({ data: { sessionToken: 'test', chromaKey: true } });
     mocks.start.mockResolvedValue(undefined);
