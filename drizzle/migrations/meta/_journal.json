@@ -113,6 +113,13 @@
       "when": 1793363326350,
       "tag": "0015_telephony_admin_console",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1793367881297,
+      "tag": "0016_telephony_inbound_calls",
+      "breakpoints": true
     }
   ]
 }
