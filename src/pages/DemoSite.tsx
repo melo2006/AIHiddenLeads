@@ -233,6 +233,8 @@ const DemoSite = () => {
   const latestLeadData = location.state?.leadData as DemoLeadData | undefined;
   const [leadData, setLeadData] = useState<DemoLeadData | undefined>(latestLeadData);
   const [voiceOpen, setVoiceOpen] = useState(false);
+  // Website stays behind the progress overlay until Aspen's live session is prepared.
+  const [assistantReady, setAssistantReady] = useState(false);
   const [iframeBlocked, setIframeBlocked] = useState(false);
   const [iframeFailureMode, setIframeFailureMode] = useState<"blocked" | "unreachable" | null>(null);
   const [isIframeCheckPending, setIsIframeCheckPending] = useState(false);
@@ -835,12 +837,6 @@ const DemoSite = () => {
   );
   const isScanPreviewReady = !isScanning && !isPreviewAvailable && hasGeneratedPreviewData;
   const hasAnyPreview = !isPreviewLoading && (isPreviewAvailable || isScanPreviewReady);
-  // Hold the website behind the progress overlay until Aspen's live session is ready (or 25s passes).
-  useEffect(() => {
-    if (!hasAnyPreview || assistantReady) return;
-    const timer = window.setTimeout(() => setAssistantReady(true), 25000);
-    return () => window.clearTimeout(timer);
-  }, [hasAnyPreview, assistantReady]);
   const isScanFailed = !isScanning && !hasGeneratedPreviewData && !isPreviewAvailable && !isPreviewLoading;
 
   return (

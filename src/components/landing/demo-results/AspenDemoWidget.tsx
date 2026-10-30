@@ -22,6 +22,8 @@ function AspenDemoWidgetContent({ voiceRequested = false, onClosed, onAssistantR
   const [recommendedPlan, setRecommendedPlan] = useState<string | null>(null);
   const [videoAvatar, setVideoAvatar] = useState<VideoAvatar | undefined>();
   useEffect(() => { let active = true; void preloadVoiceIdentity().then(d => { if (active) { setVideoAvatar(d?.videoAvatar); setIdentityLoaded(true); } }, () => { if (active) setIdentityLoaded(true); }); return () => { active = false; }; }, []);
+  // Never hold the website more than 25s, even if preparation stalls.
+  useEffect(() => { const t = window.setTimeout(() => onAssistantReady?.(), 25000); return () => window.clearTimeout(t); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (voiceRequested) { setHasOpened(true); setMinimized(false); } }, [voiceRequested]);
   const expanded = open || voiceRequested;
   const minimize = () => { setOpen(false); setMinimized(true); onClosed(); };
