@@ -14,3 +14,11 @@ describe("phone answering rules", () => {
     expect(phoneMaxSeconds(10, 0.05, 12000)).toBe(0);
   });
 });
+
+import { chirpVoice } from "../../supabase/functions/_shared/telephony-rules";
+describe("phone voice", () => {
+  it("uses the same Google voice as Aspen's saved voice", () => {
+    expect(chirpVoice("Aoede")).toBe("Google.en-US-Chirp3-HD-Aoede");
+    expect(chirpVoice("bogus")).toBe("Google.en-US-Chirp3-HD-Kore");
+  });
+});

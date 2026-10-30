@@ -1,0 +1,1 @@
+ALTER TABLE public.telephony_clients ADD COLUMN IF NOT EXISTS previous_voice_url text, ADD COLUMN IF NOT EXISTS routed_to_aspen boolean NOT NULL DEFAULT false;

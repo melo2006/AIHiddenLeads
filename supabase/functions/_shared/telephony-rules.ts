@@ -18,3 +18,9 @@ export function phoneMaxSeconds(capUsd: number | null, ratePerMin: number, usedS
   if (remaining <= 0) return 0;
   return Math.min(CEILING, Math.floor((remaining / ratePerMin) * 60));
 }
+
+const CHIRP = new Set(['Zephyr','Puck','Charon','Kore','Fenrir','Leda','Orus','Aoede','Callirrhoe','Autonoe','Enceladus','Iapetus','Umbriel','Algieba','Despina','Erinome','Algenib','Rasalgethi','Laomedeia','Achernar','Alnilam','Schedar','Gacrux','Pulcherrima','Achird','Zubenelgenubi','Vindemiatrix','Sadachbia','Sadaltager','Sulafat']);
+/** Twilio <Say> voice matching Aspen's Gemini voice name (same Google voice family). */
+export function chirpVoice(geminiVoice: string): string {
+  return `Google.en-US-Chirp3-HD-${CHIRP.has(geminiVoice) ? geminiVoice : 'Kore'}`;
+}
