@@ -1,5 +1,7 @@
 # Current work
 
+- [x] Fixed false "Microphone permission was denied": phone/in-app browsers blocked Aspen's delayed sound start. Video/audio now unlock inside the tap; blocked sound gets its own message. Three real calls under strict tap-only sound rules (two phone-size, one laptop) delivered moving video, mouth-area motion and audible paired voice with no blocked-sound warnings.
+
 - [x] Reproduced startup error in real provider sessions. Fixed early-tap identity race, immediate provider-failure/cancel handling, muted cleanup and first keyed-frame-before-audio ordering. Eighteen focused tests and build pass. Real session receives audio but no usable video; silence-priming experiment did not restore video and was removed. Concrete video failure now surfaces without playing the greeting.
 - [ ] Restore/verify real first-word moving-video synchronization: blocked on usable video delivery in the real test session (video receivers stay muted, no video RTP/decoded frames; audio RTP arrives). No claim of live lip-sync verification; no avatar regeneration or substitute face.
 

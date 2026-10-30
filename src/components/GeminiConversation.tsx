@@ -21,13 +21,14 @@ import { voiceIdleAction, homepageWalkthroughDue, type VoiceIdleStage } from '@/
 import { voiceDisconnectMessage } from '@/lib/voiceDisconnect';
 import {campaignVisit, trackCampaignEvent} from '@/lib/campaignTracking';
 import { salesPlans, type SalesPlan } from '@/lib/salesActions';
-import SimliAvatar, { type SimliAvatarHandle } from '@/components/SimliAvatar';
+import SimliAvatar, { SOUND_BLOCKED, type SimliAvatarHandle } from '@/components/SimliAvatar';
 import type { VideoAvatar } from '../../supabase/functions/_shared/video-avatar';
 import { PersonPortrait } from '@/components/FloatingPersonFrame';
 import { assistantOutput, nextVoiceChunkStart } from '@/lib/avatarAudioTransition';
 import { PlaybackCaptions, type PlaybackCaption as Caption } from '@/lib/playbackCaptions';
 import PlaybackCaption from '@/components/PlaybackCaption';
 
+const MICROPHONE_DENIED = "Microphone permission was denied — allow it in your browser and try again.";
 const VOICES = [
   { id: "Kore", label: "Kore — warm female (default)" },
   { id: "Aoede", label: "Aoede — bright female" },
@@ -441,6 +442,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         if (generation !== generationRef.current) { stream.getTracks().forEach(t => t.stop()); return null; }
         micStreamRef.current = stream;
         return stream;
+      }, (micError: unknown) => {
+        // Only a refusal from the microphone request itself is a microphone permission problem.
+        if (micError instanceof Error && (micError.name === "NotAllowedError" || micError.name === "SecurityError")) throw new Error(MICROPHONE_DENIED);
+        throw micError;
       });
       const [session, stream] = await Promise.all([
         supabase.functions.invoke("gemini-session", { body: { visitorKey, agentId, leadId, prospectId, draft, preview, voice: previewVoice || voice, model: testModel, campaign:campaignVisit(), hour: new Date().getHours(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, visitorName, consent:consentReadyRef.current, share: shareToken, resumeContext, reconnect: reconnecting && !!resumeContext } }),
@@ -626,7 +631,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       stopEverything();
       setError(
         e instanceof Error && e.name === "NotAllowedError"
-          ? "Microphone permission was denied — allow it in your browser and try again."
+          ? SOUND_BLOCKED
           : e instanceof Error ? e.message : "Could not start. Check your microphone and try again."
       );
     } finally {

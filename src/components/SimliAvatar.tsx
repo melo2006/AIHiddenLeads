@@ -24,6 +24,42 @@ const POSITION: Record<VideoAvatar["position"], string> = {
 };
 const SHAPE: Record<VideoAvatar["shape"], string> = { circle: "rounded-full", rounded: "rounded-3xl", square: "rounded-md" };
 
+export const SOUND_BLOCKED = "Your browser blocked Aspen’s sound. Tap play to try again.";
+
+/** A tiny silent WAV so the audio element can play (and be unlocked) before the stream exists. */
+function silentWav() {
+  const samples = 800, bytes = new Uint8Array(44 + samples * 2), view = new DataView(bytes.buffer);
+  const text = (offset: number, value: string) => { for (let i = 0; i < value.length; i++) bytes[offset + i] = value.charCodeAt(i); };
+  text(0, 'RIFF'); view.setUint32(4, 36 + samples * 2, true); text(8, 'WAVE'); text(12, 'fmt ');
+  view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true); view.setUint32(24, 8000, true);
+  view.setUint32(28, 16000, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true); text(36, 'data'); view.setUint32(40, samples * 2, true);
+  let binary = ''; bytes.forEach(b => { binary += String.fromCharCode(b); });
+  return `data:audio/wav;base64,${btoa(binary)}`;
+}
+
+/**
+ * Must run synchronously within the visitor's tap. Playing each element once under
+ * the gesture unlocks it, so the later provider stream may start after a slow connect.
+ */
+export function unlockMediaElements(video: HTMLVideoElement, audio: HTMLAudioElement) {
+  const attempt = (element: HTMLMediaElement) => { try { const result = element.play?.(); if (result && typeof result.catch === 'function') result.catch(() => {}); } catch { /* Best effort. */ } };
+  try {
+    if (!audio.srcObject && !audio.getAttribute('src')) audio.src = silentWav();
+    attempt(audio);
+  } catch { /* Best effort. */ }
+  try {
+    let placeholder: MediaStream | null = null;
+    if (!video.srcObject) {
+      const canvas = document.createElement('canvas'); canvas.width = 2; canvas.height = 2;
+      const capture = (canvas as HTMLCanvasElement & { captureStream?: (fps?: number) => MediaStream }).captureStream;
+      if (typeof capture === 'function') { placeholder = capture.call(canvas, 1); video.srcObject = placeholder; }
+    }
+    attempt(video);
+    // The unlock happens inside play(); drop the placeholder so readiness checks see only Simli's frames.
+    if (placeholder && video.srcObject === placeholder) { video.srcObject = null; placeholder.getTracks().forEach(track => track.stop()); }
+  } catch { /* Best effort. */ }
+}
+
 async function sessionToken(body: Record<string, unknown>) {
   const controller = new AbortController();
   const deadline = setTimeout(() => controller.abort(), 8000);
@@ -112,6 +148,9 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
         audioRef.current.defaultMuted = true;
         audioRef.current.muted = true;
         audioRef.current.volume = 0;
+        // Still inside the visitor's tap: unlock both elements now. Phones and in-app
+        // browsers refuse play() once the tap is a few seconds old (video startup is slower).
+        unlockMediaElements(videoRef.current, audioRef.current);
         let rejectStartup: ((error: Error) => void) | undefined;
         const startupFailure = new Promise<never>((_, reject) => { rejectStartup = reject; });
         // A stop can happen while token acquisition is pending, before the race attaches.
@@ -157,7 +196,15 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
         // Draw the first keyed frame before enabling the paired audio output.
         await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
         if (lifecycle !== lifecycleRef.current) return false;
-        if (audioRef.current) { audioRef.current.muted = false; audioRef.current.volume = 1; await audioRef.current.play(); }
+        if (audioRef.current) {
+          audioRef.current.muted = false; audioRef.current.volume = 1;
+          try { await audioRef.current.play(); }
+          catch (playError) {
+            // Not a microphone problem: the browser blocked the speaker for this tap.
+            if (playError instanceof Error && playError.name === 'NotAllowedError') throw new Error(SOUND_BLOCKED);
+            throw playError;
+          }
+        }
         startupRejectRef.current = null;
         setLive(true); setState("live");
         return true;
