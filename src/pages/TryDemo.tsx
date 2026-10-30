@@ -595,7 +595,7 @@ const TryDemo = () => {
             <span>·</span>
             <span>{t("tryDemo.noSignup")}</span>
             <span>·</span>
-            <span>~90 seconds</span>
+            <span>{t('tryDemo.free')} live demo</span>
           </div>
         </motion.div>
       </div>
