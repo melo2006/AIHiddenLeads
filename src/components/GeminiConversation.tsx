@@ -638,6 +638,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             }
             break;
           case "error":
+            if (silentWarm()) { failWarm(); break; }
+            resolveWarm(false);
             setError(String(msg.message || "Voice service error"));
             stopEverything();
             break;
@@ -652,6 +654,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
       ws.onerror = () => {
         if (generation !== generationRef.current) return;
+        if (silentWarm()) { failWarm(); return; }
+        resolveWarm(false);
         setError("Could not connect to the voice service.");
         stopEverything();
       };
@@ -668,7 +672,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             return;
           }
           setError(voiceDisconnectMessage(event.code, event.reason));
+        } else if (silentWarm()) {
+          failWarm();
         } else {
+          resolveWarm(false);
           setPhase("idle");
           setStatus("Conversation ended. Press Start to begin again.");
           setError((prev) => prev ?? "The connection closed before the session started. Try again.");
@@ -676,6 +683,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       };
     } catch (e) {
       if (generation !== generationRef.current) return;
+      if (silentWarm()) { failWarm(); return; }
+      resolveWarm(false);
       stopEverything();
       if (e instanceof Error && (e.message === AUDIO_TAP_NEEDED || e.name === 'NotAllowedError' || e.message === SOUND_BLOCKED)) {
         setAudioNeedsTap(true);
@@ -696,6 +705,61 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
   startConversationRef.current = startConversation;
   useEffect(() => stopEverything, [stopEverything]);
+
+  // The tap only unlocks sound/microphone, then the already-connected session greets.
+  activateWarmRef.current = async () => {
+    const w = warmRef.current;
+    if (!w || w.activated) return;
+    if (!consentReadyRef.current) { setConsentReady(false); return; }
+    w.activated = true;
+    const generation = generationRef.current;
+    setPhase("connecting"); setStatus("Connecting…"); setError(null); setAudioNeedsTap(false); setLimitReached(false); setEndedByVisitor(false);
+    // All unlocks start synchronously inside the tap.
+    const playCtx = playCtxRef.current && playCtxRef.current.state !== 'closed' ? playCtxRef.current : new AudioContext();
+    playCtxRef.current = playCtx;
+    const playResume = playCtx.resume();
+    const micCtx = new AudioContext({ sampleRate: 16000 });
+    micCtxRef.current = micCtx;
+    const micResume = micCtx.resume();
+    const faceSound = avatarRequestedRef.current ? avatarRef.current?.activate() : undefined;
+    void faceSound?.catch(() => {});
+    const micRequest = navigator.mediaDevices.getUserMedia({
+      audio: { deviceId: microphone === "default" ? undefined : { exact: microphone }, echoCancellation: true, noiseSuppression: true, autoGainControl: microphoneAutoGain(captureMode, noiseFilterRef.current) },
+    }).catch((micError: unknown) => {
+      if (micError instanceof Error && (micError.name === "NotAllowedError" || micError.name === "SecurityError")) throw new Error(MICROPHONE_DENIED);
+      throw micError;
+    });
+    try {
+      const timeout = new Promise<boolean>(r => window.setTimeout(() => r(false), 15000));
+      const [stream, ready] = await Promise.all([micRequest, Promise.race([w.ready, timeout]), playResume, micResume]);
+      if (generation !== generationRef.current) { stream.getTracks().forEach(t => t.stop()); return; }
+      micStreamRef.current = stream;
+      void refreshMicrophones();
+      if (!ready) throw new Error("The voice service did not respond in time. Please try again.");
+      await faceSound;
+      if (avatarRequestedRef.current && !avatarLiveRef.current) throw new Error('The moving face could not connect. Please press play to try again.');
+      if (playCtx.state !== 'running' || micCtx.state !== 'running') throw new Error(AUDIO_TAP_NEEDED);
+      if (wsRef.current?.readyState !== WebSocket.OPEN) throw new Error("The connection closed before the session started. Try again.");
+      deadlineRef.current = Date.now() + 15 * 60 * 1000;
+      wsRef.current.send(JSON.stringify({ type: 'begin', consent: true }));
+      w.goLive?.();
+    } catch (e) {
+      if (generation !== generationRef.current) return;
+      stopEverything();
+      if (e instanceof Error && (e.message === AUDIO_TAP_NEEDED || e.name === 'NotAllowedError' || e.message === SOUND_BLOCKED)) {
+        setAudioNeedsTap(true); setStatus('Tap play to enable sound'); setError(null); return;
+      }
+      setError(e instanceof Error ? e.message : "Could not start. Check your microphone and try again.");
+    }
+  };
+
+  // Prepare once on mount; never repeats, so a visitor who never taps costs one session.
+  const prewarmedRef = useRef(false);
+  useEffect(() => {
+    if (!prewarm || previewOnly || prewarmedRef.current) return;
+    prewarmedRef.current = true;
+    void startConversation(false, true);
+  }, [prewarm, previewOnly, startConversation]);
 
   // A later launcher tap (after the recording notice was shown) also counts as agreement.
   useEffect(() => { if (consentOnOpen && !consentReadyRef.current) { consentReadyRef.current = true; setConsentReady(true); } }, [consentOnOpen]);
