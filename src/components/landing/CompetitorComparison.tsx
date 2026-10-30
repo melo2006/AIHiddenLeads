@@ -16,7 +16,7 @@ const ROWS: { label: string; cells: Cell[] }[] = [
   { label: "Calendar booking", cells: ["Our sales calendar live; customer connection rollout", "Available", "Available", "Available"] },
   { label: "Conversation records", cells: ["Private browser transcripts, AI summaries & audio segments", "Check selected plan", "Recordings, transcripts & summaries", "Receptionist messages"] },
   { label: "Reporting / CRM", cells: ["Admin CSV + reviewed webhook send; customer automation pending", "Zapier", "Native integrations", "Check selected plan"] },
-  { label: "Customer telephone answering & transfer", cells: ["Separate rollout · not activated", "Available", "Available", "Available"] },
+  { label: "Customer telephone answering & transfer", cells: ["Professional/Platinum · activated after setup and testing", "Available", "Available", "Available"] },
   { label: "SMS updates", cells: ["Coming soon", "Check selected plan", "Check selected plan", "Check selected plan"] },
   { label: "Money-back terms", cells: ["14 days on monthly plan fee", "Check vendor terms", "Check vendor terms", "Check vendor terms"] },
 ];

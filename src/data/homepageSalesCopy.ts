@@ -10,11 +10,11 @@ const english: SalesCopy = {
   start: `Start with voice + chat + ${HOMEPAGE_STARTER.leadsPerMonth} B2B prospects/month for $${HOMEPAGE_STARTER.monthlyUsd}/mo.`,
   trust: 'Start with your website URL · Free live simulation · No credit card · Your site stays unchanged',
   title: 'Capture inquiries. Find prospects. Build your pipeline.',
-  description: 'More calls or more website traffic? Start where your customers reach you. Capture website inquiries today, prepare for upcoming phone coverage and find fresh B2B prospects—while your staff focus on customers, not repetitive questions.',
+  description: 'More calls or more website traffic? Start where your customers reach you. Capture website inquiries today, answer forwarded calls and find fresh B2B prospects—while your staff focus on customers, not repetitive questions.',
   technology: 'Try your own AI website receptionist: ask about services, parts or appointment requests by voice or chat, with optional live video. It answers from readable public pages; production knowledge can include reviewed FAQs, vendor information and manuals. Your original website stays unchanged, and preparation time varies.',
   demo: 'Try my website — free live demo',
   addons: 'Explore add-on growth packages',
-  scope: 'Available now: website voice/chat widgets and optional live video. Upcoming phone service: forward your existing number—not port it—for missed-call, voicemail or after-hours coverage, with manager transfers and a private AI summary after setup and testing. Customer calendars, reminders and callbacks need separate authorization and verification; SMS is coming soon. No guaranteed callback speed, demo preparation time, savings, sales or rankings.',
+  scope: 'Available now: website voice/chat widgets and optional live video. Phone service, activated per client after setup and testing: forward your existing number—not port it—for missed-call, voicemail or after-hours coverage, with manager transfers and a private AI summary after setup and testing. Customer calendars, reminders and callbacks need separate authorization and verification; SMS is coming soon. No guaranteed callback speed, demo preparation time, savings, sales or rankings.',
   services: HOMEPAGE_SERVICE_AREAS,
 };
 

@@ -1,9 +1,9 @@
 // Homepage video reference only. Live Aspen uses the separately saved agent greeting.
 export const homepageIntroScript = `Hi, welcome to A-I Hidden Leads. Quick question: when someone needs a price, a part or an appointment, do they usually reach you by phone, through your website—or a little of both?
 
-Here are our five service areas: conversational AI reception, fresh B2B prospects, Google Maps and AI search, reviews and reputation, and optional social content and creation.
+Here are our six service areas: conversational AI reception, fresh B2B prospects, consumer lead follow-up for ads and inquiries, Google Maps and AI search, reviews and reputation, and optional social content and creation.
 
-Calls can ring out or go to voicemail. Website visitors can leave with unanswered questions. Our website voice and chat widgets help capture inquiries today, with natural two-way conversation and optional live video. Incoming phone answering is upcoming, with planned forwarding of your existing number and manager warm transfers with a private AI summary after setup and testing.
+Calls can ring out or go to voicemail. Website visitors can leave with unanswered questions. Our website voice and chat widgets help capture inquiries today, with natural two-way conversation and optional live video. Phone answering is available too: we activate it for each business after setup and testing, with forwarding of your existing number and manager warm transfers with a private AI summary after setup and testing.
 
 Approved FAQs, vendor information, parts and manuals can help your assistant explain options, collect quote requests and support appointment requests while your staff focus on customers. It supports their knowledge; it does not replace every human task.
 
