@@ -54,6 +54,8 @@ export function unlockMediaElements(video: HTMLVideoElement, audio: HTMLAudioEle
       if (typeof capture === 'function') video.srcObject = capture.call(canvas, 1);
     }
     attempt(video);
+    // The unlock happens inside play(); drop the placeholder so readiness checks see only Simli's frames.
+    if (video.srcObject && !(video.srcObject as MediaStream).getVideoTracks?.().some(track => track.label && !track.label.startsWith('canvas'))) video.srcObject = null;
   } catch { /* Best effort. */ }
 }
 
