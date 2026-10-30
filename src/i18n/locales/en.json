@@ -18,7 +18,7 @@
     "headline1": "Calls, Voicemail & Website Visitors:",
     "headline2": "Capture the Next Lead.",
     "headline3": "Website Voice + Chat — Starting at $99/mo.",
-    "sub": "Natural two-way AI voice, website chat widgets and lead generation. Try a free original-site simulation; preparation time varies. Incoming phone answering and forwarding are upcoming.",
+    "sub": "Natural two-way AI voice, website chat widgets and lead generation. Try a free original-site simulation; preparation time varies. Phone answering and forwarding are activated for each business after setup and testing.",
     "ctaPrimary": "🎙️ Try AI Voice on Your Website — Free",
     "ctaSecondary": "See Plans & Pricing",
     "trust": "No credit card · Original-site simulation · Preparation time varies",
@@ -27,13 +27,13 @@
     "stat3": "Lost Per Missed Opportunity",
     "stat4": "Report Increased Revenue With AI",
     "meetAspen": "Meet Aspen",
-    "aspenQuote": "\"When someone needs a price, a part or an appointment, do they usually reach you by phone, through your website—or a little of both? <strong>Talk to Aspen</strong> about capturing inquiries with website voice and chat, fresh prospects and upcoming phone answering.\"",
+    "aspenQuote": "\"When someone needs a price, a part or an appointment, do they usually reach you by phone, through your website—or a little of both? <strong>Talk to Aspen</strong> about capturing inquiries with website voice and chat, fresh prospects and phone answering.\"",
     "aspenHint": "Click the \"Talk to Aspen\" button on the left to chat live"
   },
   "tryCta": {
     "kicker": "Free Live Website Demo",
     "title": "Try an AI receptionist on your own website",
-    "sub": "More calls or more website visitors? Hear how a voice/chat widget can answer supported questions and capture inquiries on your own site. Start with your URL; no installation or credit card. Preparation time varies. Phone answering is upcoming.",
+    "sub": "More calls or more website visitors? Hear how a voice/chat widget can answer supported questions and capture inquiries on your own site. Start with your URL; no installation or credit card. Preparation time varies. Phone answering is set up separately for each business.",
     "cta": "Try my website — free"
   },
   "beforeAfter": {
@@ -185,8 +185,8 @@
     "transparencyBody": "Your plan includes <strong>website voice minutes</strong>, chat and a monthly B2B prospect allowance. Live video is optional. Customer telephone answering, transfers and calendar connections require separate rollout, authorization and verification. <strong>SMS is coming soon</strong>; never assume it is active.",
     "compareTitle": "Compare the channel, not just the price:",
     "compareBody": "Premium combines <strong>website voice, chat and 50 B2B prospects/month for $99</strong>. Goodcall Starter is $79 for 100 unique customers; Smith.ai AI Pro is $150 for 75 calls and also has a free 25-call tier; Ruby Call Ruby 50 is $250 for 50 human receptionist minutes. These usage units and services differ.",
-    "telephonyTitle": "Telephone service — separate rollout:",
-    "telephonyBody": "The intended <strong>Professional and Platinum</strong> offer includes one local number and live transfer, with <strong>telephone usage separate at 5¢/minute</strong>. Customer forwarding and answering are not activated yet; routing, spend caps and transfers must be verified first. SMS remains coming soon.",
+    "telephonyTitle": "Telephone service — activated after setup:",
+    "telephonyBody": "The intended <strong>Professional and Platinum</strong> offer includes one local number and live transfer, with <strong>telephone usage separate at 5¢/minute</strong>. Forwarding and answering are activated for each customer after setup and testing, with spend caps and transfers verified. SMS remains coming soon.",
     "headlineStart": "Your Google Maps Ranking Changes With Location.",
     "headlineAccent": "How Visible Are You 1, 3 or 5 Miles Away?",
     "disclaimer": "Illustrative before & after — not measured rankings or a promise of 14-day results.",
@@ -207,7 +207,7 @@
     "auditNote": "Free demo includes a simulated grid. Live neighborhood measurements and weekly tracking require provider setup; rankings and AI citations are not guaranteed.",
     "timelineTitle": "Our 3-Part Growth Timeline",
     "week1Title": "First — Capture website conversations",
-    "week1Text": "Review your assistant’s business knowledge and installation, then start handling website inquiries. B2B prospect delivery follows the plan scope; phone service is a separate rollout.",
+    "week1Text": "Review your assistant’s business knowledge and installation, then start handling website inquiries. B2B prospect delivery follows the plan scope; phone service is activated after setup and testing.",
     "days1to14Title": "Next — Prioritize profile and website improvements",
     "days1to14Text": "Review search evidence, business-profile categories and AI-readable website data. Agree and implement relevant fixes; search platforms control ranking.",
     "days15to60Title": "Ongoing — Measure, review and refine",
@@ -282,7 +282,7 @@
     "badge": "Free personalized demo",
     "title1": "Try Your Website’s",
     "title2": "AI Receptionist — Free",
-    "sub": "Ask about your services, parts or appointment requests by voice or chat on your actual site preview. Your URL starts the learning; your name personalizes the conversation. Free simulation, no installation; preparation time varies. Phone answering is upcoming.",
+    "sub": "Ask about your services, parts or appointment requests by voice or chat on your actual site preview. Your URL starts the learning; your name personalizes the conversation. Free simulation, no installation; preparation time varies. Phone answering is set up separately for each business.",
     "name": "Your Name",
     "business": "Business Name",
     "website": "Website URL",
@@ -312,7 +312,7 @@
   "tryDemo": {
     "headline1": "See Your Website With",
     "headline2": "— Live Demo",
-    "sub": "Try natural AI voice and chat on your original website preview. Enter your name and URL; learning and preparation time vary by site. Telephone answering and forwarding are upcoming, not part of this website simulation.",
+    "sub": "Try natural AI voice and chat on your original website preview. Enter your name and URL; learning and preparation time vary by site. Telephone answering and forwarding are set up separately, not part of this website simulation.",
     "payoff": "Capture more inquiries and give your team more opportunities to win business. Results depend on your lead value and conversion rate.",
     "namePlaceholder": "Your Full Name *",
     "emailPlaceholder": "Email (optional)",
@@ -331,7 +331,7 @@
     "noSignup": "No signup required",
     "benefits": {
       "transfer": {
-        "label": "Phone Transfer — Upcoming",
+        "label": "Phone Transfer — Setup required",
         "desc": "Planned manager transfer with a private AI summary after setup and testing"
       },
       "sms": {
@@ -348,7 +348,7 @@
       },
       "receptionist": {
         "label": "Website Voice & Chat",
-        "desc": "Supported answers and appointment requests; phone answering upcoming"
+        "desc": "Supported answers and appointment requests; phone answering after setup"
       },
       "capture": {
         "label": "Lead Opportunities",
@@ -528,7 +528,7 @@
       },
       {
         "q": "Can it answer my business telephone number?",
-        "a": "Website voice is available now. Customer telephone answering and forwarding are a separate rollout and are not activated yet. The intended offer supports after-hours/missed-call or all-call forwarding; Professional and Platinum include one local number and transfer, with phone usage separate at 5¢/minute. Routing, billing and spend caps must be verified before activation."
+        "a": "Website voice is available now. Customer telephone answering and forwarding are available and activated for each business after setup and testing. The intended offer supports after-hours/missed-call or all-call forwarding; Professional and Platinum include one local number and transfer, with phone usage separate at 5¢/minute. Routing, billing and spend caps must be verified before activation."
       },
       {
         "q": "Can I connect my calendar or CRM?",
@@ -577,7 +577,7 @@
     "auditNote": "Homepage maps are illustrative. Your demo offers a live audit where supported; measured rankings depend on the search location and keyword. No ranking or AI citation guarantees.",
     "timelineTitle": "From clearer visibility to better-informed actions",
     "week1Title": "First — Capture website conversations",
-    "week1Text": "Review your assistant’s business knowledge and installation, then start handling website inquiries. B2B prospect delivery follows the plan scope; phone service is a separate rollout.",
+    "week1Text": "Review your assistant’s business knowledge and installation, then start handling website inquiries. B2B prospect delivery follows the plan scope; phone service is activated after setup and testing.",
     "days1to14Title": "Next — Prioritize profile and website improvements",
     "days1to14Text": "Review search evidence, business-profile categories and AI-readable website data. Agree and implement relevant fixes; search platforms control ranking.",
     "days15to60Title": "Ongoing — Measure, review and refine",

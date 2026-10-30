@@ -87,7 +87,7 @@ const FEATURES: Record<string, Record<string, string[]>> = {
     ],
     growth: [
       "Everything in Premium",
-      "Planned phone transfer + 1 local number; separate rollout, 5¢/min usage",
+      "Live phone transfer + 1 free local number (activated after setup and testing); 5¢/min phone usage",
       "Optional live talking video avatar — 1,200 minutes (add-on)",
       "SMS follow-up & reminders (coming soon)",
       "1,200 browser voice minutes/mo (≈ $0.17/min value)",
@@ -132,7 +132,7 @@ const FEATURES: Record<string, Record<string, string[]>> = {
       "Pipeline e acompanhamento no CRM",
     ],
     full: [
-      "Tudo do Pro",
+      "Tudo do Professional",
       "2.500 minutos de voz no site/mês (≈ US$ 0,14/min)",
       "200 leads B2B qualificados por mês",
       "Conteúdo e posts em redes sociais",
@@ -163,7 +163,7 @@ const FEATURES: Record<string, Record<string, string[]>> = {
       "Pipeline y seguimiento en CRM",
     ],
     full: [
-      "Todo lo del Pro",
+      "Todo lo del Professional",
       "2,500 minutos de voz web/mes (≈ $0.14/min)",
       "200 leads B2B calificados al mes",
       "Contenido y publicaciones en redes",
