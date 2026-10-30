@@ -14,26 +14,26 @@
     "es": "Español"
   },
   "hero": {
-    "badge": "Try Your Own Website With AI Voice — Free in 2 Minutes",
-    "headline1": "Missing Calls =",
-    "headline2": "Losing Money.",
-    "headline3": "We Fix That — Starting at $99/mo.",
-    "sub": "AI voice receptionist + chat widget + lead generation — all in one platform. See it working on YOUR website in 90 seconds. No credit card, no sales pitch.",
+    "badge": "Try Your Own Website With AI Voice — Free Live Demo",
+    "headline1": "Calls, Voicemail & Website Visitors:",
+    "headline2": "Capture the Next Lead.",
+    "headline3": "Website Voice + Chat — Starting at $99/mo.",
+    "sub": "Natural two-way AI voice, website chat widgets and lead generation. Try a free original-site simulation; preparation time varies. Incoming phone answering and forwarding are upcoming.",
     "ctaPrimary": "🎙️ Try AI Voice on Your Website — Free",
     "ctaSecondary": "See Plans & Pricing",
-    "trust": "No credit card · 90-second setup · Works for any business",
+    "trust": "No credit card · Original-site simulation · Preparation time varies",
     "stat1": "Leads Go to First Responder",
     "stat2": "Of Leads Ever Get Contacted",
     "stat3": "Lost Per Missed Opportunity",
     "stat4": "Report Increased Revenue With AI",
     "meetAspen": "Meet Aspen",
-    "aspenQuote": "\"Voice AI can do so much more than you think — let me show you. Click <strong>Talk to Aspen</strong> below and I'll walk you through how to turn missed calls into booked appointments and generate leads from your existing customers. Try it free, right now!\"",
+    "aspenQuote": "\"When someone needs a price, a part or an appointment, do they usually reach you by phone, through your website—or a little of both? <strong>Talk to Aspen</strong> about capturing inquiries with website voice and chat, fresh prospects and upcoming phone answering.\"",
     "aspenHint": "Click the \"Talk to Aspen\" button on the left to chat live"
   },
   "tryCta": {
     "kicker": "Free Live Website Demo",
     "title": "Try an AI receptionist on your own website",
-    "sub": "Start with your website URL and your name. Talk or type to an assistant using your public website content, with live video when available. No installation or credit card; preparation time varies by site.",
+    "sub": "More calls or more website visitors? Hear how a voice/chat widget can answer supported questions and capture inquiries on your own site. Start with your URL; no installation or credit card. Preparation time varies. Phone answering is upcoming.",
     "cta": "Try my website — free"
   },
   "beforeAfter": {
@@ -282,7 +282,7 @@
     "badge": "Free personalized demo",
     "title1": "Try Your Website’s",
     "title2": "AI Receptionist — Free",
-    "sub": "Your website URL starts the learning; your name personalizes the conversation. Test voice and chat over your actual site preview. No credit card or installation. Preparation time varies.",
+    "sub": "Ask about your services, parts or appointment requests by voice or chat on your actual site preview. Your URL starts the learning; your name personalizes the conversation. Free simulation, no installation; preparation time varies. Phone answering is upcoming.",
     "name": "Your Name",
     "business": "Business Name",
     "website": "Website URL",
@@ -312,7 +312,7 @@
   "tryDemo": {
     "headline1": "See Your Website With",
     "headline2": "— Live Demo",
-    "sub": "Enter your info below and within ~90 seconds, watch your website come alive with Voice AI and Chat AI — personalized for your business.",
+    "sub": "Try natural AI voice and chat on your original website preview. Enter your name and URL; learning and preparation time vary by site. Telephone answering and forwarding are upcoming, not part of this website simulation.",
     "payoff": "Capture just one or two extra leads a month and the system pays for itself.",
     "namePlaceholder": "Your Full Name *",
     "emailPlaceholder": "Email (optional)",
