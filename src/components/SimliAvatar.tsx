@@ -48,14 +48,15 @@ export function unlockMediaElements(video: HTMLVideoElement, audio: HTMLAudioEle
     attempt(audio);
   } catch { /* Best effort. */ }
   try {
+    let placeholder: MediaStream | null = null;
     if (!video.srcObject) {
       const canvas = document.createElement('canvas'); canvas.width = 2; canvas.height = 2;
       const capture = (canvas as HTMLCanvasElement & { captureStream?: (fps?: number) => MediaStream }).captureStream;
-      if (typeof capture === 'function') video.srcObject = capture.call(canvas, 1);
+      if (typeof capture === 'function') { placeholder = capture.call(canvas, 1); video.srcObject = placeholder; }
     }
     attempt(video);
     // The unlock happens inside play(); drop the placeholder so readiness checks see only Simli's frames.
-    if (video.srcObject && !(video.srcObject as MediaStream).getVideoTracks?.().some(track => track.label && !track.label.startsWith('canvas'))) video.srcObject = null;
+    if (placeholder && video.srcObject === placeholder) { video.srcObject = null; placeholder.getTracks().forEach(track => track.stop()); }
   } catch { /* Best effort. */ }
 }
 

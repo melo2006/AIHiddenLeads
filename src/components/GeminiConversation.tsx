@@ -441,6 +441,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         if (generation !== generationRef.current) { stream.getTracks().forEach(t => t.stop()); return null; }
         micStreamRef.current = stream;
         return stream;
+      }, (micError: unknown) => {
+        // Only a refusal from the microphone request itself is a microphone permission problem.
+        if (micError instanceof Error && (micError.name === "NotAllowedError" || micError.name === "SecurityError")) throw new Error(MICROPHONE_DENIED);
+        throw micError;
       });
       const [session, stream] = await Promise.all([
         supabase.functions.invoke("gemini-session", { body: { visitorKey, agentId, leadId, prospectId, draft, preview, voice: previewVoice || voice, model: testModel, campaign:campaignVisit(), hour: new Date().getHours(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, visitorName, consent:consentReadyRef.current, share: shareToken, resumeContext, reconnect: reconnecting && !!resumeContext } }),
@@ -626,7 +630,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       stopEverything();
       setError(
         e instanceof Error && e.name === "NotAllowedError"
-          ? "Microphone permission was denied — allow it in your browser and try again."
+          ? SOUND_BLOCKED
           : e instanceof Error ? e.message : "Could not start. Check your microphone and try again."
       );
     } finally {
