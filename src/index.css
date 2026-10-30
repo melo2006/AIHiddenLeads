@@ -121,9 +121,9 @@
     .landing-page > .landing-hero { padding-top: 2rem; padding-bottom: 2.5rem; }
     .landing-page > .landing-demo-invitation { padding-block: 1.25rem; }
   }
-  .aspen-portrait-trigger,
-  .aspen-portrait-trigger:hover,
-  .aspen-portrait-trigger:active { background: transparent; box-shadow: none; }
+  .aspen-person-shell .aspen-portrait-trigger,
+  .aspen-person-shell .aspen-portrait-trigger:hover,
+  .aspen-person-shell .aspen-portrait-trigger:active { background: transparent; box-shadow: none; }
   .aspen-person-shell { display: flex; flex-direction: column; gap: .25rem; max-width: calc(100vw - 24px); max-height: min(80dvh, var(--aspen-available-height, calc(100dvh - 56px))); overflow-y: auto; overscroll-behavior: auto; }
   .aspen-person-collapsed { width: 280px; }
   .aspen-person-expanded { width: 280px; }
