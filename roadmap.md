@@ -1,5 +1,7 @@
 # Current work
 
+- [ ] Keep close/minimize recoverable through a shared draggable microphone/expand bubble on homepage, demos and customer assistants; verify release-on-close and preserve-on-minimize.
+
 - [x] Restore sign-in and attach bearer identity on public demo starts/reconnects. Two real reloaded PBF demo UI starts authorized as admin_test (900s); independent signed-out authorization remained visitor. Visitor five-start and shared 200/day caps unchanged. Nineteen tests/build passed. Video failed before voice socket opened, so live speech/video not verified; no avatar changes. Explained unlimited page visits versus voice-start caps and recommended campaign-sized shared protection, without changing limits.
 
 - [x] Updated homepage Aspen and session-free preview to the shared phone-or-website question; strengthened lead-generation copy, sourced 78%/37% evidence and scoped upcoming forwarding/summary transfers with no two-minute guarantee. Saved draft/published greeting refreshed, 30 tests passed, laptop/phone layout and /demo button verified. Real voice produced question-first greeting and two distinct sourced figures after input; generative pacing/pair adherence is not deterministic. Moving-avatar UI session failed to receive video, so lip-sync is not verified or changed by this copy update.
