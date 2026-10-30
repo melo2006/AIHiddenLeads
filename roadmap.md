@@ -1,7 +1,7 @@
 # Current work
 
-- [ ] Fix phone audio-start retry/warning without changing admin or visitor limits.
-- [ ] Combine demo notices/actions into one compact mobile-friendly header above the original website; verify portrait/landscape/desktop.
+- [x] Identified screenshot warning as browser-paused audio, not admin quota. Check audio before billable authorization and offer neutral play retry; 26 targeted tests pass, including suspended phone audio → play recovery. Admin/visitor authorization unchanged. Physical-phone playback remains unverified.
+- [x] Combined simulation notice, website link, install link, language and Maps audit into one 83px normal-flow demo header. Signed-in browser checks at 390px portrait, 707px landscape and 1280px desktop show no overflow; Maps panel opens. PBF's external page/assets rendered incompletely in sandbox; original site remains unmodified.
 
 - [x] Restored caller audio during Aspen generation/playback, including paired-video silent clocks. Four component regressions exercise hands-free/hold-to-talk with voice/video, actual microphone callbacks and interruption cleanup; 24 targeted tests pass. Pause, mute, replay and handoff gates preserved. Real-device provider interruption remains unverified; no paid sessions used.
 

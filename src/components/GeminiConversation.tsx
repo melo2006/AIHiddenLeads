@@ -411,6 +411,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     isPreviewRef.current = preview;
     previewDoneRef.current = false;
     setError(null);
+    setAudioNeedsTap(false);
     setLimitReached(false);
     setEndedByVisitor(false);
     const resumeContext = preview ? undefined : resumeRecap(visitMemory.get(agentId || "homepage") || []);
@@ -1067,6 +1068,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             <span>Microphone</span><meter min="0" max="100" value={micLevel} aria-label="Microphone level" className="h-3 w-24" />
             <span>{micLevel > 3 ? "Sound detected" : "Quiet"}</span>
           </div>}
+          {audioNeedsTap && <p role="status" className="text-xs text-muted-foreground">{AUDIO_TAP_NEEDED}</p>}
           {error && <p className="text-xs text-destructive font-semibold">{error}</p>}
           {signInAction}
         </Card>
