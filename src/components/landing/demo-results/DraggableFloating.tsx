@@ -200,6 +200,8 @@ const DraggableFloating = ({
     ? floatingCornerPosition(dimensions, viewport, initialX)
     : fitFloatingPosition(pos, dimensions, viewport);
   return createPortal(
+    <>
+    {isDragging && <div className="fixed inset-0" style={{ zIndex: 'var(--layer-floating)' }} aria-hidden="true" />}
     <div
       ref={containerRef}
       onPointerDown={onPointerDown}
@@ -226,7 +228,8 @@ const DraggableFloating = ({
         </Button>
         {children}
       </div>
-    </div>, document.body
+    </div>
+    </>, document.body
   );
 };
 
