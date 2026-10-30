@@ -30,7 +30,7 @@
 - Keep documented Live model comparison limited to authorized draft tests and voice auditions; published conversations retain the default, and model-specific published audio rates are versioned separately from recorded measurements.
 - Share model-matched conversation planning totals between Voice Agents and Voice Costs, with explicit input/output assumptions; recorded per-session estimates remain separate from provider invoices.
 - Discover website learning links within the submitted URL scope, preserve source-labelled original evidence ahead of generated research, and bound two-level scans by page and time budgets.
-- Classify voice auditions and verified platform-admin tests server-side separately from visitor calls; retain the shared daily cap and return expected quota denials as handled session results.
+- Restore auth and attach bearer tokens on demo starts/reconnects; server-validate admin/audition quota, retain visitor/shared caps and handle denials. Failed auth must not silently downgrade to visitor usage.
 - Isolate assistant rendering; checkpoint agreed private audio/text, distinguish caller interest from coverage. Admin-only records/AI drafts; confirmed recipient copies use expiring hashed links, never audio/admin drafts; no auto-outreach.
 
 - Authorize browser handoffs from server-issued session capabilities and saved agent destinations; validate Twilio webhook signatures and atomically persist transitions, never accept client-supplied telephone targets.
