@@ -1933,9 +1933,66 @@ export type Database = {
         }
         Relationships: []
       }
+      telephony_calls: {
+        Row: {
+          call_sid: string
+          client_id: string
+          ended_at: string | null
+          from_phone: string | null
+          id: string
+          seconds: number
+          started_at: string
+          status: string
+          token_hash: string
+          token_used: boolean
+          transcript: Json
+          transfer_summary: string | null
+          transferred: boolean
+        }
+        Insert: {
+          call_sid: string
+          client_id: string
+          ended_at?: string | null
+          from_phone?: string | null
+          id?: string
+          seconds?: number
+          started_at?: string
+          status?: string
+          token_hash: string
+          token_used?: boolean
+          transcript?: Json
+          transfer_summary?: string | null
+          transferred?: boolean
+        }
+        Update: {
+          call_sid?: string
+          client_id?: string
+          ended_at?: string | null
+          from_phone?: string | null
+          id?: string
+          seconds?: number
+          started_at?: string
+          status?: string
+          token_hash?: string
+          token_used?: boolean
+          transcript?: Json
+          transfer_summary?: string | null
+          transferred?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "telephony_calls_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "telephony_clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       telephony_clients: {
         Row: {
           active: boolean
+          agent_id: string | null
           client_name: string
           created_at: string
           fixed_sms_per_segment: number | null
@@ -1948,12 +2005,14 @@ export type Database = {
           number_sid: string | null
           organization_id: string | null
           sms_number: string | null
+          transfer_name: string | null
           transfer_phone: string | null
           updated_at: string
           voice_number: string | null
         }
         Insert: {
           active?: boolean
+          agent_id?: string | null
           client_name: string
           created_at?: string
           fixed_sms_per_segment?: number | null
@@ -1966,12 +2025,14 @@ export type Database = {
           number_sid?: string | null
           organization_id?: string | null
           sms_number?: string | null
+          transfer_name?: string | null
           transfer_phone?: string | null
           updated_at?: string
           voice_number?: string | null
         }
         Update: {
           active?: boolean
+          agent_id?: string | null
           client_name?: string
           created_at?: string
           fixed_sms_per_segment?: number | null
@@ -1984,11 +2045,19 @@ export type Database = {
           number_sid?: string | null
           organization_id?: string | null
           sms_number?: string | null
+          transfer_name?: string | null
           transfer_phone?: string | null
           updated_at?: string
           voice_number?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "telephony_clients_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "voice_agents"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "telephony_clients_organization_id_fkey"
             columns: ["organization_id"]

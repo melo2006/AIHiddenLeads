@@ -26,10 +26,12 @@ const steps: { text: string; href?: string }[] = [
   { text: "Turn on SMS Pumping Protection to block fraudulent text charges.", href: "https://console.twilio.com/us1/develop/sms/settings/sms-pumping-protection" },
   { text: "Limit SMS Geo Permissions to the countries you actually serve.", href: "https://console.twilio.com/us1/develop/sms/settings/geo-permissions" },
   { text: "Before texting US customers, register A2P 10DLC, or use a toll-free number with verification.", href: "https://console.twilio.com/us1/develop/sms/regulatory-compliance/a2p-10dlc-overview" },
+  { text: "In Twilio, open the number → Voice Configuration → 'A call comes in' → Webhook (HTTP POST) and paste: " + `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/telephony-voice?action=incoming` },
+  { text: "Test: mark the client Active, call the number from your cell. Aspen answers; say 'transfer me' to ring the warm transfer number, which hears a short summary first." },
   { text: "Once call routing is switched on, the customer forwards their existing business number to the assigned number. They keep their own number; it isn't ported." },
 ];
 
-const blankClient = { client_name: "", voice_number: "", number_sid: "", sms_number: "", transfer_phone: "", markup_pct: null, fixed_voice_per_min: null, fixed_sms_per_segment: null, monthly_cap_usd: null, active: false, notes: "" };
+const blankClient = { client_name: "", voice_number: "", number_sid: "", sms_number: "", transfer_phone: "+19547706622", transfer_name: "Owner", markup_pct: null, fixed_voice_per_min: null, fixed_sms_per_segment: null, monthly_cap_usd: 10, active: true, notes: "" };
 
 export default function TelephonyAdminView() {
   const [pricing, setPricing] = useState<Pricing | null>(null);
@@ -171,7 +173,8 @@ export default function TelephonyAdminView() {
                 {text("Assigned Twilio number", "voice_number", "+15551234567")}
                 {text("Number SID", "number_sid", "PN…")}
                 {text("SMS number (if different)", "sms_number", "+15551234567")}
-                {text("Transfer to (manager)", "transfer_phone", "+15612755757")}
+                {text("Warm transfer number", "transfer_phone", "+19547706622")}
+                {text("Transfer to (name or title)", "transfer_name", "Sales Director")}
                 {field("Markup % override", c.markup_pct, (v) => set({ markup_pct: v }))}
                 {field("Fixed $/min override", c.fixed_voice_per_min, (v) => set({ fixed_voice_per_min: v }))}
                 {field("Fixed $/SMS override", c.fixed_sms_per_segment, (v) => set({ fixed_sms_per_segment: v }))}
