@@ -1,5 +1,7 @@
 # Current work
 
+- [ ] Repair slow Aspen startup/missing lip-sync: prewarm only safe resources while browsing; remove audio/video readiness deadlocks, verify one voice and bounded fallback.
+
 - [x] Removed transparent portrait hover backdrop; blocked SDK-unmuted Simli speech with zero volume before track attachment. Regression tests and real Gemini voice passed (remote volume stayed zero); approved portrait publicly served unchanged. Real lip-sync alignment still needs owner Chrome check: sandbox Simli accepted sessions but delivered no video frames.
 - [x] Tightened homepage-only band spacing and navbar-to-content gap; benefit-led demo copy, sourced October 30 competitor comparison, truthful FAQ/scenarios and unchanged prices. Laptop/phone no overflow, free CTA opens /demo, 36 focused tests/build OK. Refreshed and verified real Aspen greeting; preparation timing is not guaranteed. External telephone host and real Zapier URL remain the earlier separate blockers below.
 
