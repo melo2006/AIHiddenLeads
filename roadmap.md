@@ -1,7 +1,7 @@
 # Current work
 
-- [ ] Remove Aspen's colored hover backdrop and duplicate voice playback; verify audio ownership and preserve lip-sync/transparent framing.
-- [ ] Tighten homepage section spacing and rewrite benefits/demo copy with current sourced competitor comparisons; avoid guaranteed readiness and undelivered service claims.
+- [x] Removed transparent portrait hover backdrop; blocked SDK-unmuted Simli speech with zero volume before track attachment. Regression tests and real Gemini voice passed (remote volume stayed zero); approved portrait publicly served unchanged. Real lip-sync alignment still needs owner Chrome check: sandbox Simli accepted sessions but delivered no video frames.
+- [x] Tightened homepage-only band spacing and navbar-to-content gap; benefit-led demo copy, sourced October 30 competitor comparison, truthful FAQ/scenarios and unchanged prices. Laptop/phone no overflow, free CTA opens /demo, 36 focused tests/build OK. Refreshed and verified real Aspen greeting; preparation timing is not guaranteed. External telephone host and real Zapier URL remain the earlier separate blockers below.
 
 - [ ] Build customer incoming telephone answering with forwarding, customer spending caps and a verified manager-transfer flow. Owner chose separate reliable call hosting. Blocker: no configured external call runtime/deployment access; Classic project cannot host a persistent server. Current edge host has documented 400-second worker limit. Twilio credentials and one voice-capable number verified; existing routing untouched. Do not claim caps/transfer/forwarding built or tested.
 - [ ] Connect and verify reviewed report to owner's actual Zapier Catch Hook; supplied “[your Catch Hook URL]” is a placeholder, so real destination is missing.
