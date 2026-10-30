@@ -16,7 +16,7 @@
 - Apply saved reading size through root rem sizing, with wrapping and scrollable navigation rather than CSS page zoom, to avoid horizontal clipping.
 - Keep microphone amplitude filtering browser-side with silence frames and speech-tail hangover; Gemini language and provider VAD remain server-side.
 - Render transcript messages with AI Elements MessageResponse; the demo shares one floating shell around existing chat and Gemini voice transports, ending microphone capture when leaving voice mode so text chat never captures audio.
-- Share FloatingPersonFrame/GeminiConversation; portal/measure viewport corner and reset drag. Minimize keeps calls mounted; close unmounts. Compact optional captions, separate composer, dialogs above.
+- Share FloatingPersonFrame/GeminiConversation and viewport drag. Minimize preserves calls; close unmounts calls only. Both retain a draggable reopen bubble. Compact captions, separate composer, dialogs above.
 - Prebundle transcript renderer dependencies and recover stale Vite chunk loads once per minute; preview updates must not leave open tabs blank or cause reload loops.
 - Build prospect simulation configurations separately from homepage sales configurations, sharing only voice identity so platform greetings never leak into business roleplay.
 - Store editable prospect simulation templates separately from homepage sales templates; platform actions require explicit on-screen confirmation and never act for the simulated business.
