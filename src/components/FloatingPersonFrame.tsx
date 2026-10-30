@@ -8,9 +8,9 @@ export function PersonPortrait({ name = 'Aspen', avatarUrl }: { name?: string; a
 }
 
 /** Above her head: only minimize and close (drag lives on the shell). Voice/chat switching sits below the call panel. */
-export default function FloatingPersonFrame({ name = 'Aspen', avatarUrl, open, minimized = false, mode, onOpen, onMinimize, onClose, onMode, children }: {
+export default function FloatingPersonFrame({ name = 'Aspen', avatarUrl, open, minimized = false, mode, onOpen, onMinimize, onClose, onMode, keepRendered = false, children }: {
   name?: string; avatarUrl?: string; open: boolean; minimized?: boolean; mode: 'voice' | 'chat';
-  onOpen: () => void; onMinimize: () => void; onClose: () => void; onMode: (mode: 'voice' | 'chat') => void; children?: ReactNode;
+  onOpen: () => void; onMinimize: () => void; onClose: () => void; onMode: (mode: 'voice' | 'chat') => void; keepRendered?: boolean; children?: ReactNode;
 }) {
   return <section aria-label={`${name} floating assistant`} className={`aspen-person-shell ${open ? 'aspen-person-expanded' : 'aspen-person-collapsed'} ${!open && minimized ? '!w-20 items-center' : ''}`}>
     <div className="aspen-person-window-controls sticky top-0 z-10 flex shrink-0 justify-end gap-1">
@@ -23,7 +23,7 @@ export default function FloatingPersonFrame({ name = 'Aspen', avatarUrl, open, m
       <Button variant="ghost" onClick={onOpen} title={`Talk to ${name}`} aria-label={`Talk to ${name}`} className="aspen-portrait-trigger relative mx-auto h-auto max-w-full p-0 [&_svg]:size-8"><PersonPortrait name={name} avatarUrl={avatarUrl} /><Mic className="absolute bottom-0 right-0 rounded-full bg-primary p-1.5 text-primary-foreground" /><span className="sr-only">Talk to {name}</span></Button>
       <p className="mx-auto w-fit rounded-md bg-card/90 px-1.5 text-center text-[10px] leading-tight text-muted-foreground">Tap to talk · calls are recorded</p>
     </>}
-    <div className={open ? 'min-h-0' : 'hidden'}>{children}</div>
+    <div className={open ? 'min-h-0' : keepRendered ? 'aspen-prewarm-offscreen' : 'hidden'} aria-hidden={!open || undefined}>{children}</div>
     {open && <div className="mx-auto flex shrink-0 gap-1" aria-label="Conversation mode">
       {mode === 'chat' && <Button size="icon" className="h-8 w-8" title="Voice" aria-label="Voice" variant="outline" aria-pressed={false} onClick={() => onMode('voice')}><AudioLines className="h-3.5 w-3.5" /></Button>}
       <Button size="icon" className="h-8 w-8" title="Chat" aria-label="Chat" variant={mode === 'chat' ? 'default' : 'outline'} aria-pressed={mode === 'chat'} onClick={() => onMode('chat')}><MessageSquare className="h-3.5 w-3.5" /></Button>

@@ -233,6 +233,8 @@ const DemoSite = () => {
   const latestLeadData = location.state?.leadData as DemoLeadData | undefined;
   const [leadData, setLeadData] = useState<DemoLeadData | undefined>(latestLeadData);
   const [voiceOpen, setVoiceOpen] = useState(false);
+  // Website stays behind the progress overlay until Aspen's live session is prepared.
+  const [assistantReady, setAssistantReady] = useState(false);
   const [iframeBlocked, setIframeBlocked] = useState(false);
   const [iframeFailureMode, setIframeFailureMode] = useState<"blocked" | "unreachable" | null>(null);
   const [isIframeCheckPending, setIsIframeCheckPending] = useState(false);
@@ -1008,7 +1010,7 @@ const DemoSite = () => {
           </div>
         )}
 
-        {isPreviewLoading && <DemoLoadingState websiteUrl={homepageUrl} businessName={siteName} overlay />}
+        {(isPreviewLoading || (hasAnyPreview && !assistantReady)) && <DemoLoadingState websiteUrl={homepageUrl} businessName={siteName} overlay />}
 
         {/* ===== Local Google Maps Geo-Grid Blind-Spot Diagnostic ===== */}
         {hasAnyPreview && (
@@ -1035,6 +1037,7 @@ const DemoSite = () => {
           prospectId={leadData.prospectId || prospectIdParam || undefined}
           voiceRequested={voiceOpen}
           onClosed={() => setVoiceOpen(false)}
+          onAssistantReady={() => setAssistantReady(true)}
         />}
 
       </div>

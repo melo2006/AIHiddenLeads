@@ -2,7 +2,7 @@
 
 - Keep public-only no-JS HTML; hide it behind themed startup until React mounts. Never include tenant data or imply route-specific rendering.
 
-- Keep demo progress pending until scan data arrives and render captured screenshots eagerly while iframe checks run; preload only cached public voice identity before interaction, never single-use voice capabilities or microphone capture, to reduce startup waits without premature usage.
+- Keep demo progress pending until scan data arrives; show captured screenshots eagerly. /demo-site prewarms its first session silently: proxy holds greeting/recording until tap `begin`; mic/sound unlock on tap; failures fall back to tap start.
 
 - Isolate rank audits and homepage comparisons from voice/site rendering; label deterministic examples simulated and share offer arithmetic. Keep the homepage Aspen window preview session-free.
 

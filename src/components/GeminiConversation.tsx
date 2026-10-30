@@ -58,8 +58,10 @@ type Phase = "idle" | "connecting" | "live" | "preview";
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const WS_URL = SUPABASE_URL.replace(/^https/, "wss") + "/functions/v1/gemini-live-proxy";
 
-export interface GeminiConversationProps { agentId?: string; leadId?: string; prospectId?: string; draft?: boolean; compact?: boolean; name?: string; visitorName?: string; previewVoice?: string; autoStart?: boolean; previewOnly?: boolean; previewAudioContext?: AudioContext; testModel?: string; shareToken?: string; onRecommendedPlan?: (plan: SalesPlan) => void; videoAvatar?: VideoAvatar; avatarInline?: boolean; faceFirst?: boolean; avatarUrl?: string; /** The visitor tapped a launcher that already showed the recording notice; that tap is the agreement. */ consentOnOpen?: boolean; }
-const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compact = false, name = "Aspen", visitorName = "", previewVoice, autoStart = false, previewOnly = false, previewAudioContext, testModel, shareToken, onRecommendedPlan, videoAvatar, avatarInline = false, faceFirst = false, avatarUrl, consentOnOpen = false }: GeminiConversationProps) => {
+export interface GeminiConversationProps { agentId?: string; leadId?: string; prospectId?: string; draft?: boolean; compact?: boolean; name?: string; visitorName?: string; previewVoice?: string; autoStart?: boolean; previewOnly?: boolean; previewAudioContext?: AudioContext; testModel?: string; shareToken?: string; onRecommendedPlan?: (plan: SalesPlan) => void; videoAvatar?: VideoAvatar; avatarInline?: boolean; faceFirst?: boolean; avatarUrl?: string; /** The visitor tapped a launcher that already showed the recording notice; that tap is the agreement. */ consentOnOpen?: boolean; /** Open the paid live session silently before the tap so it starts instantly. */ prewarm?: boolean; onPrewarmed?: (ready: boolean) => void; }
+const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compact = false, name = "Aspen", visitorName = "", previewVoice, autoStart = false, previewOnly = false, previewAudioContext, testModel, shareToken, onRecommendedPlan, videoAvatar, avatarInline = false, faceFirst = false, avatarUrl, consentOnOpen = false, prewarm = false, onPrewarmed }: GeminiConversationProps) => {
+  const onPrewarmedRef = useRef(onPrewarmed); onPrewarmedRef.current = onPrewarmed;
+  const warmRef = useRef<{ ready: Promise<boolean>; ok: boolean; activated: boolean; goLive?: () => void } | null>(null);
   const avatarRef = useRef<SimliAvatarHandle>(null);
   const [faceLive, setFaceLive] = useState(false);
   const [captions, setCaptions] = useState(true);
@@ -238,6 +240,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     setHandoffActive(false);
     if(liveRef.current&&!isPreviewRef.current) {wsRef.current?.send(JSON.stringify({type:'end_session',reason:'user_ended'}));void trackCampaignEvent('voice_ended');}
     generationRef.current += 1;
+    warmRef.current = null;
     startingRef.current = false;
     liveRef.current = false;
     captureRef.current.held = false;
@@ -381,10 +384,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   }, [pauseCapture, clearPlayback, playPcmChunk]);
 
   // Authorize voice concurrently, but never generate/play speech ahead of the face.
-  const startFace = useCallback(async (generation: number) => {
+  const startFace = useCallback(async (generation: number, silent = false) => {
     setFaceWaiting(true);
     // The avatar view mounts on the same render as the tap; wait one frame for its ref.
-    const ok = await new Promise<void>(r => requestAnimationFrame(() => r())).then(() => avatarRef.current?.start());
+    const ok = await new Promise<void>(r => requestAnimationFrame(() => r())).then(() => avatarRef.current?.start({ silent }));
     if (generation !== generationRef.current) { if (ok) avatarRef.current?.stop(); return false; }
     setFaceWaiting(false);
     avatarLiveRef.current = ok === true;
@@ -392,13 +395,22 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   }, []);
 
   const reconnectRef = useRef({ pending: false, count: 0 });
-  const startConversationRef = useRef<(preview?: boolean) => Promise<void>>(async () => {});
-  const startConversation = useCallback(async (preview = false) => {
+  const startConversationRef = useRef<(preview?: boolean, warm?: boolean) => Promise<void>>(async () => {});
+  const activateWarmRef = useRef<() => Promise<void>>(async () => {});
+  const startConversation = useCallback(async (preview = false, warm = false) => {
+    // A silently prepared session only needs the tap's audio/microphone unlock.
+    if (!preview && !warm && warmRef.current) { await activateWarmRef.current(); return; }
     const reconnecting = reconnectRef.current.pending; reconnectRef.current.pending = false;
     if (!reconnecting) reconnectRef.current.count = 0;
     if (startingRef.current || liveRef.current) return;
-    if (!preview && !consentReadyRef.current) { setConsentReady(false); return; }
+    if (!preview && !warm && !consentReadyRef.current) { setConsentReady(false); return; }
     startingRef.current = true;
+    let resolveWarm: (ok: boolean) => void = () => {};
+    if (warm) warmRef.current = { ready: new Promise<boolean>(r => { resolveWarm = r; }), ok: false, activated: false };
+    const warmState = warmRef.current;
+    // Before the tap, failures stay invisible and the tap falls back to a normal start.
+    const silentWarm = () => warm && !!warmState && !warmState.activated;
+    const failWarm = () => { resolveWarm(false); stopEverything(); setError(null); setStatus("Press Start to talk."); onPrewarmedRef.current?.(false); };
     clearPlayback();
     const generation = ++generationRef.current;
     captureRef.current = { mode: captureMode, held: false, muted: false, replaying: false, paused: false };
@@ -420,11 +432,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     setPartialAspen("");
     aspenLineRef.current = "";
     userLineRef.current = "";
-    setPhase("connecting");
-    setStatus(preview ? "Preparing your saved greeting…" : "Connecting…");
+    if (!warm) { setPhase("connecting"); setStatus(preview ? "Preparing your saved greeting…" : "Connecting…"); }
     avatarLiveRef.current = false;
     avatarRequestedRef.current = !preview && !!videoAvatar?.enabled;
     const startupTimeout = window.setTimeout(() => {
+      if (warm) { if (generation === generationRef.current && silentWarm() && !warmState?.ok) failWarm(); return; }
       if (generation === generationRef.current && !liveRef.current) {
         stopEverything();
         setError("Starting the voice assistant took too long. Check microphone permission and try again.");
@@ -436,8 +448,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       const playCtx = preview && previewAudioContext?.state !== 'closed' && previewAudioContext ? previewAudioContext : new AudioContext();
       playCtxRef.current = playCtx;
       playTimeRef.current = 0;
-      const playResume = playCtx.resume();
-      const micCtx = preview ? null : new AudioContext({ sampleRate: 16000 });
+      const playResume = warm ? Promise.resolve() : playCtx.resume();
+      const micCtx = preview || warm ? null : new AudioContext({ sampleRate: 16000 });
       micCtxRef.current = micCtx;
       const micResume = micCtx?.resume();
       // An auto-start effect may run after mobile user activation expires. Check
@@ -445,12 +457,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       // directly from a real tap, rather than misreporting an admin/quota failure.
       await Promise.all([playResume, micResume]);
       if (generation !== generationRef.current) return;
-      if (playCtx.state !== 'running' || (micCtx && micCtx.state !== 'running')) throw new Error(AUDIO_TAP_NEEDED);
-      const faceReady = avatarRequestedRef.current ? startFace(generation) : Promise.resolve(true);
+      if (!warm && (playCtx.state !== 'running' || (micCtx && micCtx.state !== 'running'))) throw new Error(AUDIO_TAP_NEEDED);
+      const faceReady = avatarRequestedRef.current ? startFace(generation, warm) : Promise.resolve(true);
       let visitorKey = localStorage.getItem("gemini-visitor-key");
       if (!visitorKey) { visitorKey = crypto.randomUUID(); localStorage.setItem("gemini-visitor-key", visitorKey); }
       // Prepare the server's business snapshot alongside permission/audio setup, only after a tap.
-      const microphoneReady = preview ? Promise.resolve(null) : navigator.mediaDevices.getUserMedia({
+      const microphoneReady = preview || warm ? Promise.resolve(null) : navigator.mediaDevices.getUserMedia({
         audio: { deviceId: microphone === "default" ? undefined : { exact: microphone }, echoCancellation: true, noiseSuppression: true, autoGainControl: microphoneAutoGain(captureMode, noiseFilterRef.current) },
       }).then(stream => {
         if (generation !== generationRef.current) { stream.getTracks().forEach(t => t.stop()); return null; }
@@ -464,7 +476,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       const [session, stream] = await Promise.all([
         voiceSessionHeaders().then(headers => {
           if (generation !== generationRef.current) throw new Error('Demo start cancelled.');
-          return supabase.functions.invoke("gemini-session", { headers, body: { visitorKey, agentId, leadId, prospectId, draft, preview, voice: previewVoice || voice, model: testModel, campaign:campaignVisit(), hour: new Date().getHours(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, visitorName, consent:consentReadyRef.current, share: shareToken, resumeContext, reconnect: reconnecting && !!resumeContext } });
+          return supabase.functions.invoke("gemini-session", { headers, body: { visitorKey, agentId, leadId, prospectId, draft, preview, voice: previewVoice || voice, model: testModel, campaign:campaignVisit(), hour: new Date().getHours(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, visitorName, consent: !warm && consentReadyRef.current, prewarm: warm, share: shareToken, resumeContext, reconnect: reconnecting && !!resumeContext } });
         }),
         microphoneReady,
         playResume,
@@ -473,7 +485,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       ]);
       if (generation !== generationRef.current) { stream?.getTracks().forEach(t => t.stop()); return; }
       if (stream) void refreshMicrophones();
-      if (playCtx.state !== "running" || (micCtx && micCtx.state !== "running")) {
+      if (!warm && (playCtx.state !== "running" || (micCtx && micCtx.state !== "running"))) {
         await Promise.all([playCtx.resume(), micCtx?.resume()]);
         if (playCtx.state !== 'running' || (micCtx && micCtx.state !== 'running')) throw new Error(AUDIO_TAP_NEEDED);
       }
@@ -483,6 +495,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         throw new Error(detail?.error || authError.message);
       }
       if (authorized?.allowed === false) {
+        if (silentWarm()) { failWarm(); return; }
         stopEverything();
         setStatus('Daily voice allowance reached');
         setError(authorized.error);
@@ -494,18 +507,61 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       homepageWalkthroughRef.current = authorized.homepageSales === true;
       idleRef.current = { enabled: (authorized.idleChecks === true || authorized.homepageSales === true) && !preview, stage: 'waiting', quietSince: Date.now(), generating: true, requestedAt: 0 };
       setHandoffToken(authorized.handoffToken || null);
-      const ws = new WebSocket(`${WS_URL}?token=${encodeURIComponent(authorized.token)}&capture=${captureMode}`);
+      const ws = new WebSocket(`${WS_URL}?token=${encodeURIComponent(authorized.token)}&capture=${captureMode}${warm ? '&hold=1' : ''}`);
       wsRef.current = ws;
 
-      ws.onopen = () => setStatus(preview ? "Voice connected · generating your greeting…" : "Connecting…");
+      ws.onopen = () => !silentWarm() && setStatus(preview ? "Voice connected · generating your greeting…" : "Connecting…");
 
       // If the voice service never signals ready, don't hang on "connecting" forever
       const readyTimeout = setTimeout(() => {
+        if (silentWarm()) { if (!warmState?.ok) failWarm(); return; }
         if (!liveRef.current) {
           setError("The voice service did not respond in time. Please try again.");
           stopEverything();
         }
       }, 15000);
+
+      const goLive = () => {
+        if (generation !== generationRef.current) return;
+        liveRef.current = true;
+        if(!preview)void trackCampaignEvent('voice_started');
+        setPhase(preview ? "preview" : "live");
+        setStatus(preview ? "Preparing greeting audio…" : captureMode === "hold" ? "Live — hold to talk" : "Live — hands-free");
+        const micCtx = micCtxRef.current, stream = micStreamRef.current;
+        if (!micCtx || !stream) return;
+        void micCtx.resume();
+        const source = micCtx.createMediaStreamSource(stream);
+        const node = micCtx.createScriptProcessor(2048, 1, 1);
+        micNodeRef.current = node;
+        let frame = 0;
+        let gateOpenUntil = 0;
+        node.onaudioprocess = (e) => {
+          if (!liveRef.current || handoffRef.current || ws.readyState !== WebSocket.OPEN) return;
+          const input = e.inputBuffer.getChannelData(0);
+          const rms = Math.sqrt(input.reduce((sum, x) => sum + x * x, 0) / input.length);
+          if (++frame % 4 === 0) {
+            setMicLevel(Math.min(100, Math.round(rms * 500)));
+          }
+          const capture = captureRef.current;
+          // Live caller audio must reach provider VAD even during speech (including
+          // silent paired-video clocks). Pause/mute/replay still block capture.
+          if (capture.paused) return;
+          if (!shouldSendMicrophone(capture.mode, capture.held, capture.muted, capture.replaying)) return;
+          const gate = microphoneGate(rms, noiseFilterRef.current, performance.now(), gateOpenUntil);
+          if (gate.open && sourcesRef.current.size === 0 && !idleRef.current.generating) {
+            idleRef.current.stage = 'waiting';
+            idleRef.current.quietSince = Date.now();
+          }
+          gateOpenUntil = gate.openUntil;
+          const pcm = microphonePcm(capture.mode === "hold" || gate.open ? input : new Float32Array(input.length), e.inputBuffer.sampleRate);
+          const bytes = new Uint8Array(pcm.buffer);
+          let binary = "";
+          for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+          ws.send(JSON.stringify({ type: "audio", data: btoa(binary) }));
+        };
+        source.connect(node);
+        node.connect(micCtx.destination);
+      };
 
       ws.onmessage = (event) => {
         if (generation !== generationRef.current) return;
@@ -519,43 +575,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         switch (msg.type) {
           case "ready": {
             clearTimeout(readyTimeout);
-            liveRef.current = true;
-            if(!preview)void trackCampaignEvent('voice_started');
-            setPhase(preview ? "preview" : "live");
-            setStatus(preview ? "Preparing greeting audio…" : captureMode === "hold" ? "Live — hold to talk" : "Live — hands-free");
-            if (!micCtx || !stream) break;
-            void micCtx.resume();
-            const source = micCtx.createMediaStreamSource(stream);
-            const node = micCtx.createScriptProcessor(2048, 1, 1);
-            micNodeRef.current = node;
-            let frame = 0;
-            let gateOpenUntil = 0;
-            node.onaudioprocess = (e) => {
-              if (!liveRef.current || handoffRef.current || ws.readyState !== WebSocket.OPEN) return;
-              const input = e.inputBuffer.getChannelData(0);
-              const rms = Math.sqrt(input.reduce((sum, x) => sum + x * x, 0) / input.length);
-              if (++frame % 4 === 0) {
-                setMicLevel(Math.min(100, Math.round(rms * 500)));
-              }
-              const capture = captureRef.current;
-              // Live caller audio must reach provider VAD even during speech (including
-              // silent paired-video clocks). Pause/mute/replay still block capture.
-              if (capture.paused) return;
-              if (!shouldSendMicrophone(capture.mode, capture.held, capture.muted, capture.replaying)) return;
-              const gate = microphoneGate(rms, noiseFilterRef.current, performance.now(), gateOpenUntil);
-              if (gate.open && sourcesRef.current.size === 0 && !idleRef.current.generating) {
-                idleRef.current.stage = 'waiting';
-                idleRef.current.quietSince = Date.now();
-              }
-              gateOpenUntil = gate.openUntil;
-              const pcm = microphonePcm(capture.mode === "hold" || gate.open ? input : new Float32Array(input.length), e.inputBuffer.sampleRate);
-              const bytes = new Uint8Array(pcm.buffer);
-              let binary = "";
-              for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-              ws.send(JSON.stringify({ type: "audio", data: btoa(binary) }));
-            };
-            source.connect(node);
-            node.connect(micCtx.destination);
+            if (warm && warmState) {
+              warmState.goLive = goLive; warmState.ok = true; resolveWarm(true);
+              if (!warmState.activated) { setStatus("Ready to talk"); onPrewarmedRef.current?.(true); }
+              break;
+            }
+            goLive();
             break;
           }
           case "recommended_plan": {
@@ -613,6 +638,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             }
             break;
           case "error":
+            if (silentWarm()) { failWarm(); break; }
+            resolveWarm(false);
             setError(String(msg.message || "Voice service error"));
             stopEverything();
             break;
@@ -627,6 +654,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
       ws.onerror = () => {
         if (generation !== generationRef.current) return;
+        if (silentWarm()) { failWarm(); return; }
+        resolveWarm(false);
         setError("Could not connect to the voice service.");
         stopEverything();
       };
@@ -643,7 +672,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             return;
           }
           setError(voiceDisconnectMessage(event.code, event.reason));
+        } else if (silentWarm()) {
+          failWarm();
         } else {
+          resolveWarm(false);
           setPhase("idle");
           setStatus("Conversation ended. Press Start to begin again.");
           setError((prev) => prev ?? "The connection closed before the session started. Try again.");
@@ -651,6 +683,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       };
     } catch (e) {
       if (generation !== generationRef.current) return;
+      if (silentWarm()) { failWarm(); return; }
+      resolveWarm(false);
       stopEverything();
       if (e instanceof Error && (e.message === AUDIO_TAP_NEEDED || e.name === 'NotAllowedError' || e.message === SOUND_BLOCKED)) {
         setAudioNeedsTap(true);
@@ -671,6 +705,60 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
   startConversationRef.current = startConversation;
   useEffect(() => stopEverything, [stopEverything]);
+
+  // The tap only unlocks sound/microphone, then the already-connected session greets.
+  activateWarmRef.current = async () => {
+    const w = warmRef.current;
+    if (!w || w.activated) return;
+    if (!consentReadyRef.current) { setConsentReady(false); return; }
+    w.activated = true;
+    const generation = generationRef.current;
+    setPhase("connecting"); setStatus("Connecting…"); setError(null); setAudioNeedsTap(false); setLimitReached(false); setEndedByVisitor(false);
+    // All unlocks start synchronously inside the tap.
+    const playCtx = playCtxRef.current && playCtxRef.current.state !== 'closed' ? playCtxRef.current : new AudioContext();
+    playCtxRef.current = playCtx;
+    const playResume = playCtx.resume();
+    const micCtx = new AudioContext({ sampleRate: 16000 });
+    micCtxRef.current = micCtx;
+    const micResume = micCtx.resume();
+    const faceSound = avatarRequestedRef.current ? avatarRef.current?.activate() : undefined;
+    void faceSound?.catch(() => {});
+    const micRequest = navigator.mediaDevices.getUserMedia({
+      audio: { deviceId: microphone === "default" ? undefined : { exact: microphone }, echoCancellation: true, noiseSuppression: true, autoGainControl: microphoneAutoGain(captureMode, noiseFilterRef.current) },
+    }).catch((micError: unknown) => {
+      if (micError instanceof Error && (micError.name === "NotAllowedError" || micError.name === "SecurityError")) throw new Error(MICROPHONE_DENIED);
+      throw micError;
+    });
+    try {
+      const timeout = new Promise<boolean>(r => window.setTimeout(() => r(false), 15000));
+      const [stream, ready] = await Promise.all([micRequest, Promise.race([w.ready, timeout]), playResume, micResume]);
+      if (generation !== generationRef.current) { stream.getTracks().forEach(t => t.stop()); return; }
+      micStreamRef.current = stream;
+      void refreshMicrophones();
+      if (!ready) throw new Error("The voice service did not respond in time. Please try again.");
+      await faceSound;
+      if (avatarRequestedRef.current && !avatarLiveRef.current) throw new Error('The moving face could not connect. Please press play to try again.');
+      if (playCtx.state !== 'running' || micCtx.state !== 'running') throw new Error(AUDIO_TAP_NEEDED);
+      if (wsRef.current?.readyState !== WebSocket.OPEN) throw new Error("The connection closed before the session started. Try again.");
+      wsRef.current.send(JSON.stringify({ type: 'begin', consent: true }));
+      w.goLive?.();
+    } catch (e) {
+      if (generation !== generationRef.current) return;
+      stopEverything();
+      if (e instanceof Error && (e.message === AUDIO_TAP_NEEDED || e.name === 'NotAllowedError' || e.message === SOUND_BLOCKED)) {
+        setAudioNeedsTap(true); setStatus('Tap play to enable sound'); setError(null); return;
+      }
+      setError(e instanceof Error ? e.message : "Could not start. Check your microphone and try again.");
+    }
+  };
+
+  // Prepare once on mount; never repeats, so a visitor who never taps costs one session.
+  const prewarmedRef = useRef(false);
+  useEffect(() => {
+    if (!prewarm || previewOnly || prewarmedRef.current) return;
+    prewarmedRef.current = true;
+    void startConversation(false, true);
+  }, [prewarm, previewOnly, startConversation]);
 
   // A later launcher tap (after the recording notice was shown) also counts as agreement.
   useEffect(() => { if (consentOnOpen && !consentReadyRef.current) { consentReadyRef.current = true; setConsentReady(true); } }, [consentOnOpen]);
@@ -699,7 +787,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const confirmation = pendingAction ? <VoiceActionConfirmation key={pendingAction.id} action={pendingAction} onAnswer={(approved, contact) => { wsRef.current?.send(JSON.stringify({type:'confirm_action',id:pendingAction.id,approved,contact})); setPendingAction(null); }}/> : null;
   const transferControl = phase === 'live' && handoffToken ? <BrowserVoiceHandoff token={handoffToken} onActive={onHandoffActive} microphone={microphone}/> : null;
 
-  if (!previewOnly && !consentReady) return <div className="space-y-3 p-3 text-foreground">
+  if (!previewOnly && !consentReady && !prewarm) return <div className="space-y-3 p-3 text-foreground">
     {faceFirst && <PersonPortrait name={name} avatarUrl={avatarUrl} />}
     <div className="space-y-3 rounded-md bg-card p-3">
     <p className="text-sm font-semibold">Try a live demo with {name}</p>
