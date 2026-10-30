@@ -26,8 +26,8 @@ const steps: { text: string; href?: string }[] = [
   { text: "Turn on SMS Pumping Protection to block fraudulent text charges.", href: "https://console.twilio.com/us1/develop/sms/settings/sms-pumping-protection" },
   { text: "Limit SMS Geo Permissions to the countries you actually serve.", href: "https://console.twilio.com/us1/develop/sms/settings/geo-permissions" },
   { text: "Before texting US customers, register A2P 10DLC, or use a toll-free number with verification.", href: "https://console.twilio.com/us1/develop/sms/regulatory-compliance/a2p-10dlc-overview" },
-  { text: "In Twilio, open the number → Voice Configuration → 'A call comes in' → Webhook (HTTP POST) and paste: " + `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/telephony-voice?action=incoming` },
-  { text: "Test: mark the client Active, call the number from your cell. Aspen answers; say 'transfer me' to ring the warm transfer number, which hears a short summary first." },
+  { text: "Press 'Answer this number with Aspen' on the client below. The previous setting (e.g. Retell) is saved and 'Switch back' restores it." },
+  { text: "Test: call the number from a phone other than the transfer number. Ask a question, then say 'transfer me'. The transfer phone hears a short summary first." },
   { text: "Once call routing is switched on, the customer forwards their existing business number to the assigned number. They keep their own number; it isn't ported." },
 ];
 
@@ -85,6 +85,15 @@ export default function TelephonyAdminView() {
     toast.success("Client saved"); if (!id) setDraft(blankClient); load();
   };
 
+  const routeNumber = async (c: Partial<Client>, op: "connect" | "restore") => {
+    const { data, error } = await supabase.functions.invoke("telephony-voice", { body: { op, clientId: c.id } });
+    if (error || data?.error) {
+      const details = error && "context" in error ? await (error as any).context.text().catch(() => error.message) : data?.error;
+      return toast.error(`Could not update the Twilio number: ${details}`);
+    }
+    toast.success(op === "connect" ? "Number now answered by Aspen. Call it to test." : "Previous call setup (Retell) restored.");
+    load();
+  };
   const removeClient = async (id: string) => {
     const { error } = await supabase.from("telephony_clients").delete().eq("id", id);
     if (error) return toast.error(error.message);
@@ -182,6 +191,10 @@ export default function TelephonyAdminView() {
               </div>
               <div className="mt-2 flex gap-2">
                 <Button size="sm" onClick={() => saveClient(c)}>{isNew ? <><Plus className="mr-1 h-3.5 w-3.5" />Add</> : <><Save className="mr-1 h-3.5 w-3.5" />Save</>}</Button>
+                {!isNew && (c.routed_to_aspen
+                  ? <Button size="sm" variant="outline" onClick={() => routeNumber(c, "restore")}>Switch back to previous setup</Button>
+                  : <Button size="sm" variant="secondary" onClick={() => routeNumber(c, "connect")}>Answer this number with Aspen</Button>)}
+                {!isNew && c.routed_to_aspen && <Badge variant="secondary" className="self-center text-[10px]">Aspen answering</Badge>}
                 {!isNew && <Button size="sm" variant="ghost" onClick={() => removeClient(c.id!)}><Trash2 className="h-3.5 w-3.5" /></Button>}
               </div>
             </div>;
