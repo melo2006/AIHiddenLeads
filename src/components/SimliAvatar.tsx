@@ -60,16 +60,43 @@ export function unlockMediaElements(video: HTMLVideoElement, audio: HTMLAudioEle
   } catch { /* Best effort. */ }
 }
 
-async function sessionToken(body: Record<string, unknown>) {
-  const controller = new AbortController();
-  const deadline = setTimeout(() => controller.abort(), 8000);
-  const result = await supabase.functions.invoke("simli-avatar", { body: { action: "session", ...body }, signal: controller.signal }).finally(() => clearTimeout(deadline));
-  const { data, error } = result;
-  if (error) {
-    const detail = error instanceof FunctionsHttpError ? await error.context.json().catch(() => null) : null;
-    throw new Error(typeof detail?.error === "string" ? detail.error : "Video avatar unavailable");
+export const VIDEO_SLOW = "Aspen’s video is taking longer than usual to connect. Tap play to try again.";
+
+/**
+ * Asks the server for a single-use video token. A token is not a paid session, so a slow
+ * cold start or dropped phone request is retried once before the visitor sees an error.
+ */
+export async function sessionToken(body: Record<string, unknown>, cancel?: AbortSignal, attempts = 2, timeoutMs = 12000) {
+  let lastError: Error = new Error(VIDEO_SLOW);
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    if (cancel?.aborted) throw new Error('Video startup cancelled');
+    const controller = new AbortController();
+    const deadline = setTimeout(() => controller.abort(), timeoutMs);
+    const onCancel = () => controller.abort();
+    cancel?.addEventListener('abort', onCancel);
+    try {
+      const { data, error } = await supabase.functions.invoke("simli-avatar", { body: { action: "session", ...body }, signal: controller.signal });
+      if (!error && data?.sessionToken) return { token: String(data.sessionToken), chromaKey: data.chromaKey === true };
+      if (error instanceof FunctionsHttpError) {
+        const status = error.context?.status ?? 0;
+        const detail = await error.context.json().catch(() => null);
+        const message = typeof detail?.error === "string" ? detail.error : VIDEO_SLOW;
+        // A refusal (not enabled, access denied, bad request) will not change on retry.
+        if (status > 0 && status < 500) throw Object.assign(new Error(message), { final: true });
+        lastError = new Error(message);
+      } else {
+        lastError = new Error(VIDEO_SLOW);
+      }
+    } catch (e) {
+      if ((e as { final?: boolean })?.final) throw e;
+      lastError = new Error(VIDEO_SLOW);
+    } finally {
+      clearTimeout(deadline);
+      cancel?.removeEventListener('abort', onCancel);
+    }
+    if (cancel?.aborted) throw new Error('Video startup cancelled');
   }
-  return { token: String(data.sessionToken), chromaKey: data.chromaKey === true };
+  throw lastError;
 }
 
 /** Owns one Simli session: the face lip-syncs Gemini's audio; Gemini remains the only conversation brain. */
@@ -107,6 +134,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
   const audioReadyRef = useRef(false);
   const lifecycleRef = useRef(0);
   const startupRejectRef = useRef<((error: Error) => void) | null>(null);
+  const tokenAbortRef = useRef<AbortController | null>(null);
   const frozenFrameRef = useRef(false);
   const [state, setState] = useState<"idle" | "connecting" | "live" | "failed" | "stopped">("idle");
   const [reason, setReason] = useState("");
@@ -117,6 +145,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
     lifecycleRef.current++;
     startupRejectRef.current?.(new Error('Video startup cancelled'));
     startupRejectRef.current = null;
+    tokenAbortRef.current?.abort(); tokenAbortRef.current = null;
     if (audioRef.current) { audioRef.current.muted = true; audioRef.current.volume = 0; }
     const keepFrame = unboxed && (frozenFrameRef.current || liveRef.current && keyStopRef.current !== null);
     frozenFrameRef.current = keepFrame;
@@ -156,7 +185,9 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
         // A stop can happen while token acquisition is pending, before the race attaches.
         void startupFailure.catch(() => {});
         startupRejectRef.current = error => rejectStartup?.(error);
-        const { token, chromaKey } = await sessionToken({ agentId, shareToken, draft, faceId: faceOverride });
+        const tokenAbort = new AbortController(); tokenAbortRef.current = tokenAbort;
+        const { token, chromaKey } = await sessionToken({ agentId, shareToken, draft, faceId: faceOverride }, tokenAbort.signal);
+        if (tokenAbortRef.current === tokenAbort) tokenAbortRef.current = null;
         if (lifecycle !== lifecycleRef.current) return false;
         const client = new SimliClient(token, videoRef.current, audioRef.current, null, LogLevel.ERROR, "livekit");
         clientRef.current = client;
