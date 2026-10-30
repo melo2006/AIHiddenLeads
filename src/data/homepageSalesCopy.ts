@@ -3,18 +3,18 @@ import { HOMEPAGE_SERVICE_AREAS, HOMEPAGE_STARTER } from '../../supabase/functio
 type SalesCopy = { badge: string; headline: string; headlineAccent: string; sub: string; start: string; trust: string; title: string; description: string; technology: string; demo: string; addons: string; scope: string; services: ReadonlyArray<{ id: string; name: string; scope: string; benefits: readonly string[] }> };
 
 const english: SalesCopy = {
-  badge: 'More conversations. Fresh prospects. Less busywork.',
+  badge: 'Phone inquiries. Website visitors. More lead opportunities.',
   headline: 'AI Hidden Leads',
-  headlineAccent: 'Turn conversations into opportunities.',
-  sub: 'Help visitors get answers before they leave. Natural, human-like AI voice, website chat and optional live video capture inquiries while your team focuses on customers and closing deals.',
+  headlineAccent: 'Don’t let the next lead slip away.',
+  sub: 'Calls going to voicemail? Website visitors leaving with unanswered questions? Turn more inquiries into opportunities with natural, two-way AI voice, a website chat widget and optional live video. Website widgets are available now; incoming phone answering and forwarding are upcoming.',
   start: `Start with voice + chat + ${HOMEPAGE_STARTER.leadsPerMonth} B2B prospects/month for $${HOMEPAGE_STARTER.monthlyUsd}/mo.`,
   trust: 'Start with your website URL · Free live simulation · No credit card · Your site stays unchanged',
   title: 'Capture inquiries. Find prospects. Build your pipeline.',
-  description: 'We are here to help your business grow: engage website visitors, discover fresh B2B prospects and reduce repetitive work. Add visibility, reputation and approved social content as your needs grow.',
-  technology: 'Try your own AI website receptionist: ask questions out loud, interrupt naturally or type in chat. It learns from readable public pages, with optional live video—not a prerecorded greeting.',
+  description: 'More calls or more website traffic? Start where your customers reach you. Capture website inquiries today, prepare for upcoming phone coverage and find fresh B2B prospects—while your staff focus on customers, not repetitive questions.',
+  technology: 'Try your own AI website receptionist: ask about services, parts or appointment requests by voice or chat, with optional live video. It answers from readable public pages; production knowledge can include reviewed FAQs, vendor information and manuals. Your original website stays unchanged, and preparation time varies.',
   demo: 'Try my website — free live demo',
   addons: 'Explore add-on growth packages',
-  scope: 'Website voice is included; live video is optional. Customer phone answering and calendar connections require a separate rollout and verification. Search, reputation and social work require agreed scope and authorized accounts. Prospects are not opt-in buyers; sales and ranking results are not guaranteed.',
+  scope: 'Available now: website voice/chat widgets and optional live video. Upcoming phone service: forward your existing number—not port it—for missed-call, voicemail or after-hours coverage, with manager transfers and a private AI summary after setup and testing. Customer calendars, reminders and callbacks need separate authorization and verification; SMS is coming soon. No guaranteed callback speed, demo preparation time, savings, sales or rankings.',
   services: HOMEPAGE_SERVICE_AREAS,
 };
 

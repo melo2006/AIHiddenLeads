@@ -1,5 +1,7 @@
 # Current work
 
+- [ ] Update homepage Aspen to a question-first phone-or-website opening with visitor pauses, tailored benefits and two verified statistics; align public lead-generation copy and citations, keeping phone forwarding/summary transfers upcoming and demo timing unguaranteed. Verify saved greeting, tests and public demo flow.
+
 - [x] Fixed false "Microphone permission was denied": phone/in-app browsers blocked Aspen's delayed sound start. Video/audio now unlock inside the tap; blocked sound gets its own message. Three real calls under strict tap-only sound rules (two phone-size, one laptop) delivered moving video, mouth-area motion and audible paired voice with no blocked-sound warnings.
 
 - [x] Reproduced startup error in real provider sessions. Fixed early-tap identity race, immediate provider-failure/cancel handling, muted cleanup and first keyed-frame-before-audio ordering. Eighteen focused tests and build pass. Real session receives audio but no usable video; silence-priming experiment did not restore video and was removed. Concrete video failure now surfaces without playing the greeting.
