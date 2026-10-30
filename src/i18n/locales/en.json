@@ -555,5 +555,33 @@
         "a": "Plans are month-to-month. Cancellation takes effect at the end of the paid period; plan changes are immediately prorated. The monthly plan fee has a 14-day money-back guarantee. Review optional service and usage terms before checkout."
       }
     ]
+  },
+  "mapVisibility": {
+    "headlineStart": "Help nearby customers",
+    "headlineAccent": "find your business.",
+    "disclaimer": "Illustrative before & after — not measured rankings or a promise of 14-day results.",
+    "beforeLabel": "Before",
+    "afterLabel": "After · Illustrative goal",
+    "beforeTitle": "Example: Visibility Before Optimization",
+    "afterTitle": "Illustrative Visibility Goal After Optimization",
+    "pinLabel": "{{mode}} checkpoint {{n}}: illustrative rank {{rank}}",
+    "topThree": "Checkpoints in the top 3",
+    "legend": {
+      "good": "#1–3 · Visible",
+      "warning": "#4–10 · At risk",
+      "bad": "#11+ · Low visibility"
+    },
+    "selected": "Sample checkpoint {{n}}: Before #{{before}} → After #{{after}}",
+    "office": "Sample business location — not your measured rank",
+    "cta": "Check My 25-Point Map + Live AI Website Demo — Free",
+    "auditNote": "Homepage maps are illustrative. Your demo offers a live audit where supported; measured rankings depend on the search location and keyword. No ranking or AI citation guarantees.",
+    "timelineTitle": "From clearer visibility to better-informed actions",
+    "week1Title": "First — Capture website conversations",
+    "week1Text": "Review your assistant’s business knowledge and installation, then start handling website inquiries. B2B prospect delivery follows the plan scope; phone service is a separate rollout.",
+    "days1to14Title": "Next — Prioritize profile and website improvements",
+    "days1to14Text": "Review search evidence, business-profile categories and AI-readable website data. Agree and implement relevant fixes; search platforms control ranking.",
+    "days15to60Title": "Ongoing — Measure, review and refine",
+    "days15to60Text": "Review visibility and inquiries over time. Profile posts, honest review requests and content improvements require authorization and an agreed scope—not guaranteed ranking expansion.",
+    "badge": "25-Point Local Visibility Audit"
   }
 }
