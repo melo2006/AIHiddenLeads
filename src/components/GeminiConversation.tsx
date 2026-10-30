@@ -113,6 +113,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     "Pick a voice and press Start — then just talk, like a real phone call. You can interrupt her."
   );
   const [error, setError] = useState<string | null>(null);
+  const [limitReached, setLimitReached] = useState(false);
+  const signInAction = limitReached && error ? <a href={`/account?next=${encodeURIComponent(window.location.pathname + window.location.search)}`} className="inline-flex w-fit items-center rounded-md border border-primary px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/10">Sign in as administrator to keep testing</a> : null;
   const [endedByVisitor, setEndedByVisitor] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
@@ -406,6 +408,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     isPreviewRef.current = preview;
     previewDoneRef.current = false;
     setError(null);
+    setLimitReached(false);
     setEndedByVisitor(false);
     const resumeContext = preview ? undefined : resumeRecap(visitMemory.get(agentId || "homepage") || []);
     setTurns([]);
@@ -470,6 +473,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         stopEverything();
         setStatus('Daily voice allowance reached');
         setError(authorized.error);
+        setLimitReached(authorized.code === 'VISITOR_DAILY_LIMIT');
         return;
       }
       if (generation !== generationRef.current) { stream?.getTracks().forEach(t => t.stop()); return; }
@@ -691,6 +695,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       <span role="status" className="text-xs text-muted-foreground">{replaying ? 'Replaying saved greeting' : phase === "connecting" || phase === 'preview' && !aspenSpeaking ? status : phase === "preview" ? `Playing ${previewVoice || voice}` : `${previewVoice || voice} selected`}</span>
     </div>
     {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
+    {signInAction}
   </div>;
 
   // Compact mode: minimal floating-widget layout for phones — status line,
@@ -849,6 +854,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           </div>
         )}
         {error && <p className="text-[11px] font-semibold text-destructive">{error}</p>}
+        {signInAction}
 
         {showSettings && (
           <Dialog open={showSettings} onOpenChange={setShowSettings}><DialogContent className="max-h-[85dvh] w-[calc(100vw-24px)] max-w-sm overflow-y-auto"><DialogTitle>Voice settings</DialogTitle><DialogDescription>Microphone and background noise</DialogDescription><div className="space-y-3">
@@ -1041,6 +1047,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             <span>{micLevel > 3 ? "Sound detected" : "Quiet"}</span>
           </div>}
           {error && <p className="text-xs text-destructive font-semibold">{error}</p>}
+          {signInAction}
         </Card>
 
         <Card className="p-3 min-h-[100px] max-h-[25vh] overflow-y-auto space-y-3">
