@@ -18,6 +18,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import AccountMenu from "@/components/AccountMenu";
 import SetupWizard from "@/components/setup-wizard/SetupWizard";
 import VideoAvatarsView from "@/components/crm/VideoAvatarsView";
+import TelephonyAdminView from "@/components/crm/TelephonyAdminView";
 import { Link } from "react-router-dom";
 import { CRMSidebar } from "@/components/crm/CRMSidebar";
 import { supabase } from "@/integrations/supabase/client";
@@ -274,6 +275,7 @@ const CRM = () => {
               <Route path="guardrails" element={<Navigate to="/dashboard/voice-costs#limits" replace />} />
               <Route path="wizard-preview" element={<SetupWizard preview />} />
               <Route path="video-avatars" element={<VideoAvatarsView />} />
+              <Route path="telephony" element={<TelephonyAdminView />} />
               <Route path="*" element={<CRMDashboard />} />
             </Routes>
           </main>

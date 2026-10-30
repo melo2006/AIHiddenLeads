@@ -25,6 +25,7 @@ const SharedDemo = lazy(() => import("./pages/SharedDemo.tsx"));
 const ClientVoiceAgent = lazy(() => import("./pages/ClientVoiceAgent.tsx"));
 const BookCall = lazy(() => import("./pages/BookCall.tsx"));
 const Plans = lazy(() => import("./pages/Plans.tsx"));
+const ServiceDetail = lazy(() => import("./pages/ServiceDetail.tsx"));
 const CustomerSetup = lazy(() => import('./pages/CustomerSetup.tsx'));
 const AgentEmbed = lazy(() => import('./pages/AgentEmbed.tsx'));
 const ConversationCopy = lazy(() => import('./pages/ConversationCopy.tsx'));
@@ -79,6 +80,7 @@ const App = () => {
             <Route path="/demo-share/:token" element={<SharedDemo />} />
             <Route path="/d/:slug" element={<ShortLinkRedirect />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route path="/services/:id" element={<ServiceDetail />} />
             <Route path="/dashboard/*" element={<CRM />} />
             {legacyCrmRedirects.map(({ path, to }) => (
               <Route key={path} path={path} element={<Navigate to={to} replace />} />
