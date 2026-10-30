@@ -11,7 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { rankAuditExamples } from "@/lib/rankAuditExamples";
 import { auditOffers, simulatedRankGrid } from "@/lib/demoRankGrid";
 
-interface Props { businessName: string; city?: string; niche?: string; websiteUrl?: string; initialKeyword?: string; initialMode?: ScanMode }
+interface Props { businessName: string; city?: string; niche?: string; websiteUrl?: string; initialKeyword?: string; initialMode?: ScanMode; compact?: boolean }
 
 type ScanMode = "maps" | "nationwide";
 
@@ -29,7 +29,7 @@ interface LiveResult {
 
 const liveTone = (rank: number | null) => rank === null ? "unknown" : rank <= 3 ? "good" : rank <= 10 ? "warning" : "bad";
 
-export default function RankAuditPanel({ businessName, city = "", niche = "", websiteUrl = "", initialKeyword = "", initialMode = "maps" }: Props) {
+export default function RankAuditPanel({ businessName, city = "", niche = "", websiteUrl = "", initialKeyword = "", initialMode = "maps", compact = false }: Props) {
   const [open, setOpen] = useState(false);
   const [localCity, setLocalCity] = useState(city);
   const [keyword, setKeyword] = useState(initialKeyword || (niche && niche !== "general" ? niche : ""));
@@ -93,8 +93,8 @@ export default function RankAuditPanel({ businessName, city = "", niche = "", we
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button variant="outline" size="sm" className="h-auto min-h-8 max-w-full whitespace-normal border-primary/40 bg-card text-xs leading-tight" aria-label="View 25-Point Google Maps Rank Grid">
-          📍 View 25-Point Google Maps Rank Grid
+        <Button variant="outline" size="sm" className="h-auto min-h-7 max-w-full whitespace-normal border-primary/40 bg-card text-xs leading-tight" aria-label="View 25-Point Google Maps Rank Grid">
+          <MapPin className="mr-1 h-3 w-3 shrink-0" />{compact ? 'Maps audit' : 'View 25-Point Google Maps Rank Grid'}
         </Button>
       </SheetTrigger>
       <SheetContent className="w-full overflow-y-auto p-5 sm:max-w-lg">
