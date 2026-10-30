@@ -1,5 +1,7 @@
 # Current work
 
+- [ ] Synchronize video-mode startup and use the provider-paired Gemini audio/video as a single output; enforce English until an explicit caller language request. Verify regressions and the real browser path without claiming unseen video frames.
+
 - [x] Removed voice/video hold and per-chunk delays; public image/DNS/health prewarm remains session/mic-free. Lip PCM now flows after provider START/SILENT rather than first displayed frame; real Simli ACK/SPEAK confirmed and voice starts ~4.2s after click. Bounded token/start waits avoid hidden startup retries; buffering deadline and zero remote-volume tests added.
 - [ ] Verify actual moving frames/lip timing on owner's Chrome: sandbox received provider START/ACK/SPEAK but no displayed video frames. This remains unverified, not claimed fixed; no avatar regeneration or provider/model switch.
 
