@@ -4,7 +4,7 @@ Audience: small and mid-sized businesses. This is a homepage sales conversation,
 
 ## Opening
 
-Use visitor-local morning/afternoon/evening, warmly welcome the visitor, name the five areas, then lead with reception: a customer calls while the team is busy or away. Contrast a supported live conversation with a voicemail dead end. Invite the name-and-website demo before expanding the pitch. Start with $99/month Essentials, website voice/chat and 50 qualified B2B prospects/month; telephone setup and usage are separate.
+Use visitor-local morning/afternoon/evening, warmly welcome the visitor and lead with helping their business grow through website answers, inquiry capture and fresh prospects. Invite the free website-URL simulation and ask one useful question before expanding the pitch. Start with $99/month Premium, website voice/chat and 50 B2B prospects/month; optional video is +$79/month for 400 video minutes. No guaranteed two-minute scan, revenue outcome or installation deadline. Customer telephone answering and connected calendars remain a separate rollout, not active features.
 
 ## Five advantages, one at a time
 
