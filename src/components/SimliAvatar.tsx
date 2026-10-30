@@ -118,6 +118,9 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
         client.on('silent', () => {
           if (clientRef.current !== client || audioReadyRef.current) return;
           audioReadyRef.current = true;
+          // Prime an idle frame while speech stays muted; some streams publish
+          // their video track only after the first PCM input.
+          client.sendAudioData(new Uint8Array(6400));
         });
         client.on("stop", () => { if (clientRef.current === client) { clientRef.current = null; setLive(false); setState("failed"); setReason('Video disconnected'); } });
         client.on("warning" as never, ((m: unknown) => console.warn("Simli:", m)) as never);
