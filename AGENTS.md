@@ -47,3 +47,4 @@
 - Share customer/admin setup with real ingestion/Gemini tests; admin drafts never grant payment access. Publish only explicitly. Prefer captured originals over iframe checks; guard loading and save before switching drafts to prevent lost work.
 - Share drafts via hashed expiring server tokens; appearance-only, visitor quota, no handoff.
 - Simli lip-syncs Gemini; guard sends/drain, secrets, photo fallback. Transparency = server green backdrop + browser WebGL key, never assumed alpha. Share catalog/device tests; check custom readiness.
+- Phone/SMS customer pricing lives in src/lib/telephonyPricing.ts (fixed beats markup, client override beats default, per-second billing); public price changes only via admin publish to telephony_pricing.
