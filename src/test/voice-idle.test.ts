@@ -1,6 +1,11 @@
 // @vitest-environment node
 import { expect, test } from 'vitest';
 import { voiceIdleAction, homepageWalkthroughDue } from '../lib/voiceIdle';
+import { HOMEPAGE_GREETING } from '../../supabase/functions/_shared/homepage-knowledge';
+
+test('phone-or-website opening waits for an answer rather than auto-selling', () => {
+  expect(homepageWalkthroughDue(HOMEPAGE_GREETING, false, 1000, 15000)).toBe(false);
+});
 
 test('homepage silence check-in waits fifteen seconds', () => {
   expect(voiceIdleAction('waiting', 1000, 15999)).toBeNull();
