@@ -13,7 +13,7 @@
 - Resolve Gemini browser calls through single-use server-authorized sessions and published tenant agent snapshots; callers never supply prompts or tenant authorization.
 - Voice Agents uses organization memberships and a separate protected platform role table; private sources and call history remain tenant-scoped.
 - Reuse GeminiConversation for lab, admin tests, homepage and prospect demos; Retell components remain only for rollback and existing telephone workflows.
-- Apply saved reading size through root rem sizing, with wrapping and scrollable navigation rather than CSS page zoom, to avoid horizontal clipping.
+- Apply reading size via root rem sizing, not CSS zoom, to avoid horizontal clipping.
 - Keep microphone amplitude filtering browser-side with silence frames and speech-tail hangover; Gemini language and provider VAD remain server-side.
 - Render transcript messages with AI Elements MessageResponse; the demo shares one floating shell around existing chat and Gemini voice transports, ending microphone capture when leaving voice mode so text chat never captures audio.
 - Share FloatingPersonFrame/GeminiConversation and viewport drag. Minimize preserves calls; close unmounts calls only. Both retain a draggable reopen bubble. Compact captions, separate composer, dialogs above.
