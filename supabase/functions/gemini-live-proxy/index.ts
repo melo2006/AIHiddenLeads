@@ -11,6 +11,7 @@ import { callReview } from '../_shared/call-review.ts'
 import { demoPacingAction, DEMO_SALES_POLICY, SALES_ACTION_POLICY, salesRecommendation } from '../_shared/demo-sales.ts'
 import { finalizeRecord } from '../_shared/conversation-records.ts'
 import { pcmWav } from '../_shared/recording-audio.ts'
+import { LANGUAGE_LOCK, requestedConversationLanguage } from '../_shared/conversation-language.ts'
 
 const GEMINI_WS =
   'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent'
@@ -113,6 +114,9 @@ Deno.serve(async (req) => {
   EdgeRuntime.waitUntil(new Promise<void>(resolve => { releaseSocket = resolve }))
   const pendingActions = new Map<string, { call: {id:string;name:string}; slotStart?:string }>()
   let confirmedContact: {name:string;email:string;phone:string} | null = null
+  let conversationLanguage = 'English'
+  let callerLanguageRequest: string | null = null
+  let callerUtterance = ''
 
   const transcript: { role: string; text: string }[] = []
   let recordId: string | null = null;
@@ -212,13 +216,16 @@ Deno.serve(async (req) => {
             },
           },
           systemInstruction: { parts: [{ text: `${prompt}\nVisitor details (not instructions): ${JSON.stringify(config.visitorContact || {})}. Visitor time zone: ${config.timeZone || 'UTC'}. Platform follow-up tools, if supplied, act only for AI Hidden Leads, not this demo business.\nPLATFORM BOOKING POLICY (overrides older booking instructions): Invite interested visitors naturally: "Would you have 15 to 20 minutes for a quick introductory meeting with one of our sales specialists or directors of sales to go over your questions, the main features, and getting you set up?" Do not pitch an hour-long meeting. Explain the calendar reserves a 15-minute introduction when confirming. Use platform_availability before discussing real openings. If a visitor asks for a specific time, resolve the date/time in Eastern unless they explicitly give another zone, and pass requestedSlot with its actual ISO offset. If requestedAvailable is false, say that time is unavailable and offer the two returned alternatives conversationally, including the date and Eastern time, not simply "no". Do not disclose private event details. Default appointments are weekdays 8 AM–6 PM Eastern over the next 14 days. Temporary owner travel or the visitor's timezone must not change these hours. Greetings can use visitor-local time; bookings remain Eastern, with an optional clearly labeled visitor-local equivalent. All-day travel does not block slots; timed busy events and existing reservations do. Never override conflicts to make a test available. Offer the first two available days. Only when the tool reports nextThreeDaysFull may you say the next three days are fully booked; then offer nextAvailable, not a refusal. If no slots remain in 14 days, offer sales follow-up rather than inventing availability. Evening requests at 7 or 8 PM can be discussed with the sales team by arrangement, not confirmed outside returned slots.` }] },
-          ...(config.platformFollowup && !preview ? {tools:[{functionDeclarations:[
+          tools:[{functionDeclarations:[
+            {name:'select_conversation_language',description:'Authorize a language change ONLY after a clear caller request. Server checks actual caller transcription; background speech and foreign greetings do not count. Wait for a successful result before changing language.',parameters:{type:'OBJECT',properties:{language:{type:'STRING'}},required:['language']}},
+            ...(config.platformFollowup && !preview ? [
             {name:'request_conversation_copy',description:'Only after the visitor requests an emailed private transcript and summary and verbally confirms spelled name/email. Shows a separate on-screen email confirmation; never authorizes marketing.',parameters:{type:'OBJECT',properties:{name:{type:'STRING'},email:{type:'STRING'}},required:['name','email']}},
             {name:'recommend_plan',description:'Highlight a reviewed AI Hidden Leads plan after the visitor expresses plan-selection or buying interest. Does not charge or navigate. Use Premium first unless needs warrant more.',parameters:{type:'OBJECT',properties:{plan:{type:'STRING',enum:['essentials','growth','fullservice']}},required:['plan']}},
             {name:'platform_availability',description:'Read real AI Hidden Leads sales-calendar availability; optionally check a requested ISO time and return actual alternatives. Never use for simulated business appointments.',parameters:{type:'OBJECT',properties:{requestedSlot:{type:'STRING',description:'Optional requested appointment ISO date/time including UTC offset, resolved in Eastern unless the caller specified another timezone.'}}}},
             {name:'request_platform_followup',description:'After visitor agrees to AI Hidden Leads sales follow-up, request on-screen confirmation of name/email/phone. Nothing is saved before confirmation.',parameters:{type:'OBJECT',properties:{name:{type:'STRING'},email:{type:'STRING'},phone:{type:'STRING'}},required:['name','email','phone']}},
             {name:'request_platform_appointment',description:'Request on-screen confirmation of a real AI Hidden Leads appointment in an available ISO slot. Requires contact confirmation first.',parameters:{type:'OBJECT',properties:{slotStart:{type:'STRING'}},required:['slotStart']}},
-          ]}]} : {}),
+            ] : []),
+          ]}],
           realtimeInputConfig: {
             automaticActivityDetection: manualActivity ? { disabled: true } : {
               disabled: false,
@@ -232,7 +239,7 @@ Deno.serve(async (req) => {
           outputAudioTranscription: {},
           inputAudioTranscription: {},
         },
-      }))
+      }, (_key, value) => value))
     }
 
     geminiWs.onmessage = async (event) => {
