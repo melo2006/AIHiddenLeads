@@ -14,6 +14,7 @@ export interface SimliAvatarHandle {
   /** Gemini's 24 kHz PCM16 chunk, base64. */
   sendPcm24k: (base64: string) => boolean;
   clear: () => void;
+  setPlaybackMuted: (muted: boolean) => void;
 }
 export interface SimliAvatarProps { avatar: VideoAvatar; agentId?: string; shareToken?: string; draft?: boolean; faceOverride?: string; inline?: boolean; unboxed?: boolean; onLiveChange?: (live: boolean) => void; }
 
@@ -102,8 +103,8 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
         // Wait one frame so the portal's video/audio elements exist.
         await new Promise((r) => requestAnimationFrame(r));
         if (!videoRef.current || !audioRef.current) throw new Error("Avatar view is not ready");
-        // LiveKit resets `muted` when attaching its audio track. Volume must also
-        // be zero before attachment: Gemini is the sole audible voice owner.
+        // Stay silent until a displayed frame exists. Then this paired stream
+        // is the ONLY audible output for video calls, using Gemini-generated PCM.
         audioRef.current.defaultMuted = true;
         audioRef.current.muted = true;
         audioRef.current.volume = 0;
@@ -129,7 +130,19 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
           ]);
         } finally { if (deadline) clearTimeout(deadline); }
         if (clientRef.current !== client) return false;
-        if (audioRef.current) { audioRef.current.muted = true; audioRef.current.volume = 0; }
+        await new Promise<void>((resolve, reject) => {
+          const started = performance.now();
+          const check = () => {
+            if (lifecycle !== lifecycleRef.current) { reject(new Error('Video startup cancelled')); return; }
+            const video = videoRef.current;
+            const audio = audioRef.current;
+            if (video && video.readyState >= 2 && video.videoWidth > 0 && audio?.srcObject) { resolve(); return; }
+            if (performance.now() - started >= 8000) { reject(new Error('Video did not arrive. Please try again.')); return; }
+            requestAnimationFrame(check);
+          };
+          check();
+        });
+        if (audioRef.current) { audioRef.current.muted = false; audioRef.current.volume = 1; await audioRef.current.play(); }
         // Cut the green backdrop out so she floats over the page like her static photo.
         if (chromaKey && canvasRef.current) { const stopFn = startChromaKey(videoRef.current, canvasRef.current); if (stopFn) { keyStopRef.current = stopFn; setKeyed(true); } }
         setLive(true); setState("live");
@@ -146,6 +159,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
       }
     },
     stop,
+    setPlaybackMuted: (muted) => { if (audioRef.current) { audioRef.current.muted = muted; audioRef.current.volume = muted ? 0 : 1; } },
     sendPcm24k: (base64) => {
       const client = clientRef.current;
       if (!client || !(audioReadyRef.current || liveRef.current)) return false;
@@ -175,8 +189,8 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
       <video ref={videoRef} autoPlay playsInline muted className={`h-full w-full object-contain ${unboxed ? 'aspen-person-live-media' : ''} ${keyed || unboxed && state !== 'live' ? 'absolute inset-0 opacity-0 pointer-events-none' : ''}`} />
       <canvas ref={canvasRef} aria-hidden className={`h-full w-full object-contain ${unboxed ? 'aspen-person-live-media' : ''} ${keyed ? 'relative' : 'hidden'}`} />
       <audio ref={audioRef} autoPlay muted />
-      {state === "connecting" && <div className={`absolute ${unboxed ? 'bottom-1 right-1' : 'inset-0 bg-card/70'} flex items-center justify-center`}><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}
-      {state === "failed" && <div role="status" className={`${unboxed ? 'absolute bottom-0 inset-x-0 rounded-md bg-background/95' : 'absolute inset-0 bg-card/90'} flex items-center justify-center p-2 text-center text-[11px] text-muted-foreground`}>{reason || "Video avatar unavailable"} · voice continues</div>}
+      {state === "connecting" && !unboxed && <div className="absolute inset-0 bg-card/70 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}
+      {state === "failed" && <div role="status" className={`${unboxed ? 'absolute bottom-0 inset-x-0 rounded-md bg-background/95' : 'absolute inset-0 bg-card/90'} flex items-center justify-center p-2 text-center text-[11px] text-muted-foreground`}>{reason || "Video avatar unavailable"}</div>}
     </div>
   );
   const debugPanel = debug && visible ? createPortal(<div className="fixed left-2 top-16 z-[200] w-56 rounded-md border border-primary bg-card p-1 text-[10px] text-foreground"><canvas ref={debugCanvasRef} className="w-full bg-muted" /><p>{state} · {stats}</p></div>, document.body) : null;
