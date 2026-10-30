@@ -52,7 +52,10 @@ describe.each([{ paired: false, mode: 'handsfree' }, { paired: true, mode: 'hand
     const speech = () => act(() => Context.capture.onaudioprocess?.({ inputBuffer: { sampleRate: 16000, getChannelData: () => new Float32Array(2048).fill(0.1) } }));
     if (mode === 'hold') {
       speech(); expect(socket.send).not.toHaveBeenCalled();
-      fireEvent.keyDown(view.getByRole('button', { name: 'Hold to talk' }), { key: ' ' });
+      vi.stubGlobal('PointerEvent', MouseEvent);
+      const hold = view.getByRole('button', { name: 'Hold to talk' });
+      hold.setPointerCapture = vi.fn();
+      fireEvent.pointerDown(hold, { button: 0 });
     }
     speech();
     expect(socket.send).toHaveBeenCalledWith(expect.stringContaining('"type":"audio"'));
