@@ -70,6 +70,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
   const liveRef = useRef(false);
   const audioReadyRef = useRef(false);
   const lifecycleRef = useRef(0);
+  const startupRejectRef = useRef<((error: Error) => void) | null>(null);
   const frozenFrameRef = useRef(false);
   const [state, setState] = useState<"idle" | "connecting" | "live" | "failed" | "stopped">("idle");
   const [reason, setReason] = useState("");
@@ -78,6 +79,8 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
   const stopKey = () => { keyStopRef.current?.(); keyStopRef.current = null; frozenFrameRef.current = false; setKeyed(false); };
   const stop = () => {
     lifecycleRef.current++;
+    startupRejectRef.current?.(new Error('Video startup cancelled'));
+    startupRejectRef.current = null;
     if (audioRef.current) { audioRef.current.muted = true; audioRef.current.volume = 0; }
     const keepFrame = unboxed && (frozenFrameRef.current || liveRef.current && keyStopRef.current !== null);
     frozenFrameRef.current = keepFrame;
@@ -109,6 +112,9 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
         audioRef.current.defaultMuted = true;
         audioRef.current.muted = true;
         audioRef.current.volume = 0;
+        let rejectStartup: ((error: Error) => void) | undefined;
+        const startupFailure = new Promise<never>((_, reject) => { rejectStartup = reject; });
+        startupRejectRef.current = error => rejectStartup?.(error);
         const { token, chromaKey } = await sessionToken({ agentId, shareToken, draft, faceId: faceOverride });
         if (lifecycle !== lifecycleRef.current) return false;
         const client = new SimliClient(token, videoRef.current, audioRef.current, null, LogLevel.ERROR, "livekit");
@@ -118,23 +124,21 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
         client.on('silent', () => {
           if (clientRef.current !== client || audioReadyRef.current) return;
           audioReadyRef.current = true;
-          // Prime an idle frame while speech stays muted; some streams publish
-          // their video track only after the first PCM input.
-          client.sendAudioData(new Uint8Array(6400));
         });
-        client.on("stop", () => { if (clientRef.current === client) { clientRef.current = null; setLive(false); setState("failed"); setReason('Video disconnected'); } });
+        client.on("stop", () => { if (clientRef.current === client) { startupRejectRef.current?.(new Error('Video disconnected during startup')); setLive(false); setState("failed"); setReason('Video disconnected'); } });
         client.on("warning" as never, ((m: unknown) => console.warn("Simli:", m)) as never);
-        client.on("error", () => { if (clientRef.current === client) { clientRef.current = null; audioReadyRef.current = false; setLive(false); setState('failed'); setReason('Video connection failed'); void client.stop().catch(() => {}); } });
+        client.on("error", () => { if (clientRef.current === client) { startupRejectRef.current?.(new Error('Video connection failed')); audioReadyRef.current = false; setLive(false); setState('failed'); setReason('Video connection failed'); void client.stop().catch(() => {}); } });
         let deadline: ReturnType<typeof setTimeout> | undefined;
         try {
           await Promise.race([
             client.start(),
+            startupFailure,
             // Stop before the SDK's first 15s retry; no hidden second paid attempt.
-            new Promise<never>((_, reject) => { deadline = setTimeout(() => reject(new Error("Video could not connect. Please try again.")), 12000); }),
+            new Promise<never>((_, reject) => { deadline = setTimeout(() => reject(new Error("Aspen’s video did not arrive. No greeting was played. Please retry in Chrome and check your connection.")), 12000); }),
           ]);
         } finally { if (deadline) clearTimeout(deadline); }
         if (clientRef.current !== client) return false;
-        await new Promise<void>((resolve, reject) => {
+        await Promise.race([startupFailure, new Promise<void>((resolve, reject) => {
           const started = performance.now();
           const check = () => {
             if (lifecycle !== lifecycleRef.current) { reject(new Error('Video startup cancelled')); return; }
@@ -145,21 +149,27 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
             requestAnimationFrame(check);
           };
           check();
-        });
-        if (audioRef.current) { audioRef.current.muted = false; audioRef.current.volume = 1; await audioRef.current.play(); }
+        })]);
         // Cut the green backdrop out so she floats over the page like her static photo.
         if (chromaKey && canvasRef.current) { const stopFn = startChromaKey(videoRef.current, canvasRef.current); if (stopFn) { keyStopRef.current = stopFn; setKeyed(true); } }
+        // Draw the first keyed frame before enabling the paired audio output.
+        await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+        if (lifecycle !== lifecycleRef.current) return false;
+        if (audioRef.current) { audioRef.current.muted = false; audioRef.current.volume = 1; await audioRef.current.play(); }
+        startupRejectRef.current = null;
         setLive(true); setState("live");
         return true;
       } catch (e) {
         if (lifecycle !== lifecycleRef.current) return false;
+        startupRejectRef.current = null;
+        if (audioRef.current) { audioRef.current.muted = true; audioRef.current.volume = 0; }
         audioReadyRef.current = false;
         stopKey();
         const client = clientRef.current; clientRef.current = null;
         if (client) void client.stop().catch(() => {});
         setLive(false); setState("failed");
         setReason(e instanceof Error ? e.message : String(e || "Video avatar could not start"));
-        return false;
+        throw e instanceof Error ? e : new Error(String(e || 'Video connection failed'));
       }
     },
     stop,

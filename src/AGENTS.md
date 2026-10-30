@@ -5,5 +5,6 @@
 - Invalidate pending voice/video callbacks on intentional stop; preserve the keyed last frame locally without keeping a paid session alive.
 - Gemini generates all speech. Moving-avatar calls use only Simli's paired stream audio after a displayed frame, never simultaneous local Gemini playback; voice-only and cached replay use local playback. Mute remote audio before SDK attachment and during local replay/pause.
 - Prepare public voice resources without sessions; connect video and authorize voice concurrently after a tap, but open the Gemini socket only after actual video-frame readiness. Failed video startup stops the moving-avatar call rather than speaking ahead of its lips.
+- Resolve public identity before mounting an auto-starting assistant so early taps cannot silently bypass saved video settings; propagate concrete video startup failures and cancel pending waits on Stop.
 - Scope compact homepage band spacing to the landing-page wrapper; the public navbar owns its height offset, so hero spacing must not reserve it again.
 - Persist wizard specialties, accepted guidance and restrictions in authorized drafts; review proposals before acceptance, preserve sources/base safety rules, expose service presence only to admins. Auditions are click-gated, unlock playback before saving and replay response audio locally.

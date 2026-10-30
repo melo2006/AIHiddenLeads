@@ -638,17 +638,6 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   startConversationRef.current = startConversation;
   useEffect(() => stopEverything, [stopEverything]);
 
-  // Auto-connect once when the widget opens (the open tap is the user gesture
-  // that unlocks microphone and audio).
-  // The saved face can arrive after an early tap; join it to the call already in progress
-  // (still holding her voice if she hasn't spoken yet).
-  useEffect(() => {
-    if (!videoAvatar?.enabled || previewOnly || isPreviewRef.current || phase === 'idle' || avatarRequestedRef.current) return;
-    avatarRequestedRef.current = true;
-    // Do not join a late face halfway through speech; it starts with the next call.
-    avatarRequestedRef.current = false;
-  }, [videoAvatar?.enabled, phase, previewOnly, startFace]);
-
   // A later launcher tap (after the recording notice was shown) also counts as agreement.
   useEffect(() => { if (consentOnOpen && !consentReadyRef.current) { consentReadyRef.current = true; setConsentReady(true); } }, [consentOnOpen]);
   // Only consume auto-start when a call actually begins, so a widget mounted before the
