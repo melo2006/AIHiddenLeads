@@ -7,7 +7,7 @@
 - Isolate rank audits and homepage comparisons from voice/site rendering; label deterministic examples simulated and share offer arithmetic. Keep the homepage Aspen window preview session-free.
 
 - Keep Gemini Live session instructions and audio-detection settings server-side in its proxy; this keeps language policy consistent and private credentials out of the browser.
-- Keep live provider verification tests opt-in through an environment URL; routine tests must not consume third-party call usage.
+- Live provider tests are opt-in via env URL so routine tests spend no call usage.
 - Preview voices through the same Gemini Live model as calls, without microphone capture; save the lab preference locally without altering Retell voices.
 - Gate noisy-place microphone capture in the browser and use explicit Live activity boundaries in the proxy; replay cached response audio locally with capture paused to avoid new usage and acoustic feedback.
 - Resolve Gemini browser calls through single-use server-authorized sessions and published tenant agent snapshots; callers never supply prompts or tenant authorization.
@@ -47,4 +47,4 @@
 - Share customer/admin setup with real ingestion/Gemini tests; admin drafts never grant payment access. Publish only explicitly. Prefer captured originals over iframe checks; guard loading and save before switching drafts to prevent lost work.
 - Share drafts via hashed expiring server tokens; appearance-only, visitor quota, no handoff.
 - Simli lip-syncs Gemini; guard sends/drain, secrets, photo fallback. Transparency = server green backdrop + browser WebGL key, never assumed alpha. Share catalog/device tests; check custom readiness.
-- Phone/SMS customer pricing lives in src/lib/telephonyPricing.ts (fixed beats markup, client override beats default, per-second billing); public price changes only via admin publish to telephony_pricing.
+- Phone/SMS pricing: src/lib/telephonyPricing.ts (fixed>markup, client>default, per-second); public price only via admin publish.
