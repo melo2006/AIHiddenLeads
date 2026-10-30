@@ -6,7 +6,7 @@ const english: SalesCopy = {
   badge: 'Phone inquiries. Website visitors. More lead opportunities.',
   headline: 'AI Hidden Leads',
   headlineAccent: 'Don’t let the next lead slip away.',
-  sub: 'Calls going to voicemail? Website visitors leaving with unanswered questions? Turn more inquiries into opportunities with natural, two-way AI voice, a website chat widget and optional live video. Website widgets are available now; incoming phone answering and forwarding are upcoming.',
+  sub: 'Calls going to voicemail? Website visitors leaving with unanswered questions? Turn more inquiries into opportunities with natural, two-way AI voice, a website chat widget and optional live video. Answer website visitors today, and forward your existing business number so calls reach Aspen instead of voicemail.',
   start: `Start with voice + chat + ${HOMEPAGE_STARTER.leadsPerMonth} B2B prospects/month for $${HOMEPAGE_STARTER.monthlyUsd}/mo.`,
   trust: 'Start with your website URL · Free live simulation · No credit card · Your site stays unchanged',
   title: 'Capture inquiries. Find prospects. Build your pipeline.',
