@@ -66,11 +66,14 @@ export const VIDEO_SLOW = "Aspen’s video is taking longer than usual to connec
  * Asks the server for a single-use video token. A token is not a paid session, so a slow
  * cold start or dropped phone request is retried once before the visitor sees an error.
  */
-export async function sessionToken(body: Record<string, unknown>, attempts = 2, timeoutMs = 12000) {
+export async function sessionToken(body: Record<string, unknown>, cancel?: AbortSignal, attempts = 2, timeoutMs = 12000) {
   let lastError: Error = new Error(VIDEO_SLOW);
   for (let attempt = 0; attempt < attempts; attempt++) {
+    if (cancel?.aborted) throw new Error('Video startup cancelled');
     const controller = new AbortController();
     const deadline = setTimeout(() => controller.abort(), timeoutMs);
+    const onCancel = () => controller.abort();
+    cancel?.addEventListener('abort', onCancel);
     try {
       const { data, error } = await supabase.functions.invoke("simli-avatar", { body: { action: "session", ...body }, signal: controller.signal });
       if (!error && data?.sessionToken) return { token: String(data.sessionToken), chromaKey: data.chromaKey === true };
@@ -89,7 +92,9 @@ export async function sessionToken(body: Record<string, unknown>, attempts = 2, 
       lastError = new Error(VIDEO_SLOW);
     } finally {
       clearTimeout(deadline);
+      cancel?.removeEventListener('abort', onCancel);
     }
+    if (cancel?.aborted) throw new Error('Video startup cancelled');
   }
   throw lastError;
 }
@@ -129,6 +134,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
   const audioReadyRef = useRef(false);
   const lifecycleRef = useRef(0);
   const startupRejectRef = useRef<((error: Error) => void) | null>(null);
+  const tokenAbortRef = useRef<AbortController | null>(null);
   const frozenFrameRef = useRef(false);
   const [state, setState] = useState<"idle" | "connecting" | "live" | "failed" | "stopped">("idle");
   const [reason, setReason] = useState("");
@@ -139,6 +145,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
     lifecycleRef.current++;
     startupRejectRef.current?.(new Error('Video startup cancelled'));
     startupRejectRef.current = null;
+    tokenAbortRef.current?.abort(); tokenAbortRef.current = null;
     if (audioRef.current) { audioRef.current.muted = true; audioRef.current.volume = 0; }
     const keepFrame = unboxed && (frozenFrameRef.current || liveRef.current && keyStopRef.current !== null);
     frozenFrameRef.current = keepFrame;
@@ -178,7 +185,9 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
         // A stop can happen while token acquisition is pending, before the race attaches.
         void startupFailure.catch(() => {});
         startupRejectRef.current = error => rejectStartup?.(error);
-        const { token, chromaKey } = await sessionToken({ agentId, shareToken, draft, faceId: faceOverride });
+        const tokenAbort = new AbortController(); tokenAbortRef.current = tokenAbort;
+        const { token, chromaKey } = await sessionToken({ agentId, shareToken, draft, faceId: faceOverride }, tokenAbort.signal);
+        if (tokenAbortRef.current === tokenAbort) tokenAbortRef.current = null;
         if (lifecycle !== lifecycleRef.current) return false;
         const client = new SimliClient(token, videoRef.current, audioRef.current, null, LogLevel.ERROR, "livekit");
         clientRef.current = client;
