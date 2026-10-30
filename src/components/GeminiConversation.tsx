@@ -54,10 +54,6 @@ type Phase = "idle" | "connecting" | "live" | "preview";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const WS_URL = SUPABASE_URL.replace(/^https/, "wss") + "/functions/v1/gemini-live-proxy";
-/** Longest wait for the face before the voice starts anyway. */
-const AVATAR_HOLD_MS = 1500;
-/** Seconds of local-voice delay so Simli's lip movement lines up with what callers hear. */
-const AVATAR_LIP_LAG = 0.25;
 
 export interface GeminiConversationProps { agentId?: string; leadId?: string; prospectId?: string; draft?: boolean; compact?: boolean; name?: string; visitorName?: string; previewVoice?: string; autoStart?: boolean; previewOnly?: boolean; previewAudioContext?: AudioContext; testModel?: string; shareToken?: string; onRecommendedPlan?: (plan: SalesPlan) => void; videoAvatar?: VideoAvatar; avatarInline?: boolean; faceFirst?: boolean; avatarUrl?: string; /** The visitor tapped a launcher that already showed the recording notice; that tap is the agreement. */ consentOnOpen?: boolean; }
 const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compact = false, name = "Aspen", visitorName = "", previewVoice, autoStart = false, previewOnly = false, previewAudioContext, testModel, shareToken, onRecommendedPlan, videoAvatar, avatarInline = false, faceFirst = false, avatarUrl, consentOnOpen = false }: GeminiConversationProps) => {
@@ -306,7 +302,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     // Voice always plays locally so callers never hear silence if the face's own audio is blocked;
     // the live face only receives a copy to drive its lips (its audio element stays muted).
     if (avatarPendingRef.current) { avatarPendingRef.current = false; avatarLiveRef.current = true; }
-    if (avatarLiveRef.current && !captureRef.current.replaying && !avatarRef.current?.sendPcm24k(base64)) { avatarLiveRef.current = false; }
+    if (avatarRequestedRef.current && !captureRef.current.replaying) {
+      // The provider can accept lip audio after START, before its first displayed frame.
+      // Keep trying as it connects; do not permanently disable sends on an early false.
+      avatarRef.current?.sendPcm24k(base64);
+    }
     source.connect(ctx.destination);
 
     const now = ctx.currentTime;
@@ -380,29 +380,14 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     } catch { captureRef.current.replaying = false; setReplaying(false); setError("Could not replay audio. Check your speaker connection."); }
   }, [pauseCapture, clearPlayback, playPcmChunk]);
 
-  // Starts the moving face. Until her first video frame is on screen, her voice is held back
-  // (only if she hasn't spoken yet) so voice and lips begin together; after AVATAR_HOLD_MS the voice goes on alone.
+  // Start video alongside voice, never hold audible speech behind an optional transport.
   const startFace = useCallback((generation: number) => {
-    // Video is optional: never delay the first voice for its network connection.
-    const hold = false;
-    if (hold) { avatarStartingRef.current = true; setFaceWaiting(true); }
-    let released = false;
-    const release = () => {
-      if (released || generation !== generationRef.current) return;
-      released = true;
-      if (!avatarStartingRef.current) return;
-      avatarStartingRef.current = false; setFaceWaiting(false);
-      const held = heldAudioRef.current; heldAudioRef.current = [];
-      held.forEach(b => playChunkRef.current(b.audio, b.captionRun));
-    };
-    const timer = hold ? window.setTimeout(release, AVATAR_HOLD_MS) : 0;
+    avatarStartingRef.current = false; setFaceWaiting(false);
     // The avatar view mounts on the same render as the tap; wait one frame for its ref.
     void new Promise<void>(r => requestAnimationFrame(() => r())).then(() => avatarRef.current?.start()).then(ok => {
-      window.clearTimeout(timer);
       if (generation !== generationRef.current) { if (ok) avatarRef.current?.stop(); return; }
       if (ok) avatarLiveRef.current = true;
-      release();
-    }).catch(() => { window.clearTimeout(timer); release(); });
+    }).catch(() => { /* Voice continues independently. */ });
   }, []);
 
   const reconnectRef = useRef({ pending: false, count: 0 });

@@ -4,5 +4,6 @@
 - Drive highlighted caption overlays from local AudioContext scheduling on animation frames, never rewind during stream extension; keep original AI Elements transcripts and treat word positions as estimates without provider timestamps.
 - Invalidate pending voice/video callbacks on intentional stop; preserve the keyed last frame locally without keeping a paid session alive.
 - Gemini owns audible assistant playback; set Simli's audio volume to zero before SDK attachment because LiveKit overrides muted, preventing delayed duplicate speech.
+- Prepare public voice resources without sessions; voice never waits on video. Simli provider-ready audio acceptance precedes displayed-frame readiness, so feed current lip audio without replaying a held greeting or adding per-chunk delays.
 - Scope compact homepage band spacing to the landing-page wrapper; the public navbar owns its height offset, so hero spacing must not reserve it again.
 - Persist wizard specialties, accepted guidance and restrictions in authorized drafts; review proposals before acceptance, preserve sources/base safety rules, expose service presence only to admins. Auditions are click-gated, unlock playback before saving and replay response audio locally.

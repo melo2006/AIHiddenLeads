@@ -108,12 +108,11 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
         if (lifecycle !== lifecycleRef.current) return false;
         const client = new SimliClient(token, videoRef.current, audioRef.current, null, LogLevel.ERROR, "livekit");
         clientRef.current = client;
-        // SILENT is emitted only after the provider's START signal. Prime its
-        // media pipeline after that signal, not before startup or on page load.
+        // The provider signals START then SILENT before the browser displays
+        // its first frame. Audio may flow now; displayed-frame readiness is separate.
         client.on('silent', () => {
           if (clientRef.current !== client || audioReadyRef.current) return;
           audioReadyRef.current = true;
-          try { client.sendAudioData(new Uint8Array(6000)); } catch { audioReadyRef.current = false; }
         });
         client.on("stop", () => { if (clientRef.current === client) { clientRef.current = null; setLive(false); setState("failed"); setReason('Video disconnected'); } });
         client.on("warning" as never, ((m: unknown) => console.warn("Simli:", m)) as never);
@@ -144,7 +143,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
     stop,
     sendPcm24k: (base64) => {
       const client = clientRef.current;
-      if (!client || !liveRef.current) return false;
+      if (!client || !(audioReadyRef.current || liveRef.current)) return false;
       const bin = atob(base64);
       const bytes = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
