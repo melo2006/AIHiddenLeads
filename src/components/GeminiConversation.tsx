@@ -24,7 +24,7 @@ import { salesPlans, type SalesPlan } from '@/lib/salesActions';
 import SimliAvatar, { type SimliAvatarHandle } from '@/components/SimliAvatar';
 import type { VideoAvatar } from '../../supabase/functions/_shared/video-avatar';
 import { PersonPortrait } from '@/components/FloatingPersonFrame';
-import { avatarAudioReady } from '@/lib/avatarAudioTransition';
+import { avatarAudioReady, nextVoiceChunkStart } from '@/lib/avatarAudioTransition';
 import { PlaybackCaptions, type PlaybackCaption as Caption } from '@/lib/playbackCaptions';
 import PlaybackCaption from '@/components/PlaybackCaption';
 
@@ -55,7 +55,7 @@ type Phase = "idle" | "connecting" | "live" | "preview";
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const WS_URL = SUPABASE_URL.replace(/^https/, "wss") + "/functions/v1/gemini-live-proxy";
 /** Longest wait for the face before the voice starts anyway. */
-const AVATAR_HOLD_MS = 12000;
+const AVATAR_HOLD_MS = 1500;
 /** Seconds of local-voice delay so Simli's lip movement lines up with what callers hear. */
 const AVATAR_LIP_LAG = 0.25;
 
@@ -311,7 +311,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
     const now = ctx.currentTime;
     // Simli renders lips slightly behind the audio it receives; delay the start of each spoken run to match.
-    const startAt = Math.max(avatarLiveRef.current ? now + AVATAR_LIP_LAG : now, playTimeRef.current);
+    const startAt = nextVoiceChunkStart(now, playTimeRef.current);
     sourcesRef.current.add(source);
     source.start(startAt);
     playTimeRef.current = startAt + buffer.duration;
@@ -383,7 +383,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // Starts the moving face. Until her first video frame is on screen, her voice is held back
   // (only if she hasn't spoken yet) so voice and lips begin together; after AVATAR_HOLD_MS the voice goes on alone.
   const startFace = useCallback((generation: number) => {
-    const hold = playTimeRef.current === 0 && sourcesRef.current.size === 0;
+    // Video is optional: never delay the first voice for its network connection.
+    const hold = false;
     if (hold) { avatarStartingRef.current = true; setFaceWaiting(true); }
     let released = false;
     const release = () => {

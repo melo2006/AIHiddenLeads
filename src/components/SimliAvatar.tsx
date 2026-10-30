@@ -64,6 +64,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
   }, [debug]);
   const clientRef = useRef<SimliClient | null>(null);
   const liveRef = useRef(false);
+  const audioReadyRef = useRef(false);
   const lifecycleRef = useRef(0);
   const frozenFrameRef = useRef(false);
   const [state, setState] = useState<"idle" | "connecting" | "live" | "failed" | "stopped">("idle");
@@ -78,9 +79,11 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
     keyStopRef.current?.(); keyStopRef.current = null;
     if (!keepFrame) setKeyed(false);
     liveRef.current = false;
+    audioReadyRef.current = false;
     onLiveChange?.(keepFrame);
     pendingRef.current = new Uint8Array(0);
     if (flushRef.current) clearTimeout(flushRef.current);
+    flushRef.current = undefined;
     const client = clientRef.current; clientRef.current = null;
     if (client) void client.stop().catch(() => {});
     setReason(''); setState(keepFrame ? 'stopped' : 'idle');
@@ -105,9 +108,16 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
         if (lifecycle !== lifecycleRef.current) return false;
         const client = new SimliClient(token, videoRef.current, audioRef.current, null, LogLevel.ERROR, "livekit");
         clientRef.current = client;
+        // SILENT is emitted only after the provider's START signal. Prime its
+        // media pipeline after that signal, not before startup or on page load.
+        client.on('silent', () => {
+          if (clientRef.current !== client || audioReadyRef.current) return;
+          audioReadyRef.current = true;
+          try { client.sendAudioData(new Uint8Array(6000)); } catch { audioReadyRef.current = false; }
+        });
         client.on("stop", () => { if (clientRef.current === client) { clientRef.current = null; setLive(false); setState("failed"); setReason('Video disconnected'); } });
         client.on("warning" as never, ((m: unknown) => console.warn("Simli:", m)) as never);
-        client.on("error", () => { if (clientRef.current === client) { setLive(false); setState('failed'); setReason('Video connection failed'); } });
+        client.on("error", () => { if (clientRef.current === client) { clientRef.current = null; audioReadyRef.current = false; setLive(false); setState('failed'); setReason('Video connection failed'); void client.stop().catch(() => {}); } });
         let deadline: ReturnType<typeof setTimeout> | undefined;
         try {
           await Promise.race([
@@ -143,14 +153,16 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
       const pending = pendingRef.current;
       const merged = new Uint8Array(pending.length + pcm.length); merged.set(pending); merged.set(pcm, pending.length);
       pendingRef.current = merged;
-      if (flushRef.current) clearTimeout(flushRef.current);
       try {
-        if (merged.length >= 6000) flushAudio(client);
-        else flushRef.current = setTimeout(() => { try { if (clientRef.current === client) flushAudio(client); } catch { /* Session closed. */ } }, 80);
+        if (merged.length >= 6000) {
+          if (flushRef.current) clearTimeout(flushRef.current);
+          flushRef.current = undefined;
+          flushAudio(client);
+        } else if (!flushRef.current) flushRef.current = setTimeout(() => { flushRef.current = undefined; try { if (clientRef.current === client) flushAudio(client); } catch { /* Session closed. */ } }, 80);
         return true;
       } catch { setLive(false); setState('failed'); setReason('Video audio disconnected'); return false; }
     },
-    clear: () => { pendingRef.current = new Uint8Array(0); if (flushRef.current) clearTimeout(flushRef.current); try { clientRef.current?.ClearBuffer(); } catch { /* Session already closed. */ } },
+    clear: () => { pendingRef.current = new Uint8Array(0); if (flushRef.current) clearTimeout(flushRef.current); flushRef.current = undefined; try { clientRef.current?.ClearBuffer(); } catch { /* Session already closed. */ } },
   }), [agentId, shareToken, draft, faceOverride]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const visible = state !== "idle";
