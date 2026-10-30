@@ -27,6 +27,7 @@ import { PersonPortrait } from '@/components/FloatingPersonFrame';
 import { assistantOutput, nextVoiceChunkStart } from '@/lib/avatarAudioTransition';
 import { PlaybackCaptions, type PlaybackCaption as Caption } from '@/lib/playbackCaptions';
 import PlaybackCaption from '@/components/PlaybackCaption';
+import { voiceSessionHeaders } from '@/lib/voiceSessionAuth';
 
 const MICROPHONE_DENIED = "Microphone permission was denied — allow it in your browser and try again.";
 const VOICES = [
@@ -448,7 +449,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         throw micError;
       });
       const [session, stream] = await Promise.all([
-        supabase.functions.invoke("gemini-session", { body: { visitorKey, agentId, leadId, prospectId, draft, preview, voice: previewVoice || voice, model: testModel, campaign:campaignVisit(), hour: new Date().getHours(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, visitorName, consent:consentReadyRef.current, share: shareToken, resumeContext, reconnect: reconnecting && !!resumeContext } }),
+        voiceSessionHeaders().then(headers => {
+          if (generation !== generationRef.current) throw new Error('Demo start cancelled.');
+          return supabase.functions.invoke("gemini-session", { headers, body: { visitorKey, agentId, leadId, prospectId, draft, preview, voice: previewVoice || voice, model: testModel, campaign:campaignVisit(), hour: new Date().getHours(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, visitorName, consent:consentReadyRef.current, share: shareToken, resumeContext, reconnect: reconnecting && !!resumeContext } });
+        }),
         microphoneReady,
         playResume,
         micResume,
