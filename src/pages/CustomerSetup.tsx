@@ -12,11 +12,13 @@ import { RefreshCw, X } from 'lucide-react';
 import type { User } from '@supabase/supabase-js';
 import CustomerPageLayout from '@/components/CustomerPageLayout';
 import AgentInstallationGuide from '@/components/AgentInstallationGuide';
+import { safeReturnPath } from '@/lib/authReturn';
 import SetupWizard from '@/components/setup-wizard/SetupWizard';
 type Billing={paid:boolean;workspace:{agent_id:string}|null;subscription:{price_id:string;cancel_at_period_end:boolean;current_period_end:string|null}|null};
 function CustomerWorkspace({dashboard=false}:{dashboard?:boolean}){
  const [user,setUser]=useState<User|null>(null),[ready,setReady]=useState(false),[billing,setBilling]=useState<Billing|null>(null),[notice,setNotice]=useState(''),[plan,setPlan]=useState('essentials_monthly'),[password,setPassword]=useState('');
  const reset=new URLSearchParams(window.location.search).has('reset');
+ useEffect(()=>{const next=safeReturnPath(new URLSearchParams(window.location.search).get('next'));if(user&&next&&!next.startsWith('/account'))window.location.replace(next);},[user?.id]);
  useEffect(()=>{void supabase.auth.getUser().then(({data})=>{setUser(data.user);setReady(true);});const {data:{subscription}}=supabase.auth.onAuthStateChange((_e,s)=>{setUser(s?.user||null);setReady(true);});return()=>subscription.unsubscribe();},[]);
  async function act(action:string){try{const {data,error}=await supabase.functions.invoke('customer-billing',{body:{action,priceId:plan,environment:getStripeEnvironment()}});if(error)throw new Error(data?.error||'Could not update billing.');setBilling(data);if(action!=='status')setNotice(action==='cancel'?'Cancellation scheduled for the end of your paid period.':'Your plan was changed with a prorated billing adjustment.');}catch(e){setNotice(e instanceof Error?e.message:'Billing unavailable');}}
  useEffect(()=>{if(user&&!reset)void act('status');},[user?.id]);
