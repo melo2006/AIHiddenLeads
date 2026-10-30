@@ -3,24 +3,24 @@ import { HOMEPAGE_SERVICE_AREAS, HOMEPAGE_STARTER } from '../../supabase/functio
 type SalesCopy = { badge: string; headline: string; headlineAccent: string; sub: string; start: string; trust: string; title: string; description: string; technology: string; demo: string; addons: string; scope: string; services: ReadonlyArray<{ id: string; name: string; scope: string; benefits: readonly string[] }> };
 
 const english: SalesCopy = {
-  badge: '2026 AI tools. Practical business advantages.',
+  badge: 'More conversations. Fresh prospects. Less busywork.',
   headline: 'AI Hidden Leads',
-  headlineAccent: 'Beyond voicemail.',
-  sub: 'Conversational reception, fresh B2B prospects, location-aware search, reputation and social content for small and mid-sized businesses.',
+  headlineAccent: 'Turn conversations into opportunities.',
+  sub: 'Help visitors get answers before they leave. Natural, human-like AI voice, website chat and optional live video capture inquiries while your team focuses on customers and closing deals.',
   start: `Start with voice + chat + ${HOMEPAGE_STARTER.leadsPerMonth} B2B prospects/month for $${HOMEPAGE_STARTER.monthlyUsd}/mo.`,
-  trust: 'Free website simulation · Your name + website · No credit card',
-  title: 'Five ways to compete. One place to start.',
-  description: 'Start by catching inquiries and finding fresh prospects. Add search, reputation and social support as your business grows.',
-  technology: 'Hear the difference: live conversational voice, your website knowledge and a shared chat experience—not a prerecorded voicemail greeting.',
-  demo: 'Try it on my website — free',
+  trust: 'Start with your website URL · Free live simulation · No credit card · Your site stays unchanged',
+  title: 'Capture inquiries. Find prospects. Build your pipeline.',
+  description: 'We are here to help your business grow: engage website visitors, discover fresh B2B prospects and reduce repetitive work. Add visibility, reputation and approved social content as your needs grow.',
+  technology: 'Try your own AI website receptionist: ask questions out loud, interrupt naturally or type in chat. It learns from readable public pages, with optional live video—not a prerecorded greeting.',
+  demo: 'Try my website — free live demo',
   addons: 'Explore add-on growth packages',
-  scope: 'Browser voice is included. Phone routing and carrier usage are separate. Search, reputation and social work require agreed scope and connected accounts; results are not guaranteed.',
+  scope: 'Website voice is included; live video is optional. Customer phone answering and calendar connections require a separate rollout and verification. Search, reputation and social work require agreed scope and authorized accounts. Prospects are not opt-in buyers; sales and ranking results are not guaranteed.',
   services: HOMEPAGE_SERVICE_AREAS,
 };
 
 const spanish: SalesCopy = {
-  badge: 'Herramientas de IA de 2026. Ventajas prácticas.', headline: 'AI Hidden Leads', headlineAccent: 'Más que un buzón de voz.',
-  sub: 'Recepción conversacional, prospectos B2B, búsqueda local, reputación y contenido social para pequeñas y medianas empresas.',
+  badge: 'Más conversaciones. Nuevos prospectos. Menos tareas.', headline: 'AI Hidden Leads', headlineAccent: 'Convierte conversaciones en oportunidades.',
+  sub: 'Ayuda a los visitantes antes de que se vayan. Voz natural con IA, chat web y video opcional captan consultas mientras tu equipo se enfoca en clientes y ventas.',
   start: `Empieza con voz + chat + ${HOMEPAGE_STARTER.leadsPerMonth} prospectos B2B/mes por US$${HOMEPAGE_STARTER.monthlyUsd}/mes.`, trust: 'Simulación web gratis · Tu nombre + sitio web · Sin tarjeta',
   title: 'Cinco formas de competir. Un punto de partida.', description: 'Empieza captando consultas y nuevos prospectos. Añade búsqueda, reputación y redes sociales a medida que creces.',
   technology: 'Escucha la diferencia: voz conversacional en vivo, conocimiento de tu sitio y chat integrado; no un saludo de buzón pregrabado.',
@@ -36,8 +36,8 @@ const spanish: SalesCopy = {
 };
 
 const portuguese: SalesCopy = {
-  badge:'Ferramentas de IA de 2026. Vantagens práticas.',headline:'AI Hidden Leads',headlineAccent:'Além da caixa postal.',
-  sub:'Recepção por IA, novos prospects B2B, busca local, reputação e conteúdo social para pequenas e médias empresas.',
+  badge:'Mais conversas. Novos prospects. Menos tarefas.',headline:'AI Hidden Leads',headlineAccent:'Transforme conversas em oportunidades.',
+  sub:'Ajude visitantes antes que saiam. Voz natural com IA, chat no site e vídeo opcional captam consultas enquanto sua equipe se concentra nos clientes e nas vendas.',
   start:`Comece com voz + chat + ${HOMEPAGE_STARTER.leadsPerMonth} prospects B2B/mês por US$${HOMEPAGE_STARTER.monthlyUsd}/mês.`,trust:'Simulação gratuita · Seu nome + site · Sem cartão',
   title:'Cinco formas de competir. Um ponto de partida.',description:'Comece atendendo consultas e encontrando novos prospects. Adicione busca, reputação e redes sociais conforme sua empresa cresce.',
   technology:'Ouça a diferença: voz conversacional ao vivo, conhecimento do seu site e chat integrado — não uma saudação gravada de caixa postal.',
