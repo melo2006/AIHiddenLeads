@@ -525,7 +525,9 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
                 setMicLevel(Math.min(100, Math.round(rms * 500)));
               }
               const capture = captureRef.current;
-              if (capture.paused || idleRef.current.generating || sourcesRef.current.size > 0) return;
+              // Live caller audio must reach provider VAD even during speech (including
+              // silent paired-video clocks). Pause/mute/replay still block capture.
+              if (capture.paused) return;
               if (!shouldSendMicrophone(capture.mode, capture.held, capture.muted, capture.replaying)) return;
               const gate = microphoneGate(rms, noiseFilterRef.current, performance.now(), gateOpenUntil);
               if (gate.open && sourcesRef.current.size === 0 && !idleRef.current.generating) {
