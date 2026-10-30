@@ -21,7 +21,8 @@ import { voiceIdleAction, homepageWalkthroughDue, type VoiceIdleStage } from '@/
 import { voiceDisconnectMessage } from '@/lib/voiceDisconnect';
 import {campaignVisit, trackCampaignEvent} from '@/lib/campaignTracking';
 import { salesPlans, type SalesPlan } from '@/lib/salesActions';
-import SimliAvatar, { type SimliAvatarHandle } from '@/components/SimliAvatar';
+import SimliAvatar, { SOUND_BLOCKED, type SimliAvatarHandle } from '@/components/SimliAvatar';
+const MICROPHONE_DENIED = "Microphone permission was denied — allow it in your browser and try again.";
 import type { VideoAvatar } from '../../supabase/functions/_shared/video-avatar';
 import { PersonPortrait } from '@/components/FloatingPersonFrame';
 import { assistantOutput, nextVoiceChunkStart } from '@/lib/avatarAudioTransition';
