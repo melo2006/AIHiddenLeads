@@ -32,6 +32,23 @@ describe('intentional avatar stop', () => {
     await act(async () => { finish?.(); await starting; });
     act(() => ref.current?.stop());
   });
+  it('flushes small lip chunks within 80ms even when more chunks keep arriving', async () => {
+    mocks.send.mockClear();
+    mocks.invoke.mockResolvedValue({ data: { sessionToken: 'test', chromaKey: true } });
+    mocks.start.mockResolvedValue(undefined);
+    const ref = createRef<SimliAvatarHandle>();
+    render(<SimliAvatar ref={ref} avatar={avatar} inline unboxed />);
+    await act(async () => { await ref.current?.start(); });
+    vi.useFakeTimers();
+    try {
+      const chunk = btoa(String.fromCharCode(...new Uint8Array(600)));
+      ref.current?.sendPcm24k(chunk);
+      await vi.advanceTimersByTimeAsync(40);
+      ref.current?.sendPcm24k(chunk);
+      await vi.advanceTimersByTimeAsync(40);
+      expect(mocks.send).toHaveBeenCalledTimes(1);
+    } finally { vi.useRealTimers(); act(() => ref.current?.stop()); }
+  });
   it('keeps remote audio inaudible even when the provider unmutes its track', async () => {
     mocks.invoke.mockResolvedValue({ data: { sessionToken: 'test', chromaKey: true } });
     mocks.start.mockResolvedValue(undefined);

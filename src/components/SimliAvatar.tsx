@@ -24,7 +24,7 @@ const POSITION: Record<VideoAvatar["position"], string> = {
 const SHAPE: Record<VideoAvatar["shape"], string> = { circle: "rounded-full", rounded: "rounded-3xl", square: "rounded-md" };
 
 async function sessionToken(body: Record<string, unknown>) {
-  const { data, error } = await supabase.functions.invoke("simli-avatar", { body: { action: "session", ...body } });
+  const { data, error } = await supabase.functions.invoke("simli-avatar", { body: { action: "session", ...body }, signal: AbortSignal.timeout(8000) });
   if (error) {
     const detail = error instanceof FunctionsHttpError ? await error.context.json().catch(() => null) : null;
     throw new Error(typeof detail?.error === "string" ? detail.error : "Video avatar unavailable");
@@ -121,7 +121,8 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
         try {
           await Promise.race([
             client.start(),
-            new Promise<never>((_, reject) => { deadline = setTimeout(() => reject(new Error("Video connection timed out. Voice remains available; try again on your device.")), 25000); }),
+            // Stop before the SDK's first 15s retry; no hidden second paid attempt.
+            new Promise<never>((_, reject) => { deadline = setTimeout(() => reject(new Error("Video could not connect. Voice remains available.")), 12000); }),
           ]);
         } finally { if (deadline) clearTimeout(deadline); }
         if (clientRef.current !== client) return false;
@@ -132,6 +133,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
         return true;
       } catch (e) {
         if (lifecycle !== lifecycleRef.current) return false;
+        audioReadyRef.current = false;
         stopKey();
         const client = clientRef.current; clientRef.current = null;
         if (client) void client.stop().catch(() => {});
@@ -171,7 +173,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
       <canvas ref={canvasRef} aria-hidden className={`h-full w-full object-contain ${unboxed ? 'aspen-person-live-media' : ''} ${keyed ? 'relative' : 'hidden'}`} />
       <audio ref={audioRef} autoPlay muted />
       {state === "connecting" && <div className={`absolute ${unboxed ? 'bottom-1 right-1' : 'inset-0 bg-card/70'} flex items-center justify-center`}><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}
-      {state === "failed" && <div role="status" className={`${unboxed ? 'absolute bottom-0 inset-x-0 rounded-md bg-background/95' : 'absolute inset-0 bg-card/90'} flex items-center justify-center p-2 text-center text-[11px] text-destructive`}>{reason || "Video avatar unavailable"} · voice continues</div>}
+      {state === "failed" && <div role="status" className={`${unboxed ? 'absolute bottom-0 inset-x-0 rounded-md bg-background/95' : 'absolute inset-0 bg-card/90'} flex items-center justify-center p-2 text-center text-[11px] text-muted-foreground`}>{reason || "Video avatar unavailable"} · voice continues</div>}
     </div>
   );
   const debugPanel = debug && visible ? createPortal(<div className="fixed left-2 top-16 z-[200] w-56 rounded-md border border-primary bg-card p-1 text-[10px] text-foreground"><canvas ref={debugCanvasRef} className="w-full bg-muted" /><p>{state} · {stats}</p></div>, document.body) : null;
