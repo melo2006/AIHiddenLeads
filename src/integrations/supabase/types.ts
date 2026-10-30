@@ -1933,6 +1933,163 @@ export type Database = {
         }
         Relationships: []
       }
+      telephony_clients: {
+        Row: {
+          active: boolean
+          client_name: string
+          created_at: string
+          fixed_sms_per_segment: number | null
+          fixed_voice_per_min: number | null
+          id: string
+          markup_pct: number | null
+          messaging_service_sid: string | null
+          monthly_cap_usd: number | null
+          notes: string | null
+          number_sid: string | null
+          organization_id: string | null
+          sms_number: string | null
+          transfer_phone: string | null
+          updated_at: string
+          voice_number: string | null
+        }
+        Insert: {
+          active?: boolean
+          client_name: string
+          created_at?: string
+          fixed_sms_per_segment?: number | null
+          fixed_voice_per_min?: number | null
+          id?: string
+          markup_pct?: number | null
+          messaging_service_sid?: string | null
+          monthly_cap_usd?: number | null
+          notes?: string | null
+          number_sid?: string | null
+          organization_id?: string | null
+          sms_number?: string | null
+          transfer_phone?: string | null
+          updated_at?: string
+          voice_number?: string | null
+        }
+        Update: {
+          active?: boolean
+          client_name?: string
+          created_at?: string
+          fixed_sms_per_segment?: number | null
+          fixed_voice_per_min?: number | null
+          id?: string
+          markup_pct?: number | null
+          messaging_service_sid?: string | null
+          monthly_cap_usd?: number | null
+          notes?: string | null
+          number_sid?: string | null
+          organization_id?: string | null
+          sms_number?: string | null
+          transfer_phone?: string | null
+          updated_at?: string
+          voice_number?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "telephony_clients_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "voice_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      telephony_pricing: {
+        Row: {
+          default_markup_pct: number
+          fixed_sms_per_segment: number | null
+          fixed_voice_per_min: number | null
+          id: boolean
+          published_at: string | null
+          published_sms_per_segment: number | null
+          published_voice_per_min: number
+          twilio_inbound_per_min: number
+          twilio_number_monthly: number
+          twilio_outbound_per_min: number
+          twilio_sms_per_segment: number
+          updated_at: string
+        }
+        Insert: {
+          default_markup_pct?: number
+          fixed_sms_per_segment?: number | null
+          fixed_voice_per_min?: number | null
+          id?: boolean
+          published_at?: string | null
+          published_sms_per_segment?: number | null
+          published_voice_per_min?: number
+          twilio_inbound_per_min?: number
+          twilio_number_monthly?: number
+          twilio_outbound_per_min?: number
+          twilio_sms_per_segment?: number
+          updated_at?: string
+        }
+        Update: {
+          default_markup_pct?: number
+          fixed_sms_per_segment?: number | null
+          fixed_voice_per_min?: number | null
+          id?: boolean
+          published_at?: string | null
+          published_sms_per_segment?: number | null
+          published_voice_per_min?: number
+          twilio_inbound_per_min?: number
+          twilio_number_monthly?: number
+          twilio_outbound_per_min?: number
+          twilio_sms_per_segment?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      telephony_usage: {
+        Row: {
+          client_id: string
+          created_at: string
+          direction: string
+          id: string
+          kind: string
+          occurred_at: string
+          provider_cost_usd: number | null
+          provider_sid: string | null
+          seconds: number
+          segments: number
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          direction?: string
+          id?: string
+          kind: string
+          occurred_at?: string
+          provider_cost_usd?: number | null
+          provider_sid?: string | null
+          seconds?: number
+          segments?: number
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          direction?: string
+          id?: string
+          kind?: string
+          occurred_at?: string
+          provider_cost_usd?: number | null
+          provider_sid?: string | null
+          seconds?: number
+          segments?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "telephony_usage_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "telephony_clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       voice_agent_sources: {
         Row: {
           agent_id: string
@@ -2325,6 +2482,13 @@ export type Database = {
           owner_email: string
           owner_name: string
           owner_phone: string
+        }[]
+      }
+      get_public_telephony_prices: {
+        Args: never
+        Returns: {
+          sms_per_segment: number
+          voice_per_min: number
         }[]
       }
       is_admin_email: { Args: { _email: string }; Returns: boolean }
