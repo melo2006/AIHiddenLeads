@@ -1,6 +1,6 @@
 # Current work
 
-- [ ] Update homepage Aspen to a question-first phone-or-website opening with visitor pauses, tailored benefits and two verified statistics; align public lead-generation copy and citations, keeping phone forwarding/summary transfers upcoming and demo timing unguaranteed. Verify saved greeting, tests and public demo flow.
+- [x] Updated homepage Aspen and session-free preview to the shared phone-or-website question; strengthened lead-generation copy, sourced 78%/37% evidence and scoped upcoming forwarding/summary transfers with no two-minute guarantee. Saved draft/published greeting refreshed, 30 tests passed, laptop/phone layout and /demo button verified. Real voice produced question-first greeting and two distinct sourced figures after input; generative pacing/pair adherence is not deterministic. Moving-avatar UI session failed to receive video, so lip-sync is not verified or changed by this copy update.
 
 - [x] Fixed false "Microphone permission was denied": phone/in-app browsers blocked Aspen's delayed sound start. Video/audio now unlock inside the tap; blocked sound gets its own message. Three real calls under strict tap-only sound rules (two phone-size, one laptop) delivered moving video, mouth-area motion and audible paired voice with no blocked-sound warnings.
 
