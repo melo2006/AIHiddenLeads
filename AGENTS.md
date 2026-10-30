@@ -48,5 +48,3 @@
 - Share drafts via hashed expiring server tokens; appearance-only, visitor quota, no handoff.
 - Simli lip-syncs Gemini; guard sends/drain, secrets, photo fallback. Transparency = server green backdrop + browser WebGL key, never assumed alpha. Share catalog/device tests; check custom readiness.
 - Phone/SMS pricing: src/lib/telephonyPricing.ts (fixed>markup, client>default, per-second); public price only via admin publish.
-
-- Inbound phone answering: Twilio webhook -> telephony-voice (signed) -> always-on telephony-server/ bridge to Gemini Live; the bridge holds only a shared secret and Gemini key, never Twilio credentials, because edge sockets cap at ~400s.

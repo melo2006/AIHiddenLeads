@@ -5,3 +5,5 @@
 - Simli sessions keep the avatar's own canvas size (only the backdrop is swapped); a smaller streaming canvas crops a window and cut the face in half.
 - Recover hosting socket drops (1006/1011) with up to three silent same-conversation reconnects; the proxy resumes without re-greeting.
 - Keep English as the server language lock; authorize native language-switch tools only against explicit caller transcript requests, never detected language, reference data or browser locale.
+
+- Phone answering: signed Twilio webhook -> telephony-voice -> always-on telephony-server/ Gemini bridge holding only a shared secret, since edge sockets cap at ~400s.
