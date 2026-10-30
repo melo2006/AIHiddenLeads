@@ -18,7 +18,23 @@ vi.mock('simli-client', () => ({ LogLevel: { ERROR: 0 }, SimliClient: class {
 vi.mock('@/lib/chromaKey', () => ({ startChromaKey: () => () => {} }));
 const avatar = { provider: 'simli' as const, enabled: true, faceId: 'test', position: 'bottom-right' as const, size: 200, shape: 'square' as const };
 describe('intentional avatar stop', () => {
+  it('rejects a startup provider error immediately without leaving paired audio enabled', async () => {
+    mocks.events.clear();
+    mocks.invoke.mockResolvedValue({ data: { sessionToken: 'test', chromaKey: true } });
+    mocks.start.mockImplementation(() => new Promise(() => {}));
+    const ref = createRef<SimliAvatarHandle>();
+    const view = render(<SimliAvatar ref={ref} avatar={avatar} inline unboxed />);
+    let outcome: Promise<unknown> | undefined;
+    act(() => { outcome = ref.current?.start().catch(error => error); });
+    await waitFor(() => expect(mocks.events.has('error')).toBe(true));
+    await act(async () => { mocks.events.get('error')?.(); await outcome; });
+    expect(await outcome).toBeInstanceOf(Error);
+    expect(view.container.querySelector('audio')?.volume).toBe(0);
+    expect(view.getByRole('status').textContent).toContain('Video connection failed');
+    act(() => ref.current?.stop());
+  });
   it('does not start paired speech before an actual video frame is displayed', async () => {
+    mocks.events.clear();
     mocks.invoke.mockResolvedValue({ data: { sessionToken: 'test', chromaKey: true } });
     mocks.start.mockImplementation(async () => {
       const video = document.querySelector('video');
