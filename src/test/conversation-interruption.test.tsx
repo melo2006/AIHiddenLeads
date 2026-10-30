@@ -37,7 +37,7 @@ class Context {
   createBufferSource = () => { const source = { connect: vi.fn(), start: vi.fn(), stop: vi.fn(), buffer: null, onended: null }; Context.sources.push(source); return source; };
   createGain = () => ({ gain: { value: 1 }, connect: vi.fn() });
 }
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); Context.sources = []; vi.clearAllMocks(); });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); Context.sources = []; Socket.current = undefined as unknown as Socket; vi.clearAllMocks(); });
 
 describe.each([false, true])('caller interruption with paired video %s', paired => {
   it('streams speech during generation and queued playback, clears on interruption, and respects mute/pause', async () => {
