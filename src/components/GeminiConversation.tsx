@@ -314,6 +314,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       if (sourcesRef.current.size === 0 && captureRef.current.replaying) {
         captureRef.current.replaying = false;
         setReplaying(false);
+        avatarRef.current?.setPlaybackMuted(false);
       }
       if (isPreviewRef.current && previewDoneRef.current && sourcesRef.current.size === 0) stopEverything();
     };
