@@ -1,5 +1,7 @@
 # Current work
 
+- [ ] Verify and restore caller interruption while Aspen generates/plays speech; retain pause, mute, replay, handoff and hold-to-talk protections.
+
 - [x] Close/minimize retain a shared draggable microphone/expand bubble on homepage, demos and customer assistants. Twelve tests pass, including release-on-close/preserve-on-minimize for all three. Browser verified homepage and PBF demo close → drag → reopen → minimize → expand → close; shield prevents embedded-site drag interference. Build OK; no paid calls used for layout checks.
 
 - [x] Restore sign-in and attach bearer identity on public demo starts/reconnects. Two real reloaded PBF demo UI starts authorized as admin_test (900s); independent signed-out authorization remained visitor. Visitor five-start and shared 200/day caps unchanged. Nineteen tests/build passed. Video failed before voice socket opened, so live speech/video not verified; no avatar changes. Explained unlimited page visits versus voice-start caps and recommended campaign-sized shared protection, without changing limits.
