@@ -1,5 +1,8 @@
 # Current work
 
+- [ ] Remove Aspen's colored hover backdrop and duplicate voice playback; verify audio ownership and preserve lip-sync/transparent framing.
+- [ ] Tighten homepage section spacing and rewrite benefits/demo copy with current sourced competitor comparisons; avoid guaranteed readiness and undelivered service claims.
+
 - [ ] Build customer incoming telephone answering with forwarding, customer spending caps and a verified manager-transfer flow. Owner chose separate reliable call hosting. Blocker: no configured external call runtime/deployment access; Classic project cannot host a persistent server. Current edge host has documented 400-second worker limit. Twilio credentials and one voice-capable number verified; existing routing untouched. Do not claim caps/transfer/forwarding built or tested.
 - [ ] Connect and verify reviewed report to owner's actual Zapier Catch Hook; supplied “[your Catch Hook URL]” is a placeholder, so real destination is missing.
 - [x] Provided Zapier creation link and official Catch Hook setup/test/publish steps; real hook still needed for delivery verification.
