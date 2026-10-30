@@ -142,7 +142,8 @@ const DraggableFloating = ({
     offset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
     document.body.style.userSelect = "none";
     document.body.style.touchAction = "none";
-    e.currentTarget.setPointerCapture?.(e.pointerId);
+    const handle = target.closest<HTMLElement>('[data-drag-handle]');
+    handle?.setPointerCapture?.(e.pointerId);
     e.preventDefault();
   }, []);
 
