@@ -1,7 +1,8 @@
 import {createClient} from 'npm:@supabase/supabase-js@2';
 import {corsHeaders} from 'npm:@supabase/supabase-js@2/cors';
 import {z} from 'npm:zod@3';
-const schema=z.object({visitId:z.string().uuid(),event:z.enum(['page_view','scan_started','voice_started','voice_ended']),path:z.enum(['/','/demo','/demo-site','/checkout','/checkout/return','/book']),source:z.string().max(100).regex(/^[\w .-]*$/),campaign:z.string().max(100).regex(/^[\w .-]*$/)});
+import {validMilestone} from '../_shared/report-context.ts';
+const schema=z.object({visitId:z.string().uuid(),event:z.enum(['page_view','scan_started','voice_started','voice_ended','section_view']),path:z.string().max(100),source:z.string().max(100).regex(/^[\w .-]*$/),campaign:z.string().max(100).regex(/^[\w .-]*$/)}).refine(b=>validMilestone(b.event,b.path));
 Deno.serve(async req=>{
  if(req.method==='OPTIONS')return new Response('ok',{headers:corsHeaders});
  const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
