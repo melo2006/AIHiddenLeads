@@ -31,12 +31,13 @@ const button = (href: string, label: string, primary = true) =>
 const row = (k: string, v: string) => `<tr><td style="padding:6px 12px 6px 0;color:${MUTED};font-size:13px;white-space:nowrap;vertical-align:top">${esc(k)}</td><td style="padding:6px 0;color:${INK};font-size:14px;font-weight:600">${v}</td></tr>`;
 
 function layout(o: { preheader: string; title: string; body: string; footer?: string }) {
-  return `<!doctype html><html><body style="margin:0;padding:0;background:#ffffff;font-family:Arial,Helvetica,sans-serif">
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"></head><body style="margin:0;padding:0;background:#ffffff;font-family:Arial,Helvetica,sans-serif;-webkit-text-size-adjust:100%">
 <span style="display:none;max-height:0;overflow:hidden">${esc(o.preheader)}</span>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff"><tr><td align="center" style="padding:24px 12px">
-<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden">
-<tr><td style="background:#0b1220;padding:18px 24px;border-bottom:4px solid ${GREEN}">
-<a href="${SITE}" style="text-decoration:none"><img src="${LOGO}" alt="AI Hidden Leads" height="40" style="height:40px;border:0;vertical-align:middle"></a>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;width:100%"><tr><td align="center" style="padding:8px 4px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;width:100%;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden">
+<tr><td style="background:#ffffff;padding:16px 20px;border-bottom:4px solid ${GREEN}">
+<a href="${SITE}" style="text-decoration:none"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="vertical-align:middle"><img src="${LOGO}" alt="" width="44" height="44" style="width:44px;height:44px;border:0;display:block"></td><td style="vertical-align:middle;padding-left:10px;font-size:22px;font-weight:800;color:${INK};letter-spacing:-.3px">AI Hidden <span style="color:${GREEN}">Leads</span></td></tr></table></a>
+</td></tr>
 </td></tr>
 <tr><td style="padding:28px 24px 8px">
 <h1 style="margin:0 0 14px;font-size:22px;line-height:1.3;color:${INK}">${esc(o.title)}</h1>
