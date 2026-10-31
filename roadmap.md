@@ -1,5 +1,8 @@
 # Current work
 
+- [ ] Add daily report Eastern/local call times, evidenced origin/location and observed public website journey; keep historical gaps explicit and private data protected.
+- [ ] Research telephone-first tailored demos, competitors and simple pricing recommendations; no telephone activation or price changes.
+
 - [x] Identified screenshot warning as browser-paused audio, not admin quota. Check audio before billable authorization and offer neutral play retry; 26 targeted tests pass, including suspended phone audio → play recovery. Admin/visitor authorization unchanged. Physical-phone playback remains unverified.
 - [x] Combined simulation notice, website link, install link, language and Maps audit into one 83px normal-flow demo header. Signed-in browser checks at 390px portrait, 707px landscape and 1280px desktop show no overflow; Maps panel opens. PBF's external page/assets rendered incompletely in sandbox; original site remains unmodified.
 
