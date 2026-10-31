@@ -40,7 +40,8 @@
 - Share compact sales actions across public Aspen shells; server-validated plan recommendations open the matching plan-selection anchor in a new tab, never charge or navigate a live conversation automatically. Do not show platform sales actions on tenant agent pages.
 - Provision private customer workspaces atomically only from server-verified payments; recheck environment-scoped entitlements for edits/sessions. Never infer payment from return URLs or grant platform roles. Customer /account is separate from admin; scope its editor to the paid agent and share public header/footer.
 - Version validated appearance in agent JSON; expose only public color/font tokens. Website style suggestions use captured scan evidence for review, never arbitrary CSS or private prompts.
-- Send owner/operational app emails through the owner's Hostinger mailbox SMTP helper (_shared/hostinger-mail.ts); Hostinger cannot delegate subdomains and the owner wants a portable setup.
+- Send owner emails via _shared/hostinger-mail.ts (Hostinger SMTP).
+- Reports use saved sessions and tab-scoped public milestones; location needs provenance, never HQ, timezone, area code or webhook IP.
 - Public headers show one AccountMenu: signed-out Log in/Create account links to /account; admin menu entries appear only from the protected platform role table, never hidden gestures or client flags.
 
 - Read nested AGENTS.md. Demo headers are normal-flow, not overlays.
