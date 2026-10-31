@@ -1,0 +1,1 @@
+- This bridge talks only to the telephony-stream function via a shared secret, so prompts and transfer targets stay server-side.

@@ -49,4 +49,3 @@
 - Share drafts via hashed expiring server tokens; appearance-only, visitor quota, no handoff.
 - Simli lip-syncs Gemini; guard sends/drain, secrets, photo fallback. Transparency = server green backdrop + browser WebGL key, never assumed alpha. Share catalog/device tests; check custom readiness.
 - Phone/SMS pricing: src/lib/telephonyPricing.ts (fixed>markup, client>default, per-second); public price only via admin publish.
-- telephony-server/ is the portable Twilio↔Gemini Live bridge; it talks only to the telephony-stream function via a shared secret, so prompts and transfer targets stay server-side.
