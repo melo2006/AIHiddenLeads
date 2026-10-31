@@ -68,6 +68,11 @@ const ServicesGrid = () => {
             </article>;
           })}
         </div>
+        <div className="mt-6 border-y border-border py-5">
+          <h3 className="text-lg font-semibold">Phone-first? You don’t need a website.</h3>
+          <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">Teach your receptionist from business hours, service lists, approved prices and documents. Use your website as optional reference material, not a requirement. Phone answering activates after setup and testing; website and telephone minutes remain separate.</p>
+          <Button asChild variant="link" className="mt-2 h-auto whitespace-normal px-0"><Link to="/services/voice">Explore phone reception & a sample conversation<ArrowRight className="h-4 w-4" /></Link></Button>
+        </div>
         <div className="mt-6 flex flex-wrap items-center gap-3">
           <Button className="h-auto min-h-11 whitespace-normal" onClick={() => navigate('/demo')}>{copy.demo}<ArrowRight className="ml-2 h-4 w-4 shrink-0" /></Button>
           <Button variant="link" className="h-auto whitespace-normal" onClick={() => document.getElementById('addons')?.scrollIntoView({behavior:'smooth'})}>{copy.addons}</Button>
