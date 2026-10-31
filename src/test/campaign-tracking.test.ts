@@ -1,7 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock('@/integrations/supabase/client', () => ({ supabase: { functions: { invoke } } }));
-import { PUBLIC_CAMPAIGN_PATHS, trackCampaignEvent } from '../lib/campaignTracking';
+import { campaignVisit, PUBLIC_CAMPAIGN_PATHS, trackCampaignEvent } from '../lib/campaignTracking';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -35,4 +35,18 @@ it('contains unexpected tracking failures instead of rejecting into the UI', asy
   await expect(trackCampaignEvent('voice_ended')).resolves.toBeUndefined();
   expect(warning).toHaveBeenCalledOnce();
   warning.mockRestore();
+});
+
+it('records prices as an observed homepage section, not a private or demo section',async()=>{
+  window.history.replaceState({},'', '/');
+  await trackCampaignEvent('section_view','pricing');
+  expect(invoke).toHaveBeenCalledWith('campaign-events',{body:expect.objectContaining({event:'section_view',path:'/#pricing'})});
+  invoke.mockClear();
+  window.history.replaceState({},'', '/demo');
+  await trackCampaignEvent('section_view','pricing');
+  expect(invoke).not.toHaveBeenCalled();
+});
+it('does not attach a public visit identity to private voice tests',()=>{
+  window.history.replaceState({},'', '/dashboard/telephony');
+  expect(campaignVisit()).toBeNull();
 });
