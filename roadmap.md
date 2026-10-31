@@ -208,3 +208,6 @@
 
 - [ ] Google billing export → show actual Gemini charges on Voice Usage & Costs (waiting on owner Google Cloud setup)
 - [ ] Phase 2: Video avatars (Simli, HeyGen) + voice-only choice, pricing table update
+
+- [x] Stage 1 portable VPS phone bridge: Gemini Live voice with saved Aspen instructions/greeting/voice, resumable reconnects, saved-destination warm transfer, 15s transcript/usage checkpoints and published-rate estimates; separate test-only entry, falls back to existing phone flow if bridge unset. Codec/cost tests pass; unauthorized requests rejected. No live routing changed.
+- [ ] Stage 2 install on Hostinger VPS and test on a spare number: blocked on owner's VPS access, DNS for voice subdomain, and shared bridge secret entry.

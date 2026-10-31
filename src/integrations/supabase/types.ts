@@ -1935,11 +1935,14 @@ export type Database = {
       }
       telephony_calls: {
         Row: {
+          ai_usage: Json
           call_sid: string
           client_id: string
           ended_at: string | null
           from_phone: string | null
           id: string
+          last_checkpoint_at: string | null
+          reconnects: number
           seconds: number
           started_at: string
           status: string
@@ -1948,13 +1951,17 @@ export type Database = {
           transcript: Json
           transfer_summary: string | null
           transferred: boolean
+          transport: string
         }
         Insert: {
+          ai_usage?: Json
           call_sid: string
           client_id: string
           ended_at?: string | null
           from_phone?: string | null
           id?: string
+          last_checkpoint_at?: string | null
+          reconnects?: number
           seconds?: number
           started_at?: string
           status?: string
@@ -1963,13 +1970,17 @@ export type Database = {
           transcript?: Json
           transfer_summary?: string | null
           transferred?: boolean
+          transport?: string
         }
         Update: {
+          ai_usage?: Json
           call_sid?: string
           client_id?: string
           ended_at?: string | null
           from_phone?: string | null
           id?: string
+          last_checkpoint_at?: string | null
+          reconnects?: number
           seconds?: number
           started_at?: string
           status?: string
@@ -1978,6 +1989,7 @@ export type Database = {
           transcript?: Json
           transfer_summary?: string | null
           transferred?: boolean
+          transport?: string
         }
         Relationships: [
           {
