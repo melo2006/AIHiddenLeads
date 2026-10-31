@@ -1,0 +1,22 @@
+{
+  "direction": "outbound-from-lovable",
+  "live_changes_authorized": false,
+  "capabilities": [
+    {"capability":"Source and architecture","source":"Current React/Vite checkout and GitHub","outcome":"preserve","status":"inventoried","next_action":"Download source snapshot and record GitHub revision; no rewrite"},
+    {"capability":"Database schema and records","source":"Current shared Cloud backend; two migration directories","outcome":"migrate","status":"blocked","next_action":"Owner downloads full database export through More → Database → Manage → Settings → Export data"},
+    {"capability":"Auth identities and authorization","source":"Cloud auth, protected roles and memberships","outcome":"migrate","status":"pending","next_action":"Restore accounts with destination-supported procedures and verify identities, passwords, roles and isolation"},
+    {"capability":"Storage file bytes","source":"Cloud storage including documents and conversation recordings","outcome":"migrate","status":"blocked","next_action":"Owner downloads files separately through More → Storage; preserve privately"},
+    {"capability":"Google development workflow","source":"AI Studio Build mode documentation","outcome":"verify","status":"pending","next_action":"Verify existing-repository import and editing in owner's account using source-only copy; Gemini CLI is fallback"},
+    {"capability":"Independent hosting","source":"Owner prepaid Hostinger VPS","outcome":"configure","status":"blocked","next_action":"Owner provides deployment access through a supported secure workflow; inspect workloads and stage HTTPS services"},
+    {"capability":"Server functions and schedules","source":"Function code and SQL migrations","outcome":"migrate","status":"pending","next_action":"Inventory deployed endpoints and actual schedules; recreate compatible secured runtimes without duplicate work"},
+    {"capability":"Public endpoints, callbacks and webhooks","source":"Website, auth, payment and Twilio integrations","outcome":"preserve","status":"pending","next_action":"Record original targets; update only after destination verification and explicit cutover approval"},
+    {"capability":"Secrets and connectors","source":"Provider-issued credentials and managed Lovable connections","outcome":"reconfigure","status":"blocked","next_action":"Reauthorize providers securely at destination; never export managed secrets into code or chat"},
+    {"capability":"Gemini Live, chat and Simli","source":"Shared browser conversation and avatar endpoints","outcome":"preserve","status":"pending","next_action":"Replace platform dependencies and test startup, interruption, reconnect, video and records"},
+    {"capability":"Google Calendar","source":"Platform calendar uses Lovable connector gateway","outcome":"replace-platform-connector","status":"pending","next_action":"Configure direct Google authorization and preserve tested availability and booking rules"},
+    {"capability":"Payments and entitlements","source":"Existing payment endpoints and signed notifications","outcome":"preserve","status":"pending","next_action":"Retain provider accounts and verify test checkout, provisioning, idempotency and billing controls"},
+    {"capability":"Hostinger emails, CRM, learning, maps and reports","source":"Current functions, pages and provider integrations","outcome":"preserve","status":"pending","next_action":"Inventory all providers and test representative flows on isolated destination"},
+    {"capability":"Telephone bridge and transfer","source":"telephony-server and existing Twilio routing","outcome":"migrate-and-finish","status":"blocked","next_action":"Deploy persistent bridge after secure VPS setup; current natural phone service remains unfinished; approve bounded real-call test budget"},
+    {"capability":"Cutover and verification","source":"Approved migration plan","outcome":"verify-before-switch","status":"blocked","next_action":"Requires restorable backups, staged destination, parity checks and explicit DNS/webhook/routing approval"},
+    {"capability":"Invoice and auto-top-up reconciliation","source":"Paid invoice screenshot and read-only workspace tools","outcome":"clarify","status":"blocked","next_action":"Owner confirms invoice workspace and obtains purchase-trigger evidence; visible invoices total $230 but current auto-top-up tool reports never configured"}
+  ]
+}
