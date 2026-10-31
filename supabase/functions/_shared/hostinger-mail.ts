@@ -152,7 +152,7 @@ ${c.lastSaid ? `<div style="font-size:14px;color:${INK};font-style:italic;line-h
       + `<h2 style="font-size:17px;margin:0 0 8px;color:${INK}">Conversations (${convs.length})</h2>${convs.length ? convs.slice(0, 15).map(card).join('') + (convs.length > 15 ? p(`<span style="color:${MUTED}">+${convs.length - 15} more in the dashboard</span>`) : '') : p(`<span style="color:${MUTED}">None</span>`)}`
       + `<h2 style="font-size:17px;margin:14px 0 6px;color:${INK}">Follow-up requests (${s.followups.length})</h2>${list(s.followups)}`
       + `<h2 style="font-size:17px;margin:0 0 6px;color:${INK}">Booked calls (${s.bookings.length})</h2>${list(s.bookings)}`
-      + `<div style="margin:0 0 16px">${button(`${SITE}/dashboard/demo-history`, 'Review conversations')}${button(`${SITE}/dashboard/campaign-results`, 'Campaign Results', false)}</div>`
+      + `<div style="margin:0 0 16px">${button(`${SITE}/dashboard/sessions?tab=calls`, 'Review conversations')}${button(`${SITE}/dashboard/campaign-results`, 'Campaign Results', false)}</div>`
       + `<p style="margin:0 0 10px;font-size:12px;color:${MUTED}">Hot 60+, Warm 30–59, Cool under 30. Scores measure how engaged the caller was and which services they mentioned. They are not a prediction of buying.</p>` }),
   };
 };
