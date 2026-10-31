@@ -1,5 +1,8 @@
 # Current work
 
+- [ ] Add website-optional phone reception offer and clearly illustrative emergency-service walkthrough; explain document-led learning and preserve existing prices/telephone activation limits.
+- [ ] Recommend phone-minute accounting without adding a new fee or reusing browser allowances; wait for package approval and real runtime costs.
+
 - [x] Added Eastern/local call times, website voice/telephone origin and tab-scoped public page/section journeys; 23 tests pass and real prices/demo milestones returned 200. Deployed and sent owner digest: 25 conversations, 23 summaries. Caller location stays unavailable because no trusted geolocation source exists; no headquarters/area-code/timezone guesses or phone activation.
 - [x] Researched telephone-first tailored demos and smaller agency offers; documented sources and recommended a free bounded demo with unchanged plans and separately metered phone use, pending verified economics. No telephone activation or price changes.
 - [ ] Add verified coarse visitor city/country lookup: blocked on a documented trusted geolocation source or approved provider/privacy arrangement; no raw-IP forwarding or precise-location collection added.
