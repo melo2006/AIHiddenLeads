@@ -1,5 +1,13 @@
 # Current work
 
+## Approved outbound migration
+- [x] Reconciled visible paid invoices ($230) separately from workspace credit usage; inventoried existing app without changing live services.
+- [x] Created staged preservation/migration plan and capability ledger; identified direct calendar connector replacement and outdated portability guidance.
+- [ ] Obtain full private database/account export and separate storage files: blocked on owner's export/download actions.
+- [ ] Verify source-only AI Studio workflow and configure isolated independent destination: blocked on owner's Google/hosting access and backup availability.
+- [ ] Restore data, reconnect providers, verify all capabilities and cut over: blocked on staged destination, securely configured credentials, bounded provider-test budget and explicit cutover approval.
+- [ ] Resolve invoice auto-top-up discrepancy: blocked on matching invoice workspace and purchase-trigger records; current tool reports disabled/never configured.
+
 - [x] Added homepage phone-first offer and /services/voice document-led learning checklist plus fictional locksmith scenarios (lockout, parts/prices, hours). Browser choices verified at 390/707/1280px without overflow or errors; existing plan tests pass. Updated source sales guidance, not saved Aspen settings or phone routing. No live phone demo or automatic setup-link delivery claimed.
 - [x] Recommend unchanged monthly plans plus separate telephone usage rather than matching browser allowances or adding another $49/$99 fee. New bundles require explicit approval and verified runtime/transfer costs; none created.
 
