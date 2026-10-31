@@ -9,3 +9,4 @@
 - Scope compact homepage band spacing to the landing-page wrapper; the public navbar owns its height offset, so hero spacing must not reserve it again.
 - Persist wizard specialties, accepted guidance and restrictions in authorized drafts; review proposals before acceptance, preserve sources/base safety rules, expose service presence only to admins. Auditions are click-gated, unlock playback before saving and replay response audio locally.
 - Unlock Simli video/audio elements with play() synchronously inside the start tap; phones and in-app browsers refuse later play() after slow video startup. Report speaker blocks separately from microphone refusals.
+- Keep phone-offer walkthroughs in the shared illustrative module, separate from live voice and billing; fictional examples never dial, book or activate telephone routing.

@@ -1,5 +1,8 @@
 # Current work
 
+- [x] Added homepage phone-first offer and /services/voice document-led learning checklist plus fictional locksmith scenarios (lockout, parts/prices, hours). Browser choices verified at 390/707/1280px without overflow or errors; existing plan tests pass. Updated source sales guidance, not saved Aspen settings or phone routing. No live phone demo or automatic setup-link delivery claimed.
+- [x] Recommend unchanged monthly plans plus separate telephone usage rather than matching browser allowances or adding another $49/$99 fee. New bundles require explicit approval and verified runtime/transfer costs; none created.
+
 - [x] Added Eastern/local call times, website voice/telephone origin and tab-scoped public page/section journeys; 23 tests pass and real prices/demo milestones returned 200. Deployed and sent owner digest: 25 conversations, 23 summaries. Caller location stays unavailable because no trusted geolocation source exists; no headquarters/area-code/timezone guesses or phone activation.
 - [x] Researched telephone-first tailored demos and smaller agency offers; documented sources and recommended a free bounded demo with unchanged plans and separately metered phone use, pending verified economics. No telephone activation or price changes.
 - [ ] Add verified coarse visitor city/country lookup: blocked on a documented trusted geolocation source or approved provider/privacy arrangement; no raw-IP forwarding or precise-location collection added.

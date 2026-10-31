@@ -7,6 +7,7 @@ import LandingNavbar from "@/components/landing/LandingNavbar";
 import Footer from "@/components/landing/Footer";
 import { findServiceDetail } from "@/data/serviceDetails";
 import { supabase } from "@/integrations/supabase/client";
+import PhoneFirstOffer from "@/components/landing/PhoneFirstOffer";
 
 const ServiceDetail = () => {
   const { id } = useParams();
@@ -31,6 +32,7 @@ const ServiceDetail = () => {
           {s.details.map((d) => <li key={d} className="flex gap-2 text-sm"><Check className="h-4 w-4 shrink-0 text-primary mt-0.5" />{d}</li>)}
           {voicePrice != null && <li className="flex gap-2 text-sm"><Check className="h-4 w-4 shrink-0 text-primary mt-0.5" />Phone usage: {(voicePrice * 100).toFixed(1).replace(/\.0$/, "")}¢ per minute, billed by the second.</li>}
         </ul>
+        {id === 'voice' && <PhoneFirstOffer />}
         <div className="mt-8 flex flex-wrap gap-3">
           <Button asChild><Link to="/plans">{s.status === "available" ? "Get started" : "Pre-order"}</Link></Button>
           <Button asChild variant="outline"><Link to="/demo">Try my website — free demo</Link></Button>

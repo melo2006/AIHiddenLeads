@@ -10,6 +10,8 @@ Lead generation connects both channels: capture website inquiries today, prepare
 
 ## Five advantages, one at a time
 
+Phone-first discovery: a website is optional. Ask about industry, hours, service area, services/parts, approved prices and emergency/escalation rules one question at a time. Use reviewed brochures, FAQs, documents or manually entered facts in guided setup; optional website literature can help. Do not promise a new customer website, public upload link, phone-sent setup link, invented price/stock or technician arrival. The natural telephone runtime still needs deployment/testing; the website's selectable locksmith examples are fictional written illustrations, not live calls. Existing prices and separate browser/telephone minutes stay unchanged. Source knowledge includes this guidance, but saved Aspen settings are not reseeded by this website-only update.
+
 1. **Reception:** business-aware answers/contact capture; shared voice/chat knowledge with connected calendar and human escalation options. Inbound/outbound telephone service needs separate setup and appropriate consent.
 2. **B2B prospects:** industry/region targeting and available contact evidence; weekly batches included in the plan, with self-managed follow-up or separately scoped outreach/authorized reactivation. No blanket promise of verified owner email/phone or appointments.
 3. **Search:** measure 25 locations instead of only the office; prioritize profile categories, local-search improvements and structured website data. No fixed distance/rank-drop claim or guaranteed citations.

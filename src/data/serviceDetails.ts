@@ -16,7 +16,8 @@ export const SERVICE_DETAILS: ServiceDetail[] = [
     today: "Most small and mid-sized teams can't pick up every call or reply to every website question while they're serving customers.",
     solution: "Your AI receptionist, with whatever name you choose, answers visitors in natural two-way voice or chat, with optional live video. It collects the reason for the inquiry and appointment requests.",
     details: [
-      "Works from your reviewed website pages, FAQs, manuals and documents.",
+      "Website optional: learn from your reviewed pages, FAQs, service lists, parts information and documents—or enter the facts in guided setup.",
+      "Review business hours, service area, approved prices and emergency escalation rules before answering real callers. No invented quotes or arrival times.",
       "Phone forwarding: keep your existing number and forward it after hours, during busy times or all day.",
       "Warm transfer to a manager on Professional and Platinum, plus a private AI summary of each conversation.",
       "Phone minutes are billed separately at the published per-minute rate.",
