@@ -35,12 +35,11 @@ function layout(o: { preheader: string; title: string; body: string; footer?: st
 <span style="display:none;max-height:0;overflow:hidden">${esc(o.preheader)}</span>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;width:100%"><tr><td align="center" style="padding:8px 4px">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;width:100%;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden">
-<tr><td style="background:#ffffff;padding:16px 20px;border-bottom:4px solid ${GREEN}">
-<a href="${SITE}" style="text-decoration:none"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="vertical-align:middle"><img src="${LOGO}" alt="" width="44" height="44" style="width:44px;height:44px;border:0;display:block"></td><td style="vertical-align:middle;padding-left:10px;font-size:22px;font-weight:800;color:${INK};letter-spacing:-.3px">AI Hidden <span style="color:${GREEN}">Leads</span></td></tr></table></a>
+<tr><td style="background:#ffffff;padding:10px 16px;border-bottom:3px solid ${GREEN}">
+<a href="${SITE}" style="text-decoration:none"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="vertical-align:middle"><img src="${LOGO}" alt="" width="36" height="36" style="width:36px;height:36px;border:0;display:block"></td><td style="vertical-align:middle;padding-left:8px;font-size:20px;line-height:24px;font-weight:800;color:${INK};letter-spacing:-.3px">AI Hidden <span style="color:${GREEN}">Leads</span></td></tr></table></a>
 </td></tr>
-</td></tr>
-<tr><td style="padding:28px 24px 8px">
-<h1 style="margin:0 0 14px;font-size:22px;line-height:1.3;color:${INK}">${esc(o.title)}</h1>
+<tr><td style="padding:12px 16px 4px">
+<div style="margin:0 0 10px;font-size:20px;line-height:26px;font-weight:800;color:${INK}">${esc(o.title)}</div>
 ${o.body}
 </td></tr>
 <tr><td style="padding:18px 24px;background:#f8fafc;color:${MUTED};font-size:12px;line-height:1.5">
@@ -125,31 +124,45 @@ export const visitorFollowup = (c: Contact & { screenshot?: string | null; didDe
   };
 };
 
-export type SummaryConversation = { name: string; business: string; contact: string; minutes: number; score: number | null; interests: string[]; lastSaid: string; followup: boolean };
+export type Outcome = 'hung_up' | 'dropped' | 'no_speech' | 'completed';
+export const OUTCOME_LABEL: Record<Outcome, string> = { hung_up: 'Visitor hung up', dropped: 'Connection dropped', no_speech: 'Left without speaking', completed: 'Conversation ended' };
+// Classifies how a conversation ended from the recorded end reason and how much the visitor spoke.
+export const endOutcome = (reason: string | undefined, seconds: number, callerTurns: number): Outcome => {
+  if (!callerTurns) return 'no_speech';
+  if (reason === 'connection_closed' || reason === 'error' || reason === 'provider_error') return 'dropped';
+  if (reason === 'user_ended') return 'hung_up';
+  return seconds > 0 ? 'completed' : 'dropped';
+};
+export type SummaryConversation = { name: string; business: string; contact: string; minutes: number; seconds?: number; score: number | null; interests: string[]; summary: string | null; outcome: Outcome; followup: boolean };
 export const leadTier = (score: number | null) => score == null ? { label: 'No speech', color: '#64748b', bg: '#f1f5f9' } : score >= 60 ? { label: 'Hot', color: '#b91c1c', bg: '#fee2e2' } : score >= 30 ? { label: 'Warm', color: '#b45309', bg: '#fef3c7' } : { label: 'Cool', color: '#1d4ed8', bg: '#dbeafe' };
+const dur = (c: SummaryConversation) => c.seconds != null ? (c.seconds < 60 ? `${c.seconds}s` : `${Math.round(c.seconds / 60)} min`) : `${c.minutes} min`;
 
 export const dailySummary = (s: { day: string; visits: number; scans: number; voiceCalls: number; followups: string[]; bookings: string[]; conversations?: SummaryConversation[] }): Mail => {
-  const convs = [...(s.conversations || [])].sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+  const all = [...(s.conversations || [])].sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+  const convs = all.filter(c => c.outcome !== 'no_speech');
+  const tally = (o: Outcome) => all.filter(c => c.outcome === o).length;
   const hot = convs.filter(c => (c.score ?? 0) >= 60 || c.followup);
-  const stat = (n: number, l: string) => `<td align="center" width="25%" style="padding:12px 4px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px"><div style="font-size:26px;font-weight:800;color:${GREEN}">${n}</div><div style="font-size:12px;color:${MUTED}">${esc(l)}</div></td>`;
+  const stat = (n: number, l: string) => `<td align="center" width="25%" style="padding:8px 2px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px"><div style="font-size:22px;line-height:26px;font-weight:800;color:${GREEN}">${n}</div><div style="font-size:12px;color:${MUTED}">${esc(l)}</div></td>`;
   const list = (items: string[]) => items.length ? `<ul style="margin:0 0 16px;padding-left:20px">${items.map(i => `<li style="margin:4px 0;font-size:15px;color:${INK}">${esc(i)}</li>`).join('')}</ul>` : p(`<span style="color:${MUTED}">None</span>`);
-  const card = (c: SummaryConversation) => { const t = leadTier(c.score); return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 10px;border:1px solid #e2e8f0;border-left:4px solid ${t.color};border-radius:8px"><tr><td style="padding:12px 14px">
+  const card = (c: SummaryConversation) => { const t = leadTier(c.score); return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 8px;border:1px solid #e2e8f0;border-left:4px solid ${t.color};border-radius:8px"><tr><td style="padding:10px 12px">
 <div style="font-size:15px;font-weight:700;color:${INK}">${esc(c.name)}${c.business ? ` <span style="color:${MUTED};font-weight:400">· ${esc(c.business)}</span>` : ''}
 <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:700;background:${t.bg};color:${t.color}">${t.label}${c.score != null ? ` ${c.score}` : ''}</span>${c.followup ? ` <span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:700;background:#d1fae5;color:#047857">Asked for follow-up</span>` : ''}</div>
-<div style="font-size:13px;color:${MUTED};margin:4px 0">${c.minutes} min${c.contact ? ` · ${esc(c.contact)}` : ''}${c.interests.length ? ` · Interested in: <strong style="color:${INK}">${esc(c.interests.join(', '))}</strong>` : ''}</div>
-${c.lastSaid ? `<div style="font-size:14px;color:${INK};font-style:italic;line-height:1.5">“${esc(c.lastSaid.slice(0, 180))}”</div>` : ''}
+<div style="font-size:13px;color:${MUTED};margin:3px 0">${dur(c)} · ${OUTCOME_LABEL[c.outcome]}${c.contact ? ` · ${esc(c.contact)}` : ''}${c.interests.length ? ` · Interested in: <strong style="color:${INK}">${esc(c.interests.join(', '))}</strong>` : ''}</div>
+<div style="font-size:14px;color:${INK};line-height:1.5">${esc(c.summary || 'No AI summary available (transcript not saved).')}</div>
 </td></tr></table>`; };
+  const outcomes = `<div style="margin:0 0 14px;padding:10px 12px;background:#f8fafc;border-radius:8px;font-size:14px;line-height:1.6;color:${INK}"><strong>How ${all.length} conversation${all.length === 1 ? '' : 's'} ended:</strong> ${tally('hung_up')} hung up · ${tally('dropped')} connection dropped (technical) · ${tally('no_speech')} left without speaking${tally('completed') ? ` · ${tally('completed')} ended normally` : ''}</div>`;
   const action = hot.length
     ? `<div style="margin:0 0 18px;padding:14px 16px;background:#ecfdf5;border-left:4px solid ${GREEN};border-radius:8px;font-size:15px;color:${INK};line-height:1.5"><strong>Action today:</strong> follow up with ${hot.length} ${hot.length === 1 ? 'person' : 'people'} — ${esc(hot.slice(0, 3).map(c => c.name).join(', '))}${hot.length > 3 ? ' and more' : ''}.</div>`
     : `<div style="margin:0 0 18px;padding:14px 16px;background:#f8fafc;border-left:4px solid #94a3b8;border-radius:8px;font-size:15px;color:${INK}">No hot leads today. Nothing urgent to do.</div>`;
   return {
     to: OWNER_MAILBOX,
     subject: `${hot.length ? `🔥 ${hot.length} to follow up · ` : ''}AI Hidden Leads daily summary – ${s.day}`,
-    text: `Summary for the last 24 hours (${s.day}):\n\nSite visits: ${s.visits}\nWebsite demos started: ${s.scans}\nVoice conversations: ${s.voiceCalls}\n\nConversations:\n${convs.map(c => `- ${c.name} (${c.business || '—'}) ${leadTier(c.score).label}${c.score != null ? ' ' + c.score : ''}, ${c.minutes} min${c.interests.length ? ', interested in ' + c.interests.join(', ') : ''}`).join('\n') || '- none'}\n\nFollow-up requests (${s.followups.length}):\n${s.followups.map(f => '- ' + f).join('\n') || '- none'}\n\nBooked calls (${s.bookings.length}):\n${s.bookings.map(b => '- ' + b).join('\n') || '- none'}\n\nScores are a rule-based engagement indicator, not buying intent.\nFull details: ${SITE}/dashboard`,
+    text: `Summary for the last 24 hours (${s.day}):\n\nSite visits: ${s.visits}\nWebsite demos started: ${s.scans}\nVoice conversations: ${s.voiceCalls}\nEnded: ${tally('hung_up')} hung up, ${tally('dropped')} dropped, ${tally('no_speech')} no speech\n\nConversations:\n${convs.map(c => `- ${c.name} (${c.business || '—'}) ${leadTier(c.score).label}, ${dur(c)}, ${OUTCOME_LABEL[c.outcome]}: ${c.summary || 'no summary'}`).join('\n') || '- none'}\n\nFollow-up requests (${s.followups.length}):\n${s.followups.map(f => '- ' + f).join('\n') || '- none'}\n\nBooked calls (${s.bookings.length}):\n${s.bookings.map(b => '- ' + b).join('\n') || '- none'}\n\nScores are a rule-based engagement indicator, not buying intent.\nFull details: ${SITE}/dashboard`,
     html: layout({ preheader: `${hot.length} to follow up · ${s.voiceCalls} conversations · ${s.bookings.length} bookings`, title: `Daily summary · ${s.day}`, body:
       action
-      + `<table role="presentation" width="100%" cellpadding="0" cellspacing="4" style="margin:0 0 18px"><tr>${stat(s.visits, 'Site visits')}${stat(s.scans, 'Demos')}${stat(s.voiceCalls, 'Voice chats')}${stat(s.bookings.length, 'Booked')}</tr></table>`
-      + `<h2 style="font-size:17px;margin:0 0 8px;color:${INK}">Conversations (${convs.length})</h2>${convs.length ? convs.slice(0, 15).map(card).join('') + (convs.length > 15 ? p(`<span style="color:${MUTED}">+${convs.length - 15} more in the dashboard</span>`) : '') : p(`<span style="color:${MUTED}">None</span>`)}`
+      + `<table role="presentation" width="100%" cellpadding="0" cellspacing="4" style="margin:0 0 12px"><tr>${stat(s.visits, 'Site visits')}${stat(s.scans, 'Demos')}${stat(s.voiceCalls, 'Voice chats')}${stat(s.bookings.length, 'Booked')}</tr></table>`
+      + outcomes
+      + `<h2 style="font-size:17px;margin:0 0 8px;color:${INK}">Conversations with speech (${convs.length})</h2>${convs.length ? convs.slice(0, 15).map(card).join('') + (convs.length > 15 ? p(`<span style="color:${MUTED}">+${convs.length - 15} more in the dashboard</span>`) : '') : p(`<span style="color:${MUTED}">None</span>`)}`
       + `<h2 style="font-size:17px;margin:14px 0 6px;color:${INK}">Follow-up requests (${s.followups.length})</h2>${list(s.followups)}`
       + `<h2 style="font-size:17px;margin:0 0 6px;color:${INK}">Booked calls (${s.bookings.length})</h2>${list(s.bookings)}`
       + `<div style="margin:0 0 16px">${button(`${SITE}/dashboard/sessions?tab=calls`, 'Review conversations')}${button(`${SITE}/dashboard/campaign-results`, 'Campaign Results', false)}</div>`
