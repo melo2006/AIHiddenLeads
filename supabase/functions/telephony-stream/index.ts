@@ -44,7 +44,7 @@ Deno.serve(async (req) => {
       const { data: client } = await db.from('telephony_clients').select('id').eq('voice_number', p.To || '').eq('active', true).maybeSingle();
       if (!client) return xml('<Say>Sorry, this number is not set up yet. Goodbye.</Say><Hangup/>');
       const token = crypto.randomUUID() + crypto.randomUUID();
-      await db.from('telephony_calls').upsert({ client_id: client.id, call_sid: p.CallSid, from_phone: p.From || null, token_hash: await sha256(token), token_used: false, status: 'in_progress', transport: 'stream' }, { onConflict: 'call_sid' });
+      await db.from('telephony_calls').insert({ client_id: client.id, call_sid: p.CallSid, from_phone: p.From || null, token_hash: await sha256(token), token_used: false, status: 'in_progress', transport: 'stream' });
       return xml(`<Connect><Stream url="${escapeXml(wss)}"><Parameter name="token" value="${token}"/></Stream></Connect>`);
     }
 
