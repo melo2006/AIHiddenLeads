@@ -9,14 +9,14 @@ const toText = (t: unknown): string => Array.isArray(t) ? t.map((x: any) => `${x
 
 // One batched AI call: an English one-sentence summary per conversation. Falls back to null on any failure.
 async function aiSummaries(transcripts: string[]): Promise<(string | null)[]> {
-  const key = Deno.env.get('LOVABLE_API_KEY');
+  const key = Deno.env.get('GOOGLE_API_KEY');
   const idx = transcripts.map((t, i) => [i, t.slice(-3500)] as const).filter(([, t]) => t.trim().length > 0);
   if (!key || !idx.length) return transcripts.map(() => null);
   try {
-    const r = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const r = await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', {
       method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'google/gemini-3-flash-preview',
+        model: 'gemini-3-flash-preview',
         messages: [
           { role: 'system', content: 'You summarize sales-demo conversations between an AI assistant (Aspen) and a website visitor for the business owner. Always write in English, even if the transcript is in another language. For each conversation write ONE concise sentence (max 30 words): what the visitor wanted or asked, and how it ended. If the visitor barely spoke or only said noise/single words, say so plainly (e.g. "Visitor said almost nothing; likely background noise or a test."). Never invent details. Return JSON: {"summaries":[{"id":number,"summary":string}]}' },
           { role: 'user', content: idx.map(([i, t]) => `### id ${i}\n${t}`).join('\n\n') },

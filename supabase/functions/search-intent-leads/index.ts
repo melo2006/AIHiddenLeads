@@ -148,14 +148,14 @@ async function scoreLeadsBatch(
     `[RESULT ${idx + 1}]\nURL: ${r.url}\nTitle: ${r.title || "N/A"}\nContent: ${(r.markdown || r.description || "").substring(0, 500)}\n`
   ).join("\n---\n");
 
-  const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+  const aiResponse = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${lovableKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "google/gemini-3-flash-preview",
+      model: "gemini-3-flash-preview",
       messages: [
         {
           role: "system",
@@ -274,7 +274,7 @@ serve(async (req) => {
 
     const TAVILY_API_KEY = Deno.env.get("TAVILY_API_KEY");
     const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const GOOGLE_API_KEY = Deno.env.get("GOOGLE_API_KEY");
 
     if (!TAVILY_API_KEY && !FIRECRAWL_API_KEY) {
       return new Response(
@@ -282,7 +282,7 @@ serve(async (req) => {
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-    if (!LOVABLE_API_KEY) {
+    if (!GOOGLE_API_KEY) {
       return new Response(
         JSON.stringify({ success: false, error: "AI scoring not configured" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -353,7 +353,7 @@ serve(async (req) => {
     for (let i = 0; i < uniqueResults.length; i += batchSize) {
       const batch = uniqueResults.slice(i, i + batchSize);
       try {
-        const scored = await scoreLeadsBatch(LOVABLE_API_KEY, batch, niche, location);
+        const scored = await scoreLeadsBatch(GOOGLE_API_KEY, batch, niche, location);
         scoredLeads.push(...scored);
       } catch (err) {
         console.error("AI scoring failed for batch:", err);

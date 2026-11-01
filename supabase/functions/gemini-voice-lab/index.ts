@@ -1,9 +1,9 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
 
-const GATEWAY = 'https://ai.gateway.lovable.dev'
-const STT_MODEL = 'google/gemini-3.5-transcribe'
-const CHAT_MODEL = 'google/gemini-3.8-flash'
-const TTS_MODEL = 'google/gemini-3.1-flash-tts-preview'
+const GATEWAY = 'https://generativelanguage.googleapis.com/v1beta/openai'
+const STT_MODEL = 'gemini-3.5-transcribe'
+const CHAT_MODEL = 'gemini-3.8-flash'
+const TTS_MODEL = 'gemini-3.1-flash-tts-preview'
 
 const ASPEN_PROMPT = `You are Aspen, the friendly and professional AI assistant for AI Hidden Leads (aihiddenleads.com). You are a warm, enthusiastic woman who genuinely cares about helping businesses grow.
 
@@ -113,7 +113,7 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
-    const apiKey = Deno.env.get('LOVABLE_API_KEY')
+    const apiKey = Deno.env.get('GOOGLE_API_KEY')
     if (!apiKey) return json({ error: 'AI key not configured' }, 500)
 
     const contentType = req.headers.get('content-type') || ''

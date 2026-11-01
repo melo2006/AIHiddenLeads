@@ -2,7 +2,7 @@
 // Handles text messages AND voice notes (audio transcribed via Gemini multimodal)
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 
-const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+const GOOGLE_API_KEY = Deno.env.get('GOOGLE_API_KEY');
 const TWILIO_ACCOUNT_SID = Deno.env.get('TWILIO_ACCOUNT_SID');
 const TWILIO_AUTH_TOKEN = Deno.env.get('TWILIO_AUTH_TOKEN');
 
@@ -38,14 +38,14 @@ async function transcribeAudio(mediaUrl: string, contentType: string): Promise<s
   for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
   const b64 = btoa(bin);
 
-  const aiRes = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+  const aiRes = await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${LOVABLE_API_KEY}`,
+      Authorization: `Bearer ${GOOGLE_API_KEY}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'google/gemini-2.5-flash',
+      model: 'gemini-2.5-flash',
       messages: [
         {
           role: 'user',
@@ -62,14 +62,14 @@ async function transcribeAudio(mediaUrl: string, contentType: string): Promise<s
 }
 
 async function generateReply(userText: string, fromNumber: string): Promise<string> {
-  const aiRes = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+  const aiRes = await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${LOVABLE_API_KEY}`,
+      Authorization: `Bearer ${GOOGLE_API_KEY}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'google/gemini-2.5-flash',
+      model: 'gemini-2.5-flash',
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: `[WhatsApp de ${fromNumber}]\n${userText}` },

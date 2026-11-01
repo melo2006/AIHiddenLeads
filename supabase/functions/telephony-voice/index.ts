@@ -27,11 +27,11 @@ async function twilioApi(path: string, body?: URLSearchParams) {
 
 type Turn = { role: 'caller' | 'assistant'; text: string };
 async function aspenReply(instructions: string, history: Turn[]): Promise<{ reply: string; transfer: boolean; summary: string; end: boolean }> {
-  const key = Deno.env.get('LOVABLE_API_KEY');
-  const r = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+  const key = Deno.env.get('GOOGLE_API_KEY');
+  const r = await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', {
     method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'google/gemini-3.8-flash',
+      model: 'gemini-3.8-flash',
       messages: [{ role: 'system', content: `${instructions}\nRespond ONLY as JSON: {"reply": string, "transfer": boolean, "summary": "one sentence for the person receiving a transfer", "end": boolean (true only after saying goodbye)}` },
         ...(history.length ? history.map(t => ({ role: t.role === 'caller' ? 'user' : 'assistant', content: t.text })) : [{ role: 'user', content: '(The call just connected. Greet the caller.)' }])],
       response_format: { type: 'json_object' },
