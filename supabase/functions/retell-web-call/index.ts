@@ -71,17 +71,21 @@ GLOBAL RULES:
 - Never mention the current day, date, clock time, or exact time in the greeting.
 - If both instruction blocks are present, obey only the instructions for the active mode.`;
 
-// Service account credentials for aspen-calendar-bot
-const SERVICE_ACCOUNT = {
-  client_email: "aspen-calendar-bot@stunning-saga-490517-f1.iam.gserviceaccount.com",
-  private_key: "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQCfTMsLXQk/1PpV\ngw1tOG6JOkO8pFL0K+L2/K1Md92JqUHX6lNaYoOp4Ms4vlNR7K3qg4QY1doHo4j8\nm3NxoEsMzBlruM/iqOCcl6XMBWQmQn9uCg/jqVFj3CBVLiZJJ0pq7LXxQOy0Tv+l\naEpP2fJceJRjQ9r726qn+MoD8VbucFmDowNfxde4byPzM9V4aM0BOxIZbip0yPvE\nfmVUo5b5DOIjRge3FQ+bCTNeRyCKbp1J9vIn1f5N3SZXpqwB4mmm4h2vA5RrvaKK\nmhSBeQ/PqzVv+pdQ2jXKBp0vQAzj0GPqs4CTZNd6QUmllwrLoRUoH1+SlOlIXoEl\nZ/65eBJRAgMBAAECggEACv/dNE1qBlWRLIbmTjCbl0+l3jh1fuUp4JaNa86KBkeg\n44ULWN4dC8WZGrOvoqRGVP9cR2+6xJTC8HhWZhXkoL9WEQVbm2HAUqe4+8eyhN7K\nGEHLG5P1KgFI3UDYxWvYXF44aO5r+b5LsjLrkKxyqvZrfpgwnnvqQntwDYokT8Xn\nyifsxXqVePMgEL5Bhz0TWWf7W8hwVNT8Bvg80Q7U0P/9c8DnnmVcAIam0nj7UXL3\nypCjrDlz/PGkM3vslbpiyivT98i93eAgK0T8fibhFLRSnNSoTwfLFJA3dtxAhOrM\nK2s0kdcFNtfs5PfgYYzY5H6Xe35vSZy7lw6Qi2ZObQKBgQDTAVR5bUMeoDuoy9hx\n2aIQjvgnG8Ti3/7pSOKnp/+kCZeMH71dC/8FSewT6f9HUJr+obeSHQr/2lxK5y6E\nEPIzdKyxsKYHFF4wkaQo+Jll18wgky18/29zt2SBj5mY8Sb2K8jTS1vxks1hEv42\nl10mlDGkkauoWyLk5J8bVqznrQKBgQDBROaFrn3cUpAsLFwJ2xNbcQMh/dtIReWP\nS9U6x5L/sAnd+DMJ8ie9Ia8dNm5M+ZoSrvSIJRdwMaWXlsLaz78mK0WixtfEJwTQ\nsXWr/0G3p2AsfI7PSyybqztqPU15Cz0EyyEK7tEEO+8xSYFnGJpnl9jbXyn0mFFk\noH6wY4X5tQKBgG7Er/fep/GX5DnEaSe7PBy9MQA2z7DaLhOBM5sX0lfmwSvKLbp+\n5a19FPWPTXe+lN8/PgLyRCf0FacsnXqu+raQdWgCd+YXhyqwCiGH/9863enr2WFZ\nJsT0bUqme9eSIQXyDkb9tJKoojBnrBQ0ea4a9cSSxC5pSXQnoG7VnYcxAoGAJZmP\n94YA+nIdllpy9X/nfiy4XU6T8LWYeY5ZR3w4PwIyiTqWQ2MXFBaPiPFj+Bm/Pc9H\nx4zfyHYAL0OnWQZ9u6FDhO2GYKTurOM5b2LTmDU54q3A4tdPMGHZx0tx3RCwqFQU\nc5oOk/JNEJuqTzJcJ7dE+zjCYtGXVCpdO1fBYtkCgYAnHDiVSJGem+4hDHDn6wDm\njis8bxwN7I4ouVE2PpG75bbHJNGlmsAZcnZG2JptFRK513O1Lo/ENt3UUIwWZPIz\nR/0CRgTyzHXP6zk93K441egoM6sr6Wz1vfQ6NxQTmzlrNy/dN5y/bYAlimAZbp9e\nJYi8wKsWYjK8G5cBL+RPoA==\n-----END PRIVATE KEY-----\n",
-  token_uri: "https://oauth2.googleapis.com/token",
-};
+const SERVICE_ACCOUNT_TOKEN_URI = "https://oauth2.googleapis.com/token";
+
+function getServiceAccount(): { client_email: string; private_key: string; token_uri: string } {
+  const client_email = Deno.env.get('RETELL_SA_CLIENT_EMAIL');
+  const private_key = Deno.env.get('RETELL_SA_PRIVATE_KEY')?.replace(/\\n/g, '\n');
+  if (!client_email || !private_key) {
+    throw new Error('Retell calendar service account is not configured');
+  }
+  return { client_email, private_key, token_uri: SERVICE_ACCOUNT_TOKEN_URI };
+}
 
 function pemToArrayBuffer(pem: string): ArrayBuffer {
   const b64 = pem
-    .replace(/-----BEGIN PRIVATE KEY-----/g, '')
-    .replace(/-----END PRIVATE KEY-----/g, '')
+    .replace(/-----BEGIN\s+PRIVATE\s+KEY-----/g, '')
+    .replace(/-----END\s+PRIVATE\s+KEY-----/g, '')
     .replace(/\s/g, '');
   const binary = atob(b64);
   const bytes = new Uint8Array(binary.length);
@@ -90,12 +94,13 @@ function pemToArrayBuffer(pem: string): ArrayBuffer {
 }
 
 async function createSignedJwt(scope: string): Promise<string> {
+  const serviceAccount = getServiceAccount();
   const now = Math.floor(Date.now() / 1000);
   const header = { alg: 'RS256', typ: 'JWT' };
   const payload = {
-    iss: SERVICE_ACCOUNT.client_email,
+    iss: serviceAccount.client_email,
     scope,
-    aud: SERVICE_ACCOUNT.token_uri,
+    aud: serviceAccount.token_uri,
     iat: now,
     exp: now + 3600,
   };
@@ -105,7 +110,7 @@ async function createSignedJwt(scope: string): Promise<string> {
   const payloadB64 = base64url(enc.encode(JSON.stringify(payload)));
   const unsigned = `${headerB64}.${payloadB64}`;
 
-  const keyData = pemToArrayBuffer(SERVICE_ACCOUNT.private_key);
+  const keyData = pemToArrayBuffer(serviceAccount.private_key);
   const cryptoKey = await crypto.subtle.importKey(
     'pkcs8',
     keyData,
@@ -123,7 +128,7 @@ async function createSignedJwt(scope: string): Promise<string> {
 async function getGoogleAccessToken(): Promise<string> {
   const jwt = await createSignedJwt('https://www.googleapis.com/auth/calendar');
 
-  const res = await fetch(SERVICE_ACCOUNT.token_uri, {
+  const res = await fetch(SERVICE_ACCOUNT_TOKEN_URI, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
