@@ -32,7 +32,7 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
 
       - name: Apply drizzle/migrations (voice/telephony tables)
-        run: npm ci --no-audit --no-fund && npx drizzle-kit migrate
+        run: npm ci --no-audit --no-fund --legacy-peer-deps && npx drizzle-kit migrate
         env:
           LOVABLE_DB_MIGRATION_URL: postgresql://postgres:${{ secrets.SUPABASE_DB_PASSWORD }}@db.${{ secrets.SUPABASE_PROJECT_ID }}.supabase.co:5432/postgres
 
