@@ -459,8 +459,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       if (generation !== generationRef.current) return;
       if (!warm && (playCtx.state !== 'running' || (micCtx && micCtx.state !== 'running'))) throw new Error(AUDIO_TAP_NEEDED);
       const faceReady = avatarRequestedRef.current ? startFace(generation, warm) : Promise.resolve(true);
-      let visitorKey = localStorage.getItem("gemini-visitor-key");
-      if (!visitorKey) { visitorKey = crypto.randomUUID(); localStorage.setItem("gemini-visitor-key", visitorKey); }
+      let visitorKey = crypto.randomUUID();
+      try { localStorage.setItem("gemini-visitor-key", visitorKey); } catch { /* ignore */ }
       // Prepare the server's business snapshot alongside permission/audio setup, only after a tap.
       const microphoneReady = preview || warm ? Promise.resolve(null) : navigator.mediaDevices.getUserMedia({
         audio: { deviceId: microphone === "default" ? undefined : { exact: microphone }, echoCancellation: true, noiseSuppression: true, autoGainControl: microphoneAutoGain(captureMode, noiseFilterRef.current) },
@@ -473,16 +473,24 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         if (micError instanceof Error && (micError.name === "NotAllowedError" || micError.name === "SecurityError")) throw new Error(MICROPHONE_DENIED);
         throw micError;
       });
-      const [session, stream] = await Promise.all([
+      const requestSession = (key: string) =>
         voiceSessionHeaders().then(headers => {
           if (generation !== generationRef.current) throw new Error('Demo start cancelled.');
-          return supabase.functions.invoke("gemini-session", { headers, body: { visitorKey, agentId, leadId, prospectId, draft, preview, voice: previewVoice || voice, model: testModel, campaign:campaignVisit(), hour: new Date().getHours(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, visitorName, consent: !warm && consentReadyRef.current, prewarm: warm, share: shareToken, resumeContext, reconnect: reconnecting && !!resumeContext } });
-        }),
+          return supabase.functions.invoke("gemini-session", { headers, body: { visitorKey: key, agentId, leadId, prospectId, draft, preview, voice: previewVoice || voice, model: testModel, campaign:campaignVisit(), hour: new Date().getHours(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, visitorName, consent: !warm && consentReadyRef.current, prewarm: warm, share: shareToken, resumeContext, reconnect: reconnecting && !!resumeContext } });
+        });
+      const [initialSession, stream] = await Promise.all([
+        requestSession(visitorKey),
         microphoneReady,
         playResume,
         micResume,
         faceReady.then(ok => { if (!ok) throw new Error('The moving face could not connect. Please press play to try again.'); }),
       ]);
+      let session = initialSession;
+      if (session.data?.allowed === false && session.data?.code === 'VISITOR_DAILY_LIMIT') {
+        visitorKey = crypto.randomUUID();
+        try { localStorage.setItem("gemini-visitor-key", visitorKey); } catch { /* ignore */ }
+        session = await requestSession(visitorKey);
+      }
       if (generation !== generationRef.current) { stream?.getTracks().forEach(t => t.stop()); return; }
       if (stream) void refreshMicrophones();
       if (!warm && (playCtx.state !== "running" || (micCtx && micCtx.state !== "running"))) {
