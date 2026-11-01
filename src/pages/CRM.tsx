@@ -22,7 +22,6 @@ import TelephonyAdminView from "@/components/crm/TelephonyAdminView";
 import { Link } from "react-router-dom";
 import { CRMSidebar } from "@/components/crm/CRMSidebar";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -58,14 +57,17 @@ const AdminLogin = ({ onSignedIn }: { onSignedIn: () => void }) => {
 
   const handleGoogleLogin = async () => {
     setLoading(true);
-    const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: `${window.location.origin}/auth/callback`,
-      extraParams: { prompt: "select_account" },
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+        queryParams: { prompt: "select_account" },
+      },
     });
     setLoading(false);
 
-    if (result.error) {
-      const message = result.error.message || "";
+    if (error) {
+      const message = error.message || "";
       const canceled = /cancel|closed|popup|blocked/i.test(message);
       toast.error(canceled ? "Google sign-in canceled" : "Google sign-in failed", {
         description: canceled
@@ -77,15 +79,7 @@ const AdminLogin = ({ onSignedIn }: { onSignedIn: () => void }) => {
       return;
     }
 
-    if (result.redirected) {
-      // Browser is redirecting to Google; nothing more to do here.
-      return;
-    }
-
-    // Tokens were returned directly (e.g., in the Lovable preview iframe).
-    toast.success("Signed in with Google");
-    onSignedIn();
-    navigate("/dashboard/calls", { replace: true });
+    // Browser is redirecting to Google; nothing more to do here.
   };
 
   const handleLogin = async (event: FormEvent) => {

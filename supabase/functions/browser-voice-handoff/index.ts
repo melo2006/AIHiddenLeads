@@ -7,7 +7,6 @@ import { acceptsManager, escapeXml, ownerOutcome, sha256 } from '../_shared/brow
 const json=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
 const xml=(body:string)=>new Response(`<?xml version="1.0" encoding="UTF-8"?><Response>${body}</Response>`,{headers:{...corsHeaders,'Content-Type':'text/xml'}});
 const bodySchema=z.object({action:z.enum(['token','status','cancel']),handoffToken:z.string().min(32).max(200)});
-const gateway='https://connector-gateway.lovable.dev/twilio';
 const terminal=['failed','cancelled','completed'];
 const active=['queued','dialing_owner','awaiting_owner','joined'];
 
@@ -19,9 +18,9 @@ Deno.serve(async req=>{
  const apikey=Deno.env.get('SUPABASE_ANON_KEY')||Deno.env.get('SUPABASE_PUBLISHABLE_KEY')||'';
  const callback=(action:string,id:string)=>`${base}?action=${action}&id=${id}&apikey=${encodeURIComponent(apikey)}`;
  async function api(path:string,body?:URLSearchParams){
-  const key=Deno.env.get('TWILIO_API_KEY'), auth=Deno.env.get('LOVABLE_API_KEY');
-  if(!key||!auth) throw new Error('Twilio connection is unavailable');
-  const r=await fetch(`${gateway}${path}`,{method:body?'POST':'GET',headers:{Authorization:`Bearer ${auth}`,'X-Connection-Api-Key':key,...(body?{'Content-Type':'application/x-www-form-urlencoded'}:{})},body});
+  const accountSid=Deno.env.get('TWILIO_ACCOUNT_SID'), authToken=Deno.env.get('TWILIO_AUTH_TOKEN');
+  if(!accountSid||!authToken) throw new Error('Twilio connection is unavailable');
+  const r=await fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}${path}`,{method:body?'POST':'GET',headers:{Authorization:`Basic ${btoa(`${accountSid}:${authToken}`)}`,...(body?{'Content-Type':'application/x-www-form-urlencoded'}:{})},body});
   if(!r.ok){const detail=await r.text();console.error('Twilio handoff request failed',r.status,detail);throw new Error(`Twilio request failed (${r.status})`);}
   return r.json();
  }

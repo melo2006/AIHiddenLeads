@@ -6,7 +6,7 @@ const corsHeaders = {
 };
 
 const FIRECRAWL_BASE = 'https://api.firecrawl.dev/v1';
-const LOVABLE_AI_BASE = 'https://ai.gateway.lovable.dev/v1/chat/completions';
+const GOOGLE_AI_BASE = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
 const EXA_BASE = 'https://api.exa.ai';
 const HUNTER_BASE = 'https://api.hunter.io/v2';
 
@@ -341,7 +341,7 @@ Deno.serve(async (req) => {
     }
 
     const firecrawlKey = Deno.env.get('FIRECRAWL_API_KEY');
-    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
+    const googleApiKey = Deno.env.get('GOOGLE_API_KEY');
     const exaApiKey = Deno.env.get('EXA_API_KEY');
     const hunterApiKey = Deno.env.get('HUNTER_API_KEY');
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -480,7 +480,7 @@ Deno.serve(async (req) => {
     // Step 2: AI Sales Analysis
     let aiAnalysis = '';
     let enrichmentData: Record<string, any> = {};
-    if (lovableApiKey) {
+    if (googleApiKey) {
       try {
         const structuredSummary = [
           `Business: ${businessData.business_name || business_name}`,
@@ -503,14 +503,14 @@ Deno.serve(async (req) => {
           hunterData?.emails?.length ? `\nEmails found (Hunter.io):\n${hunterData.emails.map(e => `${e.email} (${e.firstName || ''} ${e.lastName || ''}, ${e.position || 'unknown role'}, ${e.type})`).join('\n')}` : '',
         ].filter(Boolean).join('\n');
 
-        const response = await fetch(LOVABLE_AI_BASE, {
+        const response = await fetch(GOOGLE_AI_BASE, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${lovableApiKey}`,
+            'Authorization': `Bearer ${googleApiKey}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: 'google/gemini-2.5-flash',
+            model: 'gemini-2.5-flash',
             temperature: 0.3,
             messages: [
               {

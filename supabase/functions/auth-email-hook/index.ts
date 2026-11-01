@@ -1,6 +1,5 @@
 import * as React from 'npm:react@18.3.1'
 import { renderAsync } from 'npm:@react-email/components@0.0.22'
-import { createAuthEmailHandler } from 'npm:@lovable.dev/email-js@0.4.0'
 import { SignupEmail } from '../_shared/email-templates/signup.tsx'
 import { InviteEmail } from '../_shared/email-templates/invite.tsx'
 import { MagicLinkEmail } from '../_shared/email-templates/magic-link.tsx'
@@ -8,18 +7,24 @@ import { RecoveryEmail } from '../_shared/email-templates/recovery.tsx'
 import { EmailChangeEmail } from '../_shared/email-templates/email-change.tsx'
 import { ReauthenticationEmail } from '../_shared/email-templates/reauthentication.tsx'
 
+// Migration note: this function previously sent Supabase Auth emails through
+// Lovable's proprietary email service (npm:@lovable.dev/email-js, LOVABLE_API_KEY).
+// That service does not exist outside Lovable, so this file now renders the same
+// React templates and sends them directly via the Resend API (RESEND_API_KEY).
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers':
-    'authorization, x-client-info, apikey, content-type, x-lovable-signature, x-lovable-timestamp, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
+    'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 }
 
 // Configuration
 const SITE_NAME = "Ai Hidden Leads"
-const SENDER_DOMAIN = "notify.aihiddenleads.com"
 const ROOT_DOMAIN = "aihiddenleads.com"
 const FROM_DOMAIN = "aihiddenleads.com"
 const SITE_URL = `https://${ROOT_DOMAIN}`
+const FROM = `${SITE_NAME} <noreply@${FROM_DOMAIN}>`
+const RESEND_URL = 'https://api.resend.com/emails'
 
 // Template mapping for preview mode
 const EMAIL_TEMPLATES: Record<string, React.ComponentType<any>> = {
@@ -29,6 +34,15 @@ const EMAIL_TEMPLATES: Record<string, React.ComponentType<any>> = {
   recovery: RecoveryEmail,
   email_change: EmailChangeEmail,
   reauthentication: ReauthenticationEmail,
+}
+
+const SUBJECTS: Record<string, string> = {
+  signup: 'Confirm your email',
+  invite: "You've been invited",
+  magiclink: 'Your login link',
+  recovery: 'Reset your password',
+  email_change: 'Confirm your new email',
+  reauthentication: 'Your verification code',
 }
 
 // Sample data for preview mode ONLY (not used in actual email sending).
@@ -70,6 +84,136 @@ const SAMPLE_DATA: Record<string, object> = {
   },
 }
 
+function jsonResponse(body: unknown, status: number, extraHeaders: Record<string, string> = {}) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json', ...extraHeaders },
+  })
+}
+
+function buildConfirmationUrl(emailData: Record<string, any>): string {
+  const siteUrl = (emailData.site_url || SITE_URL).replace(/\/$/, '')
+  const params = new URLSearchParams({
+    token: emailData.token_hash ?? '',
+    type: emailData.email_action_type ?? '',
+    redirect_to: emailData.redirect_to ?? '',
+  })
+  return `${siteUrl}/auth/verify?${params.toString()}`
+}
+
+function buildTemplateElement(
+  type: string,
+  user: Record<string, any>,
+  emailData: Record<string, any>,
+): React.ReactElement {
+  const confirmationUrl = buildConfirmationUrl(emailData)
+  switch (type) {
+    case 'signup':
+      return React.createElement(SignupEmail, {
+        siteName: SITE_NAME,
+        siteUrl: SITE_URL,
+        recipient: user.email,
+        confirmationUrl,
+      })
+    case 'invite':
+      return React.createElement(InviteEmail, {
+        siteName: SITE_NAME,
+        siteUrl: SITE_URL,
+        confirmationUrl,
+      })
+    case 'magiclink':
+      return React.createElement(MagicLinkEmail, {
+        siteName: SITE_NAME,
+        confirmationUrl,
+      })
+    case 'recovery':
+      return React.createElement(RecoveryEmail, {
+        siteName: SITE_NAME,
+        confirmationUrl,
+      })
+    case 'email_change':
+      return React.createElement(EmailChangeEmail, {
+        siteName: SITE_NAME,
+        oldEmail: user.email ?? '',
+        email: user.email,
+        newEmail: user.new_email ?? '',
+        confirmationUrl,
+      })
+    case 'reauthentication':
+      return React.createElement(ReauthenticationEmail, { token: emailData.token ?? '' })
+    default:
+      throw new Error(`Unknown email type: ${type}`)
+  }
+}
+
+// Supabase Auth "Send Email" hook handler. Payload shape:
+// { user: { email, new_email?, ... }, email_data: { email_action_type, token, token_hash, redirect_to, site_url } }
+async function handleAuthEmail(req: Request): Promise<Response> {
+  const hookSecret = Deno.env.get('AUTH_EMAIL_HOOK_SECRET')
+  const provided = new URL(req.url).searchParams.get('secret')
+  if (!hookSecret || provided !== hookSecret) {
+    return jsonResponse({ error: 'Unauthorized' }, 401)
+  }
+
+  let payload: any
+  try {
+    payload = await req.json()
+  } catch {
+    return jsonResponse({ error: 'Invalid JSON in request body' }, 400)
+  }
+
+  const user = payload?.user ?? {}
+  const emailData = payload?.email_data ?? {}
+  const type: string | undefined = emailData.email_action_type
+  const to: string | undefined = user.email
+
+  if (!type || !SUBJECTS[type] || !EMAIL_TEMPLATES[type]) {
+    return jsonResponse({ error: `Unknown email type: ${type ?? 'missing'}` }, 400)
+  }
+  if (!to) {
+    return jsonResponse({ error: 'Missing recipient email in payload' }, 400)
+  }
+
+  let html: string
+  try {
+    html = await renderAsync(buildTemplateElement(type, user, emailData))
+  } catch (error) {
+    return jsonResponse({ error: `Template render failed: ${error instanceof Error ? error.message : 'unknown error'}` }, 500)
+  }
+
+  const resendKey = Deno.env.get('RESEND_API_KEY')
+  if (!resendKey) {
+    return jsonResponse({ error: 'RESEND_API_KEY is not configured' }, 500)
+  }
+
+  let res: Response
+  try {
+    res = await fetch(RESEND_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${resendKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ from: FROM, to: [to], subject: SUBJECTS[type], html }),
+    })
+  } catch (error) {
+    return jsonResponse({ error: `Resend request failed: ${error instanceof Error ? error.message : 'unknown error'}` }, 500)
+  }
+
+  if (!res.ok) {
+    let detail = res.statusText
+    try {
+      const data = await res.json()
+      if (data && typeof data.message === 'string') detail = data.message
+    } catch {
+      // keep statusText
+    }
+    return jsonResponse({ error: `Resend error (${res.status}): ${detail}` }, 500)
+  }
+
+  return jsonResponse({}, 200)
+}
+
 // Preview endpoint handler - returns rendered HTML without sending email
 async function handlePreview(req: Request): Promise<Response> {
   const previewCorsHeaders = {
@@ -81,10 +225,10 @@ async function handlePreview(req: Request): Promise<Response> {
     return new Response(null, { headers: previewCorsHeaders })
   }
 
-  const apiKey = Deno.env.get('LOVABLE_API_KEY')
+  const hookSecret = Deno.env.get('AUTH_EMAIL_HOOK_SECRET')
   const authHeader = req.headers.get('Authorization')
 
-  if (!apiKey || authHeader !== `Bearer ${apiKey}`) {
+  if (!hookSecret || authHeader !== `Bearer ${hookSecret}`) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,
       headers: { ...previewCorsHeaders, 'Content-Type': 'application/json' },
@@ -120,68 +264,6 @@ async function handlePreview(req: Request): Promise<Response> {
   })
 }
 
-// The SDK handler owns verification, dispatch, and retry semantics; this file
-// owns only the email decisions: subjects, templates, and per-type props.
-const handler = createAuthEmailHandler({
-  apiKey: Deno.env.get('LOVABLE_API_KEY')!,
-  from: `${SITE_NAME} <noreply@${FROM_DOMAIN}>`,
-  senderDomain: SENDER_DOMAIN,
-  sendUrl: Deno.env.get('LOVABLE_SEND_URL'),
-  emails: {
-    signup: {
-      subject: 'Confirm your email',
-      render: (data) =>
-        React.createElement(SignupEmail, {
-          siteName: SITE_NAME,
-          siteUrl: SITE_URL,
-          recipient: data.email,
-          confirmationUrl: data.url,
-        }),
-    },
-    invite: {
-      subject: "You've been invited",
-      render: (data) =>
-        React.createElement(InviteEmail, {
-          siteName: SITE_NAME,
-          siteUrl: SITE_URL,
-          confirmationUrl: data.url,
-        }),
-    },
-    magiclink: {
-      subject: 'Your login link',
-      render: (data) =>
-        React.createElement(MagicLinkEmail, {
-          siteName: SITE_NAME,
-          confirmationUrl: data.url,
-        }),
-    },
-    recovery: {
-      subject: 'Reset your password',
-      render: (data) =>
-        React.createElement(RecoveryEmail, {
-          siteName: SITE_NAME,
-          confirmationUrl: data.url,
-        }),
-    },
-    email_change: {
-      subject: 'Confirm your new email',
-      render: (data) =>
-        React.createElement(EmailChangeEmail, {
-          siteName: SITE_NAME,
-          oldEmail: data.old_email ?? '',
-          email: data.email,
-          newEmail: data.new_email ?? '',
-          confirmationUrl: data.url,
-        }),
-    },
-    reauthentication: {
-      subject: 'Your verification code',
-      render: (data) =>
-        React.createElement(ReauthenticationEmail, { token: data.token ?? '' }),
-    },
-  },
-})
-
 Deno.serve(async (req) => {
   const url = new URL(req.url)
 
@@ -195,5 +277,5 @@ Deno.serve(async (req) => {
     return handlePreview(req)
   }
 
-  return handler(req)
+  return handleAuthEmail(req)
 })

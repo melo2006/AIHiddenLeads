@@ -7,10 +7,9 @@ const corsHeaders = {
 };
 
 const RETELL_BASE = 'https://api.retellai.com';
-const LOVABLE_AI_BASE = 'https://ai.gateway.lovable.dev/v1/chat/completions';
+const GOOGLE_AI_BASE = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
 const RESEND_BASE = 'https://api.resend.com/emails';
 const GOOGLE_CALENDAR_API = 'https://www.googleapis.com/calendar/v3';
-const TWILIO_GATEWAY_URL = 'https://connector-gateway.lovable.dev/twilio';
 const DEFAULT_OWNER_NAME = 'your dedicated specialist';
 const TESTING_INBOX_EMAIL = 'melo2006@gmail.com';
 const DEFAULT_TIME_ZONE = 'America/New_York';
@@ -1021,7 +1020,7 @@ async function summarizeTranscript({
   ownerName,
   ownerPhone,
   ownerEmail,
-  lovableApiKey,
+  googleApiKey,
   existingSummary,
 }: {
   transcript: string;
@@ -1029,7 +1028,7 @@ async function summarizeTranscript({
   ownerName: string;
   ownerPhone: string;
   ownerEmail: string;
-  lovableApiKey?: string;
+  googleApiKey?: string;
   existingSummary?: string;
 }) {
   const ownerNamePattern = ownerName.trim()
@@ -1048,9 +1047,9 @@ async function summarizeTranscript({
   const fallbackCallerEmail = extractCallerEmailFromTranscript(transcript);
   const fallbackCallerPhone = extractCallerPhoneFromTranscript(transcript);
 
-  if (!lovableApiKey) {
+  if (!googleApiKey) {
     return {
-      summary: existingSummary || 'Call completed. AI summary is unavailable because LOVABLE_API_KEY is not configured.',
+      summary: existingSummary || 'Call completed. AI summary is unavailable because GOOGLE_API_KEY is not configured.',
       nextStep: fallbackFlags.appointmentRequested
         ? 'Confirm the requested appointment time and send the owner the details.'
         : fallbackFlags.transferRequested
@@ -1067,14 +1066,14 @@ async function summarizeTranscript({
     };
   }
 
-  const response = await fetch(LOVABLE_AI_BASE, {
+  const response = await fetch(GOOGLE_AI_BASE, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${lovableApiKey}`,
+      'Authorization': `Bearer ${googleApiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'google/gemini-2.5-flash',
+      model: 'gemini-2.5-flash',
       temperature: 0.2,
       response_format: { type: 'json_object' },
       messages: [
@@ -1367,23 +1366,23 @@ Deno.serve(async (req) => {
     const action = body.action || 'create-web-call';
 
     if (action === 'chat-completion') {
-      const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
-      if (!lovableApiKey) {
-        return jsonResponse({ error: 'LOVABLE_API_KEY not configured' }, 500);
+      const googleApiKey = Deno.env.get('GOOGLE_API_KEY');
+      if (!googleApiKey) {
+        return jsonResponse({ error: 'GOOGLE_API_KEY not configured' }, 500);
       }
 
       const systemPrompt = body.systemPrompt || 'You are a helpful assistant.';
       const chatMessages = Array.isArray(body.messages) ? body.messages : [];
 
       try {
-        const response = await fetch(LOVABLE_AI_BASE, {
+        const response = await fetch(GOOGLE_AI_BASE, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${lovableApiKey}`,
+            'Authorization': `Bearer ${googleApiKey}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: 'google/gemini-2.5-flash',
+            model: 'gemini-2.5-flash',
             temperature: 0.7,
             messages: [
               { role: 'system', content: systemPrompt },
@@ -1437,7 +1436,7 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: 'RESEND_API_KEY not configured' }, 500);
       }
 
-      const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
+      const googleApiKey = Deno.env.get('GOOGLE_API_KEY');
       const supabaseUrl = Deno.env.get('SUPABASE_URL');
       const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
       const callId = typeof body.callId === 'string' ? body.callId : '';
@@ -1478,7 +1477,7 @@ Deno.serve(async (req) => {
         ownerName: resolvedOwnerName,
         ownerPhone,
         ownerEmail: effectiveOwnerEmail,
-        lovableApiKey: lovableApiKey || undefined,
+        googleApiKey: googleApiKey || undefined,
         existingSummary: callData?.call_analysis?.call_summary || callData?.call_analysis?.summary,
       });
 
@@ -1903,14 +1902,9 @@ Deno.serve(async (req) => {
 
 
     if (action === 'warm-transfer') {
-      const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
-      if (!lovableApiKey) {
-        return jsonResponse({ error: 'LOVABLE_API_KEY not configured' }, 500);
-      }
-
-      const twilioApiKey = Deno.env.get('TWILIO_API_KEY');
-      if (!twilioApiKey) {
-        return jsonResponse({ error: 'TWILIO_API_KEY not configured' }, 500);
+      const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID'), authToken = Deno.env.get('TWILIO_AUTH_TOKEN');
+      if (!accountSid || !authToken) {
+        return jsonResponse({ error: 'TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN not configured' }, 500);
       }
 
       const transferTo = normalizePhoneNumber(body.transferTo) || DEFAULT_TRANSFER_NUMBER;
@@ -1936,11 +1930,10 @@ Deno.serve(async (req) => {
       const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Say voice="Polly.Joanna-Neural" language="en-US">${escapeXml(`Hello ${resolvedOwnerName}. This is Aspen.`)}</Say><Pause length="1"/><Say voice="Polly.Joanna-Neural" language="en-US">${escapeXml(callbackSummary)}</Say></Response>`;
 
       try {
-        const response = await fetch(`${TWILIO_GATEWAY_URL}/Calls.json`, {
+        const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Calls.json`, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${lovableApiKey}`,
-            'X-Connection-Api-Key': twilioApiKey,
+            'Authorization': `Basic ${btoa(`${accountSid}:${authToken}`)}`,
             'Content-Type': 'application/x-www-form-urlencoded',
           },
           body: new URLSearchParams({

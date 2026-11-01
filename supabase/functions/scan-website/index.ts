@@ -7,7 +7,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { learningLinks } from '../_shared/website-learning.ts';
 
 const FIRECRAWL_BASE = 'https://api.firecrawl.dev/v1';
-const LOVABLE_AI_BASE = 'https://ai.gateway.lovable.dev/v1/chat/completions';
+const GOOGLE_AI_BASE = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
 const ALLOWED_NICHES = ['realtors', 'medspa', 'autodetail', 'veterinary', 'marine', 'general'] as const;
 type AllowedNiche = (typeof ALLOWED_NICHES)[number];
 
@@ -732,7 +732,7 @@ async function webResearch(firecrawlKey: string, queries: string[]): Promise<str
 }
 
 async function analyzeBusinessProfile({
-  lovableApiKey,
+  googleApiKey,
   websiteUrl,
   providedBusinessName,
   initialNiche,
@@ -741,7 +741,7 @@ async function analyzeBusinessProfile({
   homepageMarkdown,
   combinedContent,
 }: {
-  lovableApiKey?: string | null;
+  googleApiKey?: string | null;
   websiteUrl: string;
   providedBusinessName?: string | null;
   initialNiche?: string | null;
@@ -754,7 +754,7 @@ async function analyzeBusinessProfile({
   const fallbackName = cleanText(providedBusinessName) || cleanText(title) || getHost(websiteUrl) || 'This business';
   const fallbackSummary = cleanText(description) || `Modern, clearer positioning for ${fallbackName}.`;
 
-  if (!lovableApiKey) {
+  if (!googleApiKey) {
     return {
       businessName: fallbackName,
       detectedNiche: fallbackNiche,
@@ -786,14 +786,14 @@ async function analyzeBusinessProfile({
   );
 
   try {
-    const response = await fetch(LOVABLE_AI_BASE, {
+    const response = await fetch(GOOGLE_AI_BASE, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${lovableApiKey}`,
+        'Authorization': `Bearer ${googleApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'gemini-2.5-flash',
         temperature: 0.2,
         response_format: { type: 'json_object' },
         messages: [
@@ -948,7 +948,7 @@ async function backgroundEnrich(
   supabaseUrl: string,
   supabaseServiceKey: string,
   firecrawlKey: string,
-  lovableApiKey: string | undefined,
+  googleApiKey: string | undefined,
   profile: Awaited<ReturnType<typeof analyzeBusinessProfile>>,
   initialNiche: string | undefined,
   existingContent: string,
@@ -981,16 +981,16 @@ async function backgroundEnrich(
     console.log('Background enrichment: gathered', researchResults.length, 'snippets');
 
     // AI enrichment pass
-    if (webResearchContent && lovableApiKey) {
+    if (webResearchContent && googleApiKey) {
       try {
-        const enrichResponse = await fetch(LOVABLE_AI_BASE, {
+        const enrichResponse = await fetch(GOOGLE_AI_BASE, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${lovableApiKey}`,
+            'Authorization': `Bearer ${googleApiKey}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: 'google/gemini-2.5-flash',
+            model: 'gemini-2.5-flash',
             temperature: 0.2,
             response_format: { type: 'json_object' },
             messages: [
@@ -1111,7 +1111,7 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
+    const googleApiKey = Deno.env.get('GOOGLE_API_KEY');
 
     if (!supabaseUrl || !supabaseServiceKey) {
       return new Response(
@@ -1359,7 +1359,7 @@ Deno.serve(async (req) => {
 
     // === PHASE 3: AI profile analysis ===
     const profile = await analyzeBusinessProfile({
-      lovableApiKey,
+      googleApiKey,
       websiteUrl: formattedUrl,
       providedBusinessName: cleanText(businessName),
       initialNiche,
@@ -1455,7 +1455,7 @@ Deno.serve(async (req) => {
         supabaseUrl,
         supabaseServiceKey,
         firecrawlKey,
-        lovableApiKey || undefined,
+        googleApiKey || undefined,
         profile,
         initialNiche,
         additionalContent,
