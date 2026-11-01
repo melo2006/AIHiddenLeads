@@ -5,6 +5,11 @@ name: Deploy Supabase schema and functions
 
 on:
   workflow_dispatch:
+    inputs:
+      skip_migrations:
+        description: 'Skip schema migrations (functions-only redeploy; schema already applied)'
+        type: boolean
+        default: false
 
 jobs:
   deploy:
@@ -27,11 +32,13 @@ jobs:
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
       - name: Apply supabase/migrations (core 24 tables)
+        if: ${{ !inputs.skip_migrations }}
         run: supabase db push
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
 
       - name: Apply drizzle/migrations (voice/telephony tables) via psql
+        if: ${{ !inputs.skip_migrations }}
         # drizzle-kit exits silently (code 1, no error) in CI, so apply the plain-SQL
         # migration files directly with psql, which reports real Postgres errors.
         # ON_ERROR_STOP=1 halts on the first failing statement.
