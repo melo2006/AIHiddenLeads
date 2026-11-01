@@ -34,28 +34,33 @@ jobs:
           END
           \$\$;"
 
-      - name: Restore public schema data
+      - name: Restore auth users + identities (FK-safe order, no trigger tricks)
         env:
           PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           export PATH=/usr/lib/postgresql/17/bin:$PATH
           DUMP=migration/lovable-data/aihiddenleads_261101.backup
-          pg_restore -l "$DUMP" | grep "TABLE DATA public" > /tmp/public.list
-          pg_restore -l "$DUMP" | grep "SEQUENCE SET" >> /tmp/public.list
-          echo "restore entries: $(wc -l < /tmp/public.list)"
-          pg_restore --no-owner --disable-triggers --use-list=/tmp/public.list \
+          > /tmp/auth.list
+          for t in users identities; do
+            pg_restore -l "$DUMP" | grep "TABLE DATA auth $t " >> /tmp/auth.list
+          done
+          echo "auth entries: $(wc -l < /tmp/auth.list)"
+          pg_restore --no-owner --use-list=/tmp/auth.list \
             -h aws-0-us-east-1.pooler.supabase.com -p 5432 \
             -U postgres.mrtvqttecdfgphgxeygj -d postgres "$DUMP"
 
-      - name: Restore auth schema data (minus instances + schema_migrations)
+      - name: Restore public schema data (FK-safe order, no trigger tricks)
         env:
           PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           export PATH=/usr/lib/postgresql/17/bin:$PATH
           DUMP=migration/lovable-data/aihiddenleads_261101.backup
-          pg_restore -l "$DUMP" | grep "TABLE DATA auth" | grep -v "TABLE DATA auth instances " | grep -v "TABLE DATA auth schema_migrations " > /tmp/auth.list
-          echo "restore entries: $(wc -l < /tmp/auth.list)"
-          pg_restore --no-owner --disable-triggers --use-list=/tmp/auth.list \
+          > /tmp/public.list
+          for t in ad_scan_jobs campaign_visit_events campaigns conversation_records custom_avatar_credits demo_call_attempts implementation_calls imported_lists intent_leads leads prospects rank_scan_cache scraping_usage short_links sms_opt_outs telephony_pricing voice_guardrails voice_organizations voice_platform_roles subscriptions scraped_ads campaign_sequences conversation_copy_links imported_leads call_history demo_chat_interactions prospect_enrichment_jobs sms_delivery_log voice_agents voice_memberships campaign_sequence_steps prospect_sequence_enrollments call_event_logs call_transfer_jobs prospect_enrichment_job_items customer_workspaces gemini_voice_sessions telephony_clients voice_agent_sources voice_agent_versions voice_demo_shares browser_voice_handoffs telephony_calls telephony_usage; do
+            pg_restore -l "$DUMP" | grep "TABLE DATA public $t " >> /tmp/public.list
+          done
+          echo "public entries: $(wc -l < /tmp/public.list)"
+          pg_restore --no-owner --use-list=/tmp/public.list \
             -h aws-0-us-east-1.pooler.supabase.com -p 5432 \
             -U postgres.mrtvqttecdfgphgxeygj -d postgres "$DUMP"
 
@@ -78,8 +83,10 @@ jobs:
           \$\$;"
           echo '--- row counts after import ---'
           $PSQL -t -c "SELECT 'auth.users=' || count(*) FROM auth.users;"
+          $PSQL -t -c "SELECT 'auth.identities=' || count(*) FROM auth.identities;"
           $PSQL -t -c "SELECT 'leads=' || count(*) FROM public.leads;"
           $PSQL -t -c "SELECT 'prospects=' || count(*) FROM public.prospects;"
           $PSQL -t -c "SELECT 'campaigns=' || count(*) FROM public.campaigns;"
           $PSQL -t -c "SELECT 'subscriptions=' || count(*) FROM public.subscriptions;"
           $PSQL -t -c "SELECT 'telephony_calls=' || count(*) FROM public.telephony_calls;"
+          $PSQL -t -c "SELECT 'voice_agents=' || count(*) FROM public.voice_agents;"
