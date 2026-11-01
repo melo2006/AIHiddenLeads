@@ -13,7 +13,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
-const TWILIO_GATEWAY_URL = 'https://connector-gateway.lovable.dev/twilio';
 const TWILIO_CALLER_ID = '+15612755757';
 const DEFAULT_OWNER_NAME = 'your dedicated specialist';
 const DEFAULT_TRANSFER_NUMBER = '+19547706622';
@@ -118,33 +117,24 @@ const parseFormBody = async (req: Request) => {
   return new URLSearchParams(rawBody);
 };
 
-const twilioRequest = (
-  lovableApiKey: string,
-  twilioApiKey: string,
-  path: string,
-  body: URLSearchParams,
-) =>
-  fetch(`${TWILIO_GATEWAY_URL}${path}`, {
+const twilioRequest = (path: string, body: URLSearchParams) => {
+  const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID'), authToken = Deno.env.get('TWILIO_AUTH_TOKEN');
+  if (!accountSid || !authToken) throw new Error('Twilio connection is unavailable');
+  return fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}${path}`, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${lovableApiKey}`,
-      'X-Connection-Api-Key': twilioApiKey,
+      'Authorization': `Basic ${btoa(`${accountSid}:${authToken}`)}`,
       'Content-Type': 'application/x-www-form-urlencoded',
     },
     body,
   });
+};
 
-const completeTwilioCall = async (
-  lovableApiKey: string,
-  twilioApiKey: string,
-  callSid?: string | null,
-) => {
+const completeTwilioCall = async (callSid?: string | null) => {
   if (!callSid) return;
 
   try {
     const response = await twilioRequest(
-      lovableApiKey,
-      twilioApiKey,
       `/Calls/${encodeURIComponent(callSid)}.json`,
       new URLSearchParams({ Status: 'completed' }),
     );
@@ -216,11 +206,10 @@ Deno.serve(async (req) => {
     const digits = formBody.get('Digits')?.trim() || '';
 
     if (!digits) {
-      const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
-      const twilioApiKey = Deno.env.get('TWILIO_API_KEY');
+      const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID'), authToken = Deno.env.get('TWILIO_AUTH_TOKEN');
 
-      if (lovableApiKey && twilioApiKey && callerCallSid) {
-        await completeTwilioCall(lovableApiKey, twilioApiKey, callerCallSid);
+      if (accountSid && authToken && callerCallSid) {
+        await completeTwilioCall(callerCallSid);
       }
 
       const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Say voice="Polly.Joanna-Neural" language="en-US">No response received. I am ending this transfer request now.</Say><Hangup/></Response>`;
@@ -240,11 +229,10 @@ Deno.serve(async (req) => {
     console.log(`Live transfer status (${role}):`, body.toString().slice(0, 500));
 
     if (role === 'owner' && callerCallSid && ['busy', 'failed', 'no-answer', 'canceled', 'completed'].includes(callStatus)) {
-      const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
-      const twilioApiKey = Deno.env.get('TWILIO_API_KEY');
+      const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID'), authToken = Deno.env.get('TWILIO_AUTH_TOKEN');
 
-      if (lovableApiKey && twilioApiKey) {
-        await completeTwilioCall(lovableApiKey, twilioApiKey, callerCallSid);
+      if (accountSid && authToken) {
+        await completeTwilioCall(callerCallSid);
       }
     }
 
@@ -252,11 +240,8 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
-    if (!lovableApiKey) return jsonResponse({ success: false, error: 'LOVABLE_API_KEY not configured' }, 500);
-
-    const twilioApiKey = Deno.env.get('TWILIO_API_KEY');
-    if (!twilioApiKey) return jsonResponse({ success: false, error: 'TWILIO_API_KEY not configured' }, 500);
+    const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID'), authToken = Deno.env.get('TWILIO_AUTH_TOKEN');
+    if (!accountSid || !authToken) return jsonResponse({ success: false, error: 'TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN not configured' }, 500);
 
     const body = await req.json().catch(() => ({}));
     const transferTo = normalizePhoneNumber(typeof body.transferTo === 'string' ? body.transferTo : '') || DEFAULT_TRANSFER_NUMBER;
@@ -283,8 +268,6 @@ Deno.serve(async (req) => {
     });
 
     const callerResponse = await twilioRequest(
-      lovableApiKey,
-      twilioApiKey,
       '/Calls.json',
       new URLSearchParams({
         To: callerPhone,
@@ -308,8 +291,6 @@ Deno.serve(async (req) => {
     const ownerStatusUrl = `${baseFunctionUrl}?action=status&role=owner&caller_call_sid=${encodeURIComponent(callerCallSid)}${anonParam}`;
 
     const ownerResponse = await twilioRequest(
-      lovableApiKey,
-      twilioApiKey,
       '/Calls.json',
       new URLSearchParams({
         To: transferTo,
@@ -325,7 +306,7 @@ Deno.serve(async (req) => {
 
     const ownerData = await ownerResponse.json().catch(() => null);
     if (!ownerResponse.ok) {
-      await completeTwilioCall(lovableApiKey, twilioApiKey, callerCallSid);
+      await completeTwilioCall(callerCallSid);
       throw new Error(`Twilio call to owner failed [${ownerResponse.status}]: ${JSON.stringify(ownerData)}`);
     }
 

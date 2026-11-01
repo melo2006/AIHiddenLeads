@@ -12,14 +12,13 @@ import { DEFAULT_LIVE_MODEL, officialLivePricing } from '../_shared/live-models.
 const json = (d: unknown, status = 200) => new Response(JSON.stringify(d), { status, headers: { 'Content-Type': 'application/json' } });
 const xml = (b: string) => new Response(`<?xml version="1.0" encoding="UTF-8"?><Response>${b}</Response>`, { headers: { 'Content-Type': 'text/xml' } });
 const E164 = /^\+[1-9]\d{7,14}$/;
-const gateway = 'https://connector-gateway.lovable.dev/twilio';
 
 const PHONE_POLICY = `PHONE CALL RULES (override anything about websites, screens, buttons or demos-on-screen): You are answering a real telephone call. Speak in one or two short sentences, no lists, no URLs read character by character. Use only the reference data for business facts; if unsure, offer to take a message or transfer. Collect name, reason and callback number when useful and read numbers back. When the caller asks for a person or something you cannot handle and a transfer is available, say you are connecting them, then call transfer_call.`;
 
 async function twilioApi(path: string, body: URLSearchParams) {
-  const key = Deno.env.get('TWILIO_API_KEY'), auth = Deno.env.get('LOVABLE_API_KEY');
-  if (!key || !auth) throw new Error('Twilio connection is unavailable');
-  const r = await fetch(`${gateway}${path}`, { method: 'POST', headers: { Authorization: `Bearer ${auth}`, 'X-Connection-Api-Key': key, 'Content-Type': 'application/x-www-form-urlencoded' }, body });
+  const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID'), authToken = Deno.env.get('TWILIO_AUTH_TOKEN');
+  if (!accountSid || !authToken) throw new Error('Twilio connection is unavailable');
+  const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}${path}`, { method: 'POST', headers: { Authorization: `Basic ${btoa(`${accountSid}:${authToken}`)}`, 'Content-Type': 'application/x-www-form-urlencoded' }, body });
   if (!r.ok) throw new Error(`Twilio ${r.status}: ${await r.text()}`);
   return r.json();
 }

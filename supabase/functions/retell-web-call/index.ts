@@ -10,7 +10,6 @@ const RETELL_BASE = 'https://api.retellai.com';
 const GOOGLE_AI_BASE = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
 const RESEND_BASE = 'https://api.resend.com/emails';
 const GOOGLE_CALENDAR_API = 'https://www.googleapis.com/calendar/v3';
-const TWILIO_GATEWAY_URL = 'https://connector-gateway.lovable.dev/twilio';
 const DEFAULT_OWNER_NAME = 'your dedicated specialist';
 const TESTING_INBOX_EMAIL = 'melo2006@gmail.com';
 const DEFAULT_TIME_ZONE = 'America/New_York';
@@ -1903,14 +1902,9 @@ Deno.serve(async (req) => {
 
 
     if (action === 'warm-transfer') {
-      const googleApiKey = Deno.env.get('GOOGLE_API_KEY');
-      if (!googleApiKey) {
-        return jsonResponse({ error: 'GOOGLE_API_KEY not configured' }, 500);
-      }
-
-      const twilioApiKey = Deno.env.get('TWILIO_API_KEY');
-      if (!twilioApiKey) {
-        return jsonResponse({ error: 'TWILIO_API_KEY not configured' }, 500);
+      const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID'), authToken = Deno.env.get('TWILIO_AUTH_TOKEN');
+      if (!accountSid || !authToken) {
+        return jsonResponse({ error: 'TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN not configured' }, 500);
       }
 
       const transferTo = normalizePhoneNumber(body.transferTo) || DEFAULT_TRANSFER_NUMBER;
@@ -1936,11 +1930,10 @@ Deno.serve(async (req) => {
       const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Say voice="Polly.Joanna-Neural" language="en-US">${escapeXml(`Hello ${resolvedOwnerName}. This is Aspen.`)}</Say><Pause length="1"/><Say voice="Polly.Joanna-Neural" language="en-US">${escapeXml(callbackSummary)}</Say></Response>`;
 
       try {
-        const response = await fetch(`${TWILIO_GATEWAY_URL}/Calls.json`, {
+        const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Calls.json`, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${googleApiKey}`,
-            'X-Connection-Api-Key': twilioApiKey,
+            'Authorization': `Basic ${btoa(`${accountSid}:${authToken}`)}`,
             'Content-Type': 'application/x-www-form-urlencoded',
           },
           body: new URLSearchParams({

@@ -13,7 +13,6 @@ const corsHeaders = {
     'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
-const TWILIO_GATEWAY_URL = 'https://connector-gateway.lovable.dev/twilio';
 const DEFAULT_WHATSAPP_FROM = '+14155238886'; // Twilio sandbox; override with TWILIO_WHATSAPP_FROM secret
 
 const BodySchema = z.object({
@@ -57,9 +56,8 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
   try {
-    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
-    const twilioApiKey = Deno.env.get('TWILIO_API_KEY');
-    if (!lovableApiKey || !twilioApiKey) {
+    const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID'), authToken = Deno.env.get('TWILIO_AUTH_TOKEN');
+    if (!accountSid || !authToken) {
       return new Response(
         JSON.stringify({ success: false, error: 'Twilio connector is not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
@@ -117,11 +115,10 @@ Deno.serve(async (req) => {
     const from = toE164(configuredFrom) || DEFAULT_WHATSAPP_FROM;
     const messageBody = buildBody(body);
 
-    const twilioResp = await fetch(`${TWILIO_GATEWAY_URL}/Messages.json`, {
+    const twilioResp = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${lovableApiKey}`,
-        'X-Connection-Api-Key': twilioApiKey,
+        Authorization: `Basic ${btoa(`${accountSid}:${authToken}`)}`,
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: new URLSearchParams({

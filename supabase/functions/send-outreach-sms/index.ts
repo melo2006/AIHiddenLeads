@@ -6,7 +6,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
-const TWILIO_GATEWAY_URL = 'https://connector-gateway.lovable.dev/twilio';
 const TWILIO_CALLER_ID = '+15612755757';
 
 const OPT_OUT = `\n\nWant to keep getting new leads? Great — do nothing! Reply STOP to opt out.`;
@@ -69,18 +68,10 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
-    if (!lovableApiKey) {
+    const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID'), authToken = Deno.env.get('TWILIO_AUTH_TOKEN');
+    if (!accountSid || !authToken) {
       return new Response(
-        JSON.stringify({ success: false, error: 'LOVABLE_API_KEY is not configured' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-      );
-    }
-
-    const twilioApiKey = Deno.env.get('TWILIO_API_KEY');
-    if (!twilioApiKey) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'TWILIO_API_KEY is not configured' }),
+        JSON.stringify({ success: false, error: 'TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN is not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
@@ -154,11 +145,10 @@ Deno.serve(async (req) => {
           params.MediaUrl = prospect.website_screenshot;
         }
 
-        const response = await fetch(`${TWILIO_GATEWAY_URL}/Messages.json`, {
+        const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${lovableApiKey}`,
-            'X-Connection-Api-Key': twilioApiKey,
+            'Authorization': `Basic ${btoa(`${accountSid}:${authToken}`)}`,
             'Content-Type': 'application/x-www-form-urlencoded',
           },
           body: new URLSearchParams(params),
