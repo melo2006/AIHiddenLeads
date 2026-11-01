@@ -38,11 +38,83 @@ export function slotIsFree(iso: string, busy: Busy[]) {
   const start = Date.parse(iso), end = start + SLOT_MINUTES * 60000;
   return busy.every(b => end <= Date.parse(b.start) || start >= Date.parse(b.end));
 }
+
+// ---------------------------------------------------------------------------
+// Direct Google Calendar access (replaces the Lovable connector gateway).
+//
+// Auth design: a Google Cloud service account that Tony's calendar is shared
+// with ("Make changes to events"). The edge function mints short-lived access
+// tokens itself via the service-account JWT (RS256) flow — no OAuth consent,
+// no refresh token, nothing that expires weekly. The service account's only
+// power is over calendars explicitly shared with it, scoped to Calendar
+// events read/write.
+//
+// Required Supabase secrets:
+//   GOOGLE_SA_CLIENT_EMAIL  e.g. aspen-platform-calendar@<project>.iam.gserviceaccount.com
+//   GOOGLE_SA_PRIVATE_KEY   the SA key's PEM private key (real newlines or \n escapes)
+// Optional:
+//   GOOGLE_SA_TOKEN_URI     defaults to https://oauth2.googleapis.com/token
+// ---------------------------------------------------------------------------
+const GOOGLE_CALENDAR_API = 'https://www.googleapis.com/calendar/v3';
+const CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.events';
+
+function base64UrlEncode(bytes: Uint8Array): string {
+  let binary = '';
+  bytes.forEach(b => { binary += String.fromCharCode(b); });
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function pemToArrayBuffer(pem: string): ArrayBuffer {
+  const b64 = pem
+    .replace(/-----BEGIN PRIVATE KEY-----/g, '')
+    .replace(/-----END PRIVATE KEY-----/g, '')
+    .replace(/\s/g, '');
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
+}
+
+let cachedToken: { token: string; expiresAt: number } | null = null;
+
+async function googleAccessToken(): Promise<string> {
+  if (cachedToken && Date.now() < cachedToken.expiresAt) return cachedToken.token;
+  const clientEmail = Deno.env.get('GOOGLE_SA_CLIENT_EMAIL');
+  // Supabase secrets may carry the PEM with literal "\n" escapes instead of newlines.
+  const privateKey = Deno.env.get('GOOGLE_SA_PRIVATE_KEY')?.replace(/\\n/g, '\n');
+  const tokenUri = Deno.env.get('GOOGLE_SA_TOKEN_URI') || 'https://oauth2.googleapis.com/token';
+  if (!clientEmail || !privateKey) throw new Error('Google Calendar is not connected. No availability or booking can be confirmed.');
+
+  const now = Math.floor(Date.now() / 1000);
+  const enc = new TextEncoder();
+  const header = base64UrlEncode(enc.encode(JSON.stringify({ alg: 'RS256', typ: 'JWT' })));
+  const payload = base64UrlEncode(enc.encode(JSON.stringify({
+    iss: clientEmail, scope: CALENDAR_SCOPE, aud: tokenUri, iat: now, exp: now + 3600,
+  })));
+  const unsigned = `${header}.${payload}`;
+  const cryptoKey = await crypto.subtle.importKey(
+    'pkcs8', pemToArrayBuffer(privateKey), { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign'],
+  );
+  const signature = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', cryptoKey, enc.encode(unsigned));
+  const jwt = `${unsigned}.${base64UrlEncode(new Uint8Array(signature))}`;
+
+  const res = await fetch(tokenUri, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`,
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data?.access_token) throw new Error('Google Calendar is not connected. No availability or booking can be confirmed.');
+  // Cache for the token's lifetime minus a safety margin; isolates stay warm across calls.
+  const ttlSeconds = Number(data.expires_in) > 120 ? Number(data.expires_in) - 60 : 3000;
+  cachedToken = { token: data.access_token, expiresAt: Date.now() + ttlSeconds * 1000 };
+  return cachedToken.token;
+}
+
 export async function calendarRequest(path: string, body?: unknown) {
-  const key = Deno.env.get('GOOGLE_CALENDAR_API_KEY'), gatewayKey = Deno.env.get('LOVABLE_API_KEY');
-  if (!key || !gatewayKey) throw new Error('Google Calendar is not connected. No availability or booking can be confirmed.');
-  const res = await fetch(`https://connector-gateway.lovable.dev/google_calendar/calendar/v3${path}`, {
-    method: body === undefined ? 'GET' : 'POST', headers: { Authorization: `Bearer ${gatewayKey}`, 'X-Connection-Api-Key': key, 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body),
+  const token = await googleAccessToken();
+  const res = await fetch(`${GOOGLE_CALENDAR_API}${path}`, {
+    method: body === undefined ? 'GET' : 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`Google Calendar request failed (${res.status}). No appointment has been confirmed.`);
   return res.json();
