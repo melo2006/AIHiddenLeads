@@ -1,0 +1,85 @@
+name: Data import (Lovable export)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  import-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout migration branch
+        uses: actions/checkout@v4
+        with:
+          ref: migration/data-import
+
+      - name: Install PostgreSQL 17 client
+        run: |
+          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          wget -qO- https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo tee /etc/apt/trusted.gpg.d/apt.postgresql.org.asc > /dev/null
+          sudo apt-get update -q
+          sudo apt-get install -y -q postgresql-client-17
+
+      - name: Empty public tables (fresh project, dump is source of truth)
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          export PATH=/usr/lib/postgresql/17/bin:$PATH
+          psql -h aws-0-us-east-1.pooler.supabase.com -p 5432 -U postgres.mrtvqttecdfgphgxeygj -d postgres \
+            -v ON_ERROR_STOP=1 -c "DO \$\$
+          DECLARE r record;
+          BEGIN
+            FOR r IN SELECT tablename FROM pg_tables WHERE schemaname = 'public' LOOP
+              EXECUTE format('TRUNCATE public.%I CASCADE', r.tablename);
+            END LOOP;
+          END
+          \$\$;"
+
+      - name: Restore public schema data
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          export PATH=/usr/lib/postgresql/17/bin:$PATH
+          DUMP=migration/lovable-data/aihiddenleads_261101.backup
+          pg_restore -l "$DUMP" | grep "TABLE DATA public" > /tmp/public.list
+          pg_restore -l "$DUMP" | grep "SEQUENCE SET" >> /tmp/public.list
+          echo "restore entries: $(wc -l < /tmp/public.list)"
+          pg_restore --no-owner --disable-triggers --use-list=/tmp/public.list \
+            -h aws-0-us-east-1.pooler.supabase.com -p 5432 \
+            -U postgres.mrtvqttecdfgphgxeygj -d postgres "$DUMP"
+
+      - name: Restore auth schema data (minus instances + schema_migrations)
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          export PATH=/usr/lib/postgresql/17/bin:$PATH
+          DUMP=migration/lovable-data/aihiddenleads_261101.backup
+          pg_restore -l "$DUMP" | grep "TABLE DATA auth" | grep -v "TABLE DATA auth instances " | grep -v "TABLE DATA auth schema_migrations " > /tmp/auth.list
+          echo "restore entries: $(wc -l < /tmp/auth.list)"
+          pg_restore --no-owner --disable-triggers --use-list=/tmp/auth.list \
+            -h aws-0-us-east-1.pooler.supabase.com -p 5432 \
+            -U postgres.mrtvqttecdfgphgxeygj -d postgres "$DUMP"
+
+      - name: Point auth rows at the new project instance + verify
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          export PATH=/usr/lib/postgresql/17/bin:$PATH
+          PSQL="psql -h aws-0-us-east-1.pooler.supabase.com -p 5432 -U postgres.mrtvqttecdfgphgxeygj -d postgres -v ON_ERROR_STOP=1"
+          $PSQL -c "DO \$\$
+          DECLARE r record; iid uuid;
+          BEGIN
+            SELECT id INTO iid FROM auth.instances LIMIT 1;
+            FOR r IN SELECT tablename FROM pg_tables WHERE schemaname = 'auth' LOOP
+              IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'auth' AND table_name = r.tablename AND column_name = 'instance_id') THEN
+                EXECUTE format('UPDATE auth.%I SET instance_id = %L WHERE instance_id IS DISTINCT FROM %L', r.tablename, iid, iid);
+              END IF;
+            END LOOP;
+          END
+          \$\$;"
+          echo '--- row counts after import ---'
+          $PSQL -t -c "SELECT 'auth.users=' || count(*) FROM auth.users;"
+          $PSQL -t -c "SELECT 'leads=' || count(*) FROM public.leads;"
+          $PSQL -t -c "SELECT 'prospects=' || count(*) FROM public.prospects;"
+          $PSQL -t -c "SELECT 'campaigns=' || count(*) FROM public.campaigns;"
+          $PSQL -t -c "SELECT 'subscriptions=' || count(*) FROM public.subscriptions;"
+          $PSQL -t -c "SELECT 'telephony_calls=' || count(*) FROM public.telephony_calls;"
