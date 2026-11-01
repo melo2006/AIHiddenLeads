@@ -31,13 +31,19 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
 
-      - name: Apply drizzle/migrations (voice/telephony tables)
-        # npm install (not ci): the committed lockfile is stale (missing @esbuild
-        # optional deps) and react-leaflet needs legacy peer resolution.
-        # sslmode=require: Supabase Postgres refuses unencrypted connections.
-        run: npm install --no-audit --no-fund --legacy-peer-deps && npx drizzle-kit migrate
+      - name: Apply drizzle/migrations (voice/telephony tables) via psql
+        # drizzle-kit exits silently (code 1, no error) in CI, so apply the plain-SQL
+        # migration files directly with psql, which reports real Postgres errors.
+        # ON_ERROR_STOP=1 halts on the first failing statement.
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+          for f in $(ls drizzle/migrations/*.sql | sort); do
+            echo "=== Applying $f ==="
+            PGPASSWORD="$SUPABASE_DB_PASSWORD" psql "postgresql://postgres@db.$SUPABASE_PROJECT_ID.supabase.co:5432/postgres?sslmode=require" -v ON_ERROR_STOP=1 -f "$f"
+          done
         env:
-          LOVABLE_DB_MIGRATION_URL: postgresql://postgres:${{ secrets.SUPABASE_DB_PASSWORD }}@db.${{ secrets.SUPABASE_PROJECT_ID }}.supabase.co:5432/postgres?sslmode=require
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
 
       - name: Deploy all edge functions
         run: supabase functions deploy
