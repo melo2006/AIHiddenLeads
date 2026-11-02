@@ -25,7 +25,7 @@ import { salesPlans, type SalesPlan } from '@/lib/salesActions';
 import SimliAvatar, { SOUND_BLOCKED, isVideoStartFailure, type SimliAvatarHandle } from '@/components/SimliAvatar';
 import type { VideoAvatar } from '../../supabase/functions/_shared/video-avatar';
 import { PersonPortrait } from '@/components/FloatingPersonFrame';
-import { assistantOutput, nextVoiceChunkStart } from '@/lib/avatarAudioTransition';
+import { assistantOutput, nextVoiceChunkStart, PAIRED_CAPTION_DELAY_SEC } from '@/lib/avatarAudioTransition';
 import { PlaybackCaptions, type PlaybackCaption as Caption } from '@/lib/playbackCaptions';
 import { displayNumbers } from '@/lib/displayNumbers';
 import PlaybackCaption from '@/components/PlaybackCaption';
@@ -338,7 +338,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     sourcesRef.current.add(source);
     source.start(startAt);
     playTimeRef.current = startAt + buffer.duration;
-    captionClockRef.current.audio(startAt, playTimeRef.current, captionRun);
+    // On the paired path the visitor hears Simli's stream, not this local
+    // schedule; shift the caption window by the paired-path delay so the word
+    // highlight tracks the heard voice (see PAIRED_CAPTION_DELAY_SEC). Local
+    // playback stays on the local clock, which is when it is really heard.
+    const captionDelay = pairedVideo ? PAIRED_CAPTION_DELAY_SEC : 0;
+    captionClockRef.current.audio(startAt + captionDelay, playTimeRef.current + captionDelay, captionRun);
     setAspenSpeaking(true);
     source.onended = () => {
       sourcesRef.current.delete(source);
@@ -872,6 +877,14 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // two-line scrolling transcript, and a single row of icon buttons.
   const shownPhase: Phase = faceWaiting && phase === 'live' ? 'connecting' : phase;
   const avatarView = videoAvatar?.enabled && !previewOnly ? <SimliAvatar ref={avatarRef} inline={avatarInline || faceFirst} unboxed={faceFirst} avatar={videoAvatar} agentId={agentId} shareToken={shareToken} draft={draft} onLiveChange={live => { setFaceLive(live); if (!live) avatarLiveRef.current = false; }} /> : null;
+  // While Aspen is speaking, the karaoke caption owns the caption space. The
+  // visitor's in-progress line stays in state until turn_complete, so gating
+  // the caption on it (the old rule) hid the karaoke for every reply after
+  // the visitor first spoke and showed the plain transcript instead — the
+  // surface flipped depending on who had talked last. The transcript (with
+  // the visitor's live line and the history) shows whenever she is silent.
+  const liveCaption = aspenSpeaking || (playbackCaption !== null && playbackCaption.word >= 0);
+  const showPlaybackCaption = !!playbackCaption && (!partialUser || liveCaption) && (!faceFirst || captions);
   if (compact) {
     return (
       <div className="space-y-2 p-2 text-foreground">
@@ -895,8 +908,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
         {faceFirst && <Button size="icon" variant="outline" className="h-8 w-8 border-primary/60 bg-transparent text-primary hover:bg-primary/10 hover:text-primary" aria-label={captions ? 'Hide captions' : 'Show captions'} title={captions ? 'Hide captions' : 'Show captions'} aria-expanded={captions} onClick={() => setCaptions(v => !v)}><ChevronsUpDown className="h-4 w-4" /></Button>}
         <div className={faceFirst ? (captions ? 'aspen-caption-space' : 'hidden') : ''}>
-        {playbackCaption && !partialUser && (!faceFirst || captions) && <div className="rounded-md border border-border bg-background/95 p-1.5"><PlaybackCaption caption={playbackCaption} /></div>}
-        <div aria-label="Conversation transcript" tabIndex={0} className={`${playbackCaption && !partialUser || faceFirst && !captions ? 'hidden' : ''} ${faceFirst ? 'h-[72px]' : 'max-h-[4.5rem]'} space-y-1 overflow-y-auto overscroll-contain rounded-md border border-border bg-background/95 p-1.5`}>
+        {showPlaybackCaption && playbackCaption && <div className="rounded-md border border-border bg-background/95 p-1.5"><PlaybackCaption caption={playbackCaption} /></div>}
+        <div aria-label="Conversation transcript" tabIndex={0} className={`${showPlaybackCaption || (faceFirst && !captions) ? 'hidden' : ''} ${faceFirst ? 'h-[72px]' : 'max-h-[4.5rem]'} space-y-1 overflow-y-auto overscroll-contain rounded-md border border-border bg-background/95 p-1.5`}>
           {turns.length === 0 && !partialAspen && !partialUser && (
             <p className="py-1 text-center text-[11px] text-muted-foreground">No conversation yet.</p>
           )}
