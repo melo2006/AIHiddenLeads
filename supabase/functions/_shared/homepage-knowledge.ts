@@ -13,6 +13,8 @@ export const HOMEPAGE_GREETING = `{timeGreeting}! I'm {agentName} with A-I Hidde
 
 export const HOMEPAGE_OPENING_PRIORITY = `OPENING PRIORITY (supersedes the opening flow in the reference data): The session opening supplied for this call is the complete first turn. Deliver it in full, exactly as provided, then stop and wait for the visitor to speak. It ends by asking the visitor's name. Do not ask the missed-call capacity question, or any discovery question, until the visitor has spoken at least once. When they reply, use their name if they gave one, then ask one open question about their business or what they would like help with, and follow their lead. The opening already contains a statistic; do not deliver further opening statistics.`;
 
+export const PHONE_OPENING_PRIORITY = `OPENING PRIORITY (supersedes the opening flow in the reference data): The greeting supplied when the call connects is the complete first turn. Deliver it in full, word for word, exactly as provided, then stop and wait for the caller to speak. Do not shorten it, do not paraphrase it, and do not ask the missed-call capacity question, or any discovery question, until the caller has spoken at least once. When they reply, use their name if they gave one, then ask one open question about their business or what they would like help with, and follow their lead.`;
+
 export const HOMEPAGE_ADDONS = [
   { name: 'Connected Bundle (warm transfer + SMS notifications + appointment reminders)', usd: 79, cadence: 'monthly', availability: 'offered' },
   { name: 'Warm Transfer to your phone', usd: 49, cadence: 'monthly', availability: 'offered' },
