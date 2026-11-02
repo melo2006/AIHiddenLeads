@@ -26,12 +26,19 @@ wss.on('connection', (twilioWs) => {
   activeCalls++;
   let streamSid = null, token = null, cfg = null, gemini = null, ended = false, transferring = false;
   let resumeHandle = null, reconnects = 0, inSec = 0, outSec = 0, limitTimer = null, cpTimer = null;
+  // Opening gate: caller audio is NOT forwarded to Gemini until Aspen's first
+  // turn completes. A phone line is live from the first ring — room noise,
+  // handset echo of her own voice, or a caller saying "hello?" would otherwise
+  // register as an interruption and cut her opening greeting short. The gate
+  // opens on her first turnComplete, on a resume (no greeting is replayed),
+  // or after a 75s failsafe so a call can never be stuck muted.
+  let gateOpen = false, gateTimer = null;
   const transcript = [];
   const usage = () => ({ model: cfg?.model, input_audio_seconds: Math.round(inSec), output_audio_seconds: Math.round(outSec), audio_estimate_usd: audioEstimate(inSec, outSec, cfg?.pricing), cost_basis: 'published_audio_estimate_not_invoice' });
   const report = (action, extra = {}) => token && api({ action, token, transcript, usage: usage(), reconnects, ...extra });
 
   const finish = async () => {
-    if (ended) return; ended = true; activeCalls--; clearTimeout(limitTimer); clearInterval(cpTimer);
+    if (ended) return; ended = true; activeCalls--; clearTimeout(limitTimer); clearInterval(cpTimer); clearTimeout(gateTimer);
     try { gemini?.close(); } catch {}
     try { twilioWs.close(); } catch {}
     await report('end')?.catch(e => console.error('end failed', e.message));
@@ -40,6 +47,7 @@ wss.on('connection', (twilioWs) => {
   const sendTwilio = (o) => { if (twilioWs.readyState === WebSocket.OPEN) twilioWs.send(JSON.stringify(o)); };
 
   function openGemini(isResume) {
+    if (isResume) gateOpen = true; // A resumed session already greeted; never re-gate.
     const ws = new WebSocket(`${GEMINI_WS}?key=${GOOGLE_API_KEY}`);
     gemini = ws;
     ws.on('open', () => ws.send(JSON.stringify({ setup: {
@@ -62,6 +70,7 @@ wss.on('connection', (twilioWs) => {
       if (m.sessionResumptionUpdate?.resumable && m.sessionResumptionUpdate.newHandle) resumeHandle = m.sessionResumptionUpdate.newHandle;
       if (m.goAway) { reconnect('go_away'); return; }
       const sc = m.serverContent;
+      if (sc?.turnComplete && !gateOpen) { gateOpen = true; clearTimeout(gateTimer); }
       if (sc?.interrupted && streamSid) sendTwilio({ event: 'clear', streamSid });
       for (const part of sc?.modelTurn?.parts || []) if (part.inlineData?.data && streamSid) {
         const payload = geminiToTwilio(part.inlineData.data);
@@ -97,9 +106,11 @@ wss.on('connection', (twilioWs) => {
       try { cfg = await api({ action: 'start', token }); } catch (e) { console.error('start failed', e.message); token = null; finish(); return; }
       if (cfg.maxSeconds < 30) { finish(); return; }
       limitTimer = setTimeout(finish, cfg.maxSeconds * 1000);
+      gateTimer = setTimeout(() => { gateOpen = true; }, 75000);
       cpTimer = setInterval(() => report('checkpoint')?.catch(e => console.error('checkpoint failed', e.message)), CHECKPOINT_MS);
       openGemini(false);
     } else if (msg.event === 'media' && gemini?.readyState === WebSocket.OPEN) {
+      if (!gateOpen) return; // Opening gate: drop caller audio until her first turn completes.
       const payload = msg.media.payload; inSec += Buffer.byteLength(payload, 'base64') / 8000;
       gemini.send(JSON.stringify({ realtimeInput: { audio: { data: twilioToGemini(payload), mimeType: 'audio/pcm;rate=16000' } } }));
     } else if (msg.event === 'stop') finish();
