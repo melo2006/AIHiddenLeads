@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { Bot, User, Maximize2, Minimize2, X, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { MessageResponse } from '@/components/ai-elements/message';
+import { displayNumbers } from '@/lib/displayNumbers';
 import { PromptInput, PromptInputTextarea, PromptInputFooter, PromptInputSubmit } from '@/components/ai-elements/prompt-input';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -319,7 +320,7 @@ CRITICAL RULES:
             Chat minimized. Expand to read full conversation.
           </p>
           {lastAssistantMessage && (
-            <p className="mt-2 line-clamp-2 text-xs text-foreground/80">{lastAssistantMessage}</p>
+            <p className="mt-2 line-clamp-2 text-xs text-foreground/80">{displayNumbers(lastAssistantMessage)}</p>
           )}
         </div>
       ) : (
@@ -343,7 +344,7 @@ CRITICAL RULES:
                 msg.role === "assistant" ? "text-foreground" : "bg-primary text-primary-foreground"
               }`}
             >
-              <MessageResponse>{msg.content}</MessageResponse>
+              <MessageResponse>{msg.role === "assistant" ? displayNumbers(msg.content) : msg.content}</MessageResponse>
             </div>
           </div>
         ))}
