@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import type { NicheData } from "@/data/nicheData";
 import aspenChatboxNew from "@/assets/aspen-chatbox-new.png";
-import { HOMEPAGE_GREETING } from '../../../supabase/functions/_shared/homepage-knowledge';
 
 interface HeroSectionProps {
   niche: NicheData;
@@ -66,8 +65,6 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
               <span className="mt-3 block font-semibold text-foreground">{copy.start}</span>
             </motion.p>
 
-            {i18n.language.startsWith('en') && <p className="mb-5 text-sm font-medium text-foreground max-w-xl mx-auto lg:mx-0">“{HOMEPAGE_GREETING.split('Quick question: ')[1]}”</p>}
-
             {/* CTAs */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -80,18 +77,29 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
                 size="lg"
                 className="h-auto min-h-12 max-w-full whitespace-normal break-words text-base sm:text-lg px-4 py-3 bg-primary text-primary-foreground hover:bg-primary/90 glow-border rounded-xl font-semibold"
               >
-                {copy.demo}
+                {i18n.language.startsWith('en') ? 'Try it on your website — free' : copy.demo}
               </Button>
               <Button
                 onClick={() => navigate('/book')}
-                variant="outline"
-                size="lg"
-                className="h-auto min-h-12 max-w-full whitespace-normal break-words text-base sm:text-lg px-4 py-3 border-border hover:bg-secondary rounded-xl"
+                variant="ghost"
+                size="sm"
+                className="h-auto whitespace-normal px-2 py-2 text-sm text-muted-foreground underline-offset-4 hover:underline"
               >
                 <Calendar className="h-4 w-4 shrink-0" />{i18n.language === 'pt-BR' ? 'Agende uma conversa' : i18n.language === 'es' ? 'Reserva una llamada' : 'Book a quick call'}
               </Button>
-              <Button onClick={() => navigate('/plans?plan=essentials')} variant="outline" size="lg" className="h-auto min-h-12 whitespace-normal px-4 py-3"><ArrowRight className="h-4 w-4 shrink-0" />{i18n.language === 'pt-BR' ? 'Comece agora' : i18n.language === 'es' ? 'Empieza ahora' : 'Start now'}</Button>
+              <Button onClick={() => navigate('/plans?plan=essentials')} variant="ghost" size="sm" className="h-auto whitespace-normal px-2 py-2 text-sm text-muted-foreground underline-offset-4 hover:underline"><ArrowRight className="h-4 w-4 shrink-0" />{i18n.language === 'pt-BR' ? 'Comece agora' : i18n.language === 'es' ? 'Empieza ahora' : 'Start now'}</Button>
             </motion.div>
+
+            {i18n.language.startsWith('en') && (
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.5, delay: 0.35 }}
+                className="text-sm font-medium text-foreground max-w-xl mx-auto lg:mx-0 mb-5"
+              >
+                See your own website come alive in about 2 minutes. No signup, no card.
+              </motion.p>
+            )}
 
             {/* Trust line */}
             <motion.p
@@ -134,6 +142,7 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
                 className="h-auto w-auto max-h-[540px] max-w-full object-contain drop-shadow-2xl"
               />
             </button>
+            {i18n.language.startsWith('en') && <p className="mt-3 text-center text-xs text-muted-foreground">Aspen, live on this page — tap to talk</p>}
           </motion.div>
         </div>
       </div>
