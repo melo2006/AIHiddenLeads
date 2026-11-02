@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import type { NicheData } from "@/data/nicheData";
 import aspenChatboxNew from "@/assets/aspen-chatbox-new.png";
+import HeroRotatingBullet from "@/components/landing/HeroRotatingBullet";
 
 interface HeroSectionProps {
   niche: NicheData;
@@ -64,6 +65,16 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
               Aspen answers every call and every website visitor in seconds — and she's not a chat box. She's a live, lip-synced video avatar with a real face and a natural voice, greeting your customers by name. Almost nobody else can give you that.
               <span className="mt-3 block font-semibold text-foreground">{copy.start}</span>
             </motion.p>
+
+            {/* Rotating evidence / differentiator line */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.25 }}
+              className="max-w-xl mx-auto lg:mx-0 text-left mb-5"
+            >
+              <HeroRotatingBullet />
+            </motion.div>
 
             {/* CTAs */}
             <motion.div
