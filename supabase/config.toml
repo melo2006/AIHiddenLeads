@@ -31,6 +31,12 @@ project_id = "mrtvqttecdfgphgxeygj"
     verify_jwt = false
   [functions.send-outreach-sms]
     verify_jwt = false
+  [functions.telephony-stream]
+    verify_jwt = false
+  [functions.telephony-voice]
+    verify_jwt = false
+  [functions.track-engagement]
+    verify_jwt = false
   [functions.twilio-sms-status]
     verify_jwt = false
   [functions.whatsapp-webhook]
