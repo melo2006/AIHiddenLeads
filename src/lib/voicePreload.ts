@@ -2,7 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 import type { WidgetTheme } from '../../supabase/functions/_shared/widget-theme';
 import type { VideoAvatar } from '../../supabase/functions/_shared/video-avatar';
-import portrait from '@/assets/aspen-video-frame-final.webp.asset.json';
+import portrait from '@/assets/aspen-shoulders-512-v2.webp';
 
 type Identity = { id: string; name: string; businessName: string; avatarUrl: string; theme?: WidgetTheme; videoAvatar?: VideoAvatar };
 const identities = new Map<string, { expires: number; promise: Promise<Identity | null> }>();
@@ -16,7 +16,7 @@ export function prepareVoiceResources() {
     if (document.querySelector(`link[rel="preconnect"][href="${href}"]`)) continue;
     const link = document.createElement('link'); link.rel = 'preconnect'; link.href = href; link.crossOrigin = 'anonymous'; document.head.appendChild(link);
   }
-  const image = new Image(); image.src = portrait.url;
+  const image = new Image(); image.src = portrait;
 }
 // Only public display identity is cached. Never preload session capabilities or private prompts.
 export function preloadVoiceIdentity(agentId?: string) {

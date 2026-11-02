@@ -30,11 +30,11 @@ const Index = () => {
     <div className="landing-page min-h-screen bg-background overflow-x-hidden">
       <LandingNavbar />
       <HeroSection niche={selectedNiche} onGetDemo={scrollToDemo} />
+      <StatsSection niche={selectedNiche} />
       <ServicesGrid />
       <BeforeAfterSection niche={selectedNiche} />
       <MapVisibilitySection />
       <TryWebsiteCTA />
-      <StatsSection niche={selectedNiche} />
       <HowItWorksSection />
       <TryWebsiteCTA />
       <DemoDifferentiator />

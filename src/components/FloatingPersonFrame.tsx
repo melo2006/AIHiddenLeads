@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react';
 import { MessageSquare, Mic, Minus, X, Maximize2, AudioLines } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import aspenPortrait from '@/assets/aspen-video-frame-final.webp.asset.json';
+import aspenPortrait from '@/assets/aspen-shoulders-512-v2.webp';
 
 export function PersonPortrait({ name = 'Aspen', avatarUrl }: { name?: string; avatarUrl?: string }) {
-  return <img src={avatarUrl || aspenPortrait.url} alt={name} width={512} height={512} decoding="async" draggable={false} className="aspen-person-portrait mx-auto object-contain" />;
+  return <img src={avatarUrl || aspenPortrait} alt={name} width={512} height={512} decoding="async" draggable={false} className="aspen-person-portrait mx-auto object-contain" />;
 }
 
 /** Above her head: only minimize and close (drag lives on the shell). Voice/chat switching sits below the call panel. */
@@ -18,7 +18,7 @@ export default function FloatingPersonFrame({ name = 'Aspen', avatarUrl, open, m
   // agent record; undefined means a platform (Aspen) surface with no tenant record,
   // which uses the same default portrait as PersonPortrait. A tenant record with no
   // photo ('') keeps the plain mic icon instead of borrowing Aspen's face.
-  const launcherPhoto = avatarUrl === undefined ? aspenPortrait.url : avatarUrl;
+  const launcherPhoto = avatarUrl === undefined ? aspenPortrait : avatarUrl;
   return <section aria-label={`${name} floating assistant`} className={`aspen-person-shell ${open ? 'aspen-person-expanded' : 'aspen-person-collapsed'} ${!open && minimized ? '!w-20 items-center' : ''}`}>
     <div className="aspen-person-window-controls sticky top-0 z-10 flex shrink-0 justify-end gap-1">
       <Button size="icon" variant="secondary" className="h-8 w-8 border border-primary/60 text-foreground" onClick={open ? onMinimize : onOpen} title={open ? 'Minimize assistant' : 'Expand assistant'} aria-label={open ? 'Minimize assistant' : 'Expand assistant'}>{open ? <Minus className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}</Button>
