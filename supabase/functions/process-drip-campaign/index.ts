@@ -98,8 +98,8 @@ Deno.serve(async (req) => {
         }
 
         // Build demo URL
-        const baseUrl = Deno.env.get('SUPABASE_URL')?.replace('.supabase.co', '') || 'https://aihiddenleads.lovable.app';
-        const appUrl = 'https://aihiddenleads.lovable.app';
+        const baseUrl = Deno.env.get('SUPABASE_URL')?.replace('.supabase.co', '') || 'https://aihiddenleads.com';
+        const appUrl = 'https://aihiddenleads.com';
         const demoUrl = `${appUrl}/demo?url=${encodeURIComponent(prospect.website_url || '')}&name=${encodeURIComponent(prospect.business_name)}&niche=${encodeURIComponent(prospect.niche || '')}&prospectId=${encodeURIComponent(prospect.id)}`;
 
         // Build personalized subject with merge fields

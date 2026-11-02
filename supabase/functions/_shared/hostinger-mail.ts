@@ -4,7 +4,7 @@ import { SMTPClient } from 'https://deno.land/x/denomailer@1.6.0/mod.ts';
 export const OWNER_MAILBOX = 'info@aihiddenleads.com';
 const SITE = 'https://aihiddenleads.com';
 const LOGO = `${SITE}/logo.png`;
-const ASPEN = 'https://gvlmpywrrovbncdhklfq.supabase.co/storage/v1/object/public/website-screenshots/email%2Faspen.jpg';
+const ASPEN = 'https://mrtvqttecdfgphgxeygj.supabase.co/storage/v1/object/public/website-screenshots/email/aspen.jpg';
 const OPT_OUT = 'You received this because you asked AI Hidden Leads to follow up. Reply STOP or "unsubscribe" to this email and we will not contact you again.';
 
 type Mail = { to: string; subject: string; text: string; html?: string };
