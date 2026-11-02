@@ -5,8 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import type { NicheData } from "@/data/nicheData";
-import AspenWindowPreview from './AspenWindowPreview';
-import { HOMEPAGE_GREETING } from '../../../supabase/functions/_shared/homepage-knowledge';
+import aspenChatboxNew from "@/assets/aspen-chatbox-new.png";
 
 interface HeroSectionProps {
   niche: NicheData;
@@ -49,9 +48,9 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
               transition={{ duration: 0.6, delay: 0.1 }}
               className="text-3xl sm:text-5xl lg:text-6xl font-bold leading-tight mb-5"
             >
-              <span className="text-foreground">{copy.headline}</span>
-              <br />
-              <span className="text-primary">{copy.headlineAccent}</span>
+              <span className="text-foreground">85% of callers who hit </span>
+              <span className="text-primary">voicemail</span>
+              <span className="text-foreground"> never call back. Ever.</span>
               
             </motion.h1>
 
@@ -62,11 +61,9 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
               transition={{ duration: 0.6, delay: 0.2 }}
               className="text-base sm:text-lg text-muted-foreground max-w-xl mx-auto lg:mx-0 mb-6"
             >
-              {copy.sub}
+              Aspen answers every call and every website visitor in seconds — and she's not a chat box. She's a live, lip-synced video avatar with a real face and a natural voice, greeting your customers by name. Almost nobody else can give you that.
               <span className="mt-3 block font-semibold text-foreground">{copy.start}</span>
             </motion.p>
-
-            {i18n.language.startsWith('en') && <p className="mb-5 text-sm font-medium text-foreground max-w-xl mx-auto lg:mx-0">“{HOMEPAGE_GREETING.split('Quick question: ')[1]}”</p>}
 
             {/* CTAs */}
             <motion.div
@@ -80,18 +77,29 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
                 size="lg"
                 className="h-auto min-h-12 max-w-full whitespace-normal break-words text-base sm:text-lg px-4 py-3 bg-primary text-primary-foreground hover:bg-primary/90 glow-border rounded-xl font-semibold"
               >
-                {copy.demo}
+                {i18n.language.startsWith('en') ? 'Try it on your website — free' : copy.demo}
               </Button>
               <Button
                 onClick={() => navigate('/book')}
-                variant="outline"
-                size="lg"
-                className="h-auto min-h-12 max-w-full whitespace-normal break-words text-base sm:text-lg px-4 py-3 border-border hover:bg-secondary rounded-xl"
+                variant="ghost"
+                size="sm"
+                className="h-auto whitespace-normal px-2 py-2 text-sm text-muted-foreground underline-offset-4 hover:underline"
               >
                 <Calendar className="h-4 w-4 shrink-0" />{i18n.language === 'pt-BR' ? 'Agende uma conversa' : i18n.language === 'es' ? 'Reserva una llamada' : 'Book a quick call'}
               </Button>
-              <Button onClick={() => navigate('/plans?plan=essentials')} variant="outline" size="lg" className="h-auto min-h-12 whitespace-normal px-4 py-3"><ArrowRight className="h-4 w-4 shrink-0" />{i18n.language === 'pt-BR' ? 'Comece agora' : i18n.language === 'es' ? 'Empieza ahora' : 'Start now'}</Button>
+              <Button onClick={() => navigate('/plans?plan=essentials')} variant="ghost" size="sm" className="h-auto whitespace-normal px-2 py-2 text-sm text-muted-foreground underline-offset-4 hover:underline"><ArrowRight className="h-4 w-4 shrink-0" />{i18n.language === 'pt-BR' ? 'Comece agora' : i18n.language === 'es' ? 'Empieza ahora' : 'Start now'}</Button>
             </motion.div>
+
+            {i18n.language.startsWith('en') && (
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.5, delay: 0.35 }}
+                className="text-sm font-medium text-foreground max-w-xl mx-auto lg:mx-0 mb-5"
+              >
+                See your own website come alive in about 2 minutes. No signup, no card.
+              </motion.p>
+            )}
 
             {/* Trust line */}
             <motion.p
@@ -122,7 +130,19 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
             transition={{ duration: 0.7, delay: 0.3 }}
             className="flex-shrink-0 w-full lg:w-[420px] flex flex-col items-center"
           >
-            <AspenWindowPreview />
+            <button
+              type="button"
+              aria-label="Talk to Aspen"
+              onClick={() => window.dispatchEvent(new CustomEvent('open-homepage-aspen', { detail: { mode: 'voice', start: true } }))}
+              className="rounded-2xl cursor-pointer transition-transform hover:scale-[1.02] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            >
+              <img
+                src={aspenChatboxNew}
+                alt="Aspen, your AI receptionist, speaking live"
+                className="h-auto w-auto max-h-[540px] max-w-full object-contain drop-shadow-2xl"
+              />
+            </button>
+            {i18n.language.startsWith('en') && <p className="mt-3 text-center text-xs text-muted-foreground">Aspen, live on this page — tap to talk</p>}
           </motion.div>
         </div>
       </div>
