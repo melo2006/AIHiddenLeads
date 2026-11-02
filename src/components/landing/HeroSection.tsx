@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import type { NicheData } from "@/data/nicheData";
-import AspenWindowPreview from './AspenWindowPreview';
+import aspenChatboxNew from "@/assets/aspen-chatbox-new.png";
 import { HOMEPAGE_GREETING } from '../../../supabase/functions/_shared/homepage-knowledge';
 
 interface HeroSectionProps {
@@ -49,9 +49,9 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
               transition={{ duration: 0.6, delay: 0.1 }}
               className="text-3xl sm:text-5xl lg:text-6xl font-bold leading-tight mb-5"
             >
-              <span className="text-foreground">{copy.headline}</span>
-              <br />
-              <span className="text-primary">{copy.headlineAccent}</span>
+              <span className="text-foreground">85% of callers who hit </span>
+              <span className="text-primary">voicemail</span>
+              <span className="text-foreground"> never call back. Ever.</span>
               
             </motion.h1>
 
@@ -62,7 +62,7 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
               transition={{ duration: 0.6, delay: 0.2 }}
               className="text-base sm:text-lg text-muted-foreground max-w-xl mx-auto lg:mx-0 mb-6"
             >
-              {copy.sub}
+              Aspen answers every call and every website visitor in seconds — and she's not a chat box. She's a live, lip-synced video avatar with a real face and a natural voice, greeting your customers by name. Almost nobody else can give you that.
               <span className="mt-3 block font-semibold text-foreground">{copy.start}</span>
             </motion.p>
 
@@ -122,7 +122,18 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
             transition={{ duration: 0.7, delay: 0.3 }}
             className="flex-shrink-0 w-full lg:w-[420px] flex flex-col items-center"
           >
-            <AspenWindowPreview />
+            <button
+              type="button"
+              aria-label="Talk to Aspen"
+              onClick={() => window.dispatchEvent(new CustomEvent('open-homepage-aspen', { detail: { mode: 'voice', start: true } }))}
+              className="rounded-2xl cursor-pointer transition-transform hover:scale-[1.02] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            >
+              <img
+                src={aspenChatboxNew}
+                alt="Aspen, your AI receptionist, speaking live"
+                className="h-auto w-auto max-h-[540px] max-w-full object-contain drop-shadow-2xl"
+              />
+            </button>
           </motion.div>
         </div>
       </div>
