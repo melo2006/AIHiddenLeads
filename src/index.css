@@ -142,6 +142,11 @@
     .aspen-person-shell .voice-controls button { min-width: 36px; min-height: 36px; padding: 8px; }
     .aspen-person-shell .aspen-sales-actions { display: none; }
   }
+  /* The open widget's face box: one stable size across ready, connecting and
+     live, so she never shrinks when a call starts. Full shell width (280px),
+     capped on narrow screens; the portrait inside fills it edge to edge. */
+  .aspen-person-livebox { width: min(280px, calc(100vw - 48px)); aspect-ratio: 1 / 1; flex-shrink: 0; }
+  .aspen-person-shell .aspen-person-livebox .aspen-person-portrait { width: 100%; height: 100%; }
   .aspen-panel { display: flex; flex-direction: column; max-height: min(70dvh, var(--aspen-available-height, 70dvh)); }
   .aspen-panel.hidden { display: none; }
   .aspen-panel > header, .aspen-panel > div:first-child, .aspen-panel > div[aria-label] { flex-shrink: 0; }
