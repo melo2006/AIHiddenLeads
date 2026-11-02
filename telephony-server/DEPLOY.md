@@ -12,7 +12,7 @@ mkdir -p /opt/aspen && cp server.mjs codec.mjs package.json /opt/aspen/ && cd /o
 ```
 GOOGLE_API_KEY=...            # Gemini API key
 TELEPHONY_SERVER_SECRET=...   # same value as the backend secret
-TELEPHONY_FUNCTION_URL=https://gvlmpywrrovbncdhklfq.supabase.co/functions/v1/telephony-stream
+TELEPHONY_FUNCTION_URL=https://mrtvqttecdfgphgxeygj.supabase.co/functions/v1/telephony-stream
 PORT=8080
 ```
 `/etc/systemd/system/aspen.service`:
