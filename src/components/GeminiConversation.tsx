@@ -19,6 +19,7 @@ import VoiceActionConfirmation, { type VoiceAction } from "./VoiceActionConfirma
 import BrowserVoiceHandoff from "@/components/BrowserVoiceHandoff";
 import { voiceIdleAction, homepageWalkthroughDue, type VoiceIdleStage } from '@/lib/voiceIdle';
 import { voiceDisconnectMessage } from '@/lib/voiceDisconnect';
+import { classifyMicrophoneFailure, isEmbeddedContext } from "@/lib/embeddedContext";
 import {campaignVisit, trackCampaignEvent} from '@/lib/campaignTracking';
 import { salesPlans, type SalesPlan } from '@/lib/salesActions';
 import SimliAvatar, { SOUND_BLOCKED, isVideoStartFailure, type SimliAvatarHandle } from '@/components/SimliAvatar';
@@ -31,6 +32,8 @@ import PlaybackCaption from '@/components/PlaybackCaption';
 import { voiceSessionHeaders } from '@/lib/voiceSessionAuth';
 
 const MICROPHONE_DENIED = "Microphone permission was denied — allow it in your browser and try again.";
+/** On-screen only: replaces the mic-denied error when the widget runs inside an embedded preview frame, where the parent frame withholds the microphone and the browser can never show a permission prompt — there is nothing for the visitor to "allow" there. */
+const EMBEDDED_MIC_NOTICE = "This embedded preview can't use your microphone. Open the full page to talk to Aspen.";
 const AUDIO_TAP_NEEDED = 'Tap play to enable sound on this phone. Your sign-in and demo allowance are unchanged.';
 /** On-screen only (never spoken): shown when the moving face could not start and the call continues voice-only. */
 const VIDEO_FALLBACK_NOTICE = "Video needs a faster connection — you’re talking with Aspen by voice.";
@@ -60,6 +63,18 @@ type Phase = "idle" | "connecting" | "live" | "preview";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const WS_URL = SUPABASE_URL.replace(/^https/, "wss") + "/functions/v1/gemini-live-proxy";
+
+/** Calm guidance shown instead of the mic-denied error when the widget is framed by an
+ * embedded preview: the parent frame withholds the microphone, so no prompt can ever
+ * appear. Opening this same page as its own top-level page is where the prompt works. */
+const EmbeddedMicrophoneNotice = ({ compact = false }: { compact?: boolean }) => (
+  <div role="status" className="space-y-1.5">
+    <p className={compact ? "text-[11px] text-muted-foreground" : "text-xs text-muted-foreground"}>{EMBEDDED_MIC_NOTICE}</p>
+    <Button type="button" size="sm" className={compact ? "h-7 text-[11px]" : "h-8 text-xs"} onClick={() => { window.open(window.location.href, "_blank", "noopener"); }}>
+      Open full page
+    </Button>
+  </div>
+);
 
 export interface GeminiConversationProps { agentId?: string; leadId?: string; prospectId?: string; draft?: boolean; compact?: boolean; name?: string; visitorName?: string; previewVoice?: string; autoStart?: boolean; previewOnly?: boolean; previewAudioContext?: AudioContext; testModel?: string; shareToken?: string; onRecommendedPlan?: (plan: SalesPlan) => void; videoAvatar?: VideoAvatar; avatarInline?: boolean; faceFirst?: boolean; avatarUrl?: string; /** The visitor tapped a launcher that already showed the recording notice; that tap is the agreement. */ consentOnOpen?: boolean; /** Open the paid live session silently before the tap so it starts instantly. */ prewarm?: boolean; onPrewarmed?: (ready: boolean) => void; }
 const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compact = false, name = "Aspen", visitorName = "", previewVoice, autoStart = false, previewOnly = false, previewAudioContext, testModel, shareToken, onRecommendedPlan, videoAvatar, avatarInline = false, faceFirst = false, avatarUrl, consentOnOpen = false, prewarm = false, onPrewarmed }: GeminiConversationProps) => {
@@ -838,6 +853,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     </div>
   </div>;
 
+  // A mic denial inside an embedded preview frame gets guidance, not the red
+  // error: the frame never offered a prompt, so there is nothing to "allow".
+  const micFailureKind = classifyMicrophoneFailure(error, MICROPHONE_DENIED, isEmbeddedContext());
+
   if (previewOnly) return <div className="space-y-2">
     <div className="flex flex-wrap items-center gap-2">
       <Button size="sm" variant="outline" disabled={phase !== "idle" || replaying} onClick={() => void startConversation(true)} aria-label="Play selected voice">{phase === 'connecting' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4"/>}Play voice</Button>
@@ -1006,7 +1025,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           </div>
         )}
         {audioNeedsTap && <p role="status" className="text-[11px] text-muted-foreground">{AUDIO_TAP_NEEDED}</p>}
-        {error && <p className="text-[11px] font-semibold text-destructive">{error}</p>}
+        {error && (micFailureKind === "mic-denied-embedded" ? <EmbeddedMicrophoneNotice compact /> : <p className="text-[11px] font-semibold text-destructive">{error}</p>)}
         {signInAction}
 
         {showSettings && (
@@ -1201,7 +1220,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             <span>{micLevel > 3 ? "Sound detected" : "Quiet"}</span>
           </div>}
           {audioNeedsTap && <p role="status" className="text-xs text-muted-foreground">{AUDIO_TAP_NEEDED}</p>}
-          {error && <p className="text-xs text-destructive font-semibold">{error}</p>}
+          {error && (micFailureKind === "mic-denied-embedded" ? <EmbeddedMicrophoneNotice /> : <p className="text-xs text-destructive font-semibold">{error}</p>)}
           {signInAction}
         </Card>
 
