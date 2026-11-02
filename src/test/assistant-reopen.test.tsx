@@ -33,7 +33,7 @@ describe.each([
     fireEvent.click(screen.getByRole('button', { name: 'Close assistant' }));
     expect(calls.stop).toHaveBeenCalledTimes(1);
     expect(calls.start).toHaveBeenCalledTimes(1);
-    fireEvent.click(screen.getByRole('button', { name: 'Reopen Aspen' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Talk to Aspen' }));
     await waitFor(() => expect(calls.start).toHaveBeenCalledTimes(2));
   });
   it('preserves the same call through minimize and expand', async () => {

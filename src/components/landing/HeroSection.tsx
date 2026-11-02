@@ -130,18 +130,27 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
             transition={{ duration: 0.7, delay: 0.3 }}
             className="flex-shrink-0 w-full lg:w-[420px] flex flex-col items-center"
           >
-            <button
-              type="button"
-              aria-label="Talk to Aspen"
-              onClick={() => window.dispatchEvent(new CustomEvent('open-homepage-aspen', { detail: { mode: 'voice', start: true } }))}
-              className="rounded-2xl cursor-pointer transition-transform hover:scale-[1.02] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-            >
-              <img
-                src={aspenChatboxNew}
-                alt="Aspen, your AI receptionist, speaking live"
-                className="h-auto w-auto max-h-[540px] max-w-full object-contain drop-shadow-2xl"
-              />
-            </button>
+            <div className="relative">
+              <button
+                type="button"
+                aria-label="Talk to Aspen"
+                onClick={() => window.dispatchEvent(new CustomEvent('open-homepage-aspen', { detail: { mode: 'voice', start: true } }))}
+                className="rounded-2xl cursor-pointer transition-transform hover:scale-[1.02] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              >
+                <img
+                  src={aspenChatboxNew}
+                  alt="Aspen, your AI receptionist, speaking live"
+                  className="h-auto w-auto max-h-[540px] max-w-full object-contain drop-shadow-2xl"
+                />
+              </button>
+              <button
+                type="button"
+                onClick={(event) => { event.stopPropagation(); navigate("/demo"); }}
+                className="absolute bottom-5 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-lg transition-colors hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              >
+                {i18n.language.startsWith('en') ? 'Try it on your website — free' : copy.demo}
+              </button>
+            </div>
             {i18n.language.startsWith('en') && <p className="mt-3 text-center text-xs text-muted-foreground">Aspen, live on this page — tap to talk</p>}
           </motion.div>
         </div>
