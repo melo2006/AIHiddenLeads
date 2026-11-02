@@ -65,6 +65,16 @@ export function unlockMediaElements(video: HTMLVideoElement, audio: HTMLAudioEle
 export const VIDEO_SLOW = "Aspen’s video is taking longer than usual to connect. Tap play to try again.";
 
 /**
+ * Bounded video-start attempts per start() call. Only a startup timeout (the provider
+ * connect stalled, or no displayed frame arrived in time) is retried, always with a
+ * fresh single-use token — a token is not a paid session until its stream connects.
+ * Provider refusals/errors and browser sound blocks stay final, exactly as before.
+ */
+const MAX_VIDEO_ATTEMPTS = 3;
+const videoTimeoutError = (message: string) => Object.assign(new Error(message), { videoTimeout: true });
+const isVideoTimeout = (e: unknown) => (e as { videoTimeout?: boolean } | null)?.videoTimeout === true;
+
+/**
  * Asks the server for a single-use video token. A token is not a paid session, so a slow
  * cold start or dropped phone request is retried once before the visitor sees an error.
  */
@@ -132,6 +142,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
     return () => cancelAnimationFrame(raf);
   }, [debug]);
   const clientRef = useRef<SimliClient | null>(null);
+  const startingRef = useRef(false);
   const liveRef = useRef(false);
   const audioReadyRef = useRef(false);
   const lifecycleRef = useRef(0);
@@ -169,7 +180,15 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
 
   useImperativeHandle(ref, () => ({
     start: async (options?: { silent?: boolean }) => {
-      if (clientRef.current) return liveRef.current;
+      if (clientRef.current) {
+        if (liveRef.current) return true;
+        if (startingRef.current) return liveRef.current;
+        // A provider 'stop'/'error' leaves its client behind with live=false; tear the
+        // stale client down so this call can make a fresh attempt instead of giving up.
+        const stale = clientRef.current; clientRef.current = null;
+        void stale.stop().catch(() => {});
+      }
+      startingRef.current = true;
       const lifecycle = ++lifecycleRef.current;
       setState("connecting"); setReason("");
       try {
@@ -183,14 +202,23 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
         audioRef.current.volume = 0;
         // Still inside the visitor's tap: unlock both elements now. Phones and in-app
         // browsers refuse play() once the tap is a few seconds old (video startup is slower).
+        // The unlock happens once here; retries below reuse the already-unlocked elements
+        // and never need a second tap.
         unlockMediaElements(videoRef.current, audioRef.current);
+
+        // One video attempt: fresh single-use token, provider connect, displayed-frame
+        // check, then the paired-audio unlock. Throws on failure; startup timeouts are
+        // tagged (videoTimeout) so start() can retry just those with a fresh token.
+        const runAttempt = async (attemptIndex: number): Promise<boolean> => {
         let rejectStartup: ((error: Error) => void) | undefined;
         const startupFailure = new Promise<never>((_, reject) => { rejectStartup = reject; });
         // A stop can happen while token acquisition is pending, before the race attaches.
         void startupFailure.catch(() => {});
         startupRejectRef.current = error => rejectStartup?.(error);
         const tokenAbort = new AbortController(); tokenAbortRef.current = tokenAbort;
-        const { token, chromaKey } = await sessionToken({ agentId, shareToken, draft, faceId: faceOverride }, tokenAbort.signal);
+        const { token, chromaKey } = attemptIndex === 0
+          ? await sessionToken({ agentId, shareToken, draft, faceId: faceOverride }, tokenAbort.signal)
+          : await sessionToken({ agentId, shareToken, draft, faceId: faceOverride }, tokenAbort.signal, 1, 8000);
         if (tokenAbortRef.current === tokenAbort) tokenAbortRef.current = null;
         if (lifecycle !== lifecycleRef.current) return false;
         const client = new SimliClient(token, videoRef.current, audioRef.current, null, LogLevel.ERROR, "livekit");
@@ -209,19 +237,21 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
           await Promise.race([
             client.start(),
             startupFailure,
-            // Stop before the SDK's first 15s retry; no hidden second paid attempt.
-            new Promise<never>((_, reject) => { deadline = setTimeout(() => reject(new Error("Aspen’s video did not arrive. No greeting was played. Please retry in Chrome and check your connection.")), 12000); }),
+            // Cap each attempt before the SDK's own 15s retry cycle; a stall here is
+            // tagged so start() can retry the whole attempt on a fresh token.
+            new Promise<never>((_, reject) => { deadline = setTimeout(() => reject(videoTimeoutError("Aspen’s video did not arrive. No greeting was played. Please retry in Chrome and check your connection.")), attemptIndex === 0 ? 12000 : 8000); }),
           ]);
         } finally { if (deadline) clearTimeout(deadline); }
         if (clientRef.current !== client) return false;
         await Promise.race([startupFailure, new Promise<void>((resolve, reject) => {
           const started = performance.now();
+          const frameTimeout = attemptIndex === 0 ? 8000 : 5000;
           const check = () => {
             if (lifecycle !== lifecycleRef.current) { reject(new Error('Video startup cancelled')); return; }
             const video = videoRef.current;
             const audio = audioRef.current;
             if (video && video.readyState >= 2 && video.videoWidth > 0 && audio?.srcObject) { resolve(); return; }
-            if (performance.now() - started >= 8000) { reject(new Error('Video did not arrive. Please try again.')); return; }
+            if (performance.now() - started >= frameTimeout) { reject(videoTimeoutError('Video did not arrive. Please try again.')); return; }
             requestAnimationFrame(check);
           };
           check();
@@ -245,6 +275,35 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
         startupRejectRef.current = null;
         setLive(true); setState("live");
         return true;
+        };
+
+        // Bounded retry: only a startup timeout (stalled connect, or the video track
+        // never became a displayed frame) earns another attempt, on a fresh token.
+        // Anything else — a provider refusal/error, a sound block, a cancel — is final
+        // and lands in the same failure teardown a single attempt always produced.
+        let lastError: Error = new Error('Video did not arrive. Please try again.');
+        for (let attempt = 0; attempt < MAX_VIDEO_ATTEMPTS; attempt++) {
+          if (attempt > 0) {
+            // Brief pause before the fresh token; a stop during it cancels the retry.
+            await new Promise(r => setTimeout(r, 600));
+            if (lifecycle !== lifecycleRef.current) return false;
+            setState("connecting"); setReason("");
+          }
+          try {
+            return await runAttempt(attempt);
+          } catch (e) {
+            if (lifecycle !== lifecycleRef.current) return false;
+            lastError = e instanceof Error ? e : new Error(String(e || 'Video connection failed'));
+            // Tear this attempt's client down first; a retry needs a clean element pair.
+            if (audioRef.current) { audioRef.current.muted = true; audioRef.current.volume = 0; }
+            audioReadyRef.current = false;
+            stopKey();
+            const failedClient = clientRef.current; clientRef.current = null;
+            if (failedClient) void failedClient.stop().catch(() => {});
+            if (!isVideoTimeout(e)) throw lastError;
+          }
+        }
+        throw lastError;
       } catch (e) {
         if (lifecycle !== lifecycleRef.current) return false;
         startupRejectRef.current = null;
@@ -256,6 +315,8 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
         setLive(false); setState("failed");
         setReason(e instanceof Error ? e.message : String(e || "Video avatar could not start"));
         throw e instanceof Error ? e : new Error(String(e || 'Video connection failed'));
+      } finally {
+        startingRef.current = false;
       }
     },
     activate: async () => {
