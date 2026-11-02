@@ -706,7 +706,7 @@ const MarketingHub = () => {
                           <li>Download 3–5 ad images from the Facebook Ads section above</li>
                           <li>In each ad set, create 3–5 ads (one per image)</li>
                           <li>Copy the <strong>Primary Text</strong>, <strong>Headline</strong>, and <strong>CTA</strong> from each ad card above</li>
-                          <li>Set the destination URL to: <strong>https://aihiddenleads.lovable.app/demo</strong></li>
+                          <li>Set the destination URL to: <strong>https://aihiddenleads.com/demo</strong></li>
                           <li>Select CTA button: <strong>"Learn More"</strong> or <strong>"Sign Up"</strong></li>
                         </ol>
                         <p className="text-xs text-primary mt-2">💡 Upload ALL 5 variations — Facebook's algorithm will automatically show the best-performing ads more often!</p>
@@ -771,7 +771,7 @@ const MarketingHub = () => {
                         <ul className="text-sm text-muted-foreground space-y-1 list-disc pl-4">
                           <li>Add all 3 headlines (Google rotates them automatically)</li>
                           <li>Add the description text</li>
-                          <li>Set final URL to: <strong>https://aihiddenleads.lovable.app/demo</strong></li>
+                          <li>Set final URL to: <strong>https://aihiddenleads.com/demo</strong></li>
                           <li>Add sitelink extensions (already provided in each variation)</li>
                           <li>Add callout extensions: "Free Demo", "No Credit Card", "24/7 AI", "Starting $99/mo"</li>
                         </ul>

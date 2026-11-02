@@ -1207,7 +1207,7 @@ async function sendSummaryEmail({
   };
 
   const demoLink = websiteUrl ? `${websiteUrl.startsWith('http') ? '' : 'https://'}${websiteUrl}` : '';
-  const salesPageUrl = 'https://aihiddenleads.lovable.app';
+  const salesPageUrl = 'https://aihiddenleads.com';
 
   const html = `
     <div style="font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; max-width: 680px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0;">
