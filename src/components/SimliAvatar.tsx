@@ -75,6 +75,20 @@ const videoTimeoutError = (message: string) => Object.assign(new Error(message),
 const isVideoTimeout = (e: unknown) => (e as { videoTimeout?: boolean } | null)?.videoTimeout === true;
 
 /**
+ * Failures that mean the video itself could not start: a startup timeout (stalled
+ * connect or no displayed frame) after the bounded retries, or the provider dropping
+ * the session mid-startup. GeminiConversation degrades just these to a voice-only
+ * call. Token refusals (4xx), SOUND_BLOCKED and cancels are NOT video-start
+ * failures — they stay hard errors with no fallback.
+ */
+const VIDEO_START_FAILURE_MESSAGES: ReadonlySet<string> = new Set(['Video disconnected during startup', 'Video connection failed']);
+export const isVideoStartFailure = (e: unknown): boolean => {
+  if (!e || typeof e !== 'object') return false;
+  const err = e as { videoTimeout?: unknown; message?: unknown };
+  return err.videoTimeout === true || (typeof err.message === 'string' && VIDEO_START_FAILURE_MESSAGES.has(err.message));
+};
+
+/**
  * Asks the server for a single-use video token. A token is not a paid session, so a slow
  * cold start or dropped phone request is retried once before the visitor sees an error.
  */
