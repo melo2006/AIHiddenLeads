@@ -36,6 +36,23 @@ export function greeting(config: Record<string, unknown>, hour?: number, name = 
   const vars: Record<string,string> = { timeGreeting: timeGreeting(hour), agentName: String(config.name || 'Aspen'), businessName: String(config.businessName || ''), visitorName: name, visitorFirstName: name.trim().split(/\s+/)[0] || 'welcome', nameQuestion: name ? `It is nice to speak with you, ${name}. How can I help?` : 'What is your name?', nameConfirm: name ? `And just to check, is your name ${name.trim().split(/\s+/)[0]}?` : 'And by the way, what is your name?' };
   return String(config.greeting || DEFAULT_AGENT.greeting).replace(/\{(\w+)\}/g, (match,key) => vars[key] ?? match);
 }
+export function openingFor(config: Record<string, unknown>, hour?: number, name = '') {
+  // Rotating openings: when the agent snapshot carries a `greetings` array,
+  // each new session opens with a randomly picked variant so repeat visitors
+  // don't hear the identical pitch. Agents without the array keep the
+  // standard templated greeting. When the visitor's name is already known,
+  // the variant's closing name request is swapped for a personal greeting —
+  // she never asks for a name she already has.
+  const variants = (Array.isArray(config.greetings) ? config.greetings : [])
+    .map((g) => String(g || '').trim())
+    .filter(Boolean);
+  if (!variants.length) return greeting(config, hour, name);
+  const pick = variants[Math.floor(Math.random() * variants.length)];
+  const first = name.trim().split(/\s+/)[0];
+  return first
+    ? pick.replace(/And may I have your name, so I can greet you by it\?\s*$/, `It's great to speak with you, ${first}.`)
+    : pick;
+}
 export function isPublicUrl(value: string) {
   try { const u = new URL(value); const host = u.hostname.toLowerCase(); return ['https:','http:'].includes(u.protocol) && !u.username && !u.password && !u.port && host.includes('.') && !host.includes(':') && !/^\d+(\.\d+){3}$/.test(host) && !/(^|\.)(localhost|local|internal|test|invalid)$/.test(host); } catch { return false; }
 }

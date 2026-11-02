@@ -1,7 +1,7 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { z } from 'npm:zod@3';
-import { DEFAULT_AGENT, VOICES, greeting, businessDemoConfig } from '../_shared/voice-config.ts';
+import { DEFAULT_AGENT, VOICES, openingFor, businessDemoConfig } from '../_shared/voice-config.ts';
 import { DEFAULT_LIVE_MODEL, officialLivePricing } from '../_shared/live-models.ts';
 import { voiceQuotaClass, voiceLimitResponse } from '../_shared/voice-session-limit.ts';
 import { transferDestination } from '../_shared/browser-handoff.ts';
@@ -56,7 +56,7 @@ Deno.serve(async req=>{
   const requestedModel = b.model;
   if (!b.preview && !b.consent && !b.prewarm) return json({error:'Agree to the recording notice before starting.'},400);
   if(requestedModel && (b.share || !(b.draft || b.preview) || !officialLivePricing(requestedModel))) return json({error:'Model comparison is available only for authorized draft tests and previews.'},400);
-  config={...config,timeZone:b.timeZone,quotaClass:b.share?'visitor':voiceQuotaClass(role?.role==='admin',b.preview),model:requestedModel || DEFAULT_LIVE_MODEL,opening:greeting(config,b.hour,b.visitorName || String((config.visitorContact as Record<string,unknown>|undefined)?.name || '')),preview:b.preview,resumeContext:b.preview?undefined:b.resumeContext,reconnect:!b.preview&&b.reconnect,campaign:b.campaign || null,recordTranscript:!b.preview && transcriptAllowed(false,false,b.consent),recordAudio:!b.preview && b.consent};
+  config={...config,timeZone:b.timeZone,quotaClass:b.share?'visitor':voiceQuotaClass(role?.role==='admin',b.preview),model:requestedModel || DEFAULT_LIVE_MODEL,opening:openingFor(config,b.hour,b.visitorName || String((config.visitorContact as Record<string,unknown>|undefined)?.name || '')),preview:b.preview,resumeContext:b.preview?undefined:b.resumeContext,reconnect:!b.preview&&b.reconnect,campaign:b.campaign || null,recordTranscript:!b.preview && transcriptAllowed(false,false,b.consent),recordAudio:!b.preview && b.consent};
   const token=crypto.randomUUID()+crypto.randomUUID();
   const visitor=await hash(`${b.visitorKey}|${req.headers.get('x-forwarded-for')?.split(',')[0] || ''}`);
   const {data:id,error}=await db.rpc('authorize_gemini_session',{_visitor:visitor,_token:await hash(token),_config:config,_agent:agentId,_org:orgId,_lead:b.leadId || null,_prospect:b.prospectId || null});
