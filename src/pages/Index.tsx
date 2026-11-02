@@ -2,14 +2,12 @@ import { useState } from "react";
 import { niches } from "@/data/nicheData";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import HeroSection from "@/components/landing/HeroSection";
-import BeforeAfterSection from "@/components/landing/BeforeAfterSection";
 import StatsSection from "@/components/landing/StatsSection";
 import AvatarGallerySection from "@/components/landing/AvatarGallerySection";
 import SpokespersonSection from "@/components/landing/SpokespersonSection";
 import ServicesGrid from "@/components/landing/ServicesGrid";
 import HowItWorksSection from "@/components/landing/HowItWorksSection";
 import DemoDifferentiator from "@/components/landing/DemoDifferentiator";
-import WhyUsSection from "@/components/landing/WhyUsSection";
 import PricingSection from "@/components/landing/PricingSection";
 import AddOnPackages from "@/components/landing/AddOnPackages";
 import FAQSection from "@/components/landing/FAQSection";
@@ -36,18 +34,14 @@ const Index = () => {
       <AvatarGallerySection />
       <SpokespersonSection />
       <ServicesGrid />
-      <BeforeAfterSection niche={selectedNiche} />
       <MapVisibilitySection />
-      <TryWebsiteCTA />
       <HowItWorksSection />
       <TryWebsiteCTA />
       <DemoDifferentiator />
-      <WhyUsSection />
       <PricingSection />
       <AddOnPackages />
       <FAQSection />
       <TestimonialSection />
-      <TryWebsiteCTA />
       <LeadCaptureSection selectedNiche={selectedNiche} />
       <Footer />
       <AssistantErrorBoundary><GeminiAgentWidget floating /></AssistantErrorBoundary>
