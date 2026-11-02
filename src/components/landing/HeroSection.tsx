@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { Phone, Search, Star, Users, Video, Calendar, ArrowRight } from "lucide-react";
 import { homepageSalesCopy } from "@/data/homepageSalesCopy";
@@ -6,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import type { NicheData } from "@/data/nicheData";
 import aspenChatboxNew from "@/assets/aspen-chatbox-new.png";
-import HeroRotatingBullet from "@/components/landing/HeroRotatingBullet";
+import HeroRotatingHeadline from "@/components/landing/HeroRotatingHeadline";
 
 interface HeroSectionProps {
   niche: NicheData;
@@ -18,6 +19,10 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
   const { t, i18n } = useTranslation();
   const copy = homepageSalesCopy(i18n.language);
   const icons = [Phone, Users, Search, Star, Video];
+  // Pause the rotating headline while the visitor hovers it or uses the CTAs.
+  const [rotationPaused, setRotationPaused] = useState(false);
+  const pauseRotation = () => setRotationPaused(true);
+  const resumeRotation = () => setRotationPaused(false);
 
   return (
     <section className="landing-hero relative overflow-hidden pt-6 sm:pt-8 pb-8 sm:pb-10">
@@ -42,17 +47,16 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
               </span>
             </motion.div>
 
-            {/* Headline */}
+            {/* Headline — rotates through the five hero lines */}
             <motion.h1
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.1 }}
               className="text-3xl sm:text-5xl lg:text-6xl font-bold leading-tight mb-5"
+              onMouseEnter={pauseRotation}
+              onMouseLeave={resumeRotation}
             >
-              <span className="text-foreground">85% of callers who hit </span>
-              <span className="text-primary">voicemail</span>
-              <span className="text-foreground"> never call back. Ever.</span>
-              
+              <HeroRotatingHeadline paused={rotationPaused} />
             </motion.h1>
 
             {/* Subheadline */}
@@ -63,18 +67,7 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
               className="text-base sm:text-lg text-muted-foreground max-w-xl mx-auto lg:mx-0 mb-6"
             >
               Aspen answers every call and every website visitor in seconds — and she's not a chat box. She's a live, lip-synced video avatar with a real face and a natural voice, greeting your customers by name. Almost nobody else can give you that.
-              <span className="mt-3 block font-semibold text-foreground">{copy.start}</span>
             </motion.p>
-
-            {/* Rotating evidence / differentiator line */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.25 }}
-              className="max-w-xl mx-auto lg:mx-0 text-left mb-5"
-            >
-              <HeroRotatingBullet />
-            </motion.div>
 
             {/* CTAs */}
             <motion.div
@@ -82,6 +75,11 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.3 }}
               className="flex w-full min-w-0 flex-col sm:flex-row sm:flex-wrap gap-3 justify-center lg:justify-start mb-5"
+              onMouseEnter={pauseRotation}
+              onMouseLeave={resumeRotation}
+              onFocusCapture={pauseRotation}
+              onBlurCapture={resumeRotation}
+              onPointerDownCapture={pauseRotation}
             >
               <Button
                 onClick={() => navigate("/demo")}
