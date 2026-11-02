@@ -26,6 +26,7 @@ import type { VideoAvatar } from '../../supabase/functions/_shared/video-avatar'
 import { PersonPortrait } from '@/components/FloatingPersonFrame';
 import { assistantOutput, nextVoiceChunkStart } from '@/lib/avatarAudioTransition';
 import { PlaybackCaptions, type PlaybackCaption as Caption } from '@/lib/playbackCaptions';
+import { displayNumbers } from '@/lib/displayNumbers';
 import PlaybackCaption from '@/components/PlaybackCaption';
 import { voiceSessionHeaders } from '@/lib/voiceSessionAuth';
 
@@ -883,12 +884,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           {turns.map((t, i) => (
             <Message key={i} from={t.role} className="max-w-full">
               <MessageContent aria-label={t.role === "user" ? "Caller transcript" : "Aspen transcript"} className={t.role === "user" ? "bg-primary text-primary-foreground text-xs px-2 py-1" : "text-xs text-foreground"}>
-                <MessageResponse>{t.text}</MessageResponse>
+                <MessageResponse>{t.role === "user" ? t.text : displayNumbers(t.text)}</MessageResponse>
               </MessageContent>
             </Message>
           ))}
           {partialUser && <Message from="user"><MessageContent className="bg-primary text-primary-foreground text-sm font-bold"><span className="text-[10px] font-semibold">You</span><MessageResponse>{partialUser}</MessageResponse></MessageContent></Message>}
-          {partialAspen && <Message from="assistant"><MessageContent className="text-sm font-bold"><MessageResponse>{partialAspen}</MessageResponse></MessageContent></Message>}
+          {partialAspen && <Message from="assistant"><MessageContent className="text-sm font-bold"><MessageResponse>{displayNumbers(partialAspen)}</MessageResponse></MessageContent></Message>}
           <div ref={transcriptEndRef} />
         </div>
         </div>
@@ -1213,12 +1214,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           {turns.map((t, i) => (
             <Message key={i} from={t.role}>
               <MessageContent aria-label={t.role === "user" ? "Caller transcript" : "Aspen transcript"} className={t.role === "user" ? "bg-primary text-primary-foreground" : "text-foreground"}>
-                <MessageResponse>{t.text}</MessageResponse>
+                <MessageResponse>{t.role === "user" ? t.text : displayNumbers(t.text)}</MessageResponse>
               </MessageContent>
             </Message>
           ))}
           {partialUser && <Message from="user"><MessageContent className="bg-primary text-primary-foreground"><MessageResponse>{partialUser}</MessageResponse></MessageContent></Message>}
-          {partialAspen && <Message from="assistant"><MessageContent><MessageResponse>{partialAspen}</MessageResponse></MessageContent></Message>}
+          {partialAspen && <Message from="assistant"><MessageContent><MessageResponse>{displayNumbers(partialAspen)}</MessageResponse></MessageContent></Message>}
           <div ref={transcriptEndRef} />
         </Card>
 
