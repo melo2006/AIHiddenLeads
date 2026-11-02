@@ -21,7 +21,7 @@ import { voiceIdleAction, homepageWalkthroughDue, type VoiceIdleStage } from '@/
 import { voiceDisconnectMessage } from '@/lib/voiceDisconnect';
 import {campaignVisit, trackCampaignEvent} from '@/lib/campaignTracking';
 import { salesPlans, type SalesPlan } from '@/lib/salesActions';
-import SimliAvatar, { SOUND_BLOCKED, type SimliAvatarHandle } from '@/components/SimliAvatar';
+import SimliAvatar, { SOUND_BLOCKED, isVideoStartFailure, type SimliAvatarHandle } from '@/components/SimliAvatar';
 import type { VideoAvatar } from '../../supabase/functions/_shared/video-avatar';
 import { PersonPortrait } from '@/components/FloatingPersonFrame';
 import { assistantOutput, nextVoiceChunkStart } from '@/lib/avatarAudioTransition';
@@ -31,6 +31,8 @@ import { voiceSessionHeaders } from '@/lib/voiceSessionAuth';
 
 const MICROPHONE_DENIED = "Microphone permission was denied — allow it in your browser and try again.";
 const AUDIO_TAP_NEEDED = 'Tap play to enable sound on this phone. Your sign-in and demo allowance are unchanged.';
+/** On-screen only (never spoken): shown when the moving face could not start and the call continues voice-only. */
+const VIDEO_FALLBACK_NOTICE = "Video needs a faster connection — you’re talking with Aspen by voice.";
 const VOICES = [
   { id: "Kore", label: "Kore — warm female (default)" },
   { id: "Aoede", label: "Aoede — bright female" },
@@ -75,6 +77,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const consentReadyRef=useRef(consentOnOpen);
   // True while the voice is held back so it starts together with the moving face.
   const [faceWaiting, setFaceWaiting] = useState(false);
+  // True once this session degraded to voice-only because the moving face could not start.
+  const [videoFallback, setVideoFallback] = useState(false);
   useEffect(() => { const timer = window.setInterval(() => { if (liveRef.current && deadlineRef.current) setRemainingSeconds(Math.max(0, Math.ceil((deadlineRef.current-Date.now())/1000))); }, 1000); return () => window.clearInterval(timer); }, []);
   const [handoffToken, setHandoffToken] = useState<string | null>(null);
   const [handoffActive, setHandoffActive] = useState(false);
@@ -257,6 +261,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     setMicLevel(0);
     avatarRef.current?.stop();
     avatarRequestedRef.current = false; setFaceWaiting(false);
+    setVideoFallback(false);
     avatarLiveRef.current = false;
     try { wsRef.current?.close() } catch { /* ignore */ }
     wsRef.current = null;
@@ -383,6 +388,18 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     } catch { captureRef.current.replaying = false; setReplaying(false); setError("Could not replay audio. Check your speaker connection."); }
   }, [pauseCapture, clearPlayback, playPcmChunk]);
 
+  // The moving face could not start (slow connection): keep the call as a voice-only
+  // session — still photo stays, Gemini audio plays locally (the existing voice-only
+  // mode) and the visitor sees a one-line notice. Her greeting proceeds unchanged.
+  const engageVideoFallback = useCallback(() => {
+    avatarRef.current?.stop();
+    avatarRequestedRef.current = false;
+    avatarLiveRef.current = false;
+    setFaceLive(false);
+    setFaceWaiting(false);
+    setVideoFallback(true);
+  }, []);
+
   // Authorize voice concurrently, but never generate/play speech ahead of the face.
   const startFace = useCallback(async (generation: number, silent = false) => {
     setFaceWaiting(true);
@@ -426,6 +443,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     setAudioNeedsTap(false);
     setLimitReached(false);
     setEndedByVisitor(false);
+    setVideoFallback(false);
     const resumeContext = preview ? undefined : resumeRecap(visitMemory.get(agentId || "homepage") || []);
     setTurns([]);
     setPartialUser("");
@@ -458,7 +476,18 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       await Promise.all([playResume, micResume]);
       if (generation !== generationRef.current) return;
       if (!warm && (playCtx.state !== 'running' || (micCtx && micCtx.state !== 'running'))) throw new Error(AUDIO_TAP_NEEDED);
-      const faceReady = avatarRequestedRef.current ? startFace(generation, warm) : Promise.resolve(true);
+      // A video-start failure (startup timeout after the retries, or the provider
+      // dropping the session mid-startup) degrades to a voice-only session instead of
+      // aborting the call. Refusals, sound blocks and cancels still reject as before.
+      const faceReady: Promise<{ started: boolean; fallback: boolean }> = avatarRequestedRef.current
+        ? startFace(generation, warm).then(
+            (ok) => ({ started: ok, fallback: false }),
+            (err: unknown) => {
+              if (isVideoStartFailure(err)) return { started: false, fallback: true };
+              throw err;
+            },
+          )
+        : Promise.resolve({ started: true, fallback: false });
       let visitorKey = crypto.randomUUID();
       try { localStorage.setItem("gemini-visitor-key", visitorKey); } catch { /* ignore */ }
       // Prepare the server's business snapshot alongside permission/audio setup, only after a tap.
@@ -478,13 +507,17 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           if (generation !== generationRef.current) throw new Error('Demo start cancelled.');
           return supabase.functions.invoke("gemini-session", { headers, body: { visitorKey: key, agentId, leadId, prospectId, draft, preview, voice: previewVoice || voice, model: testModel, campaign:campaignVisit(), hour: new Date().getHours(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, visitorName, consent: !warm && consentReadyRef.current, prewarm: warm, share: shareToken, resumeContext, reconnect: reconnecting && !!resumeContext } });
         });
-      const [initialSession, stream] = await Promise.all([
+      const [initialSession, stream, , , faceOutcome] = await Promise.all([
         requestSession(visitorKey),
         microphoneReady,
         playResume,
         micResume,
-        faceReady.then(ok => { if (!ok) throw new Error('The moving face could not connect. Please press play to try again.'); }),
+        faceReady,
       ]);
+      if (!faceOutcome.started) {
+        if (!faceOutcome.fallback) throw new Error('The moving face could not connect. Please press play to try again.');
+        engageVideoFallback();
+      }
       let session = initialSession;
       if (session.data?.allowed === false && session.data?.code === 'VISITOR_DAILY_LIMIT') {
         visitorKey = crypto.randomUUID();
@@ -862,6 +895,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
         {confirmation}
         {actionNotice && <p role="status" className="text-xs text-primary">{actionNotice}</p>}
+        {videoFallback && <p role="status" className="text-[11px] text-muted-foreground">{VIDEO_FALLBACK_NOTICE}</p>}
         {remainingSeconds !== null && (!faceFirst || captions) && <p className="text-[11px] text-muted-foreground">Demo time remaining: {Math.floor(remainingSeconds/60)}:{String(remainingSeconds%60).padStart(2,'0')}</p>}
         {transferControl}
         <div className="voice-controls flex flex-wrap items-center justify-center gap-1 [&_button]:h-auto [&_button]:min-h-11 [&_button]:w-auto [&_button]:min-w-11 [&_button]:flex-col [&_button]:gap-1 [&_button]:px-1.5 [&_button]:py-1.5 [&_span]:text-[10px] [&_span]:leading-tight">
@@ -1043,6 +1077,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         <Card className="p-4 space-y-3">
           {confirmation}
         {actionNotice && <p role="status" className="text-xs text-primary">{actionNotice}</p>}
+        {videoFallback && <p role="status" className="text-xs text-muted-foreground">{VIDEO_FALLBACK_NOTICE}</p>}
         {remainingSeconds !== null && <p className="text-[11px] text-muted-foreground">Demo time remaining: {Math.floor(remainingSeconds/60)}:{String(remainingSeconds%60).padStart(2,'0')}</p>}
         {transferControl}
           <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
