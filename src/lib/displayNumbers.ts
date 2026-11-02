@@ -2,7 +2,9 @@
  * Display-only number formatting for Aspen's on-screen text (live captions,
  * chat box and transcript bubbles). Converts spelled-out cardinal numbers to
  * digits: "seventy-eight percent" -> "78%", "ninety-nine dollars" -> "$99",
- * "four hundred minutes" -> "400 minutes".
+ * "four hundred minutes" -> "400 minutes". Spelled-out ordinals become digit
+ * ordinals too, so dates read as dates: "November thirtieth" ->
+ * "November 30th", "twenty-first" -> "21st", "the third" -> "the 3rd".
  *
  * This is a render-time transform of displayed text only. Spoken audio and
  * stored transcripts always keep the original words. The conversion is
@@ -38,6 +40,47 @@ const URL_RE =
 const ONE_PRONOUN_PRECEDERS = new Set([
   'this', 'that', 'the', 'which', 'another', 'no', 'any', 'each', 'every', 'some',
 ]);
+
+const ORDINAL_ONES: Record<string, number> = {
+  first: 1, second: 2, third: 3, fourth: 4, fifth: 5, sixth: 6, seventh: 7,
+  eighth: 8, ninth: 9, tenth: 10, eleventh: 11, twelfth: 12, thirteenth: 13,
+  fourteenth: 14, fifteenth: 15, sixteenth: 16, seventeenth: 17, eighteenth: 18,
+  nineteenth: 19,
+};
+const ORDINAL_TENS: Record<string, number> = {
+  twentieth: 20, thirtieth: 30, fortieth: 40, fiftieth: 50, sixtieth: 60,
+  seventieth: 70, eightieth: 80, ninetieth: 90,
+};
+
+// Tens ordinals first: "eightieth" must win over its near-prefix "eighth".
+const ORDINAL_WORD =
+  '(?:twentieth|thirtieth|fortieth|fiftieth|sixtieth|seventieth|eightieth|ninetieth|thirteenth|fourteenth|fifteenth|sixteenth|seventeenth|eighteenth|nineteenth|eleventh|twelfth|first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)';
+
+/** A spelled ordinal: a simple word, or a tens cardinal + ones ordinal ("twenty-first", "thirty second"). */
+const ORDINAL_RE = new RegExp(
+  `\\b(?:(twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)[-\\s]+(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth)|${ORDINAL_WORD})\\b`,
+  'gi',
+);
+
+/** Words after which "second" names a unit of time, not a rank or a date. */
+const SECOND_TIME_PRECEDERS = new Set(['a', 'an', 'one', 'per', 'every', 'half', 'another']);
+
+/** Fixed noun phrases whose first word is not a rank: "first name", "second thought". */
+const ORDINAL_FIXED_NEXT: Record<string, ReadonlySet<string>> = {
+  first: new Set(['name', 'aid', 'class', 'responder', 'responders']),
+  second: new Set(['name', 'thought', 'nature', 'hand']),
+};
+
+function ordinalSuffix(value: number): string {
+  const mod100 = value % 100;
+  if (mod100 >= 11 && mod100 <= 13) return 'th';
+  switch (value % 10) {
+    case 1: return 'st';
+    case 2: return 'nd';
+    case 3: return 'rd';
+    default: return 'th';
+  }
+}
 
 /**
  * Parse hyphen/space-separated number words ("four hundred and fifty") into a
@@ -115,14 +158,73 @@ function numberTokensOf(raw: string): string[] {
     .filter((t) => t && t !== 'a' && t !== 'an' && t !== 'and');
 }
 
+/**
+ * Convert spelled ordinals to digit ordinals ("thirtieth" -> "30th",
+ * "twenty-first" -> "21st"). Runs before the cardinal pass, which cannot
+ * see inside ordinal words. The guards keep fixed phrases and non-rank uses
+ * spelled: hyphenated adjectives ("first-class"), range selectors ("the
+ * first three months"), fractions ("a third of callers"), the idioms "at
+ * first" / "first of all", and "second" as a unit of time ("wait a second",
+ * "per second") — an ambiguous bare "second" after a duration word stays a
+ * word, while "November second" and "the second" convert.
+ */
+function convertOrdinals(text: string, isProtected: (index: number) => boolean): string {
+  return text.replace(ORDINAL_RE, (match, tensWord: string | undefined, onesWord: string | undefined, offset: number, whole: string) => {
+    if (isProtected(offset) || whole[offset - 1] === '/') return match;
+
+    const before = whole.slice(0, offset);
+    const prevWord = /([A-Za-z]+)[^A-Za-z]*$/.exec(before)?.[1]?.toLowerCase();
+    const after = whole.slice(offset + match.length);
+    const nextWord = /^\s*([A-Za-z]+)/.exec(after)?.[1]?.toLowerCase();
+
+    if (/^-[A-Za-z]/.test(after)) return match;
+    if (nextWord && (nextWord in ONES || nextWord in TENS || nextWord === 'hundred')) return match;
+    if ((prevWord === 'a' || prevWord === 'an') && nextWord === 'of') return match;
+
+    const simple = !tensWord;
+    const word = (simple ? match : onesWord!).toLowerCase();
+    if (simple && word === 'first' && (prevWord === 'at' || /^\s+of\s+all\b/i.test(after))) return match;
+    // An ordinal directly followed by a comma is a spoken-list enumerator
+    // ("First, she answers. Second, she books."), not a rank or a date.
+    if (simple && /^\s*,/.test(after)) return match;
+    // A sentence-initial bare "First" is the discourse marker ("First
+    // response…", "First we…"), not a rank — real dates carry a determiner
+    // or a month ("the first", "November first").
+    if (simple && word === 'first') {
+      const lastChar = before.replace(/\s+$/, '').slice(-1);
+      if (!lastChar || '.!?…'.includes(lastChar)) return match;
+    }
+    if (simple && nextWord && ORDINAL_FIXED_NEXT[word]?.has(nextWord)) return match;
+    if (word === 'second') {
+      // A compound after an article is a duration ("a twenty-second spot");
+      // bare "second" after a duration word is one too ("wait a second").
+      if (prevWord === 'a' || prevWord === 'an') return match;
+      if (simple && prevWord && SECOND_TIME_PRECEDERS.has(prevWord)) return match;
+      if (nextWord === 'ago') return match;
+    }
+
+    const value = tensWord
+      ? TENS[tensWord.toLowerCase()] + ORDINAL_ONES[onesWord!.toLowerCase()]
+      : ORDINAL_ONES[word] ?? ORDINAL_TENS[word];
+    const suffix = ordinalSuffix(value);
+    // An all-caps word (a shouted caption line) keeps its register: "30TH".
+    return `${value}${match === match.toUpperCase() ? suffix.toUpperCase() : suffix}`;
+  });
+}
+
 export function displayNumbers(text: string): string {
   if (!text || !/[a-z]/i.test(text)) return text;
 
-  const protectedSpans: Array<readonly [number, number]> = [];
-  for (const m of text.matchAll(URL_RE)) protectedSpans.push([m.index, m.index + m[0].length]);
-  const isProtected = (index: number) => protectedSpans.some(([a, b]) => index >= a && index < b);
+  const protectorOf = (s: string) => {
+    const spans: Array<readonly [number, number]> = [];
+    for (const m of s.matchAll(URL_RE)) spans.push([m.index, m.index + m[0].length]);
+    return (index: number) => spans.some(([a, b]) => index >= a && index < b);
+  };
 
-  return text.replace(PHRASE_RE, (match, unit: string | undefined, offset: number, whole: string) => {
+  const staged = convertOrdinals(text, protectorOf(text));
+  const isProtected = protectorOf(staged);
+
+  return staged.replace(PHRASE_RE, (match, unit: string | undefined, offset: number, whole: string) => {
     if (isProtected(offset) || whole[offset - 1] === '/') return match;
     const phrase = unit ? match.slice(0, match.length - unit.length) : match;
 
@@ -141,6 +243,14 @@ export function displayNumbers(text: string): string {
     if (prevWord === 'point' || nextWord === 'point') return match;
 
     const tokens = numberTokensOf(phrase);
+    // A tens word directly before an ordinal word is the residue of a spaced
+    // ordinal the ordinal pass deliberately skipped ("twenty first-century"
+    // keeps its hyphenated adjective whole); leave the tens word spelled.
+    if (
+      tokens[tokens.length - 1] in TENS &&
+      nextWord &&
+      (nextWord in ORDINAL_ONES || nextWord in ORDINAL_TENS)
+    ) return match;
     if (tokens.length === 1) {
       // Hyphenated adjectives ("five-dollar", "one-time") are not quantities here.
       if (/^-[A-Za-z]/.test(after)) return match;
