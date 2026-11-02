@@ -4,6 +4,7 @@ import LandingNavbar from "@/components/landing/LandingNavbar";
 import HeroSection from "@/components/landing/HeroSection";
 import BeforeAfterSection from "@/components/landing/BeforeAfterSection";
 import StatsSection from "@/components/landing/StatsSection";
+import AvatarGallerySection from "@/components/landing/AvatarGallerySection";
 import ServicesGrid from "@/components/landing/ServicesGrid";
 import HowItWorksSection from "@/components/landing/HowItWorksSection";
 import DemoDifferentiator from "@/components/landing/DemoDifferentiator";
@@ -31,6 +32,7 @@ const Index = () => {
       <LandingNavbar />
       <HeroSection niche={selectedNiche} onGetDemo={scrollToDemo} />
       <StatsSection niche={selectedNiche} />
+      <AvatarGallerySection />
       <ServicesGrid />
       <BeforeAfterSection niche={selectedNiche} />
       <MapVisibilitySection />
