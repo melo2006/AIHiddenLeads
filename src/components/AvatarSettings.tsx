@@ -12,7 +12,7 @@ import GeminiConversation from "@/components/GeminiConversation";
 import { VOICES } from "@/components/setup-wizard/wizardModel";
 import { SIMLI_FACE_CATALOG, type AvatarFace } from '@/lib/simliFaceCatalog';
 import goodPhotoExample from "@/assets/avatar-photo-good-example.jpg";
-import aspenCutout from "@/assets/aspen-shoulders-512-v2.webp";
+import aspenCutout from "@/assets/aspen-video-frame-final.webp";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import {
   AVATAR_MAX_SIZE, AVATAR_MIN_SIZE, AVATAR_POSITIONS, AVATAR_SHAPES, type VideoAvatar,

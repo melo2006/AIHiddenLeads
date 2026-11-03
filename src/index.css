@@ -129,25 +129,40 @@
   .aspen-person-shell { display: flex; flex-direction: column; gap: .25rem; max-width: calc(100vw - 24px); max-height: min(80dvh, var(--aspen-available-height, calc(100dvh - 56px))); overflow-y: auto; overscroll-behavior: auto; }
   .aspen-person-collapsed { width: 280px; }
   .aspen-person-expanded { width: 280px; }
-  .aspen-person-portrait { width: 187px; height: 187px; flex-shrink: 0; }
-  .aspen-person-expanded .aspen-person-portrait { width: 187px; height: 187px; }
-  .aspen-person-live-media { transform: none; }
-  .aspen-voice-panel { min-height: 232px; }
+  .aspen-person-portrait { width: 234px; height: 188px; flex-shrink: 0; object-fit: cover; object-position: top center; }
+  .aspen-person-expanded .aspen-person-portrait { width: 234px; height: 188px; }
+  .aspen-person-live-media { transform-origin: top center; transform: translate(-1.8%, -8.4%) scale(1.126); object-fit: cover; object-position: top center; }
+  .aspen-voice-panel { position: relative; z-index: 10; min-height: 232px; }
   .aspen-caption-space { height: 72px; min-width: 0; }
-  @media (max-width: 1024px), (max-height: 700px) {
+  /* The open widget's face box: identical dimensions to the static/collapsed portrait
+     (234x188 on tablet/desktop, 187x150 on compact phones) across ready, connecting,
+     live and paused, clipped cleanly along the top border of the voice/chat box. */
+  .aspen-person-livebox { position: relative; z-index: 0; width: 234px; height: 188px; flex-shrink: 0; overflow: hidden; }
+  .aspen-person-shell .aspen-person-livebox .aspen-person-portrait { width: 100%; height: 100%; display: block; }
+  @media (max-width: 639px) {
     .aspen-person-collapsed { width: 280px; }
-    .aspen-person-portrait { width: 144px; height: 144px; }
-    .aspen-person-expanded .aspen-person-portrait { width: 144px; height: 144px; }
+    .aspen-person-portrait { width: 187px; height: 150px; }
+    .aspen-person-expanded .aspen-person-portrait { width: 187px; height: 150px; }
+    .aspen-person-livebox { width: 187px; height: 150px; }
+  }
+  @media (max-width: 1024px), (max-height: 700px) {
     .aspen-person-shell .voice-controls span { display: none; }
     .aspen-person-shell .voice-controls button { min-width: 36px; min-height: 36px; padding: 8px; }
     .aspen-person-shell .aspen-sales-actions { display: none; }
   }
-  /* The open widget's face box: one stable size across ready, connecting and
-     live, so she never shrinks when a call starts. Full shell width (280px),
-     capped on narrow screens; the portrait inside fills it edge to edge. */
-  .aspen-person-livebox { width: min(280px, calc(100vw - 48px)); aspect-ratio: 1 / 1; flex-shrink: 0; }
-  .aspen-person-shell .aspen-person-livebox .aspen-person-portrait { width: 100%; height: 100%; }
-  .aspen-panel { display: flex; flex-direction: column; max-height: min(70dvh, var(--aspen-available-height, 70dvh)); }
+
+/* Face-dominant overlay controls: the X and drag pill sit on her chest, near the bottom of the still portrait, not below the widget. */
+.aspen-person-x-overlay { position: absolute; left: calc(50% + 52px); top: 150px; z-index: 30; }
+.aspen-drag-pill-portrait { position: absolute; left: 50%; top: 158px; transform: translateX(-50%); z-index: 30; }
+.aspen-drag-pill-top { position: absolute; left: 50%; top: 0; transform: translateX(-50%); z-index: 30; }
+.aspen-drag-portrait > button[data-drag-handle] { position: absolute; left: 50%; top: 158px; transform: translateX(-50%); z-index: 30; margin-top: 0; }
+.aspen-drag-top > button[data-drag-handle] { position: absolute; left: 50%; top: 0; transform: translateX(-50%); z-index: 30; margin-top: 0; }
+@media (max-width: 639px) {
+  .aspen-person-x-overlay { left: calc(50% + 42px); top: 112px; }
+  .aspen-drag-pill-portrait { top: 120px; }
+  .aspen-drag-portrait > button[data-drag-handle] { top: 120px; }
+}
+  .aspen-panel { position: relative; z-index: 10; display: flex; flex-direction: column; max-height: min(70dvh, var(--aspen-available-height, 70dvh)); }
   .aspen-panel.hidden { display: none; }
   .aspen-panel > header, .aspen-panel > div:first-child, .aspen-panel > div[aria-label] { flex-shrink: 0; }
   .aspen-chat-content { display: flex; flex: 1; min-height: 0; overflow: hidden; }
@@ -228,3 +243,14 @@
   75% { transform: scaleY(2); }
   100% { transform: scaleY(1.2); }
 }
+
+@keyframes aspenHiPulse {
+  0%, 20%, 50%, 65%, 88%, 100% { opacity: 0.78; transform: scale(1); }
+  31%, 74% { opacity: 1; transform: scale(1.08); }
+}
+
+.aspen-hi-badge {
+  display: inline-block;
+  animation: aspenHiPulse 6s ease-in-out infinite;
+}
+

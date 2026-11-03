@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Mic, MicOff, Volume2, FlaskConical, PhoneOff, Loader2, Play, Pause, Save, RotateCcw, RefreshCw, Settings2, ChevronsUpDown } from "lucide-react";
+import { Mic, MicOff, Volume2, VolumeX, FlaskConical, PhoneOff, Loader2, Play, Pause, Save, RotateCcw, RefreshCw, Settings2, ChevronsUpDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { microphonePcm, shouldSendMicrophone, microphoneGate, microphoneAutoGain, type NoiseFilter, type CaptureMode } from "@/lib/voiceLabAudio";
@@ -126,6 +126,9 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   }, [noiseFilter, captureMode]);
   const [held, setHeld] = useState(false);
   const [muted, setMuted] = useState(false);
+  const [speakerMuted, setSpeakerMuted] = useState(false);
+  const speakerMutedRef = useRef(false);
+  const speakerGainRef = useRef<GainNode | null>(null);
   const [paused, setPaused] = useState(false);
   const [replaying, setReplaying] = useState(false);
   const [hasReplay, setHasReplay] = useState(false);
@@ -223,7 +226,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     if (!captureRef.current.held) return;
     captureRef.current.held = false;
     setHeld(false);
-    if (wsRef.current?.readyState === WebSocket.OPEN) wsRef.current.send(JSON.stringify({ type: "activity_end" }));
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: "activity_end" }));
+      wsRef.current.send(JSON.stringify({ type: "audio_pause" }));
+    }
   }, []);
 
   useEffect(() => {
@@ -330,7 +336,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       // Use a silent local clock for captions/lifecycle, never a second audible voice.
       const clockGain = ctx.createGain(); clockGain.gain.value = 0;
       source.connect(clockGain); clockGain.connect(ctx.destination);
-    } else source.connect(ctx.destination);
+    } else {
+      const spkGain = ctx.createGain();
+      spkGain.gain.value = speakerMutedRef.current ? 0 : 1;
+      speakerGainRef.current = spkGain;
+      source.connect(spkGain);
+      spkGain.connect(ctx.destination);
+    }
 
     const now = ctx.currentTime;
     // Simli renders lips slightly behind the audio it receives; delay the start of each spoken run to match.
@@ -351,7 +363,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       if (sourcesRef.current.size === 0 && captureRef.current.replaying) {
         captureRef.current.replaying = false;
         setReplaying(false);
-        avatarRef.current?.setPlaybackMuted(false);
+        avatarRef.current?.setPlaybackMuted(speakerMutedRef.current || captureRef.current.paused);
       }
       if (isPreviewRef.current && previewDoneRef.current && sourcesRef.current.size === 0) stopEverything();
     };
@@ -376,21 +388,32 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     }
   }, [endHold]);
 
-  // Pause: stop mic capture and freeze speaker playback without ending the call.
+  // Pause: stop mic capture, clear active speech/lip-sync, and freeze speaker playback without ending the call.
   const togglePause = useCallback(() => {
     if (captureRef.current.paused) {
       captureRef.current.paused = false;
       setPaused(false);
       void playCtxRef.current?.resume().catch(() => {});
-      avatarRef.current?.setPlaybackMuted(false);
+      avatarRef.current?.setPlaybackMuted(speakerMutedRef.current);
     } else {
       pauseCapture();
+      clearPlayback();
       captureRef.current.paused = true;
       setPaused(true);
       void playCtxRef.current?.suspend().catch(() => {});
       avatarRef.current?.setPlaybackMuted(true);
     }
-  }, [pauseCapture]);
+  }, [pauseCapture, clearPlayback]);
+
+  // Silence speaker: mute all voice audio while keeping live captions and conversation running.
+  const toggleSpeakerMute = useCallback(() => {
+    const next = !speakerMutedRef.current;
+    speakerMutedRef.current = next;
+    setSpeakerMuted(next);
+    if (speakerGainRef.current) speakerGainRef.current.gain.value = next ? 0 : 1;
+    avatarRef.current?.setPlaybackMuted(next || captureRef.current.paused || captureRef.current.replaying);
+    if (next) setCaptions(true);
+  }, []);
 
   const replayLastMessage = useCallback(async () => {
     if (!lastAudioRef.current.length || captureRef.current.paused || captureRef.current.replaying) return;
@@ -496,7 +519,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       // directly from a real tap, rather than misreporting an admin/quota failure.
       await Promise.all([playResume, micResume]);
       if (generation !== generationRef.current) return;
-      if (!warm && (playCtx.state !== 'running' || (micCtx && micCtx.state !== 'running'))) throw new Error(AUDIO_TAP_NEEDED);
+      if (!warm && (playCtx.state !== 'running' || (!isEmbeddedContext() && micCtx && micCtx.state !== 'running'))) throw new Error(AUDIO_TAP_NEEDED);
       // A video-start failure (startup timeout after the retries, or the provider
       // dropping the session mid-startup) degrades to a voice-only session instead of
       // aborting the call. Refusals, sound blocks and cancels still reject as before.
@@ -520,7 +543,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         return stream;
       }, (micError: unknown) => {
         // Only a refusal from the microphone request itself is a microphone permission problem.
-        if (micError instanceof Error && (micError.name === "NotAllowedError" || micError.name === "SecurityError")) throw new Error(MICROPHONE_DENIED);
+        if (micError instanceof Error && (micError.name === "NotAllowedError" || micError.name === "SecurityError")) {
+          if (isEmbeddedContext()) { setError(MICROPHONE_DENIED); return null; }
+          throw new Error(MICROPHONE_DENIED);
+        }
         throw micError;
       });
       const requestSession = (key: string) =>
@@ -547,9 +573,9 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       }
       if (generation !== generationRef.current) { stream?.getTracks().forEach(t => t.stop()); return; }
       if (stream) void refreshMicrophones();
-      if (!warm && (playCtx.state !== "running" || (micCtx && micCtx.state !== "running"))) {
+      if (!warm && (playCtx.state !== "running" || (stream && micCtx && micCtx.state !== "running"))) {
         await Promise.all([playCtx.resume(), micCtx?.resume()]);
-        if (playCtx.state !== 'running' || (micCtx && micCtx.state !== 'running')) throw new Error(AUDIO_TAP_NEEDED);
+        if (playCtx.state !== 'running' || (stream && micCtx && micCtx.state !== 'running')) throw new Error(AUDIO_TAP_NEEDED);
       }
       const { data: authorized, error: authError } = session;
       if (authError) {
@@ -664,7 +690,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             if (handoffRef.current) break;
             // Keep the last response locally, never request a new model generation to replay.
             if (currentAudioRef.current.length < 6000) currentAudioRef.current.push(msg.data as string);
-            playPcmChunk(msg.data as string);
+            if (!captureRef.current.paused) playPcmChunk(msg.data as string);
             break;
           case "interrupted":
             clearPlayback();
@@ -788,19 +814,22 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     const micRequest = navigator.mediaDevices.getUserMedia({
       audio: { deviceId: microphone === "default" ? undefined : { exact: microphone }, echoCancellation: true, noiseSuppression: true, autoGainControl: microphoneAutoGain(captureMode, noiseFilterRef.current) },
     }).catch((micError: unknown) => {
-      if (micError instanceof Error && (micError.name === "NotAllowedError" || micError.name === "SecurityError")) throw new Error(MICROPHONE_DENIED);
+      if (micError instanceof Error && (micError.name === "NotAllowedError" || micError.name === "SecurityError")) {
+        if (isEmbeddedContext()) { setError(MICROPHONE_DENIED); return null; }
+        throw new Error(MICROPHONE_DENIED);
+      }
       throw micError;
     });
     try {
       const timeout = new Promise<boolean>(r => window.setTimeout(() => r(false), 15000));
       const [stream, ready] = await Promise.all([micRequest, Promise.race([w.ready, timeout]), playResume, micResume]);
-      if (generation !== generationRef.current) { stream.getTracks().forEach(t => t.stop()); return; }
+      if (generation !== generationRef.current) { stream?.getTracks().forEach(t => t.stop()); return; }
       micStreamRef.current = stream;
-      void refreshMicrophones();
+      if (stream) void refreshMicrophones();
       if (!ready) throw new Error("The voice service did not respond in time. Please try again.");
       await faceSound;
       if (avatarRequestedRef.current && !avatarLiveRef.current) throw new Error('The moving face could not connect. Please press play to try again.');
-      if (playCtx.state !== 'running' || micCtx.state !== 'running') throw new Error(AUDIO_TAP_NEEDED);
+      if (playCtx.state !== 'running' || (stream && micCtx.state !== 'running')) throw new Error(AUDIO_TAP_NEEDED);
       if (wsRef.current?.readyState !== WebSocket.OPEN) throw new Error("The connection closed before the session started. Try again.");
       wsRef.current.send(JSON.stringify({ type: 'begin', consent: true }));
       w.goLive?.();
@@ -883,13 +912,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // the visitor first spoke and showed the plain transcript instead — the
   // surface flipped depending on who had talked last. The transcript (with
   // the visitor's live line and the history) shows whenever she is silent.
-  const liveCaption = aspenSpeaking || (playbackCaption !== null && playbackCaption.word >= 0);
+  const liveCaption = aspenSpeaking || partialAspen !== "" || (playbackCaption !== null && playbackCaption.word >= 0);
   const showPlaybackCaption = !!playbackCaption && (!partialUser || liveCaption) && (!faceFirst || captions);
   if (compact) {
     return (
-      <div className="space-y-2 p-2 text-foreground">
-        {faceFirst ? <div className="aspen-person-livebox relative mx-auto"><div className={faceLive ? 'invisible' : ''}><PersonPortrait name={name} avatarUrl={avatarUrl} /></div>{avatarView}</div> : avatarView}
-        <div className={faceFirst ? 'aspen-voice-panel space-y-2 rounded-lg border border-primary/40 bg-card p-2 shadow-lg ring-1 ring-foreground/10' : 'space-y-2'}>
+      <div className={faceFirst ? "space-y-0 px-2 pb-2 pt-0 text-foreground" : "space-y-2 p-2 text-foreground"}>
+        {faceFirst ? <div className="aspen-person-livebox relative z-0 mx-auto overflow-hidden"><div className={`h-full w-full ${faceLive ? 'invisible' : ''}`}><PersonPortrait name={name} avatarUrl={avatarUrl} /></div>{avatarView}</div> : avatarView}
+        <div className={faceFirst ? 'aspen-voice-panel relative z-10 space-y-2 rounded-lg border border-primary/40 bg-card p-2 shadow-lg ring-1 ring-foreground/10' : 'space-y-2'}>
         <div className="flex items-center gap-1.5">
           {shownPhase === "connecting" && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" />}
           {shownPhase === "live" && !aspenSpeaking && <Mic className="h-3.5 w-3.5 shrink-0 animate-pulse text-primary" />}
@@ -910,18 +939,18 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         <div className={faceFirst ? (captions ? 'aspen-caption-space' : 'hidden') : ''}>
         {showPlaybackCaption && playbackCaption && <div className="rounded-md border border-border bg-background/95 p-1.5"><PlaybackCaption caption={playbackCaption} /></div>}
         <div aria-label="Conversation transcript" tabIndex={0} className={`${showPlaybackCaption || (faceFirst && !captions) ? 'hidden' : ''} ${faceFirst ? 'h-[72px]' : 'max-h-[4.5rem]'} space-y-1 overflow-y-auto overscroll-contain rounded-md border border-border bg-background/95 p-1.5`}>
-          {turns.length === 0 && !partialAspen && !partialUser && (
+          {turns.length === 0 && (!partialAspen || faceFirst) && !partialUser && (
             <p className="py-1 text-center text-[11px] text-muted-foreground">No conversation yet.</p>
           )}
           {turns.map((t, i) => (
             <Message key={i} from={t.role} className="max-w-full">
-              <MessageContent aria-label={t.role === "user" ? "Caller transcript" : "Aspen transcript"} className={t.role === "user" ? "bg-primary text-primary-foreground text-xs px-2 py-1" : "text-xs text-foreground"}>
+              <MessageContent aria-label={t.role === "user" ? "Caller transcript" : "Aspen transcript"} className={t.role === "user" ? "bg-primary text-primary-foreground text-xs px-2 py-1" : faceFirst ? "text-sm font-bold leading-6 text-foreground" : "text-xs text-foreground"}>
                 <MessageResponse>{t.role === "user" ? t.text : displayNumbers(t.text)}</MessageResponse>
               </MessageContent>
             </Message>
           ))}
           {partialUser && <Message from="user"><MessageContent className="bg-primary text-primary-foreground text-sm font-bold"><span className="text-[10px] font-semibold">You</span><MessageResponse>{partialUser}</MessageResponse></MessageContent></Message>}
-          {partialAspen && <Message from="assistant"><MessageContent className="text-sm font-bold"><MessageResponse>{displayNumbers(partialAspen)}</MessageResponse></MessageContent></Message>}
+          {!faceFirst && partialAspen && <Message from="assistant"><MessageContent className="text-sm font-bold"><MessageResponse>{displayNumbers(partialAspen)}</MessageResponse></MessageContent></Message>}
           <div ref={transcriptEndRef} />
         </div>
         </div>
@@ -943,7 +972,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
               <span>End</span>
             </Button>
           )}
-          {phase === "live" && (
+          {phase === "live" && captureMode !== "hold" && (
             <Button
               size="icon"
               disabled={handoffActive}
@@ -972,6 +1001,19 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             >
               {paused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
               <span>{paused ? "Resume" : "Pause"}</span>
+            </Button>
+          )}
+          {phase === "live" && (
+            <Button
+              size="icon"
+              variant={speakerMuted ? "secondary" : "outline"}
+              aria-pressed={speakerMuted}
+              title={speakerMuted ? "Turn speaker sound on" : "Silence speaker (captions only)"}
+              aria-label={speakerMuted ? "Turn speaker sound on" : "Silence speaker"}
+              onClick={toggleSpeakerMute}
+            >
+              {speakerMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+              <span>{speakerMuted ? "Sound on" : "Silence"}</span>
             </Button>
           )}
           <Button
@@ -1072,7 +1114,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             </div>
             <div>
               <label className="text-[11px] font-semibold text-muted-foreground">Conversation mode</label>
-              <Select value={captureMode} onValueChange={(value) => setCaptureMode(value as CaptureMode)} disabled={phase !== "idle"}>
+              <Select value={captureMode} onValueChange={(value) => { const next = value as CaptureMode; if (next === "hold") pauseCapture(); else endHold(); captureRef.current.mode = next; setCaptureMode(next); }}>
                 <SelectTrigger aria-label="Conversation mode" className="mt-1 h-8 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="handsfree">Hands-free</SelectItem>

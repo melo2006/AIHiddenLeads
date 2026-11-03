@@ -21,28 +21,44 @@ function Demo() {
   return <AspenDemoWidget businessName="Test" businessNiche="general" websiteUrl="https://example.com" businessInfo="Test" voiceRequested={requested} onClosed={() => setRequested(false)} />;
 }
 
+// Controls v2 (owner-approved in AI Studio): the old dash minimize and the
+// end-call close button are gone. The single X ("Minimize") collapses the
+// widget into its round bubble WITHOUT unmounting the conversation, and
+// tapping the bubble restores that same call — no new session is started.
 describe.each([
   ['homepage', () => <GeminiAgentWidget floating />],
   ['customer', () => <GeminiAgentWidget agentId="customer" />],
   ['demo', () => <Demo />],
 ] as const)('%s assistant recovery', (_, makeWidget) => {
-  it('ends the call on X and starts again from the retained bubble', async () => {
+  it('collapses to the bubble on X with the call preserved, and reopening restores the same call', async () => {
     render(makeWidget());
     if (screen.queryByRole('button', { name: 'Talk to Aspen' })) fireEvent.click(screen.getByRole('button', { name: 'Talk to Aspen' }));
     await waitFor(() => expect(calls.start).toHaveBeenCalledTimes(1));
-    fireEvent.click(screen.getByRole('button', { name: 'Close assistant' }));
-    expect(calls.stop).toHaveBeenCalledTimes(1);
-    expect(calls.start).toHaveBeenCalledTimes(1);
-    fireEvent.click(screen.getByRole('button', { name: 'Talk to Aspen' }));
-    await waitFor(() => expect(calls.start).toHaveBeenCalledTimes(2));
-  });
-  it('preserves the same call through minimize and expand', async () => {
-    render(makeWidget());
-    if (screen.queryByRole('button', { name: 'Talk to Aspen' })) fireEvent.click(screen.getByRole('button', { name: 'Talk to Aspen' }));
-    await waitFor(() => expect(calls.start).toHaveBeenCalledTimes(1));
-    fireEvent.click(screen.getByRole('button', { name: 'Minimize assistant' }));
+    // No legacy chrome exists alongside the X.
+    expect(screen.queryByRole('button', { name: 'Close assistant' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Minimize assistant' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Expand assistant' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Minimize' }));
+    // The conversation was never unmounted: no stop, no second start.
     expect(calls.stop).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: 'Expand assistant' }));
+    expect(calls.start).toHaveBeenCalledTimes(1);
+    // In the bubble the X is gone; the bubble itself is the way back in.
+    expect(screen.queryByRole('button', { name: 'Minimize' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Talk to Aspen' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Minimize' })).toBeTruthy());
+    expect(calls.start).toHaveBeenCalledTimes(1);
+    expect(calls.stop).not.toHaveBeenCalled();
+  });
+  it('keeps the same call through repeated collapse and reopen cycles', async () => {
+    render(makeWidget());
+    if (screen.queryByRole('button', { name: 'Talk to Aspen' })) fireEvent.click(screen.getByRole('button', { name: 'Talk to Aspen' }));
+    await waitFor(() => expect(calls.start).toHaveBeenCalledTimes(1));
+    for (let cycle = 0; cycle < 2; cycle++) {
+      fireEvent.click(screen.getByRole('button', { name: 'Minimize' }));
+      expect(calls.stop).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole('button', { name: 'Talk to Aspen' }));
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Minimize' })).toBeTruthy());
+    }
     expect(calls.start).toHaveBeenCalledTimes(1);
     expect(calls.stop).not.toHaveBeenCalled();
   });

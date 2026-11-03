@@ -1,3 +1,5 @@
+import "@/lib/ensureWebSocketUrlString";
+import { installWebSocketUrlStringShim } from "@/lib/ensureWebSocketUrlString";
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Loader2 } from "lucide-react";
@@ -81,12 +83,45 @@ const isVideoTimeout = (e: unknown) => (e as { videoTimeout?: boolean } | null)?
  * call. Token refusals (4xx), SOUND_BLOCKED and cancels are NOT video-start
  * failures — they stay hard errors with no fallback.
  */
-const VIDEO_START_FAILURE_MESSAGES: ReadonlySet<string> = new Set(['Video disconnected during startup', 'Video connection failed']);
+const VIDEO_START_FAILURE_MESSAGES: ReadonlySet<string> = new Set([
+  'Video disconnected during startup',
+  'Video connection failed',
+  'Websocket Failed',
+  'Connection Timed Out',
+  'Too Many Retry Attempts Failed to connect',
+]);
 export const isVideoStartFailure = (e: unknown): boolean => {
+  if (typeof e === 'string') return VIDEO_START_FAILURE_MESSAGES.has(e);
   if (!e || typeof e !== 'object') return false;
   const err = e as { videoTimeout?: unknown; message?: unknown };
   return err.videoTimeout === true || (typeof err.message === 'string' && VIDEO_START_FAILURE_MESSAGES.has(err.message));
 };
+
+/**
+ * SimliClient creates both `websocketPromise` and `connectionPromise` in its constructor,
+ * and rejects BOTH with the raw string `"Websocket Failed"` on `wsConnection.onerror` while
+ * only awaiting `websocketPromise` first — leaving `connectionPromise` as an unhandled rejection
+ * and retrying internally on an already-consumed single-use token.
+ */
+function disarmSimliClient(client: SimliClient | null | undefined) {
+  if (!client || typeof client !== 'object') return;
+  const internal = client as unknown as {
+    MAX_RETRY_ATTEMPTS?: number;
+    connectionPromise?: Promise<unknown>;
+    connection?: { websocketPromise?: Promise<unknown> };
+  };
+  internal.MAX_RETRY_ATTEMPTS = 0;
+  internal.connectionPromise?.catch(() => {});
+  internal.connection?.websocketPromise?.catch(() => {});
+}
+
+function stopSimliClient(client: SimliClient | null | undefined) {
+  if (!client) return;
+  disarmSimliClient(client);
+  const internal = client as unknown as { connectionTimeout?: ReturnType<typeof setTimeout> };
+  if (internal.connectionTimeout) clearTimeout(internal.connectionTimeout);
+  void client.stop().catch(() => {});
+}
 
 /**
  * Asks the server for a single-use video token. A token is not a paid session, so a slow
@@ -164,6 +199,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
   const tokenAbortRef = useRef<AbortController | null>(null);
   const frozenFrameRef = useRef(false);
   const activatedRef = useRef(false);
+  const playbackMutedRef = useRef(false);
   const [state, setState] = useState<"idle" | "connecting" | "live" | "failed" | "stopped">("idle");
   const [reason, setReason] = useState("");
   const setLive = (live: boolean) => { liveRef.current = live; onLiveChange?.(live); };
@@ -187,7 +223,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
     if (flushRef.current) clearTimeout(flushRef.current);
     flushRef.current = undefined;
     const client = clientRef.current; clientRef.current = null;
-    if (client) void client.stop().catch(() => {});
+    stopSimliClient(client);
     setReason(''); setState(keepFrame ? 'stopped' : 'idle');
   };
   useEffect(() => () => stop(), []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -200,7 +236,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
         // A provider 'stop'/'error' leaves its client behind with live=false; tear the
         // stale client down so this call can make a fresh attempt instead of giving up.
         const stale = clientRef.current; clientRef.current = null;
-        void stale.stop().catch(() => {});
+        stopSimliClient(stale);
       }
       startingRef.current = true;
       const lifecycle = ++lifecycleRef.current;
@@ -235,7 +271,9 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
           : await sessionToken({ agentId, shareToken, draft, faceId: faceOverride }, tokenAbort.signal, 1, 8000);
         if (tokenAbortRef.current === tokenAbort) tokenAbortRef.current = null;
         if (lifecycle !== lifecycleRef.current) return false;
+        installWebSocketUrlStringShim();
         const client = new SimliClient(token, videoRef.current, audioRef.current, null, LogLevel.ERROR, "livekit");
+        disarmSimliClient(client);
         clientRef.current = client;
         // The provider signals START then SILENT before the browser displays
         // its first frame. Audio may flow now; displayed-frame readiness is separate.
@@ -243,13 +281,19 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
           if (clientRef.current !== client || audioReadyRef.current) return;
           audioReadyRef.current = true;
         });
-        client.on("stop", () => { if (clientRef.current === client) { startupRejectRef.current?.(new Error('Video disconnected during startup')); setLive(false); setState("failed"); setReason('Video disconnected'); } });
+        client.on("stop", () => { if (clientRef.current === client) { startupRejectRef.current?.(new Error('Video disconnected during startup')); stopKey(); setLive(false); setState("failed"); setReason('Video disconnected'); } });
         client.on("warning" as never, ((m: unknown) => console.warn("Simli:", m)) as never);
-        client.on("error", () => { if (clientRef.current === client) { startupRejectRef.current?.(new Error('Video connection failed')); audioReadyRef.current = false; setLive(false); setState('failed'); setReason('Video connection failed'); void client.stop().catch(() => {}); } });
+        client.on("error", () => { if (clientRef.current === client) { startupRejectRef.current?.(new Error('Video connection failed')); audioReadyRef.current = false; stopKey(); setLive(false); setState('failed'); setReason('Video connection failed'); stopSimliClient(client); } });
         let deadline: ReturnType<typeof setTimeout> | undefined;
         try {
           await Promise.race([
-            client.start(),
+            client.start().catch((err: unknown) => {
+              const msg = err instanceof Error ? err.message : String(err || '');
+              if (msg === 'Websocket Failed' || msg === 'Connection Timed Out' || msg === 'Too Many Retry Attempts Failed to connect') {
+                throw videoTimeoutError('Video connection failed');
+              }
+              throw err instanceof Error ? err : new Error(msg || 'Video connection failed');
+            }),
             startupFailure,
             // Cap each attempt before the SDK's own 15s retry cycle; a stall here is
             // tagged so start() can retry the whole attempt on a fresh token.
@@ -278,7 +322,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
         // Prepared before any tap: keep the face live but silent until activate().
         if (options?.silent && !activatedRef.current) { startupRejectRef.current = null; setLive(true); setState("live"); return true; }
         if (audioRef.current) {
-          audioRef.current.muted = false; audioRef.current.volume = 1;
+          audioRef.current.muted = playbackMutedRef.current; audioRef.current.volume = playbackMutedRef.current ? 0 : 1;
           try { await audioRef.current.play(); }
           catch (playError) {
             // Not a microphone problem: the browser blocked the speaker for this tap.
@@ -313,7 +357,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
             audioReadyRef.current = false;
             stopKey();
             const failedClient = clientRef.current; clientRef.current = null;
-            if (failedClient) void failedClient.stop().catch(() => {});
+            stopSimliClient(failedClient);
             if (!isVideoTimeout(e)) throw lastError;
           }
         }
@@ -325,7 +369,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
         audioReadyRef.current = false;
         stopKey();
         const client = clientRef.current; clientRef.current = null;
-        if (client) void client.stop().catch(() => {});
+        stopSimliClient(client);
         setLive(false); setState("failed");
         setReason(e instanceof Error ? e.message : String(e || "Video avatar could not start"));
         throw e instanceof Error ? e : new Error(String(e || 'Video connection failed'));
@@ -338,12 +382,12 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
       const audio = audioRef.current, video = videoRef.current;
       if (!audio || !video) return;
       if (!liveRef.current || !audio.srcObject) { unlockMediaElements(video, audio); return; }
-      audio.muted = false; audio.volume = 1;
+      audio.muted = playbackMutedRef.current; audio.volume = playbackMutedRef.current ? 0 : 1;
       try { await audio.play(); }
       catch (playError) { if (playError instanceof Error && playError.name === 'NotAllowedError') throw new Error(SOUND_BLOCKED); throw playError; }
     },
     stop,
-    setPlaybackMuted: (muted) => { if (audioRef.current) { audioRef.current.muted = muted; audioRef.current.volume = muted ? 0 : 1; } },
+    setPlaybackMuted: (muted) => { playbackMutedRef.current = muted; if (audioRef.current) { audioRef.current.muted = muted; audioRef.current.volume = muted ? 0 : 1; } },
     sendPcm24k: (base64) => {
       const client = clientRef.current;
       if (!client || !(audioReadyRef.current || liveRef.current)) return false;
@@ -362,7 +406,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
           flushAudio(client);
         } else if (!flushRef.current) flushRef.current = setTimeout(() => { flushRef.current = undefined; try { if (clientRef.current === client) flushAudio(client); } catch { /* Session closed. */ } }, 80);
         return true;
-      } catch { setLive(false); setState('failed'); setReason('Video audio disconnected'); return false; }
+      } catch { stopKey(); setLive(false); setState('failed'); setReason('Video audio disconnected'); return false; }
     },
     clear: () => { pendingRef.current = new Uint8Array(0); if (flushRef.current) clearTimeout(flushRef.current); flushRef.current = undefined; try { clientRef.current?.ClearBuffer(); } catch { /* Session already closed. */ } },
   }), [agentId, shareToken, draft, faceOverride]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -370,11 +414,11 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
   const visible = state !== "idle";
   const frame = (
     <div aria-label="Video avatar" role="img" className={`${unboxed ? 'absolute inset-0' : inline ? "relative mx-auto" : `fixed z-[120] ${POSITION[avatar.position]}`} ${visible ? "" : "hidden"} ${unboxed ? '' : `overflow-hidden ${SHAPE[avatar.shape]} ${keyed ? '' : 'border-2 border-primary/50 bg-card shadow-2xl'}`}`} style={unboxed ? undefined : { width: avatar.size, height: avatar.size, maxWidth: "70vw", maxHeight: "70vw" }}>
-      <video ref={videoRef} autoPlay playsInline muted className={`h-full w-full object-contain ${unboxed ? 'aspen-person-live-media' : ''} ${keyed || unboxed && state !== 'live' ? 'absolute inset-0 opacity-0 pointer-events-none' : ''}`} />
-      <canvas ref={canvasRef} aria-hidden className={`h-full w-full object-contain ${unboxed ? 'aspen-person-live-media' : ''} ${keyed ? 'relative' : 'hidden'}`} />
+      <video ref={videoRef} autoPlay playsInline muted className={`h-full w-full ${unboxed ? 'object-cover object-top aspen-person-live-media' : 'object-contain'} ${keyed || unboxed && state !== 'live' ? 'absolute inset-0 opacity-0 pointer-events-none' : ''}`} />
+      <canvas ref={canvasRef} aria-hidden className={`h-full w-full ${unboxed ? 'object-cover object-top aspen-person-live-media' : 'object-contain'} ${keyed ? 'relative' : 'hidden'}`} />
       <audio ref={audioRef} autoPlay muted />
       {state === "connecting" && !unboxed && <div className="absolute inset-0 bg-card/70 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}
-      {state === "failed" && <div role="status" className={`${unboxed ? 'absolute bottom-0 inset-x-0 rounded-md bg-background/95' : 'absolute inset-0 bg-card/90'} flex items-center justify-center p-2 text-center text-[11px] text-muted-foreground`}>{reason || "Video avatar unavailable"}</div>}
+      {state === "failed" && <div role="status" className={unboxed ? 'sr-only' : 'absolute inset-0 bg-card/90 flex items-center justify-center p-2 text-center text-[11px] text-muted-foreground'}>{reason || "Video avatar unavailable"}</div>}
     </div>
   );
   const debugPanel = debug && visible ? createPortal(<div className="fixed left-2 top-16 z-[200] w-56 rounded-md border border-primary bg-card p-1 text-[10px] text-foreground"><canvas ref={debugCanvasRef} className="w-full bg-muted" /><p>{state} · {stats}</p></div>, document.body) : null;
