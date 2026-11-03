@@ -16,7 +16,7 @@ interface DraggableFloatingProps {
   anchorRight?: boolean;
   anchorBottom?: boolean;
   dragLabel?: string;
-  resetKey?: string | number;
+  resetKey?: string | number;  dragHandlePlacement?: 'below' | 'portrait' | 'top';
 }
 
 const DraggableFloating = ({
@@ -26,7 +26,7 @@ const DraggableFloating = ({
   anchorRight = false,
   anchorBottom = false,
   dragLabel = "Drag me",
-  resetKey,
+  resetKey, dragHandlePlacement = 'below',
 }: DraggableFloatingProps) => {
   const [pos, setPos] = useState(() => ({
     x: anchorRight ? Math.max(VIEWPORT_PADDING, window.innerWidth - 200 - initialX) : Math.min(initialX, window.innerWidth - 80),
@@ -215,7 +215,7 @@ const DraggableFloating = ({
         '--aspen-available-height': `${Math.max(140, viewport.height - 56)}px`,
       } as React.CSSProperties}
     >
-      <div className="flex flex-col items-center">
+      <div className={dragHandlePlacement === 'below' ? "flex flex-col items-center" : dragHandlePlacement === 'portrait' ? "aspen-drag-portrait flex flex-col items-center" : "aspen-drag-top flex flex-col items-center"}>
         {children}
         <Button
           type="button"

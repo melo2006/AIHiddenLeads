@@ -3,16 +3,16 @@ import { Mic, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MessageResponse } from '@/components/ai-elements/message';
 import { displayNumbers } from '@/lib/displayNumbers';
-import avatar from '@/assets/aspen_blonde_avatar.jpg';
+import avatar from '@/assets/aspen-idle-wave.gif';
 import AspenSalesActions from '@/components/AspenSalesActions';
 import { HOMEPAGE_GREETING } from '../../../supabase/functions/_shared/homepage-knowledge';
 import { greeting } from '../../../supabase/functions/_shared/voice-config';
 
 export default function AspenWindowPreview() {
   const [mode, setMode] = useState<'chat' | 'voice'>('voice');
-  return <div className="w-full max-w-sm overflow-hidden rounded-lg border-2 border-primary/40 bg-card shadow-xl" aria-label="Aspen window preview">
+  return <div className="w-full max-w-[300px] overflow-hidden rounded-lg border-2 border-primary/40 bg-card shadow-xl sm:max-w-sm" aria-label="Aspen window preview">
     <header className="flex items-center gap-3 border-b border-border p-4">
-      <img src={avatar} alt="Aspen" className="h-20 w-20 shrink-0 rounded-full object-cover" />
+      <img src={avatar} alt="Aspen" className="h-20 w-20 shrink-0 rounded-full object-cover object-top" />
       <div><p className="text-lg font-semibold leading-tight"><span className="block">Ask</span><span className="block">Aspen</span></p><p className="text-xs text-muted-foreground">AI Hidden Leads · Preview</p></div>
       <span className="ml-auto h-2.5 w-2.5 rounded-full bg-primary" />
     </header>

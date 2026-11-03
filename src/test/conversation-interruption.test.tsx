@@ -68,9 +68,23 @@ describe.each([{ paired: false, mode: 'handsfree' }, { paired: true, mode: 'hand
     act(() => socket.emit({ type: 'interrupted' }));
     expect(Context.sources[0].stop).toHaveBeenCalled();
     if (paired) expect(mocks.clear).toHaveBeenCalled();
-    fireEvent.click(view.getByRole('button', { name: 'Mute microphone' }));
-    socket.send.mockClear(); speech(); expect(socket.send).not.toHaveBeenCalled();
-    fireEvent.click(view.getByRole('button', { name: 'Unmute microphone' }));
+    // Speaker silence (Studio addition): muting her voice must not gate the
+    // microphone — captions and the conversation keep running.
+    fireEvent.click(view.getByRole('button', { name: 'Silence speaker' }));
+    expect(view.getByRole('button', { name: 'Turn speaker sound on' })).toBeTruthy();
+    socket.send.mockClear(); speech();
+    expect(socket.send).toHaveBeenCalledWith(expect.stringContaining('"type":"audio"'));
+    fireEvent.click(view.getByRole('button', { name: 'Turn speaker sound on' }));
+    if (mode === 'hold') {
+      // Hold-to-talk renders no mic-mute toggle by design (GeminiConversation
+      // gates it on captureMode !== 'hold'): the mic only streams while the
+      // talk button is held, so there is nothing for a mute to gate.
+      expect(view.queryByRole('button', { name: 'Mute microphone' })).toBeNull();
+    } else {
+      fireEvent.click(view.getByRole('button', { name: 'Mute microphone' }));
+      socket.send.mockClear(); speech(); expect(socket.send).not.toHaveBeenCalled();
+      fireEvent.click(view.getByRole('button', { name: 'Unmute microphone' }));
+    }
     fireEvent.click(view.getByRole('button', { name: 'Pause conversation' }));
     socket.send.mockClear(); speech(); expect(socket.send).not.toHaveBeenCalled();
   });

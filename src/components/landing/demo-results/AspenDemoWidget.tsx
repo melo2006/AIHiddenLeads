@@ -29,7 +29,7 @@ function AspenDemoWidgetContent({ voiceRequested = false, onClosed, onAssistantR
   const minimize = () => { setOpen(false); setMinimized(true); onClosed(); };
   const close = () => { minimize(); setHasOpened(false); setPrewarm(false); };
   const mounted = hasOpened || (prewarm && identityLoaded);
-  return <DraggableFloating initialX={12} initialY={window.innerHeight - 90} anchorRight anchorBottom resetKey={expanded ? 'open' : 'closed'}>
+  return <DraggableFloating initialX={12} initialY={window.innerHeight - 90} anchorRight anchorBottom resetKey={expanded ? 'open' : 'closed'} dragHandlePlacement={minimized ? 'top' : 'portrait'}>
     <FloatingPersonFrame open={expanded} minimized={minimized} mode={mode} onOpen={() => { setHasOpened(true); setMinimized(false); setOpen(true); }} onMinimize={minimize} onClose={close} onMode={next => { setMode(next); if (next === 'chat') setChatVisited(true); }} keepRendered={prewarm}>
       {mounted && mode === 'voice' && <GeminiConversation compact faceFirst avatarInline autoStart={expanded} consentOnOpen={expanded} prewarm={prewarm} onPrewarmed={() => onAssistantReady?.()} leadId={chatProps.leadId} prospectId={chatProps.prospectId} visitorName={chatProps.callerName} onRecommendedPlan={setRecommendedPlan} videoAvatar={matchingAspenVideo(videoAvatar)} />}
       {chatVisited && <div className={mode === 'chat' ? 'aspen-panel min-h-80 overflow-hidden rounded-lg border border-border bg-card' : 'hidden'}><div className="aspen-chat-content"><ChatWidget {...chatProps} embedded active={expanded && mode === 'chat'} /></div></div>}

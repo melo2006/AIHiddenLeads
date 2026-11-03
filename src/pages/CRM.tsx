@@ -45,6 +45,8 @@ import CampaignResultsView from '@/components/crm/CampaignResultsView';
 import SMSDashboard from "@/components/crm/SMSDashboard";
 import AdHijack from "@/pages/AdHijack";
 
+import { isEmbeddedIframe, listenForOAuthPopupSession, startGoogleOAuth } from "@/lib/googleOAuth";
+
 const ADMIN_EMAIL = "melo2006@gmail.com";
 
 const AdminLogin = ({ onSignedIn }: { onSignedIn: () => void }) => {
@@ -53,17 +55,19 @@ const AdminLogin = ({ onSignedIn }: { onSignedIn: () => void }) => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const inIframe = typeof window !== "undefined" && window.self !== window.top;
+  const inIframe = isEmbeddedIframe();
+
+  useEffect(() => {
+    return listenForOAuthPopupSession(() => {
+      toast.success("Signed in with Google");
+      onSignedIn();
+      navigate("/dashboard/calls", { replace: true });
+    });
+  }, [navigate, onSignedIn]);
 
   const handleGoogleLogin = async () => {
     setLoading(true);
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-        queryParams: { prompt: "select_account" },
-      },
-    });
+    const { error } = await startGoogleOAuth({ returnPath: "/dashboard/calls" });
     setLoading(false);
 
     if (error) {
@@ -72,14 +76,12 @@ const AdminLogin = ({ onSignedIn }: { onSignedIn: () => void }) => {
       toast.error(canceled ? "Google sign-in canceled" : "Google sign-in failed", {
         description: canceled
           ? inIframe
-            ? "The Google popup was blocked or closed. Open the app in its own browser tab and sign in there, or use the email + password form below."
+            ? "Please allow popups for this preview to sign in with Google, or use the email + password form below."
             : "The Google window was closed before finishing. Try again, or use the email + password form below."
           : message,
       });
       return;
     }
-
-    // Browser is redirecting to Google; nothing more to do here.
   };
 
   const handleLogin = async (event: FormEvent) => {
@@ -115,16 +117,6 @@ const AdminLogin = ({ onSignedIn }: { onSignedIn: () => void }) => {
             <Button type="button" className="w-full" onClick={handleGoogleLogin} disabled={loading}>
               Continue with Google
             </Button>
-            {inIframe && (
-              <a
-                href={`${window.location.origin}/dashboard`}
-                target="_blank"
-                rel="noreferrer"
-                className="block text-center text-xs text-primary underline"
-              >
-                Google popup blocked? Open sign-in in a new tab
-              </a>
-            )}
             <div className="flex items-center gap-3 text-[10px] uppercase tracking-wider text-muted-foreground">
               <div className="h-px flex-1 bg-border" />
               Or email

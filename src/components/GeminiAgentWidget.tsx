@@ -22,19 +22,22 @@ export default function GeminiAgentWidget({ agentId, leadId, prospectId, busines
  const [identity,setIdentity]=useState<{id?:string;name:string;businessName:string;avatarUrl:string;theme?:WidgetTheme;videoAvatar?:VideoAvatar}>({name:'Aspen',businessName:businessName||'AI Hidden Leads',avatarUrl:''});
  const [identityReady,setIdentityReady]=useState(false);
  useEffect(()=>{let active=true;setIdentityReady(false);void preloadVoiceIdentity(agentId).then(data=>{if(!active)return;if(data?.name){setIdentity({...data,businessName:businessName||data.businessName});setIdentityReady(true);}});return()=>{active=false;};},[agentId,leadId,prospectId,businessName]);
+ const [prewarm,setPrewarm]=useState(floating && !agentId);
  const openWidget=()=>{setHasOpened(true);setClickedOpen(true);setMinimized(false);setOpen(true);};
  useEffect(()=>{if(agentId || !floating)return;const show=(event:Event)=>{const next=(event as CustomEvent).detail?.mode==='chat'?'chat':'voice';setMode(next);setChatVisited(next==='chat');setHasOpened(true);setClickedOpen((event as CustomEvent).detail?.start===true);setMinimized(false);setOpen(true);};window.addEventListener('open-homepage-aspen',show);return()=>window.removeEventListener('open-homepage-aspen',show);},[agentId,floating]);
  const faceUrl = agentId ? identity.avatarUrl : undefined;
- const closeAssistant=()=>{setOpen(false);setMinimized(true);setHasOpened(false);setClickedOpen(false);};
+ const closeAssistant=()=>{setOpen(false);setMinimized(true);setHasOpened(false);setClickedOpen(false);setPrewarm(false);};
  const changeMode=(next:'voice'|'chat')=>{setMode(next);if(next==='chat')setChatVisited(true);};
+ const canPrewarm = prewarm && identityReady && !identity.videoAvatar?.enabled;
+ const mounted = hasOpened || canPrewarm;
  const content=<>
-  <FloatingPersonFrame name={identity.name} avatarUrl={faceUrl} open={open} minimized={minimized} mode={mode} onOpen={openWidget} onMinimize={()=>{setOpen(false);setMinimized(true);}} onClose={closeAssistant} onMode={changeMode}>
+  <FloatingPersonFrame name={identity.name} avatarUrl={faceUrl} open={open} minimized={minimized} mode={mode} onOpen={openWidget} onMinimize={()=>{setOpen(false);setMinimized(true);}} onClose={closeAssistant} onMode={changeMode} keepRendered={canPrewarm}>
    {hasOpened && mode==='voice' && !identityReady && <div role="status" className="aspen-panel text-muted-foreground">Connecting…</div>}
-   {hasOpened && mode==='voice' && identityReady && <GeminiConversation compact faceFirst avatarUrl={faceUrl} autoStart={clickedOpen || autoStart} consentOnOpen={clickedOpen} agentId={identity.id || agentId} leadId={leadId} prospectId={prospectId} name={identity.name} visitorName={callerName} onRecommendedPlan={setRecommendedPlan} videoAvatar={agentId ? identity.videoAvatar : matchingAspenVideo(identity.videoAvatar)} avatarInline />}
+   {mounted && mode==='voice' && identityReady && <GeminiConversation compact faceFirst avatarUrl={faceUrl} autoStart={clickedOpen || autoStart} consentOnOpen={clickedOpen} prewarm={canPrewarm} agentId={identity.id || agentId} leadId={leadId} prospectId={prospectId} name={identity.name} visitorName={callerName} onRecommendedPlan={setRecommendedPlan} videoAvatar={agentId ? identity.videoAvatar : matchingAspenVideo(identity.videoAvatar)} avatarInline />}
    {chatVisited && <div className={mode==='chat'?'aspen-panel min-h-80 overflow-hidden rounded-lg border border-border bg-card':'hidden'}><div className="aspen-chat-content"><ChatWidget embedded active={open && mode==='chat'} businessName={businessName || identity.businessName} businessNiche="general" websiteUrl={window.location.origin} businessInfo="AI Hidden Leads provides AI voice and chat assistants, B2B lead generation and search growth services. Refer visitors to the current homepage for pricing and package details." callerName={callerName} leadId={leadId} prospectId={prospectId} /></div></div>}
    {(!agentId || leadId || prospectId) && <div className="aspen-sales-actions"><AspenSalesActions plan={recommendedPlan} /></div>}
   </FloatingPersonFrame>
  </>;
  const themedContent=<div style={agentId ? themeVariables(identity.theme) as CSSProperties : undefined}>{content}</div>;
-  return <DraggableFloating initialX={12} initialY={window.innerHeight-90} anchorRight anchorBottom resetKey={open ? 'open' : 'closed'}>{themedContent}</DraggableFloating>;
+  return <DraggableFloating initialX={12} initialY={window.innerHeight-90} anchorRight anchorBottom resetKey={open ? 'open' : 'closed'} dragHandlePlacement={minimized ? 'top' : 'portrait'}>{themedContent}</DraggableFloating>;
 }
