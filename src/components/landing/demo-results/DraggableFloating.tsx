@@ -16,7 +16,7 @@ interface DraggableFloatingProps {
   anchorRight?: boolean;
   anchorBottom?: boolean;
   dragLabel?: string;
-  resetKey?: string | number;
+  resetKey?: string | number;  dragHandlePlacement?: 'below' | 'portrait' | 'top';
 }
 
 const DraggableFloating = ({
@@ -26,7 +26,7 @@ const DraggableFloating = ({
   anchorRight = false,
   anchorBottom = false,
   dragLabel = "Drag me",
-  resetKey,
+  resetKey, dragHandlePlacement = 'below',
 }: DraggableFloatingProps) => {
   const [pos, setPos] = useState(() => ({
     x: anchorRight ? Math.max(VIEWPORT_PADDING, window.innerWidth - 200 - initialX) : Math.min(initialX, window.innerWidth - 80),
@@ -215,18 +215,18 @@ const DraggableFloating = ({
         '--aspen-available-height': `${Math.max(140, viewport.height - 56)}px`,
       } as React.CSSProperties}
     >
-      <div className="flex flex-col items-center">
+      <div className={dragHandlePlacement === 'below' ? "flex flex-col items-center" : dragHandlePlacement === 'portrait' ? "aspen-drag-portrait flex flex-col items-center" : "aspen-drag-top flex flex-col items-center"}>
+        {children}
         <Button
           type="button"
           data-drag-handle
           variant="ghost"
-          className="mb-1 h-5 flex cursor-grab touch-none select-none items-center gap-1 rounded-full border border-primary/60 bg-card/95 px-2 py-0.5 text-primary shadow-md backdrop-blur-sm transition-colors hover:bg-secondary hover:text-primary active:cursor-grabbing"
+          className="mt-1 h-5 flex cursor-grab touch-none select-none items-center gap-1 rounded-full border border-primary/60 bg-card/95 px-2 py-0.5 text-primary shadow-md backdrop-blur-sm transition-colors hover:bg-secondary hover:text-primary active:cursor-grabbing"
           aria-label="Drag widget"
         >
           <GripVertical className="h-3 w-3" />
           <span className="text-[8px] font-bold uppercase tracking-wider">{isDragging ? "Moving" : "Drag"}</span>
         </Button>
-        {children}
       </div>
     </div>
     </>, document.body

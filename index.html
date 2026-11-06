@@ -11,10 +11,10 @@
     
     
     <meta property="og:type" content="website" />
-    <meta property="og:image" content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/c94f7419-a8a8-4b9e-a0f6-2f25f01b07eb/id-preview-4d1ef808--815f2f7e-6ae9-4515-9c71-e5fee9a0e58d.lovable.app-1773787929350.png">
+    <meta property="og:image" content="https://mrtvqttecdfgphgxeygj.supabase.co/storage/v1/object/public/website-screenshots/email/aspen.jpg">
 
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:image" content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/c94f7419-a8a8-4b9e-a0f6-2f25f01b07eb/id-preview-4d1ef808--815f2f7e-6ae9-4515-9c71-e5fee9a0e58d.lovable.app-1773787929350.png">
+    <meta name="twitter:image" content="https://mrtvqttecdfgphgxeygj.supabase.co/storage/v1/object/public/website-screenshots/email/aspen.jpg">
     <meta property="og:title" content="AI Hidden Leads | AI Voice Agents, B2B Leads &amp; Local SEO">
   <meta name="twitter:title" content="AI Hidden Leads | AI Voice Agents, B2B Leads &amp; Local SEO">
   <meta property="og:description" content="24/7 AI voice agents, website chat, weekly qualified B2B prospects and local SEO services for growing businesses.">
@@ -53,7 +53,15 @@
     #startup-status img { width: 64px; height: 64px; margin: auto; }
     html.app-ready #startup-status { display: none; }
   </style>
-  <script>document.documentElement.classList.add('app-starting');</script>
+  <script>
+    document.documentElement.classList.add('app-starting');
+    if (typeof URL !== 'undefined' && typeof URL.prototype === 'object' && typeof URL.prototype.startsWith !== 'function') {
+      URL.prototype.startsWith = function (s, p) { return this.href.startsWith(s, p); };
+      URL.prototype.endsWith = function (s, p) { return this.href.endsWith(s, p); };
+      URL.prototype.includes = function (s, p) { return this.href.includes(s, p); };
+      URL.prototype.replace = function (s, r) { return this.href.replace(s, r); };
+    }
+  </script>
 </head>
 
   <body>

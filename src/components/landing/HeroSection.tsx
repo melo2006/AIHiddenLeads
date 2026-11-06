@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import type { NicheData } from "@/data/nicheData";
-import aspenChatboxNew from "@/assets/aspen-chatbox-new.png";
+import aspenPortrait from "@/assets/aspen-idle-wave.gif";
 import HeroRotatingHeadline from "@/components/landing/HeroRotatingHeadline";
 
 interface HeroSectionProps {
@@ -147,9 +147,9 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
                 className="rounded-2xl cursor-pointer transition-transform hover:scale-[1.02] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
               >
                 <img
-                  src={aspenChatboxNew}
+                  src={aspenPortrait}
                   alt="Aspen, your AI receptionist, speaking live"
-                  className="h-auto w-auto max-h-[540px] max-w-full object-contain drop-shadow-2xl"
+                  className="aspect-[4/5] w-full max-w-[280px] object-cover object-top rounded-2xl shadow-2xl sm:max-w-[360px] lg:aspect-auto lg:h-auto lg:max-h-[540px] lg:max-w-full"
                 />
               </button>
               <button

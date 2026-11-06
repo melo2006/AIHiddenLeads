@@ -2,7 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 import type { WidgetTheme } from '../../supabase/functions/_shared/widget-theme';
 import type { VideoAvatar } from '../../supabase/functions/_shared/video-avatar';
-import portrait from '@/assets/aspen-shoulders-512-v2.webp';
+import portrait from '@/assets/aspen-video-frame-final.webp';
 
 type Identity = { id: string; name: string; businessName: string; avatarUrl: string; theme?: WidgetTheme; videoAvatar?: VideoAvatar };
 const identities = new Map<string, { expires: number; promise: Promise<Identity | null> }>();

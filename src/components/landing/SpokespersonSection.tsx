@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { AudioLines, HeartHandshake, LifeBuoy, MessagesSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { homepageSalesCopy } from "@/data/homepageSalesCopy";
-import aspenHero from "@/assets/aspen-hero.jpg";
+import aspenHero from "@/assets/aspen-idle-wave.gif";
 
 // Supporting points folded in from the former WhyUsSection (PR: slim homepage).
 // The "put a face to the conversation" point was dropped — this whole section
@@ -41,7 +41,7 @@ const SpokespersonSection = () => {
           src={aspenHero}
           alt={pt ? 'Aspen, a sua porta-voz de IA' : es ? 'Aspen, tu portavoz de IA' : 'Aspen, your AI spokesperson'}
           loading="lazy"
-          className="aspect-square w-full max-w-sm rounded-2xl border border-border object-cover"
+          className="aspect-[4/3] w-full max-w-[300px] rounded-2xl border border-border object-cover object-top sm:max-w-sm"
         />
       </div>
       <div className="w-full md:w-1/2 text-center md:text-left">
