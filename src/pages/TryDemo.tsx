@@ -1,10 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import {
-  Globe,
-  Loader2,
   PhoneForwarded,
   MessageSquare,
   Mail,
@@ -13,80 +11,23 @@ import {
   Zap,
   Star,
   Shield,
-  User,
-  Phone,
   ArrowLeft,
   Home,
-  FileText,
-  ChevronDown,
-  Upload,
+  ArrowRight,
   X,
 } from "lucide-react";
-import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
-import { formatPhoneNumber, sanitizeUrlInput } from "@/lib/formatters";
-import ScanningAnimation from "@/components/landing/ScanningAnimation";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
-import type { DemoLeadData } from "@/components/landing/demo-results/demoResultsUtils";
 import RankAuditPanel from "@/components/landing/demo-results/RankAuditPanel";
+import DemoIntakePanel, {
+  extractBusinessName,
+  type DemoIntakeReady,
+} from "@/components/landing/DemoIntakePanel";
 import { rankAuditExamples, type RankAuditExample } from "@/lib/rankAuditExamples";
-import {trackCampaignEvent} from '@/lib/campaignTracking';
+import { loadDemoResume, clearDemoResume, type DemoResume } from "@/lib/demoVerification";
 
 const LAST_DEMO_STORAGE_KEY = "lastDemoLeadData";
-const MAX_FILES = 3;
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
-const ALLOWED_FILE_TYPES = [
-  "application/pdf",
-  "text/plain",
-  "text/markdown",
-  "text/csv",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-];
-
-const normalizeUrl = (raw: string): string => {
-  let url = raw.trim().replace(/^["']+|["']+$/g, "").trim();
-  url = url.replace(/^(?:https?:\/\/)/i, "");
-  url = url.replace(/\/+$/, "");
-  if (!url) return raw.trim();
-  return `https://${url}`;
-};
-
-const looksLikeDomain = (value: string) => {
-  const host = value
-    .trim()
-    .replace(/^(?:https?:\/\/)/i, "")
-    .replace(/^www\./i, "")
-    .split(/[/?#]/)[0];
-  return /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$/.test(host);
-};
-
-
-const extractBusinessName = (url: string): string => {
-  try {
-    const clean = url.replace(/^(?:https?:\/\/)/i, "").replace(/^www\./i, "");
-    const domain = clean.split("/")[0].split(".")[0];
-    return domain.charAt(0).toUpperCase() + domain.slice(1);
-  } catch {
-    return "Business";
-  }
-};
-
-const formSchema = z.object({
-  fullName: z.string().trim().min(1, "Enter your name"),
-  phone: z.string().trim().max(30).optional().or(z.literal("")),
-  email: z.string().trim().email("Enter a valid email").optional().or(z.literal("")),
-  url: z
-    .string()
-    .trim()
-    .min(1, "Enter your website URL")
-    .max(255)
-    .refine((v) => looksLikeDomain(v), { message: "Enter a valid domain (e.g. mybusiness.com)" })
-    .transform(normalizeUrl),
-});
 
 const benefits = [
   { key: "transfer", icon: PhoneForwarded },
@@ -98,169 +39,71 @@ const benefits = [
 ];
 
 const TryDemo = () => {
-  const { toast } = useToast();
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
   const [url, setUrl] = useState("");
   const [auditBusiness, setAuditBusiness] = useState("");
   const [auditLocation, setAuditLocation] = useState("");
   const [auditKeyword, setAuditKeyword] = useState("");
   const [auditMode, setAuditMode] = useState<"maps" | "nationwide">("maps");
   const [selectedExample, setSelectedExample] = useState<string | null>(null);
+  const [resume, setResume] = useState<DemoResume | null>(null);
+
   const selectExample = (example: RankAuditExample) => {
     setUrl(example.website); setAuditBusiness(example.name); setAuditLocation(example.location);
     setAuditKeyword(example.keyword); setAuditMode(example.mode); setSelectedExample(example.id);
   };
-  const [secondaryUrl, setSecondaryUrl] = useState("");
-  const [crawlDepth, setCrawlDepth] = useState<1 | 2>(1);
-  const [files, setFiles] = useState<File[]>([]);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isScanning, setIsScanning] = useState(false);
 
-  const handleFileAdd = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const incoming = Array.from(e.target.files || []);
-    const valid = incoming.filter((f) => {
-      if (!ALLOWED_FILE_TYPES.includes(f.type)) {
-        toast({ title: "Unsupported file", description: `${f.name} must be a PDF, Word doc or text file.`, variant: "destructive" });
-        return false;
-      }
-      if (f.size > MAX_FILE_SIZE) {
-        toast({ title: "File too large", description: `${f.name} is over 10 MB.`, variant: "destructive" });
-        return false;
-      }
-      return true;
-    });
-    setFiles((prev) => [...prev, ...valid].slice(0, MAX_FILES));
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
-
-  const uploadFiles = async (leadId: string) => {
-    const paths: string[] = [];
-    for (const file of files) {
-      const ext = file.name.split(".").pop() || "bin";
-      const filePath = `${leadId}/${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage.from("lead-uploads").upload(filePath, file);
-      if (error) {
-        console.error("File upload error:", error);
-        continue;
-      }
-      paths.push(filePath);
-    }
-    return paths;
-  };
-  // Pre-fill form fields from URL params (e.g. coming from CRM prospect table)
+  // Pre-fill the website from URL params (e.g. coming from the CRM prospect table)
   useEffect(() => {
     const urlParam = searchParams.get("url");
-    const nameParam = searchParams.get("name");
-    const _nicheParam = searchParams.get("niche");
-    const phoneParam = searchParams.get("callerPhone");
-    const emailParam = searchParams.get("callerEmail");
-    const callerNameParam = searchParams.get("callerName");
+    if (urlParam) setUrl((current) => current || urlParam.replace(/^https?:\/\//i, ""));
+  }, [searchParams]);
 
-    if (urlParam && !url) setUrl(urlParam.replace(/^https?:\/\//i, ""));
-    if (callerNameParam && !fullName) setFullName(callerNameParam);
-    else if (nameParam && !fullName) setFullName(nameParam);
-    if (phoneParam && !phone) setPhone(phoneParam);
-    if (emailParam && !email) setEmail(emailParam);
+  // "Continue my demo" — a saved, unfinished verified demo can be resumed.
+  useEffect(() => {
+    setResume(loadDemoResume());
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const parsed = formSchema.safeParse({ fullName, phone, email, url });
-    if (!parsed.success) {
-      toast({ title: t("tryDemo.missingInfo"), description: t("tryDemo.fixFields"), variant: "destructive" });
-      return;
-    }
-
-    const { fullName: name, phone: ph, email: em, url: websiteUrl } = parsed.data;
-    const businessName = auditBusiness.trim() || extractBusinessName(websiteUrl);
-
-    setIsSubmitting(true);
-
-    try {
-      // Always use the safe public demo helper. Public visitors cannot query the private leads table directly.
-      void trackCampaignEvent('scan_started');
-      const { data: leadId, error } = await (supabase as any).rpc("create_demo_lead", {
-        // Track only milestones, never form contact fields.
-        _business_name: businessName,
-        _full_name: name,
-        _phone: ph,
-        _email: em || null,
-        _website_url: websiteUrl,
-        _niche: "general",
-        _secondary_url: secondaryUrl.trim() ? normalizeUrl(secondaryUrl) : null,
-      });
-
-      if (error) throw error;
-      if (!leadId) throw new Error("Demo lead was not created");
-
-      let filePaths: string[] = [];
-      if (files.length > 0) {
-        filePaths = await uploadFiles(leadId);
-        if (filePaths.length > 0) {
-          try {
-            await (supabase as any).rpc("set_demo_lead_uploads", { _lead_id: leadId, _uploaded_files: filePaths });
-          } catch (uploadErr) {
-            console.error("Could not attach uploads:", uploadErr);
-          }
-        }
-      }
-
-      const leadData: DemoLeadData = {
-        leadId,
-        previewVersion: new Date().toISOString(),
-        fullName: name,
-        phone: ph,
-        email: em || undefined,
-        businessName,
-        websiteUrl,
-        niche: "general",
-        secondaryUrls: secondaryUrl.trim() ? [normalizeUrl(secondaryUrl)] : [],
-        uploadedFiles: filePaths,
-        crawlDepth,
-      };
-
-      try { localStorage.setItem(LAST_DEMO_STORAGE_KEY, JSON.stringify(leadData)); } catch {}
-      setIsScanning(true);
-
-      const params = new URLSearchParams({
-        url: websiteUrl,
-        leadId,
-        name: businessName,
-        callerName: name,
-        scan: "1",
-        lang: i18n.resolvedLanguage || i18n.language || "en",
-      });
-      if (em) params.set("callerEmail", em);
-      if (ph) params.set("callerPhone", ph);
-      if (auditLocation.trim()) params.set("city", auditLocation.trim());
-      if (auditKeyword.trim()) params.set("keyword", auditKeyword.trim());
-      params.set("auditMode", auditMode);
-      if (auditBusiness.trim()) params.set("auditBusiness", auditBusiness.trim());
-      navigate(`/demo-site?${params.toString()}`, { state: { leadData } });
-    } catch (err) {
-      console.error("Error:", err);
-      toast({ title: t("tryDemo.errorTitle"), description: t("tryDemo.errorDesc"), variant: "destructive" });
-      setIsScanning(false);
-    } finally {
-      setIsSubmitting(false);
-    }
+  const handleIntakeReady = ({ leadData, gateChannel, maskedTarget }: DemoIntakeReady) => {
+    try { localStorage.setItem(LAST_DEMO_STORAGE_KEY, JSON.stringify(leadData)); } catch { /* storage unavailable — router state still carries the lead */ }
+    const params = new URLSearchParams({
+      url: leadData.websiteUrl,
+      leadId: leadData.leadId || "",
+      name: leadData.businessName,
+      callerName: leadData.fullName,
+      scan: "1",
+      lang: i18n.resolvedLanguage || i18n.language || "en",
+      gate: "1",
+      gateChannel,
+      gateTarget: maskedTarget,
+    });
+    if (leadData.email) params.set("callerEmail", leadData.email);
+    if (leadData.phone) params.set("callerPhone", leadData.phone);
+    if (auditLocation.trim()) params.set("city", auditLocation.trim());
+    if (auditKeyword.trim()) params.set("keyword", auditKeyword.trim());
+    params.set("auditMode", auditMode);
+    if (auditBusiness.trim()) params.set("auditBusiness", auditBusiness.trim());
+    navigate(`/demo-site?${params.toString()}`, { state: { leadData } });
   };
 
-  if (isScanning) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center px-4">
-        <ScanningAnimation websiteUrl={url} businessName={extractBusinessName(url)} callerName={fullName} onComplete={() => {}} mode="continuous" onCancel={() => setIsScanning(false)} />
-      </div>
-    );
-  }
+  const continueResume = () => {
+    if (!resume) return;
+    const params = new URLSearchParams({
+      url: resume.websiteUrl,
+      leadId: resume.leadId,
+      scan: "1",
+      gate: "1",
+      lang: i18n.resolvedLanguage || i18n.language || "en",
+    });
+    navigate(`/demo-site?${params.toString()}`);
+  };
+
+  const dismissResume = () => {
+    clearDemoResume();
+    setResume(null);
+  };
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center px-4 pt-20 pb-8 relative overflow-hidden">
@@ -308,7 +151,6 @@ const TryDemo = () => {
 
       <div className="relative z-10 w-full max-w-lg mx-auto text-center my-auto">
 
-
         {/* Headline */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -351,7 +193,43 @@ const TryDemo = () => {
           ))}
         </motion.div>
 
-        <section aria-labelledby="audit-examples-title" className="mb-6 border-y border-border py-5 text-left">
+        {/* Resume a saved demo (Verified Demo Gate graceful exit) */}
+        {resume && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6 flex items-center gap-3 rounded-2xl border border-primary/40 bg-primary/10 px-4 py-3 text-left"
+            role="status"
+          >
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-foreground">Welcome back — your demo is saved</p>
+              <p className="truncate text-xs text-muted-foreground">
+                Pick up right where you left off with {extractBusinessName(resume.websiteUrl)}.
+              </p>
+            </div>
+            <Button size="sm" onClick={continueResume} className="shrink-0 gap-1">
+              Continue my demo <ArrowRight className="w-3.5 h-3.5" />
+            </Button>
+            <button
+              type="button"
+              onClick={dismissResume}
+              className="shrink-0 text-muted-foreground hover:text-foreground"
+              aria-label="Dismiss saved demo"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </motion.div>
+        )}
+
+        {/* Demo-mode intake (the widget-style form + verification code send) */}
+        <DemoIntakePanel
+          url={url}
+          onUrlChange={(value) => { setUrl(value); setSelectedExample(null); }}
+          auditBusinessName={auditBusiness}
+          onReady={handleIntakeReady}
+        />
+
+        <section aria-labelledby="audit-examples-title" className="mt-6 mb-6 border-y border-border py-5 text-left">
           <h2 id="audit-examples-title" className="text-base font-bold">Try a real business</h2>
           <div className="mt-3 grid grid-cols-2 gap-2">
             {rankAuditExamples.map(example => <Button key={example.id} type="button" variant={selectedExample === example.id ? "default" : "outline"} onClick={() => selectExample(example)} className="h-auto min-h-14 flex-col items-start whitespace-normal px-3 py-2 text-left text-xs">
@@ -368,191 +246,6 @@ const TryDemo = () => {
           <div className="mt-3"><RankAuditPanel businessName={auditBusiness || extractBusinessName(url)} city={auditLocation} websiteUrl={url} initialKeyword={auditKeyword} initialMode={auditMode} /></div>
           <p className="mt-2 text-xs text-muted-foreground">Ranking audit and website demo run separately. Local Maps checks one branch; nationwide mode checks 25 Google buyer searches, not AI citations.</p>
         </section>
-
-        {/* Form */}
-        <motion.form
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.3 }}
-          onSubmit={handleSubmit}
-          className="w-full space-y-3"
-        >
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {/* Name */}
-            <div className="relative">
-              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder={t("tryDemo.namePlaceholder")}
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                className="pl-9 h-12 text-sm bg-card border-border rounded-xl focus-visible:ring-primary"
-                disabled={isSubmitting}
-              />
-            </div>
-            {/* Phone */}
-            <div className="relative">
-              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="(954) 555-1234 (optional)"
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(formatPhoneNumber(e.target.value))}
-                className="pl-9 h-12 text-sm bg-card border-border rounded-xl focus-visible:ring-primary"
-                disabled={isSubmitting}
-              />
-            </div>
-          </div>
-          <p className="text-[11px] text-muted-foreground -mt-1 pl-1">
-            Phone is optional — try Aspen instantly in your browser (free, works worldwide). Add a number only if you want a live phone call too.
-          </p>
-
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {/* Website */}
-            <div className="relative">
-              <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="mybusiness.com *"
-                value={url}
-                onChange={(e) => { setUrl(sanitizeUrlInput(e.target.value)); setSelectedExample(null); }}
-                onBlur={() => {
-                  if (url.trim()) {
-                    const normalized = normalizeUrl(url);
-                    if (normalized !== url) setUrl(normalized);
-                  }
-                }}
-                className="pl-9 h-12 text-sm bg-card border-border rounded-xl focus-visible:ring-primary"
-                disabled={isSubmitting}
-              />
-            </div>
-            {/* Email (optional) */}
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder={t("tryDemo.emailPlaceholder")}
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="pl-9 h-12 text-sm bg-card border-border rounded-xl focus-visible:ring-primary"
-                disabled={isSubmitting}
-              />
-            </div>
-          </div>
-
-          {/* Advanced: extra URL, crawl depth, documents */}
-          <div className="rounded-xl border border-border bg-card/40 text-left">
-            <button
-              type="button"
-              onClick={() => setShowAdvanced((v) => !v)}
-              className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold text-foreground/90"
-            >
-              <span className="flex items-center gap-2">
-                <FileText className="w-3.5 h-3.5 text-primary" />
-                Teach Aspen more (optional): extra page, deeper crawl, documents
-              </span>
-              <ChevronDown className={`w-4 h-4 transition-transform ${showAdvanced ? "rotate-180" : ""}`} />
-            </button>
-
-            {showAdvanced && (
-              <div className="px-4 pb-4 space-y-3">
-                {/* Secondary URL */}
-                <div className="relative">
-                  <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Additional page or second website (optional)"
-                    value={secondaryUrl}
-                    onChange={(e) => setSecondaryUrl(sanitizeUrlInput(e.target.value))}
-                    className="pl-9 h-11 text-sm bg-card border-border rounded-xl focus-visible:ring-primary"
-                    disabled={isSubmitting}
-                  />
-                </div>
-
-                {/* Crawl depth */}
-                <div>
-                  <p className="text-[11px] font-semibold text-foreground/80 mb-1.5">How deep should we learn?</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {[
-                      { value: 1 as const, label: "Level 1 — page & menu", hint: "Up to 20 linked pages" },
-                      { value: 2 as const, label: "Level 2 — add submenus", hint: "Up to 40 linked pages" },
-                    ].map((opt) => (
-                      <Button variant="outline"
-                        key={opt.value}
-                        type="button"
-                        onClick={() => setCrawlDepth(opt.value)}
-                        className={`rounded-xl border px-3 py-2 text-left transition-colors ${
-                          crawlDepth === opt.value
-                            ? "border-primary bg-primary/10"
-                            : "border-border bg-card/60 hover:border-primary/50"
-                        }`}
-                      >
-                        <span className="block text-[11px] font-semibold text-foreground leading-tight">{opt.label}</span>
-                        <span className="block text-[10px] text-muted-foreground">{opt.hint}</span>
-                      </Button>
-                    ))}
-                  </div>
-                  <p className="text-[10px] text-muted-foreground mt-1.5">
-                    Learning is limited to readable pages and available time. A specific listing stays in its own section, never other listings.
-                  </p>
-                </div>
-
-                {/* Documents */}
-                <div>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    multiple
-                    accept=".pdf,.txt,.md,.csv,.doc,.docx"
-                    onChange={handleFileAdd}
-                    className="hidden"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isSubmitting || files.length >= MAX_FILES}
-                    className="h-9 text-xs gap-1.5 rounded-xl"
-                  >
-                    <Upload className="w-3.5 h-3.5" /> Upload PDF / doc / text (max {MAX_FILES}, 10 MB each)
-                  </Button>
-                  {files.length > 0 && (
-                    <ul className="mt-2 space-y-1">
-                      {files.map((file, index) => (
-                        <li
-                          key={`${file.name}-${index}`}
-                          className="flex items-center justify-between gap-2 rounded-lg border border-border bg-card/60 px-2.5 py-1.5"
-                        >
-                          <span className="truncate text-[11px] text-foreground/90">{file.name}</span>
-                          <button
-                            type="button"
-                            onClick={() => setFiles((prev) => prev.filter((_, i) => i !== index))}
-                            className="text-muted-foreground hover:text-destructive"
-                            aria-label={`Remove ${file.name}`}
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <Button
-            type="submit"
-            size="lg"
-            disabled={isSubmitting || !url.trim() || !fullName.trim()}
-            className="w-full h-14 text-base font-bold rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_0_30px_-5px_hsl(var(--primary)/0.4)] hover:shadow-[0_0_40px_-5px_hsl(var(--primary)/0.6)] transition-all"
-          >
-            {isSubmitting ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              t("tryDemo.submit")
-            )}
-          </Button>
-        </motion.form>
 
         {/* Demo disclaimer */}
         <motion.div

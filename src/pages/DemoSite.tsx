@@ -1,5 +1,5 @@
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, Phone, ExternalLink } from "lucide-react";
 import type { DemoLeadData } from "@/components/landing/demo-results/demoResultsUtils";
@@ -16,6 +16,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { preloadVoiceIdentity } from "@/lib/voicePreload";
 import { shouldStartRemotePreview } from "@/lib/demoStartup";
+import DemoVerificationGate from "@/components/landing/demo-results/DemoVerificationGate";
+import {
+  getDemoVerificationStatus,
+  extractSpokenCode,
+  clearDemoResume,
+} from "@/lib/demoVerification";
+import { rankAuditExamples } from "@/lib/rankAuditExamples";
 
 
 const DEFAULT_DEMO_OWNER_NAME = "your dedicated specialist";
@@ -233,6 +240,15 @@ const DemoSite = () => {
   const latestLeadData = location.state?.leadData as DemoLeadData | undefined;
   const [leadData, setLeadData] = useState<DemoLeadData | undefined>(latestLeadData);
   const [voiceOpen, setVoiceOpen] = useState(false);
+  // Verified Demo Gate: engaged only when the intake sent gate=1. The gate
+  // activates at the reveal moment (scan done, preview about to show); while
+  // waiting, the site stays blurred and Aspen runs the Act 1 host phase.
+  const gateRequested = searchParams.get("gate") === "1";
+  const gateChannelParam = (searchParams.get("gateChannel") === "sms" ? "sms" : "email") as "email" | "sms";
+  const [gatePhase, setGatePhase] = useState<"inactive" | "waiting" | "verified">("inactive");
+  const [gateWaiting, setGateWaiting] = useState(false);
+  const [dictatedCode, setDictatedCode] = useState<string | null>(null);
+  const gateCheckedRef = useRef<string | null>(null);
   // Website stays behind the progress overlay until Aspen's live session is prepared.
   const [assistantReady, setAssistantReady] = useState(false);
   const [iframeBlocked, setIframeBlocked] = useState(false);
@@ -583,6 +599,33 @@ const DemoSite = () => {
     };
   }, [isScanning, leadData?.leadId]);
 
+  // Verified Demo Gate activation: once the scan settles, ask the backend
+  // whether this lead still needs its code. Verified leads skip the gate.
+  useEffect(() => {
+    if (!gateRequested || !leadData?.leadId || isScanning || gatePhase !== "inactive") return;
+    if (gateCheckedRef.current === leadData.leadId) return;
+    gateCheckedRef.current = leadData.leadId;
+    let cancelled = false;
+    void getDemoVerificationStatus(leadData.leadId).then((status) => {
+      if (cancelled) return;
+      if (status.ok === true && status.verified) {
+        setGatePhase("verified");
+        clearDemoResume();
+      } else {
+        setGatePhase("waiting");
+      }
+    });
+    return () => { cancelled = true; };
+  }, [gateRequested, leadData?.leadId, isScanning, gatePhase]);
+
+  // While the gate waits, a spoken 4-digit code in the visitor's transcript
+  // fills the on-screen boxes (the gate component handles visual confirm).
+  const handleGateTranscript = useCallback((text: string) => {
+    if (gatePhase !== "waiting") return;
+    const code = extractSpokenCode(text);
+    if (code) setDictatedCode(code);
+  }, [gatePhase]);
+
   // Fetch prospect owner data when prospectId is available
   useEffect(() => {
     const pid = leadData?.prospectId || prospectIdParam;
@@ -728,6 +771,19 @@ const DemoSite = () => {
     }, 8000);
     return () => window.clearTimeout(timer);
   }, [isScanning, isIframeCheckPending, iframeBlocked, hasIframeLoaded, resolvedIframeUrl]);
+
+  const maskGateEmail = (email?: string) => {
+    if (!email) return "your email";
+    const [user, domain] = email.split("@");
+    return domain ? `${(user || "").slice(0, 1)}•••@${domain}` : "your email";
+  };
+
+  // Unverified escape hatch: a generic sample demo instead of their own site.
+  const startSampleDemo = () => {
+    const sample = rankAuditExamples[0];
+    if (!sample) return;
+    navigate(`/demo-site?url=${encodeURIComponent(sample.website)}&name=${encodeURIComponent(sample.name)}`);
+  };
 
   const handleBack = () => {
     if (returnTo && returnTo.startsWith("/")) {
@@ -888,6 +944,8 @@ const DemoSite = () => {
       {/* Website — iframe first, screenshot fallback */}
       {hasAnyPreview && <DemoWatermark />}
       <div className="relative" style={{ minHeight: `calc(100dvh - ${previewBarHeight}px)` }}>
+        {/* While the verification gate waits, the prospect's site stays visible but blurred and inert behind the bright widget. */}
+        <div className={gatePhase === "waiting" ? "pointer-events-none select-none blur-[6px]" : undefined}>
         {canRenderInlineIframe && (
           <iframe
             src={livePreviewUrl}
@@ -1010,6 +1068,8 @@ const DemoSite = () => {
           </div>
         )}
 
+        </div>
+
         {(isPreviewLoading || (hasAnyPreview && !assistantReady)) && <DemoLoadingState websiteUrl={homepageUrl} businessName={siteName} overlay />}
 
         {/* ===== Local Google Maps Geo-Grid Blind-Spot Diagnostic ===== */}
@@ -1024,7 +1084,7 @@ const DemoSite = () => {
         )}
 
         {hasAnyPreview && <AspenDemoWidget
-          key={leadData.websiteUrl}
+          key={leadData.websiteUrl + (gateRequested ? `:${gatePhase}` : "")}
           businessName={siteName}
           businessNiche={leadData.niche || "general"}
           websiteUrl={homepageUrl}
@@ -1038,7 +1098,29 @@ const DemoSite = () => {
           voiceRequested={voiceOpen}
           onClosed={() => setVoiceOpen(false)}
           onAssistantReady={() => setAssistantReady(true)}
+          verification={gatePhase === "waiting" ? "pending" : gatePhase === "verified" ? "verified" : undefined}
+          onUserTranscript={gateRequested ? handleGateTranscript : undefined}
+          gateWaiting={gateWaiting}
         />}
+
+        {/* Verified Demo Gate — the reveal-moment code card, bright over the blurred site */}
+        {gatePhase === "waiting" && hasAnyPreview && leadData.leadId && (
+          <div className="pointer-events-none absolute inset-0 z-30 flex items-start justify-center overflow-y-auto px-3 pt-24 sm:pt-28">
+            <div className="pointer-events-auto w-full max-w-md">
+              <DemoVerificationGate
+                leadId={leadData.leadId}
+                businessName={siteName}
+                channel={gateChannelParam}
+                maskedTarget={searchParams.get("gateTarget") || maskGateEmail(leadData.email)}
+                websiteUrl={homepageUrl}
+                dictatedCode={dictatedCode}
+                onVerified={() => { setGatePhase("verified"); clearDemoResume(); }}
+                onSampleDemo={startSampleDemo}
+                onWaitingChange={setGateWaiting}
+              />
+            </div>
+          </div>
+        )}
 
       </div>
 
