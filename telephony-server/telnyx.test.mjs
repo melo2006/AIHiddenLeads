@@ -15,7 +15,7 @@ const TOKEN = 't'.repeat(64);
 const LEG_A = 'v2:leg-a-uuid', LEG_B = 'v2:leg-b-uuid';
 
 const signHeaders = (body, tsSec = Math.floor(Date.now() / 1000)) => ({
-  'telnyx-signature-ed25519': crypto.sign(null, Buffer.from(`${tsSec}.${body}`), privateKey).toString('base64'),
+  'telnyx-signature-ed25519': crypto.sign(null, Buffer.from(`${tsSec}|${body}`), privateKey).toString('base64'),
   'telnyx-timestamp': String(tsSec),
 });
 const evtBody = (id, event_type, payload) => JSON.stringify({ data: { record_type: 'event', event_type, id, occurred_at: new Date().toISOString(), payload } });
@@ -70,7 +70,7 @@ const AUDIO_MU = Buffer.alloc(160, 0xff).toString('base64'); // 20 ms of 8 kHz m
 
 test('signature verification: valid passes, tampered body and stale timestamp fail', () => {
   const body = '{"data":{}}', ts = Math.floor(Date.now() / 1000);
-  const sig = crypto.sign(null, Buffer.from(`${ts}.${body}`), privateKey).toString('base64');
+  const sig = crypto.sign(null, Buffer.from(`${ts}|${body}`), privateKey).toString('base64');
   assert.equal(verifyTelnyxSignature(body, sig, String(ts), publicKey), true);
   assert.equal(verifyTelnyxSignature(body + 'x', sig, String(ts), publicKey), false);
   assert.equal(verifyTelnyxSignature(body, sig, String(ts - 3600), publicKey), false);

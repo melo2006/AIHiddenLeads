@@ -45,7 +45,9 @@ function ed25519PublicKey(publicKeyB64) {
 
 /**
  * Verify a Telnyx webhook signature (SCOPE §3.1): Ed25519 over
- * `timestamp + "." + rawBody`, with a ±5 min timestamp tolerance.
+ * `timestamp + "|" + rawBody`, with a ±5 min timestamp tolerance.
+ * (Telnyx signs with a PIPE separator — a "." here made every genuine
+ * webhook fail verification; found live 2026-11-08, Ron's first 772 call.)
  * `keyObject` may be a pre-built KeyObject or a base64 public key.
  */
 export function verifyTelnyxSignature(rawBody, signatureB64, timestamp, keyObject, nowMs = Date.now()) {
@@ -54,7 +56,7 @@ export function verifyTelnyxSignature(rawBody, signatureB64, timestamp, keyObjec
     const tsSec = Number(timestamp);
     if (!Number.isFinite(tsSec) || Math.abs(nowMs - tsSec * 1000) > SIGNATURE_TOLERANCE_MS) return false;
     const key = keyObject && typeof keyObject === 'object' && keyObject.type === 'public' ? keyObject : ed25519PublicKey(String(keyObject || ''));
-    const signed = Buffer.concat([Buffer.from(`${timestamp}.`), Buffer.isBuffer(rawBody) ? rawBody : Buffer.from(String(rawBody))]);
+    const signed = Buffer.concat([Buffer.from(`${timestamp}|`), Buffer.isBuffer(rawBody) ? rawBody : Buffer.from(String(rawBody))]);
     return crypto.verify(null, signed, key, Buffer.from(signatureB64, 'base64'));
   } catch { return false; }
 }
