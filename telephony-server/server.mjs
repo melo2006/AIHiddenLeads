@@ -156,4 +156,4 @@ wss.on('connection', (twilioWs) => {
 });
 
 process.on('SIGTERM', () => { console.log('shutting down'); server.close(); setTimeout(() => process.exit(0), 5000); });
-server.listen(Number(process.env.PORT || 8080), '127.0.0.1', () => console.log('telephony bridge listening'));
+server.listen(Number(process.env.PORT || 8080), '0.0.0.0', () => console.log('telephony bridge listening'));
