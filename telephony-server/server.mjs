@@ -35,8 +35,19 @@ const server = http.createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify({ ok: true, activeCalls, uptime: Math.round(process.uptime()) }));
 });
-const wss = new WebSocketServer({ server, path: '/media' });
-const telnyxWss = new WebSocketServer({ server, path: '/telnyx/media' });
+const wss = new WebSocketServer({ noServer: true });
+const telnyxWss = new WebSocketServer({ noServer: true });
+// One upgrade dispatcher for both media servers. Two WebSocketServer
+// instances attached to the same http server (the previous shape) each
+// register their own 'upgrade' listener, and the instance whose path does
+// NOT match aborts the handshake with HTTP 400 — which poisoned BOTH media
+// paths (Telnyx error 90046 "Failed to connect to destination", 2026-11-08).
+server.on('upgrade', (req, socket, head) => {
+  const { pathname } = new URL(req.url, 'http://localhost');
+  if (pathname === '/media') wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
+  else if (pathname === '/telnyx/media') telnyxWss.handleUpgrade(req, socket, head, (ws) => telnyxWss.emit('connection', ws, req));
+  else socket.destroy();
+});
 telnyxWss.on('connection', (ws) => telnyx.handleConnection(ws));
 
 wss.on('connection', (twilioWs) => {
