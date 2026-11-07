@@ -121,7 +121,7 @@ test('webhook dispatch: call.initiated creates the backend row and answers with 
   assert.equal(answer.body.stream_bidirectional_mode, 'rtp');
   assert.equal(answer.body.stream_bidirectional_codec, 'PCMU');
   assert.equal(answer.body.stream_track, 'inbound_track');
-  assert.equal(answer.body.custom_parameters[0].value, TOKEN);
+  assert.equal(answer.body.custom_parameters, undefined); // Telnyx API rejects the field (422)
 
   await telnyx.handleWebhook(Buffer.from(body), signHeaders(body)); // duplicate delivery, same event id
   await telnyx.whenIdle();

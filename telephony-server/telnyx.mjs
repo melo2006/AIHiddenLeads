@@ -94,10 +94,13 @@ export function createTelnyx({ api, env = process.env, onActiveChange = () => {}
     if (!r.ok) throw new Error(`telnyx ${path} [${r.status}] ${text}`);
     return text ? JSON.parse(text) : {};
   }
+  // NOTE: no custom_parameters here — Telnyx's answer/streaming_start API
+  // rejects the field outright (422, pointer /custom_parameters; found live
+  // 2026-11-08 on Ron's second 772 call). The media session binds by
+  // call_control_id first (handleConnection), so the token echo is unneeded.
   const streamParams = (token) => ({
     stream_url: streamWss, stream_track: 'inbound_track',
     stream_bidirectional_mode: 'rtp', stream_bidirectional_codec: 'PCMU',
-    custom_parameters: [{ name: 'token', value: token }],
   });
   const answerCall = (id, token) => telnyxApi(`/calls/${encodeURIComponent(id)}/actions/answer`, streamParams(token));
   const startStreaming = (id, token) => telnyxApi(`/calls/${encodeURIComponent(id)}/actions/streaming_start`, streamParams(token));
