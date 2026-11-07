@@ -47,3 +47,7 @@ project_id = "mrtvqttecdfgphgxeygj"
     verify_jwt = false
   [functions.whatsapp-webhook]
     verify_jwt = false
+  # Browsers call the demo verification gate without supabase-js auth
+  # headers; the function authorizes via the lead id and the code itself.
+  [functions.demo-verification]
+    verify_jwt = false
