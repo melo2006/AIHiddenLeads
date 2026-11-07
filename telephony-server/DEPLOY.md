@@ -57,3 +57,35 @@ On a spare Twilio number: Voice URL `…/functions/v1/telephony-stream?action=in
 - Run `node --test` in this folder.
 
 Rollback: point the test number back to its previous Voice URL. Nothing else changes.
+
+## 5. Telnyx adapter (772 number, A/B against Twilio)
+
+Code: `telnyx.mjs` (webhook `POST /telnyx/voice`, media WS `/telnyx/media`) — built
+and unit-tested locally, **not deployed**. Full draft + prerequisites:
+`~/workspace/telnyx-adapter/README.md` and the backend patch
+`~/workspace/telnyx-adapter/telephony-stream.telnyx.patch` (must be applied to the
+`telephony-stream` function before Telnyx calls can start).
+
+Before deploying:
+1. **Diff `/opt/aspen/server.mjs` + `codec.mjs` against this repo copy** — the live
+   files were copied by hand and may have drifted; build the deploy on the live source.
+2. Copy `server.mjs telnyx.mjs latency.mjs codec.mjs package.json` to `/opt/aspen/`
+   (keep the pre-deploy copies for rollback).
+3. Add to `/etc/aspen.env`:
+   ```
+   TELNYX_API_KEY=...        # Telnyx API key (Bearer, Call Control commands)
+   TELNYX_PUBLIC_KEY=...     # account public key, base64 (webhook Ed25519 verify)
+   TELNYX_CONNECTION_ID=...  # the Call Control Application id
+   TELNYX_STREAM_WSS=wss://voice.aihiddenleads.com/telnyx/media
+   ```
+4. Telnyx portal: create the Call Control Application with webhook
+   `https://voice.aihiddenleads.com/telnyx/voice`, assign **+1 772 362 4949** to it.
+5. Backend: apply the patch, and insert the `telephony_clients` row for
+   `+17723624949` (active, `transfer_phone = +19547706622`, same agent as the 561 row).
+6. Deploy only in a quiet window: check the health endpoint shows `activeCalls: 0`,
+   then `systemctl restart aspen` (restart drops in-flight calls and is required for
+   the new env vars).
+
+Rollback (Telnyx only): reassign the 772 number away from the application in the
+portal; restore the pre-deploy `/opt/aspen` files and restart. The Twilio 561 path
+is untouched by every step above.
