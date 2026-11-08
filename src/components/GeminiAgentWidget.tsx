@@ -31,7 +31,11 @@ export default function GeminiAgentWidget({ agentId, leadId, prospectId, busines
  const [prewarm,setPrewarm]=useState(floating && !agentId && !isGuide);
  const openWidget=()=>{setHasOpened(true);setClickedOpen(true);setMinimized(false);setOpen(true);};
  useEffect(()=>{if(agentId || isGuide || !floating)return;const show=(event:Event)=>{const next=(event as CustomEvent).detail?.mode==='chat'?'chat':'voice';setMode(next);setChatVisited(next==='chat');setHasOpened(true);setClickedOpen((event as CustomEvent).detail?.start===true);setMinimized(false);setOpen(true);};window.addEventListener('open-homepage-aspen',show);return()=>window.removeEventListener('open-homepage-aspen',show);},[agentId,floating]);
- const faceUrl = agentId ? identity.avatarUrl : undefined;
+ // Guide mode (Alex) passes its own Lukas portrait through: without this the
+ // frame and the pre-live portrait fall back to Aspen's assets. The tenant
+ // (agentId) and platform Aspen (no agentId) paths keep their semantics —
+ // a tenant record's avatarUrl ('' = mic icon) and undefined = Aspen assets.
+ const faceUrl = isGuide ? (identity.avatarUrl || undefined) : agentId ? identity.avatarUrl : undefined;
  // Stage 3 (minimized while talking): the frame's slim bar drives the live
  // Gemini session through its shell command surface.
  const shellControlsRef = useRef<GeminiShellControls | null>(null);

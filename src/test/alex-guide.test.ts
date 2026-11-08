@@ -211,4 +211,30 @@ describe('widget mount: wizard only, visually distinct, no double-mount', () => 
     expect(widget).toContain('guide={guide}');
     expect(widget).toContain('videoAvatar={isGuide ? identity.videoAvatar');
   });
+
+  test('guide mode passes the Lukas portrait as the frame/conversation avatarUrl', () => {
+    // faceUrl is the single value threaded into BOTH FloatingPersonFrame (the
+    // idle bubble) and GeminiConversation (the pre-live PersonPortrait). In
+    // guide mode it must be the guide identity's avatarUrl — the Lukas catalog
+    // portrait set by the guide effect — never undefined (Aspen fallback).
+    expect(widget).toContain("const faceUrl = isGuide ? (identity.avatarUrl || undefined) : agentId ? identity.avatarUrl : undefined;");
+    expect(widget).toContain('<FloatingPersonFrame name={identity.name} avatarUrl={faceUrl}');
+    expect(widget).toContain('avatarUrl={faceUrl}');
+    // The guide identity's avatarUrl IS the Lukas catalog portrait.
+    expect(widget).toContain("avatarUrl:alexPortrait || ''");
+    const lukas = SIMLI_FACE_CATALOG.find(f => f.id === ALEX_FACE_ID);
+    expect(lukas?.image).toBeTruthy();
+  });
+
+  test('non-guide faceUrl paths unchanged: tenant uses its record, platform Aspen stays undefined', () => {
+    // The ternary keeps the pre-fix semantics for both non-guide paths:
+    // agentId → identity.avatarUrl verbatim (a tenant '' keeps the mic icon);
+    // no agentId and no guide → undefined (the frame's Aspen-asset fallback).
+    const line = widget.split('\n').find(l => l.includes('const faceUrl =')) || '';
+    expect(line).toContain('agentId ? identity.avatarUrl : undefined');
+    // The frame's fallback semantics themselves are untouched.
+    const frame = read('components/FloatingPersonFrame.tsx');
+    expect(frame).toContain('const bubblePhoto = avatarUrl === undefined ? aspenIdleBeckon : avatarUrl;');
+    expect(frame).toContain('const src = avatarUrl || (animated ? aspenIdleBeckon : aspenPortrait);');
+  });
 });
