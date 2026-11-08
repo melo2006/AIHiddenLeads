@@ -322,6 +322,7 @@
     "perkBookings": "Takes appointment requests and sends them to you.",
     "perkLiveAvatar": "Not just another voice AI — a LIVE video avatar. Watch Aspen talk, listen and sell on your website, like she will in your demo. Almost nobody else can give you that.",
     "smsNote": "Text-message follow-ups are coming soon — email summaries work today.",
+    "notTouched": "Quick reassurance before we start: we have NOT touched your website. We read only what's public on it — the same pages any visitor can see — so Aspen understands what you do. This demo is a mock-up: your site stays exactly as it is, and our assistant is simply layered over a copy. Nothing on your server is changed, accessed or stored — ever.",
     "howTitle": "How it works",
     "stepEnter": "Enter your website",
     "stepLearn": "Aspen learns it in about 2 minutes",

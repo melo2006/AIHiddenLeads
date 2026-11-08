@@ -31,6 +31,7 @@ import DemoIntakePanel, {
   extractBusinessName,
   type DemoIntakeReady,
 } from "@/components/landing/DemoIntakePanel";
+import DemoReassuranceStrip from "@/components/landing/DemoReassuranceStrip";
 import aspenPortrait from "@/assets/aspen-video-frame-final.webp";
 import { rankAuditExamples, type RankAuditExample } from "@/lib/rankAuditExamples";
 import { loadDemoResume, clearDemoResume, type DemoResume } from "@/lib/demoVerification";
@@ -205,6 +206,12 @@ const TryDemo = () => {
             </button>
           </motion.div>
         )}
+
+        {/* "Not hacked" reassurance — Dennis's rule (2026-11-09): visible
+            BEFORE the visitor enters a URL, spanning hero + form. */}
+        <div className="mb-3 sm:mb-4">
+          <DemoReassuranceStrip />
+        </div>
 
         {/* HERO — slogan, Aspen, price and the form on the first screen */}
         <div className="grid items-start gap-3 sm:gap-5 lg:grid-cols-2 lg:gap-10">

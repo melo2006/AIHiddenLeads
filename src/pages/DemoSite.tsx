@@ -18,6 +18,7 @@ import { preloadVoiceIdentity } from "@/lib/voicePreload";
 import { linkCampaignLead } from "@/lib/campaignTracking";
 import { shouldStartRemotePreview } from "@/lib/demoStartup";
 import DemoVerificationGate from "@/components/landing/demo-results/DemoVerificationGate";
+import DemoReassuranceStrip from "@/components/landing/DemoReassuranceStrip";
 import {
   getDemoVerificationStatus,
   extractSpokenCode,
@@ -926,6 +927,12 @@ const DemoSite = () => {
               <RankAuditPanel businessName={searchParams.get("auditBusiness") || leadData.businessName || siteName} city={searchParams.get("city") || undefined} niche={leadData.niche} websiteUrl={leadData.websiteUrl} initialKeyword={searchParams.get("keyword") || undefined} initialMode={searchParams.get("auditMode") === "nationwide" ? "nationwide" : "maps"} compact />
               <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0" onClick={() => setShowTestOverride(v => !v)} title="Test phone override" aria-label="Test phone override"><Phone className="h-3 w-3" /></Button>
             </div>
+          </div>
+          {/* Full "not hacked" reassurance — Dennis's rule (2026-11-09):
+              the one-line note above is not enough on its own; the strong
+              version sits in the header, seen before the first tap. */}
+          <div className="mt-2">
+            <DemoReassuranceStrip compact />
           </div>
         </div>
 

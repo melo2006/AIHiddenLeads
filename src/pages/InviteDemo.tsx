@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import ScanningAnimation from "@/components/landing/ScanningAnimation";
+import DemoReassuranceStrip from "@/components/landing/DemoReassuranceStrip";
 import {
   inviteLeadToDemoData,
   normalizeInviteSlug,
@@ -63,12 +64,17 @@ const InviteDemo = () => {
   }, [slug, slugParam, codeParam, navigate]);
 
   return (
-    <div className="flex min-h-[100dvh] w-full items-center justify-center bg-background px-4 py-4 text-center">
+    <div className="flex min-h-[100dvh] w-full flex-col items-center justify-center gap-4 bg-background px-4 py-4 text-center">
       <ScanningAnimation
         websiteUrl={slug || "your website"}
         onComplete={() => {}}
         mode="continuous"
       />
+      {/* The invited visitor reads the reassurance even on this brief
+          interstitial — and again in the /demo-site header it routes to. */}
+      <div className="w-full max-w-md">
+        <DemoReassuranceStrip compact />
+      </div>
     </div>
   );
 };

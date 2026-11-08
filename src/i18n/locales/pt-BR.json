@@ -325,6 +325,7 @@
     "perkBookings": "Recebe pedidos de agendamento e os envia para você.",
     "perkLiveAvatar": "Não é só mais uma IA de voz — é um avatar de vídeo AO VIVO. Veja a Aspen falar, ouvir e vender no seu site, como ela fará na sua demo. Quase ninguém mais pode te dar isso.",
     "smsNote": "O acompanhamento por SMS chega em breve — os resumos por e-mail já funcionam hoje.",
+    "notTouched": "Um aviso rápido antes de começarmos: NÃO mexemos no seu site. Lemos apenas o que é público nele — as mesmas páginas que qualquer visitante pode ver — para que a Aspen entenda o que você faz. Esta demonstração é uma maquete: seu site permanece exatamente como está, e nosso assistente é simplesmente sobreposto a uma cópia. Nada no seu servidor é alterado, acessado ou armazenado — nunca.",
     "howTitle": "Como funciona",
     "stepEnter": "Digite seu site",
     "stepLearn": "A Aspen aprende em cerca de 2 minutos",
