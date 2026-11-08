@@ -23,6 +23,9 @@ import { classifyMicrophoneFailure, isEmbeddedContext } from "@/lib/embeddedCont
 import {campaignVisit, trackCampaignEvent} from '@/lib/campaignTracking';
 import { salesPlans, type SalesPlan } from '@/lib/salesActions';
 import SimliAvatar, { SOUND_BLOCKED, isVideoStartFailure, type SimliAvatarHandle } from '@/components/SimliAvatar';
+import { boundaryForAssistantLine, buildSwapRecap, cutoverReady, dropApologyVariant, INITIAL_SWAP_STATE, PHASE_ENTRY, reconnectTarget, visitorSignalsStepOut, type PersonaBoundary, type PersonaId, type SwapPhase, type SwapState } from '@/lib/personaSwap';
+import { PERSONAS, SARA_FACE_ID } from '../../supabase/functions/_shared/personas';
+import { ALEX_FACE_ID } from '../../supabase/functions/_shared/alex-guide';
 import type { VideoAvatar } from '../../supabase/functions/_shared/video-avatar';
 import { PersonPortrait } from '@/components/FloatingPersonFrame';
 import { assistantOutput, nextVoiceChunkStart, PAIRED_CAPTION_DELAY_SEC } from '@/lib/avatarAudioTransition';
@@ -101,8 +104,8 @@ export interface GeminiShellState {
   replaying: boolean;
   speaking: boolean;
 }
-export interface GeminiConversationProps { agentId?: string; leadId?: string; prospectId?: string; draft?: boolean; compact?: boolean; name?: string; visitorName?: string; previewVoice?: string; autoStart?: boolean; previewOnly?: boolean; previewAudioContext?: AudioContext; testModel?: string; shareToken?: string; onRecommendedPlan?: (plan: SalesPlan) => void; videoAvatar?: VideoAvatar; avatarInline?: boolean; faceFirst?: boolean; avatarUrl?: string; /** The visitor tapped a launcher that already showed the recording notice; that tap is the agreement. */ consentOnOpen?: boolean; /** Open the paid live session silently before the tap so it starts instantly. */ prewarm?: boolean; onPrewarmed?: (ready: boolean) => void; /** Verified Demo Gate: 'pending' starts the session in the Act 1 host phase (verification before simulation); 'verified' or undefined keeps the standard session. */ verification?: "pending" | "verified"; /** Cold-email invite arrival: asks gemini-session for the invite host phase; honored server-side only when the lead's invite arrival was stamped by the demo-invite resolve. */ invite?: boolean; /** Platform guide: 'alex' starts the authenticated setup-guide session (Alex, support specialist) instead of a tenant agent; honored server-side only for signed-in users. */ guide?: "alex"; /** Fires with each finalized visitor transcript line (used by the demo gate to hear a spoken code). */ onUserTranscript?: (text: string) => void; /** Three-stage widget: the shell fills this ref with live-session commands for its Stage 3 bar. */ shellControlsRef?: { current: GeminiShellControls | null }; /** Three-stage widget: receives the live-session snapshot for the Stage 3 bar. */ onShellState?: (state: GeminiShellState) => void; /** Widget chrome rendered BELOW her face — between the portrait/livebox and the captions/chat panel (the Voice/Type toggle lives here, never above her). */ belowAvatar?: ReactNode; }
-const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compact = false, name = "Aspen", visitorName = "", previewVoice, autoStart = false, previewOnly = false, previewAudioContext, testModel, shareToken, onRecommendedPlan, videoAvatar, avatarInline = false, faceFirst = false, avatarUrl, consentOnOpen = false, prewarm = false, onPrewarmed, verification, invite, guide, onUserTranscript, shellControlsRef, onShellState, belowAvatar }: GeminiConversationProps) => {
+export interface GeminiConversationProps { agentId?: string; leadId?: string; prospectId?: string; draft?: boolean; compact?: boolean; name?: string; visitorName?: string; previewVoice?: string; autoStart?: boolean; previewOnly?: boolean; previewAudioContext?: AudioContext; testModel?: string; shareToken?: string; onRecommendedPlan?: (plan: SalesPlan) => void; videoAvatar?: VideoAvatar; avatarInline?: boolean; faceFirst?: boolean; avatarUrl?: string; /** The visitor tapped a launcher that already showed the recording notice; that tap is the agreement. */ consentOnOpen?: boolean; /** Open the paid live session silently before the tap so it starts instantly. */ prewarm?: boolean; onPrewarmed?: (ready: boolean) => void; /** Verified Demo Gate: 'pending' starts the session in the Act 1 host phase (verification before simulation); 'verified' or undefined keeps the standard session. */ verification?: "pending" | "verified"; /** Cold-email invite arrival: asks gemini-session for the invite host phase; honored server-side only when the lead's invite arrival was stamped by the demo-invite resolve. */ invite?: boolean; /** Platform guide: 'alex' starts the authenticated setup-guide session (Alex, support specialist) instead of a tenant agent; honored server-side only for signed-in users. */ guide?: "alex"; /** Fires with each finalized visitor transcript line (used by the demo gate to hear a spoken code). */ onUserTranscript?: (text: string) => void; /** Three-stage widget: the shell fills this ref with live-session commands for its Stage 3 bar. */ shellControlsRef?: { current: GeminiShellControls | null }; /** Three-stage widget: receives the live-session snapshot for the Stage 3 bar. */ onShellState?: (state: GeminiShellState) => void; /** Widget chrome rendered BELOW her face — between the portrait/livebox and the captions/chat panel (the Voice/Type toggle lives here, never above her). */ belowAvatar?: ReactNode; /** Avatar swap (Stage 1): fires when the ACTIVE persona changes at a boundary, so the shell identity (name + portrait) follows the speaker. Never fires when the server flag is off. */ onPersonaChange?: (persona: { id: PersonaId; displayName: string }) => void; }
+const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compact = false, name = "Aspen", visitorName = "", previewVoice, autoStart = false, previewOnly = false, previewAudioContext, testModel, shareToken, onRecommendedPlan, videoAvatar, avatarInline = false, faceFirst = false, avatarUrl, consentOnOpen = false, prewarm = false, onPrewarmed, verification, invite, guide, onUserTranscript, shellControlsRef, onShellState, belowAvatar, onPersonaChange }: GeminiConversationProps) => {
   // On the gate's pending → verified flip, the next session is the demo's
   // fresh start, not a resume: drop this page visit's stored turns so the
   // proxy delivers the simulation opening instead of the resume line.
@@ -115,6 +118,33 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   }, [verification, agentId]);
   const onPrewarmedRef = useRef(onPrewarmed); onPrewarmedRef.current = onPrewarmed;
   const onUserTranscriptRef = useRef(onUserTranscript); onUserTranscriptRef.current = onUserTranscript;
+  const onPersonaChangeRef = useRef(onPersonaChange); onPersonaChangeRef.current = onPersonaChange;
+  // ------------------------------------------------------------------
+  // AVATAR SWAP state machine (Stage 1). Everything below is inert
+  // unless the server enables the flow: swapEnabledRef is set ONLY from
+  // a gemini-session response carrying personaSwapEnabled (the parent
+  // demo authorization), which the server stamps only when its
+  // AVATAR_SWAP_ENABLED env flag is on. Flag off ⇒ no segment requests,
+  // no second avatar instance, no persona callbacks — byte-identical
+  // legacy behavior.
+  // ------------------------------------------------------------------
+  const swapEnabledRef = useRef(false);
+  const swapStateRef = useRef<SwapState>({ ...INITIAL_SWAP_STATE });
+  const parentSessionIdRef = useRef<string | null>(null);
+  const visitorKeyRef = useRef('');
+  const businessNameRef = useRef('');
+  const preStageRef = useRef<{ boundary: PersonaBoundary; token: string; faceReady: boolean; persona: PersonaId } | null>(null);
+  const [preStage, setPreStage] = useState<{ persona: PersonaId; boundary: PersonaBoundary } | null>(null);
+  const stagedAvatarRef = useRef<SimliAvatarHandle>(null);
+  const [activePersona, setActivePersona] = useState<PersonaId>('aspen');
+  /** True while a boundary cut-over executes: the compact status line must
+   * show NO connecting spinner or "Connecting…" label at a swap (Ron's
+   * smoothness rule) — the outgoing persona's frozen frame + status text
+   * stay exactly as they were until the new persona is live. */
+  const [swapTransition, setSwapTransition] = useState(false);
+  const swapBusyRef = useRef(false);
+  const knownNameRef = useRef('');
+  const sessionStartedAtRef = useRef(0);
   const warmRef = useRef<{ ready: Promise<boolean>; ok: boolean; activated: boolean; goLive?: () => void } | null>(null);
   const avatarRef = useRef<SimliAvatarHandle>(null);
   const [faceLive, setFaceLive] = useState(false);
@@ -301,10 +331,92 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     if (role === "user") setPartialUser(""); else setPartialAspen("");
   }, []);
 
+  // Persist visitorName for swap recaps (host learns it before the demo).
+  useEffect(() => { if (visitorName) knownNameRef.current = visitorName; }, [visitorName]);
+
+  /** Swap recap for the CURRENT point of the conversation (turns come
+   * from visitMemory — flushLine keeps it current — plus this turn's
+   * unflushed lines). */
+  const currentSwapRecap = useCallback((incoming: PersonaId) => {
+    const stored = visitMemory.get(agentId || "homepage") || [];
+    const extra: Turn[] = [];
+    if (userLineRef.current.trim()) extra.push({ role: "user", text: userLineRef.current.trim() });
+    if (aspenLineRef.current.trim()) extra.push({ role: "assistant", text: aspenLineRef.current.trim() });
+    return buildSwapRecap([...stored, ...extra], {
+      visitorName: knownNameRef.current || visitorName || undefined,
+      businessName: businessNameRef.current || undefined,
+      facts: [],
+    }, incoming);
+  }, [agentId, visitorName]);
+
+  /** Authorize one persona segment against the ORIGINAL parent session. */
+  const requestSegment = useCallback(async (persona: PersonaId, boundary: PersonaBoundary, opts: { swap: boolean; dropRecovery?: boolean }) => {
+    const parentSessionId = parentSessionIdRef.current;
+    if (!parentSessionId || !visitorKeyRef.current) return null;
+    const headers = await voiceSessionHeaders();
+    const { data, error } = await supabase.functions.invoke("gemini-session", {
+      headers,
+      body: {
+        visitorKey: visitorKeyRef.current,
+        leadId, prospectId,
+        consent: true,
+        personaSegment: {
+          persona, boundary, parentSessionId,
+          swapRecap: currentSwapRecap(persona),
+          drops: swapStateRef.current.drops,
+          dropRecovery: opts.dropRecovery === true,
+          swap: opts.swap,
+        },
+      },
+    });
+    if (error || !data?.token) return null;
+    return data as { token: string; sessionId: string; persona?: { id: PersonaId; displayName: string; faceId: string | null } };
+  }, [leadId, prospectId, currentSwapRecap]);
+
+  // Cut-over machinery is defined after startConversation (it reuses the
+  // socket builder); these refs let the message handlers reach it.
+  const executeSwapRef = useRef<(boundary: PersonaBoundary) => Promise<void>>(async () => {});
+  const dropRecoverRef = useRef<() => void>(() => {});
+
+  /** Arm a boundary: authorize the incoming segment AND pre-connect its
+   * face (concealed second instance) while the outgoing persona is still
+   * speaking its handoff line. Any failure disarms quietly — the current
+   * persona continues words-only (spec §6.5 fallback 1/2). */
+  const armSwap = useCallback((boundary: PersonaBoundary) => {
+    const state = swapStateRef.current;
+    if (!swapEnabledRef.current || preStageRef.current || state.done.includes(boundary) || state.armed.includes(boundary)) return;
+    const target = (Object.entries(PHASE_ENTRY).find(([, v]) => v.boundary === boundary)?.[1]) as { boundary: PersonaBoundary; persona: PersonaId } | undefined;
+    const persona = boundary === 'return' ? 'aspen' as PersonaId : target?.persona;
+    if (!persona) return;
+    swapStateRef.current = { ...state, armed: [...state.armed, boundary] };
+    void (async () => {
+      const segment = await requestSegment(persona, boundary, { swap: true });
+      if (!segment) return; // disarmed: words-only continuation
+      if (swapStateRef.current.done.includes(boundary) || !liveRef.current) return;
+      preStageRef.current = { boundary, token: segment.token, faceReady: !avatarRequestedRef.current, persona };
+      if (avatarRequestedRef.current) {
+        // Mount the concealed second instance; its start() pre-connects
+        // during the outgoing line. Face failure leaves faceReady false
+        // and the atomic gate will abort the swap at cut-over.
+        setPreStage({ persona, boundary });
+      }
+    })();
+  }, [requestSegment]);
+  const armSwapRef = useRef(armSwap); armSwapRef.current = armSwap;
+
   // Shared local teardown. endSession=true also tells the server the visitor
   // ended the conversation; the Stage 3 suspend path passes false so the
   // server treats the close like a drop and the session stays resumable.
   const teardown = useCallback((endSession: boolean) => {
+    // Avatar swap: a full teardown ends the whole persona chain.
+    swapEnabledRef.current = false;
+    swapStateRef.current = { ...INITIAL_SWAP_STATE };
+    parentSessionIdRef.current = null;
+    preStageRef.current = null;
+    setPreStage(null);
+    setActivePersona('aspen');
+    setSwapTransition(false);
+    swapBusyRef.current = false;
     walkthroughRef.current = {text:'', continued:false};
     idleRef.current = { enabled: false, stage: 'waiting', quietSince: 0, generating: false, requestedAt: 0 };
     setPendingAction(null);
@@ -349,6 +461,37 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     setAspenSpeaking(false);
     setPhase("idle");
     setStatus("Conversation ended. Press Start to begin again.");
+  }, [flushLine]);
+
+  /** PARTIAL teardown for a persona cut-over (spec §5.4): closes ONLY the
+   * current voice socket (no end_session — the server treats it like the
+   * suspend path's drop) and resets per-connection capture state, while
+   * the mic stream, both AudioContexts, the caption clock and playback
+   * state all survive for the incoming segment. */
+  const partialTeardownForSwap = useCallback(() => {
+    walkthroughRef.current = {text:'', continued:false};
+    idleRef.current = { enabled: false, stage: 'waiting', quietSince: 0, generating: false, requestedAt: 0 };
+    setPendingAction(null);
+    deadlineRef.current = 0;
+    setRemainingSeconds(null);
+    setHandoffToken(null);
+    handoffRef.current = false;
+    setHandoffActive(false);
+    generationRef.current += 1;
+    liveRef.current = false;
+    captureRef.current.held = false;
+    captureRef.current.replaying = false;
+    captureRef.current.paused = false;
+    setHeld(false);
+    setReplaying(false);
+    setPaused(false);
+    if (micNodeRef.current) { micNodeRef.current.onaudioprocess = null; micNodeRef.current.disconnect(); }
+    micNodeRef.current = null;
+    try { wsRef.current?.close() } catch { /* ignore */ }
+    wsRef.current = null;
+    flushLine("user");
+    flushLine("assistant");
+    setAspenSpeaking(false);
   }, [flushLine]);
 
   const stopEverything = useCallback(() => teardown(true), [teardown]);
@@ -653,6 +796,18 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       }
       if (generation !== generationRef.current) { stream?.getTracks().forEach(t => t.stop()); return; }
       deadlineRef.current = Date.now() + Number(authorized.maxSeconds || 300) * 1000;
+      // Avatar swap arming (Stage 1): only a parent business-demo
+      // authorization can enable the flow, and only when the server says
+      // so. Segment/drop starts never re-arm from here (the swap machine
+      // manages its own chain), and flag-off responses change nothing.
+      if (!preview && authorized.personaSwapEnabled === true && (leadId || prospectId)) {
+        swapEnabledRef.current = true;
+        parentSessionIdRef.current = String(authorized.sessionId || '');
+        visitorKeyRef.current = visitorKey;
+        businessNameRef.current = String(authorized.businessName || '');
+        swapStateRef.current = { ...INITIAL_SWAP_STATE };
+        setActivePersona('aspen');
+      }
       homepageWalkthroughRef.current = authorized.homepageSales === true;
       idleRef.current = { enabled: (authorized.idleChecks === true || authorized.homepageSales === true) && !preview, stage: 'waiting', quietSince: Date.now(), generating: true, requestedAt: 0 };
       setHandoffToken(authorized.handoffToken || null);
@@ -774,6 +929,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             aspenLineRef.current += msg.text as string;
             captionClockRef.current.text(msg.text as string);
             setPartialAspen(aspenLineRef.current);
+            // Avatar swap: watch the GROWING line for a boundary anchor —
+            // arming mid-line is what gives the incoming persona its
+            // pre-connect head start (the outgoing line is the cover).
+            if (swapEnabledRef.current && liveRef.current) {
+              const boundary = boundaryForAssistantLine(aspenLineRef.current, swapStateRef.current);
+              if (boundary) armSwapRef.current(boundary);
+            }
             break;
           case "user_transcript":
             walkthroughRef.current.continued = false;
@@ -781,8 +943,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             idleRef.current.quietSince = Date.now();
             userLineRef.current += msg.text as string;
             setPartialUser(userLineRef.current);
+            // Soft B2 trigger: the visitor ending the try-out arms the
+            // step-out late; Sara's reply still covers the swap.
+            if (swapEnabledRef.current && liveRef.current && swapStateRef.current.phase === 'simulation' && visitorSignalsStepOut(userLineRef.current)) {
+              swapStateRef.current = { ...swapStateRef.current, pendingStepout: true };
+            }
             break;
-          case "turn_complete":
+          case "turn_complete": {
             // Her opening turn just finished: the mic gate lifts (turn-based).
             openingGateRef.current = false;
             lastCaptionRef.current = aspenLineRef.current;
@@ -792,13 +959,37 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             idleRef.current.quietSince = Date.now();
             if (currentAudioRef.current.length) { lastAudioRef.current = currentAudioRef.current; setHasReplay(true); }
             currentAudioRef.current = [];
-            flushLine("user");
-            flushLine("assistant");
-            if (preview) {
-              previewDoneRef.current = true;
-              if (sourcesRef.current.size === 0) stopEverything();
+            // Avatar swap: a boundary executes BETWEEN turns — the
+            // completed line was the cover. Checked before the flush so
+            // the recap builder still sees this line; executeSwap falls
+            // back to finalizing the turn itself when it aborts.
+            const completedLine = aspenLineRef.current;
+            let swapHandled = false;
+            if (swapEnabledRef.current && liveRef.current && !preview) {
+              const state = swapStateRef.current;
+              const boundary = boundaryForAssistantLine(completedLine, state)
+                ?? (state.phase === 'simulation' && state.pendingStepout && state.armed.includes('stepout') ? 'stepout' as PersonaBoundary : null);
+              if (boundary && state.armed.includes(boundary) && !state.done.includes(boundary)) {
+                swapHandled = true;
+                void executeSwapRef.current(boundary);
+              } else if (state.pendingStepout && !state.armed.includes('stepout')) {
+                // The visitor asked to stop, but Sara never spoke an
+                // anchor and nothing is staged: arm now — her NEXT reply
+                // becomes the cover and the swap follows it.
+                swapStateRef.current = { ...state, pendingStepout: false };
+                armSwapRef.current('stepout');
+              }
+            }
+            if (!swapHandled) {
+              flushLine("user");
+              flushLine("assistant");
+              if (preview) {
+                previewDoneRef.current = true;
+                if (sourcesRef.current.size === 0) stopEverything();
+              }
             }
             break;
+          }
           case "error":
             if (silentWarm()) { failWarm(); break; }
             resolveWarm(false);
@@ -826,6 +1017,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         if (generation !== generationRef.current) return;
         if (liveRef.current) {
           stopEverything();
+          // Avatar swap: an UNPLANNED drop inside a persona segment
+          // recovers the SAME persona (segment re-authorization with the
+          // rotating drop apology) — never a restart, never a switch.
+          if (swapEnabledRef.current && (event.code === 1006 || event.code === 1011)) { dropRecoverRef.current(); return; }
           // Hosting can drop long-lived sockets (1006/1011); quietly resume the same conversation a few times.
           if ((event.code === 1006 || event.code === 1011) && reconnectRef.current.count < 3) {
             reconnectRef.current = { pending: true, count: reconnectRef.current.count + 1 };
@@ -867,6 +1062,321 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
   startConversationRef.current = startConversation;
   useEffect(() => stopEverything, [stopEverything]);
+
+  // ------------------------------------------------------------------
+  // AVATAR SWAP — socket builder + cut-over + drop recovery.
+  // connectSegmentSocket mirrors the main start path's socket wiring
+  // (ready → goLive-equivalent: mic node creation + opening gate; the
+  // same message switch) but runs against a PRE-AUTHORIZED segment token
+  // and the SURVIVING mic/playback contexts. It is used by both the
+  // planned cut-over and the unplanned-drop recovery.
+  // ------------------------------------------------------------------
+  const connectSegmentSocket = useCallback((token: string) => {
+    const generation = generationRef.current;
+    clearPlayback();
+    currentAudioRef.current = [];
+    lastAudioRef.current = [];
+    setHasReplay(false);
+    aspenLineRef.current = "";
+    userLineRef.current = "";
+    setPartialUser("");
+    setPartialAspen("");
+    setTurns([...(visitMemory.get(agentId || "homepage") || [])]);
+    sessionStartedAtRef.current = Date.now();
+    const ws = new WebSocket(`${WS_URL}?token=${encodeURIComponent(token)}&capture=${captureMode}`);
+    wsRef.current = ws;
+    const goLiveSegment = () => {
+      if (generation !== generationRef.current) return;
+      liveRef.current = true;
+      openingGateRef.current = true;
+      openingGateSinceRef.current = performance.now();
+      setPhase("live");
+      setStatus(captureMode === "hold" ? "Live — hold to talk" : "Live — hands-free");
+      const micCtx = micCtxRef.current, stream = micStreamRef.current;
+      if (!micCtx || !stream) return;
+      void micCtx.resume();
+      const source = micCtx.createMediaStreamSource(stream);
+      const node = micCtx.createScriptProcessor(2048, 1, 1);
+      micNodeRef.current = node;
+      let frame = 0;
+      let gateOpenUntil = 0;
+      node.onaudioprocess = (e) => {
+        if (!liveRef.current || handoffRef.current || ws.readyState !== WebSocket.OPEN) return;
+        const input = e.inputBuffer.getChannelData(0);
+        const rms = Math.sqrt(input.reduce((sum, x) => sum + x * x, 0) / input.length);
+        if (++frame % 4 === 0) setMicLevel(Math.min(100, Math.round(rms * 500)));
+        const capture = captureRef.current;
+        if (capture.paused) return;
+        if (!shouldSendMicrophone(capture.mode, capture.held, capture.muted, capture.replaying)) return;
+        const gate = microphoneGate(rms, noiseFilterRef.current, performance.now(), gateOpenUntil);
+        if (gate.open && sourcesRef.current.size === 0 && !idleRef.current.generating) {
+          idleRef.current.stage = 'waiting';
+          idleRef.current.quietSince = Date.now();
+        }
+        gateOpenUntil = gate.openUntil;
+        let openingGate = openingGateRef.current;
+        if (openingGate && performance.now() - openingGateSinceRef.current >= OPENING_GATE_FAILSAFE_MS) {
+          openingGateRef.current = false;
+          openingGate = false;
+        }
+        const pcm = microphonePcm(capture.mode === "hold" || (gate.open && !openingGate) ? input : new Float32Array(input.length), e.inputBuffer.sampleRate);
+        const bytes = new Uint8Array(pcm.buffer);
+        let binary = "";
+        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        ws.send(JSON.stringify({ type: "audio", data: btoa(binary) }));
+      };
+      source.connect(node);
+      node.connect(micCtx.destination);
+    };
+    const readyTimeout = window.setTimeout(() => {
+      if (generation === generationRef.current && !liveRef.current) {
+        // The incoming segment never became ready: the call cannot
+        // continue on a dead socket — end cleanly rather than hang.
+        setError("The voice service did not respond in time. Please try again.");
+        stopEverything();
+      }
+    }, 15000);
+    ws.onmessage = (event) => {
+      if (generation !== generationRef.current) return;
+      let msg: Record<string, unknown>;
+      try { msg = JSON.parse(event.data as string); } catch { return; }
+      switch (msg.type) {
+        case "ready":
+          window.clearTimeout(readyTimeout);
+          goLiveSegment();
+          break;
+        case "recommended_plan": {
+          const plan = salesPlans.find(value => value === msg.plan);
+          if (plan) onRecommendedPlan?.(plan);
+          break;
+        }
+        case "confirm_action": setPendingAction(msg as unknown as VoiceAction); break;
+        case "cancel_action": setPendingAction(null); break;
+        case "action_result":
+          setActionNotice(msg.error ? String(msg.error) : msg.calendarConfirmed ? "Appointment confirmed on the AI Hidden Leads sales calendar." : msg.saved ? "Your confirmed follow-up details are saved." : "No action taken.");
+          break;
+        case "audio":
+          idleRef.current.generating = true;
+          if (handoffRef.current) break;
+          if (currentAudioRef.current.length < 6000) currentAudioRef.current.push(msg.data as string);
+          if (!captureRef.current.paused) playPcmChunk(msg.data as string);
+          break;
+        case "interrupted":
+          clearPlayback();
+          flushLine("assistant");
+          if (currentAudioRef.current.length) { lastAudioRef.current = currentAudioRef.current; setHasReplay(true); }
+          currentAudioRef.current = [];
+          break;
+        case "aspen_transcript": {
+          aspenLineRef.current += msg.text as string;
+          captionClockRef.current.text(msg.text as string);
+          setPartialAspen(aspenLineRef.current);
+          if (swapEnabledRef.current && liveRef.current) {
+            const boundary = boundaryForAssistantLine(aspenLineRef.current, swapStateRef.current);
+            if (boundary) armSwapRef.current(boundary);
+          }
+          break;
+        }
+        case "user_transcript":
+          walkthroughRef.current.continued = false;
+          idleRef.current.stage = 'waiting';
+          idleRef.current.quietSince = Date.now();
+          userLineRef.current += msg.text as string;
+          setPartialUser(userLineRef.current);
+          if (swapEnabledRef.current && liveRef.current && swapStateRef.current.phase === 'simulation' && visitorSignalsStepOut(userLineRef.current)) {
+            swapStateRef.current = { ...swapStateRef.current, pendingStepout: true };
+          }
+          break;
+        case "turn_complete": {
+          openingGateRef.current = false;
+          lastCaptionRef.current = aspenLineRef.current;
+          captionClockRef.current.complete();
+          walkthroughRef.current.text = aspenLineRef.current;
+          idleRef.current.generating = false;
+          idleRef.current.quietSince = Date.now();
+          if (currentAudioRef.current.length) { lastAudioRef.current = currentAudioRef.current; setHasReplay(true); }
+          currentAudioRef.current = [];
+          const completedLine = aspenLineRef.current;
+          let swapHandled = false;
+          if (swapEnabledRef.current && liveRef.current) {
+            const state = swapStateRef.current;
+            const boundary = boundaryForAssistantLine(completedLine, state)
+              ?? (state.phase === 'simulation' && state.pendingStepout && state.armed.includes('stepout') ? 'stepout' as PersonaBoundary : null);
+            if (boundary && state.armed.includes(boundary) && !state.done.includes(boundary)) {
+              swapHandled = true;
+              void executeSwapRef.current(boundary);
+            } else if (state.pendingStepout && !state.armed.includes('stepout')) {
+              swapStateRef.current = { ...state, pendingStepout: false };
+              armSwapRef.current('stepout');
+            }
+          }
+          if (!swapHandled) { flushLine("user"); flushLine("assistant"); }
+          break;
+        }
+        case "error":
+          setError(String(msg.message || "Voice service error"));
+          stopEverything();
+          break;
+        case "closed":
+          if (liveRef.current) {
+            stopEverything();
+            setError(`Session ended: ${msg.reason || "unknown"}`);
+          }
+          break;
+      }
+    };
+    ws.onerror = () => {
+      if (generation !== generationRef.current) return;
+      setError("Could not connect to the voice service.");
+      stopEverything();
+    };
+    ws.onclose = (event) => {
+      window.clearTimeout(readyTimeout);
+      if (generation !== generationRef.current) return;
+      if (liveRef.current) {
+        stopEverything();
+        if (swapEnabledRef.current && (event.code === 1006 || event.code === 1011)) { dropRecoverRef.current(); return; }
+        if ((event.code === 1006 || event.code === 1011) && reconnectRef.current.count < 3) {
+          reconnectRef.current = { pending: true, count: reconnectRef.current.count + 1 };
+          setStatus("Reconnecting…");
+          window.setTimeout(() => { void startConversationRef.current(); }, 400);
+          return;
+        }
+        setError(voiceDisconnectMessage(event.code, event.reason));
+      } else {
+        setPhase("idle");
+        setStatus("Conversation ended. Press Start to begin again.");
+      }
+    };
+  }, [agentId, captureMode, clearPlayback, flushLine, onRecommendedPlan, playPcmChunk, stopEverything]);
+
+  /** ATOMIC CUT-OVER (spec §5.4/§6.2 corrected order): the gate decides
+   * BEFORE anything visible changes; then the old face freezes (its last
+   * keyed frame covers the reveal), audio routing re-points to the
+   * incoming instance, the old socket closes last (partial teardown),
+   * and the new socket opens on the pre-authorized token. No phase
+   * change, no status change, no spinner: swapTransition only suppresses
+   * the connecting UI while phase stays 'live'. */
+  executeSwapRef.current = async (boundary: PersonaBoundary) => {
+    const staged = preStageRef.current;
+    const state = swapStateRef.current;
+    const finalizeTurn = () => { flushLine("user"); flushLine("assistant"); };
+    if (swapBusyRef.current) { finalizeTurn(); return; }
+    if (!staged || staged.boundary !== boundary || !liveRef.current) { finalizeTurn(); return; }
+    if (!cutoverReady({ authorized: true, videoRequested: avatarRequestedRef.current, faceReady: staged.faceReady })) {
+      // Abort: the pre-stage didn't complete — current persona continues
+      // words-only; nothing about the live call was touched.
+      preStageRef.current = null;
+      setPreStage(null);
+      finalizeTurn();
+      return;
+    }
+    swapBusyRef.current = true;
+    setSwapTransition(true);
+    const incoming = staged.persona;
+    try {
+      // 1) Re-point paired audio + reveal the incoming face; freeze the
+      //    outgoing face as the cover (keeper election: the OUTGOING
+      //    instance keeps its frame painted through the reveal).
+      if (avatarRequestedRef.current) {
+        const outgoing = avatarRef.current;
+        outgoing?.setFrameKeeper?.(true);
+        stagedAvatarRef.current?.setFrameKeeper?.(false);
+        avatarRef.current = stagedAvatarRef.current;
+        setPreStage(null);
+        preStageRef.current = null;
+        outgoing?.freeze?.();
+      } else {
+        preStageRef.current = null;
+        setPreStage(null);
+      }
+      // 2) Partial teardown: old socket closes now (no end_session), mic
+      //    and audio contexts survive; the completed turns flush here.
+      partialTeardownForSwap();
+      // 3) State + shell identity move to the incoming persona.
+      const nextPhase: SwapPhase = boundary === 'doorway' ? 'simulation' : boundary === 'stepout' ? 'close' : boundary === 'meet-alex' ? 'alex-guest' : 'close';
+      swapStateRef.current = {
+        ...swapStateRef.current,
+        phase: nextPhase,
+        persona: incoming,
+        segment: swapStateRef.current.segment + 1,
+        done: [...swapStateRef.current.done, boundary],
+        pendingStepout: false,
+      };
+      setActivePersona(incoming);
+      onPersonaChangeRef.current?.({ id: incoming, displayName: PERSONAS[incoming].displayName });
+      setFaceLive(avatarRequestedRef.current);
+      // 4) Open the incoming segment's socket on the pre-authorized token.
+      connectSegmentSocket(staged.token);
+      // Boundary analytics through the proxy's log-only message.
+      window.setTimeout(() => { try { wsRef.current?.send(JSON.stringify({ type: 'persona_handoff', boundary, to: incoming })); } catch { /* best effort */ } }, 600);
+    } finally {
+      swapBusyRef.current = false;
+      setSwapTransition(false);
+    }
+  };
+
+  /** UNPLANNED drop recovery: re-authorize the SAME persona as a segment
+   *  of the original parent and reconnect — the proxy's personaDrop
+   *  opening speaks ONE rotating blip apology and continues from the
+   *  recap. The face instance is untouched (same persona, same face).
+   *  Drop counting is shared across the whole conversation, so the
+   *  rotation never repeats a wording back-to-back. */
+  dropRecoverRef.current = () => {
+    const state = swapStateRef.current;
+    swapStateRef.current = { ...state, drops: state.drops + 1 };
+    if (state.phase === 'host' || !parentSessionIdRef.current) {
+      // Host-phase drops keep the legacy reconnect path untouched.
+      if (reconnectRef.current.count < 3) {
+        reconnectRef.current = { pending: true, count: reconnectRef.current.count + 1 };
+        setStatus("Reconnecting…");
+        window.setTimeout(() => { void startConversationRef.current(); }, 400);
+      } else {
+        setError(voiceDisconnectMessage(1006, ''));
+      }
+      return;
+    }
+    setSwapTransition(true);
+    void (async () => {
+      const target = reconnectTarget(swapStateRef.current, parentSessionIdRef.current);
+      const segment = target.personaSegment
+        ? await requestSegment(target.personaSegment.persona, target.personaSegment.boundary, { swap: false, dropRecovery: true })
+        : null;
+      if (!segment) {
+        setSwapTransition(false);
+        setError('The connection dropped and could not be restored. Press play to reconnect.');
+        return;
+      }
+      // Same persona returns: arm the mic gate for her first turn, keep
+      // the shell identity exactly as it was, reconnect the socket.
+      generationRef.current += 1;
+      liveRef.current = false;
+      connectSegmentSocket(segment.token);
+      setSwapTransition(false);
+    })();
+  };
+
+  // Persona pre-stage effect: when armSwap mounts the concealed second
+  // instance, start it (silent — its audio element stays muted; it has
+  // nothing to play until cut-over) and record frame readiness on the
+  // staged entry. Start failures leave faceReady false → the atomic gate
+  // aborts the swap and the current persona continues words-only.
+  useEffect(() => {
+    if (!preStage) return;
+    let cancelled = false;
+    void (async () => {
+      // The instance mounts on this render; wait one frame for its ref.
+      await new Promise<void>(r => requestAnimationFrame(() => r()));
+      if (cancelled) return;
+      try {
+        const ok = await stagedAvatarRef.current?.start({ silent: true });
+        if (!cancelled && ok && preStageRef.current?.boundary === preStage.boundary) {
+          preStageRef.current = { ...preStageRef.current, faceReady: true };
+        }
+      } catch { /* gate aborts the swap; words-only continuation */ }
+    })();
+    return () => { cancelled = true; };
+  }, [preStage]);
 
   // TRUE SUSPEND (Stage 3 pause): close the socket and release mic/avatar/
   // audio locally WITHOUT an end_session send, so no minutes burn while the
@@ -1025,8 +1535,21 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
   // Compact mode: minimal floating-widget layout for phones — status line,
   // two-line scrolling transcript, and a single row of icon buttons.
-  const shownPhase: Phase = faceWaiting && phase === 'live' ? 'connecting' : phase;
-  const avatarView = videoAvatar?.enabled && !previewOnly ? <SimliAvatar ref={avatarRef} inline={avatarInline || faceFirst} unboxed={faceFirst} avatar={videoAvatar} agentId={agentId} shareToken={shareToken} draft={draft} guide={guide} onLiveChange={live => { setFaceLive(live); if (!live) avatarLiveRef.current = false; }} /> : null;
+  const shownPhase: Phase = swapTransition ? phase : faceWaiting && phase === 'live' ? 'connecting' : phase;
+  const activeVideoAvatar: VideoAvatar | undefined = activePersona === 'sara' && videoAvatar
+    ? { ...videoAvatar, faceId: SARA_FACE_ID }
+    : activePersona === 'alex' && videoAvatar
+      ? { ...videoAvatar, faceId: ALEX_FACE_ID }
+      : videoAvatar;
+  const avatarView = videoAvatar?.enabled && !previewOnly ? <SimliAvatar ref={avatarRef} inline={avatarInline || faceFirst} unboxed={faceFirst} avatar={activeVideoAvatar ?? videoAvatar} agentId={agentId} shareToken={shareToken} draft={draft} guide={guide} onLiveChange={live => { setFaceLive(live); if (!live) avatarLiveRef.current = false; }} /> : null;
+  // Avatar swap pre-stage: the incoming persona's concealed second
+  // instance — mounted only while a boundary is armed, live but hidden
+  // and muted, revealed by the cut-over re-pointing avatarRef at it.
+  const stagedAvatarView = preStage && videoAvatar?.enabled && !previewOnly ? (
+    <div key={`staged-${preStage.boundary}`} className={faceFirst ? "aspen-person-livebox relative z-0 mx-auto overflow-hidden" : undefined} style={faceFirst ? { position: 'absolute', inset: 0, opacity: 0, pointerEvents: 'none' } : undefined}>
+      <SimliAvatar ref={stagedAvatarRef} inline={avatarInline || faceFirst} unboxed={faceFirst} avatar={{ ...videoAvatar, faceId: preStage.persona === 'sara' ? SARA_FACE_ID : preStage.persona === 'alex' ? ALEX_FACE_ID : videoAvatar.faceId }} persona={preStage.persona} personaParentSessionId={parentSessionIdRef.current || undefined} personaVisitorKey={visitorKeyRef.current || undefined} concealed />
+    </div>
+  ) : null;
   // While Aspen is speaking, the karaoke caption owns the caption space. The
   // visitor's in-progress line stays in state until turn_complete, so gating
   // the caption on it (the old rule) hid the karaoke for every reply after
@@ -1038,7 +1561,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   if (compact) {
     return (
       <div className={faceFirst ? "space-y-0 px-2 pb-2 pt-0 text-foreground" : "space-y-2 p-2 text-foreground"}>
-        {faceFirst ? <div className="aspen-person-livebox relative z-0 mx-auto overflow-hidden"><div className={`h-full w-full ${faceLive ? 'invisible' : ''}`}><PersonPortrait name={name} avatarUrl={avatarUrl} animated={false} /></div>{avatarView}</div> : avatarView}
+        {faceFirst ? <div className="aspen-person-livebox relative z-0 mx-auto overflow-hidden"><div className={`h-full w-full ${faceLive ? 'invisible' : ''}`}><PersonPortrait name={name} avatarUrl={avatarUrl} animated={false} /></div>{avatarView}{stagedAvatarView}</div> : <>{avatarView}{stagedAvatarView}</>}
         {belowAvatar && <div className="py-1">{belowAvatar}</div>}
         <div className={faceFirst ? 'aspen-voice-panel relative z-10 space-y-2 rounded-lg border border-primary/40 bg-card p-2 shadow-lg ring-1 ring-foreground/10' : 'space-y-2'}>
         <div className="flex items-center gap-1.5">
@@ -1267,6 +1790,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
       <main className={compact ? "space-y-3" : "mx-auto max-w-3xl px-4 py-6 space-y-4"}>
         {avatarView}
+        {stagedAvatarView}
         <Card className="p-4 space-y-3">
           {confirmation}
         {actionNotice && <p role="status" className="text-xs text-primary">{actionNotice}</p>}
