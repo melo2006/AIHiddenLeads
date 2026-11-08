@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Loader2, MapPin, Radar, ShieldCheck } from "lucide-react";
 import RankStreetMap from "../RankStreetMap";
 import { validateAuditInputs } from "@/lib/rankAuditExamples";
@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { supabase } from "@/integrations/supabase/client";
 import { rankAuditExamples } from "@/lib/rankAuditExamples";
-import { auditOffers, simulatedRankGrid } from "@/lib/demoRankGrid";
+import { simulatedRankGrid } from "@/lib/demoRankGrid";
 
 interface Props { businessName: string; city?: string; niche?: string; websiteUrl?: string; initialKeyword?: string; initialMode?: ScanMode; compact?: boolean }
 
@@ -43,6 +43,23 @@ export default function RankAuditPanel({ businessName, city = "", niche = "", we
   const [live, setLive] = useState<LiveResult | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
   const points = useMemo(() => simulatedRankGrid({ businessName, city: localCity, niche }), [businessName, localCity, niche]);
+  const navigate = useNavigate();
+
+  // The audit is the hook; the close points back at the live Aspen demo
+  // (owner decision 2026-11-09: the demo concentrates on voice + video
+  // avatar). Close the sheet, then scroll to the demo intake form on
+  // pages that have one; otherwise go to the demo page.
+  const goToDemo = () => {
+    setOpen(false);
+    requestAnimationFrame(() => {
+      const target = document.getElementById("demo-intake") || document.getElementById("demo-form");
+      if (target) {
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+      } else {
+        navigate("/demo");
+      }
+    });
+  };
 
   const runLiveScan = async () => {
     const kw = keyword.trim();
@@ -201,19 +218,9 @@ export default function RankAuditPanel({ businessName, city = "", niche = "", we
             <span className="flex items-center gap-1.5"><i className="audit-rank-unknown h-2.5 w-2.5 rounded-full" />— · Not found / unavailable</span>
           </div>
 
-          <section className="border-t border-border pt-4">
-            <h3 className="text-lg font-bold">Our 3-Part Growth Timeline</h3>
-            <ol className="mt-3 space-y-3 text-sm text-muted-foreground">
-              <li><strong className="text-foreground">Week 1 — Immediate ROI, zero waiting on Google:</strong> Aspen goes live 24/7 on your website and phone lines, and your first batch of verified B2B leads (up to {auditOffers.monthlyLeads}/mo) is delivered to your dashboard.</li>
-              <li><strong className="text-foreground">Days 1–14 — Fast-win technical &amp; category fixes:</strong> We deploy AI Answer Engine Schema (llms.txt + JSON-LD for ChatGPT/Gemini), align your exact Google Business Profile categories, and flag keyword-stuffing competitors to capture low-hanging ranking jumps.</li>
-              <li><strong className="text-foreground">Days 15–60 — Compound map &amp; search expansion:</strong> Automated weekly Google posts, review velocity, and AI citation pages steadily expand your green zone across surrounding areas and national buyer searches.</li>
-            </ol>
-            <p className="mt-3 text-xs text-muted-foreground">A realistic action plan, not a ranking guarantee. Prospect records are not guaranteed appointments or opt-in buyers. Google decides whether reported policy violations are removed.</p>
-          </section>
           <div className="space-y-2 border-t border-border pt-4">
-            <Button asChild className="h-auto min-h-11 w-full whitespace-normal py-3"><Link to="/checkout?plan=essentials">Claim ${auditOffers.founder}/mo Founder Plan</Link></Button>
-            <Button asChild variant="outline" className="h-auto min-h-11 w-full whitespace-normal py-3"><Link to="/book?offer=google-maps-boost">Request ${auditOffers.mapsBoost}/mo Google Maps Boost</Link></Button>
-            <p className="text-xs text-muted-foreground">Founder Plan uses Premium checkout. Google Maps Boost is confirmed during an implementation call; this button does not charge you.</p>
+            <Button onClick={goToDemo} className="h-auto min-h-11 w-full whitespace-normal py-3">See Aspen live on your website</Button>
+            <p className="text-xs text-muted-foreground">Google Maps Boost and AI Search Optimization are available as add-ons once you're a customer — we'll walk you through them on your follow-up call.</p>
           </div>
         </div>
       </SheetContent>
