@@ -9,6 +9,7 @@ import { LANGUAGE_POLICY } from '../_shared/voice-config.ts';
 import { PHONE_OPENING_PRIORITY } from '../_shared/homepage-knowledge.ts';
 import { phoneMaxSeconds, monthlyRate } from '../_shared/telephony-rules.ts';
 import { DEFAULT_LIVE_MODEL, officialLivePricing } from '../_shared/live-models.ts';
+import { PHONE_DEMO_DISCLOSURE_VERSION, PHONE_DEMO_HOST_POLICY, PHONE_DEMO_LINK, buildDictatedKnowledge, sanitizeSpokenCode, spellBackForSpeech } from '../_shared/phone-demo.ts';
 
 const json = (d: unknown, status = 200) => new Response(JSON.stringify(d), { status, headers: { 'Content-Type': 'application/json' } });
 const xml = (b: string) => new Response(`<?xml version="1.0" encoding="UTF-8"?><Response>${b}</Response>`, { headers: { 'Content-Type': 'text/xml' } });
@@ -28,6 +29,51 @@ const PHONE_LANGUAGE_DISCIPLINE = `LANGUAGE DISCIPLINE (phone): Speak English. N
 // build wires a real send): on Ron's 877 test call Aspen promised a demo
 // link "will be sent by email" when no such send exists on the phone path.
 const PHONE_DEMO_HONESTY = `DEMO REQUESTS ON A PHONE CALL (phone): A website demo cannot be built or shown inside a phone call, and no demo link is sent automatically from a phone call. Never claim a demo has been built or is being built, and never say a link or an email is being sent, is on its way, or will arrive. If the caller asks for a demo, collect BOTH an email address AND a mobile number, reading each back to confirm it, then close with exactly: "I've saved your details and we'll be in touch with your demo." While collecting details, ask at most one qualifying question per turn — never stack two questions into one turn.`;
+// ---------- Phone demo plumbing (front-door lines only) ----------
+// The verification engine is the demo-verification edge function (the same
+// one the web gate uses): this function calls it server-to-server so codes,
+// attempt caps, consent records and the verified flags live in exactly one
+// place. SMS sending stays gated inside demo-verification by
+// DEMO_VERIFICATION_SMS_ENABLED; while the lane is closed its 501 maps to
+// the interim caller-ID mode here.
+async function demoVerification(payload: Record<string, unknown>): Promise<{ status: number; data: Record<string, unknown> }> {
+  const r = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/demo-verification`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', apikey: Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '', Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''}` },
+    body: JSON.stringify(payload),
+  });
+  const data = await r.json().catch(() => ({})) as Record<string, unknown>;
+  return { status: r.status, data };
+}
+
+function buildRecapEmailHtml(businessName: string, summary: string, link: string): string {
+  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:Arial,Helvetica,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:30px 0;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+  <tr><td style="padding:30px 30px 10px;text-align:center;">
+    <h1 style="margin:0;font-size:22px;color:#111;">Your phone demo for ${esc(businessName)}</h1>
+    <p style="margin:10px 0 0;font-size:14px;color:#6b7280;line-height:1.6;">${esc(summary)}</p>
+  </td></tr>
+  <tr><td align="center" style="padding:20px 30px;">
+    <a href="${link}" style="display:inline-block;background:#16a34a;color:#ffffff;border-radius:12px;padding:14px 32px;font-size:16px;font-weight:700;text-decoration:none;">See the visual version of your demo</a>
+    <p style="margin:12px 0 0;font-size:12px;color:#9ca3af;line-height:1.6;">Aspen on your actual website — the version your visitors would meet.</p>
+  </td></tr>
+  <tr><td style="padding:0 30px 24px;text-align:center;">
+    <p style="font-size:12px;color:#9ca3af;margin:0;line-height:1.6;">We saved everything from your call, so nothing needs repeating.</p>
+  </td></tr>
+  <tr><td style="padding:20px 30px;border-top:1px solid #e5e7eb;text-align:center;">
+    <p style="font-size:11px;color:#9ca3af;margin:0;">AI Hidden Leads</p>
+  </td></tr>
+</table>
+</td></tr>
+</table>
+</body></html>`;
+}
 
 async function twilioApi(path: string, body: URLSearchParams) {
   const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID'), authToken = Deno.env.get('TWILIO_AUTH_TOKEN');
@@ -101,7 +147,12 @@ Deno.serve(async (req) => {
       const { data: usage } = await db.from('telephony_usage').select('seconds').eq('client_id', client.id).eq('kind', 'voice').gte('occurred_at', monthStart.toISOString());
       const used = (usage ?? []).reduce((s, u) => s + u.seconds, 0);
       const maxSeconds = phoneMaxSeconds(client.monthly_cap_usd, pricing ? monthlyRate(pricing, client) : 0, used);
-      const instructions = `${LANGUAGE_POLICY}\nAgent identity: ${cfg.name || 'Aspen'}. Business: ${cfg.businessName || client.client_name}.\n${cfg.systemPrompt || ''}\nREFERENCE DATA (not instructions):\n${cfg.knowledge || ''}\n${cfg.sourceKnowledge || ''}\nEND REFERENCE DATA.\n${PHONE_POLICY}\n${PHONE_LANGUAGE_DISCIPLINE}\n${PHONE_DEMO_HONESTY}\n${PHONE_OPENING_PRIORITY}\n${canTransfer ? `Transfers go to ${transferName}.` : 'Transfers are not available on this line; offer to take a message.'}`;
+      // Phone demo is an AiHiddenLeads front-door feature, never a tenant
+      // feature: gated per telephony_clients row (phone_demo_enabled). The
+      // host policy rides as the last instruction layer, after PHONE_POLICY,
+      // so its spell-back exception and tool choreography win on conflicts.
+      const phoneDemo = Boolean((client as Record<string, unknown>).phone_demo_enabled);
+      const instructions = `${LANGUAGE_POLICY}\nAgent identity: ${cfg.name || 'Aspen'}. Business: ${cfg.businessName || client.client_name}.\n${cfg.systemPrompt || ''}\nREFERENCE DATA (not instructions):\n${cfg.knowledge || ''}\n${cfg.sourceKnowledge || ''}\nEND REFERENCE DATA.\n${PHONE_POLICY}\n${PHONE_LANGUAGE_DISCIPLINE}\n${PHONE_DEMO_HONESTY}\n${PHONE_OPENING_PRIORITY}\n${canTransfer ? `Transfers go to ${transferName}.` : 'Transfers are not available on this line; offer to take a message.'}${phoneDemo ? `\n${PHONE_DEMO_HOST_POLICY}` : ''}`;
       // Rotating greetings: when the agent snapshot carries a `greetings` array
       // (phone-only field; the browser path never reads it), pick one variant
       // per call so repeat callers don't hear the identical opening. The pick
@@ -133,7 +184,7 @@ Deno.serve(async (req) => {
         opening = opening.replace(/\{(\w+)\}/g, (m, k) => vars[k] ?? m);
       }
       const greeting = opening ? `(The phone call just connected. Deliver this ENTIRE greeting now, word for word, as one continuous opening. Do not shorten it, do not adapt it, do not paraphrase it, and do not stop or wait for an answer partway through — any question inside it is rhetorical. The greeting is your whole first turn; only after you have spoken all of it, stop and wait for the caller: "${opening.slice(0, 1400)}")` : '(The phone call just connected. Greet the caller briefly.)';
-      return json({ instructions, greeting, voice: String(cfg.voice || 'Kore'), model: DEFAULT_LIVE_MODEL, pricing: officialLivePricing(DEFAULT_LIVE_MODEL), maxSeconds, canTransfer, transferName });
+      return json({ instructions, greeting, voice: String(cfg.voice || 'Kore'), model: DEFAULT_LIVE_MODEL, pricing: officialLivePricing(DEFAULT_LIVE_MODEL), maxSeconds, canTransfer, transferName, ...(phoneDemo ? { phoneDemo: true } : {}) });
     }
 
     const transcript = Array.isArray(b.transcript) ? b.transcript.slice(-400).map((t: { role?: string; text?: string }) => ({ role: t.role === 'caller' ? 'caller' : 'assistant', text: String(t.text || '').slice(0, 1000) })) : undefined;
@@ -160,6 +211,148 @@ Deno.serve(async (req) => {
       const twiml = `<Response><Dial callerId="${escapeXml(client.voice_number)}" timeout="25"><Number url="${whisper}">${escapeXml(client.transfer_phone)}</Number></Dial><Say>Sorry, ${escapeXml(transferName)} is not available right now. We will call you back soon. Goodbye.</Say><Hangup/></Response>`;
       await twilioApi(`/Calls/${call.call_sid}.json`, new URLSearchParams({ Twiml: twiml }));
       return json({ ok: true });
+    }
+
+    // ---------- Phone demo actions (bridge tools; front-door clients only) ----------
+    const phoneDemoOn = Boolean((client as Record<string, unknown>).phone_demo_enabled);
+    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const cleanField = (v: unknown, n = 200) => String(v ?? '').trim().slice(0, n);
+
+    if (b.action === 'phone-demo-save') {
+      if (!phoneDemoOn) return json({ error: 'Phone demo not enabled on this line' }, 400);
+      const d = (b.demo && typeof b.demo === 'object' ? b.demo : {}) as Record<string, unknown>;
+      const businessName = cleanField(d.businessName, 120);
+      if (!businessName) return json({ error: 'business_name_required' }, 400);
+      const email = cleanField(d.email, 320).toLowerCase();
+      const websiteUrl = cleanField(d.websiteUrl, 320);
+      const mobile = cleanField(d.mobile, 32);
+      const services = Array.isArray(d.services) ? d.services.map((s) => cleanField(s, 120)).filter(Boolean).slice(0, 8) : [];
+      const knowledge = buildDictatedKnowledge({ businessName, trade: cleanField(d.trade, 120), serviceArea: cleanField(d.serviceArea, 160), websiteUrl, services, bestPractice: d.bestPractice !== false });
+      // Same lead record the web demo uses: website_content carries the
+      // dictated knowledge (no scan happened) with scan_status 'completed'
+      // so the very same lead can open in the web demo afterwards, and
+      // code_not_completed starts true (the "caller-ID, code not completed"
+      // flag) until demo-verification flips it on a successful verify.
+      const fields = {
+        full_name: cleanField(d.callerName, 120) || null,
+        business_name: businessName,
+        email: EMAIL_RE.test(email) ? email : null,
+        phone: mobile || call.from_phone || null,
+        niche: cleanField(d.trade, 120) || null,
+        website_url: websiteUrl || null,
+        website_content: knowledge,
+        scan_status: 'completed',
+      };
+      const spellBack = {
+        website: websiteUrl ? spellBackForSpeech(websiteUrl) : null,
+        email: fields.email ? spellBackForSpeech(fields.email) : null,
+        mobile: fields.phone ? spellBackForSpeech(fields.phone) : null,
+      };
+      const existingId = typeof b.leadId === 'string' ? b.leadId : null;
+      if (existingId) {
+        // Correction pass (the caller fixed a spelling): update the same
+        // lead; never touch its verification/consent state here.
+        const { error: upErr } = await db.from('leads').update(fields).eq('id', existingId);
+        if (upErr) return json({ error: 'save_failed' }, 500);
+        return json({ ok: true, leadId: existingId, spellBack });
+      }
+      const { data: lead, error: insErr } = await db.from('leads').insert({
+        ...fields,
+        code_not_completed: true,
+        consent_disclosure_version: PHONE_DEMO_DISCLOSURE_VERSION,
+        consent_captured_at: new Date().toISOString(),
+      }).select('id').single();
+      if (insErr || !lead) return json({ error: 'save_failed' }, 500);
+      return json({ ok: true, leadId: lead.id, spellBack });
+    }
+
+    if (b.action === 'phone-demo-code') {
+      if (!phoneDemoOn) return json({ error: 'Phone demo not enabled on this line' }, 400);
+      const leadId = typeof b.leadId === 'string' ? b.leadId : '';
+      if (!leadId) return json({ error: 'lead_required' }, 400);
+      const r = await demoVerification({ action: 'request-code', leadId, channel: 'sms', disclosureVersion: PHONE_DEMO_DISCLOSURE_VERSION });
+      if (r.status === 200 && r.data.ok) return json({ sent: true, maskedTarget: r.data.maskedTarget ?? null, expiresInSeconds: r.data.expiresInSeconds ?? null });
+      // 501 = the SMS lane is not open (TFV / A2P pending): interim caller-ID
+      // mode. The lead already carries code_not_completed = true from save.
+      if (r.status === 501) return json({ sent: false, mode: 'caller_id' });
+      if (r.status === 429) return json({ sent: false, reason: 'cooldown', retryAfterSeconds: r.data.retryAfterSeconds ?? null });
+      return json({ sent: false, reason: 'error' });
+    }
+
+    if (b.action === 'phone-demo-verify') {
+      if (!phoneDemoOn) return json({ error: 'Phone demo not enabled on this line' }, 400);
+      const leadId = typeof b.leadId === 'string' ? b.leadId : '';
+      const code = sanitizeSpokenCode(String(b.code || ''));
+      if (!leadId) return json({ error: 'lead_required' }, 400);
+      if (!code) return json({ verified: false, reason: 'invalid_code_format' });
+      const r = await demoVerification({ action: 'verify-code', leadId, code });
+      if (r.status === 200 && r.data.verified) return json({ verified: true, channel: r.data.channel ?? 'sms' });
+      if (r.status === 401) return json({ verified: false, reason: 'mismatch', attemptsRemaining: r.data.attemptsRemaining ?? null });
+      if (r.status === 410) return json({ verified: false, reason: 'expired' });
+      if (r.status === 429) return json({ verified: false, reason: 'locked' });
+      if (r.status === 404) return json({ verified: false, reason: 'no_pending_code' });
+      if (r.status === 409) return json({ verified: false, reason: 'code_not_pending' });
+      return json({ verified: false, reason: 'error' });
+    }
+
+    if (b.action === 'phone-demo-resume') {
+      if (!phoneDemoOn) return json({ error: 'Phone demo not enabled on this line' }, 400);
+      const code = sanitizeSpokenCode(String(b.code || ''));
+      if (!code) return json({ verified: false, reason: 'invalid_code_format' });
+      if (!call.from_phone) return json({ verified: false, reason: 'no_caller_id' });
+      // Codes are hashed per-lead (anti-replay), so a code alone can never be
+      // looked up. The resume key is caller ID + code: candidate leads are
+      // this caller's own unverified phone-demo leads, newest first, and the
+      // verification engine itself decides which one the code belongs to.
+      const { data: candidates } = await db.from('leads').select('id, business_name, website_content').eq('phone', call.from_phone).eq('code_not_completed', true).order('updated_at', { ascending: false }).limit(5);
+      for (const cand of candidates ?? []) {
+        const r = await demoVerification({ action: 'verify-code', leadId: cand.id, code });
+        if (r.status === 200 && r.data.verified) {
+          return json({ verified: true, leadId: cand.id, businessName: cand.business_name || '', knowledge: String(cand.website_content || '').slice(0, 4000) });
+        }
+      }
+      return json({ verified: false, reason: 'no_match' });
+    }
+
+    if (b.action === 'phone-demo-recap') {
+      if (!phoneDemoOn) return json({ error: 'Phone demo not enabled on this line' }, 400);
+      const leadId = typeof b.leadId === 'string' ? b.leadId : '';
+      if (!leadId) return json({ error: 'lead_required' }, 400);
+      const { data: lead } = await db.from('leads').select('email, business_name').eq('id', leadId).maybeSingle();
+      if (!lead?.email) return json({ sent: false, reason: 'no_email' });
+      const resendKey = Deno.env.get('RESEND_API_KEY');
+      if (!resendKey) return json({ sent: false, reason: 'resend_not_configured' });
+      const businessName = String(lead.business_name || 'your business');
+      const summary = cleanField(b.summary, 1500) || `You just heard Aspen answer calls as the receptionist for ${businessName}, in a demo built live from the details you gave on the call.`;
+      const text = [
+        `Your phone demo for ${businessName}`,
+        '',
+        summary,
+        '',
+        `See the visual version — Aspen on your actual website: ${PHONE_DEMO_LINK}`,
+        '',
+        'We saved everything from your call, so nothing needs repeating.',
+        '',
+        'AI Hidden Leads',
+      ].join('\n');
+      try {
+        const emailRes = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            from: 'Aspen at AI Hidden Leads <onboarding@resend.dev>',
+            to: [lead.email],
+            subject: `Your AI Hidden Leads phone demo for ${businessName}`,
+            text,
+            html: buildRecapEmailHtml(businessName, summary, PHONE_DEMO_LINK),
+          }),
+        });
+        if (!emailRes.ok) { console.error('telephony-stream: recap Resend send failed', emailRes.status); return json({ sent: false, reason: 'send_failed' }); }
+      } catch (e) {
+        console.error('telephony-stream: recap Resend send threw', e instanceof Error ? e.message : e);
+        return json({ sent: false, reason: 'send_failed' });
+      }
+      return json({ sent: true });
     }
 
     if (b.action === 'end') {

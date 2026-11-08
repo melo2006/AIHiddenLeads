@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import { WebSocketServer, WebSocket } from 'ws';
-import { createTelnyx, verifyTelnyxSignature, parseTelnyxStart, telnyxMediaFrame, telnyxClearFrame } from './telnyx.mjs';
+import { createTelnyx, verifyTelnyxSignature, parseTelnyxStart, telnyxMediaFrame, telnyxClearFrame, phoneDemoToolDeclarations, PHONE_DEMO_TOOL_ACTIONS } from './telnyx.mjs';
 import { createLatencyTracker } from './latency.mjs';
 
 const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519');
@@ -21,13 +21,15 @@ const signHeaders = (body, tsSec = Math.floor(Date.now() / 1000)) => ({
 const evtBody = (id, event_type, payload) => JSON.stringify({ data: { record_type: 'event', event_type, id, occurred_at: new Date().toISOString(), payload } });
 const waitFor = async (fn, timeout = 8000) => { const t0 = Date.now(); while (!fn()) { if (Date.now() - t0 > timeout) throw new Error('waitFor timeout'); await new Promise(r => setTimeout(r, 10)); } };
 
-function makeHarness() {
+function makeHarness(startOverrides = {}) {
   const backendCalls = [], telnyxCalls = [];
   const api = async (body) => {
     backendCalls.push(body);
     if (body.action === 'telnyx-start') return { token: TOKEN };
-    if (body.action === 'start') return { instructions: 'You are Aspen.', greeting: 'Hello greeting', voice: 'Kore', model: 'test-model', pricing: null, maxSeconds: 600, canTransfer: true, transferName: 'Ron' };
+    if (body.action === 'start') return { instructions: 'You are Aspen.', greeting: 'Hello greeting', voice: 'Kore', model: 'test-model', pricing: null, maxSeconds: 600, canTransfer: true, transferName: 'Ron', ...startOverrides };
     if (body.action === 'transfer') return { ok: true, mode: 'bridge-executed', transferPhone: '+19547706622', transferName: 'Ron' };
+    if (body.action === 'phone-demo-save') return { ok: true, leadId: 'lead-1', spellBack: { website: 's, i, 2, dot, com', email: null, mobile: null } };
+    if (body.action === 'phone-demo-code') return { sent: false, mode: 'caller_id' };
     return { ok: true };
   };
   const fetchImpl = async (url, opts) => {
@@ -204,5 +206,76 @@ test('warm transfer: dial -> whisper speak -> gather -> press 1 -> bridge, repor
   assert.equal(r.transfer.attempted, true);
   assert.equal(r.transfer.outcome, 'connected');
   assert.equal(typeof r.transfer.connectMs, 'number'); assert.ok(r.transfer.connectMs >= 2000); // includes the 2.5 s announcement pause
+  client.close();
+});
+
+test('phone demo declarations: five tools, each mapped 1:1 to a backend action', () => {
+  const decls = phoneDemoToolDeclarations();
+  assert.equal(decls.length, 5);
+  assert.deepEqual(decls.map(d => d.name).sort(), Object.keys(PHONE_DEMO_TOOL_ACTIONS).sort());
+  for (const d of decls) assert.match(PHONE_DEMO_TOOL_ACTIONS[d.name], /^phone-demo-/);
+});
+
+test('phone demo tools: absent from the setup when the backend does not enable them', async (t) => {
+  const h = makeHarness(); t.after(() => h.geminiWss.close());
+  const telnyx = createTelnyx({ api: h.api, env: await h.env(), fetchImpl: h.fetchImpl });
+  const { client } = await startCall(t, h, telnyx, 'v2:leg-pd-off');
+  const setup = h.geminiReceived.find(m => m.setup);
+  const names = setup.setup.tools[0].functionDeclarations.map(d => d.name);
+  assert.deepEqual(names, ['transfer_call']);
+  client.close();
+});
+
+test('phone demo flow: save -> code (caller-ID mode) -> recap, results returned truthfully', async (t) => {
+  const h = makeHarness({ phoneDemo: true }); t.after(() => h.geminiWss.close());
+  const telnyx = createTelnyx({ api: h.api, env: await h.env(), fetchImpl: h.fetchImpl });
+  const { client } = await startCall(t, h, telnyx, 'v2:leg-pd-on');
+  const setup = h.geminiReceived.find(m => m.setup);
+  const names = setup.setup.tools[0].functionDeclarations.map(d => d.name);
+  assert.ok(names.includes('transfer_call'));
+  for (const n of ['save_phone_demo_lead', 'send_demo_code', 'check_demo_code', 'resume_demo_by_code', 'send_demo_recap']) assert.ok(names.includes(n), n);
+
+  h.geminiSend({ serverContent: { turnComplete: true } });
+  const toolResult = async (id) => {
+    await waitFor(() => h.geminiReceived.some(m => m.toolResponse?.functionResponses?.[0]?.id === id));
+    return h.geminiReceived.find(m => m.toolResponse?.functionResponses?.[0]?.id === id).toolResponse.functionResponses[0];
+  };
+
+  h.geminiSend({ toolCall: { functionCalls: [{ id: 'pd1', name: 'save_phone_demo_lead', args: { callerName: 'Sam', businessName: 'Speedy Tow', trade: 'towing', serviceArea: 'Dallas', services: ['emergency towing'], bestPractice: true, email: 'sam@example.com', mobile: '+15551234567' } }] } });
+  const r1 = await toolResult('pd1');
+  const save = h.backendCalls.find(c => c.action === 'phone-demo-save');
+  assert.ok(save); assert.equal(save.demo.businessName, 'Speedy Tow');
+  assert.equal(save.demo.services[0], 'emergency towing');
+  assert.equal(r1.response.leadId, 'lead-1');
+  assert.equal(r1.response.spellBack.website, 's, i, 2, dot, com');
+
+  // The SMS lane is closed in the stub: the result must say so, never "sent".
+  h.geminiSend({ toolCall: { functionCalls: [{ id: 'pd2', name: 'send_demo_code', args: {} }] } });
+  const r2 = await toolResult('pd2');
+  const codeCall = h.backendCalls.find(c => c.action === 'phone-demo-code');
+  assert.ok(codeCall); assert.equal(codeCall.leadId, 'lead-1');
+  assert.equal(r2.response.sent, false);
+  assert.equal(r2.response.mode, 'caller_id');
+
+  // Recap before/after save carries the saved lead id.
+  h.geminiSend({ toolCall: { functionCalls: [{ id: 'pd3', name: 'send_demo_recap', args: { summary: 'Demo covered emergency towing questions.' } }] } });
+  await waitFor(() => h.backendCalls.some(c => c.action === 'phone-demo-recap'));
+  const recap = h.backendCalls.find(c => c.action === 'phone-demo-recap');
+  assert.equal(recap.leadId, 'lead-1');
+  assert.match(recap.summary, /emergency towing/);
+  client.close();
+});
+
+test('phone demo guard: check_demo_code before any save answers lead_not_saved without a backend call', async (t) => {
+  const h = makeHarness({ phoneDemo: true }); t.after(() => h.geminiWss.close());
+  const telnyx = createTelnyx({ api: h.api, env: await h.env(), fetchImpl: h.fetchImpl });
+  const { client } = await startCall(t, h, telnyx, 'v2:leg-pd-guard');
+  h.geminiSend({ serverContent: { turnComplete: true } });
+  h.geminiSend({ toolCall: { functionCalls: [{ id: 'pdg1', name: 'check_demo_code', args: { code: '4321' } }] } });
+  await waitFor(() => h.geminiReceived.some(m => m.toolResponse?.functionResponses?.[0]?.id === 'pdg1'));
+  const fr = h.geminiReceived.find(m => m.toolResponse?.functionResponses?.[0]?.id === 'pdg1').toolResponse.functionResponses[0];
+  assert.equal(fr.response.verified, false);
+  assert.equal(fr.response.reason, 'lead_not_saved');
+  assert.equal(h.backendCalls.some(c => c.action === 'phone-demo-verify'), false);
   client.close();
 });
