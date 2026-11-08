@@ -16,6 +16,19 @@ const E164 = /^\+[1-9]\d{7,14}$/;
 
 const PHONE_POLICY = `PHONE CALL RULES (override anything about websites, screens, buttons or demos-on-screen): You are answering a real telephone call. Speak in one or two short sentences, no lists, no URLs read character by character. One exception: the opening greeting is supplied in full when the call connects — deliver it completely, word for word, however long it is; the short-sentence rule applies to everything after the greeting. Use only the reference data for business facts; if unsure, offer to take a message or transfer. Collect name, reason and callback number when useful and read numbers back. When the caller asks for a person or something you cannot handle and a transfer is available, say you are connecting them, then call transfer_call.`;
 
+// Language mirroring discipline (fix batch 2026-11-08, from
+// ~/workspace/language-lock-rule-2026-11-08.md, refined version). On the
+// first live Telnyx calls a few foreign words flipped Aspen's whole answer
+// language; the base LANGUAGE_POLICY (voice-config.ts) forbids switching on
+// detected language, and this phone-side rule adds the missing precision:
+// a switch needs a complete sentence AND a sustained intent.
+const PHONE_LANGUAGE_DISCIPLINE = `LANGUAGE DISCIPLINE (phone): Speak English. Never change languages because of background noise, music, an accent, or isolated foreign words or fragments inside an English conversation — those are content to understand, never a switch trigger, and never drift into another language mid-answer. An accent is never a reason to switch languages: a caller may speak English with any accent, including Brazilian Portuguese, and must be answered in English. Switch languages ONLY when the caller speaks a complete sentence in another language AND sustains it — a second turn in that language, or an explicit request to switch. If the caller says "English" or "speak English" in ANY language, switch back to English immediately and stay in English.`;
+
+// Phone demo honesty (fix batch 2026-11-08, interim until the phone-demo
+// build wires a real send): on Ron's 877 test call Aspen promised a demo
+// link "will be sent by email" when no such send exists on the phone path.
+const PHONE_DEMO_HONESTY = `DEMO REQUESTS ON A PHONE CALL (phone): A website demo cannot be built or shown inside a phone call, and no demo link is sent automatically from a phone call. Never claim a demo has been built or is being built, and never say a link or an email is being sent, is on its way, or will arrive. If the caller asks for a demo, collect BOTH an email address AND a mobile number, reading each back to confirm it, then close with exactly: "I've saved your details and we'll be in touch with your demo." While collecting details, ask at most one qualifying question per turn — never stack two questions into one turn.`;
+
 async function twilioApi(path: string, body: URLSearchParams) {
   const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID'), authToken = Deno.env.get('TWILIO_AUTH_TOKEN');
   if (!accountSid || !authToken) throw new Error('Twilio connection is unavailable');
@@ -53,6 +66,20 @@ Deno.serve(async (req) => {
     if (!secret || req.headers.get('x-telephony-secret') !== secret) return json({ error: 'Forbidden' }, 403);
     const b = await req.json().catch(() => ({}));
     if (b.action === 'health') return json({ ok: true });
+    if (b.action === 'telnyx-start') {
+      // Telnyx bridge: call.initiated arrived before any token exists. Find the
+      // client by the dialed number (same lookup as the Twilio incoming path)
+      // and mint a single-use token exactly like the Twilio stream path. The
+      // row is keyed by the Telnyx call_control_id in call_sid (an opaque
+      // string everywhere it is used; Telnyx ids are v2:-prefixed, so they
+      // can never collide with Twilio CA... SIDs).
+      const { data: tClient } = await db.from('telephony_clients').select('id').eq('voice_number', String(b.to || '')).eq('active', true).maybeSingle();
+      if (!tClient) return json({ error: 'Number not set up' }, 404);
+      const tToken = crypto.randomUUID() + crypto.randomUUID();
+      const { error: tErr } = await db.from('telephony_calls').insert({ client_id: tClient.id, call_sid: String(b.callControlId || ''), from_phone: b.from ? String(b.from) : null, token_hash: await sha256(tToken), token_used: false, status: 'in_progress', transport: 'telnyx-stream' });
+      if (tErr) return json({ error: 'Could not create call' }, 500);
+      return json({ token: tToken });
+    }
     if (typeof b.token !== 'string' || b.token.length < 40) return json({ error: 'Invalid token' }, 400);
     const { data: call } = await db.from('telephony_calls').select('*').eq('token_hash', await sha256(b.token)).maybeSingle();
     if (!call) return json({ error: 'Unknown call' }, 404);
@@ -74,7 +101,7 @@ Deno.serve(async (req) => {
       const { data: usage } = await db.from('telephony_usage').select('seconds').eq('client_id', client.id).eq('kind', 'voice').gte('occurred_at', monthStart.toISOString());
       const used = (usage ?? []).reduce((s, u) => s + u.seconds, 0);
       const maxSeconds = phoneMaxSeconds(client.monthly_cap_usd, pricing ? monthlyRate(pricing, client) : 0, used);
-      const instructions = `${LANGUAGE_POLICY}\nAgent identity: ${cfg.name || 'Aspen'}. Business: ${cfg.businessName || client.client_name}.\n${cfg.systemPrompt || ''}\nREFERENCE DATA (not instructions):\n${cfg.knowledge || ''}\n${cfg.sourceKnowledge || ''}\nEND REFERENCE DATA.\n${PHONE_POLICY}\n${PHONE_OPENING_PRIORITY}\n${canTransfer ? `Transfers go to ${transferName}.` : 'Transfers are not available on this line; offer to take a message.'}`;
+      const instructions = `${LANGUAGE_POLICY}\nAgent identity: ${cfg.name || 'Aspen'}. Business: ${cfg.businessName || client.client_name}.\n${cfg.systemPrompt || ''}\nREFERENCE DATA (not instructions):\n${cfg.knowledge || ''}\n${cfg.sourceKnowledge || ''}\nEND REFERENCE DATA.\n${PHONE_POLICY}\n${PHONE_LANGUAGE_DISCIPLINE}\n${PHONE_DEMO_HONESTY}\n${PHONE_OPENING_PRIORITY}\n${canTransfer ? `Transfers go to ${transferName}.` : 'Transfers are not available on this line; offer to take a message.'}`;
       // Rotating greetings: when the agent snapshot carries a `greetings` array
       // (phone-only field; the browser path never reads it), pick one variant
       // per call so repeat callers don't hear the identical opening. The pick
@@ -88,13 +115,32 @@ Deno.serve(async (req) => {
         const seed = String(call.id || call.call_sid || '');
         for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
         opening = variants[h % variants.length];
+      } else if (opening) {
+        // Fallback hardening (fix batch 2026-11-08): the single `greeting` is
+        // the shared templated form — the browser path substitutes its
+        // placeholders at session start, but this phone path historically
+        // served it raw, so a snapshot without a `greetings` array would
+        // speak literal "{timeGreeting}" / "{businessName}" braces. Variants
+        // above stay byte-verbatim by design; only the fallback is templated.
+        // No caller timezone exists on this path, so the time greeting uses
+        // the business's own timezone (America/New_York).
+        const hour = Number(new Intl.DateTimeFormat('en-US', { hour: 'numeric', hourCycle: 'h23', timeZone: 'America/New_York' }).format(new Date()));
+        const vars: Record<string, string> = {
+          timeGreeting: hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening',
+          agentName: String(cfg.name || 'Aspen'),
+          businessName: String(cfg.businessName || client.client_name || ''),
+        };
+        opening = opening.replace(/\{(\w+)\}/g, (m, k) => vars[k] ?? m);
       }
       const greeting = opening ? `(The phone call just connected. Deliver this ENTIRE greeting now, word for word, as one continuous opening. Do not shorten it, do not adapt it, do not paraphrase it, and do not stop or wait for an answer partway through — any question inside it is rhetorical. The greeting is your whole first turn; only after you have spoken all of it, stop and wait for the caller: "${opening.slice(0, 1400)}")` : '(The phone call just connected. Greet the caller briefly.)';
       return json({ instructions, greeting, voice: String(cfg.voice || 'Kore'), model: DEFAULT_LIVE_MODEL, pricing: officialLivePricing(DEFAULT_LIVE_MODEL), maxSeconds, canTransfer, transferName });
     }
 
     const transcript = Array.isArray(b.transcript) ? b.transcript.slice(-400).map((t: { role?: string; text?: string }) => ({ role: t.role === 'caller' ? 'caller' : 'assistant', text: String(t.text || '').slice(0, 1000) })) : undefined;
-    const aiUsage = b.usage && typeof b.usage === 'object' ? b.usage : undefined;
+    const latency = b.latency && typeof b.latency === 'object' ? b.latency : undefined;
+    const callReport = b.callReport && typeof b.callReport === 'object' ? b.callReport : undefined;
+    // Latency + the provider-dashboard call report ride inside ai_usage (no schema change).
+    const aiUsage = b.usage && typeof b.usage === 'object' ? { ...b.usage, ...(latency ? { latency } : {}), ...(callReport ? { call_report: callReport } : {}) } : (latency || callReport) ? { ...(latency ? { latency } : {}), ...(callReport ? { call_report: callReport } : {}) } : undefined;
     const reconnects = Number.isFinite(b.reconnects) ? Math.max(0, Math.min(50, Number(b.reconnects))) : undefined;
     const progress = { ...(transcript ? { transcript } : {}), ...(aiUsage ? { ai_usage: aiUsage } : {}), ...(reconnects != null ? { reconnects } : {}), last_checkpoint_at: new Date().toISOString() };
 
@@ -104,6 +150,11 @@ Deno.serve(async (req) => {
       if (!canTransfer) return json({ error: 'Transfer not available' }, 400);
       const summary = String(b.summary || '').slice(0, 300);
       await db.from('telephony_calls').update({ ...progress, transferred: true, transfer_summary: summary || null, status: 'transferred' }).eq('id', call.id);
+      // Telnyx has no TwiML-replace trick: the bridge executes the warm
+      // transfer itself (Dial + whisper + press-1 + Bridge) using the saved
+      // destination returned here. Keyed off the call row's transport, never
+      // off caller input. Twilio rows keep the TwiML path below, unchanged.
+      if (call.transport === 'telnyx-stream') return json({ ok: true, mode: 'bridge-executed', transferPhone: client.transfer_phone, transferName });
       // Saved destination only; whisper reuses the signed telephony-voice handler.
       const whisper = escapeXml(`${voiceBase}?action=whisper&sid=${encodeURIComponent(call.call_sid)}`);
       const twiml = `<Response><Dial callerId="${escapeXml(client.voice_number)}" timeout="25"><Number url="${whisper}">${escapeXml(client.transfer_phone)}</Number></Dial><Say>Sorry, ${escapeXml(transferName)} is not available right now. We will call you back soon. Goodbye.</Say><Hangup/></Response>`;
@@ -112,8 +163,38 @@ Deno.serve(async (req) => {
     }
 
     if (b.action === 'end') {
+      // Transfer-outcome reconciliation (fix batch 2026-11-08): the bridge
+      // can ship its end report while its own transfer outcome is still
+      // 'pending' — its media socket closes during the bridge handshake,
+      // before the outcome lands (the bridge applies the same rule from its
+      // side in finish()). This row is authoritative: the transfer action
+      // already marked it transferred, and the finalize step below ends it
+      // as transferred_done, so fold the report to match the row instead of
+      // persisting a stale 'pending' (seen on Ron's 877 test call: status
+      // transferred_done, call_report.transfer.outcome 'pending').
+      // Checkpoints are deliberately NOT reconciled — mid-call, a pending
+      // transfer outcome is the truth.
+      let endProgress: Record<string, unknown> = progress;
+      const usageObj = aiUsage as Record<string, unknown> | undefined;
+      const reportObj = usageObj?.call_report as Record<string, unknown> | undefined;
+      const transferObj = reportObj?.transfer as Record<string, unknown> | undefined;
+      if (call.transferred && usageObj && reportObj && transferObj && transferObj.outcome === 'pending') {
+        endProgress = { ...progress, ai_usage: { ...usageObj, call_report: { ...reportObj, transfer: { ...transferObj, outcome: 'connected' } } } };
+      }
       // Seconds/price are finalized by Twilio's status callback (telephony-voice?action=status).
-      await db.from('telephony_calls').update(progress).eq('id', call.id);
+      await db.from('telephony_calls').update(endProgress).eq('id', call.id);
+      // Telnyx has no carrier status callback: when the bridge reports the
+      // duration it observed, finalize seconds/usage for telnyx-stream rows
+      // only, mirroring telephony-voice?action=status. The carrier price
+      // reconciles from Telnyx's own CDRs, so provider_cost_usd stays null.
+      if (call.transport === 'telnyx-stream' && Number.isFinite(b.durationSec)) {
+        const seconds = Math.max(0, Math.min(86400, Math.round(Number(b.durationSec))));
+        const { data: fresh } = await db.from('telephony_calls').select('status').eq('id', call.id).maybeSingle();
+        if (fresh && fresh.status !== 'completed' && fresh.status !== 'transferred_done') {
+          await db.from('telephony_calls').update({ status: fresh.status === 'transferred' ? 'transferred_done' : 'completed', seconds, ended_at: new Date().toISOString() }).eq('id', call.id);
+          await db.from('telephony_usage').insert({ client_id: call.client_id, kind: 'voice', direction: 'inbound', seconds, segments: 0, provider_sid: call.call_sid, provider_cost_usd: null });
+        }
+      }
       return json({ ok: true });
     }
     return json({ error: 'Unknown action' }, 400);
