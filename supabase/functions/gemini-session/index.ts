@@ -9,9 +9,11 @@ import { transcriptAllowed } from '../_shared/transcript-consent.ts';
 import { workspaceAccess } from '../_shared/customer-payments.ts';
 import { resolveDemoShare } from '../_shared/demo-share.ts';
 import { DEMO_INVITE_GREETING, DEMO_INVITE_OPENING, DEMO_VERIFICATION_ACT1, DEMO_VERIFICATION_GREETING } from '../_shared/demo-sales.ts';
-import { alexGuideConfig } from '../_shared/alex-guide.ts';
+import { alexGuideConfig, alexDemoGuestConfig } from '../_shared/alex-guide.ts';
+import { avatarSwapEnabled, personaFor, personaSegmentPrompt } from '../_shared/personas.ts';
 import { PUBLIC_PATHS } from '../_shared/report-context.ts';
-const schema=z.object({ visitorKey:z.string().min(16).max(100), model:z.string().max(100).optional(), agentId:z.string().uuid().optional(), leadId:z.string().uuid().optional(), prospectId:z.string().uuid().optional(), draft:z.boolean().default(false), preview:z.boolean().default(false), voice:z.enum(VOICES as [string,...string[]]).optional(), hour:z.number().int().min(0).max(23).optional(), visitorName:z.string().max(100).default(''), timeZone:z.string().max(100).default('UTC'), campaign:z.object({visitId:z.string().uuid(),source:z.string().max(100),campaign:z.string().max(100),entryPath:z.enum(PUBLIC_PATHS).optional()}).nullable().optional(), consent:z.boolean().default(false), verification:z.enum(['pending','verified']).optional(), invite:z.boolean().optional(), guide:z.enum(['alex']).optional(), share:z.string().max(100).optional(), resumeContext:z.string().max(1600).optional(), reconnect:z.boolean().default(false), prewarm:z.boolean().default(false) });
+const personaSegmentSchema=z.object({persona:z.enum(['aspen','sara','alex']),boundary:z.enum(['doorway','stepout','meet-alex','return']),parentSessionId:z.string().uuid(),swapRecap:z.string().max(2400),drops:z.number().int().min(0).max(99).default(0),dropRecovery:z.boolean().default(false),swap:z.boolean().default(false)});
+const schema=z.object({ visitorKey:z.string().min(16).max(100), model:z.string().max(100).optional(), agentId:z.string().uuid().optional(), leadId:z.string().uuid().optional(), prospectId:z.string().uuid().optional(), draft:z.boolean().default(false), preview:z.boolean().default(false), voice:z.enum(VOICES as [string,...string[]]).optional(), hour:z.number().int().min(0).max(23).optional(), visitorName:z.string().max(100).default(''), timeZone:z.string().max(100).default('UTC'), campaign:z.object({visitId:z.string().uuid(),source:z.string().max(100),campaign:z.string().max(100),entryPath:z.enum(PUBLIC_PATHS).optional()}).nullable().optional(), consent:z.boolean().default(false), verification:z.enum(['pending','verified']).optional(), invite:z.boolean().optional(), guide:z.enum(['alex']).optional(), share:z.string().max(100).optional(), resumeContext:z.string().max(1600).optional(), reconnect:z.boolean().default(false), prewarm:z.boolean().default(false), personaSegment:personaSegmentSchema.optional() });
 const json=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
 export async function hash(value:string) { return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)))).map(b=>b.toString(16).padStart(2,'0')).join(''); }
 Deno.serve(async req=>{
@@ -26,7 +28,61 @@ Deno.serve(async req=>{
   const {data:{user}}=await db.auth.getUser(bearer);
   const {data:role}=user ? await db.from('voice_platform_roles').select('role').eq('user_id',user.id).maybeSingle() : {data:null};
   let config:Record<string,unknown>, agentId=null, orgId=null;
-  if(b.guide==='alex') {
+  // Avatar-swap master flag (Stage 1 lands dark): server env, same pattern
+  // as DEMO_VERIFICATION_SMS_ENABLED. Read once per request; the parent
+  // demo authorization below stamps it into the session config + response.
+  const swapEnabled=avatarSwapEnabled((n)=>Deno.env.get(n));
+  let segmentParentId: string | null = null;
+  if(b.personaSegment) {
+    // PERSONA SEGMENT (avatar swap Stage 1): a continuation of an existing
+    // demo session under a (possibly different) persona. Honored ONLY when
+    // the flag is on AND parentSessionId names a session row owned by this
+    // same visitor hash — the segment inherits its business context
+    // (knowledge, contact, campaign, verification/invite flags, recording
+    // consent) from the parent's stored config, never from the client, and
+    // any client-supplied voice/face is ignored (the persona registry
+    // decides both). A demo-guest Alex segment is authorized by this parent
+    // chain, NOT by a user JWT; the wizard guide branch below stays
+    // signed-in only. Segments are for business demos: the parent must be
+    // a simulation session.
+    if(!swapEnabled) return json({error:'Persona segments are not enabled'},404);
+    const visitorHash=await hash(`${b.visitorKey}|${req.headers.get('x-forwarded-for')?.split(',')[0] || ''}`);
+    const {data:parentRow}=await db.from('gemini_voice_sessions').select('id,config,lead_id,prospect_id,agent_id,organization_id').eq('id',b.personaSegment.parentSessionId).eq('visitor_hash',visitorHash).maybeSingle();
+    var parentRowRef = parentRow;
+    const parent=parentRow?.config as Record<string,unknown>|undefined;
+    if(!parentRow || !parent || parent.simulation!==true) return json({error:'Persona segment parent session not found'},404);
+    const persona=personaFor(b.personaSegment.persona);
+    const businessName=String(parent.businessName || '');
+    const built=personaSegmentPrompt(b.personaSegment.persona,b.personaSegment.boundary,businessName,String(parent.systemPrompt || ''),b.personaSegment.persona==='alex'?alexDemoGuestConfig(businessName):undefined);
+    config={
+      ...parent,
+      name:persona.displayName,
+      voice:persona.voiceName,
+      systemPrompt:built.systemPrompt,
+      greeting:built.greeting || parent.greeting,
+      knowledge:parent.knowledge ?? '',
+      sourceKnowledge:parent.sourceKnowledge ?? '',
+      simulation:true,
+      platformFollowup:parent.platformFollowup===true,
+      platformGuide:false,
+      homepageSales:false,
+      personaSwapEnabled:true,
+      persona:{id:persona.id,displayName:persona.displayName,faceId:persona.faceId},
+      // The boundary marker decides the proxy opening: a PLANNED swap gets
+      // the swap opening (no apology, no re-greeting); a DROP recovery
+      // gets the same-persona rotating-apology opening. Exactly one is set.
+      ...(b.personaSegment.swap?{personaSwap:{to:persona.id,boundary:b.personaSegment.boundary},personaDrop:null}:{personaSwap:null,personaDrop:{persona:persona.id,drops:b.personaSegment.drops}}),
+      personaSegment:{persona:persona.id,boundary:b.personaSegment.boundary,parentSessionId:parentRow.id,dropRecovery:b.personaSegment.dropRecovery},
+      // Consent/recording inheritance (spec Q8): the segment records
+      // exactly what the parent recorded — the flags are recomputed from
+      // the parent's stored values in the final assembly below, never
+      // from this request's consent field.
+      recordTranscript:parent.recordTranscript===true,
+      recordAudio:parent.recordAudio===true,
+      resumeContext:b.personaSegment.swapRecap,
+    };
+    agentId=parentRow.agent_id; orgId=parentRow.organization_id; segmentParentId=parentRow.id;
+  } else if(b.guide==='alex') {
     // Platform guide (Alex, the setup-wizard support specialist). He is not a
     // tenant agent, so the workspaceAccess subscription gate does not apply —
     // but a guide session is NEVER anonymous: a signed-in user is required,
@@ -69,12 +125,17 @@ Deno.serve(async req=>{
     config={...(agent.published as Record<string,unknown>), homepageSales:agent.slug==='aspen-homepage'}; agentId=agent.id; orgId=agent.organization_id;
   }
   const requestedModel = b.model;
-  if (!b.preview && !b.consent && !b.prewarm) return json({error:'Agree to the recording notice before starting.'},400);
+  if (!b.personaSegment && !b.preview && !b.consent && !b.prewarm) return json({error:'Agree to the recording notice before starting.'},400);
   if(requestedModel && (b.share || !(b.draft || b.preview) || !officialLivePricing(requestedModel))) return json({error:'Model comparison is available only for authorized draft tests and previews.'},400);
-  config={...config,timeZone:b.timeZone,quotaClass:b.share?'visitor':voiceQuotaClass(role?.role==='admin',b.preview),model:requestedModel || DEFAULT_LIVE_MODEL,opening:openingFor(config,b.hour,b.visitorName || String((config.visitorContact as Record<string,unknown>|undefined)?.name || '')),preview:b.preview,resumeContext:b.preview?undefined:b.resumeContext,reconnect:!b.preview&&b.reconnect,campaign:b.campaign || null,recordTranscript:!b.preview && transcriptAllowed(false,false,b.consent),recordAudio:!b.preview && b.consent};
+  // Avatar swap (Stage 1): the parent demo authorization carries the flag
+  // so the client starts the swap state machine only when the server says
+  // so. Segment configs already carry personaSwapEnabled:true from their
+  // branch; every other session shape is untouched when the flag is off.
+  if(!b.personaSegment && swapEnabled && (b.leadId || b.prospectId) && !b.draft && !b.preview) config.personaSwapEnabled=true;
+  config={...config,timeZone:b.timeZone,quotaClass:segmentParentId?'persona_segment':b.share?'visitor':voiceQuotaClass(role?.role==='admin',b.preview),model:requestedModel || DEFAULT_LIVE_MODEL,opening:openingFor(config,b.hour,b.visitorName || String((config.visitorContact as Record<string,unknown>|undefined)?.name || '')),preview:b.preview,resumeContext:b.preview?undefined:(segmentParentId?String(config.resumeContext || ''):b.resumeContext),reconnect:segmentParentId?false:!b.preview&&b.reconnect,campaign:b.campaign || (segmentParentId?(config.campaign ?? null):null),recordTranscript:segmentParentId?config.recordTranscript===true:!b.preview && transcriptAllowed(false,false,b.consent),recordAudio:segmentParentId?config.recordAudio===true:!b.preview && b.consent};
   const token=crypto.randomUUID()+crypto.randomUUID();
   const visitor=await hash(`${b.visitorKey}|${req.headers.get('x-forwarded-for')?.split(',')[0] || ''}`);
-  const {data:id,error}=await db.rpc('authorize_gemini_session',{_visitor:visitor,_token:await hash(token),_config:config,_agent:agentId,_org:orgId,_lead:b.leadId || null,_prospect:b.prospectId || null});
+  const {data:id,error}=await db.rpc('authorize_gemini_session',{_visitor:visitor,_token:await hash(token),_config:config,_agent:agentId,_org:orgId,_lead:segmentParentId?(parentRowRef?.lead_id ?? null):b.leadId || null,_prospect:segmentParentId?(parentRowRef?.prospect_id ?? null):b.prospectId || null});
   if(error) {
     const limit=voiceLimitResponse(error.message);
     if(limit) return json(limit);
@@ -95,6 +156,7 @@ Deno.serve(async req=>{
       handoffToken=capability;
     }
   }
-  return json({token,sessionId:id,maxSeconds:s?.max_seconds,homepageSales:config.homepageSales===true,idleChecks:config.homepageSales===true || config.simulation===true,name:config.name,businessName:config.businessName,voice:config.voice,avatarUrl,handoffToken});
+  const parentPersona = segmentParentId ? personaFor(b.personaSegment!.persona) : null;
+  return json({token,sessionId:id,maxSeconds:s?.max_seconds,homepageSales:config.homepageSales===true,idleChecks:config.homepageSales===true || config.simulation===true,name:config.name,businessName:config.businessName,voice:config.voice,avatarUrl,handoffToken,personaSwapEnabled:config.personaSwapEnabled===true,persona:parentPersona?{id:parentPersona.id,displayName:parentPersona.displayName,faceId:parentPersona.faceId}:undefined});
  } catch(e) {console.error('gemini-session',e);return json({error:'Could not authorize the voice session'},500);}
 });

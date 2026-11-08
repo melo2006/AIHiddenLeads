@@ -6,11 +6,13 @@ import { resolveDemoShare } from '../_shared/demo-share.ts';
 import { workspaceAccess } from '../_shared/customer-payments.ts';
 import { normalizeVideoAvatar, validFaceId } from '../_shared/video-avatar.ts';
 import { ALEX_FACE_ID } from '../_shared/alex-guide.ts';
+import { PERSONAS, type PersonaId } from '../_shared/personas.ts';
 
 const SIMLI = 'https://api.simli.ai';
 const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+async function sha256Hex(value: string) { return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)))).map(b => b.toString(16).padStart(2, '0')).join(''); }
 const body = z.discriminatedUnion('action', [
-  z.object({ action: z.literal('session'), agentId: z.string().max(80).optional(), shareToken: z.string().max(80).optional(), draft: z.boolean().optional(), faceId: z.string().max(80).optional(), guide: z.enum(['alex']).optional() }),
+  z.object({ action: z.literal('session'), agentId: z.string().max(80).optional(), shareToken: z.string().max(80).optional(), draft: z.boolean().optional(), faceId: z.string().max(80).optional(), guide: z.enum(['alex']).optional(), persona: z.enum(['aspen', 'sara', 'alex']).optional(), parentSessionId: z.string().uuid().optional(), visitorKey: z.string().min(16).max(100).optional() }),
   z.object({ action: z.literal('faces') }),
   z.object({ action: z.literal('createFace'), agentId: z.string().uuid().optional(), name: z.string().min(1).max(60), imageBase64: z.string().min(100).max(14_000_000), mimeType: z.enum(['image/png', 'image/jpeg', 'image/webp']) }),
   z.object({ action: z.literal('avatarCredit'), agentId: z.string().uuid() }),
@@ -53,6 +55,34 @@ Deno.serve(async (req) => {
         // a signed-in user is required — never an anonymous avatar session.
         if (!user) return json({ error: 'Sign in to use the setup guide' }, 401);
         faceId = ALEX_FACE_ID; publicSession = false;
+      } else if (b.persona) {
+        // Persona selector (avatar swap Stage 1): the face is fixed
+        // server-side from the persona registry — the client names a
+        // PERSONA, never a face. Authorized by the parent demo session
+        // chain (the same proof gemini-session uses): the request must
+        // name a gemini_voice_sessions row owned by this visitor whose
+        // stored config is a swap-enabled simulation session. Aspen has
+        // no registry face: hers resolves from the parent session's own
+        // published snapshot (videoAvatar in the parent config, else the
+        // homepage agent's published snapshot).
+        if (!b.parentSessionId || !b.visitorKey) return json({ error: 'A parent demo session is required for a persona avatar' }, 403);
+        const visitorHash = await sha256Hex(`${b.visitorKey}|${req.headers.get('x-forwarded-for')?.split(',')[0] || ''}`);
+        const { data: parentRow } = await db.from('gemini_voice_sessions').select('config').eq('id', b.parentSessionId).eq('visitor_hash', visitorHash).maybeSingle();
+        const parentConfig = parentRow?.config as Record<string, unknown> | undefined;
+        if (!parentConfig || parentConfig.simulation !== true || parentConfig.personaSwapEnabled !== true) return json({ error: 'Persona avatar is not available for this session' }, 403);
+        const binding = PERSONAS[b.persona as PersonaId];
+        if (binding.faceId) {
+          faceId = binding.faceId;
+        } else {
+          const parentAvatar = normalizeVideoAvatar(parentConfig.videoAvatar);
+          if (parentAvatar.enabled) faceId = parentAvatar.faceId;
+          else {
+            const { data: home } = await db.from('voice_agents').select('published').eq('slug', 'aspen-homepage').maybeSingle();
+            const v = normalizeVideoAvatar((home?.published as Record<string, unknown> | null)?.videoAvatar);
+            if (!home?.published || !v.enabled) return json({ error: 'Video avatar is not enabled' }, 404);
+            faceId = v.faceId;
+          }
+        }
       } else if (b.shareToken) {
         const a = await resolveDemoShare(db, b.shareToken);
         const v = normalizeVideoAvatar((a?.draft as Record<string, unknown> | undefined)?.videoAvatar);
