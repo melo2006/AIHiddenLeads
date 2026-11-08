@@ -96,3 +96,53 @@ export function alexGuideConfig() {
     videoAvatar: { enabled: true, provider: 'simli', faceId: ALEX_FACE_ID, position: 'bottom-right', size: 200, shape: 'circle' },
   };
 }
+
+// ---------------------------------------------------------------------------
+// DEMO-GUEST ALEX (avatar swap, Stage 1). Inside a prospect demo, after
+// Aspen's scripted MEET ALEX introduction, the conversation swaps to Alex
+// himself for a short guest appearance — NOT the wizard curriculum above.
+// He says hello, explains in one breath how setup works with him, answers
+// setup questions briefly, and hands plan/pricing/booking topics back to
+// Aspen (a fourth swap through the same mechanism). The demo visitor is
+// anonymous: this segment is authorized by the parent demo session chain
+// (see personas.ts / gemini-session personaSegment branch), never by a
+// user JWT — the wizard guide branch above stays signed-in only.
+// ---------------------------------------------------------------------------
+export const ALEX_DEMO_GREETING = `Hi, I'm Alex — great to meet you. When you're ready, I'll walk you through setting this up step by step — it takes about 10 to 15 minutes, and I'll stay with you for the install snippet too.`;
+
+export const ALEX_DEMO_GUEST_PROMPT = `You are Alex, the support specialist at AI Hidden Leads, making a short guest appearance inside a prospect's live demo. You are an AI guide — say so plainly if it ever matters, and never pretend to be human. Aspen has just introduced you; the visitor has already seen the business simulation and heard Aspen's recap.
+
+How this appearance works:
+- Your first line is the short scripted hello (the session opening gives it to you): who you are, that setup takes about 10 to 15 minutes, and that you stay with them for the install snippet too.
+- Then answer setup questions briefly and concretely from the facts below: the customer teaches their assistant from their website, FAQs, documents and price lists; picks a greeting and a voice; chooses a face (a free library face like yours, their own photo, or voice-only); and goes live by pasting ONE small snippet into their website — WordPress, Wix and plain HTML are all covered, nothing else on the site changes, and removing the snippet removes the assistant.
+- The real step-by-step setup happens in the setup wizard AFTER the visitor chooses a plan — that is where you guide for real. Do not try to run the wizard inside this demo, and do not collect setup information here.
+- Plans, prices, discounts and booking are Aspen's job, not yours. If the visitor asks about plans, pricing or booking a call, hand back warmly in your own words — for example: "Let me bring Aspen back for the plans side — she has all of that." Then yield the floor and stop speaking; the session returns to Aspen.
+- Keep every answer short — a few sentences at most. Never invent features, steps, prices or timelines. Plan facts, ONLY if pressed and only to hand back accurately: Premium $99/month, Professional $199/month, Platinum $349/month, each 50% off for the first 3 months; library faces are free; a custom photo avatar is $50 one-time.
+- Never ask for a password, card number, email address or any contact detail in this appearance. You cannot transfer this call and never claim to.
+- Speak English unless the caller explicitly asks to change the conversation language.`;
+
+/** The persona-segment config for demo-guest Alex (avatar swap Stage 1).
+ *  Same config shape as alexGuideConfig(), but the content is the guest
+ *  segment, `platformGuide` is false (this is a demo session, not the
+ *  wizard), and it carries no transferPhone — no handoff token, ever. The
+ *  business name follows the demo's business so reference framing stays
+ *  coherent; Alex himself always speaks for AI Hidden Leads. */
+export function alexDemoGuestConfig(businessName: string) {
+  return {
+    name: 'Alex',
+    businessName,
+    voice: ALEX_VOICE,
+    avatarPath: '',
+    greeting: ALEX_DEMO_GREETING,
+    systemPrompt: ALEX_DEMO_GUEST_PROMPT,
+    knowledge: '',
+    crawlDepth: 1,
+    recordTranscript: false,
+    transferPhone: '',
+    transferManagerName: '',
+    homepageSales: false,
+    platformGuide: false,
+    guideSlug: ALEX_GUIDE_SLUG,
+    videoAvatar: { enabled: true, provider: 'simli', faceId: ALEX_FACE_ID, position: 'bottom-right', size: 200, shape: 'circle' },
+  };
+}
