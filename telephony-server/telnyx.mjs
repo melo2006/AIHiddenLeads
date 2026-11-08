@@ -24,6 +24,43 @@ const STREAM_FALLBACK_MS = 3000, TRANSFER_DIAL_TIMEOUT_SEC = 25, TRANSFER_ATTEMP
 
 /** Outbound media frame: NO stream id field (one stream per socket; SCOPE §3.3). */
 export const telnyxMediaFrame = (payload) => ({ event: 'media', media: { payload } });
+
+// ---------- Phone demo tools (front-door lines; config-gated) ----------
+// The bridge stays dumb about the demo (telephony-server/AGENTS.md): the
+// declarations below only name the tools and their argument shapes. All
+// state, knowledge building, verification and sending live in the
+// telephony-stream backend, reached through the same report() contract as
+// the transfer. Tools are declared only when the backend start response
+// carries phoneDemo: true, and every tool's spoken claim waits for the
+// backend's real result — Aspen never announces a save, code, verification
+// or email the backend did not confirm.
+export const PHONE_DEMO_TOOL_ACTIONS = {
+  save_phone_demo_lead: 'phone-demo-save',
+  send_demo_code: 'phone-demo-code',
+  check_demo_code: 'phone-demo-verify',
+  resume_demo_by_code: 'phone-demo-resume',
+  send_demo_recap: 'phone-demo-recap',
+};
+
+export function phoneDemoToolDeclarations() {
+  return [
+    { name: 'save_phone_demo_lead', description: 'Save (or correct) the phone-demo lead from what the caller dictated. Call it once the intake details are collected, and again with corrected values when the caller fixes a spelling. The result carries spellBack text for the website, email and mobile — read those back to the caller word for word for confirmation.', parameters: { type: 'OBJECT', properties: {
+      callerName: { type: 'STRING', description: "The caller's own name." },
+      businessName: { type: 'STRING', description: 'The business name, as dictated.' },
+      trade: { type: 'STRING', description: 'What the business does (its trade).' },
+      serviceArea: { type: 'STRING', description: 'City / service area the business covers.' },
+      websiteUrl: { type: 'STRING', description: 'The website address the caller dictated, or empty when they have no website.' },
+      services: { type: 'ARRAY', items: { type: 'STRING' }, description: 'The main services the caller listed (used when there is no website).' },
+      bestPractice: { type: 'BOOLEAN', description: 'True when the caller accepted best-practice fills for hours, emergencies and service area; false when they asked to stick strictly to what they stated.' },
+      email: { type: 'STRING', description: "The caller's email address, as dictated." },
+      mobile: { type: 'STRING', description: "The mobile number the demo link should be texted to (may be the number they are calling from)." },
+    }, required: ['businessName'] } },
+    { name: 'send_demo_code', description: 'Text the 4-digit demo verification code to the saved mobile. Only say a code was sent when the result says sent is true; when it returns mode caller_id, texting is not switched on for this line yet and the demo proceeds on caller ID.', parameters: { type: 'OBJECT', properties: {} } },
+    { name: 'check_demo_code', description: 'Check the 4-digit code the caller read back. Only say the caller is verified when the result says verified is true.', parameters: { type: 'OBJECT', properties: { code: { type: 'STRING', description: 'The 4 digits the caller read back.' } }, required: ['code'] } },
+    { name: 'resume_demo_by_code', description: 'On a callback, resume an earlier phone demo: the caller gives the 4-digit code from the previous call. On verified true the result carries their saved business details so the demo can continue.', parameters: { type: 'OBJECT', properties: { code: { type: 'STRING', description: 'The 4-digit code from the earlier call.' } }, required: ['code'] } },
+    { name: 'send_demo_recap', description: 'Email the caller the demo recap and the visual demo link at the saved email address. Only say the email was sent when the result says sent is true.', parameters: { type: 'OBJECT', properties: { summary: { type: 'STRING', description: 'Two or three sentences on what the demo covered: what Aspen answered as their receptionist and what the caller tried.' } }, required: ['summary'] } },
+  ];
+}
 /** Outbound clear frame: flush queued playback on barge-in. */
 export const telnyxClearFrame = () => ({ event: 'clear' });
 
@@ -118,6 +155,7 @@ export function createTelnyx({ api, env = process.env, onActiveChange = () => {}
       ended: false, counted: false, transferring: false, transferred: false,
       resumeHandle: null, reconnects: 0, inSec: 0, outSec: 0,
       gateOpen: false, gateTimer: null, limitTimer: null, cpTimer: null, streamFallbackTimer: null, fallbackTimer: null,
+      phoneDemoLeadId: null, // set by the phone-demo tool flow once the backend saves the lead
       transcript: [], latency: createLatencyTracker('telnyx'), transfer: null,
       // Dashboard call report transfer block: outcome is 'connected' only when
       // the Bridge command succeeds; connectMs = tool-call -> bridged.
@@ -162,11 +200,14 @@ export function createTelnyx({ api, env = process.env, onActiveChange = () => {}
     const cfg = s.cfg;
     const ws = new WebSocket(`${geminiWsUrl}?key=${googleApiKey}`);
     s.gemini = ws;
+    const declarations = [];
+    if (cfg.canTransfer) declarations.push({ name: 'transfer_call', description: `Warm-transfer the caller to ${cfg.transferName}. Say you are connecting them first.`, parameters: { type: 'OBJECT', properties: { summary: { type: 'STRING', description: 'One sentence for the person receiving the call: who is calling and why.' } }, required: ['summary'] } });
+    if (cfg.phoneDemo) declarations.push(...phoneDemoToolDeclarations());
     ws.on('open', () => ws.send(JSON.stringify({ setup: {
       model: `models/${cfg.model}`,
       generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: cfg.voice } } } },
       systemInstruction: { parts: [{ text: cfg.instructions }] },
-      tools: cfg.canTransfer ? [{ functionDeclarations: [{ name: 'transfer_call', description: `Warm-transfer the caller to ${cfg.transferName}. Say you are connecting them first.`, parameters: { type: 'OBJECT', properties: { summary: { type: 'STRING', description: 'One sentence for the person receiving the call: who is calling and why.' } }, required: ['summary'] } }] }] : [],
+      tools: declarations.length ? [{ functionDeclarations: declarations }] : [],
       realtimeInputConfig: { automaticActivityDetection: { disabled: false, startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH', endOfSpeechSensitivity: 'END_SENSITIVITY_LOW', prefixPaddingMs: 200, silenceDurationMs: 700 } },
       sessionResumption: s.resumeHandle ? { handle: s.resumeHandle } : {},
       contextWindowCompression: { slidingWindow: {} },
@@ -193,6 +234,11 @@ export function createTelnyx({ api, env = process.env, onActiveChange = () => {}
       if (sc?.inputTranscription?.text) s.transcript.push({ role: 'caller', text: sc.inputTranscription.text });
       if (sc?.outputTranscription?.text) s.transcript.push({ role: 'assistant', text: sc.outputTranscription.text });
       for (const call of m.toolCall?.functionCalls || []) {
+        const demoAction = PHONE_DEMO_TOOL_ACTIONS[call.name];
+        if (demoAction && cfg.phoneDemo) {
+          runPhoneDemoTool(s, ws, call, demoAction).catch(e => console.error('telnyx phone-demo tool failed', e.message));
+          continue;
+        }
         if (call.name !== 'transfer_call' || s.transferring) continue;
         s.transferring = true;
         ws.send(JSON.stringify({ toolResponse: { functionResponses: [{ id: call.id, name: call.name, response: { ok: true } }] } }));
@@ -205,6 +251,44 @@ export function createTelnyx({ api, env = process.env, onActiveChange = () => {}
     });
     ws.on('close', () => { if (ws === s.gemini && !s.ended && !s.transferring) reconnect(s, 'closed'); });
     ws.on('error', (e) => console.error('telnyx gemini error', e.message));
+  }
+
+  // ---------- Phone demo tool execution ----------
+  // Unlike the transfer (which answers optimistically and executes in the
+  // background), phone-demo tools WAIT for the backend result before the
+  // toolResponse goes back: Aspen's next spoken claim — saved, code sent,
+  // verified, recap emailed — is only ever as true as that result.
+  async function runPhoneDemoTool(s, ws, call, action) {
+    const respond = (response) => { if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ toolResponse: { functionResponses: [{ id: call.id, name: call.name, response }] } })); };
+    const args = (call.args && typeof call.args === 'object') ? call.args : {};
+    const str = (v) => (v == null ? '' : String(v));
+    const extra = {};
+    if (action === 'phone-demo-save') {
+      extra.demo = {
+        callerName: str(args.callerName), businessName: str(args.businessName), trade: str(args.trade),
+        serviceArea: str(args.serviceArea), websiteUrl: str(args.websiteUrl),
+        services: Array.isArray(args.services) ? args.services.map((v) => String(v)).slice(0, 8) : [],
+        bestPractice: args.bestPractice !== false,
+        email: str(args.email), mobile: str(args.mobile),
+      };
+      if (s.phoneDemoLeadId) extra.leadId = s.phoneDemoLeadId; // correction pass updates the same lead
+    } else if (action === 'phone-demo-verify' || action === 'phone-demo-resume') {
+      extra.code = str(args.code);
+      if (action === 'phone-demo-verify') {
+        if (!s.phoneDemoLeadId) return respond({ verified: false, reason: 'lead_not_saved' });
+        extra.leadId = s.phoneDemoLeadId;
+      }
+    } else if (action === 'phone-demo-recap') {
+      if (!s.phoneDemoLeadId) return respond({ sent: false, reason: 'lead_not_saved' });
+      extra.leadId = s.phoneDemoLeadId;
+      extra.summary = str(args.summary).slice(0, 1500);
+    } else { // phone-demo-code
+      if (!s.phoneDemoLeadId) return respond({ sent: false, reason: 'lead_not_saved' });
+      extra.leadId = s.phoneDemoLeadId;
+    }
+    const res = await report(s, action, extra);
+    if ((action === 'phone-demo-save' || action === 'phone-demo-resume') && res?.leadId) s.phoneDemoLeadId = res.leadId;
+    respond(res && typeof res === 'object' ? res : { ok: false, reason: 'no_response' });
   }
 
   function reconnect(s, reason) {
