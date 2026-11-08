@@ -5,7 +5,7 @@ export interface HeadlineSegment {
   accent?: boolean;
 }
 
-// The hero headline itself rotates through these five lines, in order.
+// The hero headline itself rotates through these seven lines, in order.
 // Hardcoded English, consistent with the rest of the hero (EN-only today;
 // PT/ES translations are a follow-up).
 export const HERO_HEADLINE_LINES: ReadonlyArray<ReadonlyArray<HeadlineSegment>> = [
@@ -46,7 +46,7 @@ interface HeroRotatingHeadlineProps {
 }
 
 /**
- * Rotating hero headline. All five lines render stacked in a single grid
+ * Rotating hero headline. All seven lines render stacked in a single grid
  * cell inside the page's h1, so the block always reserves exactly the
  * height of the longest-wrapping line at the current breakpoint and
  * cycling never shifts the layout below it. Lines crossfade with a slight
