@@ -134,7 +134,7 @@ const TryDemo = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background px-4 pt-16 pb-8 relative overflow-hidden">
+    <div className="min-h-screen bg-background px-4 pt-[3.75rem] pb-8 sm:pt-16 relative overflow-hidden">
       {/* Sticky header */}
       <header className="fixed top-0 inset-x-0 z-50 bg-background/80 backdrop-blur-md border-b border-border/60">
         <div className="max-w-6xl mx-auto flex items-center justify-between px-4 h-14">
@@ -207,17 +207,17 @@ const TryDemo = () => {
         )}
 
         {/* HERO — slogan, Aspen, price and the form on the first screen */}
-        <div className="grid items-start gap-5 lg:grid-cols-2 lg:gap-10">
+        <div className="grid items-start gap-3 sm:gap-5 lg:grid-cols-2 lg:gap-10">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.1 }}
             className="text-center lg:pt-4 lg:text-left"
           >
-            <h1 className="text-3xl sm:text-4xl xl:text-5xl font-bold leading-tight mb-2">
+            <h1 className="text-[1.6rem] leading-[1.12] sm:text-4xl xl:text-5xl font-bold mb-1.5 sm:mb-2">
               {t("tryDemo.heroHeadline")}
             </h1>
-            <p className="text-muted-foreground text-sm sm:text-base mb-4">
+            <p className="text-muted-foreground text-[13px] leading-snug sm:text-base mb-2 sm:mb-3">
               {t("tryDemo.heroTagline")}
             </p>
 
@@ -230,9 +230,9 @@ const TryDemo = () => {
                 height={512}
                 decoding="async"
                 draggable={false}
-                className="aspect-[4/5] w-20 shrink-0 rounded-2xl object-cover object-top shadow-xl sm:w-28 lg:w-36"
+                className="aspect-[4/5] w-16 shrink-0 rounded-2xl object-cover object-top shadow-xl sm:w-28 lg:w-36"
               />
-              <div className="relative min-w-0 flex-1 rounded-2xl rounded-bl-sm border border-primary/30 bg-primary/10 px-3.5 py-3 sm:px-4">
+              <div className="relative min-w-0 flex-1 rounded-2xl rounded-bl-sm border border-primary/30 bg-primary/10 px-3 py-2.5 sm:px-4 sm:py-3">
                 <p className="text-xs leading-snug text-foreground sm:text-sm">
                   {t("tryDemo.aspenBubble")}
                 </p>
@@ -240,19 +240,20 @@ const TryDemo = () => {
             </div>
 
             {/* Price strip — up front, evergreen promo wording, no dates */}
-            <p className="mt-4 rounded-2xl border border-border bg-card/60 px-4 py-3 text-left text-xs leading-relaxed text-muted-foreground backdrop-blur-sm sm:text-sm">
+            <p className="mt-2.5 rounded-2xl border border-border bg-card/60 px-3.5 py-2 text-left text-xs leading-snug text-muted-foreground backdrop-blur-sm sm:mt-4 sm:px-4 sm:py-3 sm:text-sm sm:leading-relaxed">
               {t("tryDemo.priceStrip")}
             </p>
 
             {/* Ask Aspen — opens the live homepage widget (mounted below)
-                with a demo-page framing. The widget listens for this event
-                in floating mode. The preview sibling is hidden on this page
-                (see the mount note) so the buttons never double up. */}
-            <div className="mt-4 text-left">
+                with a demo-page framing; the widget listens for this event
+                in floating mode. On mobile it sits in normal flow directly
+                above the form (never over the submit button); the widget's
+                own bubble stays at the standard bottom corner. */}
+            <div className="mt-2.5 text-left sm:mt-4">
               <Button
                 type="button"
                 variant="outline"
-                className="h-11 gap-2 rounded-xl text-sm font-semibold"
+                className="h-9 gap-2 rounded-xl text-[13px] font-semibold sm:h-11 sm:text-sm"
                 onClick={() => window.dispatchEvent(new CustomEvent("open-homepage-aspen", { detail: { mode: "voice", start: true } }))}
               >
                 <Video className="h-4 w-4 text-primary" /> {t("tryDemo.askAspen")}

@@ -256,7 +256,7 @@ export default function DemoIntakePanel({ url, onUrlChange, auditBusinessName, o
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: 0.3 }}
       onSubmit={handleSubmit}
-      className="w-full space-y-3 rounded-[1.75rem] border border-border bg-card/80 p-4 shadow-xl backdrop-blur-sm sm:p-5"
+      className="w-full space-y-2.5 rounded-[1.75rem] border border-border bg-card/80 p-3.5 shadow-xl backdrop-blur-sm sm:space-y-3 sm:p-5"
       aria-label="Start your live demo"
     >
       {/* Aspen heads the intake, like the expanded widget. The portrait is a
@@ -266,7 +266,7 @@ export default function DemoIntakePanel({ url, onUrlChange, auditBusinessName, o
           h-full/w-full + object-cover/object-top gives the face-dominant
           head-and-shoulders crop at any container size. */}
       <div className="flex items-center gap-3">
-        <div className="h-14 w-14 shrink-0 overflow-hidden rounded-full border border-primary/50 bg-primary/10">
+        <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-primary/50 bg-primary/10 sm:h-14 sm:w-14">
           <img
             src={aspenPortrait}
             alt="Aspen"
@@ -278,8 +278,8 @@ export default function DemoIntakePanel({ url, onUrlChange, auditBusinessName, o
           />
         </div>
         <div className="min-w-0 text-left">
-          <p className="text-sm font-bold text-foreground">Hi, I&rsquo;m Aspen</p>
-          <p className="text-xs leading-snug text-muted-foreground">
+          <p className="text-[13px] font-bold text-foreground sm:text-sm">Hi, I&rsquo;m Aspen</p>
+          <p className="text-[11px] leading-snug text-muted-foreground sm:text-xs">
             Tell me where to look and I&rsquo;ll bring your website to life — then prove it&rsquo;s really you with a quick 4-digit code.
           </p>
         </div>
@@ -292,7 +292,7 @@ export default function DemoIntakePanel({ url, onUrlChange, auditBusinessName, o
             placeholder="Your name *"
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
-            className="h-12 rounded-xl border-border bg-card pl-9 text-sm focus-visible:ring-primary"
+            className="h-11 rounded-xl border-border bg-card pl-9 text-sm focus-visible:ring-primary sm:h-12"
             disabled={isSubmitting}
             aria-label="Your name"
           />
@@ -304,7 +304,7 @@ export default function DemoIntakePanel({ url, onUrlChange, auditBusinessName, o
             type="tel"
             value={phone}
             onChange={(e) => setPhone(formatPhoneNumber(e.target.value))}
-            className="h-12 rounded-xl border-border bg-card pl-9 text-sm focus-visible:ring-primary"
+            className="h-11 rounded-xl border-border bg-card pl-9 text-sm focus-visible:ring-primary sm:h-12"
             disabled={isSubmitting}
             aria-label="Phone (optional)"
           />
@@ -324,7 +324,7 @@ export default function DemoIntakePanel({ url, onUrlChange, auditBusinessName, o
                 if (normalized !== url) onUrlChange(normalized);
               }
             }}
-            className="h-12 rounded-xl border-border bg-card pl-9 text-sm focus-visible:ring-primary"
+            className="h-11 rounded-xl border-border bg-card pl-9 text-sm focus-visible:ring-primary sm:h-12"
             disabled={isSubmitting}
             aria-label="Your website"
           />
@@ -336,7 +336,7 @@ export default function DemoIntakePanel({ url, onUrlChange, auditBusinessName, o
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="h-12 rounded-xl border-border bg-card pl-9 text-sm focus-visible:ring-primary"
+            className="h-11 rounded-xl border-border bg-card pl-9 text-sm focus-visible:ring-primary sm:h-12"
             disabled={isSubmitting}
             aria-label="Email for your verification code"
           />
@@ -482,7 +482,7 @@ export default function DemoIntakePanel({ url, onUrlChange, auditBusinessName, o
         type="submit"
         size="lg"
         disabled={isSubmitting || !url.trim() || !fullName.trim() || !email.trim()}
-        className="h-14 w-full rounded-xl bg-primary text-base font-bold text-primary-foreground shadow-[0_0_30px_-5px_hsl(var(--primary)/0.4)] transition-all hover:bg-primary/90 hover:shadow-[0_0_40px_-5px_hsl(var(--primary)/0.6)]"
+        className="h-12 w-full rounded-xl bg-primary text-base font-bold text-primary-foreground shadow-[0_0_30px_-5px_hsl(var(--primary)/0.4)] transition-all hover:bg-primary/90 hover:shadow-[0_0_40px_-5px_hsl(var(--primary)/0.6)] sm:h-14"
       >
         {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : "Show me my talking website"}
       </Button>
