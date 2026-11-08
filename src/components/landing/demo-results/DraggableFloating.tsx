@@ -16,7 +16,11 @@ interface DraggableFloatingProps {
   anchorRight?: boolean;
   anchorBottom?: boolean;
   dragLabel?: string;
-  resetKey?: string | number;  dragHandlePlacement?: 'below' | 'portrait' | 'top';
+  resetKey?: string | number;  /** 'below': in-flow pill under the content. 'top': pill at the top of the
+   * bubble (minimized stages). 'chest': no pill here — the child shell
+   * (FloatingPersonFrame) renders the [data-drag-handle] inside its chest
+   * control cluster, at the portrait's bottom edge. */
+  dragHandlePlacement?: 'below' | 'chest' | 'top';
 }
 
 const DraggableFloating = ({
@@ -215,9 +219,9 @@ const DraggableFloating = ({
         '--aspen-available-height': `${Math.max(140, viewport.height - 56)}px`,
       } as React.CSSProperties}
     >
-      <div className={dragHandlePlacement === 'below' ? "flex flex-col items-center" : dragHandlePlacement === 'portrait' ? "aspen-drag-portrait flex flex-col items-center" : "aspen-drag-top flex flex-col items-center"}>
+      <div className={dragHandlePlacement === 'below' ? "flex flex-col items-center" : dragHandlePlacement === 'chest' ? "aspen-drag-chest flex flex-col items-center" : "aspen-drag-top flex flex-col items-center"}>
         {children}
-        <Button
+        {dragHandlePlacement !== 'chest' && <Button
           type="button"
           data-drag-handle
           variant="ghost"
@@ -226,7 +230,7 @@ const DraggableFloating = ({
         >
           <GripVertical className="h-3 w-3" />
           <span className="text-[8px] font-bold uppercase tracking-wider">{isDragging ? "Moving" : "Drag"}</span>
-        </Button>
+        </Button>}
       </div>
     </div>
     </>, document.body

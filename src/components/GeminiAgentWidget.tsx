@@ -4,7 +4,7 @@ import DraggableFloating from '@/components/landing/demo-results/DraggableFloati
 import { preloadVoiceIdentity } from '@/lib/voicePreload';
 import ChatWidget from '@/components/landing/demo-results/ChatWidget';
 import AspenSalesActions from '@/components/AspenSalesActions';
-import FloatingPersonFrame, { type Stage3Controls } from '@/components/FloatingPersonFrame';
+import FloatingPersonFrame, { AspenModeToggle, type Stage3Controls } from '@/components/FloatingPersonFrame';
 import { matchingAspenVideo } from '@/lib/aspenFace';
 
 import { themeVariables, type WidgetTheme } from '../../supabase/functions/_shared/widget-theme';
@@ -49,11 +49,11 @@ export default function GeminiAgentWidget({ agentId, leadId, prospectId, busines
  const content=<>
   <FloatingPersonFrame name={identity.name} avatarUrl={faceUrl} open={open} minimized={minimized} mode={mode} onOpen={openWidget} onMinimize={()=>{setOpen(false);setMinimized(true);}} onClose={closeAssistant} onMode={changeMode} keepRendered={canPrewarm} stage3={stage3}>
    {hasOpened && mode==='voice' && !identityReady && <div role="status" className="aspen-panel text-muted-foreground">Connecting…</div>}
-   {mounted && mode==='voice' && identityReady && <GeminiConversation compact faceFirst avatarUrl={faceUrl} autoStart={clickedOpen || autoStart} consentOnOpen={clickedOpen} prewarm={canPrewarm} agentId={identity.id || agentId} leadId={leadId} prospectId={prospectId} name={identity.name} visitorName={callerName} onRecommendedPlan={setRecommendedPlan} videoAvatar={agentId ? identity.videoAvatar : matchingAspenVideo(identity.videoAvatar)} avatarInline shellControlsRef={shellControlsRef} onShellState={setShellState} />}
+   {mounted && mode==='voice' && identityReady && <GeminiConversation compact faceFirst avatarUrl={faceUrl} autoStart={clickedOpen || autoStart} consentOnOpen={clickedOpen} prewarm={canPrewarm} agentId={identity.id || agentId} leadId={leadId} prospectId={prospectId} name={identity.name} visitorName={callerName} onRecommendedPlan={setRecommendedPlan} videoAvatar={agentId ? identity.videoAvatar : matchingAspenVideo(identity.videoAvatar)} avatarInline shellControlsRef={shellControlsRef} onShellState={setShellState} belowAvatar={<AspenModeToggle mode={mode} onMode={changeMode} />} />}
    {chatVisited && <div className={mode==='chat'?'aspen-panel min-h-80 overflow-hidden rounded-lg border border-border bg-card':'hidden'}><div className="aspen-chat-content"><ChatWidget embedded active={open && mode==='chat'} businessName={businessName || identity.businessName} businessNiche="general" websiteUrl={window.location.origin} businessInfo="AI Hidden Leads provides AI voice and chat assistants, B2B lead generation and search growth services. Refer visitors to the current homepage for pricing and package details." callerName={callerName} leadId={leadId} prospectId={prospectId} /></div></div>}
    {(!agentId || leadId || prospectId) && <div className="aspen-sales-actions"><AspenSalesActions plan={recommendedPlan} /></div>}
   </FloatingPersonFrame>
  </>;
  const themedContent=<div style={agentId ? themeVariables(identity.theme) as CSSProperties : undefined}>{content}</div>;
-  return <DraggableFloating initialX={12} initialY={window.innerHeight-90} anchorRight anchorBottom resetKey={open ? 'open' : 'closed'} dragHandlePlacement={minimized ? 'top' : 'portrait'}>{themedContent}</DraggableFloating>;
+  return <DraggableFloating initialX={12} initialY={window.innerHeight-90} anchorRight anchorBottom resetKey={open ? 'open' : 'closed'} dragHandlePlacement={open ? 'chest' : minimized ? 'top' : 'below'}>{themedContent}</DraggableFloating>;
 }

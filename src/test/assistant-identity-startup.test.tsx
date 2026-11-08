@@ -4,7 +4,7 @@ import GeminiAgentWidget from '@/components/GeminiAgentWidget';
 const mocks = vi.hoisted(() => ({ preload: vi.fn(), conversation: vi.fn() }));
 vi.mock('@/lib/voicePreload', () => ({ preloadVoiceIdentity: mocks.preload }));
 vi.mock('@/components/GeminiConversation', () => ({ default: (props: unknown) => { mocks.conversation(props); return null; } }));
-vi.mock('@/components/FloatingPersonFrame', () => ({ default: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
+vi.mock('@/components/FloatingPersonFrame', () => ({ default: ({ children }: { children: React.ReactNode }) => <>{children}</>, AspenModeToggle: () => null }));
 vi.mock('@/components/landing/demo-results/DraggableFloating', () => ({ default: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 vi.mock('@/components/AspenSalesActions', () => ({ default: () => null }));
 vi.mock('@/components/landing/demo-results/ChatWidget', () => ({ default: () => null }));

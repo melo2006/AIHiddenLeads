@@ -4,12 +4,15 @@ import FloatingPersonFrame, { type Stage3Controls } from '@/components/FloatingP
 
 // Three-stage widget chrome (Ron, 2026-11-08 — reverses the 2026-11-03
 // controls-v2 ruling): Stage 1 is ONE small bubble with a single "Tap to
-// talk" label and no stacked bars; Stage 2 (open) pins a Voice/Type
-// segmented toggle at the top, keeps the recording disclosure as small print
-// inside the open view, and splits window controls into dash = minimize
-// (session preserved) and X = END the conversation; Stage 3 (minimized
-// while talking) is her bubble head with a pulsing live ring + one slim
-// control bar — no thread, no captions.
+// talk" label and no stacked bars; Stage 2 (open) keeps the recording
+// disclosure as small print inside the open view, puts the Voice/Type
+// segmented toggle BELOW her chest (between the portrait and the chat /
+// captions box — never above her), and gathers the window controls into
+// ONE chest cluster at the portrait's bottom edge: drag handle + dash =
+// minimize (session preserved) + X = END the conversation, exactly one
+// each, nothing over her face; Stage 3 (minimized while talking) is her
+// bubble head with a pulsing live ring + one slim control bar — no
+// thread, no captions.
 const baseProps = { mode: 'voice' as const, onOpen: vi.fn(), onClose: vi.fn(), onMinimize: vi.fn(), onMode: vi.fn() };
 
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
@@ -30,11 +33,14 @@ const stage3: Stage3Controls = {
 };
 
 describe('widget chrome layout — three stages', () => {
-  it('stage 2: the Voice/Type segmented toggle is pinned at the top of the open panel', () => {
+  it('stage 2: the Voice/Type segmented toggle renders BELOW the portrait, above the chat box', () => {
     render(<FloatingPersonFrame {...baseProps} open mode="chat"><div>panel</div></FloatingPersonFrame>);
     const toggle = screen.getByRole('group', { name: 'Conversation mode' });
     const portrait = screen.getByAltText('Aspen');
-    expectBefore(toggle, portrait);
+    // Below her chest: the portrait comes first in DOM order, then the
+    // toggle, then the chat thread box — never above her.
+    expectBefore(portrait, toggle);
+    expectBefore(toggle, screen.getByText('panel'));
     const voice = screen.getByRole('button', { name: /Voice/ });
     const type = screen.getByRole('button', { name: /Type/ });
     expect(voice.getAttribute('aria-pressed')).toBe('false');
@@ -43,15 +49,27 @@ describe('widget chrome layout — three stages', () => {
     expect(baseProps.onMode).toHaveBeenCalledWith('voice');
   });
 
-  it('stage 2: dash minimizes without ending; X ends the conversation', () => {
+  it('stage 2: exactly one Minimize and one End, together with the drag handle in the chest cluster', () => {
     render(<FloatingPersonFrame {...baseProps} open><div>conversation panel</div></FloatingPersonFrame>);
     const panel = screen.getByText('conversation panel');
+    // Exactly one of each window control in the whole open shell.
+    expect(screen.getAllByRole('button', { name: 'Minimize' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'End conversation' })).toHaveLength(1);
     const dash = screen.getByRole('button', { name: 'Minimize' });
     const x = screen.getByRole('button', { name: 'End conversation' });
     expectBefore(panel, dash);
     expectBefore(panel, x);
-    // The X keeps the chest-overlay positioning on her portrait.
-    expect(x.className).toContain('aspen-person-x-overlay');
+    // All three controls live in the single chest cluster; the drag handle
+    // is the shell's [data-drag-handle] for DraggableFloating.
+    const cluster = dash.closest('.aspen-person-chest-cluster');
+    expect(cluster).toBeTruthy();
+    expect(cluster?.contains(x)).toBe(true);
+    const drag = cluster?.querySelector('[data-drag-handle]');
+    expect(drag).toBeTruthy();
+    expect(drag?.getAttribute('aria-label')).toBe('Drag widget');
+    // No face overlay remains: the old portrait-overlay X class is gone.
+    expect(x.className).not.toContain('aspen-person-x-overlay');
+    expect(screen.queryByRole('group', { name: 'Window controls' })?.className).toContain('aspen-person-chest-cluster');
     expectNoLegacyControls();
     fireEvent.click(dash);
     expect(baseProps.onMinimize).toHaveBeenCalledTimes(1);
