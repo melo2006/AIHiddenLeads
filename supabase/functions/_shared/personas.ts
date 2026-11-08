@@ -22,7 +22,7 @@
 // Segment prompts live with their owners: the simulation segments in
 // voice-config.ts (split at the script's natural seams; SIMULATION_PROMPT
 // stays assembled byte-identical), the Alex guest segment in alex-guide.ts.
-import { ALEX_FACE_ID, ALEX_VOICE, alexDemoGuestConfig } from './alex-guide.ts';
+import { ALEX_FACE_ID, ALEX_VOICE } from './alex-guide.ts';
 import {
   SIMULATION_CLOSE_SEGMENT,
   SIMULATION_HOST_SEGMENT,
@@ -141,8 +141,9 @@ export function bindSegmentNames(segment: string, persona: PersonaBinding): stri
 export interface PersonaSegmentBuild {
   /** Full systemPrompt for the segment session config. */
   systemPrompt: string;
-  /** The greeting template the proxy's swap opening delivers (already
-   *  name-bound where the persona introduces herself in role). */
+  /** Spoken greeting TEMPLATE for the segment (template vars intact —
+   *  the proxy templates it the legacy way); '' when the segment needs
+   *  no greeting (host/close segments open via the swap opening only). */
   greeting: string;
 }
 
@@ -153,12 +154,16 @@ export interface PersonaSegmentBuild {
  * preamble + any verification/invite host-phase block gemini-session
  * prepended) ahead of the host segment, so gate/invite behaviour survives
  * the split untouched; the receptionist and close segments stand alone.
+ * The Alex build needs alex-guide's guest config; it is passed in as
+ * `alexGuest` by the caller (gemini-session imports both modules) to keep
+ * this module free of an import cycle with alex-guide.ts.
  */
 export function personaSegmentPrompt(
   persona: PersonaId,
   boundary: PersonaBoundary,
   businessName: string,
   parentPrompt: string,
+  alexGuest?: { systemPrompt: string; greeting: string },
 ): PersonaSegmentBuild {
   const binding = PERSONAS[persona];
   if (persona === 'sara') {
@@ -172,8 +177,8 @@ export function personaSegmentPrompt(
     };
   }
   if (persona === 'alex') {
-    const guest = alexDemoGuestConfig(businessName);
-    return { systemPrompt: guest.systemPrompt, greeting: guest.greeting };
+    if (!alexGuest) throw new Error('personaSegmentPrompt: alexGuest is required for the alex segment');
+    return { systemPrompt: alexGuest.systemPrompt, greeting: alexGuest.greeting };
   }
   // Aspen: the closing segment after Sara (stepout), the return after Alex
   // (return), or — at the doorway in reverse — the host segment that opens
