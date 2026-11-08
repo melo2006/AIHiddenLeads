@@ -6,12 +6,18 @@ import ChatWidget from '@/components/landing/demo-results/ChatWidget';
 import AspenSalesActions from '@/components/AspenSalesActions';
 import FloatingPersonFrame, { AspenModeToggle, type Stage3Controls } from '@/components/FloatingPersonFrame';
 import { matchingAspenVideo } from '@/lib/aspenFace';
+import { SIMLI_FACE_CATALOG } from '@/lib/simliFaceCatalog';
+import { ALEX_FACE_ID } from '../../supabase/functions/_shared/alex-guide';
 
 import { themeVariables, type WidgetTheme } from '../../supabase/functions/_shared/widget-theme';
 import type { VideoAvatar } from '../../supabase/functions/_shared/video-avatar';
 
-interface Props { agentId?: string; leadId?: string; prospectId?: string; businessName?: string; callerName?: string; onClose?: () => void; floating?: boolean; autoStart?: boolean; }
-export default function GeminiAgentWidget({ agentId, leadId, prospectId, businessName, callerName, onClose, floating = false, autoStart = false }: Props) {
+interface Props { agentId?: string; leadId?: string; prospectId?: string; businessName?: string; callerName?: string; onClose?: () => void; floating?: boolean; autoStart?: boolean; /** 'alex' renders the platform setup guide (Alex — Support Specialist, Lukas face) instead of a tenant agent; mounted only inside the setup wizard. */ guide?: 'alex'; }
+export const ALEX_GUIDE_LABEL = 'Alex — Support Specialist';
+const alexPortrait = SIMLI_FACE_CATALOG.find(f => f.id === ALEX_FACE_ID)?.image;
+const alexVideoAvatar: VideoAvatar = { enabled: true, provider: 'simli', faceId: ALEX_FACE_ID, position: 'bottom-right', size: 200, shape: 'circle' };
+export default function GeminiAgentWidget({ agentId, leadId, prospectId, businessName, callerName, onClose, floating = false, autoStart = false, guide }: Props) {
+ const isGuide = guide === 'alex';
  const [open,setOpen]=useState(!floating);
  const [hasOpened,setHasOpened]=useState(!floating);
  const [clickedOpen,setClickedOpen]=useState(false);
@@ -21,10 +27,10 @@ export default function GeminiAgentWidget({ agentId, leadId, prospectId, busines
  const [recommendedPlan,setRecommendedPlan]=useState<string|null>(null);
  const [identity,setIdentity]=useState<{id?:string;name:string;businessName:string;avatarUrl:string;theme?:WidgetTheme;videoAvatar?:VideoAvatar}>({name:'Aspen',businessName:businessName||'AI Hidden Leads',avatarUrl:''});
  const [identityReady,setIdentityReady]=useState(false);
- useEffect(()=>{let active=true;setIdentityReady(false);void preloadVoiceIdentity(agentId).then(data=>{if(!active)return;if(data?.name){setIdentity({...data,businessName:businessName||data.businessName});setIdentityReady(true);}});return()=>{active=false;};},[agentId,leadId,prospectId,businessName]);
- const [prewarm,setPrewarm]=useState(floating && !agentId);
+ useEffect(()=>{if(isGuide){setIdentity({name:'Alex',businessName:'AI Hidden Leads',avatarUrl:alexPortrait || '',videoAvatar:alexVideoAvatar});setIdentityReady(true);return;}let active=true;setIdentityReady(false);void preloadVoiceIdentity(agentId).then(data=>{if(!active)return;if(data?.name){setIdentity({...data,businessName:businessName||data.businessName});setIdentityReady(true);}});return()=>{active=false;};},[agentId,leadId,prospectId,businessName,isGuide]);
+ const [prewarm,setPrewarm]=useState(floating && !agentId && !isGuide);
  const openWidget=()=>{setHasOpened(true);setClickedOpen(true);setMinimized(false);setOpen(true);};
- useEffect(()=>{if(agentId || !floating)return;const show=(event:Event)=>{const next=(event as CustomEvent).detail?.mode==='chat'?'chat':'voice';setMode(next);setChatVisited(next==='chat');setHasOpened(true);setClickedOpen((event as CustomEvent).detail?.start===true);setMinimized(false);setOpen(true);};window.addEventListener('open-homepage-aspen',show);return()=>window.removeEventListener('open-homepage-aspen',show);},[agentId,floating]);
+ useEffect(()=>{if(agentId || isGuide || !floating)return;const show=(event:Event)=>{const next=(event as CustomEvent).detail?.mode==='chat'?'chat':'voice';setMode(next);setChatVisited(next==='chat');setHasOpened(true);setClickedOpen((event as CustomEvent).detail?.start===true);setMinimized(false);setOpen(true);};window.addEventListener('open-homepage-aspen',show);return()=>window.removeEventListener('open-homepage-aspen',show);},[agentId,floating]);
  const faceUrl = agentId ? identity.avatarUrl : undefined;
  // Stage 3 (minimized while talking): the frame's slim bar drives the live
  // Gemini session through its shell command surface.
@@ -43,15 +49,16 @@ export default function GeminiAgentWidget({ agentId, leadId, prospectId, busines
    onToggleSpeaker: () => shellControlsRef.current?.toggleSpeaker(),
    onReplay: () => shellControlsRef.current?.replay(),
  } : undefined;
- const changeMode=(next:'voice'|'chat')=>{setMode(next);if(next==='chat')setChatVisited(true);};
+ const changeMode=(next:'voice'|'chat')=>{if(isGuide && next==='chat')return;setMode(next);if(next==='chat')setChatVisited(true);};
  const canPrewarm = prewarm && identityReady && !identity.videoAvatar?.enabled;
  const mounted = hasOpened || canPrewarm;
  const content=<>
   <FloatingPersonFrame name={identity.name} avatarUrl={faceUrl} open={open} minimized={minimized} mode={mode} onOpen={openWidget} onMinimize={()=>{setOpen(false);setMinimized(true);}} onClose={closeAssistant} onMode={changeMode} keepRendered={canPrewarm} stage3={stage3}>
    {hasOpened && mode==='voice' && !identityReady && <div role="status" className="aspen-panel text-muted-foreground">Connecting…</div>}
-   {mounted && mode==='voice' && identityReady && <GeminiConversation compact faceFirst avatarUrl={faceUrl} autoStart={clickedOpen || autoStart} consentOnOpen={clickedOpen} prewarm={canPrewarm} agentId={identity.id || agentId} leadId={leadId} prospectId={prospectId} name={identity.name} visitorName={callerName} onRecommendedPlan={setRecommendedPlan} videoAvatar={agentId ? identity.videoAvatar : matchingAspenVideo(identity.videoAvatar)} avatarInline shellControlsRef={shellControlsRef} onShellState={setShellState} belowAvatar={<AspenModeToggle mode={mode} onMode={changeMode} />} />}
+   {mounted && mode==='voice' && identityReady && <GeminiConversation compact faceFirst avatarUrl={faceUrl} autoStart={clickedOpen || autoStart} consentOnOpen={clickedOpen} prewarm={canPrewarm} agentId={isGuide ? undefined : identity.id || agentId} leadId={leadId} prospectId={prospectId} name={identity.name} visitorName={callerName} onRecommendedPlan={setRecommendedPlan} videoAvatar={isGuide ? identity.videoAvatar : agentId ? identity.videoAvatar : matchingAspenVideo(identity.videoAvatar)} guide={guide} avatarInline shellControlsRef={shellControlsRef} onShellState={setShellState} belowAvatar={<AspenModeToggle mode={mode} onMode={changeMode} />} />}
    {chatVisited && <div className={mode==='chat'?'aspen-panel min-h-80 overflow-hidden rounded-lg border border-border bg-card':'hidden'}><div className="aspen-chat-content"><ChatWidget embedded active={open && mode==='chat'} businessName={businessName || identity.businessName} businessNiche="general" websiteUrl={window.location.origin} businessInfo="AI Hidden Leads provides AI voice and chat assistants, B2B lead generation and search growth services. Refer visitors to the current homepage for pricing and package details." callerName={callerName} leadId={leadId} prospectId={prospectId} /></div></div>}
-   {(!agentId || leadId || prospectId) && <div className="aspen-sales-actions"><AspenSalesActions plan={recommendedPlan} /></div>}
+   {open && isGuide && <p className="aspen-guide-label text-center text-xs font-semibold text-muted-foreground">{ALEX_GUIDE_LABEL}</p>}
+   {!isGuide && (!agentId || leadId || prospectId) && <div className="aspen-sales-actions"><AspenSalesActions plan={recommendedPlan} /></div>}
   </FloatingPersonFrame>
  </>;
  const themedContent=<div style={agentId ? themeVariables(identity.theme) as CSSProperties : undefined}>{content}</div>;

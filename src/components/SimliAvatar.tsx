@@ -20,7 +20,7 @@ export interface SimliAvatarHandle {
   clear: () => void;
   setPlaybackMuted: (muted: boolean) => void;
 }
-export interface SimliAvatarProps { avatar: VideoAvatar; agentId?: string; shareToken?: string; draft?: boolean; faceOverride?: string; inline?: boolean; unboxed?: boolean; onLiveChange?: (live: boolean) => void; }
+export interface SimliAvatarProps { avatar: VideoAvatar; agentId?: string; shareToken?: string; draft?: boolean; faceOverride?: string; inline?: boolean; unboxed?: boolean; onLiveChange?: (live: boolean) => void; /** Platform guide ('alex'): request the guide's fixed library face token instead of a tenant agent's face. */ guide?: "alex"; }
 
 const POSITION: Record<VideoAvatar["position"], string> = {
   "bottom-right": "bottom-28 right-3", "bottom-left": "bottom-28 left-3", "top-right": "top-20 right-3", "top-left": "top-20 left-3",
@@ -161,7 +161,7 @@ export async function sessionToken(body: Record<string, unknown>, cancel?: Abort
 }
 
 /** Owns one Simli session: the face lip-syncs Gemini's audio; Gemini remains the only conversation brain. */
-const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, agentId, shareToken, draft, faceOverride, inline = false, unboxed = false, onLiveChange }, ref) => {
+const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, agentId, shareToken, draft, faceOverride, inline = false, unboxed = false, onLiveChange, guide }, ref) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -267,8 +267,8 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
         startupRejectRef.current = error => rejectStartup?.(error);
         const tokenAbort = new AbortController(); tokenAbortRef.current = tokenAbort;
         const { token, chromaKey } = attemptIndex === 0
-          ? await sessionToken({ agentId, shareToken, draft, faceId: faceOverride }, tokenAbort.signal)
-          : await sessionToken({ agentId, shareToken, draft, faceId: faceOverride }, tokenAbort.signal, 1, 8000);
+          ? await sessionToken({ agentId, shareToken, draft, faceId: faceOverride, guide }, tokenAbort.signal)
+          : await sessionToken({ agentId, shareToken, draft, faceId: faceOverride, guide }, tokenAbort.signal, 1, 8000);
         if (tokenAbortRef.current === tokenAbort) tokenAbortRef.current = null;
         if (lifecycle !== lifecycleRef.current) return false;
         installWebSocketUrlStringShim();
