@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { MessageSquare, Mic, MicOff, X, Minus, AudioLines, Play, Pause, PhoneOff, RotateCcw, Volume2, VolumeX, Maximize2 } from 'lucide-react';
+import { MessageSquare, Mic, MicOff, X, Minus, AudioLines, Play, Pause, PhoneOff, RotateCcw, Volume2, VolumeX, Maximize2, GripVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import aspenPortrait from '@/assets/aspen-video-frame-final.webp';
 import aspenIdleBeckon from '@/assets/aspen-idle-wave.gif';
@@ -27,14 +27,30 @@ export interface Stage3Controls {
 
 const barButton = 'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-foreground transition-colors hover:bg-muted';
 
+const segmentClass = (active: boolean) => `flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${active ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`;
+
+/** Voice/Type segmented toggle. Rendered BELOW her chest — in chat mode the
+ * frame places it between the portrait and the chat box; in voice mode the
+ * widget passes it into GeminiConversation (belowAvatar), which renders it
+ * between the live face and the voice/captions panel. Never above her. */
+export function AspenModeToggle({ mode, onMode }: { mode: 'voice' | 'chat'; onMode: (mode: 'voice' | 'chat') => void }) {
+  return <div className="mx-auto flex shrink-0 items-center gap-0.5 rounded-full border border-border bg-muted/50 p-0.5" role="group" aria-label="Conversation mode">
+    <button type="button" className={segmentClass(mode === 'voice')} aria-pressed={mode === 'voice'} onClick={() => onMode('voice')}><AudioLines className="h-3.5 w-3.5" />Voice</button>
+    <button type="button" className={segmentClass(mode === 'chat')} aria-pressed={mode === 'chat'} onClick={() => onMode('chat')}><MessageSquare className="h-3.5 w-3.5" />Type</button>
+  </div>;
+}
+
 /**
  * The three-stage Aspen shell (Ron, 2026-11-08):
  *  Stage 1 — idle bubble: one small round bubble (tight face/shoulders crop,
  *    so the waving hand and its baked-in shadow stay out of frame) and ONE
  *    label, "Tap to talk". No stacked bars, no recording notice here.
- *  Stage 2 — open chat: segmented Voice/Type toggle pinned at the top, her +
- *    chat thread + captions, dash (–) minimizes WITHOUT ending, X ENDS the
- *    conversation, and the recording disclosure lives here as small print.
+ *  Stage 2 — open chat: her portrait/live face on top, the segmented
+ *    Voice/Type toggle BELOW her chest (between her and the chat thread /
+ *    captions box), and ONE chest cluster at the portrait's bottom edge —
+ *    drag handle + dash (–) minimizes WITHOUT ending + X ENDS the
+ *    conversation. Nothing overlays her face. The recording disclosure
+ *    lives here as small print.
  *  Stage 3 — minimized while talking: her bubble head with a pulsing live
  *    ring + one slim bar (pause/resume, disconnect, mic, speaker, replay,
  *    maximize). No thread, no captions — the page stays scrollable.
@@ -54,13 +70,9 @@ export default function FloatingPersonFrame({ name = 'Aspen', avatarUrl, open, m
   // photo ('') keeps the plain mic icon instead of borrowing Aspen's face.
   const bubblePhoto = avatarUrl === undefined ? aspenIdleBeckon : avatarUrl;
   const stage = open ? 2 : minimized ? (stage3 ? 3 : 0) : 1;
-  const segmentClass = (active: boolean) => `flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${active ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`;
   return <section aria-label={`${name} floating assistant`} className={`aspen-person-shell relative ${open ? 'aspen-person-expanded' : 'aspen-person-collapsed'} ${stage === 1 ? 'aspen-person-stage1 items-center' : ''} ${stage === 3 ? 'aspen-person-stage3' : ''} ${stage === 0 ? '!w-24 items-center' : ''}`}>
-    {open && <div className="mx-auto flex shrink-0 items-center gap-0.5 rounded-full border border-border bg-muted/50 p-0.5" role="group" aria-label="Conversation mode">
-      <button type="button" className={segmentClass(mode === 'voice')} aria-pressed={mode === 'voice'} onClick={() => onMode('voice')}><AudioLines className="h-3.5 w-3.5" />Voice</button>
-      <button type="button" className={segmentClass(mode === 'chat')} aria-pressed={mode === 'chat'} onClick={() => onMode('chat')}><MessageSquare className="h-3.5 w-3.5" />Type</button>
-    </div>}
     {open && mode === 'chat' && <PersonPortrait name={name} avatarUrl={avatarUrl} />}
+    {open && mode === 'chat' && <AspenModeToggle mode={mode} onMode={onMode} />}
     {stage === 1 && <Button variant="ghost" onClick={onOpen} title={talkLabel} aria-label={talkLabel} className="flex h-auto flex-col items-center gap-1.5 p-0 hover:bg-transparent">
       <span className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border border-primary/60 bg-primary text-primary-foreground shadow-lg">
         {bubblePhoto ? <img src={bubblePhoto} alt="" draggable={false} className="aspen-bubble-face h-full w-full" /> : <Mic className="h-8 w-8" />}
@@ -92,9 +104,13 @@ export default function FloatingPersonFrame({ name = 'Aspen', avatarUrl, open, m
     </div>}
     <div className={open ? 'min-h-0' : keepRendered ? 'aspen-prewarm-offscreen' : 'hidden'} aria-hidden={!open || undefined}>{children}</div>
     {open && <>
-      <div className="aspen-person-window-controls flex shrink-0 justify-end gap-1">
+      <div className="aspen-person-chest-cluster" role="group" aria-label="Window controls">
+        <button type="button" data-drag-handle className="flex h-8 cursor-grab touch-none select-none items-center gap-1 rounded-full border border-primary/60 bg-background/90 px-2 text-primary shadow-sm backdrop-blur-sm transition-colors hover:bg-secondary active:cursor-grabbing" aria-label="Drag widget" title="Drag">
+          <GripVertical className="h-3.5 w-3.5" />
+          <span className="text-[8px] font-bold uppercase tracking-wider">Drag</span>
+        </button>
         <Button size="icon" variant="secondary" className="h-8 w-8 border border-border bg-background/90 text-foreground" onClick={onMinimize} title="Minimize" aria-label="Minimize"><Minus className="h-4 w-4" /></Button>
-        <Button size="icon" variant="secondary" className="aspen-person-x-overlay h-8 w-8 border border-primary/60 bg-background/90 text-foreground" onClick={onClose} title="End conversation" aria-label="End conversation"><X className="h-4 w-4" /></Button>
+        <Button size="icon" variant="secondary" className="h-8 w-8 border border-primary/60 bg-background/90 text-foreground" onClick={onClose} title="End conversation" aria-label="End conversation"><X className="h-4 w-4" /></Button>
       </div>
       <p className="shrink-0 text-center text-[10px] leading-tight text-muted-foreground">Calls are recorded</p>
     </>}

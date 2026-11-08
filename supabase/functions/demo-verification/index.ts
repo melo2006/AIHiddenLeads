@@ -225,7 +225,7 @@ Deno.serve(async (req) => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            from: 'Aspen at AI Hidden Leads <onboarding@resend.dev>',
+            from: 'Aspen at AI Hidden Leads <aspen@aihiddenleads.com>',
             to: [target],
             subject: `Your AI Hidden Leads demo code: ${code}`,
             text: buildCodeEmailText(code),

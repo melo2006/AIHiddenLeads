@@ -340,7 +340,7 @@ Deno.serve(async (req) => {
           method: 'POST',
           headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            from: 'Aspen at AI Hidden Leads <onboarding@resend.dev>',
+            from: 'Aspen at AI Hidden Leads <aspen@aihiddenleads.com>',
             to: [lead.email],
             subject: `Your AI Hidden Leads phone demo for ${businessName}`,
             text,

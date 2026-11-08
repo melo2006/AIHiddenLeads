@@ -174,16 +174,15 @@
     .aspen-person-shell .aspen-sales-actions { display: none; }
   }
 
-/* Face-dominant overlay controls: the X and drag pill sit on her chest, near the bottom of the still portrait, not below the widget. */
-.aspen-person-x-overlay { position: absolute; left: calc(50% + 52px); top: 150px; z-index: 30; }
-.aspen-drag-pill-portrait { position: absolute; left: 50%; top: 158px; transform: translateX(-50%); z-index: 30; }
+/* Stage 2 chest cluster: ONE row — drag handle + minimize (dash) + end (X) —
+   straddling the bottom edge of her portrait (chest level), never over her
+   face. The portrait/livebox is 188px tall starting at the shell's top
+   (150px on compact phones), so the 32px cluster sits at its bottom edge. */
+.aspen-person-chest-cluster { position: absolute; left: 50%; top: 170px; transform: translateX(-50%); z-index: 30; display: flex; align-items: center; gap: .25rem; }
 .aspen-drag-pill-top { position: absolute; left: 50%; top: 0; transform: translateX(-50%); z-index: 30; }
-.aspen-drag-portrait > button[data-drag-handle] { position: absolute; left: 50%; top: 158px; transform: translateX(-50%); z-index: 30; margin-top: 0; }
 .aspen-drag-top > button[data-drag-handle] { position: absolute; left: 50%; top: 0; transform: translateX(-50%); z-index: 30; margin-top: 0; }
 @media (max-width: 639px) {
-  .aspen-person-x-overlay { left: calc(50% + 42px); top: 112px; }
-  .aspen-drag-pill-portrait { top: 120px; }
-  .aspen-drag-portrait > button[data-drag-handle] { top: 120px; }
+  .aspen-person-chest-cluster { top: 132px; }
 }
   .aspen-panel { position: relative; z-index: 10; display: flex; flex-direction: column; max-height: min(70dvh, var(--aspen-available-height, 70dvh)); }
   .aspen-panel.hidden { display: none; }
