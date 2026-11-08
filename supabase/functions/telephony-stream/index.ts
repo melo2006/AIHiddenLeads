@@ -53,6 +53,20 @@ Deno.serve(async (req) => {
     if (!secret || req.headers.get('x-telephony-secret') !== secret) return json({ error: 'Forbidden' }, 403);
     const b = await req.json().catch(() => ({}));
     if (b.action === 'health') return json({ ok: true });
+    if (b.action === 'telnyx-start') {
+      // Telnyx bridge: call.initiated arrived before any token exists. Find the
+      // client by the dialed number (same lookup as the Twilio incoming path)
+      // and mint a single-use token exactly like the Twilio stream path. The
+      // row is keyed by the Telnyx call_control_id in call_sid (an opaque
+      // string everywhere it is used; Telnyx ids are v2:-prefixed, so they
+      // can never collide with Twilio CA... SIDs).
+      const { data: tClient } = await db.from('telephony_clients').select('id').eq('voice_number', String(b.to || '')).eq('active', true).maybeSingle();
+      if (!tClient) return json({ error: 'Number not set up' }, 404);
+      const tToken = crypto.randomUUID() + crypto.randomUUID();
+      const { error: tErr } = await db.from('telephony_calls').insert({ client_id: tClient.id, call_sid: String(b.callControlId || ''), from_phone: b.from ? String(b.from) : null, token_hash: await sha256(tToken), token_used: false, status: 'in_progress', transport: 'telnyx-stream' });
+      if (tErr) return json({ error: 'Could not create call' }, 500);
+      return json({ token: tToken });
+    }
     if (typeof b.token !== 'string' || b.token.length < 40) return json({ error: 'Invalid token' }, 400);
     const { data: call } = await db.from('telephony_calls').select('*').eq('token_hash', await sha256(b.token)).maybeSingle();
     if (!call) return json({ error: 'Unknown call' }, 404);
@@ -94,7 +108,10 @@ Deno.serve(async (req) => {
     }
 
     const transcript = Array.isArray(b.transcript) ? b.transcript.slice(-400).map((t: { role?: string; text?: string }) => ({ role: t.role === 'caller' ? 'caller' : 'assistant', text: String(t.text || '').slice(0, 1000) })) : undefined;
-    const aiUsage = b.usage && typeof b.usage === 'object' ? b.usage : undefined;
+    const latency = b.latency && typeof b.latency === 'object' ? b.latency : undefined;
+    const callReport = b.callReport && typeof b.callReport === 'object' ? b.callReport : undefined;
+    // Latency + the provider-dashboard call report ride inside ai_usage (no schema change).
+    const aiUsage = b.usage && typeof b.usage === 'object' ? { ...b.usage, ...(latency ? { latency } : {}), ...(callReport ? { call_report: callReport } : {}) } : (latency || callReport) ? { ...(latency ? { latency } : {}), ...(callReport ? { call_report: callReport } : {}) } : undefined;
     const reconnects = Number.isFinite(b.reconnects) ? Math.max(0, Math.min(50, Number(b.reconnects))) : undefined;
     const progress = { ...(transcript ? { transcript } : {}), ...(aiUsage ? { ai_usage: aiUsage } : {}), ...(reconnects != null ? { reconnects } : {}), last_checkpoint_at: new Date().toISOString() };
 
@@ -104,6 +121,11 @@ Deno.serve(async (req) => {
       if (!canTransfer) return json({ error: 'Transfer not available' }, 400);
       const summary = String(b.summary || '').slice(0, 300);
       await db.from('telephony_calls').update({ ...progress, transferred: true, transfer_summary: summary || null, status: 'transferred' }).eq('id', call.id);
+      // Telnyx has no TwiML-replace trick: the bridge executes the warm
+      // transfer itself (Dial + whisper + press-1 + Bridge) using the saved
+      // destination returned here. Keyed off the call row's transport, never
+      // off caller input. Twilio rows keep the TwiML path below, unchanged.
+      if (call.transport === 'telnyx-stream') return json({ ok: true, mode: 'bridge-executed', transferPhone: client.transfer_phone, transferName });
       // Saved destination only; whisper reuses the signed telephony-voice handler.
       const whisper = escapeXml(`${voiceBase}?action=whisper&sid=${encodeURIComponent(call.call_sid)}`);
       const twiml = `<Response><Dial callerId="${escapeXml(client.voice_number)}" timeout="25"><Number url="${whisper}">${escapeXml(client.transfer_phone)}</Number></Dial><Say>Sorry, ${escapeXml(transferName)} is not available right now. We will call you back soon. Goodbye.</Say><Hangup/></Response>`;
@@ -114,6 +136,18 @@ Deno.serve(async (req) => {
     if (b.action === 'end') {
       // Seconds/price are finalized by Twilio's status callback (telephony-voice?action=status).
       await db.from('telephony_calls').update(progress).eq('id', call.id);
+      // Telnyx has no carrier status callback: when the bridge reports the
+      // duration it observed, finalize seconds/usage for telnyx-stream rows
+      // only, mirroring telephony-voice?action=status. The carrier price
+      // reconciles from Telnyx's own CDRs, so provider_cost_usd stays null.
+      if (call.transport === 'telnyx-stream' && Number.isFinite(b.durationSec)) {
+        const seconds = Math.max(0, Math.min(86400, Math.round(Number(b.durationSec))));
+        const { data: fresh } = await db.from('telephony_calls').select('status').eq('id', call.id).maybeSingle();
+        if (fresh && fresh.status !== 'completed' && fresh.status !== 'transferred_done') {
+          await db.from('telephony_calls').update({ status: fresh.status === 'transferred' ? 'transferred_done' : 'completed', seconds, ended_at: new Date().toISOString() }).eq('id', call.id);
+          await db.from('telephony_usage').insert({ client_id: call.client_id, kind: 'voice', direction: 'inbound', seconds, segments: 0, provider_sid: call.call_sid, provider_cost_usd: null });
+        }
+      }
       return json({ ok: true });
     }
     return json({ error: 'Unknown action' }, 400);

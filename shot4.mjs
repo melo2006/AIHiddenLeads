@@ -1,0 +1,10 @@
+import { chromium } from 'playwright';
+const url = process.argv[2], out = process.argv[3], waitMs = parseInt(process.argv[4] || '5000');
+const rules = 'MAP aihiddenleads.com 216.239.32.21, MAP www.aihiddenleads.com 142.251.45.19, MAP mrtvqttecdfgphgxeygj.supabase.co 104.18.38.10';
+const browser = await chromium.launch({ args: ['--no-proxy-server', `--host-resolver-rules=${rules}`] });
+const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+await page.goto(url, { waitUntil: 'load', timeout: 60000 });
+await page.waitForTimeout(waitMs);
+await page.screenshot({ path: out });
+await browser.close();
+console.log('saved', out);
