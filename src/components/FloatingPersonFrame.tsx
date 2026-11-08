@@ -27,14 +27,19 @@ export interface Stage3Controls {
 
 const barButton = 'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-foreground transition-colors hover:bg-muted';
 
-const segmentClass = (active: boolean) => `flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${active ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`;
+const segmentClass = (active: boolean) => `flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${active ? 'bg-primary text-primary-foreground shadow-sm' : 'bg-transparent text-foreground hover:bg-muted'}`;
 
 /** Voice/Type segmented toggle. Rendered BELOW her chest — in chat mode the
  * frame places it between the portrait and the chat box; in voice mode the
  * widget passes it into GeminiConversation (belowAvatar), which renders it
  * between the live face and the voice/captions panel. Never above her. */
 export function AspenModeToggle({ mode, onMode }: { mode: 'voice' | 'chat'; onMode: (mode: 'voice' | 'chat') => void }) {
-  return <div className="mx-auto flex shrink-0 items-center gap-0.5 rounded-full border border-border bg-muted/50 p-0.5" role="group" aria-label="Conversation mode">
+  // Ron's rule (2026-11-09, after his Z Fold screenshots): BOTH options stay
+  // fully visible in BOTH states. The pill therefore carries its OWN opaque
+  // card background (never a translucent wash) and the inactive segment uses
+  // full-strength foreground text — a muted/translucent inactive option
+  // vanished over the gallery photos behind the floating widget.
+  return <div className="mx-auto flex shrink-0 items-center gap-0.5 rounded-full border border-border bg-card p-0.5 shadow-md" role="group" aria-label="Conversation mode">
     <button type="button" className={segmentClass(mode === 'voice')} aria-pressed={mode === 'voice'} onClick={() => onMode('voice')}><AudioLines className="h-3.5 w-3.5" />Voice</button>
     <button type="button" className={segmentClass(mode === 'chat')} aria-pressed={mode === 'chat'} onClick={() => onMode('chat')}><MessageSquare className="h-3.5 w-3.5" />Type</button>
   </div>;
