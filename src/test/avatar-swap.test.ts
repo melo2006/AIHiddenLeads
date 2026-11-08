@@ -39,7 +39,7 @@ describe('persona registry', () => {
     expect(PERSONAS.aspen.voiceName).toBe('Kore');
     expect(PERSONAS.alex.voiceName).toBe('Charon');
     expect(PERSONAS.sara.voiceName).toBe(SARA_VOICE);
-    expect(SARA_VOICE).toBe('Aoede');
+    expect(SARA_VOICE).toBe('Leda');
   });
   test('flag: AVATAR_SWAP_ENABLED defaults OFF', () => {
     const envOf = (m: Record<string, string>) => (n: string) => m[n];

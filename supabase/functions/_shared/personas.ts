@@ -51,10 +51,10 @@ export interface PersonaBinding {
   role: 'host' | 'receptionist' | 'guide';
 }
 
-/** Sara's voice. ONE named constant: Ron's live audition (Aoede /
- *  Callirrhoe / Despina — all in VOICES) may change it later; that is a
- *  one-line change here and nowhere else. */
-export const SARA_VOICE = 'Aoede';
+/** Sara's voice. ONE named constant: locked to Leda — Ron's pick from his
+ *  live audition (2026-11-09); a future change is a one-line edit here
+ *  and nowhere else. */
+export const SARA_VOICE = 'Leda';
 /** The Simli library preset "Sara" — the demo receptionist's face. */
 export const SARA_FACE_ID = 'f735e62c-dce7-4c0b-8e85-1c7e21774c45';
 /** Aspen's catalogue portrait key (her custom snapshot face). */
