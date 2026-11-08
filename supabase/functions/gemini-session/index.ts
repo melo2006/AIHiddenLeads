@@ -10,10 +10,11 @@ import { workspaceAccess } from '../_shared/customer-payments.ts';
 import { resolveDemoShare } from '../_shared/demo-share.ts';
 import { DEMO_INVITE_GREETING, DEMO_INVITE_OPENING, DEMO_VERIFICATION_ACT1, DEMO_VERIFICATION_GREETING } from '../_shared/demo-sales.ts';
 import { alexGuideConfig, alexDemoGuestConfig } from '../_shared/alex-guide.ts';
-import { avatarSwapEnabled, personaFor, personaSegmentPrompt } from '../_shared/personas.ts';
+import { avatarSwapEnabled, teamIntroEnabled, personaFor, personaSegmentPrompt } from '../_shared/personas.ts';
+import { TEAM_INTRO_TEACHING, isIntroBoundary, teamIntroGreetingFor } from '../_shared/team-intro.ts';
 import { PUBLIC_PATHS } from '../_shared/report-context.ts';
 import { normalizeUiLocale, startingLanguageForUiLocale } from '../_shared/conversation-language.ts';
-const personaSegmentSchema=z.object({persona:z.enum(['aspen','sara','alex']),boundary:z.enum(['doorway','stepout','meet-alex','return']),parentSessionId:z.string().uuid(),swapRecap:z.string().max(2400),drops:z.number().int().min(0).max(99).default(0),dropRecovery:z.boolean().default(false),swap:z.boolean().default(false)});
+const personaSegmentSchema=z.object({persona:z.enum(['aspen','sara','alex']),boundary:z.enum(['doorway','stepout','meet-alex','return','intro-sara','intro-return-1','intro-alex','intro-return-2']),parentSessionId:z.string().uuid(),swapRecap:z.string().max(2400),drops:z.number().int().min(0).max(99).default(0),dropRecovery:z.boolean().default(false),swap:z.boolean().default(false),teamIntroSeen:z.boolean().default(false)});
 const schema=z.object({ visitorKey:z.string().min(16).max(100), model:z.string().max(100).optional(), agentId:z.string().uuid().optional(), leadId:z.string().uuid().optional(), prospectId:z.string().uuid().optional(), draft:z.boolean().default(false), preview:z.boolean().default(false), voice:z.enum(VOICES as [string,...string[]]).optional(), hour:z.number().int().min(0).max(23).optional(), visitorName:z.string().max(100).default(''), timeZone:z.string().max(100).default('UTC'), locale:z.string().max(10).optional(), campaign:z.object({visitId:z.string().uuid(),source:z.string().max(100),campaign:z.string().max(100),entryPath:z.enum(PUBLIC_PATHS).optional()}).nullable().optional(), consent:z.boolean().default(false), verification:z.enum(['pending','verified']).optional(), invite:z.boolean().optional(), guide:z.enum(['alex']).optional(), share:z.string().max(100).optional(), resumeContext:z.string().max(1600).optional(), reconnect:z.boolean().default(false), prewarm:z.boolean().default(false), personaSegment:personaSegmentSchema.optional() });
 const json=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
 export async function hash(value:string) { return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)))).map(b=>b.toString(16).padStart(2,'0')).join(''); }
@@ -33,6 +34,10 @@ Deno.serve(async req=>{
   // as DEMO_VERIFICATION_SMS_ENABLED. Read once per request; the parent
   // demo authorization below stamps it into the session config + response.
   const swapEnabled=avatarSwapEnabled((n)=>Deno.env.get(n));
+  // Team intro sub-flag: TEAM_INTRO_ENABLED under the master flag (both in
+  // personas.ts). The /demo parent stamp is applied in the homepage branch
+  // below; intro segment requests are refused unless the parent carries it.
+  const teamIntroOn=teamIntroEnabled((n)=>Deno.env.get(n));
   let segmentParentId: string | null = null;
   if(b.personaSegment) {
     // PERSONA SEGMENT (avatar swap Stage 1): a continuation of an existing
@@ -44,17 +49,58 @@ Deno.serve(async req=>{
     // any client-supplied voice/face is ignored (the persona registry
     // decides both). A demo-guest Alex segment is authorized by this parent
     // chain, NOT by a user JWT; the wizard guide branch below stays
-    // signed-in only. Segments are for business demos: the parent must be
-    // a simulation session.
+    // signed-in only. Two disjoint parent classes, cross-family refused:
+    // simulation boundaries require a business-demo parent
+    // (config.simulation === true); intro boundaries require a homepage
+    // parent stamped teamIntroEnabled (the /demo explainer — design
+    // team-intro-design-2026-11-09.md §4.2).
     if(!swapEnabled) return json({error:'Persona segments are not enabled'},404);
     const visitorHash=await hash(`${b.visitorKey}|${req.headers.get('x-forwarded-for')?.split(',')[0] || ''}`);
     const {data:parentRow}=await db.from('gemini_voice_sessions').select('id,config,lead_id,prospect_id,agent_id,organization_id').eq('id',b.personaSegment.parentSessionId).eq('visitor_hash',visitorHash).maybeSingle();
     var parentRowRef = parentRow;
     const parent=parentRow?.config as Record<string,unknown>|undefined;
-    if(!parentRow || !parent || parent.simulation!==true) return json({error:'Persona segment parent session not found'},404);
+    const introRequest=isIntroBoundary(b.personaSegment.boundary);
+    const introParentOk=!!parent && parent.teamIntroEnabled===true && parent.homepageSales===true && parent.simulation!==true;
+    if(!parentRow || !parent || (introRequest ? !introParentOk : parent.simulation!==true)) return json({error:'Persona segment parent session not found'},404);
     const persona=personaFor(b.personaSegment.persona);
     const businessName=String(parent.businessName || '');
-    const built=personaSegmentPrompt(b.personaSegment.persona,b.personaSegment.boundary,businessName,String(parent.systemPrompt || ''),b.personaSegment.persona==='alex'?alexDemoGuestConfig(businessName):undefined);
+    if(introRequest) {
+      // TEAM INTRO SEGMENT: the prompt pack lives in team-intro.ts via
+      // personaSegmentPrompt's intro branch. The segment inherits the
+      // parent's reference knowledge (read as data by the cameo/host
+      // rules), visitor contact, campaign and recording settings — and
+      // NEVER any tenant business material: this parent has none (its
+      // sourceKnowledge slot stays empty by construction).
+      const builtIntro=personaSegmentPrompt(b.personaSegment.persona,b.personaSegment.boundary,businessName,String(parent.systemPrompt || ''),undefined,false,{parentPrompt:String(parent.systemPrompt || '')});
+      config={
+        ...parent,
+        name:persona.displayName,
+        voice:persona.voiceName,
+        systemPrompt:builtIntro.systemPrompt,
+        greeting:builtIntro.greeting || parent.greeting,
+        knowledge:parent.knowledge ?? '',
+        sourceKnowledge:'',
+        simulation:false,
+        platformFollowup:false,
+        platformGuide:false,
+        homepageSales:false,
+        teamIntroEnabled:true,
+        teamIntroSegment:true,
+        personaSwapEnabled:true,
+        persona:{id:persona.id,displayName:persona.displayName,faceId:persona.faceId},
+        ...(b.personaSegment.swap?{personaSwap:{to:persona.id,boundary:b.personaSegment.boundary},personaDrop:null}:{personaSwap:null,personaDrop:{persona:persona.id,drops:b.personaSegment.drops}}),
+        personaSegment:{persona:persona.id,boundary:b.personaSegment.boundary,parentSessionId:parentRow.id,dropRecovery:b.personaSegment.dropRecovery},
+        recordTranscript:parent.recordTranscript===true,
+        recordAudio:parent.recordAudio===true,
+        resumeContext:b.personaSegment.swapRecap,
+      };
+      agentId=parentRow.agent_id; orgId=parentRow.organization_id; segmentParentId=parentRow.id;
+    } else {
+    // §5.1 callback signal: the demo parent carries teamIntroSeen ONLY
+    // from a stamped explainer session of the SAME visitor (verified
+    // above by row id + visitor hash — never from the request body
+    // alone; see the lookup right after the segment branch).
+    const built=personaSegmentPrompt(b.personaSegment.persona,b.personaSegment.boundary,businessName,String(parent.systemPrompt || ''),b.personaSegment.persona==='alex'?alexDemoGuestConfig(businessName):undefined,parent.teamIntroSeen===true);
     config={
       ...parent,
       name:persona.displayName,
@@ -83,6 +129,7 @@ Deno.serve(async req=>{
       resumeContext:b.personaSegment.swapRecap,
     };
     agentId=parentRow.agent_id; orgId=parentRow.organization_id; segmentParentId=parentRow.id;
+    }
   } else if(b.guide==='alex') {
     // Platform guide (Alex, the setup-wizard support specialist). He is not a
     // tenant agent, so the workspaceAccess subscription gate does not apply —
@@ -124,8 +171,36 @@ Deno.serve(async req=>{
     const {data:agent}=await query.maybeSingle(); if(!agent?.published) return json({error:'Voice agent is not published yet'},409);
     if(!(await workspaceAccess(db,agent.organization_id))) return json({error:'This assistant subscription is not active'},403);
     config={...(agent.published as Record<string,unknown>), homepageSales:agent.slug==='aspen-homepage'}; agentId=agent.id; orgId=agent.organization_id;
+    // TEAM INTRO PARENT STAMP (design §4.2/§7): the homepage agent's
+    // explainer session earns the team-intro parent class ONLY when both
+    // flags are on AND the request's page context is the demo page —
+    // server-derived from the campaign entryPath ('/demo' is a member of
+    // PUBLIC_PATHS); the client flag alone never earns it (same trust
+    // pattern as the invite flag above). The homepage (entryPath '/'),
+    // agentId-addressed tenants, drafts and shares never carry the stamp.
+    // Stamping switches the served greeting to the name-ask-deferred
+    // variant (greeting AND every greetings[] rotation) and appends the
+    // cameo teaching block to the sales prompt; with the flags off this
+    // whole block is skipped and the config is byte-identical to today.
+    if(teamIntroOn && !b.agentId && agent.slug==='aspen-homepage' && b.campaign?.entryPath==='/demo') {
+      config.teamIntroEnabled=true;
+      config.systemPrompt=`${String(config.systemPrompt || '')}\n${TEAM_INTRO_TEACHING}`;
+      config.greeting=teamIntroGreetingFor(String(config.greeting || ''));
+      if(Array.isArray(config.greetings)) config.greetings=(config.greetings as unknown[]).map(g=>teamIntroGreetingFor(String(g || '')));
+    }
   }
   const requestedModel = b.model;
+  // TEAM INTRO callbacks (§5.1): a business-demo parent authorization
+  // inherits teamIntroSeen from a stamped explainer session belonging
+  // to THIS visitor (the /demo visit that ran the show earlier in the
+  // same page journey — the client carries only the claim in its recap
+  // facts; the fact itself is verified here against the stored
+  // explainer config, stamped server-side at its own authorization).
+  if(!b.personaSegment && (b.leadId || b.prospectId) && b.resumeContext?.includes('teamIntroSeen')) {
+    const visitorHashForFacts=await hash(`${b.visitorKey}|${req.headers.get('x-forwarded-for')?.split(',')[0] || ''}`);
+    const {data:explainerRow}=await db.from('gemini_voice_sessions').select('config').eq('visitor_hash',visitorHashForFacts).filter('config->>teamIntroEnabled','eq','true').order('created_at',{ascending:false}).limit(1).maybeSingle();
+    if(explainerRow && (explainerRow.config as Record<string,unknown>)?.teamIntroSeen===true) config.teamIntroSeen=true;
+  }
   if (!b.personaSegment && !b.preview && !b.consent && !b.prewarm) return json({error:'Agree to the recording notice before starting.'},400);
   if(requestedModel && (b.share || !(b.draft || b.preview) || !officialLivePricing(requestedModel))) return json({error:'Model comparison is available only for authorized draft tests and previews.'},400);
   // Avatar swap (Stage 1): the parent demo authorization carries the flag
@@ -167,6 +242,19 @@ Deno.serve(async req=>{
     }
   }
   const parentPersona = segmentParentId ? personaFor(b.personaSegment!.persona) : null;
-  return json({token,sessionId:id,maxSeconds:s?.max_seconds,homepageSales:config.homepageSales===true,idleChecks:config.homepageSales===true || config.simulation===true,name:config.name,businessName:config.businessName,voice:config.voice,avatarUrl,handoffToken,startLanguage:typeof config.startLanguage==='string'?config.startLanguage:undefined,personaSwapEnabled:config.personaSwapEnabled===true,persona:parentPersona?{id:parentPersona.id,displayName:parentPersona.displayName,faceId:parentPersona.faceId}:undefined});
+  // TEAM INTRO SEEN STAMP: the FIRST intro segment authorization against
+  // a stamped explainer parent records, on the PARENT's stored config,
+  // that this visitor saw the show. The /demo-site demo parent reads it
+  // back through the verified facts channel above (same visitor hash),
+  // which is what makes the §5.1 doorway/close callbacks provable
+  // server-side instead of trusting the client. Fire-and-forget: a
+  // failed stamp loses only the callback clause, never the session.
+  if(segmentParentId && parentRowRef && isIntroBoundary(b.personaSegment!.boundary)) {
+    const parentConfig=(parentRowRef as {config?:Record<string,unknown>}).config;
+    if(parentConfig && parentConfig.teamIntroEnabled===true && parentConfig.teamIntroSeen!==true) {
+      void db.from('gemini_voice_sessions').update({config:{...parentConfig,teamIntroSeen:true}}).eq('id',segmentParentId).then(()=>{},()=>{});
+    }
+  }
+  return json({token,sessionId:id,maxSeconds:s?.max_seconds,homepageSales:config.homepageSales===true,idleChecks:config.homepageSales===true || config.simulation===true,name:config.name,businessName:config.businessName,voice:config.voice,avatarUrl,handoffToken,startLanguage:typeof config.startLanguage==='string'?config.startLanguage:undefined,personaSwapEnabled:config.personaSwapEnabled===true,teamIntroEnabled:config.teamIntroEnabled===true,persona:parentPersona?{id:parentPersona.id,displayName:parentPersona.displayName,faceId:parentPersona.faceId}:undefined});
  } catch(e) {console.error('gemini-session',e);return json({error:'Could not authorize the voice session'},500);}
 });
