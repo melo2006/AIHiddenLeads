@@ -1,7 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock('@/integrations/supabase/client', () => ({ supabase: { functions: { invoke } } }));
-import { campaignVisit, PUBLIC_CAMPAIGN_PATHS, trackCampaignEvent } from '../lib/campaignTracking';
+import { campaignVisit, linkCampaignLead, PUBLIC_CAMPAIGN_PATHS, trackCampaignEvent } from '../lib/campaignTracking';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -49,4 +49,28 @@ it('records prices as an observed homepage section, not a private or demo sectio
 it('does not attach a public visit identity to private voice tests',()=>{
   window.history.replaceState({},'', '/dashboard/telephony');
   expect(campaignVisit()).toBeNull();
+});
+
+const INVITE_LEAD_ID = '11111111-1111-4111-8111-111111111111';
+
+it('sends no leadId until an invite lead is linked (ad traffic unchanged)', async () => {
+  window.history.replaceState({}, '', '/demo-site');
+  await trackCampaignEvent('voice_started');
+  expect(invoke).toHaveBeenCalledWith('campaign-events', { body: expect.not.objectContaining({ leadId: expect.anything() }) });
+});
+
+it('includes the linked invite leadId in subsequent milestones from the tab', async () => {
+  window.history.replaceState({}, '', '/demo-site?invite=1&leadId=' + INVITE_LEAD_ID);
+  linkCampaignLead(INVITE_LEAD_ID);
+  await trackCampaignEvent('voice_started');
+  expect(invoke).toHaveBeenCalledWith('campaign-events', { body: expect.objectContaining({ event: 'voice_started', leadId: INVITE_LEAD_ID }) });
+});
+
+it('ignores malformed lead ids instead of storing or sending them', async () => {
+  window.history.replaceState({}, '', '/demo-site?invite=1');
+  linkCampaignLead('not-a-uuid');
+  linkCampaignLead(null);
+  expect(sessionStorage.getItem('campaign-lead')).toBeNull();
+  await trackCampaignEvent('voice_started');
+  expect(invoke).toHaveBeenCalledWith('campaign-events', { body: expect.not.objectContaining({ leadId: expect.anything() }) });
 });

@@ -55,3 +55,7 @@ project_id = "mrtvqttecdfgphgxeygj"
   # headers; the function authorizes via the invite slug + code itself.
   [functions.demo-invite]
     verify_jwt = false
+  # Admin-only report API: the signed-in admin's JWT is required at the
+  # gateway AND the function re-checks voice_platform_roles itself.
+  [functions.outreach-report]
+    verify_jwt = true

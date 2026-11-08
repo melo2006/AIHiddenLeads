@@ -20,6 +20,7 @@ const navGroups: { label: string; items: NavItem[] }[] = [
   ]},
   { label: "Outreach", items: [
     { title: "Campaigns", url: "/dashboard/campaigns", icon: Megaphone },
+    { title: "Outreach Report", url: "/dashboard/outreach", icon: Radar },
     { title: "Templates", url: "/dashboard/templates", icon: FileText },
     { title: "SMS Delivery", url: "/dashboard/sms", icon: MessageSquare },
     { title: "AI Follow-Up", url: "/dashboard/follow-up", icon: Brain },

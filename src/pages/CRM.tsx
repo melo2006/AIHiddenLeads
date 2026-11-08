@@ -31,6 +31,7 @@ import FollowUpIntelligence from "@/components/crm/FollowUpIntelligence";
 import ProspectsView from "@/components/crm/ProspectsView";
 import IntentLeadsView from "@/components/crm/IntentLeadsView";
 import CampaignsView from "@/components/crm/CampaignsView";
+import OutreachReportView from "@/components/crm/OutreachReportView";
 import CampaignDetailView from "@/components/crm/CampaignDetailView";
 import PipelinePageView from "@/components/crm/PipelinePageView";
 import TemplatesView from "@/components/crm/TemplatesView";
@@ -244,6 +245,7 @@ const CRM = () => {
               <Route path="prospects" element={<ProspectsView />} />
               <Route path="intent-leads" element={<IntentLeadsView />} />
               <Route path="campaigns" element={<CampaignsView />} />
+              <Route path="outreach" element={<OutreachReportView />} />
               <Route path="campaigns/:id" element={<CampaignDetailView />} />
               <Route path="pipeline" element={<PipelinePageView />} />
               <Route path="calls" element={<Navigate to="/dashboard/sessions?tab=calls" replace />} />
