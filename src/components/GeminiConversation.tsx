@@ -29,7 +29,7 @@ import { classifyMicrophoneFailure, isEmbeddedContext } from "@/lib/embeddedCont
 import {campaignVisit, trackCampaignEvent} from '@/lib/campaignTracking';
 import { salesPlans, type SalesPlan } from '@/lib/salesActions';
 import SimliAvatar, { SOUND_BLOCKED, isVideoStartFailure, type SimliAvatarHandle } from '@/components/SimliAvatar';
-import { boundaryForAssistantLine, buildSwapRecap, cutoverReady, dropApologyVariant, INITIAL_SWAP_STATE, PHASE_ENTRY, reconnectTarget, visitorSignalsStepOut, type PersonaBoundary, type PersonaId, type SwapPhase, type SwapState } from '@/lib/personaSwap';
+import { boundaryForAssistantLine, buildSwapRecap, cutoverReady, dropApologyVariant, INITIAL_SWAP_STATE, introYieldOnVisitorLine, PHASE_AFTER_BOUNDARY, PHASE_ENTRY, reconnectTarget, swapRecapFacts, visitorSignalsStepOut, type PersonaBoundary, type PersonaId, type SwapPhase, type SwapState } from '@/lib/personaSwap';
 import { PERSONAS, SARA_FACE_ID } from '../../supabase/functions/_shared/personas';
 import { ALEX_FACE_ID } from '../../supabase/functions/_shared/alex-guide';
 import type { VideoAvatar } from '../../supabase/functions/_shared/video-avatar';
@@ -124,6 +124,25 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     }
     prevVerificationRef.current = verification;
   }, [verification, agentId]);
+  // Team intro: the page journey's teamIntroSeen fact rides the visit
+  // memory into the /demo-site demo parent's resume recap (facts channel,
+  // design §5.1) — gemini-session verifies it server-side against the
+  // stamped explainer session before honoring it. One synthetic record;
+  // the proxy's resume instruction treats facts as data, never prompts.
+  const teamIntroSeenMemoryRef = useRef(false);
+  useEffect(() => {
+    if (teamIntroSeenMemoryRef.current || !leadId) return;
+    if (swapStateRef.current.teamIntroSeen) {
+      teamIntroSeenMemoryRef.current = true;
+      try {
+        const key = agentId || 'homepage';
+        const existing = visitMemory.get(key) || [];
+        if (!existing.some(t => t.text.includes('teamIntroSeen'))) {
+          visitMemory.set(key, [...existing, { role: 'user', text: '[visit fact] teamIntroSeen: the visitor watched the meet-the-team introduction on the demo page.' }]);
+        }
+      } catch { /* memory is best-effort */ }
+    }
+  }, [leadId, agentId]);
   const onPrewarmedRef = useRef(onPrewarmed); onPrewarmedRef.current = onPrewarmed;
   const onUserTranscriptRef = useRef(onUserTranscript); onUserTranscriptRef.current = onUserTranscript;
   const onPersonaChangeRef = useRef(onPersonaChange); onPersonaChangeRef.current = onPersonaChange;
@@ -142,6 +161,9 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const visitorKeyRef = useRef('');
   const businessNameRef = useRef('');
   const preStageRef = useRef<{ boundary: PersonaBoundary; token: string; faceReady: boolean; persona: PersonaId } | null>(null);
+  /** Team intro: a true barge-in landed during a bridge beat; the latch
+   *  is applied when the interrupted turn completes (design §3.3). */
+  const introYieldWasBargeInRef = useRef(false);
   const [preStage, setPreStage] = useState<{ persona: PersonaId; boundary: PersonaBoundary } | null>(null);
   const stagedAvatarRef = useRef<SimliAvatarHandle>(null);
   const [activePersona, setActivePersona] = useState<PersonaId>('aspen');
@@ -426,7 +448,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     return buildSwapRecap([...stored, ...extra], {
       visitorName: knownNameRef.current || visitorName || undefined,
       businessName: businessNameRef.current || undefined,
-      facts: [],
+      facts: swapRecapFacts(swapStateRef.current),
     }, incoming);
   }, [agentId, visitorName]);
 
@@ -467,9 +489,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     const state = swapStateRef.current;
     if (!swapEnabledRef.current || preStageRef.current || state.done.includes(boundary) || state.armed.includes(boundary)) return;
     const target = (Object.entries(PHASE_ENTRY).find(([, v]) => v.boundary === boundary)?.[1]) as { boundary: PersonaBoundary; persona: PersonaId } | undefined;
-    const persona = boundary === 'return' ? 'aspen' as PersonaId : target?.persona;
+    // intro-return-2 lands on the same host phase as intro-return-1
+    // (an Aspen segment) but is not itself a PHASE_ENTRY value — it is
+    // entered from the intro-alex phase in place.
+    const persona = boundary === 'return' || boundary === 'intro-return-2' ? 'aspen' as PersonaId : target?.persona;
     if (!persona) return;
-    swapStateRef.current = { ...state, armed: [...state.armed, boundary] };
+    swapStateRef.current = { ...state, armed: [...state.armed, boundary], ...(boundary === 'intro-sara' || boundary === 'intro-return-1' || boundary === 'intro-alex' || boundary === 'intro-return-2' ? { teamIntroSeen: true } : {}) };
     void (async () => {
       const segment = await requestSegment(persona, boundary, { swap: true });
       if (!segment) return; // disarmed: words-only continuation
@@ -492,6 +517,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     // Avatar swap: a full teardown ends the whole persona chain.
     swapEnabledRef.current = false;
     swapStateRef.current = { ...INITIAL_SWAP_STATE };
+    introYieldWasBargeInRef.current = false;
     parentSessionIdRef.current = null;
     preStageRef.current = null;
     setPreStage(null);
@@ -1019,6 +1045,20 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         swapStateRef.current = { ...INITIAL_SWAP_STATE };
         setActivePersona('aspen');
       }
+      // Team intro arming (design §7): a DIFFERENT arming class — the
+      // demo-page explainer parent (server echo teamIntroEnabled, no
+      // business id on this session) starts the swap machine in phase
+      // 'intro' with the same parent session id, authorized against
+      // gemini-session's intro parent class. Invariant: businessNameRef
+      // is NOT set, so every swap recap this machine builds carries
+      // persona-only flavor. Flag-off ⇒ no echo ⇒ nothing changes.
+      if (!preview && authorized.teamIntroEnabled === true && !leadId && !prospectId) {
+        swapEnabledRef.current = true;
+        parentSessionIdRef.current = String(authorized.sessionId || '');
+        visitorKeyRef.current = visitorKey;
+        swapStateRef.current = { ...INITIAL_SWAP_STATE, phase: 'intro' };
+        setActivePersona('aspen');
+      }
       homepageWalkthroughRef.current = authorized.homepageSales === true;
       idleRef.current = { enabled: (authorized.idleChecks === true || authorized.homepageSales === true) && !preview, stage: 'waiting', quietSince: Date.now(), generating: true, requestedAt: 0 };
       setHandoffToken(authorized.handoffToken || null);
@@ -1136,6 +1176,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           case "interrupted":
             clearPlayback();
             flushLine("assistant");
+            // Team intro bridge yield (design §3.3 rule 2): a TRUE
+            // barge-in (playback cut) on a bridge beat flags the
+            // abandonment; the latch applies at turn completion.
+            if (swapEnabledRef.current && liveRef.current && introYieldOnVisitorLine(swapStateRef.current)) {
+              introYieldWasBargeInRef.current = true;
+            }
             if (currentAudioRef.current.length) { lastAudioRef.current = currentAudioRef.current; setHasReplay(true); }
             currentAudioRef.current = [];
             break;
@@ -1163,6 +1209,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             // step-out late; Sara's reply still covers the swap.
             if (swapEnabledRef.current && liveRef.current && swapStateRef.current.phase === 'simulation' && visitorSignalsStepOut(userLineRef.current)) {
               swapStateRef.current = { ...swapStateRef.current, pendingStepout: true };
+            }
+            // Team intro bridge yield: a visitor line DURING a bridge
+            // beat flags the abandonment; the turn_complete handler
+            // applies the latch (design §3.3 rule 2).
+            if (swapEnabledRef.current && liveRef.current && introYieldOnVisitorLine(swapStateRef.current)) {
+              introYieldWasBargeInRef.current = true;
             }
             break;
           case "turn_complete": {
@@ -1195,6 +1247,16 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
                 // becomes the cover and the swap follows it.
                 swapStateRef.current = { ...state, pendingStepout: false };
                 armSwapRef.current('stepout');
+              }
+              // Team intro yield (design §3.3 rules 2–3): if the visitor
+              // interrupted a BRIDGE beat during this turn, the show is
+              // abandoned silently — latch set; the staged-but-unused
+              // boundary (if the bridge line had already armed it) is
+              // disarmed so it can never cut over later.
+              const after = swapStateRef.current;
+              if ((after.phase === 'intro' || after.phase === 'intro-host') && introYieldWasBargeInRef.current && !after.teamIntroDone) {
+                swapStateRef.current = { ...after, teamIntroDone: true, armed: after.armed.filter(b => !(b === 'intro-sara' || b === 'intro-alex' || b === 'intro-return-1' || b === 'intro-return-2')) };
+                introYieldWasBargeInRef.current = false;
               }
             }
             if (!swapHandled) {
@@ -1390,6 +1452,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         case "interrupted":
           clearPlayback();
           flushLine("assistant");
+          // Team intro bridge yield — same rule as the main socket.
+          if (swapEnabledRef.current && liveRef.current && introYieldOnVisitorLine(swapStateRef.current)) {
+            introYieldWasBargeInRef.current = true;
+          }
           if (currentAudioRef.current.length) { lastAudioRef.current = currentAudioRef.current; setHasReplay(true); }
           currentAudioRef.current = [];
           break;
@@ -1414,6 +1480,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           if (swapEnabledRef.current && liveRef.current && swapStateRef.current.phase === 'simulation' && visitorSignalsStepOut(userLineRef.current)) {
             swapStateRef.current = { ...swapStateRef.current, pendingStepout: true };
           }
+          // Team intro bridge yield — same rule as the main socket.
+          if (swapEnabledRef.current && liveRef.current && introYieldOnVisitorLine(swapStateRef.current)) {
+            introYieldWasBargeInRef.current = true;
+          }
           break;
         case "turn_complete": {
           openingGateRef.current = false;
@@ -1437,6 +1507,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             } else if (state.pendingStepout && !state.armed.includes('stepout')) {
               swapStateRef.current = { ...state, pendingStepout: false };
               armSwapRef.current('stepout');
+            }
+            // Team intro yield — same rule as the main socket (design §3.3).
+            const after = swapStateRef.current;
+            if ((after.phase === 'intro' || after.phase === 'intro-host') && introYieldWasBargeInRef.current && !after.teamIntroDone) {
+              swapStateRef.current = { ...after, teamIntroDone: true, armed: after.armed.filter(b => !(b === 'intro-sara' || b === 'intro-alex' || b === 'intro-return-1' || b === 'intro-return-2')) };
+              introYieldWasBargeInRef.current = false;
             }
           }
           if (!swapHandled) { flushLine("user"); flushLine("assistant"); }
@@ -1525,7 +1601,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       //    and audio contexts survive; the completed turns flush here.
       partialTeardownForSwap();
       // 3) State + shell identity move to the incoming persona.
-      const nextPhase: SwapPhase = boundary === 'doorway' ? 'simulation' : boundary === 'stepout' ? 'close' : boundary === 'meet-alex' ? 'alex-guest' : 'close';
+      const nextPhase: SwapPhase = PHASE_AFTER_BOUNDARY[boundary];
       swapStateRef.current = {
         ...swapStateRef.current,
         phase: nextPhase,
@@ -1533,6 +1609,9 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         segment: swapStateRef.current.segment + 1,
         done: [...swapStateRef.current.done, boundary],
         pendingStepout: false,
+        // Team intro latch: the show ran to completion — nothing in
+        // this session re-arms any intro boundary (design §3.1).
+        teamIntroDone: swapStateRef.current.teamIntroDone || boundary === 'intro-return-2',
       };
       setActivePersona(incoming);
       onPersonaChangeRef.current?.({ id: incoming, displayName: PERSONAS[incoming].displayName });
@@ -1556,8 +1635,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   dropRecoverRef.current = () => {
     const state = swapStateRef.current;
     swapStateRef.current = { ...state, drops: state.drops + 1 };
-    if (state.phase === 'host' || !parentSessionIdRef.current) {
-      // Host-phase drops keep the legacy reconnect path untouched.
+    if (state.phase === 'host' || state.phase === 'intro' || !parentSessionIdRef.current) {
+      // Host-phase drops keep the legacy reconnect path untouched — and
+      // a drop on the PARENT Aspen (team intro phase 'intro') is NOT a
+      // show restart: the resume context carries the conversation and
+      // the greeting variant cannot re-fire mid-visit; the show itself
+      // simply does not restart because the intro anchors match only
+      // her fresh bridge lines.
       if (reconnectRef.current.count < 3) {
         reconnectRef.current = { pending: true, count: reconnectRef.current.count + 1 };
         setStatus("Reconnecting…");
