@@ -73,11 +73,15 @@ test('C7b: the sales policy defers to the single close (no double wrap-up)', () 
 });
 
 test('C2: proxy opening — host-phase branch precedes the simulation branch; old no-pause order removed', () => {
-  const proxy = read('supabase/functions/gemini-live-proxy/index.ts');
-  const hostBranch = proxy.indexOf('config.verificationGate === true || config.inviteArrival === true');
+  // The opening decision lives in _shared/session-opening.ts since the
+  // avatar-swap Stage 1 build (the proxy delegates to openingText); the
+  // branch ORDER this test pins is the priority order inside that module.
+  const proxy = read('supabase/functions/gemini-live-proxy/index.ts') + read('supabase/functions/_shared/session-opening.ts');
+  const hostBranch = proxy.indexOf('facts.verificationGate === true || facts.inviteArrival === true');
   const simBranch = proxy.indexOf('run the SIMULATION ENTRY sequence from your instructions');
   expect(hostBranch).toBeGreaterThan(-1);
   expect(simBranch).toBeGreaterThan(hostBranch);
+  expect(proxy).toContain('openingText(');
   expect(proxy).toContain('a host phase comes first, and your instructions govern it');
   expect(proxy).not.toContain('in the same turn and without pausing for a reply');
   expect(proxy).not.toContain('30 to 60 second overview');

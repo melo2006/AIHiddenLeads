@@ -147,7 +147,13 @@ describe('guide branch: auth + quota behavior (source pins)', () => {
   });
 
   test('quota stays the shared class machinery — visitor for non-admins, never a free pass', () => {
-    expect(session).toContain("quotaClass:b.share?'visitor':voiceQuotaClass(role?.role==='admin',b.preview)");
+    // Avatar swap Stage 1 prepends ONE case to this expression:
+    // segment continuations carry quotaClass 'persona_segment' so a demo
+    // counts ONCE (its parent) against the visitor cap (spec Q3). The
+    // legacy tail is unchanged — share ⇒ visitor, else the shared class
+    // machinery — and segments themselves are authorized by their parent
+    // chain, never as a free pass.
+    expect(session).toContain("quotaClass:segmentParentId?'persona_segment':b.share?'visitor':voiceQuotaClass(role?.role==='admin',b.preview)");
     const limit = readFn('_shared/voice-session-limit.ts');
     expect(limit).toContain("return isAdmin ? 'admin_test' : preview ? 'audition' : 'visitor'");
   });
@@ -217,9 +223,13 @@ describe('widget mount: wizard only, visually distinct, no double-mount', () => 
     // idle bubble) and GeminiConversation (the pre-live PersonPortrait). In
     // guide mode it must be the guide identity's avatarUrl — the Lukas catalog
     // portrait set by the guide effect — never undefined (Aspen fallback).
+    // Avatar swap Stage 1 layers displayFaceUrl on top for the ACTIVE
+    // persona; guide sessions never swap, so displayFaceUrl === faceUrl
+    // there and the pinned semantics are unchanged.
     expect(widget).toContain("const faceUrl = isGuide ? (identity.avatarUrl || undefined) : agentId ? identity.avatarUrl : undefined;");
-    expect(widget).toContain('<FloatingPersonFrame name={identity.name} avatarUrl={faceUrl}');
-    expect(widget).toContain('avatarUrl={faceUrl}');
+    expect(widget).toContain('const displayFaceUrl = activePersona ? (activePersona.avatarUrl || undefined) : faceUrl;');
+    expect(widget).toContain('<FloatingPersonFrame name={displayName} avatarUrl={displayFaceUrl}');
+    expect(widget).toContain('avatarUrl={displayFaceUrl}');
     // The guide identity's avatarUrl IS the Lukas catalog portrait.
     expect(widget).toContain("avatarUrl:alexPortrait || ''");
     const lukas = SIMLI_FACE_CATALOG.find(f => f.id === ALEX_FACE_ID);
