@@ -131,7 +131,30 @@
   .aspen-person-expanded { width: 280px; }
   .aspen-person-portrait { width: 234px; height: 188px; flex-shrink: 0; object-fit: cover; object-position: top center; }
   .aspen-person-expanded .aspen-person-portrait { width: 234px; height: 188px; }
-  .aspen-person-live-media { transform-origin: top center; transform: translate(-1.8%, -8.4%) scale(1.126); object-fit: cover; object-position: top center; }
+  /* Idle→live size step: the live Simli media must occupy the livebox with the
+     SAME framing as the still it replaces (the captured video frame). No extra
+     scale/translate — both are square sources in the same box with identical
+     object-fit/position, so her size does not jump when the stream starts. */
+  .aspen-person-live-media { object-fit: cover; object-position: top center; }
+  /* Three-stage shell: Stage 1 (idle bubble) and Stage 3 (minimized bar) size
+     to their content instead of the 280px panel width. */
+  .aspen-person-shell.aspen-person-stage1, .aspen-person-shell.aspen-person-stage3 { width: auto; }
+  /* Tight face/shoulders crop for the small bubbles: zooms past the raised
+     waving hand (and its baked-in shadow) so only her face fills the circle. */
+  .aspen-bubble-face { object-fit: cover; object-position: 50% 12%; transform: scale(1.5); transform-origin: 50% 30%; }
+  /* Stage 3 live indicator: a soft pulsing ring around her bubble head while
+     the call is live; static and muted while suspended. */
+  .aspen-live-ring { position: absolute; inset: 0; border-radius: 9999px; border: 2px solid hsl(var(--primary)); pointer-events: none; animation: aspen-live-pulse 1.8s cubic-bezier(0.22, 1, 0.36, 1) infinite; }
+  .aspen-live-ring-paused { animation: none; border-color: hsl(var(--muted-foreground) / 0.5); }
+  @keyframes aspen-live-pulse {
+    0% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0.45); }
+    70% { box-shadow: 0 0 0 8px hsl(var(--primary) / 0); }
+    100% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0); }
+  }
+  /* Cutout shadow fringe: the transparent portrait sits on a soft controlled
+     backdrop (theme tones) instead of whatever page color is behind it, so the
+     waving cutout's edge shadow reads consistently on light and dark sites. */
+  .aspen-person-portrait { background: radial-gradient(115% 100% at 50% 0%, hsl(var(--primary) / 0.10), hsl(var(--muted) / 0.35) 78%); }
   .aspen-voice-panel { position: relative; z-index: 10; min-height: 232px; }
   .aspen-caption-space { height: 72px; min-width: 0; }
   /* The open widget's face box: identical dimensions to the static/collapsed portrait
