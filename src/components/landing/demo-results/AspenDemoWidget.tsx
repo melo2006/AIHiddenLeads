@@ -16,12 +16,14 @@ type Props = React.ComponentProps<typeof ChatWidget> & {
   onAssistantReady?: () => void;
   /** Verified Demo Gate: session phase forwarded to gemini-session ('pending' = Act 1 host phase). */
   verification?: 'pending' | 'verified';
+  /** Cold-email invite arrival: forwarded to gemini-session, which honors it only when the lead's invite arrival was stamped server-side (invite host phase instead of the code gate). */
+  invite?: boolean;
   /** Finalized visitor transcript lines (the gate listens for a spoken code). */
   onUserTranscript?: (text: string) => void;
   /** While the gate waits for the code, her live video pauses to the static portrait; the session stays mounted and alive underneath. */
   gateWaiting?: boolean;
 };
-function AspenDemoWidgetContent({ voiceRequested = false, onClosed, onAssistantReady, verification, onUserTranscript, gateWaiting = false, ...chatProps }: Props) {
+function AspenDemoWidgetContent({ voiceRequested = false, onClosed, onAssistantReady, verification, invite, onUserTranscript, gateWaiting = false, ...chatProps }: Props) {
   const [open, setOpen] = useState(false);
   const [minimized, setMinimized] = useState(false);
   // The first conversation is prepared live (silently) while the demo loads; later reopenings start normally.
@@ -58,7 +60,7 @@ function AspenDemoWidgetContent({ voiceRequested = false, onClosed, onAssistantR
     onReplay: () => shellControlsRef.current?.replay(),
   } : undefined;
   return <DraggableFloating initialX={12} initialY={window.innerHeight - 90} anchorRight anchorBottom resetKey={expanded ? 'open' : 'closed'} dragHandlePlacement={expanded ? 'chest' : minimized ? 'top' : 'below'}>
-    <FloatingPersonFrame open={expanded} minimized={minimized} mode={mode} onOpen={() => { setHasOpened(true); setMinimized(false); setOpen(true); }} onMinimize={minimize} onClose={close} onMode={next => { setMode(next); if (next === 'chat') setChatVisited(true); }} keepRendered={prewarm} stage3={stage3}>
+    <FloatingPersonFrame open={expanded} minimized={minimized} mode={mode} onOpen={() => { setHasOpened(true); setMinimized(false); setOpen(true); }} onMinimize={minimize} onClose={close} onMode={next => { setMode(next); if (next === 'chat') setChatVisited(true); }} keepRendered={prewarm} stage3={stage3} inviteArrival={!!invite}>
       {mounted && mode === 'voice' && <>
         {gateWaiting && <div className="aspen-panel flex flex-col items-center gap-2 px-4 py-3 text-center" role="status">
           <div className="h-20 w-20 overflow-hidden rounded-full border border-primary/50">
@@ -68,7 +70,7 @@ function AspenDemoWidgetContent({ voiceRequested = false, onClosed, onAssistantR
           <p className="text-[11px] leading-snug text-muted-foreground">She is still here — say the 4 digits out loud or type them in the card.</p>
         </div>}
         <div className={gateWaiting ? 'hidden' : undefined} aria-hidden={gateWaiting || undefined}>
-          <GeminiConversation compact faceFirst avatarInline autoStart={expanded} consentOnOpen={expanded} prewarm={prewarm} onPrewarmed={() => onAssistantReady?.()} leadId={chatProps.leadId} prospectId={chatProps.prospectId} visitorName={chatProps.callerName} onRecommendedPlan={setRecommendedPlan} videoAvatar={matchingAspenVideo(videoAvatar)} verification={verification} onUserTranscript={onUserTranscript} shellControlsRef={shellControlsRef} onShellState={setShellState} belowAvatar={<AspenModeToggle mode={mode} onMode={next => { setMode(next); if (next === 'chat') setChatVisited(true); }} />} />
+          <GeminiConversation compact faceFirst avatarInline autoStart={expanded} consentOnOpen={expanded} prewarm={prewarm} onPrewarmed={() => onAssistantReady?.()} leadId={chatProps.leadId} prospectId={chatProps.prospectId} visitorName={chatProps.callerName} onRecommendedPlan={setRecommendedPlan} videoAvatar={matchingAspenVideo(videoAvatar)} verification={verification} invite={invite} onUserTranscript={onUserTranscript} shellControlsRef={shellControlsRef} onShellState={setShellState} belowAvatar={<AspenModeToggle mode={mode} onMode={next => { setMode(next); if (next === 'chat') setChatVisited(true); }} />} />
         </div>
       </>}
       {chatVisited && <div className={mode === 'chat' ? 'aspen-panel min-h-80 overflow-hidden rounded-lg border border-border bg-card' : 'hidden'}><div className="aspen-chat-content"><ChatWidget {...chatProps} embedded active={expanded && mode === 'chat'} /></div></div>}

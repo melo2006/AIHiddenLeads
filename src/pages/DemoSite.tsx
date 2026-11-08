@@ -244,6 +244,10 @@ const DemoSite = () => {
   // activates at the reveal moment (scan done, preview about to show); while
   // waiting, the site stays blurred and Aspen runs the Act 1 host phase.
   const gateRequested = searchParams.get("gate") === "1";
+  // Cold-email invite arrivals: the personal link already proved the
+  // email server-side, so there is no code gate — Aspen runs the invite
+  // host phase (greeting + explanation + continue) before the simulation.
+  const inviteRequested = searchParams.get("invite") === "1";
   const gateChannelParam = (searchParams.get("gateChannel") === "sms" ? "sms" : "email") as "email" | "sms";
   const [gatePhase, setGatePhase] = useState<"inactive" | "waiting" | "verified">("inactive");
   const [gateWaiting, setGateWaiting] = useState(false);
@@ -1099,6 +1103,7 @@ const DemoSite = () => {
           onClosed={() => setVoiceOpen(false)}
           onAssistantReady={() => setAssistantReady(true)}
           verification={gatePhase === "waiting" ? "pending" : gatePhase === "verified" ? "verified" : undefined}
+          invite={inviteRequested}
           onUserTranscript={gateRequested ? handleGateTranscript : undefined}
           gateWaiting={gateWaiting}
         />}

@@ -9,6 +9,7 @@ import Index from "./pages/Index.tsx";
 import DemoSite from "./pages/DemoSite.tsx";
 import CRM from "./pages/CRM.tsx";
 import TryDemo from "./pages/TryDemo.tsx";
+import InviteDemo from "./pages/InviteDemo.tsx";
 import PrivacyPolicy from "./pages/PrivacyPolicy.tsx";
 import TermsOfService from "./pages/TermsOfService.tsx";
 import Checkout from "./pages/Checkout.tsx";
@@ -62,6 +63,7 @@ const App = () => {
             <Route path="/" element={<Index />} />
             <Route path="/demo-site" element={<DemoSite />} />
             <Route path="/demo" element={<TryDemo />} />
+            <Route path="/demo/:slug/:code?" element={<InviteDemo />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="/terms" element={<TermsOfService />} />
             <Route path="/ad-previews" element={<AdPreviews />} />
