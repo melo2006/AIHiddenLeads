@@ -66,7 +66,7 @@ const TryDemo = () => {
     setResume(loadDemoResume());
   }, []);
 
-  const handleIntakeReady = ({ leadData, gateChannel, maskedTarget }: DemoIntakeReady) => {
+  const handleIntakeReady = ({ leadData, gateChannel, maskedTarget, verifyDemo }: DemoIntakeReady) => {
     try { localStorage.setItem(LAST_DEMO_STORAGE_KEY, JSON.stringify(leadData)); } catch { /* storage unavailable — router state still carries the lead */ }
     const params = new URLSearchParams({
       url: leadData.websiteUrl,
@@ -75,10 +75,14 @@ const TryDemo = () => {
       callerName: leadData.fullName,
       scan: "1",
       lang: i18n.resolvedLanguage || i18n.language || "en",
-      gate: "1",
-      gateChannel,
-      gateTarget: maskedTarget,
     });
+    // TEST-ONLY toggle OFF (see DEMO_TEST_TOGGLE): no gate params at all, so
+    // /demo-site never engages the verification gate for this session.
+    if (verifyDemo) {
+      params.set("gate", "1");
+      params.set("gateChannel", gateChannel);
+      params.set("gateTarget", maskedTarget);
+    }
     if (leadData.email) params.set("callerEmail", leadData.email);
     if (leadData.phone) params.set("callerPhone", leadData.phone);
     if (auditLocation.trim()) params.set("city", auditLocation.trim());
@@ -94,9 +98,11 @@ const TryDemo = () => {
       url: resume.websiteUrl,
       leadId: resume.leadId,
       scan: "1",
-      gate: "1",
       lang: i18n.resolvedLanguage || i18n.language || "en",
     });
+    // The resumed session keeps its TEST-ONLY toggle choice: only a
+    // verifying session re-enters through the gate.
+    if (resume.verifyDemo) params.set("gate", "1");
     navigate(`/demo-site?${params.toString()}`);
   };
 

@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: { functions: { invoke: vi.fn() } },
@@ -8,9 +8,15 @@ vi.mock('@/integrations/supabase/client', () => ({
 import {
   DEMO_CONSENT_DISCLOSURE,
   DEMO_CONSENT_DISCLOSURE_VERSION,
+  DEMO_RESUME_STORAGE_KEY,
+  DEMO_TEST_TOGGLE,
+  clearDemoResume,
   extractSpokenCode,
   ladderStageForElapsed,
+  loadDemoResume,
   normalizeDictatedEmail,
+  saveDemoResume,
+  shouldVerifyDemo,
 } from '../lib/demoVerification';
 
 describe('waiting ladder stages', () => {
@@ -88,5 +94,64 @@ describe('consent disclosure', () => {
   test('disclosure mentions STOP and that consent is not a condition of purchase', () => {
     expect(DEMO_CONSENT_DISCLOSURE).toContain('STOP');
     expect(DEMO_CONSENT_DISCLOSURE).toContain('not a condition of purchase');
+  });
+});
+
+describe('TEST-ONLY verify toggle — gate decision', () => {
+  test('toggle ships enabled for the testing period', () => {
+    expect(DEMO_TEST_TOGGLE).toBe(true);
+  });
+
+  test('toggle ON → the verification gate applies', () => {
+    expect(shouldVerifyDemo(true)).toBe(true);
+  });
+
+  test('toggle OFF → the gate is skipped entirely', () => {
+    expect(shouldVerifyDemo(false)).toBe(false);
+  });
+});
+
+describe('resume persistence carries the toggle choice', () => {
+  let store: Map<string, string>;
+
+  beforeEach(() => {
+    store = new Map();
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => (store.has(key) ? store.get(key)! : null),
+      setItem: (key: string, value: string) => { store.set(key, String(value)); },
+      removeItem: (key: string) => { store.delete(key); },
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  test('verifyDemo=false round-trips (a refresh keeps the skip)', () => {
+    saveDemoResume({ leadId: 'lead-1', websiteUrl: 'https://example.com', verifyDemo: false });
+    const loaded = loadDemoResume();
+    expect(loaded?.leadId).toBe('lead-1');
+    expect(loaded?.verifyDemo).toBe(false);
+  });
+
+  test('verifyDemo=true round-trips', () => {
+    saveDemoResume({ leadId: 'lead-2', websiteUrl: 'https://example.com', verifyDemo: true });
+    expect(loadDemoResume()?.verifyDemo).toBe(true);
+  });
+
+  test('an unspecified choice saves as a verifying session (the gate is the only saver)', () => {
+    saveDemoResume({ leadId: 'lead-3', websiteUrl: 'https://example.com' });
+    expect(loadDemoResume()?.verifyDemo).toBe(true);
+  });
+
+  test('a legacy record without the field loads as a verifying session', () => {
+    store.set(DEMO_RESUME_STORAGE_KEY, JSON.stringify({ leadId: 'lead-4', websiteUrl: 'https://example.com', savedAt: 123 }));
+    expect(loadDemoResume()?.verifyDemo).toBe(true);
+  });
+
+  test('clear removes the record', () => {
+    saveDemoResume({ leadId: 'lead-5', websiteUrl: 'https://example.com', verifyDemo: false });
+    clearDemoResume();
+    expect(loadDemoResume()).toBeNull();
   });
 });

@@ -16,6 +16,7 @@ import {
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { formatPhoneNumber, sanitizeUrlInput } from "@/lib/formatters";
@@ -23,8 +24,10 @@ import { PersonPortrait } from "@/components/FloatingPersonFrame";
 import type { DemoLeadData } from "@/components/landing/demo-results/demoResultsUtils";
 import {
   DEMO_CONSENT_DISCLOSURE,
+  DEMO_TEST_TOGGLE,
   SMS_VERIFICATION_ENABLED,
   requestDemoCode,
+  shouldVerifyDemo,
 } from "@/lib/demoVerification";
 import { trackCampaignEvent } from "@/lib/campaignTracking";
 
@@ -94,6 +97,8 @@ export interface DemoIntakeReady {
   leadData: DemoLeadData;
   gateChannel: "email" | "sms";
   maskedTarget: string;
+  /** Whether the verification gate applies to this demo session (TEST-ONLY toggle — see DEMO_TEST_TOGGLE). */
+  verifyDemo: boolean;
 }
 
 interface Props {
@@ -109,6 +114,10 @@ export default function DemoIntakePanel({ url, onUrlChange, auditBusinessName, o
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [channel, setChannel] = useState<"email" | "sms">("email");
+  // TEST-ONLY toggle (DEMO_TEST_TOGGLE): default OFF so testers can walk the
+  // flow with no code step; ON runs the real verification gate.
+  const [verifyDemoChoice, setVerifyDemoChoice] = useState(false);
+  const verifyDemo = shouldVerifyDemo(verifyDemoChoice);
   const [secondaryUrl, setSecondaryUrl] = useState("");
   const [crawlDepth, setCrawlDepth] = useState<1 | 2>(1);
   const [files, setFiles] = useState<File[]>([]);
@@ -195,18 +204,24 @@ export default function DemoIntakePanel({ url, onUrlChange, auditBusinessName, o
       }
 
       // Verified Demo Gate: send the 4-digit code now (email is the live
-      // channel in phase 1) so it lands while the demo builds.
-      const codeResult = await requestDemoCode(leadId, "email", em);
-      // NOTE: tsconfig strict:false disables discriminant narrowing on the
-      // result union — compare `ok` explicitly instead of relying on `!ok`.
-      if (codeResult.ok === false) {
-        throw new Error(
-          codeResult.error === "resend_cooldown"
-            ? "A code was just sent — check your inbox in a moment."
-            : "We could not send your verification code. Please check the email address and try again.",
-        );
+      // channel in phase 1) so it lands while the demo builds. TEST-ONLY
+      // toggle OFF skips this entirely — no code, no gate, and the lead
+      // keeps its default flags (contact_verified=false,
+      // code_not_completed=false), so a test skip never looks abandoned.
+      let sentMaskedTarget: string | null = null;
+      if (verifyDemo) {
+        const codeResult = await requestDemoCode(leadId, "email", em);
+        // NOTE: tsconfig strict:false disables discriminant narrowing on the
+        // result union — compare `ok` explicitly instead of relying on `!ok`.
+        if (codeResult.ok === false) {
+          throw new Error(
+            codeResult.error === "resend_cooldown"
+              ? "A code was just sent — check your inbox in a moment."
+              : "We could not send your verification code. Please check the email address and try again.",
+          );
+        }
+        sentMaskedTarget = codeResult.ok === true ? codeResult.maskedTarget : null;
       }
-      const sentMaskedTarget = codeResult.ok === true ? codeResult.maskedTarget : null;
 
       const leadData: DemoLeadData = {
         leadId,
@@ -222,7 +237,7 @@ export default function DemoIntakePanel({ url, onUrlChange, auditBusinessName, o
         crawlDepth,
       };
 
-      onReady({ leadData, gateChannel: "email", maskedTarget: sentMaskedTarget || em });
+      onReady({ leadData, gateChannel: "email", maskedTarget: sentMaskedTarget || em, verifyDemo });
     } catch (err) {
       console.error("Demo intake error:", err);
       toast({
@@ -315,7 +330,8 @@ export default function DemoIntakePanel({ url, onUrlChange, auditBusinessName, o
         </div>
       </div>
 
-      {/* Verification channel choice — one channel only */}
+      {/* Verification channel choice — one channel only (pointless while the TEST-ONLY toggle skips verification, so hidden then) */}
+      {verifyDemo && (
       <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="How should we send your code?">
         <button
           type="button"
@@ -351,6 +367,7 @@ export default function DemoIntakePanel({ url, onUrlChange, auditBusinessName, o
           </span>
         </button>
       </div>
+      )}
 
       {/* Advanced teaching options (page-level extras, collapsed) */}
       <div className="rounded-xl border border-border bg-card/40 text-left">
@@ -431,6 +448,22 @@ export default function DemoIntakePanel({ url, onUrlChange, auditBusinessName, o
           </div>
         )}
       </div>
+
+      {/* TEST-ONLY toggle (DEMO_TEST_TOGGLE in lib/demoVerification.ts) — remove at public launch. */}
+      {DEMO_TEST_TOGGLE && (
+        <div className="flex items-center justify-between px-1">
+          <label htmlFor="demo-verify-toggle" className="text-[11px] font-medium text-muted-foreground">
+            Verify demo <span className="text-muted-foreground/70">(test only — off skips the code step)</span>
+          </label>
+          <Switch
+            id="demo-verify-toggle"
+            checked={verifyDemoChoice}
+            onCheckedChange={setVerifyDemoChoice}
+            disabled={isSubmitting}
+            aria-label="Verify demo (test toggle)"
+          />
+        </div>
+      )}
 
       <Button
         type="submit"

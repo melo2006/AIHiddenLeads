@@ -20,6 +20,32 @@ export const DEMO_CONSENT_DISCLOSURE =
 /** Phase 1 is email-only; SMS codes arrive when a Telnyx messaging lane is approved. Mirrors the server flag. */
 export const SMS_VERIFICATION_ENABLED = false;
 
+// ---------------------------------------------------------------------------
+// TEST-ONLY: "Verify demo" toggle on the demo intake (remove at public launch)
+// ---------------------------------------------------------------------------
+
+/**
+ * TEST-ONLY — Ron's testing switch (2026-11-08). While this is true, the
+ * demo intake renders a small "Verify demo" toggle (default OFF) so Ron and
+ * invited testers can walk the whole demo flow without the code step, and
+ * flip it on when they want to exercise verification itself.
+ *
+ * REMOVAL AT PUBLIC LAUNCH: set this to false (or delete it together with
+ * its usages in DemoIntakePanel / TryDemo) and every demo verifies again —
+ * the toggle disappears and `shouldVerifyDemo` always returns true.
+ */
+export const DEMO_TEST_TOGGLE = true;
+
+/**
+ * Pure gate decision for one demo session: does the verification gate apply?
+ * With the TEST-ONLY toggle present, only when the tester turned it on.
+ * Once the toggle is removed (flag false), verification always applies.
+ */
+export function shouldVerifyDemo(verifyDemoChoice: boolean): boolean {
+  if (!DEMO_TEST_TOGGLE) return true;
+  return verifyDemoChoice;
+}
+
 export type DemoVerificationChannel = 'email' | 'sms';
 
 export interface DemoVerificationFailure {
@@ -346,11 +372,20 @@ export interface DemoResume {
   leadId: string;
   websiteUrl: string;
   savedAt: number;
+  /** TEST-ONLY toggle choice for this demo session (see DEMO_TEST_TOGGLE). */
+  verifyDemo: boolean;
 }
 
-export function saveDemoResume(resume: { leadId: string; websiteUrl: string }): void {
+export function saveDemoResume(resume: { leadId: string; websiteUrl: string; verifyDemo?: boolean }): void {
   try {
-    const record: DemoResume = { leadId: resume.leadId, websiteUrl: resume.websiteUrl, savedAt: Date.now() };
+    const record: DemoResume = {
+      leadId: resume.leadId,
+      websiteUrl: resume.websiteUrl,
+      savedAt: Date.now(),
+      // Only the verification gate saves a resume today, so an unspecified
+      // choice means a verifying session.
+      verifyDemo: resume.verifyDemo ?? true,
+    };
     localStorage.setItem(DEMO_RESUME_STORAGE_KEY, JSON.stringify(record));
   } catch {
     // Storage can be unavailable (private mode, blocked cookies); resume is a nicety, never a blocker.
@@ -367,7 +402,9 @@ export function loadDemoResume(): DemoResume | null {
     if (typeof parsed.websiteUrl !== 'string') return null;
     const savedAt = asFiniteNumber(parsed.savedAt);
     if (savedAt === undefined) return null;
-    return { leadId: parsed.leadId, websiteUrl: parsed.websiteUrl, savedAt };
+    // Records saved before the TEST-ONLY toggle existed were verifying
+    // sessions (only the gate saves resumes), so a missing field means true.
+    return { leadId: parsed.leadId, websiteUrl: parsed.websiteUrl, savedAt, verifyDemo: parsed.verifyDemo !== false };
   } catch {
     return null;
   }

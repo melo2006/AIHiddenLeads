@@ -192,7 +192,7 @@ export default function DemoVerificationGate({
     exitHandledRef.current = true;
     setPanel('exit');
     notifyWaiting(false);
-    saveDemoResume({ leadId, websiteUrl: websiteUrl ?? '' });
+    saveDemoResume({ leadId, websiteUrl: websiteUrl ?? '', verifyDemo: true });
     void abandonDemoVerification(leadId);
     onExit?.();
   }, [stage, panel, leadId, websiteUrl, notifyWaiting, onExit]);
