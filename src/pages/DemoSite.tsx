@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { preloadVoiceIdentity } from "@/lib/voicePreload";
+import { linkCampaignLead } from "@/lib/campaignTracking";
 import { shouldStartRemotePreview } from "@/lib/demoStartup";
 import DemoVerificationGate from "@/components/landing/demo-results/DemoVerificationGate";
 import {
@@ -248,6 +249,13 @@ const DemoSite = () => {
   // email server-side, so there is no code gate — Aspen runs the invite
   // host phase (greeting + explanation + continue) before the simulation.
   const inviteRequested = searchParams.get("invite") === "1";
+  // Invite arrivals carry the lead this tab belongs to: persist it next to
+  // the campaign visit so this demo's milestones attribute to the invited
+  // lead in the outreach report. Only invite arrivals do this — ordinary
+  // demo traffic keeps milestones unattributed, exactly as before.
+  useEffect(() => {
+    if (inviteRequested) linkCampaignLead(searchParams.get("leadId"));
+  }, [inviteRequested, searchParams]);
   const gateChannelParam = (searchParams.get("gateChannel") === "sms" ? "sms" : "email") as "email" | "sms";
   const [gatePhase, setGatePhase] = useState<"inactive" | "waiting" | "verified">("inactive");
   const [gateWaiting, setGateWaiting] = useState(false);

@@ -3,6 +3,24 @@ export const PUBLIC_CAMPAIGN_PATHS = ['/', '/demo', '/demo-site', '/checkout', '
 export const PUBLIC_CAMPAIGN_SECTIONS = ['services', 'pricing', 'map-visibility', 'demo-form', 'how-it-works', 'faq', 'addons'] as const;
 export type CampaignEvent = 'page_view' | 'scan_started' | 'voice_started' | 'voice_ended' | 'section_view';
 const campaignLabel = (value: string) => value.replace(/[^\w .-]/g, '').slice(0, 100);
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/**
+ * Cold-email invite arrivals land on /demo-site with a leadId param (set by
+ * the /demo/<slug>/<code> resolver). Persisting that id next to the visit
+ * lets campaign-events attribute this tab's milestones to the invited lead
+ * (the outreach report). Ad traffic never carries a lead id and is
+ * completely unaffected. Malformed values are ignored, never stored.
+ */
+export function linkCampaignLead(leadId: string | null | undefined) {
+  if (!leadId || !UUID_PATTERN.test(leadId)) return;
+  try { sessionStorage.setItem('campaign-lead', leadId); } catch { /* storage unavailable: attribution is optional */ }
+}
+export function campaignLeadId(): string | undefined {
+  try {
+    const id = sessionStorage.getItem('campaign-lead');
+    return id && UUID_PATTERN.test(id) ? id : undefined;
+  } catch { return undefined; }
+}
 export function campaignVisit() {
   if (!PUBLIC_CAMPAIGN_PATHS.some(path => path === location.pathname)) return null;
   try {
@@ -24,7 +42,8 @@ export async function trackCampaignEvent(event:CampaignEvent, section?: string) 
   try {
     const visit=campaignVisit();if(!visit)return;
     const {entryPath: _entryPath, ...labels} = visit;
-    const {error}=await supabase.functions.invoke('campaign-events',{body:{...labels,event,path}});
+    const leadId=campaignLeadId();
+    const {error}=await supabase.functions.invoke('campaign-events',{body:{...labels,event,path,...(leadId?{leadId}:{})}});
     if(error) console.warn('Campaign milestone was not saved');
   } catch {
     // Optional analytics cannot interrupt a page or a conversation.

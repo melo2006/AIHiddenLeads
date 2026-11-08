@@ -470,6 +470,7 @@ export type Database = {
           created_at: string
           event: string
           id: string
+          lead_id: string | null
           path: string
           source: string
           visit_id: string
@@ -479,6 +480,7 @@ export type Database = {
           created_at?: string
           event: string
           id?: string
+          lead_id?: string | null
           path: string
           source?: string
           visit_id: string
@@ -488,11 +490,67 @@ export type Database = {
           created_at?: string
           event?: string
           id?: string
+          lead_id?: string | null
           path?: string
           source?: string
           visit_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "campaign_visit_events_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      outreach_sends: {
+        Row: {
+          campaign: string
+          id: string
+          lead_id: string
+          mailbox: string
+          message_id: string | null
+          prospect_id: string | null
+          sent_at: string
+          source: string | null
+          status: string
+          step: number
+        }
+        Insert: {
+          campaign: string
+          id?: string
+          lead_id: string
+          mailbox: string
+          message_id?: string | null
+          prospect_id?: string | null
+          sent_at?: string
+          source?: string | null
+          status?: string
+          step: number
+        }
+        Update: {
+          campaign?: string
+          id?: string
+          lead_id?: string
+          mailbox?: string
+          message_id?: string | null
+          prospect_id?: string | null
+          sent_at?: string
+          source?: string | null
+          status?: string
+          step?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outreach_sends_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       campaigns: {
         Row: {
