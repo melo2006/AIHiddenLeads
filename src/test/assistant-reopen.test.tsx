@@ -21,16 +21,18 @@ function Demo() {
   return <AspenDemoWidget businessName="Test" businessNiche="general" websiteUrl="https://example.com" businessInfo="Test" voiceRequested={requested} onClosed={() => setRequested(false)} />;
 }
 
-// Controls v2 (owner-approved in AI Studio): the old dash minimize and the
-// end-call close button are gone. The single X ("Minimize") collapses the
-// widget into its round bubble WITHOUT unmounting the conversation, and
-// tapping the bubble restores that same call — no new session is started.
+// Three-stage chrome (Ron, 2026-11-08): the dash ("Minimize") collapses the
+// widget WITHOUT unmounting the conversation, and tapping the bubble
+// restores that same call — no new session is started. (The conversation is
+// mocked here, so no live-session Stage 3 bar appears; the minimized state
+// falls back to the reopen launcher, which is what these cycles exercise.
+// The X now ENDS the conversation and is covered in widget-chrome-layout.)
 describe.each([
   ['homepage', () => <GeminiAgentWidget floating />],
   ['customer', () => <GeminiAgentWidget agentId="customer" />],
   ['demo', () => <Demo />],
 ] as const)('%s assistant recovery', (_, makeWidget) => {
-  it('collapses to the bubble on X with the call preserved, and reopening restores the same call', async () => {
+  it('collapses to the bubble on Minimize with the call preserved, and reopening restores the same call', async () => {
     render(makeWidget());
     if (screen.queryByRole('button', { name: 'Talk to Aspen' })) fireEvent.click(screen.getByRole('button', { name: 'Talk to Aspen' }));
     await waitFor(() => expect(calls.start).toHaveBeenCalledTimes(1));
