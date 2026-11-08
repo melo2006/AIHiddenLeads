@@ -12,7 +12,7 @@ export const HERO_HEADLINE_LINES: ReadonlyArray<ReadonlyArray<HeadlineSegment>> 
   [
     { text: "85% of callers who hit " },
     { text: "voicemail", accent: true },
-    { text: " never call back. Ever." },
+    { text: " don't call back — most move on to the next name on the list." },
   ],
   [
     { text: "Choose from dozens of live " },

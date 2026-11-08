@@ -23,7 +23,7 @@ const CompetitorBanner = () => {
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 sm:gap-6 mt-10">
             {[
               { stat: "67%", text: "of customers hang up if they can't reach a real person" },
-              { stat: "85%", text: "of missed calls never call back" },
+              { stat: "85%", text: "of callers who hit voicemail don't call back" },
               { stat: "0.4s", text: "average AI response time vs 4+ hours for humans" },
             ].map((item, i) => (
               <motion.div
