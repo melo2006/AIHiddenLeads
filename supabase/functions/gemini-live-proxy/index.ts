@@ -1,7 +1,7 @@
 import { homepagePacingAction } from '../_shared/homepage-pacing.ts'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { LANGUAGE_POLICY } from '../_shared/voice-config.ts'
+import { LANGUAGE_POLICY, VOICE_DISCONNECT_PLAIN } from '../_shared/voice-config.ts'
 import { openingText } from '../_shared/session-opening.ts'
 import { pcmSeconds, audioCost, validPricing } from '../_shared/voice-usage.ts'
 import { platformAvailability, bookPlatformCall, voiceAvailability } from '../_shared/platform-calendar.ts'
@@ -397,7 +397,7 @@ Deno.serve(async (req) => {
     geminiWs.onclose = (e) => {
       if (!closed) {endReason='provider_closed';closeCode=e.code;console.info('voice provider closed',JSON.stringify({code:e.code,clean:e.wasClean,sessionId:session.id}));}
       if (!closed && clientSocket.readyState === WebSocket.OPEN) {
-        clientSocket.send(JSON.stringify({ type: 'closed', reason: `Voice provider connection ended (code ${e.code}). Press Talk to reconnect.`, code:e.code }))
+        clientSocket.send(JSON.stringify({ type: 'closed', reason: VOICE_DISCONNECT_PLAIN, code:e.code }))
       }
       closeAll()
     }
