@@ -51,3 +51,7 @@ project_id = "mrtvqttecdfgphgxeygj"
   # headers; the function authorizes via the lead id and the code itself.
   [functions.demo-verification]
     verify_jwt = false
+  # Browsers resolve cold-email invite links without supabase-js auth
+  # headers; the function authorizes via the invite slug + code itself.
+  [functions.demo-invite]
+    verify_jwt = false

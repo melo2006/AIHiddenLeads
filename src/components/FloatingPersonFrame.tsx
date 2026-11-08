@@ -58,9 +58,9 @@ export function AspenModeToggle({ mode, onMode }: { mode: 'voice' | 'chat'; onMo
  * Drag lives on the shell (DraggableFloating); minimize preserves calls,
  * close unmounts them (AGENTS.md).
  */
-export default function FloatingPersonFrame({ name = 'Aspen', avatarUrl, open, minimized = false, mode, onOpen, onMinimize, onClose, onMode, keepRendered = false, stage3, children }: {
+export default function FloatingPersonFrame({ name = 'Aspen', avatarUrl, open, minimized = false, mode, onOpen, onMinimize, onClose, onMode, keepRendered = false, stage3, inviteArrival = false, children }: {
   name?: string; avatarUrl?: string; open: boolean; minimized?: boolean; mode: 'voice' | 'chat';
-  onOpen: () => void; onMinimize: () => void; onClose: () => void; onMode: (mode: 'voice' | 'chat') => void; keepRendered?: boolean; stage3?: Stage3Controls; children?: ReactNode;
+  onOpen: () => void; onMinimize: () => void; onClose: () => void; onMode: (mode: 'voice' | 'chat') => void; keepRendered?: boolean; stage3?: Stage3Controls; /** Cold-email invite arrival: Stage 1 shows a play affordance + "Hear Aspen" instead of the generic label — the first tap is still the one gesture that unlocks audio and starts her invite greeting. */ inviteArrival?: boolean; children?: ReactNode;
 }) {
   const firstName = name?.trim().split(/\s+/)[0];
   const talkLabel = firstName ? `Talk to ${firstName}` : 'Talk to Me';
@@ -73,11 +73,12 @@ export default function FloatingPersonFrame({ name = 'Aspen', avatarUrl, open, m
   return <section aria-label={`${name} floating assistant`} className={`aspen-person-shell relative ${open ? 'aspen-person-expanded' : 'aspen-person-collapsed'} ${stage === 1 ? 'aspen-person-stage1 items-center' : ''} ${stage === 3 ? 'aspen-person-stage3' : ''} ${stage === 0 ? '!w-24 items-center' : ''}`}>
     {open && mode === 'chat' && <PersonPortrait name={name} avatarUrl={avatarUrl} />}
     {open && mode === 'chat' && <AspenModeToggle mode={mode} onMode={onMode} />}
-    {stage === 1 && <Button variant="ghost" onClick={onOpen} title={talkLabel} aria-label={talkLabel} className="flex h-auto flex-col items-center gap-1.5 p-0 hover:bg-transparent">
-      <span className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border border-primary/60 bg-primary text-primary-foreground shadow-lg">
+    {stage === 1 && <Button variant="ghost" onClick={onOpen} title={inviteArrival ? `Hear ${firstName || 'Aspen'}` : talkLabel} aria-label={inviteArrival ? `Hear ${firstName || 'Aspen'} — tap to hear your demo` : talkLabel} className="flex h-auto flex-col items-center gap-1.5 p-0 hover:bg-transparent">
+      <span className="relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border border-primary/60 bg-primary text-primary-foreground shadow-lg">
         {bubblePhoto ? <img src={bubblePhoto} alt="" draggable={false} className="aspen-bubble-face h-full w-full" /> : <Mic className="h-8 w-8" />}
+        {inviteArrival && <span aria-hidden className="absolute inset-0 flex items-center justify-center bg-black/35"><Play className="h-7 w-7 fill-white text-white" /></span>}
       </span>
-      <span className="w-fit rounded-md bg-card/90 px-2 py-0.5 text-center text-xs font-semibold leading-tight text-foreground shadow-sm">Tap to talk</span>
+      <span className="w-fit rounded-md bg-card/90 px-2 py-0.5 text-center text-xs font-semibold leading-tight text-foreground shadow-sm">{inviteArrival ? `▶ Hear ${firstName || 'Aspen'}` : 'Tap to talk'}</span>
     </Button>}
     {stage === 0 && <Button variant="ghost" onClick={onOpen} title={talkLabel} aria-label={talkLabel} className="flex h-auto flex-col items-center gap-1 p-0 hover:bg-transparent">
       <span className="flex h-[72px] w-[72px] shrink-0 items-center justify-center overflow-hidden rounded-full border border-primary/60 bg-primary text-primary-foreground shadow-md">
