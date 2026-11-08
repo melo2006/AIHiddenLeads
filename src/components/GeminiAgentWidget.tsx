@@ -8,6 +8,8 @@ import FloatingPersonFrame, { AspenModeToggle, type Stage3Controls } from '@/com
 import { matchingAspenVideo } from '@/lib/aspenFace';
 import { SIMLI_FACE_CATALOG } from '@/lib/simliFaceCatalog';
 import { ALEX_FACE_ID } from '../../supabase/functions/_shared/alex-guide';
+import { SARA_FACE_ID } from '../../supabase/functions/_shared/personas';
+import type { PersonaId } from '@/lib/personaSwap';
 
 import { themeVariables, type WidgetTheme } from '../../supabase/functions/_shared/widget-theme';
 import type { VideoAvatar } from '../../supabase/functions/_shared/video-avatar';
@@ -15,6 +17,7 @@ import type { VideoAvatar } from '../../supabase/functions/_shared/video-avatar'
 interface Props { agentId?: string; leadId?: string; prospectId?: string; businessName?: string; callerName?: string; onClose?: () => void; floating?: boolean; autoStart?: boolean; /** 'alex' renders the platform setup guide (Alex — Support Specialist, Lukas face) instead of a tenant agent; mounted only inside the setup wizard. */ guide?: 'alex'; }
 export const ALEX_GUIDE_LABEL = 'Alex — Support Specialist';
 const alexPortrait = SIMLI_FACE_CATALOG.find(f => f.id === ALEX_FACE_ID)?.image;
+const saraPortrait = SIMLI_FACE_CATALOG.find(f => f.id === SARA_FACE_ID)?.image;
 const alexVideoAvatar: VideoAvatar = { enabled: true, provider: 'simli', faceId: ALEX_FACE_ID, position: 'bottom-right', size: 200, shape: 'circle' };
 export default function GeminiAgentWidget({ agentId, leadId, prospectId, businessName, callerName, onClose, floating = false, autoStart = false, guide }: Props) {
  const isGuide = guide === 'alex';
@@ -35,8 +38,21 @@ export default function GeminiAgentWidget({ agentId, leadId, prospectId, busines
  // frame and the pre-live portrait fall back to Aspen's assets. The tenant
  // (agentId) and platform Aspen (no agentId) paths keep their semantics —
  // a tenant record's avatarUrl ('' = mic icon) and undefined = Aspen assets.
+ // Avatar swap (Stage 1): the shell identity follows the ACTIVE persona.
+ // Null until the conversation reports a swap (only possible when the
+ // server flag is on) — every existing path renders identity.* exactly
+ // as before; a swap swaps name + portrait, and persona → Aspen restores
+ // the loaded tenant/platform identity.
+ const [activePersona,setActivePersona]=useState<{id:PersonaId;name:string;avatarUrl?:string}|null>(null);
+ const handlePersonaChange=(p:{id:PersonaId;displayName:string})=>{
+   if(p.id==='aspen'){setActivePersona(null);return;}
+   const avatarUrl = p.id==='sara' ? saraPortrait : p.id==='alex' ? alexPortrait : undefined;
+   setActivePersona({id:p.id,name:p.displayName,avatarUrl});
+ };
+ const displayName = activePersona?.name ?? identity.name;
  const faceUrl = isGuide ? (identity.avatarUrl || undefined) : agentId ? identity.avatarUrl : undefined;
- // Stage 3 (minimized while talking): the frame's slim bar drives the live
+  const displayFaceUrl = activePersona ? (activePersona.avatarUrl || undefined) : faceUrl;
+  // Stage 3 (minimized while talking): the frame's slim bar drives the live
  // Gemini session through its shell command surface.
  const shellControlsRef = useRef<GeminiShellControls | null>(null);
  const [shellState, setShellState] = useState<GeminiShellState | null>(null);
@@ -57,9 +73,9 @@ export default function GeminiAgentWidget({ agentId, leadId, prospectId, busines
  const canPrewarm = prewarm && identityReady && !identity.videoAvatar?.enabled;
  const mounted = hasOpened || canPrewarm;
  const content=<>
-  <FloatingPersonFrame name={identity.name} avatarUrl={faceUrl} open={open} minimized={minimized} mode={mode} onOpen={openWidget} onMinimize={()=>{setOpen(false);setMinimized(true);}} onClose={closeAssistant} onMode={changeMode} keepRendered={canPrewarm} stage3={stage3}>
+  <FloatingPersonFrame name={displayName} avatarUrl={displayFaceUrl} open={open} minimized={minimized} mode={mode} onOpen={openWidget} onMinimize={()=>{setOpen(false);setMinimized(true);}} onClose={closeAssistant} onMode={changeMode} keepRendered={canPrewarm} stage3={stage3}>
    {hasOpened && mode==='voice' && !identityReady && <div role="status" className="aspen-panel text-muted-foreground">Connecting…</div>}
-   {mounted && mode==='voice' && identityReady && <GeminiConversation compact faceFirst avatarUrl={faceUrl} autoStart={clickedOpen || autoStart} consentOnOpen={clickedOpen} prewarm={canPrewarm} agentId={isGuide ? undefined : identity.id || agentId} leadId={leadId} prospectId={prospectId} name={identity.name} visitorName={callerName} onRecommendedPlan={setRecommendedPlan} videoAvatar={isGuide ? identity.videoAvatar : agentId ? identity.videoAvatar : matchingAspenVideo(identity.videoAvatar)} guide={guide} avatarInline shellControlsRef={shellControlsRef} onShellState={setShellState} belowAvatar={<AspenModeToggle mode={mode} onMode={changeMode} />} />}
+   {mounted && mode==='voice' && identityReady && <GeminiConversation compact faceFirst avatarUrl={displayFaceUrl} autoStart={clickedOpen || autoStart} consentOnOpen={clickedOpen} prewarm={canPrewarm} agentId={isGuide ? undefined : identity.id || agentId} leadId={leadId} prospectId={prospectId} name={identity.name} visitorName={callerName} onRecommendedPlan={setRecommendedPlan} videoAvatar={isGuide ? identity.videoAvatar : agentId ? identity.videoAvatar : matchingAspenVideo(identity.videoAvatar)} guide={guide} avatarInline shellControlsRef={shellControlsRef} onShellState={setShellState} onPersonaChange={handlePersonaChange} belowAvatar={<AspenModeToggle mode={mode} onMode={changeMode} />} />}
    {chatVisited && <div className={mode==='chat'?'aspen-panel min-h-80 overflow-hidden rounded-lg border border-border bg-card':'hidden'}><div className="aspen-chat-content"><ChatWidget embedded active={open && mode==='chat'} businessName={businessName || identity.businessName} businessNiche="general" websiteUrl={window.location.origin} businessInfo="AI Hidden Leads provides AI voice and chat assistants, B2B lead generation and search growth services. Refer visitors to the current homepage for pricing and package details." callerName={callerName} leadId={leadId} prospectId={prospectId} /></div></div>}
    {open && isGuide && <p className="aspen-guide-label text-center text-xs font-semibold text-muted-foreground">{ALEX_GUIDE_LABEL}</p>}
    {!isGuide && (!agentId || leadId || prospectId) && <div className="aspen-sales-actions"><AspenSalesActions plan={recommendedPlan} /></div>}

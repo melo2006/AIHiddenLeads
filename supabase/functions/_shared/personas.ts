@@ -135,7 +135,7 @@ const BUSINESS_ASSISTANT_PREAMBLE = (businessName: string) =>
 
 /** Substitute the bound persona's name for the segment's {agentName}. */
 export function bindSegmentNames(segment: string, persona: PersonaBinding): string {
-  return segment.replaceAll('{agentName}', persona.displayName);
+  return segment.split('{agentName}').join(persona.displayName);
 }
 
 export interface PersonaSegmentBuild {

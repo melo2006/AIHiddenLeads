@@ -15,12 +15,18 @@ export interface SimliAvatarHandle {
   /** Call inside the visitor's tap: enables the paired voice of a silently prepared face. */
   activate: () => Promise<void>;
   stop: () => void;
+  /** Stops the session but keeps the last keyed frame on screen: the frozen
+   * face covers the gap while a replacement instance mounts (avatar swap). */
+  freeze?: () => void;
+  /** Marks this instance as the one whose frozen frame stays visible; the
+   * other instance clears its frame when IT freezes. */
+  setFrameKeeper?: (keeper: boolean) => void;
   /** Gemini's 24 kHz PCM16 chunk, base64. */
   sendPcm24k: (base64: string) => boolean;
   clear: () => void;
   setPlaybackMuted: (muted: boolean) => void;
 }
-export interface SimliAvatarProps { avatar: VideoAvatar; agentId?: string; shareToken?: string; draft?: boolean; faceOverride?: string; inline?: boolean; unboxed?: boolean; onLiveChange?: (live: boolean) => void; /** Platform guide ('alex'): request the guide's fixed library face token instead of a tenant agent's face. */ guide?: "alex"; }
+export interface SimliAvatarProps { avatar: VideoAvatar; agentId?: string; shareToken?: string; draft?: boolean; faceOverride?: string; inline?: boolean; unboxed?: boolean; onLiveChange?: (live: boolean) => void; /** Platform guide ('alex'): request the guide's fixed library face token instead of a tenant agent's face. */ guide?: "alex"; /** Persona pre-stage (avatar swap): start behind the live face — token request carries the persona selector + parent-session proof, and the element starts muted/hidden. */ persona?: "aspen" | "sara" | "alex"; personaParentSessionId?: string; personaVisitorKey?: string; /** Pre-stage mode: mounted and live but not shown (opacity 0, no pointer events) until the cut-over reveals it. */ concealed?: boolean; }
 
 const POSITION: Record<VideoAvatar["position"], string> = {
   "bottom-right": "bottom-28 right-3", "bottom-left": "bottom-28 left-3", "top-right": "top-20 right-3", "top-left": "top-20 left-3",
@@ -161,7 +167,7 @@ export async function sessionToken(body: Record<string, unknown>, cancel?: Abort
 }
 
 /** Owns one Simli session: the face lip-syncs Gemini's audio; Gemini remains the only conversation brain. */
-const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, agentId, shareToken, draft, faceOverride, inline = false, unboxed = false, onLiveChange, guide }, ref) => {
+const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, agentId, shareToken, draft, faceOverride, inline = false, unboxed = false, onLiveChange, guide, persona, personaParentSessionId, personaVisitorKey, concealed = false }, ref) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -198,6 +204,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
   const startupRejectRef = useRef<((error: Error) => void) | null>(null);
   const tokenAbortRef = useRef<AbortController | null>(null);
   const frozenFrameRef = useRef(false);
+  const frameKeeperRef = useRef(true);
   const activatedRef = useRef(false);
   const playbackMutedRef = useRef(false);
   const [state, setState] = useState<"idle" | "connecting" | "live" | "failed" | "stopped">("idle");
@@ -212,7 +219,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
     startupRejectRef.current = null;
     tokenAbortRef.current?.abort(); tokenAbortRef.current = null;
     if (audioRef.current) { audioRef.current.muted = true; audioRef.current.volume = 0; }
-    const keepFrame = unboxed && (frozenFrameRef.current || liveRef.current && keyStopRef.current !== null);
+    const keepFrame = unboxed && frameKeeperRef.current && (frozenFrameRef.current || liveRef.current && keyStopRef.current !== null);
     frozenFrameRef.current = keepFrame;
     keyStopRef.current?.(); keyStopRef.current = null;
     if (!keepFrame) setKeyed(false);
@@ -266,9 +273,12 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
         void startupFailure.catch(() => {});
         startupRejectRef.current = error => rejectStartup?.(error);
         const tokenAbort = new AbortController(); tokenAbortRef.current = tokenAbort;
+        const tokenBody = persona
+          ? { persona, parentSessionId: personaParentSessionId, visitorKey: personaVisitorKey }
+          : { agentId, shareToken, draft, faceId: faceOverride, guide };
         const { token, chromaKey } = attemptIndex === 0
-          ? await sessionToken({ agentId, shareToken, draft, faceId: faceOverride, guide }, tokenAbort.signal)
-          : await sessionToken({ agentId, shareToken, draft, faceId: faceOverride, guide }, tokenAbort.signal, 1, 8000);
+          ? await sessionToken(tokenBody, tokenAbort.signal)
+          : await sessionToken(tokenBody, tokenAbort.signal, 1, 8000);
         if (tokenAbortRef.current === tokenAbort) tokenAbortRef.current = null;
         if (lifecycle !== lifecycleRef.current) return false;
         installWebSocketUrlStringShim();
@@ -387,6 +397,14 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
       catch (playError) { if (playError instanceof Error && playError.name === 'NotAllowedError') throw new Error(SOUND_BLOCKED); throw playError; }
     },
     stop,
+    freeze: () => {
+      // Avatar-swap cover: end this persona's Simli session but leave the
+      // last keyed frame painted (unboxed stop() semantics) so the visitor
+      // keeps seeing a face while the incoming instance reveals itself.
+      frozenFrameRef.current = true;
+      stop();
+    },
+    setFrameKeeper: (keeper: boolean) => { frameKeeperRef.current = keeper; },
     setPlaybackMuted: (muted) => { playbackMutedRef.current = muted; if (audioRef.current) { audioRef.current.muted = muted; audioRef.current.volume = muted ? 0 : 1; } },
     sendPcm24k: (base64) => {
       const client = clientRef.current;
@@ -413,12 +431,12 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
 
   const visible = state !== "idle";
   const frame = (
-    <div aria-label="Video avatar" role="img" className={`${unboxed ? 'absolute inset-0' : inline ? "relative mx-auto" : `fixed z-[120] ${POSITION[avatar.position]}`} ${visible ? "" : "hidden"} ${unboxed ? '' : `overflow-hidden ${SHAPE[avatar.shape]} ${keyed ? '' : 'border-2 border-primary/50 bg-card shadow-2xl'}`}`} style={unboxed ? undefined : { width: avatar.size, height: avatar.size, maxWidth: "70vw", maxHeight: "70vw" }}>
+    <div aria-label="Video avatar" role="img" className={`${unboxed ? 'absolute inset-0' : inline ? "relative mx-auto" : `fixed z-[120] ${POSITION[avatar.position]}`} ${visible ? "" : "hidden"} ${concealed ? 'opacity-0 pointer-events-none' : ''} ${unboxed ? '' : `overflow-hidden ${SHAPE[avatar.shape]} ${keyed ? '' : 'border-2 border-primary/50 bg-card shadow-2xl'}`}`} style={unboxed ? undefined : { width: avatar.size, height: avatar.size, maxWidth: "70vw", maxHeight: "70vw" }}>
       <video ref={videoRef} autoPlay playsInline muted className={`h-full w-full ${unboxed ? 'object-cover object-top aspen-person-live-media' : 'object-contain'} ${keyed || unboxed && state !== 'live' ? 'absolute inset-0 opacity-0 pointer-events-none' : ''}`} />
       <canvas ref={canvasRef} aria-hidden className={`h-full w-full ${unboxed ? 'object-cover object-top aspen-person-live-media' : 'object-contain'} ${keyed ? 'relative' : 'hidden'}`} />
       <audio ref={audioRef} autoPlay muted />
-      {state === "connecting" && !unboxed && <div className="absolute inset-0 bg-card/70 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}
-      {state === "failed" && <div role="status" className={unboxed ? 'sr-only' : 'absolute inset-0 bg-card/90 flex items-center justify-center p-2 text-center text-[11px] text-muted-foreground'}>{reason || "Video avatar unavailable"}</div>}
+      {state === "connecting" && !unboxed && !concealed && <div className="absolute inset-0 bg-card/70 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}
+      {state === "failed" && <div role="status" className={unboxed || concealed ? 'sr-only' : 'absolute inset-0 bg-card/90 flex items-center justify-center p-2 text-center text-[11px] text-muted-foreground'}>{reason || "Video avatar unavailable"}</div>}
     </div>
   );
   const debugPanel = debug && visible ? createPortal(<div className="fixed left-2 top-16 z-[200] w-56 rounded-md border border-primary bg-card p-1 text-[10px] text-foreground"><canvas ref={debugCanvasRef} className="w-full bg-muted" /><p>{state} · {stats}</p></div>, document.body) : null;
