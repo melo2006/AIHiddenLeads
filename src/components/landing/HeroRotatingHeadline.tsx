@@ -14,15 +14,21 @@ export const HERO_HEADLINE_LINES: ReadonlyArray<ReadonlyArray<HeadlineSegment>> 
     { text: "voicemail", accent: true },
     { text: " don't call back — most move on to the next name on the list." },
   ],
+  [{ text: "Did you know? 67% of callers hang up the moment they can't reach a real person." }],
+  [{ text: "78% of customers abandoned a business after just one unanswered call." }],
+  [
+    {
+      text: "Have you heard? Most owners are shocked to learn 78% of customers abandon a business after just ONE unanswered call.",
+    },
+  ],
   [
     { text: "Choose from dozens of live " },
     { text: "spokespersons", accent: true },
     { text: " — or put your own face on your website." },
   ],
-  [{ text: "78% of customers abandoned a business after just one unanswered call." }],
   [{ text: "Never miss another call. Aspen answers in seconds — 24/7." }],
   [
-    { text: "Start with voice + chat + 50 B2B prospects/month for " },
+    { text: "Start with voice + chat + up to 50 B2B prospects/month for " },
     { text: "$99/mo", accent: true },
     { text: "." },
   ],

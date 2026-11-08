@@ -33,7 +33,7 @@ afterEach(() => {
 });
 
 describe("HeroRotatingHeadline", () => {
-  it("renders all five lines in order with the first line active", () => {
+  it("renders all seven lines in order with the first line active", () => {
     setReducedMotion(false);
     const { container } = render(<HeroRotatingHeadline />);
     const lines = getLines(container);
