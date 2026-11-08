@@ -182,10 +182,17 @@ test('warm transfer: dial -> whisper speak -> gather -> press 1 -> bridge, repor
   await fire('evt-b-init', 'call.initiated', { call_control_id: LEG_B, direction: 'outgoing', from: '+17723624949', to: '+19547706622', client_state: clientState });
   await fire('evt-b-ans', 'call.answered', { call_control_id: LEG_B, client_state: clientState });
   const speakCall = h.telnyxCalls.find(c => c.url.includes(encodeURIComponent(LEG_B)) && c.url.includes('/actions/speak'));
-  assert.ok(speakCall); assert.match(speakCall.body.payload, /VIP caller needs Ron/); assert.match(speakCall.body.payload, /Press 1/);
+  assert.ok(speakCall); assert.match(speakCall.body.payload, /VIP caller needs Ron/);
+  // Fix batch 2026-11-08: the whisper is summary-only in the neural voice —
+  // the "Press 1" line lives exactly once, in the gather prompt below.
+  assert.doesNotMatch(speakCall.body.payload, /Press 1/);
+  assert.equal(speakCall.body.voice, 'Telnyx.KokoroTTS.af');
 
   await fire('evt-b-spoke', 'call.speak.ended', { call_control_id: LEG_B, client_state: clientState });
-  assert.ok(h.telnyxCalls.some(c => c.url.includes('/actions/gather_using_speak')));
+  const gatherCall = h.telnyxCalls.find(c => c.url.includes('/actions/gather_using_speak'));
+  assert.ok(gatherCall);
+  assert.equal(gatherCall.body.payload, 'Press 1 to accept the transfer.');
+  assert.equal(gatherCall.body.voice, 'Telnyx.KokoroTTS.af');
 
   await fire('evt-b-gather', 'call.gather.ended', { call_control_id: LEG_B, client_state: clientState, digits: '1' });
   assert.ok(h.telnyxCalls.some(c => c.url.includes(encodeURIComponent(legA2)) && c.url.includes('/actions/streaming_stop')));

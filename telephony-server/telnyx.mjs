@@ -106,8 +106,14 @@ export function createTelnyx({ api, env = process.env, onActiveChange = () => {}
   const startStreaming = (id, token) => telnyxApi(`/calls/${encodeURIComponent(id)}/actions/streaming_start`, streamParams(token));
   const stopStreaming = (id) => telnyxApi(`/calls/${encodeURIComponent(id)}/actions/streaming_stop`, {});
   const hangupCall = (id) => telnyxApi(`/calls/${encodeURIComponent(id)}/actions/hangup`, {});
-  const speak = (id, payload) => telnyxApi(`/calls/${encodeURIComponent(id)}/actions/speak`, { payload, voice: 'female', language: 'en-US' });
-  const gatherSpeak = (id, payload) => telnyxApi(`/calls/${encodeURIComponent(id)}/actions/gather_using_speak`, { payload, voice: 'female', language: 'en-US', valid_digits: '1', minimum_digits: 1, maximum_digits: 1 });
+  // Transfer whisper voice (fix batch 2026-11-08): Telnyx's neural KokoroTTS
+  // instead of the basic service-level 'female' — the stock voice sounded
+  // robotic on Ron's 877 test call. Voice id format per the Telnyx speak API
+  // reference (<Provider>.<Model>.<VoiceId>; 'Telnyx.KokoroTTS.af' is the
+  // documented example, the Kokoro American-female voice).
+  const WHISPER_VOICE = 'Telnyx.KokoroTTS.af';
+  const speak = (id, payload) => telnyxApi(`/calls/${encodeURIComponent(id)}/actions/speak`, { payload, voice: WHISPER_VOICE, language: 'en-US' });
+  const gatherSpeak = (id, payload) => telnyxApi(`/calls/${encodeURIComponent(id)}/actions/gather_using_speak`, { payload, voice: WHISPER_VOICE, language: 'en-US', valid_digits: '1', minimum_digits: 1, maximum_digits: 1 });
   const bridgeLegs = (legA, legBId) => telnyxApi(`/calls/${encodeURIComponent(legA)}/actions/bridge`, { call_control_id: legBId });
 
   // ---------- Session ----------
@@ -147,6 +153,18 @@ export function createTelnyx({ api, env = process.env, onActiveChange = () => {}
     // row's seconds/usage for telnyx-stream rows (SCOPE §4.2). Billing truth
     // still reconciles from Telnyx's own CDRs.
     const durationSec = Math.max(0, Math.round((Date.now() - s.tInit) / 1000));
+    // Transfer outcome reconciliation (fix batch 2026-11-08): a media-socket
+    // close during the transfer handshake (acceptTransfer stops streaming
+    // before it writes the outcome) can run finish() after the legs have
+    // bridged (s.transferred) while transferInfo still says 'pending' — and
+    // finish() is first-wins, so the end report shipped 'pending' forever on
+    // a transferred_done call (Ron's 877 test call). The backend fold applies
+    // the same rule from the row's side; never ship a stale 'pending' for a
+    // transfer that did bridge.
+    if (s.transferInfo.outcome === 'pending' && s.transferred) {
+      s.transferInfo.outcome = 'connected';
+      if (s.transferInfo.connectMs == null && s.transferInfo.startedAt) s.transferInfo.connectMs = Date.now() - s.transferInfo.startedAt;
+    }
     const latency = s.latency.snapshot();
     // Symmetric per-call report for the provider comparison dashboard; the
     // Twilio path in server.mjs emits the identical shape.
@@ -167,7 +185,12 @@ export function createTelnyx({ api, env = process.env, onActiveChange = () => {}
       generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: cfg.voice } } } },
       systemInstruction: { parts: [{ text: cfg.instructions }] },
       tools: cfg.canTransfer ? [{ functionDeclarations: [{ name: 'transfer_call', description: `Warm-transfer the caller to ${cfg.transferName}. Say you are connecting them first.`, parameters: { type: 'OBJECT', properties: { summary: { type: 'STRING', description: 'One sentence for the person receiving the call: who is calling and why.' } }, required: ['summary'] } }] }] : [],
-      realtimeInputConfig: { automaticActivityDetection: { disabled: false, startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH', endOfSpeechSensitivity: 'END_SENSITIVITY_LOW', prefixPaddingMs: 200, silenceDurationMs: 700 } },
+      // VAD tuning (fix batch 2026-11-08): HIGH start sensitivity let loud
+      // ambient noise open false speech segments and chop soft, accented
+      // speech into fragments (which fed the language-mirroring flips).
+      // LOW requires stronger speech evidence; a longer silence window
+      // (700 -> 1000 ms) stops mid-phrase chopping. Mirrors server.mjs.
+      realtimeInputConfig: { automaticActivityDetection: { disabled: false, startOfSpeechSensitivity: 'START_SENSITIVITY_LOW', endOfSpeechSensitivity: 'END_SENSITIVITY_LOW', prefixPaddingMs: 200, silenceDurationMs: 1000 } },
       sessionResumption: s.resumeHandle ? { handle: s.resumeHandle } : {},
       contextWindowCompression: { slidingWindow: {} },
       inputAudioTranscription: {}, outputAudioTranscription: {},
@@ -302,7 +325,10 @@ export function createTelnyx({ api, env = process.env, onActiveChange = () => {}
           if (sb?.transfer?.legBId === payload.call_control_id && sb.transfer.phase === 'dialing') {
             sb.transfer.phase = 'whisper';
             const t = sb.transfer;
-            await speak(payload.call_control_id, `Transfer from Aspen. ${t.summary || 'A caller is waiting.'} Press 1 to accept.`);
+            // Summary only (fix batch 2026-11-08): the gather prompt that
+            // follows carries the single "Press 1" line — ending the whisper
+            // with it too made the receiver hear it twice.
+            await speak(payload.call_control_id, `Transfer from Aspen. ${t.summary || 'A caller is waiting.'}`);
           }
         }
         break;

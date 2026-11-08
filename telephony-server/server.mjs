@@ -97,7 +97,10 @@ wss.on('connection', (twilioWs) => {
       generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: cfg.voice } } } },
       systemInstruction: { parts: [{ text: cfg.instructions }] },
       tools: cfg.canTransfer ? [{ functionDeclarations: [{ name: 'transfer_call', description: `Warm-transfer the caller to ${cfg.transferName}. Say you are connecting them first.`, parameters: { type: 'OBJECT', properties: { summary: { type: 'STRING', description: 'One sentence for the person receiving the call: who is calling and why.' } }, required: ['summary'] } }] }] : [],
-      realtimeInputConfig: { automaticActivityDetection: { disabled: false, startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH', endOfSpeechSensitivity: 'END_SENSITIVITY_LOW', prefixPaddingMs: 200, silenceDurationMs: 700 } },
+      // VAD tuning (fix batch 2026-11-08): kept in lockstep with telnyx.mjs —
+      // LOW start sensitivity + 1000 ms silence window so loud ambient noise
+      // and soft, accented speech are not chopped into false fragments.
+      realtimeInputConfig: { automaticActivityDetection: { disabled: false, startOfSpeechSensitivity: 'START_SENSITIVITY_LOW', endOfSpeechSensitivity: 'END_SENSITIVITY_LOW', prefixPaddingMs: 200, silenceDurationMs: 1000 } },
       sessionResumption: resumeHandle ? { handle: resumeHandle } : {},
       contextWindowCompression: { slidingWindow: {} },
       inputAudioTranscription: {}, outputAudioTranscription: {},
