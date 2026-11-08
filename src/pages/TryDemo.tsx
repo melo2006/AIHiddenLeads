@@ -3,12 +3,11 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import {
-  PhoneForwarded,
-  MessageSquare,
-  Mail,
-  UserCheck,
-  Clock,
+  PhoneMissed,
   Zap,
+  UserCheck,
+  CalendarCheck,
+  Video,
   Star,
   Shield,
   ArrowLeft,
@@ -18,25 +17,45 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
+import AssistantErrorBoundary from "@/components/AssistantErrorBoundary";
+import GeminiAgentWidget from "@/components/GeminiAgentWidget";
 import RankAuditPanel from "@/components/landing/demo-results/RankAuditPanel";
 import DemoIntakePanel, {
   extractBusinessName,
   type DemoIntakeReady,
 } from "@/components/landing/DemoIntakePanel";
+import aspenPortrait from "@/assets/aspen-video-frame-final.webp";
 import { rankAuditExamples, type RankAuditExample } from "@/lib/rankAuditExamples";
 import { loadDemoResume, clearDemoResume, type DemoResume } from "@/lib/demoVerification";
 
 const LAST_DEMO_STORAGE_KEY = "lastDemoLeadData";
 
-const benefits = [
-  { key: "transfer", icon: PhoneForwarded },
-  { key: "sms", icon: MessageSquare },
-  { key: "email", icon: Mail },
-  { key: "crm", icon: UserCheck },
-  { key: "receptionist", icon: Clock },
-  { key: "capture", icon: Zap },
-];
+/**
+ * /demo landing (redesigned 2026-11-08, owner spec): the hero carries the
+ * whole pitch on one mobile screen — slogan, Aspen with her speech-bubble
+ * invitation, the price up front, and the intake form. Everything else
+ * (benefits, how it works, ready-made examples, the Maps rank grid) lives
+ * below the fold so ad/email arrivals reach the form without scrolling.
+ * The verified-demo gate flow is untouched: this page only collects the
+ * intake and navigates to /demo-site exactly as before.
+ */
+
+const perks = [
+  { key: "perkVoicemail", icon: PhoneMissed },
+  { key: "perkFast", icon: Zap },
+  { key: "perkCapture", icon: UserCheck },
+  { key: "perkBookings", icon: CalendarCheck },
+  { key: "perkLiveAvatar", icon: Video },
+] as const;
+
+const steps = ["stepEnter", "stepLearn", "stepTalk"] as const;
 
 const TryDemo = () => {
   const { t, i18n } = useTranslation();
@@ -53,6 +72,9 @@ const TryDemo = () => {
   const selectExample = (example: RankAuditExample) => {
     setUrl(example.website); setAuditBusiness(example.name); setAuditLocation(example.location);
     setAuditKeyword(example.keyword); setAuditMode(example.mode); setSelectedExample(example.id);
+    // The demo still starts from the intake form (it needs the visitor's
+    // name + email) — bring the form back into view with the site filled in.
+    document.getElementById("demo-intake")?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   // Pre-fill the website from URL params (e.g. coming from the CRM prospect table)
@@ -112,7 +134,7 @@ const TryDemo = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center px-4 pt-20 pb-8 relative overflow-hidden">
+    <div className="min-h-screen bg-background px-4 pt-16 pb-8 relative overflow-hidden">
       {/* Sticky header */}
       <header className="fixed top-0 inset-x-0 z-50 bg-background/80 backdrop-blur-md border-b border-border/60">
         <div className="max-w-6xl mx-auto flex items-center justify-between px-4 h-14">
@@ -155,56 +177,13 @@ const TryDemo = () => {
         <div className="absolute bottom-0 right-0 w-[300px] h-[300px] rounded-full bg-accent/5 blur-[100px]" />
       </div>
 
-      <div className="relative z-10 w-full max-w-lg mx-auto text-center my-auto">
-
-        {/* Headline */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-        >
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold leading-tight mb-3">
-            {t("tryDemo.headline1")}{" "}
-            <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              AI
-            </span>
-            {" "}{t("tryDemo.headline2")}
-          </h1>
-          <p className="text-muted-foreground text-base sm:text-lg mb-2">
-            {t("tryDemo.sub")}
-          </p>
-          <p className="text-muted-foreground/70 text-xs sm:text-sm mb-5 italic">
-            {t("tryDemo.payoff")}
-          </p>
-        </motion.div>
-
-        {/* Benefits grid */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-          className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-6"
-        >
-          {benefits.map(({ key, icon: Icon }) => (
-            <div
-              key={key}
-              className="flex items-start gap-2 px-3 py-2 rounded-xl border border-border bg-card/60 backdrop-blur-sm text-left"
-            >
-              <Icon className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-              <div>
-                <p className="text-xs font-semibold text-foreground leading-tight">{t(`tryDemo.benefits.${key}.label`)}</p>
-                <p className="text-[10px] text-muted-foreground leading-tight">{t(`tryDemo.benefits.${key}.desc`)}</p>
-              </div>
-            </div>
-          ))}
-        </motion.div>
-
+      <div className="relative z-10 w-full max-w-lg lg:max-w-6xl mx-auto">
         {/* Resume a saved demo (Verified Demo Gate graceful exit) */}
         {resume && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mb-6 flex items-center gap-3 rounded-2xl border border-primary/40 bg-primary/10 px-4 py-3 text-left"
+            className="mb-4 flex items-center gap-3 rounded-2xl border border-primary/40 bg-primary/10 px-4 py-3 text-left"
             role="status"
           >
             <div className="min-w-0 flex-1">
@@ -227,77 +206,228 @@ const TryDemo = () => {
           </motion.div>
         )}
 
-        {/* Demo-mode intake (the widget-style form + verification code send) */}
-        <DemoIntakePanel
-          url={url}
-          onUrlChange={(value) => { setUrl(value); setSelectedExample(null); }}
-          auditBusinessName={auditBusiness}
-          onReady={handleIntakeReady}
-        />
+        {/* HERO — slogan, Aspen, price and the form on the first screen */}
+        <div className="grid items-start gap-5 lg:grid-cols-2 lg:gap-10">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+            className="text-center lg:pt-4 lg:text-left"
+          >
+            <h1 className="text-3xl sm:text-4xl xl:text-5xl font-bold leading-tight mb-2">
+              {t("tryDemo.heroHeadline")}
+            </h1>
+            <p className="text-muted-foreground text-sm sm:text-base mb-4">
+              {t("tryDemo.heroTagline")}
+            </p>
 
-        <section aria-labelledby="audit-examples-title" className="mt-6 mb-6 border-y border-border py-5 text-left">
-          <h2 id="audit-examples-title" className="text-base font-bold">Try a real business</h2>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            {rankAuditExamples.map(example => <Button key={example.id} type="button" variant={selectedExample === example.id ? "default" : "outline"} onClick={() => selectExample(example)} className="h-auto min-h-14 flex-col items-start whitespace-normal px-3 py-2 text-left text-xs">
-              <span className="font-semibold">{example.name}</span><span className="mt-1 text-[10px]">{example.mode === "nationwide" ? "Nationwide · B2B supplier" : example.id === "manufacturer" ? "Riviera Beach · manufacturer" : example.id === "bank" ? "Las Olas · single bank branch" : "Fort Lauderdale · plumber"}</span>
-            </Button>)}
-          </div>
-          <p className="mt-2 text-[11px] text-muted-foreground">Public examples, not customers or verified rankings. Website access and Google listings may change.</p>
-          {selectedExample && <a className="mt-1 inline-block text-xs text-primary underline" href={rankAuditExamples.find(e => e.id === selectedExample)?.source} target="_blank" rel="noreferrer">View business location source</a>}
-          <div className="mt-4 space-y-3">
-            <div><label htmlFor="demo-audit-name" className="mb-1 block text-xs font-medium">Business / branch name</label><Input id="demo-audit-name" value={auditBusiness} onChange={e => setAuditBusiness(e.target.value)} placeholder="Exact Google business name" maxLength={200} /></div>
-            <div><label htmlFor="demo-audit-location" className="mb-1 block text-xs font-medium">Local branch address or city + state</label><Input id="demo-audit-location" value={auditLocation} onChange={e => setAuditLocation(e.target.value)} placeholder="Optional for nationwide Google search" maxLength={100} /></div>
-            <div><label htmlFor="demo-audit-keyword" className="mb-1 block text-xs font-medium">Customer search keyword</label><Input id="demo-audit-keyword" value={auditKeyword} onChange={e => setAuditKeyword(e.target.value)} placeholder="e.g. plumber, custom manufacturing, industrial supplies" maxLength={150} /></div>
-          </div>
-          <div className="mt-3"><RankAuditPanel businessName={auditBusiness || extractBusinessName(url)} city={auditLocation} websiteUrl={url} initialKeyword={auditKeyword} initialMode={auditMode} /></div>
-          <p className="mt-2 text-xs text-muted-foreground">Ranking audit and website demo run separately. Local Maps checks one branch; nationwide mode checks 25 Google buyer searches, not AI citations.</p>
-        </section>
+            {/* Aspen + speech bubble (same approved still as the live widget portrait) */}
+            <div className="flex items-center gap-3 text-left sm:gap-4">
+              <img
+                src={aspenPortrait}
+                alt="Aspen, your AI spokesperson"
+                width={512}
+                height={512}
+                decoding="async"
+                draggable={false}
+                className="aspect-[4/5] w-20 shrink-0 rounded-2xl object-cover object-top shadow-xl sm:w-28 lg:w-36"
+              />
+              <div className="relative min-w-0 flex-1 rounded-2xl rounded-bl-sm border border-primary/30 bg-primary/10 px-3.5 py-3 sm:px-4">
+                <p className="text-xs leading-snug text-foreground sm:text-sm">
+                  {t("tryDemo.aspenBubble")}
+                </p>
+              </div>
+            </div>
 
-        {/* Demo disclaimer */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.45 }}
-          className="mt-4 px-4 py-3 rounded-xl border border-border/50 bg-card/40 backdrop-blur-sm"
-        >
-          <p className="text-[11px] text-muted-foreground leading-relaxed">
-            <button
-              type="button"
-              onClick={() => navigate("/prospects")}
-              className="mr-1 inline-flex items-center font-semibold text-foreground/80 transition-colors hover:text-primary"
-              title={t("tryDemo.goToProspects")}
-              aria-label={t("tryDemo.goToProspects")}
-            >
-              {t("tryDemo.disclaimerLead")}
-            </button>
-            {t("tryDemo.disclaimer")}
-          </p>
-        </motion.div>
+            {/* Price strip — up front, evergreen promo wording, no dates */}
+            <p className="mt-4 rounded-2xl border border-border bg-card/60 px-4 py-3 text-left text-xs leading-relaxed text-muted-foreground backdrop-blur-sm sm:text-sm">
+              {t("tryDemo.priceStrip")}
+            </p>
 
-        {/* Trust strip */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.5 }}
-          className="mt-5 flex flex-col items-center gap-2"
-        >
-          <div className="flex items-center gap-1">
-            {[...Array(5)].map((_, i) => (
-              <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-            ))}
-            <span className="text-sm text-muted-foreground ml-1.5">{t("tryDemo.trusted")}</span>
+            {/* Ask Aspen — opens the live homepage widget (mounted below)
+                with a demo-page framing. The widget listens for this event
+                in floating mode. The preview sibling is hidden on this page
+                (see the mount note) so the buttons never double up. */}
+            <div className="mt-4 text-left">
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 gap-2 rounded-xl text-sm font-semibold"
+                onClick={() => window.dispatchEvent(new CustomEvent("open-homepage-aspen", { detail: { mode: "voice", start: true } }))}
+              >
+                <Video className="h-4 w-4 text-primary" /> {t("tryDemo.askAspen")}
+              </Button>
+            </div>
+          </motion.div>
+
+          {/* Demo-mode intake (the widget-style form + verification code send) */}
+          <div id="demo-intake" className="scroll-mt-20">
+            <DemoIntakePanel
+              url={url}
+              onUrlChange={(value) => { setUrl(value); setSelectedExample(null); }}
+              auditBusinessName={auditBusiness}
+              onReady={handleIntakeReady}
+            />
           </div>
-          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1">
-              <Shield className="w-3.5 h-3.5 text-primary" /> {t("tryDemo.free")}
-            </span>
-            <span>·</span>
-            <span>{t("tryDemo.noSignup")}</span>
-            <span>·</span>
-            <span>{t('tryDemo.free')} live demo</span>
-          </div>
-        </motion.div>
+        </div>
+
+        {/* BELOW THE FOLD — benefits, how it works, examples, rank grid */}
+        <div className="mx-auto mt-10 w-full max-w-2xl">
+          {/* Benefits */}
+          <motion.section
+            aria-labelledby="demo-benefits-title"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5, delay: 0.25 }}
+          >
+            <h2 id="demo-benefits-title" className="text-lg font-bold text-foreground">
+              {t("tryDemo.benefitsTitle")}
+            </h2>
+            <ul className="mt-3 space-y-2.5">
+              {perks.map(({ key, icon: Icon }) => (
+                <li key={key} className="flex items-start gap-2.5 text-sm text-muted-foreground">
+                  <Icon className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                  <span>{t(`tryDemo.${key}`)}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-3 text-xs text-muted-foreground/80">{t("tryDemo.smsNote")}</p>
+          </motion.section>
+
+          {/* How it works */}
+          <section aria-labelledby="demo-how-title" className="mt-8">
+            <h2 id="demo-how-title" className="text-lg font-bold text-foreground">
+              {t("tryDemo.howTitle")}
+            </h2>
+            <ol className="mt-3 grid gap-2 sm:grid-cols-3">
+              {steps.map((key, i) => (
+                <li
+                  key={key}
+                  className="flex items-center gap-3 rounded-xl border border-border bg-card/60 px-3.5 py-3 backdrop-blur-sm sm:flex-col sm:items-start"
+                >
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+                    {i + 1}
+                  </span>
+                  <span className="text-sm font-medium text-foreground">{t(`tryDemo.${key}`)}</span>
+                </li>
+              ))}
+            </ol>
+          </section>
+
+          {/* Ready-made examples — collapsed by default; holds up to 10.
+              Adding an example = one more entry in rankAuditExamples plus
+              one more button here; the grid simply wraps. */}
+          <Accordion type="single" collapsible className="mt-8 rounded-2xl border border-border bg-card/40 px-4 backdrop-blur-sm">
+            <AccordionItem value="examples" className="border-b-0">
+              <AccordionTrigger className="text-base font-bold hover:no-underline">
+                {t("tryDemo.examplesTitle")}
+              </AccordionTrigger>
+              <AccordionContent>
+                <p className="text-xs text-muted-foreground">{t("tryDemo.examplesHint")}</p>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  {rankAuditExamples.map((example) => (
+                    <Button
+                      key={example.id}
+                      type="button"
+                      variant={selectedExample === example.id ? "default" : "outline"}
+                      onClick={() => selectExample(example)}
+                      className="h-auto min-h-14 flex-col items-start whitespace-normal px-3 py-2 text-left text-xs"
+                    >
+                      <span className="font-semibold">{example.name}</span>
+                      <span className="mt-1 text-[10px] opacity-80">
+                        {example.location} · {example.industry}
+                      </span>
+                    </Button>
+                  ))}
+                </div>
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  Public examples, not customers or verified rankings. Website access and Google listings may change.
+                </p>
+                {selectedExample && (
+                  <a
+                    className="mt-1 inline-block text-xs text-primary underline"
+                    href={rankAuditExamples.find((e) => e.id === selectedExample)?.source}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    View business location source
+                  </a>
+                )}
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+
+          {/* 25-Point Google Maps Rank Grid — a separate tool, below the demo content */}
+          <section aria-labelledby="audit-title" className="mt-8 border-t border-border pt-6 text-left">
+            <h2 id="audit-title" className="text-base font-bold">{t("tryDemo.rankTitle")}</h2>
+            <div className="mt-4 space-y-3">
+              <div><label htmlFor="demo-audit-name" className="mb-1 block text-xs font-medium">Business / branch name</label><Input id="demo-audit-name" value={auditBusiness} onChange={e => setAuditBusiness(e.target.value)} placeholder="Exact Google business name" maxLength={200} /></div>
+              <div><label htmlFor="demo-audit-location" className="mb-1 block text-xs font-medium">Local branch address or city + state</label><Input id="demo-audit-location" value={auditLocation} onChange={e => setAuditLocation(e.target.value)} placeholder="Optional for nationwide Google search" maxLength={100} /></div>
+              <div><label htmlFor="demo-audit-keyword" className="mb-1 block text-xs font-medium">Customer search keyword</label><Input id="demo-audit-keyword" value={auditKeyword} onChange={e => setAuditKeyword(e.target.value)} placeholder="e.g. plumber, custom manufacturing, industrial supplies" maxLength={150} /></div>
+            </div>
+            <div className="mt-3"><RankAuditPanel businessName={auditBusiness || extractBusinessName(url)} city={auditLocation} websiteUrl={url} initialKeyword={auditKeyword} initialMode={auditMode} /></div>
+            <p className="mt-2 text-xs text-muted-foreground">Ranking audit and website demo run separately. Local Maps checks one branch; nationwide mode checks 25 Google buyer searches, not AI citations.</p>
+          </section>
+
+          {/* Demo disclaimer */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5, delay: 0.45 }}
+            className="mt-6 px-4 py-3 rounded-xl border border-border/50 bg-card/40 backdrop-blur-sm"
+          >
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              <button
+                type="button"
+                onClick={() => navigate("/prospects")}
+                className="mr-1 inline-flex items-center font-semibold text-foreground/80 transition-colors hover:text-primary"
+                title={t("tryDemo.goToProspects")}
+                aria-label={t("tryDemo.goToProspects")}
+              >
+                {t("tryDemo.disclaimerLead")}
+              </button>
+              {t("tryDemo.disclaimer")}
+            </p>
+          </motion.div>
+
+          {/* Trust strip */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5, delay: 0.5 }}
+            className="mt-5 flex flex-col items-center gap-2"
+          >
+            <div className="flex items-center gap-1">
+              {[...Array(5)].map((_, i) => (
+                <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+              ))}
+              <span className="text-sm text-muted-foreground ml-1.5">{t("tryDemo.trusted")}</span>
+            </div>
+            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <Shield className="w-3.5 h-3.5 text-primary" /> {t("tryDemo.free")}
+              </span>
+              <span>·</span>
+              <span>{t("tryDemo.noSignup")}</span>
+              <span>·</span>
+              <span>{t('tryDemo.free')} live demo</span>
+            </div>
+          </motion.div>
+        </div>
       </div>
+
+      {/* Live Aspen on the /demo landing (owner addition, 2026-11-08):
+          the same homepage widget Index mounts — standard config (homepage
+          sales session; her knowledge covers the demo) with its standard
+          "Tap to talk" bubble at the bottom corner. It is per-page (not
+          global), so it exists only here and on the homepage — never inside
+          the /demo-site simulation. SEAM: GeminiAgentWidget exposes no
+          page-context / extra-instructions prop, so no demo-specific script
+          is injected; the hero's "Ask Aspen about this demo" button frames
+          the entry point and opens her via the widget's own event. */}
+      <AssistantErrorBoundary>
+        <GeminiAgentWidget floating />
+      </AssistantErrorBoundary>
     </div>
   );
 };
