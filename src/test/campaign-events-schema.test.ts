@@ -3,6 +3,7 @@ import { describe, expect, test, vi } from 'vitest';
 
 // The shared schema imports zod via Deno's npm: specifier; map it to the
 // repo's installed zod for the test run (same library, same major).
+// @ts-ignore: 'npm:' specifiers resolve in Deno, not in the app's tsc.
 vi.mock('npm:zod@3', async () => await import('zod'));
 
 import { campaignEventSchema } from '../../supabase/functions/_shared/campaign-events-schema';
