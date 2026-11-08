@@ -103,6 +103,16 @@ export interface GeminiShellState {
 }
 export interface GeminiConversationProps { agentId?: string; leadId?: string; prospectId?: string; draft?: boolean; compact?: boolean; name?: string; visitorName?: string; previewVoice?: string; autoStart?: boolean; previewOnly?: boolean; previewAudioContext?: AudioContext; testModel?: string; shareToken?: string; onRecommendedPlan?: (plan: SalesPlan) => void; videoAvatar?: VideoAvatar; avatarInline?: boolean; faceFirst?: boolean; avatarUrl?: string; /** The visitor tapped a launcher that already showed the recording notice; that tap is the agreement. */ consentOnOpen?: boolean; /** Open the paid live session silently before the tap so it starts instantly. */ prewarm?: boolean; onPrewarmed?: (ready: boolean) => void; /** Verified Demo Gate: 'pending' starts the session in the Act 1 host phase (verification before simulation); 'verified' or undefined keeps the standard session. */ verification?: "pending" | "verified"; /** Cold-email invite arrival: asks gemini-session for the invite host phase; honored server-side only when the lead's invite arrival was stamped by the demo-invite resolve. */ invite?: boolean; /** Platform guide: 'alex' starts the authenticated setup-guide session (Alex, support specialist) instead of a tenant agent; honored server-side only for signed-in users. */ guide?: "alex"; /** Fires with each finalized visitor transcript line (used by the demo gate to hear a spoken code). */ onUserTranscript?: (text: string) => void; /** Three-stage widget: the shell fills this ref with live-session commands for its Stage 3 bar. */ shellControlsRef?: { current: GeminiShellControls | null }; /** Three-stage widget: receives the live-session snapshot for the Stage 3 bar. */ onShellState?: (state: GeminiShellState) => void; /** Widget chrome rendered BELOW her face — between the portrait/livebox and the captions/chat panel (the Voice/Type toggle lives here, never above her). */ belowAvatar?: ReactNode; }
 const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compact = false, name = "Aspen", visitorName = "", previewVoice, autoStart = false, previewOnly = false, previewAudioContext, testModel, shareToken, onRecommendedPlan, videoAvatar, avatarInline = false, faceFirst = false, avatarUrl, consentOnOpen = false, prewarm = false, onPrewarmed, verification, invite, guide, onUserTranscript, shellControlsRef, onShellState, belowAvatar }: GeminiConversationProps) => {
+  // On the gate's pending → verified flip, the next session is the demo's
+  // fresh start, not a resume: drop this page visit's stored turns so the
+  // proxy delivers the simulation opening instead of the resume line.
+  const prevVerificationRef = useRef(verification);
+  useEffect(() => {
+    if (prevVerificationRef.current === 'pending' && verification === 'verified') {
+      visitMemory.delete(agentId || 'homepage');
+    }
+    prevVerificationRef.current = verification;
+  }, [verification, agentId]);
   const onPrewarmedRef = useRef(onPrewarmed); onPrewarmedRef.current = onPrewarmed;
   const onUserTranscriptRef = useRef(onUserTranscript); onUserTranscriptRef.current = onUserTranscript;
   const warmRef = useRef<{ ready: Promise<boolean>; ok: boolean; activated: boolean; goLive?: () => void } | null>(null);

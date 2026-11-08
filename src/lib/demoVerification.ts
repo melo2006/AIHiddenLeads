@@ -432,5 +432,5 @@ export const GATE_LINES = {
     'Your code is still good for a few more minutes. I can send a fresh one if you like, or we can pick this up again later — whatever suits you.',
   exit: "No rush at all — your demo stays saved. Come back any time and say 'continue my demo' and we will pick up right here.",
   verified:
-    'Thank you — that did it, you are in. We are now entering simulation mode, so please ask as if you were a visitor to your own website — pricing, details, a manager, anything you want to know.',
+    'Thank you — that did it, you are in. In a moment I will step into simulation mode and become your business\'s assistant, so please treat me like a brand-new caller — pricing, details, anything you want to know.',
 } as const;

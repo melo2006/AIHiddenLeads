@@ -98,7 +98,9 @@ describe('PHONE_DEMO_HOST_POLICY choreography', () => {
     expect(PHONE_DEMO_HOST_POLICY).toContain('resume_demo_by_code');
   });
   test('role switch line and in-role manager rule are explicit', () => {
-    expect(PHONE_DEMO_HOST_POLICY).toContain("I'm the receptionist for");
+    // Demo Script v2 (audit C9): wording updated to "I am the receptionist
+    // for" inside the announced doorway (announcement + pause + greeting).
+    expect(PHONE_DEMO_HOST_POLICY).toContain('I am the receptionist for');
     expect(PHONE_DEMO_HOST_POLICY).toContain('part of the roleplay');
   });
   test('report card separates real facts from fills; no-website offer quotes $99 one-time', () => {

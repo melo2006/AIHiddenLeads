@@ -45,14 +45,27 @@ test('Act 1 handles a spoken code without Aspen judging it', () => {
   expect(DEMO_VERIFICATION_ACT1).toContain('offer typing it instead');
 });
 
-test('Act 1 transitions into simulation mode and offers a graceful resume', () => {
-  expect(DEMO_VERIFICATION_ACT1).toContain('entering simulation mode');
-  expect(DEMO_VERIFICATION_ACT1).toContain('act like a visitor to your own website');
-  expect(DEMO_VERIFICATION_ACT1).toContain('manager or a sales specialist');
-  expect(DEMO_VERIFICATION_ACT1).toContain('pricing');
+test('Act 1 hands over to the restarted session and offers a graceful resume', () => {
+  // Demo Script v2 (audit C-3): Act 1 no longer announces a simulation it
+  // will not start — the announcement duty lives in the restarted session's
+  // SIMULATION ENTRY (SIMULATION_PROMPT). Act 1 now sets the expectation.
+  expect(DEMO_VERIFICATION_ACT1).toContain('When verification succeeds');
+  expect(DEMO_VERIFICATION_ACT1).toContain('runs the SIMULATION ENTRY');
+  expect(DEMO_VERIFICATION_ACT1).toContain('step into their business');
+  expect(DEMO_VERIFICATION_ACT1).toContain('brand-new caller');
   expect(DEMO_VERIFICATION_ACT1).toContain('demo stays saved');
   expect(DEMO_VERIFICATION_ACT1).toContain('continue my demo');
   expect(DEMO_VERIFICATION_ACT1).toContain('never repeat the verification ask more than once');
+});
+
+test('Act 1 carries the mock-up framing, the keep-learning line and the one Alex name-drop', () => {
+  expect(DEMO_VERIFICATION_ACT1).toContain('simulation layered over a copy of that website');
+  expect(DEMO_VERIFICATION_ACT1).toContain('nothing was changed on their real website or server');
+  expect(DEMO_VERIFICATION_ACT1).toContain('keeps perfecting and expanding her knowledge base');
+  expect(DEMO_VERIFICATION_ACT1).toContain('Alex, once');
+  expect(DEMO_VERIFICATION_ACT1).toContain('personally walks every new customer through setup');
+  expect(DEMO_VERIFICATION_GREETING).toContain('support specialist, Alex');
+  expect(DEMO_VERIFICATION_GREETING).toContain('nobody gets left alone with forms');
 });
 
 test('Act 1 keeps the no-invention guardrails', () => {

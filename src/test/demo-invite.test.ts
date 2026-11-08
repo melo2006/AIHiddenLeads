@@ -242,13 +242,20 @@ describe('invite opening copy (Aspen host phase)', () => {
   });
 
   test('opening: simulation entry announcement and same-link return', () => {
-    expect(DEMO_INVITE_OPENING).toContain('entering simulation mode');
+    // Demo Script v2 (audit C4f): the invite opening now hands the doorway to
+    // the SIMULATION ENTRY sequence instead of reciting the announcement
+    // itself — the manager/pricing examples moved into SIMULATION_PROMPT's
+    // announcement beat (pinned in demo-script-v2.test.ts).
+    expect(DEMO_INVITE_OPENING).toContain('run the SIMULATION ENTRY sequence');
+    expect(DEMO_INVITE_OPENING).toContain('stepping into simulation mode');
     expect(DEMO_INVITE_OPENING).toContain('act like a visitor to your own website');
-    expect(DEMO_INVITE_OPENING).toContain('manager or a sales specialist');
-    expect(DEMO_INVITE_OPENING).toContain('pricing');
+    expect(DEMO_INVITE_OPENING).toContain('clear unfilled pause');
     expect(DEMO_INVITE_OPENING).toContain('this same personal link reopens their demo any time');
     expect(DEMO_INVITE_OPENING).toContain('never claim a real action succeeded without its result');
     expect(DEMO_INVITE_OPENING).toContain('anti-transfer rule');
+    expect(DEMO_INVITE_OPENING).toContain('Set expectations, once');
+    expect(DEMO_INVITE_OPENING).toContain('Alex, once');
+    expect(DEMO_INVITE_GREETING).toContain('support specialist, Alex');
   });
 });
 
