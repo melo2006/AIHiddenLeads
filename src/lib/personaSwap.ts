@@ -94,6 +94,39 @@ export const PHASE_AFTER_BOUNDARY: Record<PersonaBoundary, SwapPhase> = {
  *  cover of last resort and no black gap can appear either way. */
 export const SWAP_CROSSFADE_MS = 300;
 
+/** What the cut-over applies to the incoming face's audio element BEFORE
+ *  its segment socket opens. The pre-stage starts the incoming instance
+ *  SILENT: its element sits at muted=true, volume=0, and NOTHING on the
+ *  swap path unmuted it — the swapped persona's face moved (PCM reached
+ *  the Simli client) while her paired stream stayed silent (owner's
+ *  2026-11-09 retest: Sara visible and lip-moving, zero sound). The
+ *  incoming instance's own playbackMutedRef defaults to false, so the
+ *  session's CURRENT effective mute must be synced in first; only then
+ *  does activate() — the designed unmute for a silently-started
+ *  instance — apply it. Order is load-bearing: mute-sync, THEN activate.
+ *  Re-calling start() at cut-over is a trap: it early-returns on an
+ *  already-live instance and never reaches the unmute block. */
+export interface CutoverAudioSync {
+  /** The session's effective playback mute at cut-over: speaker mute OR
+   *  paused OR replaying (the same formula the speaker toggle applies). */
+  muted: boolean;
+  /** The session's selected speaker output device, if any — the incoming
+   *  instance's desired sink starts unset, so routing must be re-applied
+   *  or a swap silently reverts to the platform default. */
+  deviceId: string | null;
+}
+export function cutoverAudioSync(input: {
+  speakerMuted: boolean;
+  paused: boolean;
+  replaying: boolean;
+  selectedDeviceId: string | null;
+}): CutoverAudioSync {
+  return {
+    muted: input.speakerMuted || input.paused || input.replaying,
+    deviceId: input.selectedDeviceId,
+  };
+}
+
 /** The two face slots inside the widget's live box. The ACTIVE persona
  *  occupies one slot; a pre-staged incoming persona mounts in the
  *  OTHER slot, is revealed there at cut-over, and the retired slot is
@@ -253,7 +286,59 @@ export function reconnectTarget(state: SwapState, parentSessionId: string | null
   personaSegment?: { persona: PersonaId; boundary: PersonaBoundary; parentSessionId: string };
 } {
   if (!parentSessionId || state.phase === 'host') return { persona: 'aspen' };
-  // Team intro phases: a drop mid-show re-authorizes the SAME persona.
+  return segmentTargetForState(state, parentSessionId);
+}
+
+/** The chain state saved across a manual stop / Stage-3 suspend for the
+ *  length of the page visit (GeminiConversation's visit-level store,
+ *  mirroring how visitMemory persists turns). A manual teardown used to
+ *  DELETE the swap chain, so the restart was authorised as a brand-new
+ *  Aspen parent and re-ran her host script from the top (owner's
+ *  2026-11-09 retest). With a stash, the restart re-authorises the ACTIVE
+ *  segment instead. Visitor/parent context travels alongside: the
+ *  restart's segment recap is rebuilt from them. */
+export interface ChainStash {
+  state: SwapState;
+  parentSessionId: string;
+  visitorKey: string;
+  businessName: string;
+}
+
+/** Is this chain mid-segment — a swap chain exists (a boundary was
+ *  crossed, or the active persona is not the host)? Host/intro chains
+ *  have no segment to resume: their restart stays the legacy parent
+ *  resume, byte-identical. */
+export function chainIsMidSegment(state: SwapState): boolean {
+  return state.phase !== 'host' && state.phase !== 'intro';
+}
+
+/** What a manual-stop restart must re-authorise as, given a chain stash:
+ *  the ACTIVE segment (same persona, same entry boundary, ORIGINAL
+ *  parent) — or null when there is nothing to resume (no stash, or the
+ *  chain never left the host), which keeps the legacy fresh-parent start
+ *  exactly as it was. The segment re-enters under the personaResume
+ *  opening flavour (welcome-back, no drop apology, no host greeting). */
+export function chainStashTarget(stash: ChainStash | null | undefined): {
+  persona: PersonaId;
+  personaSegment: { persona: PersonaId; boundary: PersonaBoundary; parentSessionId: string };
+} | null {
+  if (!stash || !chainIsMidSegment(stash.state)) return null;
+  const target = segmentTargetForState(stash.state, stash.parentSessionId);
+  // chainIsMidSegment already ruled out the segment-less phases; this
+  // guard only satisfies the type — a stash without a segment is no stash.
+  if (!target.personaSegment) return null;
+  return { persona: target.persona, personaSegment: target.personaSegment };
+}
+
+/** The segment identity of a chain state: the persona who was live,
+ *  re-entering on her own segment's entry boundary under the original
+ *  parent. Shared by the unplanned-drop reconnect (reconnectTarget) and
+ *  the manual-stop resume (chainStashTarget). */
+function segmentTargetForState(state: SwapState, parentSessionId: string): {
+  persona: PersonaId;
+  personaSegment?: { persona: PersonaId; boundary: PersonaBoundary; parentSessionId: string };
+} {
+  // Team intro phases: a reconnect mid-show re-authorizes the SAME persona.
   // The boundary it re-enters on is its own segment's entry boundary —
   // except the two Aspen beats: the PARENT Aspen (phase intro) stays on
   // the legacy session shape (returns undefined segment, like host), and

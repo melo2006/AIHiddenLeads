@@ -926,18 +926,20 @@ const DemoSite = () => {
             <LanguageSwitcher variant="full" className="h-8 shrink-0" />
             <Button asChild size="sm" className="h-8 shrink-0 text-xs"><a href="/plans" target="_blank" rel="noopener noreferrer"><span className="sm:hidden">Install</span><span className="hidden sm:inline">Get the install code</span><ExternalLink className="ml-1 h-3 w-3" /></a></Button>
           </div>
-          <div className="mt-1.5 flex min-w-0 items-center justify-between gap-2">
-            <p className="text-[10px] leading-tight text-muted-foreground"><span className="sm:hidden">Original site unchanged</span><span className="hidden sm:inline">Your real website is not changed.</span></p>
-            <div className="flex min-w-0 items-center gap-1">
+          <div className="mt-1.5 flex min-w-0 items-center gap-2">
+            <p className="shrink-0 text-[10px] leading-tight text-muted-foreground"><span className="sm:hidden">Original site unchanged</span><span className="hidden sm:inline">Your real website is not changed.</span></p>
+            {/* "Not hacked" reassurance — Dennis's rule (2026-11-09): the
+                one-line note on its own is not enough; the strong version
+                must be seen before the first tap. Folded into THIS row on
+                the owner's slimming ask (2026-11-09): the strip renders
+                as one slim pill level with the note, and its full line
+                opens as a dropdown anchored under it — the header stays
+                two rows tall, not three. */}
+            <DemoReassuranceStrip compact />
+            <div className="ml-auto flex min-w-0 items-center gap-1">
               <RankAuditPanel businessName={searchParams.get("auditBusiness") || leadData.businessName || siteName} city={searchParams.get("city") || undefined} niche={leadData.niche} websiteUrl={leadData.websiteUrl} initialKeyword={searchParams.get("keyword") || undefined} initialMode={searchParams.get("auditMode") === "nationwide" ? "nationwide" : "maps"} compact />
               <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0" onClick={() => setShowTestOverride(v => !v)} title="Test phone override" aria-label="Test phone override"><Phone className="h-3 w-3" /></Button>
             </div>
-          </div>
-          {/* Full "not hacked" reassurance — Dennis's rule (2026-11-09):
-              the one-line note above is not enough on its own; the strong
-              version sits in the header, seen before the first tap. */}
-          <div className="mt-2">
-            <DemoReassuranceStrip compact />
           </div>
         </div>
 

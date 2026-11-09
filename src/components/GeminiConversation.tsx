@@ -29,7 +29,7 @@ import { classifyMicrophoneFailure, isEmbeddedContext } from "@/lib/embeddedCont
 import {campaignVisit, trackCampaignEvent} from '@/lib/campaignTracking';
 import { salesPlans, type SalesPlan } from '@/lib/salesActions';
 import SimliAvatar, { SOUND_BLOCKED, isVideoStartFailure, type SimliAvatarHandle } from '@/components/SimliAvatar';
-import { boundaryForAssistantLine, buildSwapRecap, cutoverReady, dropApologyVariant, INITIAL_SWAP_STATE, introYieldOnVisitorLine, otherFaceSlot, PHASE_AFTER_BOUNDARY, PHASE_ENTRY, reconnectTarget, SWAP_CROSSFADE_MS, swapRecapFacts, visitorSignalsStepOut, type FaceSlot, type PersonaBoundary, type PersonaId, type SwapPhase, type SwapState } from '@/lib/personaSwap';
+import { boundaryForAssistantLine, buildSwapRecap, chainIsMidSegment, chainStashTarget, cutoverAudioSync, cutoverReady, dropApologyVariant, INITIAL_SWAP_STATE, introYieldOnVisitorLine, otherFaceSlot, PHASE_AFTER_BOUNDARY, PHASE_ENTRY, reconnectTarget, SWAP_CROSSFADE_MS, swapRecapFacts, visitorSignalsStepOut, type ChainStash, type FaceSlot, type PersonaBoundary, type PersonaId, type SwapPhase, type SwapState } from '@/lib/personaSwap';
 import { PERSONAS, SARA_FACE_ID } from '../../supabase/functions/_shared/personas';
 import { ALEX_FACE_ID } from '../../supabase/functions/_shared/alex-guide';
 import type { VideoAvatar } from '../../supabase/functions/_shared/video-avatar';
@@ -72,6 +72,14 @@ const VOICES = [
 type Turn = { role: "user" | "assistant" | "divider"; text: string; speaker?: PersonaId };
 // Same-page-visit memory so pressing play again after Stop resumes instead of re-greeting.
 const visitMemory = new Map<string, Turn[]>();
+/** Persona-chain stash across a manual stop / Stage-3 suspend, kept for
+ * the length of the page visit (same lifetime as visitMemory). A full
+ * teardown used to DELETE the swap chain, so a restart mid-Sara was
+ * authorised as a brand-new Aspen parent and re-ran her host script.
+ * With a stash, teardown saves the chain and the next start re-authorises
+ * the ACTIVE segment (personaResume opening — welcome-back, no apology);
+ * only a fresh parent authorization (a genuinely new demo) clears it. */
+const visitChainStash = new Map<string, ChainStash>();
 export function resumeRecap(turns: Turn[]) {
   if (!turns.some(t => t.role === "assistant")) return undefined;
   return turns.filter(t => t.role !== "divider").slice(-8).map(t => `${t.role === "user" ? "Visitor" : "Assistant"}: ${t.text}`).join("\n").slice(-1500);
@@ -122,11 +130,14 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const transcriptAriaLabel = (role: "user" | "assistant") => role === "user" ? t("voice.callerTranscript") : t("voice.aspenTranscript");
   // On the gate's pending → verified flip, the next session is the demo's
   // fresh start, not a resume: drop this page visit's stored turns so the
-  // proxy delivers the simulation opening instead of the resume line.
+  // proxy delivers the simulation opening instead of the resume line — and
+  // drop any stashed swap chain too, so the fresh start can never be
+  // hijacked into resuming a segment from before the flip.
   const prevVerificationRef = useRef(verification);
   useEffect(() => {
     if (prevVerificationRef.current === 'pending' && verification === 'verified') {
       visitMemory.delete(agentId || 'homepage');
+      visitChainStash.delete(agentId || 'homepage');
     }
     prevVerificationRef.current = verification;
   }, [verification, agentId]);
@@ -483,7 +494,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   }, [agentId, visitorName]);
 
   /** Authorize one persona segment against the ORIGINAL parent session. */
-  const requestSegment = useCallback(async (persona: PersonaId, boundary: PersonaBoundary, opts: { swap: boolean; dropRecovery?: boolean }) => {
+  const requestSegment = useCallback(async (persona: PersonaId, boundary: PersonaBoundary, opts: { swap: boolean; dropRecovery?: boolean; manualResume?: boolean }) => {
     const parentSessionId = parentSessionIdRef.current;
     if (!parentSessionId || !visitorKeyRef.current) return null;
     const headers = await voiceSessionHeaders();
@@ -498,6 +509,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           swapRecap: currentSwapRecap(persona),
           drops: swapStateRef.current.drops,
           dropRecovery: opts.dropRecovery === true,
+          manualResume: opts.manualResume === true,
           swap: opts.swap,
         },
       },
@@ -510,6 +522,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // socket builder); these refs let the message handlers reach it.
   const executeSwapRef = useRef<(boundary: PersonaBoundary) => Promise<void>>(async () => {});
   const dropRecoverRef = useRef<() => void>(() => {});
+  /** Segment-socket builder, defined with the swap machinery below; the
+   * manual-stop resume path (defined earlier, inside startConversation's
+   * neighbourhood) reaches it through this ref. */
+  const connectSegmentSocketRef = useRef<(token: string) => void>(() => {});
 
   /** Arm a boundary: authorize the incoming segment AND pre-connect its
    * face (concealed, in the face slot the active persona is NOT using)
@@ -548,7 +564,22 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // ended the conversation; the Stage 3 suspend path passes false so the
   // server treats the close like a drop and the session stays resumable.
   const teardown = useCallback((endSession: boolean) => {
-    // Avatar swap: a full teardown ends the whole persona chain.
+    // Avatar swap: a full teardown ends the live chain — but a MID-SEGMENT
+    // chain is STASHED for the rest of the page visit first, so pressing
+    // play again resumes the ACTIVE segment instead of re-authorising a
+    // fresh Aspen parent (the restart defect: she re-ran her host script
+    // and Sara never came back). Host/intro chains stash nothing: their
+    // restart stays the legacy parent resume, byte-identical. The stash
+    // is cleared only when a fresh parent authorization lands (a new
+    // demo journey) in startConversation.
+    if (swapEnabledRef.current && parentSessionIdRef.current && chainIsMidSegment(swapStateRef.current)) {
+      visitChainStash.set(agentId || "homepage", {
+        state: { ...swapStateRef.current },
+        parentSessionId: parentSessionIdRef.current,
+        visitorKey: visitorKeyRef.current,
+        businessName: businessNameRef.current,
+      });
+    }
     swapEnabledRef.current = false;
     swapStateRef.current = { ...INITIAL_SWAP_STATE };
     introYieldWasBargeInRef.current = false;
@@ -614,7 +645,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     setAspenSpeaking(false);
     setPhase("idle");
     setStatus("Conversation ended. Press Start to begin again.");
-  }, [flushLine]);
+  }, [flushLine, agentId]);
 
   /** PARTIAL teardown for a persona cut-over (spec §5.4): closes ONLY the
    * current voice socket (no end_session — the server treats it like the
@@ -655,6 +686,62 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     setAudioNeedsTap(false);
     setEndedByVisitor(true);
   }, [stopEverything]);
+
+  /** MANUAL-STOP SEGMENT RESUME: startConversation calls this when a
+   * chain stash exists for this page visit. It runs AFTER the fresh
+   * start's tap-side setup (audio contexts unlocked, mic live, face
+   * machinery armed) but INSTEAD of minting a fresh parent session:
+   * the ACTIVE segment is re-authorised against the ORIGINAL parent
+   * with the personaResume opening (welcome-back flavour — no drop
+   * apology, no host greeting) and connected on the surviving setup.
+   * The persona's face is re-staged into its owning slot (concealed,
+   * silently started, then revealed + audio-synced exactly like a
+   * cut-over). Returns false when the segment cannot be authorised —
+   * the caller then falls through to the plain fresh-parent start, so
+   * a resume can never dead-end the visitor. */
+  const resumeSegmentChainRef = useRef<(stash: ChainStash) => Promise<boolean>>(async () => false);
+  resumeSegmentChainRef.current = async (stash) => {
+    const target = chainStashTarget(stash);
+    if (!target?.personaSegment) return false;
+    // Restore the chain context requestSegment reads (parent, visitor
+    // key, business name) BEFORE authorising.
+    swapEnabledRef.current = true;
+    parentSessionIdRef.current = stash.parentSessionId;
+    visitorKeyRef.current = stash.visitorKey;
+    businessNameRef.current = stash.businessName;
+    swapStateRef.current = { ...stash.state };
+    setActivePersona(stash.state.persona);
+    const segment = await requestSegment(target.personaSegment.persona, target.personaSegment.boundary, { swap: false, manualResume: true });
+    if (!segment) return false;
+    onPersonaChangeRef.current?.({ id: stash.state.persona, displayName: PERSONAS[stash.state.persona].displayName });
+    if (avatarRequestedRef.current) {
+      // Re-stage her face concealed in its owning slot, start it silent,
+      // then reveal + audio-sync like a cut-over (mute-sync, routing,
+      // activate — in that order).
+      const slot = faceSlotOwnerRef.current;
+      if (slot === 'second') setSecondFace({ persona: stash.state.persona, boundary: target.personaSegment.boundary, revealed: false });
+      else setMainFace({ persona: stash.state.persona, boundary: target.personaSegment.boundary, revealed: false });
+      await new Promise<void>(r => requestAnimationFrame(() => r()));
+      const handle = slot === 'second' ? stagedAvatarRef.current : mainSlotRef.current;
+      const started = await handle?.start({ silent: true }).catch(() => false);
+      if (started && handle) {
+        avatarRef.current = handle;
+        avatarLiveRef.current = true;
+        if (slot === 'second') setSecondFace(face => (face && face.boundary === target.personaSegment?.boundary ? { ...face, revealed: true } : face));
+        else setMainFace(face => (face && face.boundary === target.personaSegment?.boundary ? { ...face, revealed: true } : face));
+        setFaceLive(true);
+        const sync = cutoverAudioSync({ speakerMuted: speakerMutedRef.current, paused: captureRef.current.paused, replaying: captureRef.current.replaying, selectedDeviceId: selectedOutputIdRef.current });
+        try { await handle.cutoverAudioSync?.(sync); }
+        catch (e) { if (e instanceof Error && e.message === SOUND_BLOCKED) setAudioNeedsTap(true); }
+      } else {
+        // Her face could not re-stage: continue voice-only on the
+        // segment rather than failing the resume.
+        if (slot === 'second') setSecondFace(null); else setMainFace(null);
+      }
+    }
+    connectSegmentSocketRef.current(segment.token);
+    return true;
+  };
 
   // Play a 24 kHz PCM chunk (base64) with gapless scheduling
   const playPcmChunk = useCallback((base64: string, reserved?: ReturnType<PlaybackCaptions['reserve']>) => {
@@ -1002,6 +1089,22 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       await Promise.all([playResume, micResume]);
       if (generation !== generationRef.current) return;
       if (!warm && (playCtx.state !== 'running' || (!isEmbeddedContext() && micCtx && micCtx.state !== 'running'))) throw new Error(AUDIO_TAP_NEEDED);
+      // MANUAL-STOP SEGMENT RESUME: a mid-segment chain stashed by the
+      // last teardown (this page visit) resumes HERE — after the tap's
+      // audio unlock, before any fresh session is minted — by
+      // re-authorising the ACTIVE segment against its original parent.
+      // No stash (or a host-phase stop) ⇒ this branch never runs and the
+      // fresh-parent start below is byte-identical to before. A failed
+      // resume falls through to that same fresh start.
+      if (!preview && !warm && !reconnecting) {
+        const stash = visitChainStash.get(agentId || "homepage");
+        if (stash && await resumeSegmentChainRef.current(stash)) {
+          visitChainStash.delete(agentId || "homepage");
+          window.clearTimeout(startupTimeout);
+          startingRef.current = false;
+          return;
+        }
+      }
       // A video-start failure (startup timeout after the retries, or the provider
       // dropping the session mid-startup) degrades to a voice-only session instead of
       // aborting the call. Refusals, sound blocks and cancels still reject as before.
@@ -1085,6 +1188,9 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         businessNameRef.current = String(authorized.businessName || '');
         swapStateRef.current = { ...INITIAL_SWAP_STATE };
         setActivePersona('aspen');
+        // A fresh parent authorization is a genuinely new demo journey:
+        // any chain stashed by the previous one is spent.
+        visitChainStash.delete(agentId || "homepage");
       }
       // Team intro arming (design §7): a DIFFERENT arming class — the
       // demo-page explainer parent (server echo teamIntroEnabled, no
@@ -1099,6 +1205,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         visitorKeyRef.current = visitorKey;
         swapStateRef.current = { ...INITIAL_SWAP_STATE, phase: 'intro' };
         setActivePersona('aspen');
+        visitChainStash.delete(agentId || "homepage");
       }
       homepageWalkthroughRef.current = authorized.homepageSales === true;
       idleRef.current = { enabled: (authorized.idleChecks === true || authorized.homepageSales === true) && !preview, stage: 'waiting', quietSince: Date.now(), generating: true, requestedAt: 0 };
@@ -1597,6 +1704,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       }
     };
   }, [agentId, captureMode, clearPlayback, flushLine, onRecommendedPlan, playPcmChunk, stopEverything, recoverFromProviderClosed]);
+  connectSegmentSocketRef.current = connectSegmentSocket;
 
   /** ATOMIC CUT-OVER (spec §5.4/§6.2 corrected order): the gate decides
    * BEFORE anything visible changes; then the old face freezes (its last
@@ -1654,6 +1762,27 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         incomingHandle?.setFrameKeeper?.(false);
         avatarRef.current = incomingHandle;
         faceSlotOwnerRef.current = staged.slot;
+        // 1b) AUDIO SYNC — the defect that left Sara silent: the incoming
+        // instance was pre-staged SILENT (element muted, volume 0) and
+        // nothing on the swap path ever unmuted it; PCM reached her
+        // Simli client (her lips moved) while her paired stream stayed
+        // muted forever. Sync the session's mute state into the incoming
+        // instance FIRST, re-apply the selected speaker output (its
+        // desired sink starts unset), then activate() — the designed
+        // unmute. NOT start(): it early-returns on a live instance and
+        // never reaches the unmute block. A SOUND_BLOCKED refusal does
+        // not fail the swap — it surfaces the same tap-to-enable-sound
+        // affordance the initial-face path uses.
+        const sync = cutoverAudioSync({ speakerMuted: speakerMutedRef.current, paused: captureRef.current.paused, replaying: captureRef.current.replaying, selectedDeviceId: selectedOutputIdRef.current });
+        if (incomingHandle?.cutoverAudioSync) {
+          try { await incomingHandle.cutoverAudioSync(sync); }
+          catch (e) { if (e instanceof Error && e.message === SOUND_BLOCKED) setAudioNeedsTap(true); }
+        } else if (incomingHandle) {
+          incomingHandle.setPlaybackMuted(sync.muted);
+          if (sync.deviceId) void incomingHandle.setOutputDevice?.(sync.deviceId);
+          try { await incomingHandle.activate(); }
+          catch (e) { if (e instanceof Error && e.message === SOUND_BLOCKED) setAudioNeedsTap(true); }
+        }
         if (staged.slot === 'second') setSecondFace(face => (face && face.boundary === boundary ? { ...face, revealed: true } : face));
         else setMainFace(face => (face && face.boundary === boundary ? { ...face, revealed: true } : face));
         preStageRef.current = null;
@@ -1999,7 +2128,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           <p className="min-w-0 flex-1 break-words text-xs leading-snug text-foreground" role="status">
             {shownPhase === "live" && (
               <span className="font-semibold text-foreground">
-                {handoffActive ? t("voice.managerHandoff") : paused ? t("voice.paused") : replaying ? t("voice.replayingSavedAudio") : muted ? t("voice.micMuted") : aspenSpeaking ? t("voice.speaking", { name }) : captureMode === "hold" && !held ? t("voice.holdToTalk") : t("voice.listening")}
+                {handoffActive ? t("voice.managerHandoff") : paused ? t("voice.paused") : replaying ? t("voice.replayingSavedAudio") : muted ? t("voice.micMuted") : aspenSpeaking ? t("voice.speaking", { name: PERSONAS[activePersona].displayName }) : captureMode === "hold" && !held ? t("voice.holdToTalk") : t("voice.listening")}
               </span>
             )}
             {shownPhase !== "live" && (shownPhase === "idle" ? t("voice.readyToTalk") : faceWaiting ? t("voice.connecting") : status)}
@@ -2009,7 +2138,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         {phase === 'idle' && endedByVisitor && <p className="text-xs text-muted-foreground">{t("voice.pressPlayReconnect", { name })}</p>}
 
         <div className={faceFirst ? (captions ? 'aspen-caption-space aspen-caption-region' : 'hidden') : ''}>
-        {showPlaybackCaption && playbackCaption && <div className="rounded-md border border-border bg-background/95 p-1.5"><PlaybackCaption caption={playbackCaption} /></div>}
+        {showPlaybackCaption && playbackCaption && <div className="flex min-h-0 flex-1 flex-col rounded-md border border-border bg-background/95 p-1.5"><PlaybackCaption caption={playbackCaption} /></div>}
         <div aria-label={t("voice.transcriptLabel")} tabIndex={0} className={`${showPlaybackCaption || (faceFirst && !captions) ? 'hidden' : ''} ${faceFirst ? 'min-h-0 flex-1' : 'max-h-[4.5rem]'} space-y-1 overflow-y-auto overscroll-contain rounded-md border border-border bg-background/95 p-1.5`}>
           {turns.length === 0 && (!partialAspen || faceFirst) && !partialUser && (
             <p className="py-1 text-center text-[11px] text-muted-foreground">{t("voice.noConversation")}</p>
@@ -2385,7 +2514,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             <p className="text-xs text-muted-foreground">
               {phase === "live" && (
                 <span className="font-semibold text-foreground">
-                  {paused ? t("voice.pausedResume") : replaying ? t("voice.replayingMicPaused") : muted ? t("voice.micMuted") : aspenSpeaking ? t("voice.isSpeaking", { name }) : captureMode === "hold" && !held ? t("voice.micPaused") : t("voice.listening")}
+                  {paused ? t("voice.pausedResume") : replaying ? t("voice.replayingMicPaused") : muted ? t("voice.micMuted") : aspenSpeaking ? t("voice.isSpeaking", { name: PERSONAS[activePersona].displayName }) : captureMode === "hold" && !held ? t("voice.micPaused") : t("voice.listening")}
                   {" — "}
                 </span>
               )}
