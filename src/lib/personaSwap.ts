@@ -618,7 +618,11 @@ export interface SwapDiagEntry {
     | 'retry-scheduled' | 'fallback'
     // Fluidity batch (2026-11-10): the F3 face pre-stage + token-only
     // refresh, the F1 gate-wait outcome, and the F2 readiness trigger.
-    | 'prestage' | 'token-refresh' | 'gate-wait' | 'retry-execute-ready';
+    | 'prestage' | 'token-refresh' | 'gate-wait' | 'retry-execute-ready'
+    // Paired-audio guard (2026-11-10): a paired PCM chunk could not be
+    // handed to the moving face and the session degraded to voice-only
+    // local playback instead of ending (see playPcmChunk).
+    | 'audio-degraded';
   boundary?: PersonaBoundary;
   persona?: PersonaId;
   attempt?: number;
