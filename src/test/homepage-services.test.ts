@@ -3,8 +3,8 @@ import { expect, test } from 'vitest';
 import { HOMEPAGE_SERVICE_AREAS, HOMEPAGE_STARTER } from '../../supabase/functions/_shared/homepage-services';
 import { HOMEPAGE_PLANS } from '../../supabase/functions/_shared/homepage-knowledge';
 
-test('five areas keep reception first, reputation fourth and social fifth', () => {
-  expect(HOMEPAGE_SERVICE_AREAS.map(s => s.id)).toEqual(['voice','leads','search','reputation','social']);
+test('seven areas keep video first, reputation fifth, social sixth and website last', () => {
+  expect(HOMEPAGE_SERVICE_AREAS.map(s => s.id)).toEqual(['video','voice','leads','search','reputation','social','website']);
 });
 test('starter offer is $99 with 50 included prospects and matches the approved plan', () => {
   expect(HOMEPAGE_STARTER).toEqual({monthlyUsd:99, leadsPerMonth:50});
