@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { expect, test } from 'vitest';
-import { HOMEPAGE_PLANS, HOMEPAGE_ADDONS, HOMEPAGE_KNOWLEDGE } from '../../supabase/functions/_shared/homepage-knowledge';
+import { HOMEPAGE_PLANS, HOMEPAGE_ADDONS, HOMEPAGE_KNOWLEDGE, HOMEPAGE_SALES_PROMPT, TEAM_FACTS } from '../../supabase/functions/_shared/homepage-knowledge';
 import { businessDemoConfig } from '../../supabase/functions/_shared/voice-config';
 
 test('Premium has the approved price, minutes and leads', () => {
@@ -20,10 +20,60 @@ test('Website Modernization costs $99 one time for up to 5 pages', () => expect(
 test('SEO audit is free', () => expect(HOMEPAGE_ADDONS.find(a => a.name === 'SEO Audit')?.usd).toBe(0));
 test('GEO costs $249 monthly', () => expect(HOMEPAGE_ADDONS.find(a => a.name === 'AI Search Optimization / GEO')).toMatchObject({usd:249,cadence:'monthly'}));
 test('Maps Boost costs $149 monthly', () => expect(HOMEPAGE_ADDONS.find(a => a.name === 'Google Maps Boost')).toMatchObject({usd:149,cadence:'monthly'}));
-test('knowledge quotes the doubled-minutes and setup waiver promo through Nov 30', () => {
-  expect(HOMEPAGE_KNOWLEDGE).toContain('DOUBLED');
-  expect(HOMEPAGE_KNOWLEDGE).toContain('November 30');
+// The pre-2026-11-08 version of this test pinned the RETIRED launch promo
+// ('DOUBLED' minutes + a hard 'November 30' end date). The knowledge text was
+// corrected on purpose (evergreen 50%-off-first-3-months promo, setup waived,
+// never a calendar date); the pin was stale, so it is replaced with pins of
+// the current approved facts.
+test('knowledge quotes the evergreen promo and 400 Premium minutes, never a calendar promo date', () => {
   expect(HOMEPAGE_KNOWLEDGE).toContain('400 browser voice minutes');
+  expect(HOMEPAGE_KNOWLEDGE).toContain('50% off every plan for the first 3 months');
+  expect(HOMEPAGE_KNOWLEDGE).toContain('ending this month');
+  expect(HOMEPAGE_KNOWLEDGE).not.toContain('DOUBLED');
+  expect(HOMEPAGE_KNOWLEDGE).not.toContain('November 30');
+  expect(HOMEPAGE_KNOWLEDGE).not.toContain('$99 plus $79');
+});
+test('knowledge carries the minutes rollover rule', () => {
+  expect(HOMEPAGE_SALES_PROMPT).toContain('roll over month to month while the subscription stays active');
+  expect(HOMEPAGE_SALES_PROMPT).toContain('expire after 90 days');
+});
+test('knowledge knows Sara is the demo receptionist', () => {
+  expect(TEAM_FACTS).toContain('SARA is our demo receptionist');
+  expect(TEAM_FACTS).toContain('plays the role of THEIR business\'s receptionist inside the simulation');
+  expect(TEAM_FACTS).toContain('she does not sell AI Hidden Leads');
+  expect(HOMEPAGE_KNOWLEDGE).toContain('Sara is our demo receptionist');
+});
+test('knowledge knows Alex is the Support Specialist for setup and onboarding', () => {
+  expect(TEAM_FACTS).toContain('ALEX is our Support Specialist for setup and onboarding');
+  expect(TEAM_FACTS).toContain('never call him an engineer');
+  expect(TEAM_FACTS).toContain('6-step setup wizard');
+  expect(HOMEPAGE_KNOWLEDGE).toContain('Alex is our Support Specialist for setup and onboarding');
+});
+test('knowledge forbids denying the teammates exist', () => {
+  expect(TEAM_FACTS).toContain('you never deny working with them');
+  expect(TEAM_FACTS).toContain('YOU DO NOT WORK ALONE');
+  expect(HOMEPAGE_SALES_PROMPT).toContain('YOUR TEAM — YOU DO NOT WORK ALONE');
+});
+test('knowledge introduces Alex on setup/implementation topics and Sara at the demo', () => {
+  expect(TEAM_FACTS).toContain('INTRODUCING YOUR TEAMMATES');
+  expect(TEAM_FACTS).toContain('implementation, setup, onboarding, getting started');
+  expect(TEAM_FACTS).toContain('introduce Alex by name and title');
+  expect(TEAM_FACTS).toContain('name Sara as the one who will play their receptionist inside the simulation');
+});
+test('knowledge carries the current website services list', () => {
+  for (const name of [
+    'Live Video Receptionist on Your Website',
+    'AI Phone Receptionist — No Website Needed',
+    'Fresh B2B Prospects, Delivered Weekly',
+    'Google Maps & AI Search Visibility',
+    'Reviews & Reputation Management',
+    'Social Media Management',
+    'Website Revamp or a Brand-New Site',
+  ]) {
+    expect(HOMEPAGE_KNOWLEDGE).toContain(name);
+  }
+  expect(HOMEPAGE_KNOWLEDGE).toContain('25-point Map & AI Audit Report is free');
+  expect(HOMEPAGE_KNOWLEDGE).toContain('ChatGPT, Gemini and Claude');
 });
 test('homepage reference never becomes the simulated business knowledge', () => {
   const simulation = businessDemoConfig('Example Bank', 'Bank account evidence', {knowledge:HOMEPAGE_KNOWLEDGE});
