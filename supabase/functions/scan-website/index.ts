@@ -585,12 +585,25 @@ async function scrapeScreenshotFallback(url: string, apiKey: string) {
     const response = await firecrawlRequest('/scrape', apiKey, {
       url,
       formats: ['screenshot'],
-      waitFor: 3000,
-      timeout: 25000,
+      // JS-driven heroes can take well over 3s to paint (greatgulf.com's
+      // needed ~10s+; captured at 3s it was a solid background-color frame).
+      // Match the settle budget spirit of the Browserless path (14s).
+      waitFor: 10000,
+      timeout: 40000,
     }, 0);
 
     const data = unwrapFirecrawlPayload(response);
-    return typeof data?.screenshot === 'string' && data.screenshot ? data.screenshot : null;
+    const screenshotUrl = typeof data?.screenshot === 'string' && data.screenshot ? data.screenshot : null;
+    if (!screenshotUrl) return null;
+
+    // Even with the longer wait, a screenshot snapped before the page
+    // painted is a solid-color frame — worse than none, because the demo
+    // displays it as the site's picture and a loaded blank image triggers
+    // no further fallback. Drop likely-blank frames so the caller takes
+    // the same no-screenshot path as a failed scrape.
+    if (await isLikelyBlankScreenshot(screenshotUrl)) return null;
+
+    return screenshotUrl;
   } catch (error) {
     console.warn('Fallback screenshot scrape failed:', error);
     return null;
@@ -598,6 +611,66 @@ async function scrapeScreenshotFallback(url: string, apiKey: string) {
 }
 
 const REHOST_MAX_BYTES = 8 * 1024 * 1024;
+
+const BLANK_FRAME_MAX_BYTES = 15 * 1024;
+const BLANK_FRAME_MIN_WIDTH = 1200;
+const BLANK_FRAME_MIN_HEIGHT = 700;
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+
+/**
+ * Best-effort blank-frame detector for Firecrawl fallback screenshots.
+ *
+ * A solid-color PNG at full desktop size compresses to a few KB (the blank
+ * greatgulf.com frame verified 2026-11-09 was ~8.5 KB at 1920×1080), while
+ * real homepage screenshots are typically > 100 KB. So a PNG whose IHDR
+ * dimensions are desktop-sized (>= 1200×700) yet whose total size is
+ * < 15 KB is almost certainly a single solid color — the capture fired
+ * before the page painted.
+ *
+ * Dependency-free by design: PNG width/height are plain big-endian uint32s
+ * at bytes 16–23 (8-byte signature, then the IHDR chunk length + type), so
+ * no image library is needed. Deliberately conservative — this NEVER throws
+ * and NEVER rejects on doubt: non-PNG images (JPEG/WebP), small images,
+ * failed or oversized downloads and any parse error all return false,
+ * i.e. accept the screenshot exactly as before. The guard can only ever
+ * turn a likely-blank screenshot into the existing no-screenshot path; it
+ * must never fail or block the scan.
+ */
+async function isLikelyBlankScreenshot(screenshotUrl: string): Promise<boolean> {
+  try {
+    if (screenshotUrl.startsWith('data:')) return false;
+
+    const response = await fetch(screenshotUrl, { signal: AbortSignal.timeout(15000) });
+    if (!response.ok) return false;
+
+    const declaredLength = Number(response.headers.get('content-length') || 0);
+    if (declaredLength > REHOST_MAX_BYTES) return false;
+
+    const buffer = await response.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    if (bytes.byteLength === 0 || bytes.byteLength > REHOST_MAX_BYTES) return false;
+    if (bytes.byteLength >= BLANK_FRAME_MAX_BYTES) return false;
+
+    // PNG signature check — the size heuristic is only calibrated for PNG.
+    if (bytes.byteLength < 24) return false;
+    for (let i = 0; i < PNG_SIGNATURE.length; i++) {
+      if (bytes[i] !== PNG_SIGNATURE[i]) return false;
+    }
+
+    const view = new DataView(buffer);
+    const width = view.getUint32(16);
+    const height = view.getUint32(20);
+    if (width < BLANK_FRAME_MIN_WIDTH || height < BLANK_FRAME_MIN_HEIGHT) return false;
+
+    console.warn(
+      `[Screenshot] Rejected likely-blank frame (${bytes.byteLength} bytes at ${width}x${height}): ${screenshotUrl}`,
+    );
+    return true;
+  } catch (error) {
+    console.warn('[Screenshot] Blank-frame check failed, accepting screenshot:', error);
+    return false;
+  }
+}
 
 /**
  * Re-host a Firecrawl screenshot URL into our own public `email-assets`
