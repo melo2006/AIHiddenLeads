@@ -3,6 +3,9 @@ import { Bot, User, Maximize2, Minimize2, X, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { MessageResponse } from '@/components/ai-elements/message';
 import { displayNumbers } from '@/lib/displayNumbers';
+import { useTranslation } from "react-i18next";
+import "@/i18n"; // standalone harnesses mount this panel without main.tsx
+import { explicitUiLocale, uiLocaleLanguage } from "@/lib/uiLocale";
 import { PromptInput, PromptInputTextarea, PromptInputFooter, PromptInputSubmit } from '@/components/ai-elements/prompt-input';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,6 +48,7 @@ const ChatWidget = ({
   embedded = false,
   active = true,
 }: ChatWidgetProps) => {
+  const { t } = useTranslation();
   const [messages, setMessages] = useState<Message[]>([]);
   const [recordingAgreed,setRecordingAgreed]=useState(false);
   const [copyEmail,setCopyEmail]=useState('');
@@ -137,9 +141,9 @@ const ChatWidget = ({
 
   const getGreeting = () => {
     const hour = new Date().getHours();
-    if (hour < 12) return "Good morning";
-    if (hour < 17) return "Good afternoon";
-    return "Good evening";
+    if (hour < 12) return t("chat.goodMorning");
+    if (hour < 17) return t("chat.goodAfternoon");
+    return t("chat.goodEvening");
   };
 
   useEffect(() => {
@@ -152,9 +156,7 @@ const ChatWidget = ({
     setMessages([
       {
         role: "assistant",
-        content: `${getGreeting()}${nameGreet}! 👋 I'm Aspen, the AI assistant for ${businessName}. This is a live demo of how AI chat + AI voice can work on your website to answer questions, capture leads, and book appointments.
-
-Tap a suggestion below or ask me anything.`,
+        content: `${getGreeting()}${nameGreet}! 👋 ${t("chat.greetingBody", { businessName })}`,
       },
     ]);
   }, [businessName, callerName]);
@@ -196,11 +198,14 @@ EMAIL CONFIRMATION:
 CRITICAL RULES:
 - NEVER make up specific prices unless they appear in the knowledge base — say "let me have ${ownerLabel} get back to you with exact pricing."
 - ALWAYS reference the actual business name, not generic placeholders.
-- If business info is thin, use common ${businessNiche} industry knowledge to sound informed.`;
+- If business info is thin, use common ${businessNiche} industry knowledge to sound informed.
+
+RESPONSE LANGUAGE: The visitor selected ${uiLocaleLanguage(explicitUiLocale())} with the website's language switch. Reply in ${uiLocaleLanguage(explicitUiLocale())} from the first message, and stay in it unless the visitor explicitly asks you to switch to another language.`;
 
     const { data, error } = await supabase.functions.invoke("retell-web-call", {
       body: {
         action: "chat-completion",
+        locale: explicitUiLocale(),
         systemPrompt,
         messages: conversationHistory.map((m) => ({ role: m.role, content: m.content })),
       },
@@ -270,7 +275,7 @@ CRITICAL RULES:
       if (!mounted.current) return;
 
       setIsThinking(false);
-      const fallback = `Great question. I can help with that and also arrange a callback or a 15-minute demo with ${ownerLabel}.`;
+      const fallback = t("chat.fallback", { owner: ownerLabel });
       await typeAssistantResponse(fallback);
     }
   }, [input, isBusy, messages, ownerLabel, typeAssistantResponse,recordingAgreed]);
@@ -278,7 +283,7 @@ CRITICAL RULES:
   const userHasMessaged = messages.some((m) => m.role === "user");
   const lastAssistantMessage = [...messages].reverse().find((m) => m.role === "assistant")?.content;
 
-  if(!recordingAgreed)return <div className="space-y-3 p-4 text-foreground"><p className="text-sm font-semibold">Try Aspen chat</p><p className="text-xs text-muted-foreground">This chat and its AI summary are saved privately for our team to review. Starting means you agree. A copy is sent only if requested.</p><Button onClick={()=>setRecordingAgreed(true)}>Start chat & agree</Button></div>;
+  if(!recordingAgreed)return <div className="space-y-3 p-4 text-foreground"><p className="text-sm font-semibold">{t("chat.consentTitle")}</p><p className="text-xs text-muted-foreground">{t("chat.consentBody")}</p><Button onClick={()=>setRecordingAgreed(true)}>{t("chat.consentStart")}</Button></div>;
   return (
     <div className={embedded ? 'overflow-hidden bg-card' : 'rounded-2xl border border-accent/20 bg-card shadow-2xl overflow-hidden'}>
       {!embedded && <div className="flex items-center justify-between px-4 py-3 bg-accent/10 border-b border-accent/20">
@@ -290,15 +295,15 @@ CRITICAL RULES:
             <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-green-500 ring-2 ring-card" />
           </div>
           <div>
-            <p className="text-sm font-bold">Chat with Aspen</p>
-            <p className="text-[10px] text-muted-foreground">AI Chat Assistant • Online</p>
+            <p className="text-sm font-bold">{t("chat.title")}</p>
+            <p className="text-[10px] text-muted-foreground">{t("chat.subtitle")}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setIsMinimized((prev) => !prev)}
             className="rounded-md bg-foreground/10 p-1 text-foreground transition-colors hover:bg-foreground/20"
-            aria-label={isMinimized ? "Expand chat" : "Minimize chat"}
+            aria-label={isMinimized ? t("chat.expand") : t("chat.minimize")}
           >
             {isMinimized ? <Maximize2 className="h-4 w-4" /> : <Minimize2 className="h-4 w-4" />}
           </button>
@@ -306,7 +311,7 @@ CRITICAL RULES:
             <button
               onClick={onClose}
               className="rounded-md bg-foreground/10 p-1 text-foreground transition-colors hover:bg-foreground/20"
-              aria-label="Close chat"
+              aria-label={t("chat.close")}
             >
               <X className="h-4 w-4" />
             </button>
@@ -317,7 +322,7 @@ CRITICAL RULES:
       {isMinimized ? (
         <div className="p-3">
           <p className="text-xs text-muted-foreground">
-            Chat minimized. Expand to read full conversation.
+            {t("chat.minimizedNote")}
           </p>
           {lastAssistantMessage && (
             <p className="mt-2 line-clamp-2 text-xs text-foreground/80">{displayNumbers(lastAssistantMessage)}</p>
@@ -325,7 +330,7 @@ CRITICAL RULES:
         </div>
       ) : (
       <>
-      <div aria-label="Aspen chat messages" role="region" onScroll={event => { const panel = event.currentTarget; followLatest.current = panel.scrollHeight - panel.scrollTop - panel.clientHeight < 48; }} className={`${embedded ? 'min-h-0 flex-1 max-h-[35dvh]' : 'max-h-[22rem]'} overflow-y-auto overscroll-contain touch-pan-y p-3 space-y-2.5`}>
+      <div aria-label={t("chat.messagesAria")} role="region" onScroll={event => { const panel = event.currentTarget; followLatest.current = panel.scrollHeight - panel.scrollTop - panel.clientHeight < 48; }} className={`${embedded ? 'min-h-0 flex-1 max-h-[35dvh]' : 'max-h-[22rem]'} overflow-y-auto overscroll-contain touch-pan-y p-3 space-y-2.5`}>
         {messages.map((msg, i) => (
           <div key={i} className={`flex gap-2 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
             <div
@@ -381,14 +386,14 @@ CRITICAL RULES:
       </div>
 
       <div className="shrink-0 p-3 border-t border-border">
-       {messages.some(m=>m.role==='user') && <div className="mb-2 space-y-2"><Button size="sm" variant="ghost" onClick={()=>setCopyOpen(v=>!v)}>Email transcript & AI summary</Button>{copyOpen&&<form className="space-y-2" onSubmit={async e=>{e.preventDefault();await recordQueue.current;const {error}=await supabase.functions.invoke('conversation-records',{body:{action:'chatCopy',capability:sessionId.current,email:copyEmail,consent:true}});setCopyStatus(error?'Copy request unavailable.':'Private copy requested.');}}><Input aria-label="Conversation copy email" type="email" required value={copyEmail} onChange={e=>setCopyEmail(e.target.value)} placeholder="Your email"/><Button type="submit" size="sm">Confirm email & send copy only</Button><p className="text-xs text-muted-foreground">No marketing subscription. The private link expires in seven days.</p></form>}{copyStatus&&<p role="status" className="text-xs">{copyStatus}</p>}</div>}
+       {messages.some(m=>m.role==='user') && <div className="mb-2 space-y-2"><Button size="sm" variant="ghost" onClick={()=>setCopyOpen(v=>!v)}>{t("chat.emailTranscript")}</Button>{copyOpen&&<form className="space-y-2" onSubmit={async e=>{e.preventDefault();await recordQueue.current;const {error}=await supabase.functions.invoke('conversation-records',{body:{action:'chatCopy',capability:sessionId.current,email:copyEmail,consent:true}});setCopyStatus(error?t("chat.copyUnavailable"):t("chat.copyRequested"));}}><Input aria-label={t("chat.copyEmailAria")} type="email" required value={copyEmail} onChange={e=>setCopyEmail(e.target.value)} placeholder={t("chat.copyEmailPlaceholder")}/><Button type="submit" size="sm">{t("chat.confirmCopy")}</Button><p className="text-xs text-muted-foreground">{t("chat.copyNote")}</p></form>}{copyStatus&&<p role="status" className="text-xs">{copyStatus}</p>}</div>}
        <PromptInput onSubmit={() => { void handleSend(); }}>
         <PromptInputTextarea
           ref={inputRef}
-          aria-label="Message Aspen"
+          aria-label={t("chat.messageAria")}
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask Aspen anything..."
+          placeholder={t("chat.placeholder")}
           rows={2}
           className="h-14 min-h-14 max-h-20 flex-none w-full min-w-0 py-2 text-base"
           disabled={isBusy}
@@ -397,7 +402,7 @@ CRITICAL RULES:
         <PromptInputSubmit
           disabled={!input.trim() || isBusy}
           status={isThinking ? 'submitted' : isStreaming ? 'streaming' : 'ready'}
-          aria-label="Send message to Aspen"
+          aria-label={t("chat.sendAria")}
           className="h-9 w-9 shrink-0"
         />
         </PromptInputFooter>
@@ -412,7 +417,7 @@ CRITICAL RULES:
         className="flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-600 to-emerald-500 px-3 py-2.5 text-[11px] font-bold text-white transition-opacity hover:opacity-90"
       >
         <ExternalLink className="h-3 w-3" />
-        🚀 Take advantage of our promo — Visit AIHiddenLeads.com
+        {t("chat.ctaBanner")}
       </a>}
       </>
       )}
