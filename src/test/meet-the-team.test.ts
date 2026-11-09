@@ -46,8 +46,30 @@ describe("meet the team section", () => {
     expect(section).toContain("f735e62c-dce7-4c0b-8e85-1c7e21774c45.webp");
     expect(section).toContain("a36d66df-a23d-4569-996b-d0e990019857.webp");
     // Captured loops drop into src/assets/team/ under these names.
-    expect(section).toContain("../assets/team/sara-loop.webp");
-    expect(section).toContain("../assets/team/alex-loop.webp");
+    expect(section).toContain("assets/team/sara-loop.webp");
+    expect(section).toContain("assets/team/alex-loop.webp");
+  });
+
+  it("loops resolve via static imports — never import.meta.glob (production regression)", () => {
+    // Regression pin for the defect found live on 2026-11-09: the section
+    // originally resolved the loops through
+    //   import.meta.glob("../assets/team/*.webp", { eager: true })
+    // Vite's glob transform joins the importer dir with the RAW pattern
+    // via posix.join, so ".." cancelled the importer's last segment
+    // (src/components/landing → src/components) and the scan ran against
+    // the nonexistent src/components/assets/team/ — zero matches, no
+    // warning, and the production bundle shipped `Object.assign({})`,
+    // silently degrading both cards to the catalogue stills while every
+    // source-level test stayed green. Static imports cannot fall into
+    // that trap: they resolve against the file's real directory and the
+    // build FAILS loudly if a committed loop file ever goes missing.
+    expect(section).not.toContain("import.meta.glob");
+    expect(section).toContain('import saraLoop from "@/assets/team/sara-loop.webp"');
+    expect(section).toContain('import alexLoop from "@/assets/team/alex-loop.webp"');
+    // And the committed loop files the imports point at must exist.
+    for (const name of ["sara-loop.webp", "alex-loop.webp"]) {
+      expect(existsSync(new URL(`../assets/team/${name}`, import.meta.url))).toBe(true);
+    }
   });
 
   it("hear-her/him affordances: Aspen opens the widget, Sara goes to /demo, Alex to /setup", () => {

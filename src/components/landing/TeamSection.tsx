@@ -17,20 +17,26 @@ import alexStill from "@/assets/simli/a36d66df-a23d-4569-996b-d0e990019857.webp"
 // uses (GeminiAgentWidget listens for it; on /demo, TryDemo's own widget
 // mount hears it too, and Sara's card routes to /demo itself).
 
-// Sara's and Alex's real captured loops land in src/assets/team/ as
+// Sara's and Alex's real captured loops live in src/assets/team/ as
 // sara-loop.webp / alex-loop.webp (animated WebP, live-Simli captures via
-// the chroma-key canvas — audit §6). Until those files exist the import
-// resolves to the catalogue still and the card simply shows the still;
-// the poster props below point at the loop files' sibling posters
-// (sara-poster.png / alex-poster.png) once captured, falling back to the
-// same stills here. Drop the captured files in and the cards animate —
-// no other code change.
-const teamLoops = import.meta.glob<{ default: string }>(
-  "../assets/team/*.webp",
-  { eager: true },
-);
-const saraLoop = teamLoops["../assets/team/sara-loop.webp"]?.default ?? saraStill;
-const alexLoop = teamLoops["../assets/team/alex-loop.webp"]?.default ?? alexStill;
+// the chroma-key canvas — audit §6). The still props on the cards point
+// at the catalogue stills (the loop files' captured sibling posters are
+// the same faces at src/assets/team/sara-poster.png / alex-poster.png).
+//
+// These MUST stay plain static imports — never resolve them through a
+// Vite glob import. The glob form silently compiled to an empty map in
+// the production build: Vite's toAbsoluteGlob joins the importer dir
+// with the RAW "../assets/team/*.webp" pattern via posix.join, which
+// normalizes ".." against the LAST segment of the dir
+// (src/components/landing → src/components), landing the scan on the
+// nonexistent src/components/assets/team/ — zero matches, no warning,
+// and both cards fell back to the stills (found live 2026-11-09;
+// regression-pinned in meet-the-team.test.ts). Static imports resolve
+// ".." against the file's real directory and always emit the asset.
+// The loop files are committed, so the imports always resolve; the
+// stills remain the save-data / reduced-motion fallback at render time.
+import saraLoop from "@/assets/team/sara-loop.webp";
+import alexLoop from "@/assets/team/alex-loop.webp";
 
 const COPY = {
   en: {
