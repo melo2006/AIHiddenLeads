@@ -201,12 +201,19 @@ export const TEAM_INTRO_CALLBACK_CLOSE = `CALLBACK — THIS VISITOR ALREADY MET 
  *  after either reassurance form (see the anchors below). */
 export const SIMULATION_TEAM_INTRO_BEAT = `Before we go in, meet Sara — she'll walk you through your site, playing your own receptionist, so you can hear how she greets your visitors and handles their questions. And at the end you'll meet Alex, our support specialist.`;
 
-/** The slimmed reassurance (disclaimer-slim branch, 2026-11-09) — a
- *  second insertion anchor so the beat lands after the reassurance
- *  whether the stored snapshot already carries the slim text or still
- *  carries the long form it replaces. Keep in step with
- *  DEMO_NOT_TOUCHED_REASSURANCE on that branch. */
+/** The slimmed reassurance — since the disclaimer-slim merge (main
+ *  187aafc) this IS the current DEMO_NOT_TOUCHED_REASSURANCE text in
+ *  voice-config.ts; the duplicate anchor is retained so the insertion
+ *  stays correct even if the code constant is ever edited alone. */
 export const DEMO_NOT_TOUCHED_REASSURANCE_SLIM = 'Before we start: this is a mock-up layered over a copy of your site — we haven\'t touched your website or your server.';
+
+/** The LONG reassurance the slim sentence replaced (pre-2026-11-09
+ *  voice-config text). The stored simulationGreeting SNAPSHOT can
+ *  still carry a greeting built on this form until the snapshot
+ *  update lands, so it stays an explicit insertion anchor: the beat
+ *  must land after the reassurance in EVERY greeting the server can
+ *  currently serve — slim code, slim snapshot, or long snapshot. */
+export const DEMO_NOT_TOUCHED_REASSURANCE_LONG_LEGACY = 'Before anything else: we have not touched your website — we only read its public pages, like any visitor, and this demo is a mock-up layered over a copy. Your site and your server are exactly as you left them.';
 
 /** Fallback anchor: the explanation sentence that follows the
  *  reassurance in SIMULATION_GREETING (code and snapshot alike). */
@@ -215,15 +222,19 @@ const SIMULATION_EXPLANATION_ANCHOR = 'Here is exactly what this is:';
 /**
  * Insert SIMULATION_TEAM_INTRO_BEAT into a simulation greeting,
  * immediately after the not-touched reassurance. Anchor order:
- * (1) the current DEMO_NOT_TOUCHED_REASSURANCE constant, (2) the
- * slimmed reassurance, (3) immediately before the "Here is exactly
+ * (1) the current DEMO_NOT_TOUCHED_REASSURANCE constant (the slim
+ * sentence since the disclaimer-slim merge), (2) the legacy LONG
+ * reassurance (a not-yet-updated stored snapshot), (3) the slimmed
+ * reassurance literal, (4) immediately before the "Here is exactly
  * what this is:" explanation. Identity when the beat is already
  * present or no anchor matches (a greeting shape this beat was not
- * written for is left exactly as served).
+ * written for is left exactly as served). Because the insertion is
+ * assembly-time, NO snapshot needs this beat baked in: the greeting
+ * is transformed as each session is authorized, whatever its source.
  */
 export function withSimulationTeamIntro(greetingText: string): string {
   if (!greetingText || greetingText.includes(SIMULATION_TEAM_INTRO_BEAT)) return greetingText;
-  for (const anchor of [DEMO_NOT_TOUCHED_REASSURANCE, DEMO_NOT_TOUCHED_REASSURANCE_SLIM]) {
+  for (const anchor of [DEMO_NOT_TOUCHED_REASSURANCE, DEMO_NOT_TOUCHED_REASSURANCE_LONG_LEGACY, DEMO_NOT_TOUCHED_REASSURANCE_SLIM]) {
     const at = greetingText.indexOf(anchor);
     if (at >= 0) {
       const end = at + anchor.length;

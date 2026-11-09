@@ -31,7 +31,7 @@ import {
   avatarSwapEnabled, personaSegmentPrompt, teamIntroEnabled,
 } from '../../supabase/functions/_shared/personas';
 import {
-  ALEX_CAMEO_PROMPT, DEMO_NOT_TOUCHED_REASSURANCE_SLIM, INTRO_BOUNDARIES, SARA_CAMEO_PROMPT,
+  ALEX_CAMEO_PROMPT, DEMO_NOT_TOUCHED_REASSURANCE_LONG_LEGACY, DEMO_NOT_TOUCHED_REASSURANCE_SLIM, INTRO_BOUNDARIES, SARA_CAMEO_PROMPT,
   SIMULATION_TEAM_INTRO_BEAT, TEAM_INTRO_BEAT_ALEX, TEAM_INTRO_BEAT_BRIDGE_ALEX, TEAM_INTRO_BEAT_BRIDGE_SARA,
   TEAM_INTRO_BEAT_RETURN, TEAM_INTRO_BEAT_SARA, TEAM_INTRO_FALLBACK_ALEX, TEAM_INTRO_FALLBACK_SARA,
   TEAM_INTRO_HOST_SEGMENT, TEAM_INTRO_TEACHING, isIntroBoundary, withSimulationTeamIntro,
@@ -122,10 +122,19 @@ describe('segment routing', () => {
 });
 
 describe('demo-site introduction beat (delta a)', () => {
-  test('inserts immediately after the long reassurance in SIMULATION_GREETING', () => {
+  test('inserts immediately after the reassurance in SIMULATION_GREETING (post-disclaimer-slim text)', () => {
+    // Since the disclaimer-slim merge, DEMO_NOT_TOUCHED_REASSURANCE IS
+    // the 23-word slim sentence and SIMULATION_GREETING embeds it.
+    expect(DEMO_NOT_TOUCHED_REASSURANCE).toBe(DEMO_NOT_TOUCHED_REASSURANCE_SLIM);
     const out = withSimulationTeamIntro(SIMULATION_GREETING);
     expect(out).toContain(SIMULATION_TEAM_INTRO_BEAT);
     expect(out.indexOf(SIMULATION_TEAM_INTRO_BEAT)).toBeGreaterThan(out.indexOf(DEMO_NOT_TOUCHED_REASSURANCE));
+    expect(out.indexOf(SIMULATION_TEAM_INTRO_BEAT)).toBeLessThan(out.indexOf('Here is exactly what this is:'));
+  });
+  test('inserts immediately after the LONG legacy reassurance (a not-yet-updated stored snapshot)', () => {
+    const staleSnapshotGreeting = `{timeGreeting}, {visitorFirstName}. I am {agentName} from AI Hidden Leads — welcome. ${DEMO_NOT_TOUCHED_REASSURANCE_LONG_LEGACY} Here is exactly what this is: the explanation.`;
+    const out = withSimulationTeamIntro(staleSnapshotGreeting);
+    expect(out.indexOf(SIMULATION_TEAM_INTRO_BEAT)).toBeGreaterThan(out.indexOf(DEMO_NOT_TOUCHED_REASSURANCE_LONG_LEGACY));
     expect(out.indexOf(SIMULATION_TEAM_INTRO_BEAT)).toBeLessThan(out.indexOf('Here is exactly what this is:'));
   });
   test('inserts immediately after the SLIMMED reassurance (disclaimer-slim form)', () => {
