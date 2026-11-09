@@ -39,6 +39,22 @@ export interface SwapState {
   /** Visitor lines that look like a step-out request, awaiting Sara's
    *  reply (the soft B2 trigger). */
   pendingStepout: boolean;
+  /** STRUCTURAL doorway trigger (2026-11-09 hardening): the doorway
+   *  swap used to arm ONLY on Aspen speaking the exact anchor phrase
+   *  ("stepping into simulation mode") — a paraphrase ("let's step
+   *  into the simulation", or skipping the phrase entirely) silently
+   *  skipped Sara and the session ran the whole simulation solo in
+   *  Aspen's voice. Set by noteDoorwayEngagement from a VISITOR line:
+   *  once the host's greeting turn has completed and the visitor
+   *  engages, the simulation IS beginning — boundaryForAssistantLine
+   *  then returns 'doorway' for Aspen's NEXT finalized line whatever
+   *  words it uses (the anchor remains as an earlier net). Only the
+   *  business-demo simulation chain can carry it — noteDoorwayEngagement
+   *  is phase-'host'-scoped and GeminiConversation folds it only
+   *  while the simulation chain is live (swap chain class marker), so
+   *  homepage/explainer sessions never set it. Cleared when the
+   *  doorway executes; one-shot via state.done. */
+  pendingDoorway: boolean;
   /** Visitor asked for Alex / setup help / a staff meeting — the
    *  VISITOR-armed meet-alex trigger (2026-11-09, Parkland forensics:
    *  the anchor-only trigger never fired because Aspen improvised the
@@ -62,7 +78,7 @@ export interface SwapState {
 }
 
 export const INITIAL_SWAP_STATE: SwapState = {
-  phase: 'host', persona: 'aspen', segment: 0, armed: [], done: [], drops: 0, pendingStepout: false, pendingAlex: false,
+  phase: 'host', persona: 'aspen', segment: 0, armed: [], done: [], drops: 0, pendingStepout: false, pendingAlex: false, pendingDoorway: false,
   teamIntroDone: false, teamIntroSeen: false,
 };
 
@@ -183,6 +199,14 @@ export function boundaryForAssistantLine(text: string, state: SwapState): Person
   // Scoped to host/close only: in simulation the flag rides the
   // step-out instead, and the intro family never sees it.
   if ((state.phase === 'host' || state.phase === 'close') && state.pendingAlex && !state.done.includes('meet-alex')) return 'meet-alex';
+  // Structural doorway (2026-11-09 hardening): the greeting turn
+  // completed and the visitor engaged (state.pendingDoorway, set by
+  // noteDoorwayEngagement from a VISITOR line), so Aspen's next line
+  // enters the simulation — whatever words it uses. The anchor match
+  // below remains as the earlier net (it can still arm mid-line,
+  // before any visitor engagement); this rule is what makes the
+  // handoff independent of her phrasing.
+  if (state.phase === 'host' && state.pendingDoorway && !state.done.includes('doorway')) return 'doorway';
   if (state.phase === 'host' && BOUNDARY_ANCHORS.doorway.some(a => line.includes(normalize(a)))) return 'doorway';
   if (state.phase === 'simulation' && BOUNDARY_ANCHORS.stepout.some(a => line.includes(normalize(a)))) return 'stepout';
   if (state.phase === 'close' && BOUNDARY_ANCHORS['meet-alex'].some(a => line.includes(normalize(a)))) return 'meet-alex';
@@ -291,6 +315,27 @@ export function noteAlexIntent(state: SwapState, text: string): SwapState {
     return state.pendingAlex && state.pendingStepout ? state : { ...state, pendingAlex: true, pendingStepout: true };
   }
   return state;
+}
+
+/** Fold a finalized VISITOR line into the swap state for the
+ *  STRUCTURAL doorway trigger (2026-11-09 hardening — the pendingAlex
+ *  pattern applied to the host → Sara handoff). The rule: while the
+ *  business-demo chain is in phase 'host', once the host's greeting /
+ *  opening turn has completed (the component passes greetingDone —
+ *  it tracks completed assistant turns) and a finalized visitor line
+ *  arrives, the visitor engaging IS the simulation beginning — set
+ *  pendingDoorway and Aspen's next finalized line returns 'doorway'
+ *  from boundaryForAssistantLine, anchor or no anchor.
+ *  Scoped so nothing else can set it: any phase other than 'host'
+ *  (the intro family included — its phases never equal 'host') is
+ *  untouched, a visitor line before any assistant turn is untouched,
+ *  and once 'doorway' is in state.done this is a no-op (one-shot).
+ *  Returns the SAME state object when nothing changes. */
+export function noteDoorwayEngagement(state: SwapState, greetingDone: boolean): SwapState {
+  if (state.phase !== 'host') return state;
+  if (state.done.includes('doorway')) return state;
+  if (!greetingDone) return state;
+  return state.pendingDoorway ? state : { ...state, pendingDoorway: true };
 }
 
 export interface SwapRecapState {

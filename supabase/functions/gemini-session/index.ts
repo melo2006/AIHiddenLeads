@@ -172,14 +172,19 @@ Deno.serve(async req=>{
     // welcome → partner pitch with a rotated statistic → Alex comfort
     // line → Sara introduction; Sara owns the spoken disclaimer at the
     // simulation entry). That opening promises a Sara handoff, which
-    // only the swap family can keep — so with the team-intro flag
-    // family OFF, the demo-site opening falls back to tonight's live
-    // greeting shapes (byte-identical legacy) and the rotation array
-    // is cleared. The verification-pending greeting is never touched
-    // here: the code gate owns that opening in both worlds (and its
-    // greetings array was already cleared above so openingFor cannot
-    // serve a pitch variant into Act 1).
-    if(!teamIntroOn && b.verification!=='pending') {
+    // only the SWAP family can keep — so it is served whenever the swap
+    // family is armed (swapEnabled), independent of the team-intro
+    // sub-flag: TEAM_INTRO_ENABLED gates ONLY the /demo explainer cameo
+    // chain, never this business-demo opening (hardening, 2026-11-09:
+    // with TEAM_INTRO_ENABLED alone off, every business demo silently
+    // ran solo on the legacy greeting — no Sara, no Alex, no error).
+    // With the swap family OFF the demo-site opening falls back to
+    // tonight's live greeting shapes (byte-identical legacy) and the
+    // rotation array is cleared. The verification-pending greeting is
+    // never touched here: the code gate owns that opening in both
+    // worlds (and its greetings array was already cleared above so
+    // openingFor cannot serve a pitch variant into Act 1).
+    if(!swapEnabled && b.verification!=='pending') {
       config.greetings=[];
       config.greeting=(b.invite===true && leadInviteArrivedAt) ? DEMO_INVITE_GREETING_LEGACY_SLIM : SIMULATION_GREETING_LEGACY_SLIM;
     }
