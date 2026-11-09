@@ -39,6 +39,16 @@ export interface SwapState {
   /** Visitor lines that look like a step-out request, awaiting Sara's
    *  reply (the soft B2 trigger). */
   pendingStepout: boolean;
+  /** Visitor asked for Alex / setup help / a staff meeting — the
+   *  VISITOR-armed meet-alex trigger (2026-11-09, Parkland forensics:
+   *  the anchor-only trigger never fired because Aspen improvised the
+   *  promise instead of speaking the exact anchor in the close phase).
+   *  Set from a VISITOR line via noteAlexIntent — never from Aspen's
+   *  wording. In host/close the NEXT finalized Aspen line executes
+   *  meet-alex; in simulation it rides the step-out (noteAlexIntent
+   *  also sets pendingStepout) and fires on Aspen's first close line.
+   *  Cleared when meet-alex executes; one-shot via state.done. */
+  pendingAlex: boolean;
   /** Team intro: the show has run (or been yielded) in this session —
    *  the once-per-session latch. Once true, no intro boundary can arm
    *  again, whatever the phase says (design §3.1/§3.3). */
@@ -52,7 +62,7 @@ export interface SwapState {
 }
 
 export const INITIAL_SWAP_STATE: SwapState = {
-  phase: 'host', persona: 'aspen', segment: 0, armed: [], done: [], drops: 0, pendingStepout: false,
+  phase: 'host', persona: 'aspen', segment: 0, armed: [], done: [], drops: 0, pendingStepout: false, pendingAlex: false,
   teamIntroDone: false, teamIntroSeen: false,
 };
 
@@ -163,6 +173,16 @@ const normalize = (text: string) => text.toLowerCase().replace(/[’‘]/g, "'")
 export function boundaryForAssistantLine(text: string, state: SwapState): PersonaBoundary | null {
   const line = normalize(text);
   if (!line) return null;
+  // Visitor-armed meet-alex (2026-11-09): the visitor asked for Alex /
+  // setup help / a staff meeting (state.pendingAlex, set by
+  // noteAlexIntent from a VISITOR line), so Aspen's next line IS the
+  // handoff line — whatever words it uses. This check comes first in
+  // host/close: in host it must beat the doorway anchor (a visitor who
+  // asked for Alex is not routed into the simulation first), and in
+  // close it makes the anchor phrases a fallback, not the trigger.
+  // Scoped to host/close only: in simulation the flag rides the
+  // step-out instead, and the intro family never sees it.
+  if ((state.phase === 'host' || state.phase === 'close') && state.pendingAlex && !state.done.includes('meet-alex')) return 'meet-alex';
   if (state.phase === 'host' && BOUNDARY_ANCHORS.doorway.some(a => line.includes(normalize(a)))) return 'doorway';
   if (state.phase === 'simulation' && BOUNDARY_ANCHORS.stepout.some(a => line.includes(normalize(a)))) return 'stepout';
   if (state.phase === 'close' && BOUNDARY_ANCHORS['meet-alex'].some(a => line.includes(normalize(a)))) return 'meet-alex';
@@ -202,6 +222,75 @@ const STEP_OUT_INTENT = [
 export function visitorSignalsStepOut(text: string): boolean {
   const line = normalize(text);
   return STEP_OUT_INTENT.some(a => line.includes(a));
+}
+
+/** Visitor intent to meet Alex (the visitor-armed meet-alex trigger,
+ *  2026-11-09). The handover listens to the VISITOR, not to Aspen's
+ *  wording: in this demo the Aspen host IS the person a visitor asks
+ *  about setup, so a setup question to her IS the Alex intent — the
+ *  setup phrases match bare, with no person/meeting combination
+ *  required. "Alex" matches as a WHOLE WORD only: "Alexa" devices and
+ *  "Alexander" are not the support specialist. The phrase list stays
+ *  tight on purpose — these are INTENT phrases (asking for the person
+ *  or the setup conversation), not topic words. */
+const ALEX_NAME_WORD = /\balex\b/;
+const ALEX_INTENT_PHRASES = [
+  // The setup conversation itself (asked of the host = Alex intent).
+  'setup', 'set up', 'set-up', 'installation', 'implement', 'onboarding',
+  'get started', 'getting started',
+  // The specialist by role, with or without a meet/talk verb.
+  'support specialist', 'setup specialist', 'your specialist',
+  // Meet a person / the team / the staff.
+  'meet someone', 'meet somebody', 'meet anybody', 'meet anyone', 'meet a person', 'meet a human',
+  'meet your team', 'meet your staff', 'meet the team', 'meet the staff',
+  'meet with someone', 'meet with somebody', 'meet with anybody', 'meet with anyone',
+  'meet with a person', 'meet with a human', 'meet with your team', 'meet with your staff',
+  // Talk / speak to a person / the team / the staff / the specialist.
+  'talk to someone', 'talk to somebody', 'talk to anybody', 'talk to anyone',
+  'talk to a person', 'talk to a human', 'talk to your team', 'talk to your staff',
+  'talk to your specialist', 'talk to the specialist', 'talk to a specialist',
+  'speak to someone', 'speak to somebody', 'speak to anybody', 'speak to anyone',
+  'speak to a person', 'speak to a human', 'speak to your team', 'speak to your staff',
+  'speak to your specialist', 'speak to the specialist', 'speak to a specialist',
+  'speak with someone', 'speak with somebody', 'speak with anybody', 'speak with anyone',
+  'speak with a person', 'speak with a human', 'speak with your team', 'speak with your staff',
+  'speak with your specialist', 'speak with the specialist', 'speak with a specialist',
+  // A person FROM the staff/team ("meet with anybody from your staff").
+  'someone from your staff', 'somebody from your staff', 'anyone from your staff', 'anybody from your staff',
+  'someone from your team', 'somebody from your team', 'anyone from your team', 'anybody from your team',
+];
+export function visitorRequestsAlex(text: string): boolean {
+  const line = normalize(text);
+  if (!line) return false;
+  if (ALEX_NAME_WORD.test(line)) return true;
+  return ALEX_INTENT_PHRASES.some(a => line.includes(a));
+}
+
+/** Fold a finalized VISITOR line into the swap state (the Alex-intent
+ *  counterpart of the pendingStepout flag-setting for step-out):
+ *  - host / close (Aspen live): set pendingAlex — her NEXT finalized
+ *    line executes meet-alex via boundaryForAssistantLine, anchor or
+ *    no anchor.
+ *  - simulation (Sara live): do NOT swap straight to Alex — set
+ *    pendingAlex AND pendingStepout, so the existing step-out path
+ *    runs first; the flag survives the step-out cut-over (executeSwap
+ *    clears it only for meet-alex itself) and fires on Aspen's first
+ *    close line.
+ *  - alex-guest / intro family: untouched — meet-alex is done or the
+ *    cameo chain owns Alex's introduction.
+ *  One-shot: once 'meet-alex' is in state.done this is a no-op, so
+ *  later matches never re-fire. Returns the SAME state object when
+ *  nothing changes. */
+export function noteAlexIntent(state: SwapState, text: string): SwapState {
+  if (state.done.includes('meet-alex')) return state;
+  if (!visitorRequestsAlex(text)) return state;
+  if (state.phase === 'host' || state.phase === 'close') {
+    return state.pendingAlex ? state : { ...state, pendingAlex: true };
+  }
+  if (state.phase === 'simulation') {
+    return state.pendingAlex && state.pendingStepout ? state : { ...state, pendingAlex: true, pendingStepout: true };
+  }
+  return state;
 }
 
 export interface SwapRecapState {

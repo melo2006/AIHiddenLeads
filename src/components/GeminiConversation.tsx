@@ -29,7 +29,7 @@ import { classifyMicrophoneFailure, isEmbeddedContext } from "@/lib/embeddedCont
 import {campaignVisit, trackCampaignEvent} from '@/lib/campaignTracking';
 import { salesPlans, type SalesPlan } from '@/lib/salesActions';
 import SimliAvatar, { SOUND_BLOCKED, isVideoStartFailure, type SimliAvatarHandle } from '@/components/SimliAvatar';
-import { boundaryForAssistantLine, buildSwapRecap, chainIsMidSegment, chainStashTarget, cutoverAudioSync, cutoverReady, dropApologyVariant, INITIAL_SWAP_STATE, introYieldOnVisitorLine, otherFaceSlot, PHASE_AFTER_BOUNDARY, PHASE_ENTRY, reconnectTarget, SWAP_CROSSFADE_MS, swapRecapFacts, visitorSignalsStepOut, type ChainStash, type FaceSlot, type PersonaBoundary, type PersonaId, type SwapPhase, type SwapState } from '@/lib/personaSwap';
+import { boundaryForAssistantLine, buildSwapRecap, chainIsMidSegment, chainStashTarget, cutoverAudioSync, cutoverReady, dropApologyVariant, INITIAL_SWAP_STATE, introYieldOnVisitorLine, noteAlexIntent, otherFaceSlot, PHASE_AFTER_BOUNDARY, PHASE_ENTRY, reconnectTarget, SWAP_CROSSFADE_MS, swapRecapFacts, visitorSignalsStepOut, type ChainStash, type FaceSlot, type PersonaBoundary, type PersonaId, type SwapPhase, type SwapState } from '@/lib/personaSwap';
 import { PERSONAS, SARA_FACE_ID } from '../../supabase/functions/_shared/personas';
 import { ALEX_FACE_ID } from '../../supabase/functions/_shared/alex-guide';
 import type { VideoAvatar } from '../../supabase/functions/_shared/video-avatar';
@@ -1358,6 +1358,14 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             if (swapEnabledRef.current && liveRef.current && swapStateRef.current.phase === 'simulation' && visitorSignalsStepOut(userLineRef.current)) {
               swapStateRef.current = { ...swapStateRef.current, pendingStepout: true };
             }
+            // Visitor-armed meet-alex (2026-11-09): the visitor asking
+            // for Alex / setup help / a staff meeting arms the handover
+            // from THEIR line — noteAlexIntent sets pendingAlex (in
+            // simulation it also sets pendingStepout, so Sara steps out
+            // first and Alex fires on Aspen's first close line).
+            if (swapEnabledRef.current && liveRef.current) {
+              swapStateRef.current = noteAlexIntent(swapStateRef.current, userLineRef.current);
+            }
             // Team intro bridge yield: a visitor line DURING a bridge
             // beat flags the abandonment; the turn_complete handler
             // applies the latch (design §3.3 rule 2).
@@ -1395,6 +1403,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
                 // becomes the cover and the swap follows it.
                 swapStateRef.current = { ...state, pendingStepout: false };
                 armSwapRef.current('stepout');
+              } else if (state.pendingAlex && (state.phase === 'host' || state.phase === 'close') && !state.armed.includes('meet-alex') && !state.done.includes('meet-alex')) {
+                // The visitor asked for Alex, but Aspen's line completed
+                // without anything staged: arm now — and the flag STAYS
+                // set (unlike pendingStepout above), so her NEXT line
+                // still yields meet-alex via boundaryForAssistantLine
+                // and the swap follows that line.
+                armSwapRef.current('meet-alex');
               }
               // Team intro yield (design §3.3 rules 2–3): if the visitor
               // interrupted a BRIDGE beat during this turn, the show is
@@ -1628,6 +1643,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           if (swapEnabledRef.current && liveRef.current && swapStateRef.current.phase === 'simulation' && visitorSignalsStepOut(userLineRef.current)) {
             swapStateRef.current = { ...swapStateRef.current, pendingStepout: true };
           }
+          // Visitor-armed meet-alex — same rule as the main socket.
+          if (swapEnabledRef.current && liveRef.current) {
+            swapStateRef.current = noteAlexIntent(swapStateRef.current, userLineRef.current);
+          }
           // Team intro bridge yield — same rule as the main socket.
           if (swapEnabledRef.current && liveRef.current && introYieldOnVisitorLine(swapStateRef.current)) {
             introYieldWasBargeInRef.current = true;
@@ -1655,6 +1674,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             } else if (state.pendingStepout && !state.armed.includes('stepout')) {
               swapStateRef.current = { ...state, pendingStepout: false };
               armSwapRef.current('stepout');
+            } else if (state.pendingAlex && (state.phase === 'host' || state.phase === 'close') && !state.armed.includes('meet-alex') && !state.done.includes('meet-alex')) {
+              // Visitor-armed meet-alex late arm — same rule as the main
+              // socket: arm now, flag stays set for her next line.
+              armSwapRef.current('meet-alex');
             }
             // Team intro yield — same rule as the main socket (design §3.3).
             const after = swapStateRef.current;
@@ -1814,6 +1837,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         segment: swapStateRef.current.segment + 1,
         done: [...swapStateRef.current.done, boundary],
         pendingStepout: false,
+        // Visitor-armed Alex intent survives every OTHER cut-over (in
+        // particular the step-out out of simulation, after which it
+        // fires on Aspen's first close line); meet-alex itself consumes
+        // it, so it can never re-fire.
+        pendingAlex: boundary === 'meet-alex' ? false : swapStateRef.current.pendingAlex,
         // Team intro latch: the show ran to completion — nothing in
         // this session re-arms any intro boundary (design §3.1).
         teamIntroDone: swapStateRef.current.teamIntroDone || boundary === 'intro-return-2',
