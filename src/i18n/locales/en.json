@@ -326,6 +326,7 @@
     "notTouchedShort": "Mock-up — site untouched",
     "notTouchedShow": "Show the mock-up note",
     "notTouchedHide": "Hide the mock-up note",
+    "capturedCopyNote": "This website's security settings don't allow a live replica, so this demo runs on a captured copy.",
     "howTitle": "How it works",
     "stepEnter": "Enter your website",
     "stepLearn": "Aspen learns it in about 2 minutes",
