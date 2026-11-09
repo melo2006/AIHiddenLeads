@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Mic, MicOff, Volume2, VolumeX, FlaskConical, PhoneOff, Loader2, Play, Pause, Save, RotateCcw, RefreshCw, Settings2, ChevronsUpDown } from "lucide-react";
+import { Mic, MicOff, Volume2, VolumeX, FlaskConical, PhoneOff, Loader2, Play, Pause, Save, RotateCcw, RefreshCw, Settings2, ChevronsUpDown, Check, Speaker, Smartphone, Bluetooth } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useTranslation } from "react-i18next";
 // This component renders in standalone harnesses (Voice Lab, embeds, tests)
@@ -41,6 +41,7 @@ import PlaybackCaption from '@/components/PlaybackCaption';
 import { voiceSessionHeaders } from '@/lib/voiceSessionAuth';
 import { shouldShowMicHint } from '@/lib/micAudibility';
 import { createMediaSink, mediaPlaybackNode, type MediaSink } from '@/lib/mediaSink';
+import { applySinkIdToElement, audioContextSetSinkIdSupported, buildSpeakerMenuOptions, listSpeakerOutputs, pickDefaultSpeakerOutput, type SpeakerMenuOption, type SpeakerOutputDevice } from '@/lib/speakerOutput';
 
 const MICROPHONE_DENIED = "Microphone permission was denied — allow it in your browser and try again.";
 /** On-screen only: replaces the mic-denied error when the widget runs inside an embedded preview frame, where the parent frame withholds the microphone and the browser can never show a permission prompt — there is nothing for the visitor to "allow" there. */
@@ -204,6 +205,18 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const [speakerMuted, setSpeakerMuted] = useState(false);
   const speakerMutedRef = useRef(false);
   const speakerGainRef = useRef<GainNode | null>(null);
+  // Speaker-output selection (2026-11-09, owner's earpiece complaint):
+  // where her audible voice plays — a real device via setSinkId when the
+  // platform exposes one, otherwise the platform route. SESSION-SCOPED
+  // ONLY: never written to localStorage (a persisted audio setting is
+  // what caused today's hold-to-talk trap; see lib/speakerOutput.ts).
+  const [speakerMenuOpen, setSpeakerMenuOpen] = useState(false);
+  const [speakerOutputs, setSpeakerOutputs] = useState<SpeakerOutputDevice[]>([]);
+  const [speakerCanSelect, setSpeakerCanSelect] = useState(false);
+  const [selectedOutputId, setSelectedOutputId] = useState<string | null>(null);
+  const selectedOutputIdRef = useRef<string | null>(null);
+  const [speakerOutputNotice, setSpeakerOutputNotice] = useState<string | null>(null);
+  const defaultOutputAppliedRef = useRef(false);
   const [paused, setPaused] = useState(false);
   // Stage 3 true-suspend: the socket is closed (no minute burn) but the
   // conversation is resumable; distinct from the local-only Pause above.
@@ -248,6 +261,9 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       entry?.sink?.dispose();
       entry = { ctx, sink: createMediaSink(ctx) };
       mediaSinkRef.current = entry;
+      // A speaker-output choice already made this session governs the
+      // local media element too (voice-only path's audible element).
+      if (entry.sink && selectedOutputIdRef.current) void applySinkIdToElement(entry.sink.element, selectedOutputIdRef.current);
     }
     if (entry.sink && !entry.sink.ready) void entry.sink.play();
     return mediaPlaybackNode(ctx, entry.sink);
@@ -691,6 +707,94 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     avatarRef.current?.setPlaybackMuted(next || captureRef.current.paused || captureRef.current.replaying);
     if (next) setCaptions(true);
   }, []);
+
+  // Apply a speaker-output device ("" = platform default) to every audible
+  // element this session owns: the Simli paired element (video path, via
+  // its handle — it remembers and re-applies at start/activate), a
+  // pre-staged swap avatar, the local media-sink element (voice-only
+  // path), and — where supported — the playback AudioContext, which
+  // governs the ctx.destination fallback while the sink is not ready.
+  // True only when at least one target actually applied it.
+  const applySpeakerOutput = useCallback(async (deviceId: string): Promise<boolean> => {
+    let applied = false;
+    for (const handle of [avatarRef.current, stagedAvatarRef.current]) {
+      if (handle?.setOutputDevice) {
+        try { if (await handle.setOutputDevice(deviceId)) applied = true; } catch { /* keep trying other targets */ }
+      }
+    }
+    const sinkElement = mediaSinkRef.current?.sink?.element;
+    if (sinkElement && await applySinkIdToElement(sinkElement, deviceId)) applied = true;
+    const ctx = playCtxRef.current;
+    if (audioContextSetSinkIdSupported(ctx)) {
+      try { await (ctx as unknown as { setSinkId: (id: string) => Promise<void> }).setSinkId(deviceId); applied = true; } catch { /* best effort */ }
+    }
+    return applied;
+  }, []);
+
+  const refreshSpeakerOutputs = useCallback(async () => {
+    const result = await listSpeakerOutputs();
+    setSpeakerOutputs(result.devices);
+    setSpeakerCanSelect(result.canSelect);
+    return result;
+  }, []);
+
+  // Session-start default (owner's rule): Bluetooth when connected,
+  // otherwise the loudspeaker — applied ONCE per live session, and only
+  // when the platform exposes a selectable device to apply. When it does
+  // not, the session keeps the platform route and the menu says so.
+  useEffect(() => {
+    if (phase === "idle") { defaultOutputAppliedRef.current = false; setSpeakerMenuOpen(false); return; }
+    if (phase !== "live" || defaultOutputAppliedRef.current) return;
+    defaultOutputAppliedRef.current = true;
+    void (async () => {
+      const { devices, canSelect } = await refreshSpeakerOutputs();
+      if (!canSelect || selectedOutputIdRef.current) return;
+      const pick = pickDefaultSpeakerOutput(devices);
+      if (!pick) return;
+      selectedOutputIdRef.current = pick.deviceId;
+      setSelectedOutputId(pick.deviceId);
+      await applySpeakerOutput(pick.deviceId);
+    })();
+  }, [phase, refreshSpeakerOutputs, applySpeakerOutput]);
+
+  // Keep the menu's device list honest as devices come and go.
+  useEffect(() => {
+    const update = () => { void refreshSpeakerOutputs(); };
+    navigator.mediaDevices?.addEventListener?.("devicechange", update);
+    return () => navigator.mediaDevices?.removeEventListener?.("devicechange", update);
+  }, [refreshSpeakerOutputs]);
+
+  const chooseSpeakerDevice = useCallback(async (device: SpeakerOutputDevice) => {
+    setSpeakerMenuOpen(false);
+    setSpeakerOutputNotice(null);
+    if (speakerMutedRef.current) toggleSpeakerMute();
+    const previous = selectedOutputIdRef.current;
+    selectedOutputIdRef.current = device.deviceId;
+    setSelectedOutputId(device.deviceId);
+    const applied = await applySpeakerOutput(device.deviceId);
+    if (!applied) {
+      // Nothing accepted the route (e.g. the device vanished): do not
+      // checkmark a route that is not real — revert and say so.
+      selectedOutputIdRef.current = previous;
+      setSelectedOutputId(previous);
+      if (previous) void applySpeakerOutput(previous);
+      setSpeakerOutputNotice(t("voice.speakerSwitchFailed"));
+    }
+  }, [applySpeakerOutput, toggleSpeakerMute, t]);
+
+  const choosePlatformOutput = useCallback(() => {
+    setSpeakerMenuOpen(false);
+    setSpeakerOutputNotice(null);
+    if (speakerMutedRef.current) toggleSpeakerMute();
+    selectedOutputIdRef.current = null;
+    setSelectedOutputId(null);
+    void applySpeakerOutput("");
+  }, [applySpeakerOutput, toggleSpeakerMute]);
+
+  const chooseSpeakerMute = useCallback(() => {
+    setSpeakerMenuOpen(false);
+    if (!speakerMutedRef.current) toggleSpeakerMute();
+  }, [toggleSpeakerMute]);
 
   const replayLastMessage = useCallback(async () => {
     if (!lastAudioRef.current.length || captureRef.current.paused || captureRef.current.replaying) return;
@@ -1772,17 +1876,54 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             </Button>
           )}
           {phase === "live" && (
-            <Button
-              size="icon"
-              variant={speakerMuted ? "secondary" : "outline"}
-              aria-pressed={speakerMuted}
-              title={speakerMuted ? t("voice.speakerOn") : t("voice.speakerOff")}
-              aria-label={speakerMuted ? t("voice.speakerOnShort") : t("voice.silenceSpeaker")}
-              onClick={toggleSpeakerMute}
-            >
-              {speakerMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-              <span>{speakerMuted ? t("voice.soundOn") : t("voice.silence")}</span>
-            </Button>
+            <div className="relative">
+              <Button
+                size="icon"
+                variant={speakerMuted ? "secondary" : "outline"}
+                aria-haspopup="menu"
+                aria-expanded={speakerMenuOpen}
+                title={t("voice.speakerOutputChoose")}
+                aria-label={t("voice.speakerOutput")}
+                onClick={() => { const opening = !speakerMenuOpen; setSpeakerMenuOpen(opening); if (opening) void refreshSpeakerOutputs(); }}
+              >
+                {speakerMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                <span>{t("voice.sound")}</span>
+              </Button>
+              {speakerMenuOpen && (
+                <div role="menu" aria-label={t("voice.speakerOutput")} className="absolute bottom-full left-1/2 z-50 mb-1 w-56 max-w-[80vw] -translate-x-1/2 rounded-md border border-border bg-card p-1 text-left shadow-lg">
+                  {buildSpeakerMenuOptions({ devices: speakerOutputs, canSelect: speakerCanSelect, selectedDeviceId: selectedOutputId, muted: speakerMuted }).map((option: SpeakerMenuOption) => {
+                    if (option.kind === "mute") {
+                      return (
+                        <div key={option.id}>
+                          <div className="my-1 border-t border-border" aria-hidden />
+                          <button type="button" role="menuitemradio" aria-checked={option.selected} aria-label={t("voice.speakerMute")} className="flex w-full items-center gap-2 rounded-sm px-2 py-2 text-xs font-medium hover:bg-muted" onClick={chooseSpeakerMute}>
+                            <span className="flex h-4 w-4 shrink-0 items-center justify-center">{option.selected && <Check className="h-3.5 w-3.5" />}</span>
+                            <VolumeX className="h-4 w-4 shrink-0" />
+                            <span>{t("voice.speakerMute")}</span>
+                          </button>
+                        </div>
+                      );
+                    }
+                    const label = option.synthetic === "loudspeaker" ? t("voice.speakerLoudspeaker")
+                      : option.synthetic === "earpiece" ? t("voice.speakerEarpiece")
+                      : option.synthetic === "platform" ? t("voice.speakerPhoneDefault")
+                      : option.synthetic === "bluetoothFallback" ? t("voice.speakerBluetooth")
+                      : option.rawLabel ?? t("voice.speakerOutput");
+                    const Icon = option.kind === "speaker" ? Speaker : option.kind === "earpiece" || option.kind === "platform" ? Smartphone : option.kind === "bluetooth" || option.kind === "headset" ? Bluetooth : Volume2;
+                    const device = option.deviceId ? speakerOutputs.find(d => d.deviceId === option.deviceId) : undefined;
+                    return (
+                      <button key={option.id} type="button" role="menuitemradio" aria-checked={option.selected} aria-label={label} className="flex w-full items-center gap-2 rounded-sm px-2 py-2 text-xs font-medium hover:bg-muted" onClick={() => { if (device) void chooseSpeakerDevice(device); else choosePlatformOutput(); }}>
+                        <span className="flex h-4 w-4 shrink-0 items-center justify-center">{option.selected && <Check className="h-3.5 w-3.5" />}</span>
+                        <Icon className="h-4 w-4 shrink-0" />
+                        <span className="truncate">{label}</span>
+                      </button>
+                    );
+                  })}
+                  {!speakerCanSelect && <p className="px-2 pb-1 pt-1.5 text-[10px] leading-snug text-muted-foreground">{t("voice.speakerNoSelectNote")}</p>}
+                  {speakerOutputNotice && <p role="status" className="px-2 pb-1 pt-1.5 text-[10px] leading-snug text-muted-foreground">{speakerOutputNotice}</p>}
+                </div>
+              )}
+            </div>
           )}
           <Button
             size="icon"
@@ -1840,6 +1981,9 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           </Button>
         </div>
 
+        {phase === "live" && speakerOutputNotice && (
+          <p role="status" className="text-[11px] text-muted-foreground">{speakerOutputNotice}</p>
+        )}
         {phase === "live" && (
           <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
             <span>{t("voice.mic")}</span>
