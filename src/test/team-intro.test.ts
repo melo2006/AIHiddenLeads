@@ -334,7 +334,7 @@ describe('swap-audio fix batch (2026-11-09 evening) — defects 1, 2, 4', () => 
   test('defect 1: the cut-over applies the sync to the INCOMING handle after the pointer re-point', () => {
     const repoint = convo.indexOf('avatarRef.current = incomingHandle');
     const syncAt = convo.indexOf('incomingHandle.cutoverAudioSync(sync)', repoint);
-    const socketAt = convo.indexOf('connectSegmentSocket(staged.token)', repoint);
+    const socketAt = convo.indexOf('connectSegmentSocket(staged.token,', repoint); // segment-connect build: the cut-over call now also passes a connect ctx (retry-once + diagnostics); the ordering this pin guards is unchanged
     expect(repoint).toBeGreaterThanOrEqual(0);
     expect(syncAt).toBeGreaterThan(repoint);
     expect(socketAt).toBeGreaterThan(syncAt);
