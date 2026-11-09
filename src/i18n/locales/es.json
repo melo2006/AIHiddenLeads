@@ -153,7 +153,7 @@
     }
   },
   "pricing": {
-    "badge": "Promo de Lanzamiento — Setup GRATIS hasta el 30 de Noviembre",
+    "badge": "50% DE DESCUENTO — TERMINA ESTE MES: Setup GRATIS",
     "title": "Precios",
     "titleAccent": "Honestos y Transparentes",
     "sub": "Sin tarifas ocultas. Sin contratos de 12 meses. Cancela cuando quieras.",
@@ -161,10 +161,10 @@
     "launchPrice": "Precio de lanzamiento",
     "setup": "Setup:",
     "free": "GRATIS",
-    "setupPromo": "(gratis hasta el 30/nov)",
+    "setupPromo": "(gratis durante la promoción)",
     "webMinutes": "minutos de voz web/mes",
     "perMinSuffix": "/min equivalente",
-    "promoMinutes": "Promo de lanzamiento: normalmente {{n}} min — DUPLICADO gratis",
+    "promoMinutes": "Promoción: {{n}} min incluidos GRATIS durante tus primeros 3 meses",
     "mostPopular": "Más Popular",
     "essentials": {
       "name": "Premium",

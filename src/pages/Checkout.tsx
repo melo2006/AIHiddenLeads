@@ -61,7 +61,7 @@ const disclaimers = [
   "Included minutes cover browser voice conversations on your website. Phone-line services (warm transfer to your phone, SMS notifications, appointment reminders) are optional add-ons billed separately — carrier usage is passed through at cost.",
   "Lead generation results vary by industry, location, and market conditions. We deliver qualified B2B prospect records; we do not guarantee appointments or revenue outcomes.",
   "You may cancel your subscription at any time. No long-term contracts required.",
-  "Setup fee is waived through November 30 as a launch promotion; after that it is a one-time charge for initial configuration, widget installation, and onboarding.",
+  "Setup fee is waived during the current promotion — 50% off every plan for the first 3 months, ends this month; after that it is a one-time charge for initial configuration, widget installation, and onboarding.",
   "Usage is visible in your dashboard at all times before any billing.",
 ];
 
@@ -100,7 +100,7 @@ export default function Checkout() {
             <div>
               <h1 className="text-2xl font-bold text-foreground">{plan.name}</h1>
               <p className="text-3xl font-extrabold text-primary mt-2">{plan.price}</p>
-              <p className="text-sm text-muted-foreground mt-1">Launch Special — setup fee waived through Nov 30, included minutes doubled</p>
+              <p className="text-sm text-muted-foreground mt-1">50% OFF — ENDS THIS MONTH: 50% off for the first 3 months, setup fee waived</p>
             </div>
 
             <div className="rounded-xl border border-border bg-card p-5">
