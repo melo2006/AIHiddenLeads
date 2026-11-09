@@ -29,7 +29,7 @@ import { classifyMicrophoneFailure, isEmbeddedContext } from "@/lib/embeddedCont
 import {campaignVisit, trackCampaignEvent} from '@/lib/campaignTracking';
 import { salesPlans, type SalesPlan } from '@/lib/salesActions';
 import SimliAvatar, { SOUND_BLOCKED, isVideoStartFailure, type SimliAvatarHandle } from '@/components/SimliAvatar';
-import { boundaryForAssistantLine, buildSwapRecap, cutoverReady, dropApologyVariant, INITIAL_SWAP_STATE, introYieldOnVisitorLine, PHASE_AFTER_BOUNDARY, PHASE_ENTRY, reconnectTarget, swapRecapFacts, visitorSignalsStepOut, type PersonaBoundary, type PersonaId, type SwapPhase, type SwapState } from '@/lib/personaSwap';
+import { boundaryForAssistantLine, buildSwapRecap, cutoverReady, dropApologyVariant, INITIAL_SWAP_STATE, introYieldOnVisitorLine, otherFaceSlot, PHASE_AFTER_BOUNDARY, PHASE_ENTRY, reconnectTarget, SWAP_CROSSFADE_MS, swapRecapFacts, visitorSignalsStepOut, type FaceSlot, type PersonaBoundary, type PersonaId, type SwapPhase, type SwapState } from '@/lib/personaSwap';
 import { PERSONAS, SARA_FACE_ID } from '../../supabase/functions/_shared/personas';
 import { ALEX_FACE_ID } from '../../supabase/functions/_shared/alex-guide';
 import type { VideoAvatar } from '../../supabase/functions/_shared/video-avatar';
@@ -63,12 +63,18 @@ const VOICES = [
   { id: "Algenib", label: "Algenib — gravelly male" },
 ];
 
-type Turn = { role: "user" | "assistant"; text: string };
+/** One transcript row. The transcript is NEVER cleared at a persona
+ * handoff (owner transition spec): assistant rows carry the persona who
+ * spoke them (`speaker`, swap sessions only) so the name label follows
+ * the speaker, and each completed handoff appends a `divider` row so a
+ * visitor scrolling up can follow who said what. Divider rows are
+ * chrome — recap builders filter them out. */
+type Turn = { role: "user" | "assistant" | "divider"; text: string; speaker?: PersonaId };
 // Same-page-visit memory so pressing play again after Stop resumes instead of re-greeting.
 const visitMemory = new Map<string, Turn[]>();
 export function resumeRecap(turns: Turn[]) {
   if (!turns.some(t => t.role === "assistant")) return undefined;
-  return turns.slice(-8).map(t => `${t.role === "user" ? "Visitor" : "Assistant"}: ${t.text}`).join("\n").slice(-1500);
+  return turns.filter(t => t.role !== "divider").slice(-8).map(t => `${t.role === "user" ? "Visitor" : "Assistant"}: ${t.text}`).join("\n").slice(-1500);
 }
 type Phase = "idle" | "connecting" | "live" | "preview";
 
@@ -160,11 +166,29 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const parentSessionIdRef = useRef<string | null>(null);
   const visitorKeyRef = useRef('');
   const businessNameRef = useRef('');
-  const preStageRef = useRef<{ boundary: PersonaBoundary; token: string; faceReady: boolean; persona: PersonaId } | null>(null);
+  const preStageRef = useRef<{ boundary: PersonaBoundary; token: string; faceReady: boolean; persona: PersonaId; slot: FaceSlot } | null>(null);
   /** Team intro: a true barge-in landed during a bridge beat; the latch
    *  is applied when the interrupted turn completes (design §3.3). */
   const introYieldWasBargeInRef = useRef(false);
-  const [preStage, setPreStage] = useState<{ persona: PersonaId; boundary: PersonaBoundary } | null>(null);
+  // Face slots (owner transition spec): two SimliAvatar instances share
+  // the widget's live box. The MAIN slot starts as the standard face;
+  // a pre-staged incoming persona mounts CONCEALED in the OTHER slot
+  // (mainFace/secondFace state), the cut-over reveals it there with a
+  // ~300ms crossfade, and the retired slot's state clears once the
+  // fade lands — freeing that slot for the next boundary. A slot state
+  // with revealed=false is a concealed pre-stage; revealed=true is the
+  // live face. avatarRef below stays a MANUAL pointer at the ACTIVE
+  // slot's handle (synced by an effect + at cut-over); it is no longer
+  // a JSX ref, because a slot's element changes identity across swaps.
+  const [mainFace, setMainFace] = useState<{ persona: PersonaId; boundary: PersonaBoundary; revealed: boolean } | null>(null);
+  const [secondFace, setSecondFace] = useState<{ persona: PersonaId; boundary: PersonaBoundary; revealed: boolean } | null>(null);
+  const mainSlotRef = useRef<SimliAvatarHandle>(null);
+  const faceSlotOwnerRef = useRef<FaceSlot>('main');
+  /** The slot whose frozen frame is dissolving out right now (set at
+   *  cut-over, cleared when its retirement lands): it layers BELOW the
+   *  revealing slot for the duration of the crossfade. */
+  const [fadingSlot, setFadingSlot] = useState<FaceSlot | null>(null);
+  const retireTimersRef = useRef<number[]>([]);
   const stagedAvatarRef = useRef<SimliAvatarHandle>(null);
   const [activePersona, setActivePersona] = useState<PersonaId>('aspen');
   /** True while a boundary cut-over executes: the compact status line must
@@ -428,7 +452,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     const text = ref.current.trim();
     if (text) {
       if (role === "user") onUserTranscriptRef.current?.(text);
-      setTurns((prev) => { const next = [...prev, { role, text }]; if (!isPreviewRef.current) visitMemory.set(agentId || "homepage", next); return next; });
+      // Swap sessions: stamp the speaking persona on the finalized line
+      // so the transcript's name label follows the speaker across
+      // handoffs. Read at flush time — a swap's partial teardown flushes
+      // the outgoing line BEFORE the state moves, so it is stamped with
+      // the persona who actually spoke it.
+      const speaker = role === "assistant" && swapEnabledRef.current ? swapStateRef.current.persona : undefined;
+      setTurns((prev) => { const next = [...prev, { role, text, ...(speaker ? { speaker } : {}) }]; if (!isPreviewRef.current) visitMemory.set(agentId || "homepage", next); return next; });
     }
     ref.current = "";
     if (role === "user") setPartialUser(""); else setPartialAspen("");
@@ -482,9 +512,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const dropRecoverRef = useRef<() => void>(() => {});
 
   /** Arm a boundary: authorize the incoming segment AND pre-connect its
-   * face (concealed second instance) while the outgoing persona is still
-   * speaking its handoff line. Any failure disarms quietly — the current
-   * persona continues words-only (spec §6.5 fallback 1/2). */
+   * face (concealed, in the face slot the active persona is NOT using)
+   * while the outgoing persona is still speaking its handoff line. Any
+   * failure disarms quietly — the current persona continues words-only
+   * (spec §6.5 fallback 1/2). */
   const armSwap = useCallback((boundary: PersonaBoundary) => {
     const state = swapStateRef.current;
     if (!swapEnabledRef.current || preStageRef.current || state.done.includes(boundary) || state.armed.includes(boundary)) return;
@@ -499,12 +530,15 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       const segment = await requestSegment(persona, boundary, { swap: true });
       if (!segment) return; // disarmed: words-only continuation
       if (swapStateRef.current.done.includes(boundary) || !liveRef.current) return;
-      preStageRef.current = { boundary, token: segment.token, faceReady: !avatarRequestedRef.current, persona };
+      const slot = otherFaceSlot(faceSlotOwnerRef.current);
+      preStageRef.current = { boundary, token: segment.token, faceReady: !avatarRequestedRef.current, persona, slot };
       if (avatarRequestedRef.current) {
-        // Mount the concealed second instance; its start() pre-connects
-        // during the outgoing line. Face failure leaves faceReady false
-        // and the atomic gate will abort the swap at cut-over.
-        setPreStage({ persona, boundary });
+        // Mount the concealed instance in the free slot; its start()
+        // pre-connects during the outgoing line. Face failure leaves
+        // faceReady false and the atomic gate will abort the swap at
+        // cut-over.
+        if (slot === 'second') setSecondFace({ persona, boundary, revealed: false });
+        else setMainFace({ persona, boundary, revealed: false });
       }
     })();
   }, [requestSegment]);
@@ -520,7 +554,14 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     introYieldWasBargeInRef.current = false;
     parentSessionIdRef.current = null;
     preStageRef.current = null;
-    setPreStage(null);
+    // Face slots reset with the chain: both slot states clear, pending
+    // crossfade retirements are cancelled, ownership returns to main.
+    for (const timer of retireTimersRef.current) window.clearTimeout(timer);
+    retireTimersRef.current = [];
+    faceSlotOwnerRef.current = 'main';
+    setFadingSlot(null);
+    setMainFace(null);
+    setSecondFace(null);
     setActivePersona('aspen');
     setSwapTransition(false);
     swapBusyRef.current = false;
@@ -1563,18 +1604,35 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
    * incoming instance, the old socket closes last (partial teardown),
    * and the new socket opens on the pre-authorized token. No phase
    * change, no status change, no spinner: swapTransition only suppresses
-   * the connecting UI while phase stays 'live'. */
+   * the connecting UI while phase stays 'live'.
+   * FACE TRANSITION (owner transition spec, 2026-11-09): the reveal is
+   * a ~300ms CROSSFADE inside the portrait area only — the incoming
+   * face (already live in the free slot, first frame displayed: the
+   * gate required it) dissolves in over the outgoing persona's frozen
+   * frame while that frame dissolves out; when the fade lands, the
+   * outgoing instance retires (its kept frame is cleared) and its slot
+   * frees for the next boundary. The widget frame, controls, caption
+   * region and layout never move. If the incoming face is NOT ready,
+   * the gate above aborts the swap whole — the outgoing persona
+   * continues live, so no black or empty frame can ever appear. */
   executeSwapRef.current = async (boundary: PersonaBoundary) => {
     const staged = preStageRef.current;
     const state = swapStateRef.current;
     const finalizeTurn = () => { flushLine("user"); flushLine("assistant"); };
     if (swapBusyRef.current) { finalizeTurn(); return; }
     if (!staged || staged.boundary !== boundary || !liveRef.current) { finalizeTurn(); return; }
+    // Clear one slot's staged/active persona state (the slot unmounts
+    // or reverts to the standard face render once its state is gone).
+    const clearFaceSlot = (slot: FaceSlot) => { if (slot === 'second') setSecondFace(null); else setMainFace(null); };
     if (!cutoverReady({ authorized: true, videoRequested: avatarRequestedRef.current, faceReady: staged.faceReady })) {
       // Abort: the pre-stage didn't complete — current persona continues
-      // words-only; nothing about the live call was touched.
+      // words-only; nothing about the live call was touched. A staged
+      // face in the MAIN slot is stopped explicitly (it shares its
+      // element with the standard face, so no unmount will stop it);
+      // a staged SECOND-slot face stops via its unmount cleanup.
+      if (avatarRequestedRef.current && staged.slot === 'main') mainSlotRef.current?.stop();
+      if (avatarRequestedRef.current) clearFaceSlot(staged.slot);
       preStageRef.current = null;
-      setPreStage(null);
       finalizeTurn();
       return;
     }
@@ -1582,20 +1640,38 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     setSwapTransition(true);
     const incoming = staged.persona;
     try {
-      // 1) Re-point paired audio + reveal the incoming face; freeze the
-      //    outgoing face as the cover (keeper election: the OUTGOING
-      //    instance keeps its frame painted through the reveal).
+      // 1) Re-point paired audio at the incoming slot's instance, then
+      //    run the crossfade: reveal the incoming face over the frozen
+      //    outgoing frame (keeper election unchanged: the OUTGOING
+      //    instance keeps its frame painted through the reveal), fade
+      //    the frozen frame out in step, and retire it once the fade
+      //    lands so its slot frees for the next boundary.
       if (avatarRequestedRef.current) {
         const outgoing = avatarRef.current;
+        const outgoingSlot = faceSlotOwnerRef.current;
+        const incomingHandle = staged.slot === 'second' ? stagedAvatarRef.current : mainSlotRef.current;
         outgoing?.setFrameKeeper?.(true);
-        stagedAvatarRef.current?.setFrameKeeper?.(false);
-        avatarRef.current = stagedAvatarRef.current;
-        setPreStage(null);
+        incomingHandle?.setFrameKeeper?.(false);
+        avatarRef.current = incomingHandle;
+        faceSlotOwnerRef.current = staged.slot;
+        if (staged.slot === 'second') setSecondFace(face => (face && face.boundary === boundary ? { ...face, revealed: true } : face));
+        else setMainFace(face => (face && face.boundary === boundary ? { ...face, revealed: true } : face));
         preStageRef.current = null;
+        setFadingSlot(outgoingSlot);
         outgoing?.freeze?.();
+        outgoing?.fadeOut?.();
+        const retireTimer = window.setTimeout(() => {
+          retireTimersRef.current = retireTimersRef.current.filter(timer => timer !== retireTimer);
+          setFadingSlot(slot => (slot === outgoingSlot ? null : slot));
+          if (outgoing) { if (outgoing.retire) outgoing.retire(); else outgoing.stop(); }
+          // Free the retired slot — unless a newer stage already owns
+          // it (its state would be a concealed, unrevealed entry).
+          if (outgoingSlot === 'second') setSecondFace(face => (face && !face.revealed ? face : null));
+          else setMainFace(face => (face && !face.revealed ? face : null));
+        }, SWAP_CROSSFADE_MS + 80);
+        retireTimersRef.current.push(retireTimer);
       } else {
         preStageRef.current = null;
-        setPreStage(null);
       }
       // 2) Partial teardown: old socket closes now (no end_session), mic
       //    and audio contexts survive; the completed turns flush here.
@@ -1616,6 +1692,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       setActivePersona(incoming);
       onPersonaChangeRef.current?.({ id: incoming, displayName: PERSONAS[incoming].displayName });
       setFaceLive(avatarRequestedRef.current);
+      // Transcript divider (owner transition spec): the transcript is
+      // never cleared at a handoff; a centered divider row marks where
+      // the incoming persona took over, under the last flushed line.
+      setTurns(prev => { const next = [...prev, { role: "divider" as const, text: "", speaker: incoming }]; if (!isPreviewRef.current) visitMemory.set(agentId || "homepage", next); return next; });
       // 4) Open the incoming segment's socket on the pre-authorized token.
       connectSegmentSocket(staged.token);
       // Boundary analytics through the proxy's log-only message.
@@ -1671,27 +1751,46 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     })();
   };
 
-  // Persona pre-stage effect: when armSwap mounts the concealed second
-  // instance, start it (silent — its audio element stays muted; it has
-  // nothing to play until cut-over) and record frame readiness on the
-  // staged entry. Start failures leave faceReady false → the atomic gate
-  // aborts the swap and the current persona continues words-only.
+  // Keep the manual active-face pointer aimed at the owning slot's
+  // handle. Slot elements change identity across swaps (a slot's render
+  // switches between the standard face and persona instances), so the
+  // pointer is re-synced after every commit instead of being a JSX ref.
   useEffect(() => {
-    if (!preStage) return;
+    const handle = faceSlotOwnerRef.current === 'main' ? mainSlotRef.current : stagedAvatarRef.current;
+    if (handle) avatarRef.current = handle;
+  });
+
+  // The concealed pre-stage, whichever slot hosts it (an unrevealed
+  // slot state IS the stage; the derivation is render-pure).
+  const stagedFace = secondFace && !secondFace.revealed
+    ? { persona: secondFace.persona, boundary: secondFace.boundary, slot: 'second' as FaceSlot }
+    : mainFace && !mainFace.revealed
+      ? { persona: mainFace.persona, boundary: mainFace.boundary, slot: 'main' as FaceSlot }
+      : null;
+
+  // Persona pre-stage effect: when armSwap mounts the concealed
+  // instance in the free slot, start it (silent — its audio element
+  // stays muted; it has nothing to play until cut-over) and record
+  // frame readiness on the staged entry. Start failures leave
+  // faceReady false → the atomic gate aborts the swap and the current
+  // persona continues words-only.
+  useEffect(() => {
+    if (!stagedFace) return;
     let cancelled = false;
     void (async () => {
       // The instance mounts on this render; wait one frame for its ref.
       await new Promise<void>(r => requestAnimationFrame(() => r()));
       if (cancelled) return;
       try {
-        const ok = await stagedAvatarRef.current?.start({ silent: true });
-        if (!cancelled && ok && preStageRef.current?.boundary === preStage.boundary) {
+        const handle = stagedFace.slot === 'second' ? stagedAvatarRef.current : mainSlotRef.current;
+        const ok = await handle?.start({ silent: true });
+        if (!cancelled && ok && preStageRef.current?.boundary === stagedFace.boundary) {
           preStageRef.current = { ...preStageRef.current, faceReady: true };
         }
       } catch { /* gate aborts the swap; words-only continuation */ }
     })();
     return () => { cancelled = true; };
-  }, [preStage]);
+  }, [stagedFace?.boundary, stagedFace?.slot, stagedFace?.persona]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // TRUE SUSPEND (Stage 3 pause): close the socket and release mic/avatar/
   // audio locally WITHOUT an end_session send, so no minutes burn while the
@@ -1856,13 +1955,26 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     : activePersona === 'alex' && videoAvatar
       ? { ...videoAvatar, faceId: ALEX_FACE_ID }
       : videoAvatar;
-  const avatarView = videoAvatar?.enabled && !previewOnly ? <SimliAvatar ref={avatarRef} inline={avatarInline || faceFirst} unboxed={faceFirst} avatar={activeVideoAvatar ?? videoAvatar} agentId={agentId} shareToken={shareToken} draft={draft} guide={guide} onLiveChange={live => { setFaceLive(live); if (!live) avatarLiveRef.current = false; }} /> : null;
-  // Avatar swap pre-stage: the incoming persona's concealed second
-  // instance — mounted only while a boundary is armed, live but hidden
-  // and muted, revealed by the cut-over re-pointing avatarRef at it.
-  const stagedAvatarView = preStage && videoAvatar?.enabled && !previewOnly ? (
-    <div key={`staged-${preStage.boundary}`} className={faceFirst ? "aspen-person-livebox relative z-0 mx-auto overflow-hidden" : undefined} style={faceFirst ? { position: 'absolute', inset: 0, opacity: 0, pointerEvents: 'none' } : undefined}>
-      <SimliAvatar ref={stagedAvatarRef} inline={avatarInline || faceFirst} unboxed={faceFirst} avatar={{ ...videoAvatar, faceId: preStage.persona === 'sara' ? SARA_FACE_ID : preStage.persona === 'alex' ? ALEX_FACE_ID : videoAvatar.faceId }} persona={preStage.persona} personaParentSessionId={parentSessionIdRef.current || undefined} personaVisitorKey={visitorKeyRef.current || undefined} concealed />
+  // MAIN face slot. Normally the standard face; while a persona stage
+  // or segment owns the slot (mainFace), the SAME element position
+  // renders that persona instance instead — one mounted instance per
+  // slot at all times, so a crossfade never mounts/unmounts mid-fade.
+  // onLiveChange is owner-gated: once the second slot owns the face,
+  // this slot's events (a staged start, the retirement stop) must not
+  // drive the shell's faceLive state.
+  const mainFaceLayer = mainFace ? (mainFace.revealed ? (fadingSlot === 'main' ? 1 : 2) : 0) : undefined;
+  const avatarView = videoAvatar?.enabled && !previewOnly ? (mainFace
+    ? <SimliAvatar ref={mainSlotRef} inline={avatarInline || faceFirst} unboxed={faceFirst} avatar={{ ...videoAvatar, faceId: mainFace.persona === 'sara' ? SARA_FACE_ID : mainFace.persona === 'alex' ? ALEX_FACE_ID : videoAvatar.faceId }} persona={mainFace.persona} personaParentSessionId={parentSessionIdRef.current || undefined} personaVisitorKey={visitorKeyRef.current || undefined} concealed={!mainFace.revealed} layer={mainFaceLayer} onLiveChange={live => { if (faceSlotOwnerRef.current !== 'main') return; setFaceLive(live); if (!live) avatarLiveRef.current = false; }} />
+    : <SimliAvatar ref={mainSlotRef} inline={avatarInline || faceFirst} unboxed={faceFirst} avatar={activeVideoAvatar ?? videoAvatar} agentId={agentId} shareToken={shareToken} draft={draft} guide={guide} onLiveChange={live => { if (faceSlotOwnerRef.current !== 'main') return; setFaceLive(live); if (!live) avatarLiveRef.current = false; }} />) : null;
+  // SECOND face slot: the incoming persona's instance — mounted
+  // concealed while a boundary is armed (live but hidden and muted),
+  // revealed by the cut-over's crossfade, and kept mounted as the
+  // active face until it retires at a later boundary. Its wrapper no
+  // longer hides it: SimliAvatar's own opacity (concealed / fade-out)
+  // drives the dissolve, layered above the retiring main slot.
+  const stagedAvatarView = secondFace && videoAvatar?.enabled && !previewOnly ? (
+    <div key={`staged-${secondFace.boundary}`} className={faceFirst ? "aspen-person-livebox relative z-0 mx-auto overflow-hidden" : undefined} style={faceFirst ? { position: 'absolute', inset: 0, pointerEvents: 'none' } : undefined}>
+      <SimliAvatar ref={stagedAvatarRef} inline={avatarInline || faceFirst} unboxed={faceFirst} avatar={{ ...videoAvatar, faceId: secondFace.persona === 'sara' ? SARA_FACE_ID : secondFace.persona === 'alex' ? ALEX_FACE_ID : videoAvatar.faceId }} persona={secondFace.persona} personaParentSessionId={parentSessionIdRef.current || undefined} personaVisitorKey={visitorKeyRef.current || undefined} concealed={!secondFace.revealed} layer={secondFace.revealed ? (fadingSlot === 'second' ? 1 : 2) : 0} />
     </div>
   ) : null;
   // While Aspen is speaking, the karaoke caption owns the caption space. The
@@ -1902,10 +2014,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           {turns.length === 0 && (!partialAspen || faceFirst) && !partialUser && (
             <p className="py-1 text-center text-[11px] text-muted-foreground">{t("voice.noConversation")}</p>
           )}
-          {turns.map((t, i) => (
-            <Message key={i} from={t.role} className="max-w-full">
-              <MessageContent aria-label={transcriptAriaLabel(t.role)} className={t.role === "user" ? "bg-primary text-primary-foreground text-xs px-2 py-1" : faceFirst ? "text-sm font-bold leading-6 text-foreground" : "text-xs text-foreground"}>
-                <MessageResponse>{t.role === "user" ? t.text : displayNumbers(t.text)}</MessageResponse>
+          {turns.map((turn, i) => turn.role === "divider" ? (
+            <div key={i} role="separator" className="py-0.5 text-center text-[10px] font-medium text-muted-foreground">{t("voice.handoffTo", { name: PERSONAS[turn.speaker ?? "aspen"].displayName })}</div>
+          ) : (
+            <Message key={i} from={turn.role} className="max-w-full">
+              <MessageContent aria-label={transcriptAriaLabel(turn.role)} className={turn.role === "user" ? "bg-primary text-primary-foreground text-xs px-2 py-1" : faceFirst ? "text-sm font-bold leading-6 text-foreground" : "text-xs text-foreground"}>
+                {turn.speaker && <span className="mb-0.5 block text-[10px] font-semibold uppercase tracking-wide opacity-70">{PERSONAS[turn.speaker].displayName}</span>}
+                <MessageResponse>{turn.role === "user" ? turn.text : displayNumbers(turn.text)}</MessageResponse>
               </MessageContent>
             </Message>
           ))}
@@ -2298,10 +2413,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           {turns.length === 0 && !partialAspen && !partialUser && (
             <p className="text-sm text-muted-foreground text-center pt-16">{t("voice.noConversation")}</p>
           )}
-          {turns.map((t, i) => (
-            <Message key={i} from={t.role}>
-              <MessageContent aria-label={transcriptAriaLabel(t.role)} className={t.role === "user" ? "bg-primary text-primary-foreground" : "text-foreground"}>
-                <MessageResponse>{t.role === "user" ? t.text : displayNumbers(t.text)}</MessageResponse>
+          {turns.map((turn, i) => turn.role === "divider" ? (
+            <div key={i} role="separator" className="py-0.5 text-center text-[10px] font-medium text-muted-foreground">{t("voice.handoffTo", { name: PERSONAS[turn.speaker ?? "aspen"].displayName })}</div>
+          ) : (
+            <Message key={i} from={turn.role}>
+              <MessageContent aria-label={transcriptAriaLabel(turn.role)} className={turn.role === "user" ? "bg-primary text-primary-foreground" : "text-foreground"}>
+                {turn.speaker && <span className="mb-0.5 block text-[10px] font-semibold uppercase tracking-wide opacity-70">{PERSONAS[turn.speaker].displayName}</span>}
+                <MessageResponse>{turn.role === "user" ? turn.text : displayNumbers(turn.text)}</MessageResponse>
               </MessageContent>
             </Message>
           ))}

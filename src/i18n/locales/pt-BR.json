@@ -591,6 +591,7 @@
     "pressPlayReconnect": "Toque em reproduzir para reconectar com {{name}}.",
     "noConversation": "Nenhuma conversa ainda.",
     "you": "Você",
+    "handoffTo": "— {{name}} assume agora —",
     "callerTranscript": "Transcrição de quem ligou",
     "aspenTranscript": "Transcrição da Aspen",
     "transcriptLabel": "Transcrição da conversa",

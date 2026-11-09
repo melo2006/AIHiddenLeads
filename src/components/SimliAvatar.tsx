@@ -22,6 +22,15 @@ export interface SimliAvatarHandle {
   /** Marks this instance as the one whose frozen frame stays visible; the
    * other instance clears its frame when IT freezes. */
   setFrameKeeper?: (keeper: boolean) => void;
+  /** Planned-swap crossfade: dissolve this instance's painted frame out
+   * over SWAP_CROSSFADE_MS (the incoming face dissolves in over it at
+   * the same time). Purely visual — the session is already stopped by
+   * freeze(); retire() afterwards clears what is left. */
+  fadeOut?: () => void;
+  /** Planned-swap retirement, called once the crossfade has landed:
+   * stops the session AND clears any frame freeze() kept painted, so
+   * the slot renders empty for its next use. */
+  retire?: () => void;
   /** Gemini's 24 kHz PCM16 chunk, base64. */
   sendPcm24k: (base64: string) => boolean;
   clear: () => void;
@@ -32,7 +41,7 @@ export interface SimliAvatarHandle {
    *  re-applied at start()/activate() once the stream exists. */
   setOutputDevice?: (deviceId: string) => Promise<boolean>;
 }
-export interface SimliAvatarProps { avatar: VideoAvatar; agentId?: string; shareToken?: string; draft?: boolean; faceOverride?: string; inline?: boolean; unboxed?: boolean; onLiveChange?: (live: boolean) => void; /** Platform guide ('alex'): request the guide's fixed library face token instead of a tenant agent's face. */ guide?: "alex"; /** Persona pre-stage (avatar swap): start behind the live face — token request carries the persona selector + parent-session proof, and the element starts muted/hidden. */ persona?: "aspen" | "sara" | "alex"; personaParentSessionId?: string; personaVisitorKey?: string; /** Pre-stage mode: mounted and live but not shown (opacity 0, no pointer events) until the cut-over reveals it. */ concealed?: boolean; }
+export interface SimliAvatarProps { avatar: VideoAvatar; agentId?: string; shareToken?: string; draft?: boolean; faceOverride?: string; inline?: boolean; unboxed?: boolean; onLiveChange?: (live: boolean) => void; /** Platform guide ('alex'): request the guide's fixed library face token instead of a tenant agent's face. */ guide?: "alex"; /** Persona pre-stage (avatar swap): start behind the live face — token request carries the persona selector + parent-session proof, and the element starts muted/hidden. */ persona?: "aspen" | "sara" | "alex"; personaParentSessionId?: string; personaVisitorKey?: string; /** Pre-stage mode: mounted and live but not shown (opacity 0, no pointer events) until the cut-over reveals it. */ concealed?: boolean; /** Stacking layer inside the shared live box during a swap: the revealing/active face sits above the retiring frozen frame. */ layer?: number; }
 
 const POSITION: Record<VideoAvatar["position"], string> = {
   "bottom-right": "bottom-28 right-3", "bottom-left": "bottom-28 left-3", "top-right": "top-20 right-3", "top-left": "top-20 left-3",
@@ -173,7 +182,7 @@ export async function sessionToken(body: Record<string, unknown>, cancel?: Abort
 }
 
 /** Owns one Simli session: the face lip-syncs Gemini's audio; Gemini remains the only conversation brain. */
-const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, agentId, shareToken, draft, faceOverride, inline = false, unboxed = false, onLiveChange, guide, persona, personaParentSessionId, personaVisitorKey, concealed = false }, ref) => {
+const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, agentId, shareToken, draft, faceOverride, inline = false, unboxed = false, onLiveChange, guide, persona, personaParentSessionId, personaVisitorKey, concealed = false, layer }, ref) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -222,6 +231,10 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
     return applySinkIdToElement(audioRef.current, desiredSinkIdRef.current);
   };
   const [state, setState] = useState<"idle" | "connecting" | "live" | "failed" | "stopped">("idle");
+  // Planned-swap crossfade: once fadeOut() lands, the painted (frozen)
+  // frame dissolves away over the same 300ms the incoming face uses to
+  // dissolve in. Reset by start() and retire().
+  const [fadedOut, setFadedOut] = useState(false);
   const [reason, setReason] = useState("");
   const setLive = (live: boolean) => { liveRef.current = live; onLiveChange?.(live); };
 
@@ -245,6 +258,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
     flushRef.current = undefined;
     const client = clientRef.current; clientRef.current = null;
     stopSimliClient(client);
+    setFadedOut(false);
     setReason(''); setState(keepFrame ? 'stopped' : 'idle');
   };
   useEffect(() => () => stop(), []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -424,6 +438,13 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
       stop();
     },
     setFrameKeeper: (keeper: boolean) => { frameKeeperRef.current = keeper; },
+    fadeOut: () => { setFadedOut(true); },
+    retire: () => {
+      // Crossfade landed: clear the frozen frame freeze() kept painted
+      // and leave the slot empty (stop() with keeper off clears keyed).
+      frameKeeperRef.current = false;
+      stop();
+    },
     setPlaybackMuted: (muted) => { playbackMutedRef.current = muted; if (audioRef.current) { audioRef.current.muted = muted; audioRef.current.volume = muted ? 0 : 1; } },
     setOutputDevice: async (deviceId) => { desiredSinkIdRef.current = deviceId; return applyDesiredSink(); },
     sendPcm24k: (base64) => {
@@ -447,11 +468,22 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
       } catch { stopKey(); setLive(false); setState('failed'); setReason('Video audio disconnected'); return false; }
     },
     clear: () => { pendingRef.current = new Uint8Array(0); if (flushRef.current) clearTimeout(flushRef.current); flushRef.current = undefined; try { clientRef.current?.ClearBuffer(); } catch { /* Session already closed. */ } },
-  }), [agentId, shareToken, draft, faceOverride]); // eslint-disable-line react-hooks/exhaustive-deps
+  }), [agentId, shareToken, draft, faceOverride, persona, personaParentSessionId, personaVisitorKey, guide]); // eslint-disable-line react-hooks/exhaustive-deps
+  // NOTE: persona props are handle deps on purpose — a face slot's
+  // mounted instance is REUSED across personas (the main slot hosts the
+  // standard face first, a persona segment after a swap), and start()
+  // reads the persona selector from this closure; without the dep the
+  // reused instance would request the wrong face's token.
 
   const visible = state !== "idle";
+  // Planned-swap crossfade (owner transition spec): opacity is style-
+  // driven so a concealed pre-stage dissolves IN and a frozen outgoing
+  // frame dissolves OUT over the same 300ms (SWAP_CROSSFADE_MS in
+  // src/lib/personaSwap.ts) — the widget frame, controls and captions
+  // around the face never move; only the portrait area changes.
+  const faceOpacity = concealed || fadedOut ? 0 : 1;
   const frame = (
-    <div aria-label="Video avatar" role="img" className={`${unboxed ? 'absolute inset-0' : inline ? "relative mx-auto" : `fixed z-[120] ${POSITION[avatar.position]}`} ${visible ? "" : "hidden"} ${concealed ? 'opacity-0 pointer-events-none' : ''} ${unboxed ? '' : `overflow-hidden ${SHAPE[avatar.shape]} ${keyed ? '' : 'border-2 border-primary/50 bg-card shadow-2xl'}`}`} style={unboxed ? undefined : { width: avatar.size, height: avatar.size, maxWidth: "70vw", maxHeight: "70vw" }}>
+    <div aria-label="Video avatar" role="img" className={`${unboxed ? 'absolute inset-0' : inline ? "relative mx-auto" : `fixed z-[120] ${POSITION[avatar.position]}`} ${visible ? "" : "hidden"} ${concealed ? 'pointer-events-none' : ''} ${unboxed ? '' : `overflow-hidden ${SHAPE[avatar.shape]} ${keyed ? '' : 'border-2 border-primary/50 bg-card shadow-2xl'}`}`} style={{ opacity: faceOpacity, transition: 'opacity 300ms ease-in-out', ...(layer !== undefined ? { zIndex: layer } : {}), ...(unboxed ? {} : { width: avatar.size, height: avatar.size, maxWidth: "70vw", maxHeight: "70vw" }) }}>
       <video ref={videoRef} autoPlay playsInline muted className={`h-full w-full ${unboxed ? 'object-cover object-top aspen-person-live-media' : 'object-contain'} ${keyed || unboxed && state !== 'live' ? 'absolute inset-0 opacity-0 pointer-events-none' : ''}`} />
       <canvas ref={canvasRef} aria-hidden className={`h-full w-full ${unboxed ? 'object-cover object-top aspen-person-live-media' : 'object-contain'} ${keyed ? 'relative' : 'hidden'}`} />
       <audio ref={audioRef} autoPlay muted />
