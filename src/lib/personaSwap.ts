@@ -401,6 +401,61 @@ export function cutoverReady(input: { authorized: boolean; videoRequested: boole
   return input.authorized && (!input.videoRequested || input.faceReady);
 }
 
+// ---------------------------------------------------------------------------
+// GATE-WAIT (fluidity batch, 2026-11-10 — root-cause F1). The cut-over
+// gate used to sample `cutoverReady` EXACTLY ONCE at the handoff line's
+// turn_complete, while the incoming face needs seconds to pre-stage
+// (Simli token + LiveKit connect + first displayed frame) and the
+// segment authorization itself is a network round-trip. First attempts
+// therefore failed STRUCTURALLY — the gate aborted, the still-warming
+// face was thrown away, and the #14 retry could only execute on a
+// later turn_complete of a socket that was itself on a short fuse.
+// executeSwap now WAITS, bounded by SWAP_GATE_WAIT_MS, polling the
+// stage entry: the attempt fails only when the wait expires, the face
+// reports a settled failure, or the staged token crosses the freshness
+// bound (the stale path re-authorizes instead of connecting). The wait
+// is far inside the token freshness bound, so a stage that was fresh
+// when the wait began can never go stale mid-wait.
+// ---------------------------------------------------------------------------
+
+/** Total bound on executeSwap's wait for the stage + face. Long
+ *  enough to cover a cold Simli pre-stage (token invoke + LiveKit
+ *  connect + first frame, typically 2–6 s); short enough that a truly
+ *  dead stage still fails into the retry ledger while the outgoing
+ *  persona's conversation can carry the pause. */
+export const SWAP_GATE_WAIT_MS = 8_000;
+/** Poll cadence for the gate-wait (the stage entry is a ref the arm
+ *  path and the pre-stage effect mutate; there is no event to await). */
+export const SWAP_GATE_POLL_MS = 150;
+
+/** The stage facts executeSwap's gate-wait polls, in one bag so the
+ *  wait/expire decision is unit-testable without the component. */
+export interface StagedGateFacts {
+  /** A stage entry exists at all (authorization has landed). */
+  stagePresent: boolean;
+  /** The stage entry is for the boundary being executed. */
+  boundaryMatches: boolean;
+  /** The staged face reported its first displayed frame. */
+  faceReady: boolean;
+  /** The staged face's start settled FAILED (it will never become
+   *  ready): waiting longer is pointless — fail into the ledger now. */
+  faceFailed: boolean;
+  /** The staged token is past the freshness bound: the stale path
+   *  must re-authorize rather than connect it. */
+  tokenStale: boolean;
+}
+
+/** Should the gate-wait keep waiting for this stage?
+ *  - no stage / wrong boundary → the authorization is still in flight;
+ *  - face settled-failed or token stale → stop: the existing failure
+ *    paths (gate-abort / token-stale) take it from here;
+ *  - otherwise wait until the atomic gate above would pass. */
+export function gateWaitContinues(facts: StagedGateFacts, videoRequested: boolean): boolean {
+  if (!facts.stagePresent || !facts.boundaryMatches) return true;
+  if (facts.faceFailed || facts.tokenStale) return false;
+  return !cutoverReady({ authorized: true, videoRequested, faceReady: facts.faceReady });
+}
+
 /** The rotating drop apology for the Nth drop of this conversation
  *  (0-based count of PREVIOUS drops). Deterministic rotation: consecutive
  *  drops never repeat a wording. The proxy holds its own copy of the
@@ -560,7 +615,10 @@ export interface SwapDiagEntry {
     | 'arm' | 'authorized' | 'authorize-failed' | 'stage-discarded'
     | 'execute' | 'gate-abort' | 'token-stale' | 'cutover'
     | 'connect-attempt' | 'connect-ready' | 'connect-failed'
-    | 'retry-scheduled' | 'fallback';
+    | 'retry-scheduled' | 'fallback'
+    // Fluidity batch (2026-11-10): the F3 face pre-stage + token-only
+    // refresh, the F1 gate-wait outcome, and the F2 readiness trigger.
+    | 'prestage' | 'token-refresh' | 'gate-wait' | 'retry-execute-ready';
   boundary?: PersonaBoundary;
   persona?: PersonaId;
   attempt?: number;

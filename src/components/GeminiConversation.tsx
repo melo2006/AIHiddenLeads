@@ -29,7 +29,7 @@ import { classifyMicrophoneFailure, isEmbeddedContext } from "@/lib/embeddedCont
 import {campaignVisit, trackCampaignEvent} from '@/lib/campaignTracking';
 import { salesPlans, type SalesPlan } from '@/lib/salesActions';
 import SimliAvatar, { SOUND_BLOCKED, isVideoStartFailure, type SimliAvatarHandle } from '@/components/SimliAvatar';
-import { BOUNDARY_TARGET, boundaryForAssistantLine, buildSwapRecap, chainIsMidSegment, chainStashTarget, cutoverAudioSync, cutoverReady, dropApologyVariant, INITIAL_SWAP_STATE, introYieldOnVisitorLine, noteAlexIntent, noteDoorwayEngagement, noteSegmentFailure, otherFaceSlot, pendingRetryBoundary, PHASE_AFTER_BOUNDARY, PHASE_ENTRY, reconnectTarget, recordSwapDiag, segmentAttemptsFor, segmentConnectRetryAllowed, segmentTokenStale, SWAP_CROSSFADE_MS, swapRecapFacts, visitorSignalsStepOut, type ChainStash, type FaceSlot, type PersonaBoundary, type PersonaId, type SwapPhase, type SwapState } from '@/lib/personaSwap';
+import { BOUNDARY_TARGET, boundaryForAssistantLine, buildSwapRecap, chainIsMidSegment, chainStashTarget, cutoverAudioSync, cutoverReady, dropApologyVariant, gateWaitContinues, INITIAL_SWAP_STATE, introYieldOnVisitorLine, noteAlexIntent, noteDoorwayEngagement, noteSegmentFailure, otherFaceSlot, pendingRetryBoundary, PHASE_AFTER_BOUNDARY, PHASE_ENTRY, reconnectTarget, recordSwapDiag, segmentAttemptsFor, segmentConnectRetryAllowed, segmentTokenStale, SEGMENT_TOKEN_TTL_MS, SWAP_CROSSFADE_MS, SWAP_GATE_POLL_MS, SWAP_GATE_WAIT_MS, swapRecapFacts, visitorSignalsStepOut, type ChainStash, type FaceSlot, type PersonaBoundary, type PersonaId, type SwapPhase, type SwapState } from '@/lib/personaSwap';
 import { PERSONAS, SARA_FACE_ID } from '../../supabase/functions/_shared/personas';
 import { ALEX_FACE_ID } from '../../supabase/functions/_shared/alex-guide';
 import type { VideoAvatar } from '../../supabase/functions/_shared/video-avatar';
@@ -177,7 +177,34 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const parentSessionIdRef = useRef<string | null>(null);
   const visitorKeyRef = useRef('');
   const businessNameRef = useRef('');
-  const preStageRef = useRef<{ boundary: PersonaBoundary; token: string; faceReady: boolean; persona: PersonaId; slot: FaceSlot; authorizedAt: number } | null>(null);
+  const preStageRef = useRef<{ boundary: PersonaBoundary; token: string; faceReady: boolean; faceFailed?: boolean; persona: PersonaId; slot: FaceSlot; authorizedAt: number } | null>(null);
+  /** F3 PRE-STAGE (fluidity batch, 2026-11-10): the doorway Sara face
+   *  is mounted CONCEALED and started the moment a simulation chain
+   *  goes live (host phase) — minutes before the doorway can execute —
+   *  so the gate usually finds her already warm. This is a FACE-ONLY
+   *  warm-up: no segment is authorized early (the authorization keeps
+   *  happening at the handoff line, so Sara's recap still carries the
+   *  full host conversation). The readiness record lives here because
+   *  the face can finish starting before armSwap creates the stage
+   *  entry that would normally record it; armSwap folds `ready` into
+   *  the stage's faceReady (and `failed` into faceFailed) when the
+   *  stage is created. Cleared whenever the warmed slot state clears. */
+  const warmedFaceRef = useRef<{ boundary: PersonaBoundary; slot: FaceSlot; ready: boolean; failed: boolean } | null>(null);
+  /** F4 DROP SNAPSHOT (fluidity batch, 2026-11-10): the swap-chain
+   *  state captured BEFORE any teardown in a close path (teardown
+   *  clears swapEnabledRef + swapStateRef, which is exactly what made
+   *  the same-persona drop-recovery branch unreachable). A MID-SEGMENT
+   *  snapshot drives the in-place personaDrop recovery; a HOST-phase
+   *  snapshot whose doorway was armed-but-undone is stashed here and
+   *  consumed by the reconnected parent's arming block in
+   *  startConversation, which re-arms the doorway immediately instead
+   *  of waiting for a whole extra Aspen turn. */
+  const chainDropSnapshotRef = useRef<{ state: SwapState; parentSessionId: string | null; chainClass: 'simulation' | 'intro' | null; at: number } | null>(null);
+  /** Capture the live swap chain (null when no chain is armed). Reads
+   *  refs only, so any render's closure is equivalent. */
+  const snapshotChainState = () => swapEnabledRef.current
+    ? { state: { ...swapStateRef.current }, parentSessionId: parentSessionIdRef.current, chainClass: swapChainClassRef.current, at: Date.now() }
+    : null;
   /** Team intro: a true barge-in landed during a bridge beat; the latch
    *  is applied when the interrupted turn completes (design §3.3). */
   const introYieldWasBargeInRef = useRef(false);
@@ -542,6 +569,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
    * (staged tokens live 120 s server-side — never re-present one) and
    * executes at the next turn_complete via pendingSegmentRetry. */
   const rearmSwapRef = useRef<(boundary: PersonaBoundary) => void>(() => {});
+  /** F2 RETRY-ON-READINESS (fluidity batch, 2026-11-10): execute a
+   *  pending retry the moment its stage is authorized AND warm —
+   *  assigned in the render body next to executeSwapRef; gated on the
+   *  #14 ledger trigger (pendingRetryBoundary), so normal arms and
+   *  stages never auto-execute. The turn_complete
+   *  pendingRetryBoundary check remains as the backstop. */
+  const maybeExecuteRetryRef = useRef<(boundary: PersonaBoundary) => void>(() => {});
   const handleSegmentFailure = useCallback((boundary: PersonaBoundary, reason: string) => {
     const { state, outcome, attempt } = noteSegmentFailure(swapStateRef.current, boundary, reason);
     swapStateRef.current = state;
@@ -553,10 +587,17 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       // late): keep it — pendingSegmentRetry executes it at the next
       // turn_complete. A STALE stage is discarded with its face: its
       // token would be refused by the proxy anyway.
-      if (!segmentTokenStale(staged.authorizedAt, Date.now())) return;
+      if (!segmentTokenStale(staged.authorizedAt, Date.now())) {
+        // F2: a kept stage that is ALREADY gate-ready executes NOW,
+        // not at some later turn_complete; a still-warming one is
+        // executed by the pre-stage effect the moment it settles.
+        if (!avatarRequestedRef.current || staged.faceReady) maybeExecuteRetryRef.current(boundary);
+        return;
+      }
       if (avatarRequestedRef.current && staged.slot === 'main') mainSlotRef.current?.stop();
       if (avatarRequestedRef.current) { if (staged.slot === 'second') setSecondFace(null); else setMainFace(null); }
       preStageRef.current = null;
+      if (warmedFaceRef.current?.boundary === boundary) warmedFaceRef.current = null;
     }
     rearmSwapRef.current(boundary);
   }, []);
@@ -579,17 +620,37 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const armSwap = useCallback((boundary: PersonaBoundary, opts?: { retry?: boolean }) => {
     const state = swapStateRef.current;
     if (!swapEnabledRef.current || state.done.includes(boundary)) return;
-    // One-shot for the normal path; a RETRY arm (from
-    // handleSegmentFailure) may re-enter for the same boundary, but
-    // never while another boundary's stage occupies the pre-stage.
-    if (!opts?.retry && (preStageRef.current || state.armed.includes(boundary))) return;
-    if (opts?.retry && preStageRef.current && preStageRef.current.boundary !== boundary) return;
     const target = (Object.entries(PHASE_ENTRY).find(([, v]) => v.boundary === boundary)?.[1]) as { boundary: PersonaBoundary; persona: PersonaId } | undefined;
     // intro-return-2 lands on the same host phase as intro-return-1
     // (an Aspen segment) but is not itself a PHASE_ENTRY value — it is
     // entered from the intro-alex phase in place.
     const persona = boundary === 'return' || boundary === 'intro-return-2' ? 'aspen' as PersonaId : target?.persona;
     if (!persona) return;
+    // A stage for THIS boundary is already in hand (a kept fresh stage
+    // or an in-flight arm): never authorize over it. The ONE exception
+    // is token freshness (fluidity batch, F3): a stage whose token
+    // crossed the freshness bound while its face stayed warm gets a
+    // TOKEN-ONLY refresh — face, slot and ledger untouched — so the
+    // swap still executes inside this cover window instead of
+    // discarding the warm face and spending the retry.
+    const existing = preStageRef.current;
+    if (existing && existing.boundary === boundary) {
+      if (!segmentTokenStale(existing.authorizedAt, Date.now())) return;
+      void (async () => {
+        const segment = await requestSegment(persona, boundary, { swap: true });
+        if (!segment || !liveRef.current || swapStateRef.current.done.includes(boundary)) return;
+        if (preStageRef.current?.boundary === boundary) {
+          preStageRef.current = { ...preStageRef.current, token: segment.token, authorizedAt: Date.now() };
+          recordSwapDiag({ event: 'token-refresh', boundary, persona });
+        }
+      })();
+      return;
+    }
+    // One-shot for the normal path; a RETRY arm (from
+    // handleSegmentFailure) may re-enter for the same boundary, but
+    // never while another boundary's stage occupies the pre-stage.
+    if (!opts?.retry && (preStageRef.current || state.armed.includes(boundary))) return;
+    if (opts?.retry && preStageRef.current) return;
     recordSwapDiag({ event: 'arm', boundary, persona, attempt: segmentAttemptsFor(state, boundary) + 1, detail: opts?.retry ? 'retry' : undefined });
     swapStateRef.current = { ...state, armed: state.armed.includes(boundary) ? state.armed : [...state.armed, boundary], ...(boundary === 'intro-sara' || boundary === 'intro-return-1' || boundary === 'intro-alex' || boundary === 'intro-return-2' ? { teamIntroSeen: true } : {}) };
     void (async () => {
@@ -608,7 +669,17 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         return;
       }
       const slot = otherFaceSlot(faceSlotOwnerRef.current);
-      preStageRef.current = { boundary, token: segment.token, faceReady: !avatarRequestedRef.current, persona, slot, authorizedAt: Date.now() };
+      const warmed = warmedFaceRef.current;
+      preStageRef.current = {
+        boundary, token: segment.token, persona, slot, authorizedAt: Date.now(),
+        // F3: the doorway face pre-warmed at chain start can ALREADY
+        // be ready (or settled-failed) before this stage existed —
+        // fold its recorded state in instead of assuming it is still
+        // warming (its pre-stage effect will not re-run for an
+        // unchanged slot state, so nobody else would ever record it).
+        faceReady: !avatarRequestedRef.current || !!(warmed && warmed.boundary === boundary && warmed.slot === slot && warmed.ready),
+        faceFailed: warmed && warmed.boundary === boundary && warmed.slot === slot && warmed.failed ? true : undefined,
+      };
       if (avatarRequestedRef.current) {
         // Mount the concealed instance in the free slot; its start()
         // pre-connects during the outgoing line. Face failure leaves
@@ -618,10 +689,37 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         if (slot === 'second') setSecondFace({ persona, boundary, revealed: false });
         else setMainFace({ persona, boundary, revealed: false });
       }
+      // F2 RETRY-ON-READINESS: when this arm IS a retry, its stage
+      // landing is the execution trigger — executeSwap's gate-wait
+      // covers the face's remaining warm-up. For a normal arm this is
+      // a no-op (maybeExecuteRetry fires only on a pending retry).
+      maybeExecuteRetryRef.current(boundary);
     })();
   }, [requestSegment]);
   const armSwapRef = useRef(armSwap); armSwapRef.current = armSwap;
   rearmSwapRef.current = (boundary: PersonaBoundary) => armSwap(boundary, { retry: true });
+
+  /** F3 PRE-STAGE (fluidity batch, 2026-11-10): mount Sara's face
+   *  CONCEALED in the free slot the moment a simulation chain goes
+   *  live (host phase) and let the pre-stage effect start it silently,
+   *  so the doorway gate usually finds her warm instead of sampling a
+   *  cold face at the handoff instant and aborting. Face-only: NO
+   *  segment is authorized here (see warmedFaceRef). Respects the
+   *  2-concurrent-session reality: Aspen's live face + this ONE
+   *  pre-stage, and only while no stage occupies the free slot. The
+   *  intro chain never pre-stages (its first boundary is a cameo, not
+   *  the doorway) — class is tested as NOT 'intro' because the phase
+   *  check already confines this to simulation host phases. */
+  const prestageDoorwayFace = useCallback(() => {
+    if (!avatarRequestedRef.current || warmedFaceRef.current || preStageRef.current) return;
+    if (!swapEnabledRef.current || swapStateRef.current.phase !== 'host') return;
+    if (swapChainClassRef.current === 'intro' || swapStateRef.current.done.includes('doorway')) return;
+    const slot = otherFaceSlot(faceSlotOwnerRef.current);
+    warmedFaceRef.current = { boundary: 'doorway', slot, ready: false, failed: false };
+    recordSwapDiag({ event: 'prestage', boundary: 'doorway', persona: 'sara' });
+    if (slot === 'second') setSecondFace({ persona: 'sara', boundary: 'doorway', revealed: false });
+    else setMainFace({ persona: 'sara', boundary: 'doorway', revealed: false });
+  }, []);
 
   // Shared local teardown. endSession=true also tells the server the visitor
   // ended the conversation; the Stage 3 suspend path passes false so the
@@ -650,6 +748,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     introYieldWasBargeInRef.current = false;
     parentSessionIdRef.current = null;
     preStageRef.current = null;
+    warmedFaceRef.current = null;
     // Face slots reset with the chain: both slot states clear, pending
     // crossfade retirements are cancelled, ownership returns to main.
     for (const timer of retireTimersRef.current) window.clearTimeout(timer);
@@ -1074,7 +1173,24 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
    *  the call cleanly in the message switch. */
   const recoverFromProviderClosed = useCallback((code: number) => {
     sessionRecoveringRef.current = true;
-    stopEverything();
+    // F4 CHAIN SNAPSHOT BEFORE TEARDOWN (fluidity batch, 2026-11-10):
+    // the full teardown clears swapEnabledRef + the whole swap state,
+    // which is why the personaDrop branch below could NEVER fire — a
+    // mid-segment provider death always fell through to the legacy
+    // parent reconnect (Aspen resumed AS the receptionist, chain reset
+    // to host). Snapshot first: a MID-SEGMENT drop takes the PARTIAL
+    // teardown only (socket closes; mic, both audio contexts and the
+    // persona's face all survive), the chain state stays live, and the
+    // branch below genuinely re-authorizes the SAME persona. All
+    // other drops keep the full teardown; their snapshot is stashed
+    // for the reconnected parent's arming block (host doorway re-arm).
+    const chainSnap = snapshotChainState();
+    if (chainSnap && chainIsMidSegment(chainSnap.state)) {
+      partialTeardownForSwap();
+    } else {
+      if (chainSnap) chainDropSnapshotRef.current = chainSnap;
+      stopEverything();
+    }
     if (swapEnabledRef.current) { dropRecoverRef.current(); return; }
     if (reconnectRef.current.count < 3) {
       reconnectRef.current = { pending: true, count: reconnectRef.current.count + 1 };
@@ -1084,7 +1200,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     }
     sessionRecoveringRef.current = false;
     setError(voiceDisconnectMessage(code, ''));
-  }, [stopEverything]);
+  }, [stopEverything, partialTeardownForSwap]);
   const startConversation = useCallback(async (preview = false, warm = false) => {
     // A silently prepared session only needs the tap's audio/microphone unlock.
     if (!preview && !warm && warmRef.current) { await activateWarmRef.current(); return; }
@@ -1254,6 +1370,23 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         visitorKeyRef.current = visitorKey;
         businessNameRef.current = String(authorized.businessName || '');
         swapStateRef.current = { ...INITIAL_SWAP_STATE };
+        // F4 HOST-DOORWAY RE-ARM (fluidity batch, 2026-11-10): this
+        // start is the legacy reconnect after a HOST-phase drop whose
+        // doorway was armed-but-undone — carry the intent across: the
+        // reconnected parent's state starts with pendingDoorway set
+        // (and the drop count preserved), and goLive's F3 pre-stage
+        // re-warms Sara's face immediately, so the doorway executes
+        // on her FIRST completed line of the new parent instead of
+        // waiting for a fresh visitor engagement plus a full extra
+        // Aspen turn. The snapshot is consumed either way; a stale
+        // one (over 2 minutes old) is simply dropped.
+        const dropSnap = chainDropSnapshotRef.current;
+        chainDropSnapshotRef.current = null;
+        if (reconnecting && dropSnap && Date.now() - dropSnap.at < SEGMENT_TOKEN_TTL_MS
+          && dropSnap.chainClass === 'simulation' && dropSnap.state.phase === 'host'
+          && dropSnap.state.armed.includes('doorway') && !dropSnap.state.done.includes('doorway')) {
+          swapStateRef.current = { ...INITIAL_SWAP_STATE, pendingDoorway: true, drops: dropSnap.state.drops };
+        }
         setActivePersona('aspen');
         // A fresh parent authorization is a genuinely new demo journey:
         // any chain stashed by the previous one is spent.
@@ -1302,6 +1435,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         if(!preview)void trackCampaignEvent('voice_started');
         setPhase(preview ? "preview" : "live");
         setStatus(preview ? "Preparing greeting audio…" : captureMode === "hold" ? "Live — hold to talk" : "Live — hands-free");
+        // F3 PRE-STAGE: on a simulation chain, Sara's face starts
+        // warming NOW (concealed, silent) so the doorway gate finds
+        // her ready; self-gated to host-phase simulation chains. For
+        // a warm (prewarmed) session this runs at tap activation —
+        // goLive is only invoked then — never during the silent hold.
+        if (!preview) prestageDoorwayFace();
         const micCtx = micCtxRef.current, stream = micStreamRef.current;
         if (!micCtx || !stream) return;
         void micCtx.resume();
@@ -1556,11 +1695,22 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         clearTimeout(readyTimeout);
         if (generation !== generationRef.current) return;
         if (liveRef.current) {
+          // F4 CHAIN SNAPSHOT BEFORE TEARDOWN (fluidity batch,
+          // 2026-11-10): snapshot the swap chain BEFORE stopEverything
+          // clears it (the old order made the drop-recovery test below
+          // unreachable — swapEnabledRef was always false by then).
+          // A mid-segment drop (this socket is normally the parent's,
+          // but the rule is uniform) recovers the SAME persona in
+          // place via the partial teardown; any other drop stashes
+          // its snapshot for the reconnected parent's arming block.
+          const chainSnap = snapshotChainState();
+          if (chainSnap && chainIsMidSegment(chainSnap.state) && (event.code === 1006 || event.code === 1011)) {
+            partialTeardownForSwap();
+            dropRecoverRef.current();
+            return;
+          }
+          if (chainSnap) chainDropSnapshotRef.current = chainSnap;
           stopEverything();
-          // Avatar swap: an UNPLANNED drop inside a persona segment
-          // recovers the SAME persona (segment re-authorization with the
-          // rotating drop apology) — never a restart, never a switch.
-          if (swapEnabledRef.current && (event.code === 1006 || event.code === 1011)) { dropRecoverRef.current(); return; }
           // Hosting can drop long-lived sockets (1006/1011); quietly resume the same conversation a few times.
           if ((event.code === 1006 || event.code === 1011) && reconnectRef.current.count < 3) {
             reconnectRef.current = { pending: true, count: reconnectRef.current.count + 1 };
@@ -1839,8 +1989,23 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       if (generation !== generationRef.current) return;
       if (connectFailureReported) return;
       if (liveRef.current) {
+        // F4 CHAIN SNAPSHOT BEFORE TEARDOWN (fluidity batch,
+        // 2026-11-10): this is the socket a mid-segment drop actually
+        // arrives on. Snapshot BEFORE any teardown: a mid-segment
+        // 1006/1011 takes the PARTIAL teardown (mic, contexts and the
+        // persona's face survive) and re-authorizes the SAME persona
+        // through dropRecover — the personaDrop opening server-side.
+        // The old order (full teardown, then test swapEnabledRef)
+        // made that branch unreachable, so every segment drop fell
+        // back to a fresh Aspen parent with the chain reset to host.
+        const chainSnap = snapshotChainState();
+        if (chainSnap && chainIsMidSegment(chainSnap.state) && (event.code === 1006 || event.code === 1011)) {
+          partialTeardownForSwap();
+          dropRecoverRef.current();
+          return;
+        }
+        if (chainSnap) chainDropSnapshotRef.current = chainSnap;
         stopEverything();
-        if (swapEnabledRef.current && (event.code === 1006 || event.code === 1011)) { dropRecoverRef.current(); return; }
         if ((event.code === 1006 || event.code === 1011) && reconnectRef.current.count < 3) {
           reconnectRef.current = { pending: true, count: reconnectRef.current.count + 1 };
           setStatus("Reconnecting…");
@@ -1876,21 +2041,54 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
    * the gate above aborts the swap whole — the outgoing persona
    * continues live, so no black or empty frame can ever appear. */
   executeSwapRef.current = async (boundary: PersonaBoundary) => {
-    const staged = preStageRef.current;
+    let staged = preStageRef.current;
     const state = swapStateRef.current;
     const finalizeTurn = () => { flushLine("user"); flushLine("assistant"); };
     recordSwapDiag({ event: 'execute', boundary, persona: BOUNDARY_TARGET[boundary], attempt: segmentAttemptsFor(state, boundary) + 1 });
     if (swapBusyRef.current) { finalizeTurn(); return; }
+    // F1 GATE-WAIT (fluidity batch, 2026-11-10 — root-cause F1): the
+    // gate used to sample the stage EXACTLY ONCE, at this instant,
+    // while the incoming face needs seconds to pre-stage (Simli token,
+    // LiveKit connect, first displayed frame) and the authorization
+    // itself is a network round-trip — first attempts failed
+    // STRUCTURALLY and the still-warming face was discarded. Hold the
+    // busy flag and WAIT — bounded by SWAP_GATE_WAIT_MS, polling the
+    // stage entry — for the stage to exist and its face to become
+    // ready. The attempt fails only when the wait expires, the face
+    // settles failed, or the staged token crosses the freshness bound
+    // (the stale path below re-authorizes). Every exit below releases
+    // the busy flag held here; the success path re-asserts it.
+    swapBusyRef.current = true;
+    const waitStartedAt = Date.now();
+    const waitDeadline = waitStartedAt + SWAP_GATE_WAIT_MS;
+    let waited = false;
+    while (liveRef.current && Date.now() < waitDeadline) {
+      staged = preStageRef.current;
+      if (!gateWaitContinues({
+        stagePresent: !!staged,
+        boundaryMatches: staged?.boundary === boundary,
+        faceReady: staged?.faceReady === true,
+        faceFailed: staged?.faceFailed === true,
+        tokenStale: staged ? segmentTokenStale(staged.authorizedAt, Date.now()) : false,
+      }, avatarRequestedRef.current)) break;
+      waited = true;
+      await new Promise<void>(resolve => window.setTimeout(resolve, SWAP_GATE_POLL_MS));
+    }
+    staged = preStageRef.current;
+    if (waited) recordSwapDiag({ event: 'gate-wait', boundary, persona: BOUNDARY_TARGET[boundary], attempt: segmentAttemptsFor(state, boundary) + 1, detail: `waitedMs=${Date.now() - waitStartedAt} ready=${!!staged && staged.boundary === boundary && staged.faceReady}` });
     if (!staged || staged.boundary !== boundary || !liveRef.current) {
       // Stage missing at the execution instant — the arm/execute race
       // (authorization still in flight when the handoff line completed)
       // or a stage discarded upstream. Previously a silent return that
       // spent the boundary forever; now it funnels into the retry
       // ledger (one fresh authorization) before words-only fallback.
+      // (With the gate-wait above, this is reached only when the wait
+      // expired or the call stopped being live mid-wait.)
       if (liveRef.current && state.armed.includes(boundary) && !state.done.includes(boundary)) {
         handleSegmentFailureRef.current(boundary, !staged ? 'stage-missing' : 'stage-mismatch');
       }
       finalizeTurn();
+      swapBusyRef.current = false;
       return;
     }
     // Clear one slot's staged/active persona state (the slot unmounts
@@ -1904,29 +2102,59 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       // through the retry ledger while the current persona is still
       // live and untouched instead.
       recordSwapDiag({ event: 'token-stale', boundary, persona: staged.persona, attempt: segmentAttemptsFor(state, boundary) + 1, detail: `ageMs=${Date.now() - staged.authorizedAt}` });
-      if (avatarRequestedRef.current && staged.slot === 'main') mainSlotRef.current?.stop();
-      if (avatarRequestedRef.current) clearFaceSlot(staged.slot);
+      // F3: a stage sitting on the pre-warmed second-slot face keeps
+      // that face mounted across the abort when a retry will use it —
+      // only the token is dead, never the face.
+      const keepWarmedFace = staged.slot === 'second' && !staged.faceFailed
+        && warmedFaceRef.current?.boundary === boundary && warmedFaceRef.current.slot === 'second';
+      if (!keepWarmedFace) {
+        if (avatarRequestedRef.current && staged.slot === 'main') mainSlotRef.current?.stop();
+        if (avatarRequestedRef.current) clearFaceSlot(staged.slot);
+        if (warmedFaceRef.current?.boundary === boundary) warmedFaceRef.current = null;
+      }
       preStageRef.current = null;
       handleSegmentFailureRef.current(boundary, 'token-stale');
+      if (keepWarmedFace && pendingRetryBoundary(swapStateRef.current) !== boundary) {
+        // Words-only fallback: nothing may linger concealed in the slot.
+        clearFaceSlot(staged.slot);
+        if (warmedFaceRef.current?.boundary === boundary) warmedFaceRef.current = null;
+      }
       finalizeTurn();
+      swapBusyRef.current = false;
       return;
     }
     if (!cutoverReady({ authorized: true, videoRequested: avatarRequestedRef.current, faceReady: staged.faceReady })) {
-      // Abort: the pre-stage didn't complete — current persona continues
-      // words-only; nothing about the live call was touched. A staged
-      // face in the MAIN slot is stopped explicitly (it shares its
-      // element with the standard face, so no unmount will stop it);
-      // a staged SECOND-slot face stops via its unmount cleanup.
+      // Abort: the face never became ready inside the gate-wait (or
+      // settled failed) — current persona continues words-only;
+      // nothing about the live call was touched. A staged face in the
+      // MAIN slot is stopped explicitly (it shares its element with
+      // the standard face, so no unmount will stop it); a staged
+      // SECOND-slot face stops via its unmount cleanup.
       // Reliability (2026-11-09): this abort used to discard the swap
       // for the whole session (armed stayed spent, the anchor never
       // re-fired). It now retries ONCE with a fresh authorization —
       // the face gets a full new cover window to pre-connect in.
-      if (avatarRequestedRef.current && staged.slot === 'main') mainSlotRef.current?.stop();
-      if (avatarRequestedRef.current) clearFaceSlot(staged.slot);
+      // F3 (fluidity batch): a stage sitting on the pre-warmed
+      // second-slot face keeps that face mounted across the abort
+      // when a retry will use it — discarding a still-warming (or
+      // already warm) face here is what made retries start cold.
+      const keepWarmedFace = staged.slot === 'second' && !staged.faceFailed
+        && warmedFaceRef.current?.boundary === boundary && warmedFaceRef.current.slot === 'second';
+      if (!keepWarmedFace) {
+        if (avatarRequestedRef.current && staged.slot === 'main') mainSlotRef.current?.stop();
+        if (avatarRequestedRef.current) clearFaceSlot(staged.slot);
+        if (warmedFaceRef.current?.boundary === boundary) warmedFaceRef.current = null;
+      }
       preStageRef.current = null;
       recordSwapDiag({ event: 'gate-abort', boundary, persona: staged.persona, attempt: segmentAttemptsFor(swapStateRef.current, boundary) + 1, detail: 'face-not-ready' });
       handleSegmentFailureRef.current(boundary, 'face-not-ready');
+      if (keepWarmedFace && pendingRetryBoundary(swapStateRef.current) !== boundary) {
+        // Words-only fallback: nothing may linger concealed in the slot.
+        clearFaceSlot(staged.slot);
+        if (warmedFaceRef.current?.boundary === boundary) warmedFaceRef.current = null;
+      }
       finalizeTurn();
+      swapBusyRef.current = false;
       return;
     }
     swapBusyRef.current = true;
@@ -1971,6 +2199,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         if (staged.slot === 'second') setSecondFace(face => (face && face.boundary === boundary ? { ...face, revealed: true } : face));
         else setMainFace(face => (face && face.boundary === boundary ? { ...face, revealed: true } : face));
         preStageRef.current = null;
+        if (warmedFaceRef.current?.boundary === boundary) warmedFaceRef.current = null;
         setFadingSlot(outgoingSlot);
         outgoing?.freeze?.();
         outgoing?.fadeOut?.();
@@ -1986,6 +2215,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         retireTimersRef.current.push(retireTimer);
       } else {
         preStageRef.current = null;
+        if (warmedFaceRef.current?.boundary === boundary) warmedFaceRef.current = null;
       }
       // 2) Partial teardown: old socket closes now (no end_session), mic
       //    and audio contexts survive; the completed turns flush here.
@@ -2089,6 +2319,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       const segment = target.personaSegment
         ? await requestSegment(target.personaSegment.persona, target.personaSegment.boundary, { swap: false, dropRecovery: true })
         : null;
+      // A full teardown during the authorization (the visitor stopped,
+      // or an error path ended the call) spends the chain: resurrecting
+      // a segment socket now would reopen a call nobody is on.
+      if (!swapEnabledRef.current) { setSwapTransition(false); return; }
       if (!segment) {
         setSwapTransition(false);
         setError('The connection dropped and could not be restored. Press play to reconnect.');
@@ -2101,6 +2335,20 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       connectSegmentSocket(segment.token);
       setSwapTransition(false);
     })();
+  };
+
+  // F2 RETRY-ON-READINESS executor (fluidity batch, 2026-11-10): the
+  // readiness call sites (a retry arm's stage landing in armSwap, the
+  // pre-stage effect settling, a kept-stage failure) reach executeSwap
+  // through this gate. It fires ONLY for the boundary the segment
+  // reliability ledger marked pending-retry, only while live, and
+  // never over an in-flight cut-over — when busy, the in-flight
+  // gate-wait polls the same stage entry and consumes it instead.
+  maybeExecuteRetryRef.current = (boundary: PersonaBoundary) => {
+    if (!liveRef.current || swapBusyRef.current) return;
+    if (pendingRetryBoundary(swapStateRef.current) !== boundary) return;
+    recordSwapDiag({ event: 'retry-execute-ready', boundary, persona: BOUNDARY_TARGET[boundary], attempt: segmentAttemptsFor(swapStateRef.current, boundary) });
+    void executeSwapRef.current(boundary);
   };
 
   // Keep the manual active-face pointer aimed at the owning slot's
@@ -2125,7 +2373,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // stays muted; it has nothing to play until cut-over) and record
   // frame readiness on the staged entry. Start failures leave
   // faceReady false → the atomic gate aborts the swap and the current
-  // persona continues words-only.
+  // persona continues words-only. Fluidity batch (2026-11-10): a
+  // settled failure also records faceFailed (the gate-wait fails fast
+  // instead of waiting out its window), the F3 warmed-face record is
+  // written on every settle (the face may settle before any stage
+  // exists), and a settle is the F2 readiness trigger for a pending
+  // retry staged on this face.
   useEffect(() => {
     if (!stagedFace) return;
     let cancelled = false;
@@ -2133,13 +2386,30 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       // The instance mounts on this render; wait one frame for its ref.
       await new Promise<void>(r => requestAnimationFrame(() => r()));
       if (cancelled) return;
-      try {
-        const handle = stagedFace.slot === 'second' ? stagedAvatarRef.current : mainSlotRef.current;
-        const ok = await handle?.start({ silent: true });
-        if (!cancelled && ok && preStageRef.current?.boundary === stagedFace.boundary) {
+      const handle = stagedFace.slot === 'second' ? stagedAvatarRef.current : mainSlotRef.current;
+      const ok = await handle?.start({ silent: true }).catch(() => false);
+      if (cancelled) return;
+      if (ok) {
+        if (preStageRef.current?.boundary === stagedFace.boundary) {
           preStageRef.current = { ...preStageRef.current, faceReady: true };
         }
-      } catch { /* gate aborts the swap; words-only continuation */ }
+        if (warmedFaceRef.current?.boundary === stagedFace.boundary && warmedFaceRef.current.slot === stagedFace.slot) {
+          warmedFaceRef.current = { ...warmedFaceRef.current, ready: true };
+        }
+        // F2 RETRY-ON-READINESS: a pending retry staged on this face
+        // executes the moment the face is ready — no turn_complete.
+        maybeExecuteRetryRef.current(stagedFace.boundary);
+      } else {
+        if (warmedFaceRef.current?.boundary === stagedFace.boundary && warmedFaceRef.current.slot === stagedFace.slot) {
+          warmedFaceRef.current = { ...warmedFaceRef.current, failed: true };
+        }
+        if (preStageRef.current?.boundary === stagedFace.boundary) {
+          preStageRef.current = { ...preStageRef.current, faceFailed: true };
+          // Settled-failed with a retry pending: execute now so the
+          // gate fails fast into the ledger's next step.
+          maybeExecuteRetryRef.current(stagedFace.boundary);
+        }
+      }
     })();
     return () => { cancelled = true; };
   }, [stagedFace?.boundary, stagedFace?.slot, stagedFace?.persona]); // eslint-disable-line react-hooks/exhaustive-deps
