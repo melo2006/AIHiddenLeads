@@ -165,10 +165,31 @@ type ViewportConfig = {
   deviceScaleFactor: number;
   suffix: string;
   startDelayMs?: number;
+  /**
+   * Capture the whole page height instead of one viewport. Desktop only:
+   * the demo's primary backdrop is the desktop shot, and it is the one
+   * visitors scroll through on every device class. Tablet/mobile stay
+   * viewport-height captures — they are alternate backdrops, and tripling
+   * the tall-capture cost for them buys nothing the demo shows.
+   */
+  fullPage?: boolean;
 };
 
+/**
+ * Cap on the full-page capture height, in CSS pixels (before the viewport's
+ * deviceScaleFactor). 12000 CSS px ≈ 11 desktop viewports of content —
+ * deeper than any homepage a demo visitor will scroll — while keeping the
+ * PNG bounded: at 1920 wide × DSF 2 the uncapped worst cases (infinite
+ * scroll feeds, parallax stacks) produce 30k–100k px monsters that blow
+ * past the 8 MB storage bound and decode slowly on phones. The in-page
+ * prep script measures the page, shrinks it to fit this cap when needed,
+ * and pins html/body height to the measured value, so the fullPage stitch
+ * stops exactly at the captured height.
+ */
+export const FULL_PAGE_MAX_HEIGHT = 12000;
+
 const VIEWPORT_CONFIGS: ViewportConfig[] = [
-  { width: 1920, height: 1080, deviceScaleFactor: 2, suffix: 'desktop', startDelayMs: 0 },
+  { width: 1920, height: 1080, deviceScaleFactor: 2, suffix: 'desktop', startDelayMs: 0, fullPage: true },
   { width: 768, height: 1024, deviceScaleFactor: 2, suffix: 'tablet', startDelayMs: 900 },
   { width: 390, height: 844, deviceScaleFactor: 3, suffix: 'mobile', startDelayMs: 1800 },
 ];
@@ -191,6 +212,54 @@ async function browserlessScreenshotSingle(
     console.log(`[Browserless] Taking ${viewport.suffix} screenshot of:`, url);
     let buffer: ArrayBuffer | null = null;
 
+    // Full-page flow is TWO requests (desktop only): a cheap /content pass
+    // whose injected script ends by parking the measured content height on
+    // window.__fullPageHeightPx (serialized into the returned HTML), then
+    // the /screenshot pass with the clip height set to that measurement.
+    // A single /screenshot call cannot learn the height first — its clip
+    // is fixed before anything runs. Tablet/mobile skip this entirely.
+    let measuredFullPageHeight: number | null = null;
+    if (viewport.fullPage === true) {
+      try {
+        const probe = await fetch(`https://production-sfo.browserless.io/content?token=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url,
+            gotoOptions: { waitUntil: 'networkidle2', timeout: 30000 },
+            addScriptTag: [{
+              content: `
+                (() => {
+                  const capped = Math.min(
+                    Math.max(document.body?.scrollHeight || 0, document.documentElement?.scrollHeight || 0, window.innerHeight || 0),
+                    ${FULL_PAGE_MAX_HEIGHT},
+                  );
+                  window.__fullPageHeightPx = capped;
+                  const marker = document.createElement('meta');
+                  marker.setAttribute('name', 'x-fullpage-height');
+                  marker.setAttribute('content', String(capped));
+                  document.head.appendChild(marker);
+                })();
+              `,
+            }],
+          }),
+        });
+        if (probe.ok) {
+          const html = await probe.text();
+          const found = /x-fullpage-height" content="(\d+)"/.exec(html);
+          const parsed = found ? Number(found[1]) : NaN;
+          if (Number.isFinite(parsed) && parsed >= viewport.height && parsed <= FULL_PAGE_MAX_HEIGHT) {
+            measuredFullPageHeight = parsed;
+          }
+        } else {
+          console.warn('[Browserless] full-page measure probe failed:', probe.status);
+        }
+      } catch (e) {
+        console.warn('[Browserless] full-page measure probe error:', e);
+      }
+    }
+    const fullPageHeightPx = measuredFullPageHeight ?? viewport.height;
+
     for (let attempt = 0; attempt < 2; attempt++) {
       const response = await fetch(`https://production-sfo.browserless.io/screenshot?token=${apiKey}`, {
         method: 'POST',
@@ -198,7 +267,12 @@ async function browserlessScreenshotSingle(
         body: JSON.stringify({
           url,
           options: {
-            fullPage: true,
+            // Only the desktop capture goes full-page (see ViewportConfig);
+            // the Browserless option must reflect the CONFIG, not a blanket
+            // true. Clip height = the measured content height (fallback:
+            // the viewport height, i.e. today's behavior).
+            fullPage: viewport.fullPage === true,
+            ...(viewport.fullPage === true ? { clip: { x: 0, y: 0, width: viewport.width, height: fullPageHeightPx, scale: 1 } } : {}),
             type: 'png',
           },
           viewport: {
@@ -216,6 +290,68 @@ async function browserlessScreenshotSingle(
             content: `
               (async () => {
                 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+                // Full-page captures are bounded (see FULL_PAGE_MAX_HEIGHT
+                // in the function source — the value is baked in below).
+                // Puppeteer's fullPage screenshot resizes the viewport to
+                // the content height it measures from the layout — and
+                // sites that constrain html/body (height:100%, overflow
+                // clipping, inner scroll containers) REPORT a
+                // viewport-sized height, so their "full page" comes back
+                // as a single viewport. The measure below reads every
+                // common height signal INCLUDING inner scrollers, and
+                // the pin forces the reported height to the real content
+                // height (capped) — the stitch then covers the whole
+                // page, footer included.
+                const FULL_PAGE_MAX_HEIGHT = ${FULL_PAGE_MAX_HEIGHT};
+                const measureAndPinPageHeight = () => {
+                  try {
+                    const reportedPageHeight = () => {
+                      let h = Math.max(
+                        document.body?.scrollHeight || 0,
+                        document.documentElement?.scrollHeight || 0,
+                        window.innerHeight || 0,
+                      );
+                      document.querySelectorAll('body *').forEach((el) => {
+                        if (el instanceof HTMLElement && el.scrollHeight > el.clientHeight + 4) {
+                          h = Math.max(h, el.scrollHeight);
+                        }
+                      });
+                      return h;
+                    };
+                    let height = reportedPageHeight();
+                    if (height > FULL_PAGE_MAX_HEIGHT) {
+                      // Shrink the page to the cap from the bottom up:
+                      // trailing non-content blocks go first; sections
+                      // carrying headings are never eaten. If the page
+                      // cannot shrink enough, capture it unpinned rather
+                      // than mutilating it.
+                      let remaining = height - FULL_PAGE_MAX_HEIGHT;
+                      const children = Array.from(document.body?.children || []);
+                      for (let i = children.length - 1; i >= 0 && remaining > 0; i--) {
+                        const el = children[i];
+                        if (!(el instanceof HTMLElement)) continue;
+                        if (el.querySelector('h1, h2')) continue;
+                        const rect = el.getBoundingClientRect();
+                        const cut = Math.min(Math.max(rect.height - 48, 0), remaining);
+                        if (cut <= 0) continue;
+                        el.style.height = (rect.height - cut) + 'px';
+                        el.style.maxHeight = (rect.height - cut) + 'px';
+                        el.style.overflow = 'hidden';
+                        remaining -= cut;
+                      }
+                      height = reportedPageHeight();
+                      if (height > FULL_PAGE_MAX_HEIGHT) return;
+                    }
+                    // Force html/body to REPORT the full content height:
+                    // with the scrollbar parked at the layout edge, the
+                    // fullPage stitch measures exactly this height — one
+                    // viewport for tablet/mobile configs, the whole
+                    // (capped) page for desktop.
+                    document.documentElement.style.setProperty('height', '100000px', 'important');
+                    if (document.body) document.body.style.setProperty('height', '100000px', 'important');
+                    return Math.min(reportedPageHeight(), FULL_PAGE_MAX_HEIGHT);
+                  } catch (e) { /* best effort — capture proceeds unpinned */ }
+                };
 
                 const closeOverlays = () => {
                   // Phase 1: Click all dismiss/close/accept buttons we can find
@@ -376,6 +512,7 @@ async function browserlessScreenshotSingle(
                 await wait(1200);
                 window.scrollTo({ top: 0, behavior: 'auto' });
                 closeOverlays();
+                window.__fullPageHeightPx = measureAndPinPageHeight();
               })();
             `
           }],
@@ -405,12 +542,23 @@ async function browserlessScreenshotSingle(
 
     console.log(`[Browserless] ${viewport.suffix} screenshot captured, size:`, buffer.byteLength);
 
+    // The stored object name follows the actual bytes: a desktop capture
+    // that had to be JPEG-capped lands as .jpg (see capScreenshotBytes).
+    const capped = capScreenshotBytes(buffer);
+    const uploadBytes = capped.bytes;
+    const uploadType = capped.type;
+    if (capped.wasConverted) {
+      console.log(`[Browserless] ${viewport.suffix} screenshot JPEG-capped to ${uploadBytes.byteLength} bytes`);
+    }
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    const filePath = viewport.suffix === 'desktop' ? `${leadId}.png` : `${leadId}-${viewport.suffix}.png`;
+    const filePath = viewport.suffix === 'desktop'
+      ? `${leadId}.${capped.extension}`
+      : `${leadId}-${viewport.suffix}.${capped.extension}`;
     const { error: uploadError } = await supabase.storage
       .from('website-screenshots')
-      .upload(filePath, buffer, {
-        contentType: 'image/png',
+      .upload(filePath, uploadBytes, {
+        contentType: uploadType,
         upsert: true,
       });
 
@@ -590,6 +738,10 @@ async function scrapeScreenshotFallback(url: string, apiKey: string) {
       // Match the settle budget spirit of the Browserless path (14s).
       waitFor: 10000,
       timeout: 40000,
+      // Fallback parity with the Browserless desktop capture: full page,
+      // not one viewport. Firecrawl has no height cap — the size bound is
+      // enforced at re-host time by JPEG-capping (capScreenshotBytes).
+      screenshotOptions: { fullPage: true, viewport: { width: 1920, height: 1080 } },
     }, 0);
 
     const data = unwrapFirecrawlPayload(response);
@@ -611,6 +763,107 @@ async function scrapeScreenshotFallback(url: string, apiKey: string) {
 }
 
 const REHOST_MAX_BYTES = 8 * 1024 * 1024;
+
+/**
+ * Maximum bytes for a screenshot we will store. This ONE bound applies
+ * everywhere a capture is persisted — the Browserless storage upload AND
+ * the Firecrawl re-host — so an oversized capture can never take the
+ * "keep the original URL" dead-link shortcut (Firecrawl signed URLs
+ * expire; a stored one 403s in the demo — verified 2026-11-09). Captures
+ * above the bound are JPEG-capped down to it instead.
+ */
+export const SCREENSHOT_MAX_BYTES = REHOST_MAX_BYTES;
+
+/**
+ * JPEG-cap an oversized PNG screenshot IN THE CAPTURE BROWSER. The edge
+ * runtime has no image codec, so the decode + re-encode happens through
+ * the same Browserless API that took the picture: the PNG is POSTed back
+ * as base64, drawn onto a canvas, and exported as JPEG (quality 0.85 —
+ * screenshot text stays legible while photographic homepages shrink
+ * 5–20×). Best-effort by design: ANY failure (no key, HTTP error,
+ * undecodable bytes, or the JPEG somehow still over the bound) returns
+ * the original PNG bytes — the caller stores what it has rather than
+ * nothing. Only ever called on the oversized path; in-bounds captures
+ * are untouched.
+ */
+export async function shrinkScreenshotViaBrowser(
+  apiKey: string,
+  pngBase64: string,
+  quality = 0.85,
+  fetcher: typeof fetch = fetch,
+): Promise<ArrayBuffer | null> {
+  try {
+    const response = await fetcher(`https://production-sfo.browserless.io/function?token=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        code: `export default async function ({ page }) {
+          const dataUrl = await page.evaluate(async (src) => {
+            const img = new Image();
+            img.src = src;
+            await img.decode();
+            const canvas = document.createElement('canvas');
+            canvas.width = img.naturalWidth;
+            canvas.height = img.naturalHeight;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return null;
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0);
+            return canvas.toDataURL('image/jpeg', ${quality});
+          }, 'data:image/png;base64,' + ${JSON.stringify(pngBase64)});
+          if (!dataUrl) return { data: null, type: 'application/json' };
+          return { data: { b64: dataUrl.split(',')[1] }, type: 'application/json' };
+        }`,
+        context: {},
+      }),
+    });
+    if (!response.ok) return null;
+    const payload = await response.json().catch(() => null);
+    const b64 = typeof payload?.b64 === 'string' ? payload.b64 : null;
+    if (!b64) return null;
+    const binary = atob(b64);
+    const out = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
+    return out.buffer;
+  } catch {
+    return null;
+  }
+}
+
+const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(binary);
+};
+
+/**
+ * Decide what bytes actually get stored for a capture: in-bounds PNGs
+ * pass through untouched; oversized PNGs are JPEG-capped via the capture
+ * browser when a key is available. Exported for tests — the decision
+ * (pass-through vs convert vs best-effort keep) is the contract.
+ */
+export async function capScreenshotBytesWith(
+  buffer: ArrayBuffer,
+  apiKey: string | null,
+  shrinker: typeof shrinkScreenshotViaBrowser = shrinkScreenshotViaBrowser,
+  maxBytes: number = SCREENSHOT_MAX_BYTES,
+): Promise<{ bytes: ArrayBuffer; type: string; extension: string; wasConverted: boolean }> {
+  const png = { bytes: buffer, type: 'image/png', extension: 'png', wasConverted: false };
+  if (buffer.byteLength <= maxBytes) return png;
+  if (!apiKey) return png;
+  try {
+    const jpeg = await shrinker(apiKey, arrayBufferToBase64(buffer));
+    if (jpeg && jpeg.byteLength > 0 && jpeg.byteLength <= maxBytes) {
+      return { bytes: jpeg, type: 'image/jpeg', extension: 'jpg', wasConverted: true };
+    }
+  } catch { /* fall through — keep the original capture */ }
+  return png;
+}
 
 const BLANK_FRAME_MAX_BYTES = 15 * 1024;
 const BLANK_FRAME_MIN_WIDTH = 1200;
@@ -635,12 +888,44 @@ const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
  * i.e. accept the screenshot exactly as before. The guard can only ever
  * turn a likely-blank screenshot into the existing no-screenshot path; it
  * must never fail or block the scan.
+ *
+ * Tall frames: since the desktop capture went full-page, the desktop
+ * fallback can legitimately return very tall PNGs. The byte budget scales
+ * with the pixel count (see blankFrameBudgetBytes), so a tall REAL page
+ * keeps its proportionally larger solid-color allowance and a tall BLANK
+ * frame — solid color at any height — is still rejected.
  */
-async function isLikelyBlankScreenshot(screenshotUrl: string): Promise<boolean> {
+export function blankFrameBudgetBytes(width: number, height: number): number {
+  const pixels = Math.max(0, width) * Math.max(0, height);
+  const budget = Math.floor(pixels * (BLANK_FRAME_MAX_BYTES / (BLANK_FRAME_MIN_WIDTH * BLANK_FRAME_MIN_HEIGHT)));
+  // Never below the historic flat budget, never above the storage bound.
+  return Math.min(REHOST_MAX_BYTES, Math.max(BLANK_FRAME_MAX_BYTES, budget));
+}
+
+/** Pure blank-frame decision over raw bytes (tests drive this directly). */
+export function isLikelyBlankPng(bytes: Uint8Array): boolean {
+  if (bytes.byteLength === 0 || bytes.byteLength > REHOST_MAX_BYTES) return false;
+  // PNG signature check — the size heuristic is only calibrated for PNG.
+  if (bytes.byteLength < 24) return false;
+  for (let i = 0; i < PNG_SIGNATURE.length; i++) {
+    if (bytes[i] !== PNG_SIGNATURE[i]) return false;
+  }
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const width = view.getUint32(16);
+  const height = view.getUint32(20);
+  if (width < BLANK_FRAME_MIN_WIDTH || height < BLANK_FRAME_MIN_HEIGHT) return false;
+  if (bytes.byteLength >= blankFrameBudgetBytes(width, height)) return false;
+  return true;
+}
+
+export async function isLikelyBlankScreenshot(
+  screenshotUrl: string,
+  fetcher: typeof fetch = fetch,
+): Promise<boolean> {
   try {
     if (screenshotUrl.startsWith('data:')) return false;
 
-    const response = await fetch(screenshotUrl, { signal: AbortSignal.timeout(15000) });
+    const response = await fetcher(screenshotUrl, { signal: AbortSignal.timeout(15000) });
     if (!response.ok) return false;
 
     const declaredLength = Number(response.headers.get('content-length') || 0);
@@ -648,22 +933,11 @@ async function isLikelyBlankScreenshot(screenshotUrl: string): Promise<boolean> 
 
     const buffer = await response.arrayBuffer();
     const bytes = new Uint8Array(buffer);
-    if (bytes.byteLength === 0 || bytes.byteLength > REHOST_MAX_BYTES) return false;
-    if (bytes.byteLength >= BLANK_FRAME_MAX_BYTES) return false;
-
-    // PNG signature check — the size heuristic is only calibrated for PNG.
-    if (bytes.byteLength < 24) return false;
-    for (let i = 0; i < PNG_SIGNATURE.length; i++) {
-      if (bytes[i] !== PNG_SIGNATURE[i]) return false;
-    }
+    if (!isLikelyBlankPng(bytes)) return false;
 
     const view = new DataView(buffer);
-    const width = view.getUint32(16);
-    const height = view.getUint32(20);
-    if (width < BLANK_FRAME_MIN_WIDTH || height < BLANK_FRAME_MIN_HEIGHT) return false;
-
     console.warn(
-      `[Screenshot] Rejected likely-blank frame (${bytes.byteLength} bytes at ${width}x${height}): ${screenshotUrl}`,
+      `[Screenshot] Rejected likely-blank frame (${bytes.byteLength} bytes at ${view.getUint32(16)}x${view.getUint32(20)}): ${screenshotUrl}`,
     );
     return true;
   } catch (error) {
@@ -682,8 +956,13 @@ async function isLikelyBlankScreenshot(screenshotUrl: string): Promise<boolean> 
  * site also blocked iframe embedding). Downloading the bytes at scan time,
  * while the signed URL is still fresh, makes the stored link permanent.
  *
- * Failure policy: ANY failure (download, size, upload) returns the original
- * Firecrawl URL — re-hosting must never fail or block the scan.
+ * Failure policy: download/upload failures return the original Firecrawl
+ * URL — re-hosting must never fail or block the scan. SIZE is no longer a
+ * keep-original case: an oversized capture is JPEG-capped down to the
+ * storage bound first (full-page shots make >8MB normal); only a capture
+ * that survives oversized even after capping — or a download so large the
+ * declared length alone exceeds a hard sanity ceiling — keeps the
+ * original URL, because storing SOME picture beats storing none.
  */
 async function rehostScreenshotUrl(
   screenshotUrl: string,
@@ -691,6 +970,7 @@ async function rehostScreenshotUrl(
   supabaseUrl: string,
   supabaseServiceKey: string,
   suffix = 'desktop',
+  browserlessApiKey?: string | null,
 ): Promise<string> {
   try {
     // Already ours (public bucket) or an inline image — nothing to re-host.
@@ -701,25 +981,42 @@ async function rehostScreenshotUrl(
       return screenshotUrl;
     }
 
-    const response = await fetch(screenshotUrl, { signal: AbortSignal.timeout(15000) });
+    // Hard sanity ceiling on the DOWNLOAD only: past ~32 MB the bytes are
+    // not worth hauling into the function (a JPEG cap could not rescue the
+    // memory/time budget anyway). Between the storage bound and this
+    // ceiling, the capture is downloaded and JPEG-capped below.
+    const REHOST_DOWNLOAD_CEILING = 32 * 1024 * 1024;
+    const response = await fetch(screenshotUrl, { signal: AbortSignal.timeout(30000) });
     if (!response.ok) {
       console.warn(`[Rehost] Screenshot download failed (${response.status}), keeping original URL`);
       return screenshotUrl;
     }
 
     const declaredLength = Number(response.headers.get('content-length') || 0);
-    if (declaredLength > REHOST_MAX_BYTES) {
-      console.warn(`[Rehost] Screenshot too large (${declaredLength} bytes), keeping original URL`);
+    if (declaredLength > REHOST_DOWNLOAD_CEILING) {
+      console.warn(`[Rehost] Screenshot declared length ${declaredLength} beyond download ceiling, keeping original URL`);
       return screenshotUrl;
     }
 
-    const buffer = await response.arrayBuffer();
-    if (buffer.byteLength === 0 || buffer.byteLength > REHOST_MAX_BYTES) {
-      console.warn(`[Rehost] Screenshot size ${buffer.byteLength} out of bounds, keeping original URL`);
+    let buffer = await response.arrayBuffer();
+    if (buffer.byteLength === 0) {
+      console.warn('[Rehost] Screenshot download was empty, keeping original URL');
       return screenshotUrl;
     }
 
-    const contentType = (response.headers.get('content-type') || 'image/png').split(';')[0].trim().toLowerCase();
+    let contentType = (response.headers.get('content-type') || 'image/png').split(';')[0].trim().toLowerCase();
+    if (buffer.byteLength > REHOST_MAX_BYTES) {
+      const capped = await capScreenshotBytesWith(buffer, browserlessApiKey ?? null);
+      if (capped.wasConverted) {
+        console.log(`[Rehost] Screenshot JPEG-capped ${buffer.byteLength} → ${capped.bytes.byteLength} bytes`);
+        buffer = capped.bytes;
+        contentType = capped.type;
+      } else if (buffer.byteLength > REHOST_MAX_BYTES) {
+        console.warn(`[Rehost] Screenshot still oversized (${buffer.byteLength} bytes) after capping attempt, keeping original URL`);
+        return screenshotUrl;
+      }
+    }
+
     const extension = contentType === 'image/jpeg' ? 'jpg' : contentType === 'image/webp' ? 'webp' : 'png';
     const filePath = `demo-screenshots/${leadId}-${suffix}.${extension}`;
 
@@ -1215,6 +1512,10 @@ async function backgroundEnrich(
 
 const HARD_DEADLINE_MS = 130_000; // Return before the 150s idle timeout
 
+/** Runtime wiring for capScreenshotBytesWith (tests inject their own). */
+const capScreenshotBytes = (buffer: ArrayBuffer, apiKey?: string | null) =>
+  capScreenshotBytesWith(buffer, apiKey ?? Deno.env.get('BROWSERLESS_API_KEY') ?? null);
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -1362,6 +1663,7 @@ Deno.serve(async (req) => {
         supabaseUrl,
         supabaseServiceKey,
         'desktop',
+        browserlessKey,
       );
     }
 
