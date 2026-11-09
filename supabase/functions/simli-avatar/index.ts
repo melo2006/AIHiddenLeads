@@ -69,7 +69,10 @@ Deno.serve(async (req) => {
         const visitorHash = await sha256Hex(`${b.visitorKey}|${req.headers.get('x-forwarded-for')?.split(',')[0] || ''}`);
         const { data: parentRow } = await db.from('gemini_voice_sessions').select('config').eq('id', b.parentSessionId).eq('visitor_hash', visitorHash).maybeSingle();
         const parentConfig = parentRow?.config as Record<string, unknown> | undefined;
-        if (!parentConfig || parentConfig.simulation !== true || parentConfig.personaSwapEnabled !== true) return json({ error: 'Persona avatar is not available for this session' }, 403);
+        // Team intro parents (Stage: team-intro): a homepage explainer
+        // session stamped teamIntroEnabled by gemini-session — the
+        // either/or parent class. Simulation parents are untouched.
+        if (!parentConfig || parentConfig.personaSwapEnabled !== true || !((parentConfig.simulation === true) || (parentConfig.teamIntroEnabled === true && parentConfig.homepageSales === true))) return json({ error: 'Persona avatar is not available for this session' }, 403);
         const binding = PERSONAS[b.persona as PersonaId];
         if (binding.faceId) {
           faceId = binding.faceId;

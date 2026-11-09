@@ -1,5 +1,5 @@
 import { HOMEPAGE_KNOWLEDGE } from './homepage-knowledge.ts';
-import { DEMO_NOT_TOUCHED_REASSURANCE } from './voice-config.ts';
+import { DEMO_NOT_TOUCHED_REASSURANCE, DEMO_SITE_COMFORT_LINE, DEMO_SITE_SARA_INTRO, DEMO_SITE_STAT_LINES, demoSitePitch } from './voice-config.ts';
 export const DEMO_CHECKPOINT_SECONDS = 300;
 export const DEMO_SAFETY_SECONDS = 900;
 export function demoPacingAction(elapsed: number, checkpointSent: boolean) {
@@ -13,7 +13,20 @@ export const DEMO_SALES_POLICY = `The roleplay and AI Hidden Leads sales roles a
 REVIEWED AI HIDDEN LEADS SALES REFERENCE (separate from simulated business evidence):
 ${HOMEPAGE_KNOWLEDGE}`;
 export const DEMO_VERIFICATION_GREETING = '{timeGreeting}, {visitorFirstName}. I am Aspen from AI Hidden Leads. ' + DEMO_NOT_TOUCHED_REASSURANCE + ' Your demo of {businessName} is being prepared from a quick scan of your website so you can see it come alive. Before we step inside, I just need to confirm this demo is yours, so in a moment I will ask you for a mobile number or an email address where we can send you a quick 4-digit code. And so you know: if you decide to make this real, our support specialist, Alex, will walk you through setup personally, step by step — nobody gets left alone with forms.';
-export const DEMO_INVITE_GREETING = '{timeGreeting}, {visitorFirstName}. I am Aspen from AI Hidden Leads. ' + DEMO_NOT_TOUCHED_REASSURANCE + ' And welcome — the demo I built for {businessName} is already loaded on your website, right here on this page, so there is no waiting. Before we start, one thing in plain sight: this is a simulation layered over your website — your real site has not been changed in any way, nothing was installed on it, and I am live, talking with you right now. And if you like what you see, you will not be left alone with setup forms — our support specialist, Alex, walks new customers through every step personally. {nameConfirm}';
+// Invite demo-site greeting (owner revision, 2026-11-09): the same
+// opening structure as the standard demo-site greeting — personalized
+// welcome → partner pitch with ONE rotated statistic → Alex comfort
+// line → Sara introduction — with the welcome adapted to the invite:
+// thanks for accepting the invitation (the channel is never named),
+// the pre-built demo already loaded, and the {nameConfirm} identity
+// check folded in right after the welcome. Like the standard variant,
+// Aspen speaks NO not-touched disclaimer here anymore: Sara owns the
+// spoken honesty note at the simulation entry (voice-config beat 4b).
+export const DEMO_INVITE_GREETING_VARIANTS: string[] = DEMO_SITE_STAT_LINES.map(statLine => '{timeGreeting}, {visitorFirstName}. I am Aspen from AI Hidden Leads. Thanks for accepting the invitation — the demo I built for {businessName} is already loaded on your website, right here on this page, so there is no waiting. {nameConfirm} ' + demoSitePitch(statLine) + ' ' + DEMO_SITE_COMFORT_LINE + ' ' + DEMO_SITE_SARA_INTRO);
+export const DEMO_INVITE_GREETING = DEMO_INVITE_GREETING_VARIANTS[0];
+/** Tonight's live invite greeting, preserved for the flags-off path
+ *  (see SIMULATION_GREETING_LEGACY_SLIM in voice-config.ts). */
+export const DEMO_INVITE_GREETING_LEGACY_SLIM = '{timeGreeting}, {visitorFirstName}. I am Aspen from AI Hidden Leads. ' + DEMO_NOT_TOUCHED_REASSURANCE + ' And welcome — the demo I built for {businessName} is already loaded on your website, right here on this page, so there is no waiting. Before we start, one thing in plain sight: this is a simulation layered over your website — your real site has not been changed in any way, nothing was installed on it, and I am live, talking with you right now. And if you like what you see, you will not be left alone with setup forms — our support specialist, Alex, walks new customers through every step personally. {nameConfirm}';
 export const DEMO_INVITE_OPENING = `Host role: You are Aspen of AI Hidden Leads, personally hosting a demo you prepared in advance for this invited visitor. The business simulation has not begun. Do not roleplay the business, do not give the business overview, and do not answer as the business until you announce the move into simulation mode below. In this phase you speak only as Aspen from AI Hidden Leads, the host.
 Why there is no wait: This visitor arrived through a personal email invitation. We scanned and learned their website AHEAD of time and pre-built this demo, so it is already loaded on their website on this page. Never say the demo is being prepared, never ask them to fill in a form, and never make them wait for a build.
 What this is — say it plainly, in your own words: this is a simulation layered over their website; their real website has not been changed and nothing was installed or taken over; you are a live AI talking with them right now on top of it.

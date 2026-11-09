@@ -187,6 +187,7 @@ describe('segment authorization inheritance (gemini-session source pins)', () =>
     expect(session.slice(segAt, segAt + 1400)).toContain('404');
   });
   test('parent validation binds row id + visitor hash + simulation', () => {
+    expect(session).toContain('introParentOk');
     expect(session).toContain('parent.simulation!==true');
     expect(session).toContain("eq('visitor_hash',visitorHash)");
   });
@@ -195,6 +196,9 @@ describe('segment authorization inheritance (gemini-session source pins)', () =>
     expect(simli).toContain("persona: z.enum(['aspen', 'sara', 'alex'])");
     expect(simli).toContain('A parent demo session is required for a persona avatar');
     expect(simli).toContain('parentConfig.personaSwapEnabled !== true');
+    // Team intro widens the proof to the either/or parent class
+    // (simulation parent OR team-intro parent) — same visitor-hash proof.
+    expect(simli).toContain('parentConfig.teamIntroEnabled === true');
   });
 });
 
@@ -227,7 +231,7 @@ describe('client swap state machine units', () => {
     expect(cutoverReady({ authorized: false, videoRequested: false, faceReady: true })).toBe(false);
   });
   test('drop recovery re-authorizes the SAME persona under the ORIGINAL parent', () => {
-    const state: SwapState = { phase: 'simulation', persona: 'sara', segment: 1, armed: ['doorway'], done: ['doorway'], drops: 1, pendingStepout: false };
+    const state: SwapState = { phase: 'simulation', persona: 'sara', segment: 1, armed: ['doorway'], done: ['doorway'], drops: 1, pendingStepout: false, teamIntroDone: false, teamIntroSeen: false };
     const target = reconnectTarget(state, 'parent-123');
     expect(target.personaSegment).toEqual({ persona: 'sara', boundary: 'doorway', parentSessionId: 'parent-123' });
     const hostTarget = reconnectTarget({ ...INITIAL_SWAP_STATE }, 'parent-123');

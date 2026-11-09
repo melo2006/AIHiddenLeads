@@ -617,6 +617,7 @@
     "pressPlayReconnect": "Press play to reconnect to {{name}}.",
     "noConversation": "No conversation yet.",
     "you": "You",
+    "handoffTo": "— {{name}} takes over —",
     "callerTranscript": "Caller transcript",
     "aspenTranscript": "Aspen transcript",
     "transcriptLabel": "Conversation transcript",

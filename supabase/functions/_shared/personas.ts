@@ -24,6 +24,15 @@
 // stays assembled byte-identical), the Alex guest segment in alex-guide.ts.
 import { ALEX_FACE_ID, ALEX_VOICE } from './alex-guide.ts';
 import {
+  ALEX_CAMEO_PROMPT,
+  INTRO_BOUNDARIES,
+  SARA_CAMEO_PROMPT,
+  TEAM_INTRO_CALLBACK_CLOSE,
+  TEAM_INTRO_CALLBACK_DOORWAY,
+  TEAM_INTRO_HOST_SEGMENT,
+  type IntroBoundary,
+} from './team-intro.ts';
+import {
   SIMULATION_CLOSE_SEGMENT,
   SIMULATION_HOST_SEGMENT,
   SIMULATION_RECEPTIONIST_SEGMENT,
@@ -31,7 +40,14 @@ import {
 } from './voice-config.ts';
 
 export type PersonaId = 'aspen' | 'sara' | 'alex';
-export type PersonaBoundary = 'doorway' | 'stepout' | 'meet-alex' | 'return';
+/** All segment boundaries: the Stage 1 simulation family plus the team
+ *  intro family (design: team-intro-design-2026-11-09.md §4.1). The two
+ *  families are disjoint and phase-gated against their own parent class
+ *  (gemini-session refuses cross-family requests). */
+export type PersonaBoundary =
+  | 'doorway' | 'stepout' | 'meet-alex' | 'return'
+  | IntroBoundary;
+export type { IntroBoundary };
 
 export interface PersonaBinding {
   id: PersonaId;
@@ -123,6 +139,18 @@ export function avatarSwapEnabled(env: (name: string) => string | undefined): bo
 }
 
 // ---------------------------------------------------------------------------
+// Team intro sub-flag (design: team-intro-design-2026-11-09.md §7). The
+// team intro rides the swap family but is enabled SEPARATELY:
+// TEAM_INTRO_ENABLED is its own server env, same pattern, and it can
+// never outlive the master flag — master off ⇒ team intro dark
+// regardless of its own value. gemini-session is the single decision
+// point for both stamps.
+// ---------------------------------------------------------------------------
+export function teamIntroEnabled(env: (name: string) => string | undefined): boolean {
+  return avatarSwapEnabled(env) && env('TEAM_INTRO_ENABLED') === 'true';
+}
+
+// ---------------------------------------------------------------------------
 // Segment prompt assembly (spec §5.1). A segment session's system prompt
 // carries ONLY that persona's segment + the shared framing below; the
 // business knowledge rides separately as reference data, exactly as in the
@@ -147,6 +175,16 @@ export interface PersonaSegmentBuild {
   greeting: string;
 }
 
+/** Team-intro segment build options (the intro family's parent is the
+ *  homepage explainer, not a business demo). */
+export interface TeamIntroSegmentOptions {
+  /** The parent homepage session's full systemPrompt — the Aspen host
+   *  segment rides it (the sales prompt + the cameo teaching block), so
+   *  beats 3–5 keep the whole sales context. The cameo segments do NOT
+   *  inherit it (their bounded prompt packs stand alone). */
+  parentPrompt: string;
+}
+
 /**
  * Build the segment prompt + greeting for one persona inside one business
  * demo. `parentPrompt` is the PARENT session's full systemPrompt: the
@@ -164,8 +202,38 @@ export function personaSegmentPrompt(
   businessName: string,
   parentPrompt: string,
   alexGuest?: { systemPrompt: string; greeting: string },
+  teamIntroSeen?: boolean,
+  teamIntro?: TeamIntroSegmentOptions,
 ): PersonaSegmentBuild {
   const binding = PERSONAS[persona];
+  // TEAM INTRO FAMILY (design §4.3 P3–P5): segments of a homepage parent.
+  // The cameo prompts stand alone (bounded material, no tenant business,
+  // no parent sales prompt); the Aspen host segment rides the parent's
+  // own prompt so beats 3–5 keep the sales context. No greeting: the
+  // proxy's swap opening serves the first beat.
+  if ((INTRO_BOUNDARIES as readonly string[]).includes(boundary)) {
+    if (boundary === 'intro-sara' && persona === 'sara') {
+      return { systemPrompt: SARA_CAMEO_PROMPT, greeting: '' };
+    }
+    if (boundary === 'intro-return-1' && persona === 'aspen') {
+      if (!teamIntro) throw new Error('personaSegmentPrompt: teamIntro options are required for intro segments');
+      return { systemPrompt: `${teamIntro.parentPrompt}\n${TEAM_INTRO_HOST_SEGMENT}`, greeting: '' };
+    }
+    if (boundary === 'intro-alex' && persona === 'alex') {
+      return { systemPrompt: ALEX_CAMEO_PROMPT, greeting: '' };
+    }
+    if (boundary === 'intro-return-2' && persona === 'aspen') {
+      // No new authorization: the return to Aspen after Alex is a SEGMENT
+      // REQUEST from the client like every other boundary (Stage 1's
+      // chained-authorization pattern — every hop re-authorized against
+      // the ORIGINAL parent), landing on the same host-segment build the
+      // first return used. Beats after the landing are governed by the
+      // host segment's "show is over" rule either way.
+      if (!teamIntro) throw new Error('personaSegmentPrompt: teamIntro options are required for intro segments');
+      return { systemPrompt: `${teamIntro.parentPrompt}\n${TEAM_INTRO_HOST_SEGMENT}`, greeting: '' };
+    }
+    throw new Error(`personaSegmentPrompt: persona ${persona} cannot enter boundary ${boundary}`);
+  }
   if (persona === 'sara') {
     return {
       systemPrompt: `${BUSINESS_ASSISTANT_PREAMBLE(businessName)}\n${bindSegmentNames(SIMULATION_RECEPTIONIST_SEGMENT, binding)}`,
@@ -186,12 +254,16 @@ export function personaSegmentPrompt(
   // the host build exists so a segment chain can also START at Aspen.
   if (boundary === 'doorway') {
     return {
-      systemPrompt: `${parentPrompt}\n${bindSegmentNames(SIMULATION_HOST_SEGMENT, binding)}`,
+      // §5.1 callback (teamIntroSeen only): the doorway gains the "here's
+      // Sara again — as promised" clause as an APPENDED instruction. The
+      // shared segment constants are never edited, so without the signal
+      // this build is byte-identical to the pre-callback assembly.
+      systemPrompt: `${parentPrompt}\n${bindSegmentNames(SIMULATION_HOST_SEGMENT, binding)}${teamIntroSeen ? `\n${TEAM_INTRO_CALLBACK_DOORWAY}` : ''}`,
       greeting: '',
     };
   }
   return {
-    systemPrompt: `${BUSINESS_ASSISTANT_PREAMBLE(businessName)}\n${bindSegmentNames(SIMULATION_CLOSE_SEGMENT, binding)}`,
+    systemPrompt: `${BUSINESS_ASSISTANT_PREAMBLE(businessName)}\n${bindSegmentNames(SIMULATION_CLOSE_SEGMENT, binding)}${teamIntroSeen ? `\n${TEAM_INTRO_CALLBACK_CLOSE}` : ''}`,
     greeting: '',
   };
 }

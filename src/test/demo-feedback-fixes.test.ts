@@ -11,6 +11,7 @@ import {
 import {
   DEMO_NOT_TOUCHED_REASSURANCE,
   SIMULATION_GREETING,
+  SIMULATION_RECEPTIONIST_SEGMENT,
   VOICE_DISCONNECT_PLAIN,
 } from "../../supabase/functions/_shared/voice-config";
 
@@ -59,12 +60,23 @@ describe("demo feedback fixes (2026-11-09)", () => {
     expect(tryDemo.indexOf("<DemoReassuranceStrip />")).toBeLessThan(tryDemo.indexOf("<DemoIntakePanel"));
   });
 
-  it("opens every spoken demo greeting with the not-touched reassurance, before any pitch", () => {
-    for (const greeting of [SIMULATION_GREETING, DEMO_VERIFICATION_GREETING, DEMO_INVITE_GREETING]) {
-      expect(greeting).toContain(DEMO_NOT_TOUCHED_REASSURANCE);
-      // The reassurance lands in the first beat of the greeting, not buried.
-      expect(greeting.indexOf(DEMO_NOT_TOUCHED_REASSURANCE)).toBeLessThan(120);
+  it("spoken not-touched reassurance: Sara owns it at the simulation entry; Aspen's demo-site greetings no longer carry it", () => {
+    // Owner decision (2026-11-09 21:00, superseding the same-day
+    // disclaimer-slim greeting pins below): the SPOKEN disclaimer moved
+    // from Aspen to Sara — she is the one standing on the mock-up. The
+    // verification gate's Act 1 greeting KEEPS Aspen's line (deliberate
+    // scoping: the gate speaks before any mock-up is on screen).
+    expect(DEMO_VERIFICATION_GREETING).toContain(DEMO_NOT_TOUCHED_REASSURANCE);
+    expect(DEMO_VERIFICATION_GREETING.indexOf(DEMO_NOT_TOUCHED_REASSURANCE)).toBeLessThan(120);
+    for (const greeting of [SIMULATION_GREETING, DEMO_INVITE_GREETING]) {
+      expect(greeting).not.toContain(DEMO_NOT_TOUCHED_REASSURANCE);
+      expect(greeting).not.toContain("haven't touched your website or your server");
     }
+    // Sara's first in-simulation beat carries the full substance: the
+    // slim sentence's clauses plus the public-pages clause.
+    expect(SIMULATION_RECEPTIONIST_SEGMENT).toContain("THE HONESTY NOTE");
+    expect(SIMULATION_RECEPTIONIST_SEGMENT).toContain("mock-up layered over a copy of your site — we haven't touched your website or your server");
+    expect(SIMULATION_RECEPTIONIST_SEGMENT).toContain("built only from your public pages");
     // Slimmed spoken line (owner's order, 2026-11-09): one sentence, exact
     // pin plus a word-count ceiling so it cannot creep back to a paragraph.
     expect(DEMO_NOT_TOUCHED_REASSURANCE).toBe(
