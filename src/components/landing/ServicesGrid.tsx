@@ -1,4 +1,4 @@
-import { Phone, Users, MapPin, Star, Video, ArrowRight, Check, Megaphone } from "lucide-react";
+import { Phone, Users, MapPin, Star, Video, ArrowRight, Check, Megaphone, Globe, MonitorSmartphone } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -7,7 +7,11 @@ import { Link, useNavigate } from "react-router-dom";
 import { homepageSalesCopy } from "@/data/homepageSalesCopy";
 import { SERVICE_DETAILS } from "@/data/serviceDetails";
 
-const iconById: Record<string, typeof Phone> = { voice: Phone, leads: Users, b2c: Megaphone, search: MapPin, reputation: Star, social: Video };
+const iconById: Record<string, typeof Phone> = { voice: Phone, video: MonitorSmartphone, leads: Users, b2c: Megaphone, search: MapPin, reputation: Star, social: Video, website: Globe };
+
+// Detail-page copy (accordion bullets on the English cards, "Learn more" targets on
+// every card) lives in serviceDetails; localized cards join to it by service id.
+const detailById: Record<string, (typeof SERVICE_DETAILS)[number]> = Object.fromEntries(SERVICE_DETAILS.map((s) => [s.id, s]));
 
 const ServicesGrid = () => {
   const { i18n } = useTranslation();
@@ -55,19 +59,32 @@ const ServicesGrid = () => {
             </article>;
           }) : copy.services.map((service, index) => {
             const Icon = iconById[service.id] || Phone;
-            return <article key={service.id} className="min-w-0 rounded-lg border border-border bg-card p-5 sm:p-6">
-              <div className="flex items-center justify-between gap-3 mb-5">
-                <Icon className="h-12 w-12 text-primary" aria-hidden="true" />
-                <span className="text-sm text-muted-foreground">0{index + 1}</span>
+            const detail = detailById[service.id];
+            return <article key={service.id} className="flex min-w-0 flex-col rounded-lg border border-border bg-card p-5 sm:p-6">
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <Icon className="h-10 w-10 text-primary" aria-hidden="true" />
+                {detail && <Badge variant="outline" className={detail.status === "available" ? "border-primary/40 text-primary" : "border-border text-muted-foreground"}>
+                  {detail.status === "available" ? "Available" : "Pre-order"}
+                </Badge>}
               </div>
-              <p className="text-xs font-medium text-primary mb-2">{service.scope}</p>
-              <h3 className="text-xl font-semibold mb-4">{service.name}</h3>
-              <ul className="space-y-3">
-                {service.benefits.map(benefit => <li key={benefit} className="flex gap-2 text-sm text-muted-foreground leading-relaxed"><Check className="h-4 w-4 shrink-0 text-primary mt-1" />{benefit}</li>)}
-              </ul>
+              {service.problem && <p className="text-lg font-semibold leading-snug">{service.problem}</p>}
+              <p className="mt-4 text-xs font-medium uppercase text-primary">0{index + 1} · {service.name}</p>
+              {service.solution
+                ? <p className="mt-1 text-sm leading-relaxed">{service.solution}</p>
+                : <ul className="mt-2 space-y-3">
+                    {service.benefits.map(benefit => <li key={benefit} className="flex gap-2 text-sm text-muted-foreground leading-relaxed"><Check className="h-4 w-4 shrink-0 text-primary mt-1" />{benefit}</li>)}
+                  </ul>}
+              <p className="mt-2 text-xs font-medium text-primary">{service.scope}</p>
+              {detail && <div className="mt-auto flex flex-wrap gap-2 pt-3">
+                <Button size="sm" className="h-auto min-h-9 whitespace-normal" onClick={() => navigate("/plans")}>
+                  {detail.status === "available" ? "Get started" : "Pre-order"}
+                </Button>
+                <Button size="sm" variant="ghost" asChild><Link to={`/services/${service.id}`}>Learn more <ArrowRight className="ml-1 h-4 w-4" /></Link></Button>
+              </div>}
             </article>;
           })}
         </div>
+        <p className="mt-8 max-w-3xl text-base font-medium leading-relaxed">{copy.servicesClosing}</p>
         <div className="mt-6 border-y border-border py-5">
           <h3 className="text-lg font-semibold">Phone-first? You don’t need a website.</h3>
           <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">Teach your receptionist from business hours, service lists, approved prices and documents. Use your website as optional reference material, not a requirement. Phone answering activates after setup and testing; website and telephone minutes remain separate.</p>
