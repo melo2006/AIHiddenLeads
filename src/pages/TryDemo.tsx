@@ -32,6 +32,7 @@ import DemoIntakePanel, {
   type DemoIntakeReady,
 } from "@/components/landing/DemoIntakePanel";
 import DemoReassuranceStrip from "@/components/landing/DemoReassuranceStrip";
+import TeamSection from "@/components/landing/TeamSection";
 import aspenPortrait from "@/assets/aspen-video-frame-final.webp";
 import { rankAuditExamples, type RankAuditExample } from "@/lib/rankAuditExamples";
 import { loadDemoResume, clearDemoResume, type DemoResume } from "@/lib/demoVerification";
@@ -301,6 +302,11 @@ const TryDemo = () => {
             </ul>
             <p className="mt-3 text-xs text-muted-foreground/80">{t("tryDemo.smsNote")}</p>
           </motion.section>
+
+          {/* Meet the team — compact variant at the pure-JSX seam between
+              Benefits and How-it-works (audit §5): presentational only,
+              touches neither DemoIntakePanel nor the widget mount below. */}
+          <TeamSection compact />
 
           {/* How it works */}
           <section aria-labelledby="demo-how-title" className="mt-8">

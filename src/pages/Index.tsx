@@ -2,6 +2,7 @@ import { useState } from "react";
 import { niches } from "@/data/nicheData";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import HeroSection from "@/components/landing/HeroSection";
+import TeamSection from "@/components/landing/TeamSection";
 import StatsSection from "@/components/landing/StatsSection";
 import AvatarGallerySection from "@/components/landing/AvatarGallerySection";
 import SpokespersonSection from "@/components/landing/SpokespersonSection";
@@ -30,6 +31,9 @@ const Index = () => {
     <div className="landing-page min-h-screen bg-background overflow-x-hidden">
       <LandingNavbar />
       <HeroSection niche={selectedNiche} onGetDemo={scrollToDemo} />
+      {/* Meet the team — directly under the hero (Ron's placement call,
+          2026-11-09): a compact trust strip, not a second hero. */}
+      <TeamSection />
       <StatsSection niche={selectedNiche} />
       <AvatarGallerySection />
       <SpokespersonSection />
