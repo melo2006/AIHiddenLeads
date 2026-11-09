@@ -3,6 +3,7 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { LANGUAGE_POLICY, VOICE_DISCONNECT_PLAIN } from '../_shared/voice-config.ts'
 import { openingText } from '../_shared/session-opening.ts'
+import { goAwayReconnectDelayMs, goAwayTimeLeftSeconds, providerResumeAllowed, resumptionHandleFromUpdate, sessionResumptionConfig } from '../_shared/session-resumption.ts'
 import { pcmSeconds, audioCost, validPricing } from '../_shared/voice-usage.ts'
 import { platformAvailability, bookPlatformCall, voiceAvailability } from '../_shared/platform-calendar.ts'
 import { confirmedVisitorContact, CONTACT_READBACK_POLICY } from '../_shared/visitor-followup.ts'
@@ -115,6 +116,16 @@ Deno.serve(async (req) => {
 
   let geminiWs: WebSocket | null = null
   let closed = false
+  // Provider session resumption (see _shared/session-resumption.ts): one
+  // logical Gemini session may span several provider sockets. The latest
+  // resumption handle lives only in this worker's memory for the life of
+  // the browser session — never persisted, never sent to the client.
+  let resumptionHandle: string | null = null
+  let providerConnectHandle: string | null = null
+  let providerReconnects = 0
+  let providerRecoveryActive = false
+  let clientReadySent = false
+  let goAwayTimer: ReturnType<typeof setTimeout> | undefined
   let releaseSocket: (() => void) | undefined
   EdgeRuntime.waitUntil(new Promise<void>(resolve => { releaseSocket = resolve }))
   const pendingActions = new Map<string, { call: {id:string;name:string}; slotStart?:string }>()
@@ -164,7 +175,7 @@ Deno.serve(async (req) => {
     if (closed) return
     closed = true
     releaseSocket?.()
-    clearTimeout(sessionTimer); clearInterval(pacingTimer)
+    clearTimeout(sessionTimer); clearTimeout(goAwayTimer); clearInterval(pacingTimer)
     clearInterval(heartbeat)
     const duration = Math.round((Date.now() - started) / 1000)
     EdgeRuntime.waitUntil((async () => {
@@ -181,6 +192,19 @@ Deno.serve(async (req) => {
     })())
     try { geminiWs?.close() } catch { /* ignore */ }
     try { clientSocket.close() } catch { /* ignore */ }
+  }
+
+  // Resumption is impossible or its budget is exhausted: surface the
+  // drop ONCE with the plain-language line (the numeric code stays in
+  // the message payload and in the DB last_error for diagnosis) and
+  // close cleanly. The client's own bounded reconnect takes it from
+  // there; manual Talk is the final fallback.
+  const failProviderToClient = (code: number) => {
+    if (closed) return
+    if (clientSocket.readyState === WebSocket.OPEN) {
+      clientSocket.send(JSON.stringify({ type: 'closed', reason: VOICE_DISCONNECT_PLAIN, code }))
+    }
+    closeAll()
   }
 
   let lastCallerSpeech = Date.now(), wrapupSent = false, pacingTimer: number | undefined
@@ -234,13 +258,48 @@ Deno.serve(async (req) => {
       }
     }, 5000)
     sessionTimer = setTimeout(() => { endReason='time_limit'; if (clientSocket.readyState === WebSocket.OPEN) clientSocket.send(JSON.stringify({ type: 'closed', reason: 'Voice time limit reached' })); closeAll() }, preview ? Math.min(session.max_seconds, 30) * 1000 : session.max_seconds * 1000)
-    geminiWs = new WebSocket(`${GEMINI_WS}?key=${apiKey}`)
-
-    geminiWs.onopen = () => {
+    // Provider connection management with session resumption. The first
+    // connect presents no handle; a reconnect (goAway warning, or the
+    // provider closing its socket, e.g. code 1007) presents the latest
+    // stored handle and the SAME session continues with its context
+    // intact — the browser socket never closes, so the visitor notices
+    // nothing. Persona segment sessions authorize through this same
+    // proxy (a segment is its own browser session), so they get the
+    // same resumption handling on their provider socket.
+    const startProviderReconnect = (why: string) => {
+      if (closed || providerRecoveryActive) return
+      if (!providerResumeAllowed(resumptionHandle, providerReconnects)) { failProviderToClient(closeCode); return }
+      providerRecoveryActive = true
+      providerReconnects += 1
+      console.info('voice provider resumption attempt', JSON.stringify({ why, attempt: providerReconnects, sessionId: session.id }))
+      const old = geminiWs
+      if (old && old.readyState !== WebSocket.CLOSED) {
+        // Detach first: the old socket's close must not re-enter the
+        // recovery path (the new socket's handlers also guard on
+        // socket identity).
+        old.onopen = () => {}
+        old.onmessage = () => {}
+        old.onerror = () => {}
+        old.onclose = () => {}
+        try { old.close() } catch { /* ignore */ }
+      }
+      connectProvider(resumptionHandle)
+    }
+    const connectProvider = (handle: string | null) => {
+      providerConnectHandle = handle
+      setupDone = false
+      geminiWs = new WebSocket(`${GEMINI_WS}?key=${apiKey}`)
+      installProviderHandlers()
+    }
+    const installProviderHandlers = () => {
+      const ws = geminiWs
+      if (!ws) return
+      ws.onopen = () => {
       if (!geminiWs || geminiWs.readyState !== WebSocket.OPEN) return
       // First message must be the setup
       geminiWs.send(JSON.stringify({
         setup: {
+          sessionResumption: sessionResumptionConfig(providerConnectHandle),
           model: `models/${model}`,
           generationConfig: {
             responseModalities: ['AUDIO'],
@@ -275,8 +334,8 @@ Deno.serve(async (req) => {
       }))
     }
 
-    geminiWs.onmessage = async (event) => {
-      if (closed || clientSocket.readyState !== WebSocket.OPEN) return
+      ws.onmessage = async (event) => {
+      if (geminiWs !== ws || closed || clientSocket.readyState !== WebSocket.OPEN) return
       try {
         // Gemini Live sends binary frames — normalize to text first
         let raw: string
@@ -293,12 +352,46 @@ Deno.serve(async (req) => {
           providerReports.push({ received_at: new Date().toISOString(), metadata: msg.usageMetadata })
         }
 
+        if (msg.sessionResumptionUpdate) {
+          // Store the latest handle; a later reconnect presents it in
+          // its setup and the session continues with context intact.
+          resumptionHandle = resumptionHandleFromUpdate(resumptionHandle, msg.sessionResumptionUpdate).handle
+          return
+        }
+
+        if (msg.goAway) {
+          // The provider ends this connection soon (its per-connection
+          // lifetime cap). Reconnect with the stored handle BEFORE the
+          // deadline so the session never actually drops. Without a
+          // handle there is nothing to resume with — the close path
+          // below handles that case.
+          const seconds = goAwayTimeLeftSeconds(msg.goAway)
+          console.info('voice provider goAway', JSON.stringify({ timeLeftSeconds: seconds, sessionId: session.id }))
+          if (resumptionHandle && !closed) {
+            clearTimeout(goAwayTimer)
+            goAwayTimer = setTimeout(() => { if (!closed) startProviderReconnect('goaway') }, goAwayReconnectDelayMs(seconds))
+          }
+          return
+        }
+
         if (msg.setupComplete) {
+          clearInterval(heartbeat)
           heartbeat = setInterval(() => { if (!closed) EdgeRuntime.waitUntil(persistUsage()) }, 10000)
           EdgeRuntime.waitUntil(persistUsage())
-          clientSocket.send(JSON.stringify({ type: 'ready' }))
           setupDone = true
-          if (begun) sendOpening()
+          // A resumed connection continues the SAME conversation: the
+          // client already went live on the first connection, so no
+          // second 'ready' and no repeated opening — the context is
+          // intact server-side. A successful resumption also resets
+          // the consecutive-failure budget.
+          const wasRecovery = providerRecoveryActive
+          providerRecoveryActive = false
+          if (wasRecovery) providerReconnects = 0
+          if (!clientReadySent) {
+            clientReadySent = true
+            clientSocket.send(JSON.stringify({ type: 'ready' }))
+            if (begun) sendOpening()
+          }
           return
         }
 
@@ -386,21 +479,30 @@ Deno.serve(async (req) => {
       }
     }
 
-    geminiWs.onerror = (e) => {
-      console.error('gemini ws error:', e)
-      if (clientSocket.readyState === WebSocket.OPEN) {
-        clientSocket.send(JSON.stringify({ type: 'error', message: 'Connection to Gemini failed' }))
+      ws.onerror = (e) => {
+        if (geminiWs !== ws) return
+        // An error is always followed by a close; recovery (transparent
+        // resumption, or the plain-language drop line once resumption is
+        // impossible) is decided in onclose, which carries the close
+        // code. Tearing down here would defeat resumption.
+        console.error('gemini ws error:', e)
       }
-      closeAll()
-    }
 
-    geminiWs.onclose = (e) => {
-      if (!closed) {endReason='provider_closed';closeCode=e.code;console.info('voice provider closed',JSON.stringify({code:e.code,clean:e.wasClean,sessionId:session.id}));}
-      if (!closed && clientSocket.readyState === WebSocket.OPEN) {
-        clientSocket.send(JSON.stringify({ type: 'closed', reason: VOICE_DISCONNECT_PLAIN, code:e.code }))
+      ws.onclose = (e) => {
+        if (geminiWs !== ws) return
+        if (!closed) { endReason = 'provider_closed'; closeCode = e.code; console.info('voice provider closed', JSON.stringify({ code: e.code, clean: e.wasClean, sessionId: session.id })) }
+        if (closed) return
+        // Transparent resumption: reconnect with the stored handle and
+        // keep relaying — the client is told nothing. A recovery socket
+        // that dies before completing setup lands back here and either
+        // retries (bounded by MAX_PROVIDER_RESUMPTION_RECONNECTS) or
+        // falls through to the plain-language drop line.
+        providerRecoveryActive = false
+        if (providerResumeAllowed(resumptionHandle, providerReconnects)) { startProviderReconnect('provider_closed'); return }
+        failProviderToClient(e.code)
       }
-      closeAll()
     }
+    connectProvider(null)
   }
 
   // Client → Gemini: audio chunks and control messages
