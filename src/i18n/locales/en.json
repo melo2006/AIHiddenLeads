@@ -153,7 +153,7 @@
     }
   },
   "pricing": {
-    "badge": "Launch Special — Setup Fee Waived Through Nov 30",
+    "badge": "50% OFF — ENDS THIS MONTH: Setup Fee Waived",
     "title": "Choose your next",
     "titleAccent": "growth advantage.",
     "sub": "Premium $99 · Professional $199 · Platinum $349 per month. Website voice allowances and optional video are separate from telephone usage.",
@@ -161,10 +161,10 @@
     "launchPrice": "Launch price",
     "setup": "Setup:",
     "free": "FREE",
-    "setupPromo": "(waived through Nov 30)",
+    "setupPromo": "(waived during the promotion)",
     "webMinutes": "browser voice minutes/mo",
     "perMinSuffix": "/min equivalent",
-    "promoMinutes": "Launch promo: normally {{n}} min — doubled FREE",
+    "promoMinutes": "Promotion: {{n}} min included FREE for your first 3 months",
     "mostPopular": "Most Popular",
     "essentials": {
       "name": "Premium",
