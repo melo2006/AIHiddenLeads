@@ -33,6 +33,8 @@ import { PlaybackCaptions, type PlaybackCaption as Caption } from '@/lib/playbac
 import { displayNumbers } from '@/lib/displayNumbers';
 import PlaybackCaption from '@/components/PlaybackCaption';
 import { voiceSessionHeaders } from '@/lib/voiceSessionAuth';
+import { shouldShowMicHint } from '@/lib/micAudibility';
+import { createMediaSink, mediaPlaybackNode, type MediaSink } from '@/lib/mediaSink';
 
 const MICROPHONE_DENIED = "Microphone permission was denied — allow it in your browser and try again.";
 /** On-screen only: replaces the mic-denied error when the widget runs inside an embedded preview frame, where the parent frame withholds the microphone and the browser can never show a permission prompt — there is nothing for the visitor to "allow" there. */
@@ -219,6 +221,30 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const signInAction = limitReached && error ? <a href={`/account?next=${encodeURIComponent(window.location.pathname + window.location.search)}`} className="inline-flex w-fit items-center rounded-md border border-primary px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/10">Sign in as administrator to keep testing</a> : null;
   const [endedByVisitor, setEndedByVisitor] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  // "We can't hear you" hint (mic-path hardening, 2026-11-09 forensics:
+  // sessions with ZERO user turns while the visitor believed he was
+  // speaking). Driven by the pure helper in lib/micAudibility.ts.
+  const [showMicHint, setShowMicHint] = useState(false);
+  const showMicHintRef = useRef(false);
+  const micAwaitRef = useRef<number | null>(null);
+  const micGateHeardRef = useRef(0);
+  const micTranscriptRef = useRef(0);
+  const micHintLastRef = useRef(0);
+  const sessionRecoveringRef = useRef(false);
+  // Media-routed playback sink (see lib/mediaSink.ts): the audible
+  // local voice plays through an HTMLAudioElement once it is unlocked,
+  // so the phone's hardware media volume governs it on Android Chrome.
+  const mediaSinkRef = useRef<{ ctx: AudioContext; sink: MediaSink | null } | null>(null);
+  const mediaOutputNode = (ctx: AudioContext): AudioNode => {
+    let entry = mediaSinkRef.current;
+    if (!entry || entry.ctx !== ctx) {
+      entry?.sink?.dispose();
+      entry = { ctx, sink: createMediaSink(ctx) };
+      mediaSinkRef.current = entry;
+    }
+    if (entry.sink && !entry.sink.ready) void entry.sink.play();
+    return mediaPlaybackNode(ctx, entry.sink);
+  };
 
   const wsRef = useRef<WebSocket | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
@@ -283,6 +309,38 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     }, 250);
     return () => window.clearInterval(timer);
   }, [pendingAction]);
+
+  // "We can't hear you" evaluator: once a second, ask the pure helper
+  // whether the visitor has been silently unheard since Aspen's last
+  // completed turn; show the calm hint at most once per cooldown.
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const heardSinceAwait = micAwaitRef.current !== null
+        && (micGateHeardRef.current > micAwaitRef.current || micTranscriptRef.current > micAwaitRef.current);
+      if (heardSinceAwait && showMicHintRef.current) {
+        showMicHintRef.current = false;
+        setShowMicHint(false);
+      }
+      if (!shouldShowMicHint({
+        now: Date.now(),
+        live: liveRef.current && !isPreviewRef.current,
+        handsFree: captureRef.current.mode === "handsfree",
+        muted: captureRef.current.muted,
+        paused: captureRef.current.paused,
+        replaying: captureRef.current.replaying,
+        assistantSpeaking: idleRef.current.generating || sourcesRef.current.size > 0,
+        awaitingSince: micAwaitRef.current,
+        lastGateOpenAt: micGateHeardRef.current,
+        lastUserTranscriptAt: micTranscriptRef.current,
+        lastHintAt: micHintLastRef.current,
+        recoveryActive: sessionRecoveringRef.current || swapBusyRef.current,
+      })) return;
+      micHintLastRef.current = Date.now();
+      showMicHintRef.current = true;
+      setShowMicHint(true);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const refreshMicrophones = useCallback(async (_requestPermission = false) => {
     try {
@@ -450,6 +508,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     avatarLiveRef.current = false;
     try { wsRef.current?.close() } catch { /* ignore */ }
     wsRef.current = null;
+    mediaSinkRef.current?.sink?.dispose();
+    mediaSinkRef.current = null;
+    showMicHintRef.current = false;
+    setShowMicHint(false);
+    micAwaitRef.current = null;
     micStreamRef.current?.getTracks().forEach((t) => t.stop());
     micStreamRef.current = null;
     micCtxRef.current?.close().catch(() => {});
@@ -537,7 +600,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       spkGain.gain.value = speakerMutedRef.current ? 0 : 1;
       speakerGainRef.current = spkGain;
       source.connect(spkGain);
-      spkGain.connect(ctx.destination);
+      // Media-routed output (see lib/mediaSink.ts): through the audio
+      // element once unlocked, so the device's hardware media volume
+      // governs her voice; ctx.destination until the element plays.
+      spkGain.connect(mediaOutputNode(ctx));
     }
 
     const now = ctx.currentTime;
@@ -662,6 +728,32 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const reconnectRef = useRef({ pending: false, count: 0 });
   const startConversationRef = useRef<(preview?: boolean, warm?: boolean) => Promise<void>>(async () => {});
   const activateWarmRef = useRef<() => Promise<void>>(async () => {});
+
+  /** Provider `closed` MESSAGE recovery: when the Gemini provider dies,
+   *  the proxy first tries its own session resumption; only when that is
+   *  impossible does it send {type:'closed', code} and close our socket.
+   *  That message used to end the call with a red "Session ended" error.
+   *  Treat it exactly like the abnormal socket close (1006/1011) path
+   *  below — silent reconnect through the existing machinery (legacy
+   *  resume reconnect, or Stage 1 same-persona drop recovery) — with
+   *  manual Talk as the fallback once the bounded attempts are spent.
+   *  The real socket close that follows is neutralized by the
+   *  generation bump inside teardown. Deliberate server endings
+   *  (quiet period, time limit) carry NO provider code and still end
+   *  the call cleanly in the message switch. */
+  const recoverFromProviderClosed = useCallback((code: number) => {
+    sessionRecoveringRef.current = true;
+    stopEverything();
+    if (swapEnabledRef.current) { dropRecoverRef.current(); return; }
+    if (reconnectRef.current.count < 3) {
+      reconnectRef.current = { pending: true, count: reconnectRef.current.count + 1 };
+      setStatus("Reconnecting…");
+      window.setTimeout(() => { void startConversationRef.current(); }, 400);
+      return;
+    }
+    sessionRecoveringRef.current = false;
+    setError(voiceDisconnectMessage(code, ''));
+  }, [stopEverything]);
   const startConversation = useCallback(async (preview = false, warm = false) => {
     // A silently prepared session only needs the tap's audio/microphone unlock.
     if (!preview && !warm && warmRef.current) { await activateWarmRef.current(); return; }
@@ -679,6 +771,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     clearPlayback();
     const generation = ++generationRef.current;
     captureRef.current = { mode: captureMode, held: false, muted: false, replaying: false, paused: false };
+    micAwaitRef.current = null;
+    micGateHeardRef.current = 0;
+    micTranscriptRef.current = 0;
+    micHintLastRef.current = 0;
     setHeld(false);
     setMuted(false);
     setPaused(false);
@@ -713,6 +809,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       // Unlock audio while still inside the user's click, before permissions/network awaits.
       const playCtx = preview && previewAudioContext?.state !== 'closed' && previewAudioContext ? previewAudioContext : new AudioContext();
       playCtxRef.current = playCtx;
+      // Prime the media-routed playback sink while the tap's user
+      // activation is fresh, so her voice can play through the audio
+      // element (hardware media volume) from the first chunk.
+      mediaOutputNode(playCtx);
       playTimeRef.current = 0;
       const playResume = warm ? Promise.resolve() : playCtx.resume();
       const micCtx = preview || warm ? null : new AudioContext({ sampleRate: 16000 });
@@ -828,6 +928,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       const goLive = () => {
         if (generation !== generationRef.current) return;
         liveRef.current = true;
+        sessionRecoveringRef.current = false;
         // Arm the opening mic gate: silence frames until her first turn completes.
         openingGateRef.current = true;
         openingGateSinceRef.current = performance.now();
@@ -855,6 +956,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           if (capture.paused) return;
           if (!shouldSendMicrophone(capture.mode, capture.held, capture.muted, capture.replaying)) return;
           const gate = microphoneGate(rms, noiseFilterRef.current, performance.now(), gateOpenUntil);
+          if (gate.open) micGateHeardRef.current = Date.now();
           if (gate.open && sourcesRef.current.size === 0 && !idleRef.current.generating) {
             idleRef.current.stage = 'waiting';
             idleRef.current.quietSince = Date.now();
@@ -914,6 +1016,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             break;
           case "audio":
             idleRef.current.generating = true;
+            micAwaitRef.current = null;
             if (handoffRef.current) break;
             // Keep the last response locally, never request a new model generation to replay.
             if (currentAudioRef.current.length < 6000) currentAudioRef.current.push(msg.data as string);
@@ -938,6 +1041,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             }
             break;
           case "user_transcript":
+            micTranscriptRef.current = Date.now();
+            micAwaitRef.current = null;
             walkthroughRef.current.continued = false;
             idleRef.current.stage = 'waiting';
             idleRef.current.quietSince = Date.now();
@@ -952,6 +1057,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           case "turn_complete": {
             // Her opening turn just finished: the mic gate lifts (turn-based).
             openingGateRef.current = false;
+            micAwaitRef.current = Date.now();
             lastCaptionRef.current = aspenLineRef.current;
             captionClockRef.current.complete();
             walkthroughRef.current.text = aspenLineRef.current;
@@ -996,12 +1102,18 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             setError(String(msg.message || "Voice service error"));
             stopEverything();
             break;
-          case "closed":
+          case "closed": {
             if (liveRef.current) {
+              // A provider code means the provider died (and the
+              // proxy's own resumption already failed): recover like a
+              // 1006/1011 socket drop. No code = a deliberate server
+              // ending (quiet period / time limit), ending cleanly.
+              if (typeof msg.code === "number") { recoverFromProviderClosed(msg.code); break; }
               stopEverything();
               setError(`Session ended: ${msg.reason || "unknown"}`);
             }
             break;
+          }
         }
       };
 
@@ -1058,7 +1170,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       if (generation === generationRef.current) startingRef.current = false;
       window.clearTimeout(startupTimeout);
     }
-  }, [voice, microphone, captureMode, refreshMicrophones, playPcmChunk, clearPlayback, flushLine, stopEverything, agentId, leadId, prospectId, draft, previewVoice, previewAudioContext, visitorName, consent, testModel, shareToken, onRecommendedPlan, videoAvatar, startFace]);
+  }, [voice, microphone, captureMode, refreshMicrophones, playPcmChunk, clearPlayback, flushLine, stopEverything, agentId, leadId, prospectId, draft, previewVoice, previewAudioContext, visitorName, consent, testModel, shareToken, onRecommendedPlan, videoAvatar, startFace, recoverFromProviderClosed]);
 
   startConversationRef.current = startConversation;
   useEffect(() => stopEverything, [stopEverything]);
@@ -1088,6 +1200,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     const goLiveSegment = () => {
       if (generation !== generationRef.current) return;
       liveRef.current = true;
+      sessionRecoveringRef.current = false;
       openingGateRef.current = true;
       openingGateSinceRef.current = performance.now();
       setPhase("live");
@@ -1109,6 +1222,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         if (capture.paused) return;
         if (!shouldSendMicrophone(capture.mode, capture.held, capture.muted, capture.replaying)) return;
         const gate = microphoneGate(rms, noiseFilterRef.current, performance.now(), gateOpenUntil);
+        if (gate.open) micGateHeardRef.current = Date.now();
         if (gate.open && sourcesRef.current.size === 0 && !idleRef.current.generating) {
           idleRef.current.stage = 'waiting';
           idleRef.current.quietSince = Date.now();
@@ -1157,6 +1271,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           break;
         case "audio":
           idleRef.current.generating = true;
+          micAwaitRef.current = null;
           if (handoffRef.current) break;
           if (currentAudioRef.current.length < 6000) currentAudioRef.current.push(msg.data as string);
           if (!captureRef.current.paused) playPcmChunk(msg.data as string);
@@ -1178,6 +1293,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           break;
         }
         case "user_transcript":
+          micTranscriptRef.current = Date.now();
+          micAwaitRef.current = null;
           walkthroughRef.current.continued = false;
           idleRef.current.stage = 'waiting';
           idleRef.current.quietSince = Date.now();
@@ -1189,6 +1306,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           break;
         case "turn_complete": {
           openingGateRef.current = false;
+          micAwaitRef.current = Date.now();
           lastCaptionRef.current = aspenLineRef.current;
           captionClockRef.current.complete();
           walkthroughRef.current.text = aspenLineRef.current;
@@ -1217,12 +1335,14 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           setError(String(msg.message || "Voice service error"));
           stopEverything();
           break;
-        case "closed":
+        case "closed": {
           if (liveRef.current) {
+            if (typeof msg.code === "number") { recoverFromProviderClosed(msg.code); break; }
             stopEverything();
             setError(`Session ended: ${msg.reason || "unknown"}`);
           }
           break;
+        }
       }
     };
     ws.onerror = () => {
@@ -1248,7 +1368,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         setStatus("Conversation ended. Press Start to begin again.");
       }
     };
-  }, [agentId, captureMode, clearPlayback, flushLine, onRecommendedPlan, playPcmChunk, stopEverything]);
+  }, [agentId, captureMode, clearPlayback, flushLine, onRecommendedPlan, playPcmChunk, stopEverything, recoverFromProviderClosed]);
 
   /** ATOMIC CUT-OVER (spec §5.4/§6.2 corrected order): the gate decides
    * BEFORE anything visible changes; then the old face freezes (its last
@@ -1713,12 +1833,21 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           </Button>
         </div>
 
-        {phase === "live" && (!faceFirst || captions) && (
+        {phase === "live" && (
           <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
             <span>Mic</span>
             <meter min="0" max="100" value={micLevel} aria-label="Microphone level" className="h-2 w-16" />
             <span>{micLevel > 3 ? "Sound" : "Quiet"}</span>
           </div>
+        )}
+        {showMicHint && phase === "live" && (
+          <div role="status" className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/60 p-2 text-[11px] text-foreground">
+            <span>I can’t hear you — your microphone may be muted or set to the wrong one.</span>
+            <Button size="sm" variant="outline" className="h-7 text-[11px]" onClick={() => setShowSettings(true)}>Check microphone</Button>
+          </div>
+        )}
+        {phase === "live" && captureMode === "hold" && (
+          <p role="status" className="w-fit rounded-full border border-border bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-foreground">Hold to talk is ON — hold the button while you speak</p>
         )}
         {audioNeedsTap && <p role="status" className="text-[11px] text-muted-foreground">{AUDIO_TAP_NEEDED}</p>}
         {error && (micFailureKind === "mic-denied-embedded" ? <EmbeddedMicrophoneNotice compact /> : <p className="text-[11px] font-semibold text-destructive">{error}</p>)}
@@ -1762,6 +1891,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
                   <SelectItem value="hold">Noisy place — hold to talk</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+              <span>Mic level</span>
+              <meter min="0" max="100" value={micLevel} aria-label="Microphone level" className="h-2 w-24" />
+              <span>{micLevel > 3 ? "Sound — your voice is registering" : "Quiet — speak and watch this move"}</span>
             </div>
             {draft && (
               <Button variant="outline" size="sm" className="h-8 text-xs" disabled={phase !== "idle"} onClick={() => void startConversation(true)} aria-label="Play selected voice preview" title="Play selected voice preview">
@@ -1908,10 +2042,18 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
               {status}
             </p>
           </div>
+          {showMicHint && phase === "live" && (
+            <div role="status" className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/60 p-2 text-xs text-foreground">
+              <span>I can’t hear you — your microphone may be muted or set to the wrong one. Check the Microphone setting, and watch the level meter just below while you speak — it should move with your voice.</span>
+            </div>
+          )}
           {phase === "live" && <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span>Microphone</span><meter min="0" max="100" value={micLevel} aria-label="Microphone level" className="h-3 w-24" />
             <span>{micLevel > 3 ? "Sound detected" : "Quiet"}</span>
           </div>}
+          {phase === "live" && captureMode === "hold" && (
+            <p role="status" className="w-fit rounded-full border border-border bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-foreground">Hold to talk is ON — hold the button while you speak</p>
+          )}
           {audioNeedsTap && <p role="status" className="text-xs text-muted-foreground">{AUDIO_TAP_NEEDED}</p>}
           {error && (micFailureKind === "mic-denied-embedded" ? <EmbeddedMicrophoneNotice /> : <p className="text-xs text-destructive font-semibold">{error}</p>)}
           {signInAction}
