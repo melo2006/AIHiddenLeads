@@ -25,13 +25,19 @@
 // builders" (GoDaddy/IONOS are NOT named — Ron's pending decision,
 // design §9.1); no prices, no absolutes; cameos are promises in the
 // future tense — the fulfilment happens later, in the real demo.
-// The script ships in the TRIMMED 218-word form (design §3.2 trim lever,
-// applied at build with Ron's standing margin preference): beat 2 without
-// "and handle their questions" / "built from your public pages", beat 4
-// without "of code" and without the "Nothing else on your site changes…"
-// sentence (that truth lives in the wizard greeting and Alex's Q&A
-// material instead). Total ≈ 218 words ≈ 69 s at the measured delivery
-// pace (~190 wpm).
+// The script ships in the TRIMMED form (design §3.2 trim lever, applied
+// at build with Ron's standing margin preference): beat 2 without
+// "and handle their questions", beat 4 without "of code" and without
+// the "Nothing else on your site changes…" sentence (that truth lives
+// in the wizard greeting and Alex's Q&A material instead).
+// REWORK (owner, 2026-11-09 evening — team-intro-rework delta c): the
+// §3.2 trim had cut "built from your public pages" out of Sara's cameo;
+// the owner's merge order restores the FULL honesty clauses to her
+// line — we have NOT touched your website / public pages only / your
+// server is untouched — so beat 2 runs ≈ 86 words and the whole show
+// ≈ 227 words ≈ 72 s, still inside the design's 243-word ceiling.
+
+import { DEMO_NOT_TOUCHED_REASSURANCE } from './voice-config.ts';
 
 /** The scripted anchor phrases for the intro boundaries (also exported
  *  from session-opening.ts BOUNDARY_ANCHORS — the matcher table lives
@@ -70,8 +76,10 @@ export function teamIntroGreetingFor(greetingText: string): string {
 /** Beat 1 — Aspen (parent session), bridge to Sara. Anchor: "meet Sara" → intro-sara. */
 export const TEAM_INTRO_BEAT_BRIDGE_SARA = `And you're not dealing with one bot, either. Before you try it, let me introduce you to the team — first, meet Sara.`;
 /** Beat 2 — Sara (segment). Anchor: "Back to Aspen" → intro-return-1.
- *  Carries the full mock-up honesty sentence (design §5.2), trimmed form. */
-export const TEAM_INTRO_BEAT_SARA = `Hi, I'm Sara — I'll be your receptionist in the demo. Put your website address and your name in the form beside me, and I'll step onto a mock-up of your site and show you how I'd greet your visitors. Nothing is changed on your real website and nothing is installed on it — it's a simulation, a copy with me layered over it. Back to Aspen now.`;
+ *  Carries the FULL mock-up honesty clauses (design §5.2 + rework delta
+ *  c, owner order 2026-11-09): not touched / public pages only / server
+ *  untouched / nothing changed or installed. */
+export const TEAM_INTRO_BEAT_SARA = `Hi, I'm Sara — I'll be your receptionist in the demo. Put your website address and your name in the form beside me, and I'll step onto a mock-up of your site and show you how I'd greet your visitors. First, plainly: we have not touched your website. This is a simulation — a copy with me layered over it, built only from your public pages — and your server is untouched: nothing is changed on your real website, and nothing is installed on it. Back to Aspen now.`;
 /** Beat 3 — Aspen (host segment), bridge to Alex. Anchor: "this is Alex" → intro-alex. */
 export const TEAM_INTRO_BEAT_BRIDGE_ALEX = `Thanks, Sara. And once you're all set up, you're still not on your own — this is Alex.`;
 /** Beat 4 — Alex (segment). Anchor: "Back to Aspen" → intro-return-2. */
@@ -84,7 +92,7 @@ export const TEAM_INTRO_BEAT_RETURN = `So that's the team: Sara runs your demo, 
  *  Aspen speaks the colleague's line AS A DESCRIPTION in her own voice
  *  and carries on — no error, no spinner, no apology. Each cameo
  *  degrades independently; the other can still appear. */
-export const TEAM_INTRO_FALLBACK_SARA = `Sara's the one who'll run your demo when you're ready — she steps onto a mock-up of your site and shows you how she'd handle your visitors, and nothing on your real site is ever changed.`;
+export const TEAM_INTRO_FALLBACK_SARA = `Sara's the one who'll run your demo when you're ready — she steps onto a mock-up of your site and shows you how she'd handle your visitors, and nothing on your real site or your server is ever changed or touched.`;
 export const TEAM_INTRO_FALLBACK_ALEX = `And the moment you choose a plan, our support specialist Alex walks you through setup personally — 6 short steps, about 10 to 15 minutes, and he stays with you while the one small snippet goes onto your website, or walks your tech person through it just as easily.`;
 
 // ---------------------------------------------------------------------
@@ -106,7 +114,7 @@ YIELD RULES — THE SHOW NEVER TRAPS A BUYER: If the visitor speaks over a bridg
 // ---------------------------------------------------------------------
 export const SARA_CAMEO_PROMPT = `You are Sara, the demo receptionist at AI Hidden Leads, making a short guest appearance at the start of a visitor's demo-page visit. Aspen, the host, has just introduced you by name. Speak your cameo now, in these words or very close to them: "${TEAM_INTRO_BEAT_SARA}"
 RULES FOR THIS APPEARANCE:
-- The mock-up honesty is mandatory and full: nothing is changed on their real website and nothing is installed on it; it is a simulation — a copy with you layered over it. Never shorten that into a gesture or skip it.
+- The mock-up honesty is mandatory and full: we have not touched their website; it is a simulation — a copy with you layered over it, built only from their public pages; their server is untouched, nothing is changed on their real website and nothing is installed on it. Never shorten that into a gesture or skip it.
 - You are NOT the visitor's business's assistant in this appearance: no business has been scanned yet. Never speak as if one has, never greet as their business, and never invent anything about their business.
 - You collect NOTHING here: no name, no email, no website address is asked for by you — the form beside you does the capturing. You only PREVIEW the ask, as your cameo line does. If the visitor volunteers their website address out loud, thank them, point them at the form (it does the capturing), and hand back to Aspen.
 - This is a promise, not a performance: you do not start or simulate any demo here. Your tense is "when you try it" — the real demonstration happens later, after the form.
@@ -162,3 +170,67 @@ export const TEAM_INTRO_CALLBACK_DOORWAY = `CALLBACK — THIS VISITOR ALREADY ME
 /** Appended to the CLOSE segment build when teamIntroSeen: the MEET
  *  ALEX beat gains the Alex callback clause. */
 export const TEAM_INTRO_CALLBACK_CLOSE = `CALLBACK — THIS VISITOR ALREADY MET ALEX: On the demo page, before this demo, Alex introduced himself as the support specialist who will walk them through setup. In the MEET ALEX beat (4b), frame the introduction as a return, in these words or very close to them: "You met him briefly on the demo page — here's Alex again, the one who will walk you through setup when you're ready." Then continue the beat as written.`;
+
+// ---------------------------------------------------------------------
+// DEMO-SITE INTRODUCTION BEAT (rework delta a — owner, 2026-11-09
+// evening). The owner tested an INVITE demo (/demo-site) and Aspen ran
+// the whole opening herself; he expected her to introduce the team and
+// hand the walkthrough to Sara at the START of the demo screen. The
+// /demo explainer cameo chain above cannot serve that moment (invite
+// visitors never see /demo), so the simulation's own opening gains ONE
+// introduction beat: in Aspen's greeting, immediately AFTER the
+// not-touched reassurance (position 2 of the greeting — see the
+// disclaimer-slim greeting sequence map), she introduces Sara by name
+// and role as the walkthrough's receptionist and name-drops Alex for
+// the close. The EXISTING doorway swap then hands the walkthrough to
+// Sara: SIMULATION_HOST_SEGMENT beats 1–3 (announcement → expectations
+// → pause) run in the host's first turn after the greeting, and beat 4
+// is Sara in role — the handoff already fires at walkthrough start;
+// this beat is what makes the visitor KNOW it is Sara arriving.
+// Deliberately NOT the full cameo chain: no extra segments, no new
+// boundaries, SIMULATION_PROMPT untouched. Applied at assembly time in
+// gemini-session ONLY when the team-intro flag family is on (the same
+// teamIntroEnabled() gate as the /demo stamp) and NEVER on the
+// verification-pending greeting (the gate owns that opening; the
+// simulation greeting that follows a completed verification is a
+// fresh parent authorization and earns the beat normally).
+// ---------------------------------------------------------------------
+/** The beat itself, spoken by Aspen inside the simulation greeting,
+ *  in these words or very close to them. Written against the SHORTENED
+ *  reassurance (disclaimer-slim, 23 words) but anchored so it lands
+ *  after either reassurance form (see the anchors below). */
+export const SIMULATION_TEAM_INTRO_BEAT = `Before we go in, meet Sara — she'll walk you through your site, playing your own receptionist, so you can hear how she greets your visitors and handles their questions. And at the end you'll meet Alex, our support specialist.`;
+
+/** The slimmed reassurance (disclaimer-slim branch, 2026-11-09) — a
+ *  second insertion anchor so the beat lands after the reassurance
+ *  whether the stored snapshot already carries the slim text or still
+ *  carries the long form it replaces. Keep in step with
+ *  DEMO_NOT_TOUCHED_REASSURANCE on that branch. */
+export const DEMO_NOT_TOUCHED_REASSURANCE_SLIM = 'Before we start: this is a mock-up layered over a copy of your site — we haven\'t touched your website or your server.';
+
+/** Fallback anchor: the explanation sentence that follows the
+ *  reassurance in SIMULATION_GREETING (code and snapshot alike). */
+const SIMULATION_EXPLANATION_ANCHOR = 'Here is exactly what this is:';
+
+/**
+ * Insert SIMULATION_TEAM_INTRO_BEAT into a simulation greeting,
+ * immediately after the not-touched reassurance. Anchor order:
+ * (1) the current DEMO_NOT_TOUCHED_REASSURANCE constant, (2) the
+ * slimmed reassurance, (3) immediately before the "Here is exactly
+ * what this is:" explanation. Identity when the beat is already
+ * present or no anchor matches (a greeting shape this beat was not
+ * written for is left exactly as served).
+ */
+export function withSimulationTeamIntro(greetingText: string): string {
+  if (!greetingText || greetingText.includes(SIMULATION_TEAM_INTRO_BEAT)) return greetingText;
+  for (const anchor of [DEMO_NOT_TOUCHED_REASSURANCE, DEMO_NOT_TOUCHED_REASSURANCE_SLIM]) {
+    const at = greetingText.indexOf(anchor);
+    if (at >= 0) {
+      const end = at + anchor.length;
+      return `${greetingText.slice(0, end)} ${SIMULATION_TEAM_INTRO_BEAT}${greetingText.slice(end)}`;
+    }
+  }
+  const at = greetingText.indexOf(SIMULATION_EXPLANATION_ANCHOR);
+  if (at >= 0) return `${greetingText.slice(0, at)}${SIMULATION_TEAM_INTRO_BEAT} ${greetingText.slice(at)}`;
+  return greetingText;
+}

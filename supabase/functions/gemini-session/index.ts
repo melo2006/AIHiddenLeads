@@ -11,7 +11,7 @@ import { resolveDemoShare } from '../_shared/demo-share.ts';
 import { DEMO_INVITE_GREETING, DEMO_INVITE_OPENING, DEMO_VERIFICATION_ACT1, DEMO_VERIFICATION_GREETING } from '../_shared/demo-sales.ts';
 import { alexGuideConfig, alexDemoGuestConfig } from '../_shared/alex-guide.ts';
 import { avatarSwapEnabled, teamIntroEnabled, personaFor, personaSegmentPrompt } from '../_shared/personas.ts';
-import { TEAM_INTRO_TEACHING, isIntroBoundary, teamIntroGreetingFor } from '../_shared/team-intro.ts';
+import { TEAM_INTRO_TEACHING, SIMULATION_TEAM_INTRO_BEAT, isIntroBoundary, teamIntroGreetingFor, withSimulationTeamIntro } from '../_shared/team-intro.ts';
 import { PUBLIC_PATHS } from '../_shared/report-context.ts';
 import { normalizeUiLocale, startingLanguageForUiLocale } from '../_shared/conversation-language.ts';
 const personaSegmentSchema=z.object({persona:z.enum(['aspen','sara','alex']),boundary:z.enum(['doorway','stepout','meet-alex','return','intro-sara','intro-return-1','intro-alex','intro-return-2']),parentSessionId:z.string().uuid(),swapRecap:z.string().max(2400),drops:z.number().int().min(0).max(99).default(0),dropRecovery:z.boolean().default(false),swap:z.boolean().default(false),teamIntroSeen:z.boolean().default(false)});
@@ -166,6 +166,24 @@ Deno.serve(async req=>{
     // the code gate. Honored ONLY when the demo-invite resolve stamped the
     // lead's arrival server-side — a client flag alone never earns it.
     else if(b.invite===true && leadInviteArrivedAt) { config.greeting=DEMO_INVITE_GREETING; config.systemPrompt=`${DEMO_INVITE_OPENING}\n\n${String(config.systemPrompt)}`; config.inviteArrival=true; }
+    // DEMO-SITE TEAM INTRODUCTION BEAT (rework delta a — owner,
+    // 2026-11-09): on the demo screen itself (this branch — public
+    // /demo-site AND invite arrivals alike), Aspen's opening introduces
+    // Sara by name and role right after the not-touched reassurance,
+    // with a one-line Alex name-drop for the close; the existing
+    // doorway swap then hands the walkthrough to Sara at its start.
+    // Gated by the SAME flag family as the /demo cameo stamp
+    // (teamIntroOn = AVATAR_SWAP_ENABLED + TEAM_INTRO_ENABLED), so it
+    // dark-launches with the cameo and is byte-absent when the flags
+    // are off. NEVER on the verification-pending greeting: the code
+    // gate owns that opening, and the beat belongs to the simulation
+    // entry itself. The insertion is anchor-based (team-intro.ts), so
+    // it lands after the reassurance in the code greeting, the invite
+    // greeting, and the stored snapshot greeting alike.
+    if(teamIntroOn && b.verification!=='pending') {
+      config.greeting=withSimulationTeamIntro(String(config.greeting || ''));
+      if(String(config.greeting).includes(SIMULATION_TEAM_INTRO_BEAT)) config.simulationTeamIntro=true;
+    }
   } else {
     let query=db.from('voice_agents').select('*'); query=b.agentId?query.eq('id',b.agentId):query.eq('slug','aspen-homepage');
     const {data:agent}=await query.maybeSingle(); if(!agent?.published) return json({error:'Voice agent is not published yet'},409);
