@@ -29,7 +29,7 @@ import { classifyMicrophoneFailure, isEmbeddedContext } from "@/lib/embeddedCont
 import {campaignVisit, trackCampaignEvent} from '@/lib/campaignTracking';
 import { salesPlans, type SalesPlan } from '@/lib/salesActions';
 import SimliAvatar, { SOUND_BLOCKED, isVideoStartFailure, type SimliAvatarHandle } from '@/components/SimliAvatar';
-import { boundaryForAssistantLine, buildSwapRecap, chainIsMidSegment, chainStashTarget, cutoverAudioSync, cutoverReady, dropApologyVariant, INITIAL_SWAP_STATE, introYieldOnVisitorLine, noteAlexIntent, otherFaceSlot, PHASE_AFTER_BOUNDARY, PHASE_ENTRY, reconnectTarget, SWAP_CROSSFADE_MS, swapRecapFacts, visitorSignalsStepOut, type ChainStash, type FaceSlot, type PersonaBoundary, type PersonaId, type SwapPhase, type SwapState } from '@/lib/personaSwap';
+import { boundaryForAssistantLine, buildSwapRecap, chainIsMidSegment, chainStashTarget, cutoverAudioSync, cutoverReady, dropApologyVariant, INITIAL_SWAP_STATE, introYieldOnVisitorLine, noteAlexIntent, noteDoorwayEngagement, otherFaceSlot, PHASE_AFTER_BOUNDARY, PHASE_ENTRY, reconnectTarget, SWAP_CROSSFADE_MS, swapRecapFacts, visitorSignalsStepOut, type ChainStash, type FaceSlot, type PersonaBoundary, type PersonaId, type SwapPhase, type SwapState } from '@/lib/personaSwap';
 import { PERSONAS, SARA_FACE_ID } from '../../supabase/functions/_shared/personas';
 import { ALEX_FACE_ID } from '../../supabase/functions/_shared/alex-guide';
 import type { VideoAvatar } from '../../supabase/functions/_shared/video-avatar';
@@ -181,6 +181,21 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   /** Team intro: a true barge-in landed during a bridge beat; the latch
    *  is applied when the interrupted turn completes (design §3.3). */
   const introYieldWasBargeInRef = useRef(false);
+  /** Swap chain class (hardening, 2026-11-09): how the LIVE chain was
+   *  armed — 'simulation' for a business-demo parent (leadId/prospectId
+   *  authorization), 'intro' for the /demo explainer parent, null when
+   *  no chain is armed. The structural doorway trigger
+   *  (noteDoorwayEngagement) folds ONLY for the simulation class: the
+   *  explainer chain starts in phase 'intro', never 'host', and a
+   *  homepage session carries no chain at all — so neither can ever
+   *  set pendingDoorway. Set at both arming sites, cleared at teardown. */
+  const swapChainClassRef = useRef<'simulation' | 'intro' | null>(null);
+  /** Completed assistant turns on the live socket (any persona). The
+   *  structural doorway's "greeting turn has completed" input: the
+   *  first turn_complete of a simulation chain IS the host's greeting /
+   *  opening. Incremented by both sockets' turn_complete handlers,
+   *  reset whenever a socket (re)connects. */
+  const assistantTurnsRef = useRef(0);
   // Face slots (owner transition spec): two SimliAvatar instances share
   // the widget's live box. The MAIN slot starts as the standard face;
   // a pre-staged incoming persona mounts CONCEALED in the OTHER slot
@@ -582,6 +597,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     }
     swapEnabledRef.current = false;
     swapStateRef.current = { ...INITIAL_SWAP_STATE };
+    swapChainClassRef.current = null;
+    assistantTurnsRef.current = 0;
     introYieldWasBargeInRef.current = false;
     parentSessionIdRef.current = null;
     preStageRef.current = null;
@@ -706,6 +723,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     // Restore the chain context requestSegment reads (parent, visitor
     // key, business name) BEFORE authorising.
     swapEnabledRef.current = true;
+    swapChainClassRef.current = 'simulation';
     parentSessionIdRef.current = stash.parentSessionId;
     visitorKeyRef.current = stash.visitorKey;
     businessNameRef.current = stash.businessName;
@@ -1183,6 +1201,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       // manages its own chain), and flag-off responses change nothing.
       if (!preview && authorized.personaSwapEnabled === true && (leadId || prospectId)) {
         swapEnabledRef.current = true;
+        swapChainClassRef.current = 'simulation';
         parentSessionIdRef.current = String(authorized.sessionId || '');
         visitorKeyRef.current = visitorKey;
         businessNameRef.current = String(authorized.businessName || '');
@@ -1201,6 +1220,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       // persona-only flavor. Flag-off ⇒ no echo ⇒ nothing changes.
       if (!preview && authorized.teamIntroEnabled === true && !leadId && !prospectId) {
         swapEnabledRef.current = true;
+        swapChainClassRef.current = 'intro';
         parentSessionIdRef.current = String(authorized.sessionId || '');
         visitorKeyRef.current = visitorKey;
         swapStateRef.current = { ...INITIAL_SWAP_STATE, phase: 'intro' };
@@ -1291,6 +1311,9 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         switch (msg.type) {
           case "ready": {
             clearTimeout(readyTimeout);
+            // A fresh socket speaks a fresh greeting: completed-turn
+            // counting for the structural doorway starts over.
+            assistantTurnsRef.current = 0;
             if (warm && warmState) {
               warmState.goLive = goLive; warmState.ok = true; resolveWarm(true);
               if (!warmState.activated) { setStatus("Ready to talk"); onPrewarmedRef.current?.(true); }
@@ -1366,6 +1389,17 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             if (swapEnabledRef.current && liveRef.current) {
               swapStateRef.current = noteAlexIntent(swapStateRef.current, userLineRef.current);
             }
+            // Structural doorway (2026-11-09 hardening): on a
+            // business-demo chain, a visitor line arriving AFTER the
+            // host's greeting turn completed means the simulation is
+            // beginning — noteDoorwayEngagement sets pendingDoorway
+            // and Aspen's next line enters the simulation whatever
+            // words it uses (the anchor is only the earlier net).
+            // Simulation chains only: the explainer chain is class
+            // 'intro' and a homepage session has no chain at all.
+            if (swapEnabledRef.current && liveRef.current && swapChainClassRef.current === 'simulation') {
+              swapStateRef.current = noteDoorwayEngagement(swapStateRef.current, assistantTurnsRef.current > 0);
+            }
             // Team intro bridge yield: a visitor line DURING a bridge
             // beat flags the abandonment; the turn_complete handler
             // applies the latch (design §3.3 rule 2).
@@ -1376,6 +1410,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           case "turn_complete": {
             // Her opening turn just finished: the mic gate lifts (turn-based).
             openingGateRef.current = false;
+            assistantTurnsRef.current += 1;
             micAwaitRef.current = Date.now();
             lastCaptionRef.current = aspenLineRef.current;
             captionClockRef.current.complete();
@@ -1410,6 +1445,14 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
                 // still yields meet-alex via boundaryForAssistantLine
                 // and the swap follows that line.
                 armSwapRef.current('meet-alex');
+              } else if (state.pendingDoorway && state.phase === 'host' && !state.armed.includes('doorway') && !state.done.includes('doorway')) {
+                // Structural doorway late arm — same pattern as
+                // meet-alex above: the visitor engaged after the
+                // greeting, but this line completed without anything
+                // staged (e.g. a one-turn host phase). Arm now; the
+                // flag STAYS set, so her NEXT line still yields
+                // 'doorway' via boundaryForAssistantLine.
+                armSwapRef.current('doorway');
               }
               // Team intro yield (design §3.3 rules 2–3): if the visitor
               // interrupted a BRIDGE beat during this turn, the show is
@@ -1593,6 +1636,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       switch (msg.type) {
         case "ready":
           window.clearTimeout(readyTimeout);
+          assistantTurnsRef.current = 0;
           goLiveSegment();
           break;
         case "recommended_plan": {
@@ -1647,6 +1691,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           if (swapEnabledRef.current && liveRef.current) {
             swapStateRef.current = noteAlexIntent(swapStateRef.current, userLineRef.current);
           }
+          // Structural doorway — same rule as the main socket.
+          if (swapEnabledRef.current && liveRef.current && swapChainClassRef.current === 'simulation') {
+            swapStateRef.current = noteDoorwayEngagement(swapStateRef.current, assistantTurnsRef.current > 0);
+          }
           // Team intro bridge yield — same rule as the main socket.
           if (swapEnabledRef.current && liveRef.current && introYieldOnVisitorLine(swapStateRef.current)) {
             introYieldWasBargeInRef.current = true;
@@ -1654,6 +1702,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           break;
         case "turn_complete": {
           openingGateRef.current = false;
+          assistantTurnsRef.current += 1;
           micAwaitRef.current = Date.now();
           lastCaptionRef.current = aspenLineRef.current;
           captionClockRef.current.complete();
@@ -1678,6 +1727,9 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
               // Visitor-armed meet-alex late arm — same rule as the main
               // socket: arm now, flag stays set for her next line.
               armSwapRef.current('meet-alex');
+            } else if (state.pendingDoorway && state.phase === 'host' && !state.armed.includes('doorway') && !state.done.includes('doorway')) {
+              // Structural doorway late arm — same rule as the main socket.
+              armSwapRef.current('doorway');
             }
             // Team intro yield — same rule as the main socket (design §3.3).
             const after = swapStateRef.current;
@@ -1837,6 +1889,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         segment: swapStateRef.current.segment + 1,
         done: [...swapStateRef.current.done, boundary],
         pendingStepout: false,
+        // Structural doorway intent is consumed by the doorway itself;
+        // every other cut-over leaves the flag untouched (it is only
+        // ever set in phase 'host', which the chain has then left).
+        pendingDoorway: boundary === 'doorway' ? false : swapStateRef.current.pendingDoorway,
         // Visitor-armed Alex intent survives every OTHER cut-over (in
         // particular the step-out out of simulation, after which it
         // fires on Aspen's first close line); meet-alex itself consumes

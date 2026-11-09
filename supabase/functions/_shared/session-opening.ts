@@ -54,7 +54,7 @@ export type { IntroBoundary };
  *  hand-back). Kept loose: the script allows "in these words or very
  *  close to them", so matching is normalized-substring (client-side). */
 export const BOUNDARY_ANCHORS: Record<PersonaBoundary, string[]> = {
-  doorway: ['stepping into simulation mode'],
+  doorway: ['stepping into simulation mode', 'step into simulation', 'stepping into the simulation', 'into simulation mode', 'enter simulation mode', 'entering simulation mode'],
   stepout: ['stepping out of simulation mode', 'hand you back to aspen'],
   'meet-alex': ['this is alex', 'alex — say hello', 'alex - say hello'],
   return: ['bring aspen back'],
