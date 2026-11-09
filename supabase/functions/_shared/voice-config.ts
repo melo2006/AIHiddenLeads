@@ -1,5 +1,5 @@
 export const VOICES = ['Kore','Aoede','Leda','Callirrhoe','Despina','Zephyr','Puck','Charon','Fenrir','Orus','Achernar','Algenib'];
-export const DEMO_NOT_TOUCHED_REASSURANCE = 'Before anything else: we have not touched your website — we only read its public pages, like any visitor, and this demo is a mock-up layered over a copy. Your site and your server are exactly as you left them.';
+export const DEMO_NOT_TOUCHED_REASSURANCE = 'Before we start: this is a mock-up layered over a copy of your site — we haven\'t touched your website or your server.';
 export const SIMULATION_GREETING = '{timeGreeting}, {visitorFirstName}. I am {agentName} from AI Hidden Leads — welcome. ' + DEMO_NOT_TOUCHED_REASSURANCE + ' Here is exactly what this is: I read the public pages of {businessName} the way any visitor would, and built this simulation from them. Nothing was changed on the real website and nothing was installed on it — you are looking at a copy with me layered over it, live. And one comfort before we start: if you decide to make this real, you will not be handed a pile of forms. Our support specialist, Alex, walks you through setup personally, step by step. Now, let us begin.';
 // ---------------------------------------------------------------------------
 // SIMULATION SEGMENTS (avatar swap, Stage 1 — see _shared/personas.ts):

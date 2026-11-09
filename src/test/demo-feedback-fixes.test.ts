@@ -24,21 +24,30 @@ const proxy = read("../../supabase/functions/gemini-live-proxy/index.ts");
 /**
  * Guards for the 2026-11-09 Ron + Dennis live-demo feedback batch:
  * (2) the "we did NOT hack your website" reassurance — visible on every
- *     demo entry surface AND the first spoken beat of every demo greeting;
+ *     demo entry surface AND the first spoken beat of every demo greeting
+ *     (copy slimmed later the same day on the owner's order after his
+ *     Great Gulf phone test — one line visible, one sentence spoken;
+ *     collapse behavior lives in demo-reassurance-strip.test.tsx);
  * (4) the Voice/Type pill: both options fully visible in both states
  *     (opaque pill background, full-strength inactive text);
  * (1) a provider drop must read as a plain-language line, never a raw
  *     provider close code.
  */
 describe("demo feedback fixes (2026-11-09)", () => {
-  it("pins the visible reassurance copy verbatim (Dennis's wording)", () => {
+  it("pins the visible reassurance copy verbatim (slimmed 2026-11-09 on the owner's order; Dennis's meaning kept)", () => {
     expect(en.tryDemo.notTouched).toBe(
-      "Quick reassurance before we start: we have NOT touched your website. We read only what's public on it — the same pages any visitor can see — so Aspen understands what you do. This demo is a mock-up: your site stays exactly as it is, and our assistant is simply layered over a copy. Nothing on your server is changed, accessed or stored — ever.",
+      "Demo mock-up — your website is untouched, nothing on your server is changed.",
     );
+    expect(en.tryDemo.notTouchedShort).toBe("Mock-up — site untouched");
+    // The slimmed line stays a single short line — it can never grow back
+    // into the paragraph that ate the prospect's site on phone screens.
+    expect(en.tryDemo.notTouched.split(" ").length).toBeLessThanOrEqual(14);
     // es / pt-BR are real translations of the same promise, never copies.
     for (const locale of [es, pt]) {
-      expect(locale.tryDemo.notTouched.trim().length).toBeGreaterThan(50);
+      expect(locale.tryDemo.notTouched.trim().length).toBeGreaterThan(20);
       expect(locale.tryDemo.notTouched).not.toBe(en.tryDemo.notTouched);
+      expect(locale.tryDemo.notTouchedShort.trim().length).toBeGreaterThan(5);
+      expect(locale.tryDemo.notTouchedShort).not.toBe(en.tryDemo.notTouchedShort);
     }
   });
 
@@ -56,9 +65,14 @@ describe("demo feedback fixes (2026-11-09)", () => {
       // The reassurance lands in the first beat of the greeting, not buried.
       expect(greeting.indexOf(DEMO_NOT_TOUCHED_REASSURANCE)).toBeLessThan(120);
     }
-    expect(DEMO_NOT_TOUCHED_REASSURANCE).toContain("we have not touched your website");
+    // Slimmed spoken line (owner's order, 2026-11-09): one sentence, exact
+    // pin plus a word-count ceiling so it cannot creep back to a paragraph.
+    expect(DEMO_NOT_TOUCHED_REASSURANCE).toBe(
+      "Before we start: this is a mock-up layered over a copy of your site — we haven't touched your website or your server.",
+    );
     expect(DEMO_NOT_TOUCHED_REASSURANCE).toContain("mock-up layered over a copy");
-    expect(DEMO_NOT_TOUCHED_REASSURANCE).toContain("Your site and your server are exactly as you left them.");
+    expect(DEMO_NOT_TOUCHED_REASSURANCE).toContain("haven't touched your website or your server");
+    expect(DEMO_NOT_TOUCHED_REASSURANCE.split(/\s+/).length).toBeLessThanOrEqual(24);
   });
 
   it("keeps BOTH Voice/Type options fully visible in both states (Ron's Z Fold screenshots)", () => {
