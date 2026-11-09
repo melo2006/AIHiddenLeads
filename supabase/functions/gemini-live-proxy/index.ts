@@ -218,15 +218,18 @@ Deno.serve(async (req) => {
   const sendOpening = () => {
           // Opening selection lives in _shared/session-opening.ts so the
           // priority stack is unit-tested: persona swap (planned, NO
-          // apology) and persona drop (same persona, ONE rotating blip
-          // apology) sit ABOVE the legacy drop-apology and the plain
-          // resume ("Hey, you're back!") — a boundary or a segment drop
-          // can never fall through to them (the C-2 guard).
+          // apology), persona drop (same persona, ONE rotating blip
+          // apology) and persona resume (manual stop inside a segment:
+          // same persona, welcome-back, NO apology) sit ABOVE the legacy
+          // drop-apology and the plain resume ("Hey, you're back!") — a
+          // boundary, segment drop or segment resume can never fall
+          // through to them (the C-2 guard).
           const opening = openingText({
             preview,
             opening: config.opening,
             personaSwap: (config.personaSwap ?? null) as { to: 'aspen' | 'sara' | 'alex'; boundary: 'doorway' | 'stepout' | 'meet-alex' | 'return' } | null,
             personaDrop: (config.personaDrop ?? null) as { persona: 'aspen' | 'sara' | 'alex'; drops: number } | null,
+            personaResume: (config.personaResume ?? null) as { persona: 'aspen' | 'sara' | 'alex' } | null,
             resumeContext: config.resumeContext,
             reconnect: config.reconnect === true,
             simulation: config.simulation === true,

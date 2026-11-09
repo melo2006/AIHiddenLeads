@@ -44,10 +44,11 @@ import {
   businessDemoConfig,
 } from '../../supabase/functions/_shared/voice-config';
 import { DEMO_INVITE_GREETING, DEMO_INVITE_GREETING_VARIANTS, DEMO_VERIFICATION_GREETING } from '../../supabase/functions/_shared/demo-sales';
-import { openingText, swapOpeningInstruction } from '../../supabase/functions/_shared/session-opening';
+import { openingText, personaResumeInstruction, swapOpeningInstruction } from '../../supabase/functions/_shared/session-opening';
 import {
   INITIAL_SWAP_STATE, SWAP_CROSSFADE_MS, TEAM_INTRO_SEEN_FACT, boundaryForAssistantLine, buildSwapRecap,
-  introYieldOnVisitorLine, otherFaceSlot, reconnectTarget, swapRecapFacts, type SwapState,
+  chainIsMidSegment, chainStashTarget, cutoverAudioSync, introYieldOnVisitorLine, otherFaceSlot, reconnectTarget, swapRecapFacts,
+  type ChainStash, type SwapState,
 } from '@/lib/personaSwap';
 
 const read = (rel: string) => fs.readFileSync(path.join(__dirname, '..', '..', rel), 'utf8');
@@ -312,5 +313,141 @@ describe('owner transition spec — crossfade + transcript', () => {
     // The partial teardown (the only teardown a swap runs) never clears turns.
     const partial = src.slice(src.indexOf('const partialTeardownForSwap'), src.indexOf('const stopEverything'));
     expect(partial).not.toContain('setTurns');
+  });
+});
+
+describe('swap-audio fix batch (2026-11-09 evening) — defects 1, 2, 4', () => {
+  const convo = read('src/components/GeminiConversation.tsx');
+  const simli = read('src/components/SimliAvatar.tsx');
+
+  test('defect 1: the cut-over audio sync is mute-sync, routing, activate — in that order', () => {
+    expect(cutoverAudioSync({ speakerMuted: false, paused: false, replaying: false, selectedDeviceId: null }))
+      .toEqual({ muted: false, deviceId: null });
+    expect(cutoverAudioSync({ speakerMuted: true, paused: false, replaying: false, selectedDeviceId: 'spk-1' }))
+      .toEqual({ muted: true, deviceId: 'spk-1' });
+    // A muted outgoing state yields a muted incoming activation: pause
+    // and replay states mute exactly like the speaker toggle does.
+    expect(cutoverAudioSync({ speakerMuted: false, paused: true, replaying: false, selectedDeviceId: null }).muted).toBe(true);
+    expect(cutoverAudioSync({ speakerMuted: false, paused: false, replaying: true, selectedDeviceId: null }).muted).toBe(true);
+  });
+
+  test('defect 1: the cut-over applies the sync to the INCOMING handle after the pointer re-point', () => {
+    const repoint = convo.indexOf('avatarRef.current = incomingHandle');
+    const syncAt = convo.indexOf('incomingHandle.cutoverAudioSync(sync)', repoint);
+    const socketAt = convo.indexOf('connectSegmentSocket(staged.token)', repoint);
+    expect(repoint).toBeGreaterThanOrEqual(0);
+    expect(syncAt).toBeGreaterThan(repoint);
+    expect(socketAt).toBeGreaterThan(syncAt);
+    // The sync payload is the session's CURRENT effective state.
+    expect(convo).toContain('cutoverAudioSync({ speakerMuted: speakerMutedRef.current, paused: captureRef.current.paused, replaying: captureRef.current.replaying, selectedDeviceId: selectedOutputIdRef.current })');
+    // A sound block surfaces the tap affordance instead of failing the swap.
+    expect(convo).toContain("e.message === SOUND_BLOCKED) setAudioNeedsTap(true)");
+    // The trap stays shut: no start() re-call inside the cut-over body.
+    const body = convo.slice(convo.indexOf('executeSwapRef.current = async'), convo.indexOf('dropRecoverRef.current = () =>'));
+    expect(body).not.toContain('.start(');
+  });
+
+  test('defect 1: the handle method performs setPlaybackMuted-then-activate semantics in order', () => {
+    const start = simli.indexOf('cutoverAudioSync: async');
+    const body = simli.slice(start, simli.indexOf('sendPcm24k:', start));
+    const muteAt = body.indexOf('playbackMutedRef.current = muted');
+    const sinkAt = body.indexOf('desiredSinkIdRef.current = deviceId');
+    const playAt = body.indexOf('await audio.play()');
+    expect(muteAt).toBeGreaterThanOrEqual(0);
+    expect(sinkAt).toBeGreaterThan(muteAt);
+    expect(playAt).toBeGreaterThan(sinkAt);
+    expect(body).toContain("throw new Error(SOUND_BLOCKED)");
+    expect(simli).toContain('cutoverAudioSync?: (sync: { muted: boolean; deviceId: string | null }) => Promise<void>');
+  });
+
+  test('defect 2: both speaking labels render the ACTIVE persona, never the static name prop', () => {
+    expect(convo).toContain('t("voice.speaking", { name: PERSONAS[activePersona].displayName })');
+    expect(convo).toContain('t("voice.isSpeaking", { name: PERSONAS[activePersona].displayName })');
+    expect(convo).not.toContain('t("voice.speaking", { name })');
+    expect(convo).not.toContain('t("voice.isSpeaking", { name })');
+    // The name prop still serves the strings that mean the tenant agent.
+    expect(convo).toContain('t("voice.pressPlayReconnect", { name })');
+  });
+
+  test('defect 4: the caption region clips, and the karaoke surface flexes instead of a fixed height', () => {
+    const css = read('src/index.css');
+    const region = css.slice(css.indexOf('.aspen-voice-panel > .aspen-caption-region {'));
+    expect(region.slice(0, region.indexOf('}'))).toContain('overflow: hidden');
+    expect(convo).toContain('flex min-h-0 flex-1 flex-col rounded-md border border-border bg-background/95 p-1.5');
+    const caption = read('src/components/PlaybackCaption.tsx');
+    expect(caption).toContain('h-full min-h-0 flex-1');
+    expect(caption).not.toContain('h-[58px]');
+  });
+});
+
+describe('swap-audio fix batch — defect 3: manual stop resumes the chain', () => {
+  const simState: SwapState = { ...INITIAL_SWAP_STATE, phase: 'simulation', persona: 'sara', segment: 1, armed: ['doorway'], done: ['doorway'] };
+  const stashOf = (state: SwapState): ChainStash => ({ state, parentSessionId: 'parent-123', visitorKey: 'vk-1', businessName: 'Great Gulf' });
+
+  test('teardown mid-segment → restart re-authorises the ACTIVE segment (persona, entry boundary, original parent)', () => {
+    expect(chainIsMidSegment(simState)).toBe(true);
+    expect(chainStashTarget(stashOf(simState))).toEqual({
+      persona: 'sara',
+      personaSegment: { persona: 'sara', boundary: 'doorway', parentSessionId: 'parent-123' },
+    });
+    const closeState: SwapState = { ...simState, phase: 'close', persona: 'aspen', segment: 2, done: ['doorway', 'stepout'] };
+    expect(chainStashTarget(stashOf(closeState))?.personaSegment?.boundary).toBe('stepout');
+    const alexState: SwapState = { ...simState, phase: 'alex-guest', persona: 'alex', segment: 3, done: ['doorway', 'stepout', 'meet-alex'] };
+    expect(chainStashTarget(stashOf(alexState))?.personaSegment).toEqual({ persona: 'alex', boundary: 'meet-alex', parentSessionId: 'parent-123' });
+    const introSara: SwapState = { ...INITIAL_SWAP_STATE, phase: 'intro-sara', persona: 'sara', segment: 1, done: ['intro-sara'] };
+    expect(chainStashTarget(stashOf(introSara))?.personaSegment?.boundary).toBe('intro-sara');
+  });
+
+  test('teardown as host (or intro parent) → no segment target: the fresh-parent start stays unchanged', () => {
+    expect(chainIsMidSegment(INITIAL_SWAP_STATE)).toBe(false);
+    expect(chainStashTarget(stashOf({ ...INITIAL_SWAP_STATE }))).toBeNull();
+    expect(chainStashTarget(stashOf({ ...INITIAL_SWAP_STATE, phase: 'intro' }))).toBeNull();
+    expect(chainStashTarget(null)).toBeNull();
+    expect(chainStashTarget(undefined)).toBeNull();
+  });
+
+  test('the segment resume target matches the drop-recovery target for the same state', () => {
+    expect(chainStashTarget(stashOf(simState))).toEqual(reconnectTarget(simState, 'parent-123'));
+  });
+
+  test('the resume opening is a welcome-back from the SAME persona: no apology, no host greeting, no restart', () => {
+    for (const persona of ['sara', 'alex', 'aspen'] as const) {
+      const text = personaResumeInstruction({ persona }, RECAP);
+      expect(text).toContain('Welcome back');
+      expect(text).toContain('Do NOT apologize');
+      expect(text).not.toContain("Hey, you're back");
+      expect(text).not.toContain('connection dropped');
+    }
+    expect(personaResumeInstruction({ persona: 'sara' }, RECAP)).toContain('You are still Sara');
+    // Priority: a resume segment can never fall through to branch 5.
+    const viaOpening = openingText({ preview: false, personaResume: { persona: 'sara' }, resumeContext: RECAP, reconnect: true });
+    expect(viaOpening).toBe(personaResumeInstruction({ persona: 'sara' }, RECAP));
+    expect(viaOpening).not.toContain("Hey, you're back");
+    // The drop branch still outranks resume when both are somehow set.
+    const dropFirst = openingText({ preview: false, personaDrop: { persona: 'sara', drops: 0 }, personaResume: { persona: 'sara' }, resumeContext: RECAP });
+    expect(dropFirst).toContain('connection dropped for a moment');
+  });
+
+  test('client wiring: teardown stashes mid-segment, start resumes the stash, drop recovery untouched', () => {
+    const convo = read('src/components/GeminiConversation.tsx');
+    expect(convo).toContain('const visitChainStash = new Map<string, ChainStash>();');
+    const teardown = convo.slice(convo.indexOf('const teardown = useCallback'), convo.indexOf('const partialTeardownForSwap'));
+    expect(teardown).toContain('chainIsMidSegment(swapStateRef.current)');
+    expect(teardown).toContain('visitChainStash.set(agentId || "homepage"');
+    expect(convo).toContain('await resumeSegmentChainRef.current(stash)');
+    expect(convo).toContain("{ swap: false, manualResume: true }");
+    // The unplanned-drop path is exactly as it was: same request shape.
+    expect(convo).toContain("{ swap: false, dropRecovery: true }");
+    // A fresh parent authorization spends the stash (new demo journey).
+    expect(convo).toContain('visitChainStash.delete(agentId || "homepage")');
+  });
+
+  test('server wiring: gemini-session stamps personaResume (never alongside swap/drop); the proxy passes it through', () => {
+    const session = read('supabase/functions/gemini-session/index.ts');
+    expect(session).toContain('manualResume:z.boolean().default(false)');
+    expect(session.match(/personaResume:\{persona:persona\.id\}/g)).toHaveLength(2);
+    expect(session.match(/manualResume:b\.personaSegment\.manualResume/g)).toHaveLength(2);
+    const proxy = read('supabase/functions/gemini-live-proxy/index.ts');
+    expect(proxy).toContain('personaResume: (config.personaResume ?? null)');
   });
 });

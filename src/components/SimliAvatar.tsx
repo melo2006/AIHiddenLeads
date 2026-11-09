@@ -31,6 +31,15 @@ export interface SimliAvatarHandle {
    * stops the session AND clears any frame freeze() kept painted, so
    * the slot renders empty for its next use. */
   retire?: () => void;
+  /** Persona cut-over audio sync: this instance was pre-staged SILENT
+   *  (element muted, volume 0) and takes over as the audible face NOW.
+   *  Applies, IN ORDER: the session's current mute state (so a visitor
+   *  who muted the outgoing persona gets this one muted too), the
+   *  session's selected speaker output (this instance's desired sink
+   *  starts unset), then activate() — the designed unmute for a
+   *  silently-started instance. Rejects with SOUND_BLOCKED when the
+   *  platform refuses audible play() outside a user gesture. */
+  cutoverAudioSync?: (sync: { muted: boolean; deviceId: string | null }) => Promise<void>;
   /** Gemini's 24 kHz PCM16 chunk, base64. */
   sendPcm24k: (base64: string) => boolean;
   clear: () => void;
@@ -446,6 +455,24 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
       stop();
     },
     setPlaybackMuted: (muted) => { playbackMutedRef.current = muted; if (audioRef.current) { audioRef.current.muted = muted; audioRef.current.volume = muted ? 0 : 1; } },
+    cutoverAudioSync: async ({ muted, deviceId }) => {
+      // Order is the contract: mute-sync first (activate() applies
+      // playbackMutedRef to the element), speaker routing next (so the
+      // stream lands on the visitor's chosen output), activate() last
+      // (the only unmute door for a silently pre-staged instance — a
+      // start() re-call would early-return on the live client).
+      playbackMutedRef.current = muted;
+      if (audioRef.current) { audioRef.current.muted = muted; audioRef.current.volume = muted ? 0 : 1; }
+      if (deviceId) { desiredSinkIdRef.current = deviceId; await applyDesiredSink(); }
+      activatedRef.current = true;
+      const audio = audioRef.current, video = videoRef.current;
+      if (!audio || !video) return;
+      if (!liveRef.current || !audio.srcObject) { unlockMediaElements(video, audio); return; }
+      audio.muted = playbackMutedRef.current; audio.volume = playbackMutedRef.current ? 0 : 1;
+      await applyDesiredSink();
+      try { await audio.play(); }
+      catch (playError) { if (playError instanceof Error && playError.name === 'NotAllowedError') throw new Error(SOUND_BLOCKED); throw playError; }
+    },
     setOutputDevice: async (deviceId) => { desiredSinkIdRef.current = deviceId; return applyDesiredSink(); },
     sendPcm24k: (base64) => {
       const client = clientRef.current;
