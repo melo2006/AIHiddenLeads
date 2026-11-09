@@ -95,13 +95,19 @@ describe.each([{ paired: false, mode: 'handsfree' }, { paired: true, mode: 'hand
     act(() => socket.emit({ type: 'interrupted' }));
     expect(Context.sources[0].stop).toHaveBeenCalled();
     if (paired) expect(mocks.clear).toHaveBeenCalled();
-    // Speaker silence (Studio addition): muting her voice must not gate the
-    // microphone — captions and the conversation keep running.
-    fireEvent.click(view.getByRole('button', { name: 'Silence speaker' }));
-    expect(view.getByRole('button', { name: 'Turn speaker sound on' })).toBeTruthy();
+    // Speaker silence: the speaker button now opens the output menu and
+    // Mute inside it drives the same toggleSpeakerMute path as before —
+    // muting her voice must not gate the microphone; captions and the
+    // conversation keep running.
+    fireEvent.click(view.getByRole('button', { name: 'Speaker output' }));
+    fireEvent.click(view.getByRole('menuitemradio', { name: 'Mute' }));
     socket.send.mockClear(); speech();
     expect(socket.send).toHaveBeenCalledWith(expect.stringContaining('"type":"audio"'));
-    fireEvent.click(view.getByRole('button', { name: 'Turn speaker sound on' }));
+    // Unmute by picking the current route again (this harness exposes no
+    // selectable outputs, so the menu offers the platform route + Mute).
+    fireEvent.click(view.getByRole('button', { name: 'Speaker output' }));
+    expect(view.getByRole('menuitemradio', { name: 'Mute' }).getAttribute('aria-checked')).toBe('true');
+    fireEvent.click(view.getByRole('menuitemradio', { name: 'Phone default (video sound)' }));
     if (mode === 'hold') {
       // Hold-to-talk renders no mic-mute toggle by design (GeminiConversation
       // gates it on captureMode !== 'hold'): the mic only streams while the

@@ -8,6 +8,7 @@ import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { pcm24kTo16k, type VideoAvatar } from "../../supabase/functions/_shared/video-avatar";
 import { startChromaKey } from "@/lib/chromaKey";
+import { applySinkIdToElement } from "@/lib/speakerOutput";
 
 export interface SimliAvatarHandle {
   /** Resolves true once the face is on screen; false (with a visible reason) when Simli refuses or fails. */
@@ -25,6 +26,11 @@ export interface SimliAvatarHandle {
   sendPcm24k: (base64: string) => boolean;
   clear: () => void;
   setPlaybackMuted: (muted: boolean) => void;
+  /** Speaker-output selection: retarget this element's audible stream via
+   *  HTMLMediaElement.setSinkId ("" = platform default). Resolves true only
+   *  when the platform actually applied it; the choice is remembered and
+   *  re-applied at start()/activate() once the stream exists. */
+  setOutputDevice?: (deviceId: string) => Promise<boolean>;
 }
 export interface SimliAvatarProps { avatar: VideoAvatar; agentId?: string; shareToken?: string; draft?: boolean; faceOverride?: string; inline?: boolean; unboxed?: boolean; onLiveChange?: (live: boolean) => void; /** Platform guide ('alex'): request the guide's fixed library face token instead of a tenant agent's face. */ guide?: "alex"; /** Persona pre-stage (avatar swap): start behind the live face — token request carries the persona selector + parent-session proof, and the element starts muted/hidden. */ persona?: "aspen" | "sara" | "alex"; personaParentSessionId?: string; personaVisitorKey?: string; /** Pre-stage mode: mounted and live but not shown (opacity 0, no pointer events) until the cut-over reveals it. */ concealed?: boolean; }
 
@@ -207,6 +213,14 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
   const frameKeeperRef = useRef(true);
   const activatedRef = useRef(false);
   const playbackMutedRef = useRef(false);
+  // Speaker-output selection (session-scoped, owned by GeminiConversation):
+  // undefined = no preference stated; a string ("" = platform default) is
+  // applied to the audio element now and again when the stream (re)starts.
+  const desiredSinkIdRef = useRef<string | undefined>(undefined);
+  const applyDesiredSink = async (): Promise<boolean> => {
+    if (desiredSinkIdRef.current === undefined) return false;
+    return applySinkIdToElement(audioRef.current, desiredSinkIdRef.current);
+  };
   const [state, setState] = useState<"idle" | "connecting" | "live" | "failed" | "stopped">("idle");
   const [reason, setReason] = useState("");
   const setLive = (live: boolean) => { liveRef.current = live; onLiveChange?.(live); };
@@ -262,6 +276,9 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
         // The unlock happens once here; retries below reuse the already-unlocked elements
         // and never need a second tap.
         unlockMediaElements(videoRef.current, audioRef.current);
+        // A speaker-output choice made before this attempt should already
+        // govern the element; re-apply again once the stream exists below.
+        void applyDesiredSink();
 
         // One video attempt: fresh single-use token, provider connect, displayed-frame
         // check, then the paired-audio unlock. Throws on failure; startup timeouts are
@@ -333,6 +350,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
         if (options?.silent && !activatedRef.current) { startupRejectRef.current = null; setLive(true); setState("live"); return true; }
         if (audioRef.current) {
           audioRef.current.muted = playbackMutedRef.current; audioRef.current.volume = playbackMutedRef.current ? 0 : 1;
+          await applyDesiredSink();
           try { await audioRef.current.play(); }
           catch (playError) {
             // Not a microphone problem: the browser blocked the speaker for this tap.
@@ -393,6 +411,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
       if (!audio || !video) return;
       if (!liveRef.current || !audio.srcObject) { unlockMediaElements(video, audio); return; }
       audio.muted = playbackMutedRef.current; audio.volume = playbackMutedRef.current ? 0 : 1;
+      await applyDesiredSink();
       try { await audio.play(); }
       catch (playError) { if (playError instanceof Error && playError.name === 'NotAllowedError') throw new Error(SOUND_BLOCKED); throw playError; }
     },
@@ -406,6 +425,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
     },
     setFrameKeeper: (keeper: boolean) => { frameKeeperRef.current = keeper; },
     setPlaybackMuted: (muted) => { playbackMutedRef.current = muted; if (audioRef.current) { audioRef.current.muted = muted; audioRef.current.volume = muted ? 0 : 1; } },
+    setOutputDevice: async (deviceId) => { desiredSinkIdRef.current = deviceId; return applyDesiredSink(); },
     sendPcm24k: (base64) => {
       const client = clientRef.current;
       if (!client || !(audioReadyRef.current || liveRef.current)) return false;
