@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { microphonePcm, shouldSendMicrophone, microphoneGate, microphoneAutoGain } from "../lib/voiceLabAudio";
+import { afterEach, describe, expect, it } from "vitest";
+import { microphonePcm, shouldSendMicrophone, microphoneGate, microphoneAutoGain, initialCaptureMode } from "../lib/voiceLabAudio";
 
 describe("Voice Lab microphone privacy controls", () => {
   it('strong filtering does not automatically amplify background noise', () => {
@@ -33,6 +33,19 @@ describe("Voice Lab microphone privacy controls", () => {
   it("mute blocks audio in either mode", () => {
     expect(shouldSendMicrophone("handsfree", false, true, false)).toBe(false);
     expect(shouldSendMicrophone("hold", true, true, false)).toBe(false);
+  });
+  // Session-start rule (2026-11-09 incident): a persisted hold preference
+  // must never make a new session start in hold-to-talk — the visitor speaks
+  // while only silence is sent, and the raw mic meter still moves.
+  describe("session start capture mode", () => {
+    afterEach(() => { localStorage.clear(); });
+    it("starts hands-free even when a previous session persisted hold", () => {
+      localStorage.setItem("voice-capture-mode", "hold");
+      expect(initialCaptureMode()).toBe("handsfree");
+    });
+    it("starts hands-free with no stored preference", () => {
+      expect(initialCaptureMode()).toBe("handsfree");
+    });
   });
   it("replay cannot be picked up as caller speech", () => {
     expect(shouldSendMicrophone("handsfree", false, false, true)).toBe(false);

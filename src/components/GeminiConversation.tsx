@@ -19,7 +19,7 @@ import { useTranslation } from "react-i18next";
 import "@/i18n";
 import { explicitUiLocale } from "@/lib/uiLocale";
 import { FunctionsHttpError } from "@supabase/supabase-js";
-import { microphonePcm, shouldSendMicrophone, microphoneGate, microphoneAutoGain, type NoiseFilter, type CaptureMode } from "@/lib/voiceLabAudio";
+import { microphonePcm, shouldSendMicrophone, microphoneGate, microphoneAutoGain, initialCaptureMode, type NoiseFilter, type CaptureMode } from "@/lib/voiceLabAudio";
 
 import VoiceActionConfirmation, { type VoiceAction } from "./VoiceActionConfirmation";
 import BrowserVoiceHandoff from "@/components/BrowserVoiceHandoff";
@@ -182,9 +182,9 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const [micLevel, setMicLevel] = useState(0);
   const [microphones, setMicrophones] = useState<MediaDeviceInfo[]>([]);
   const [microphone, setMicrophone] = useState("default");
-  const [captureMode, setCaptureMode] = useState<CaptureMode>(() => {
-    try { return localStorage.getItem("voice-capture-mode") === "hold" ? "hold" : "handsfree"; } catch { return "handsfree"; }
-  });
+  // Always start hands-free (see initialCaptureMode): a persisted hold
+  // preference must never silently gate the next session's microphone.
+  const [captureMode, setCaptureMode] = useState<CaptureMode>(() => initialCaptureMode());
   const [noiseFilter, setNoiseFilter] = useState<NoiseFilter>(() => {
     try { const saved = localStorage.getItem("voice-noise-filter"); return saved === "light" || saved === "strong" ? saved : "balanced"; } catch { return "balanced"; }
   });
@@ -195,7 +195,9 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   }, [noiseFilter, captureMode]);
   useEffect(() => {
     noiseFilterRef.current = noiseFilter;
-    try { localStorage.setItem("voice-noise-filter", noiseFilter); localStorage.setItem("voice-capture-mode", captureMode); } catch { /* Keep controls available without storage. */ }
+    // Only the noise filter persists. Capture mode is session-scoped: writing
+    // it made a one-time hold choice silently govern every later session.
+    try { localStorage.setItem("voice-noise-filter", noiseFilter); } catch { /* Keep controls available without storage. */ }
   }, [noiseFilter, captureMode]);
   const [held, setHeld] = useState(false);
   const [muted, setMuted] = useState(false);

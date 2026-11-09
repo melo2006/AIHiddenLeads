@@ -42,6 +42,10 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); Contex
 describe.each([{ paired: false, mode: 'handsfree' }, { paired: true, mode: 'handsfree' }, { paired: false, mode: 'hold' }, { paired: true, mode: 'hold' }])('caller interruption $mode paired video $paired', ({ paired, mode }) => {
   it('streams speech during generation and queued playback, clears on interruption, and respects mute/pause', async () => {
     vi.stubGlobal('WebSocket', Socket); vi.stubGlobal('AudioContext', Context);
+    Element.prototype.setPointerCapture = vi.fn(); Element.prototype.releasePointerCapture = vi.fn(); Element.prototype.hasPointerCapture = vi.fn(() => false); Element.prototype.scrollIntoView = vi.fn();
+    // Even a persisted hold preference must not govern the session start:
+    // every session starts hands-free (2026-11-09 incident), so the hold
+    // cases below switch modes mid-session via the settings control.
     localStorage.setItem('voice-capture-mode', mode);
     vi.stubGlobal('navigator', { mediaDevices: { addEventListener: vi.fn(), removeEventListener: vi.fn(), getUserMedia: async () => ({ getTracks: () => [{ stop: vi.fn() }], getAudioTracks: () => [], }), enumerateDevices: async () => [] } });
     const view = render(<GeminiConversation compact autoStart consentOnOpen videoAvatar={paired ? { enabled: true, provider: 'simli', faceId: 'test', position: 'bottom-right', size: 200, shape: 'square' } : undefined} />);
@@ -51,6 +55,29 @@ describe.each([{ paired: false, mode: 'handsfree' }, { paired: true, mode: 'hand
     act(() => socket.emit({ type: 'ready' }));
     const speech = () => act(() => Context.capture.onaudioprocess?.({ inputBuffer: { sampleRate: 16000, getChannelData: () => new Float32Array(2048).fill(0.1) } }));
     if (mode === 'hold') {
+      // The session started hands-free despite the stored 'hold' above:
+      // speech already streams. Switch to hold-to-talk through Settings.
+      speech(); expect(socket.send).toHaveBeenCalledWith(expect.stringContaining('"type":"audio"'));
+      socket.send.mockClear();
+      const settingsToggle = view.container.querySelector('button[aria-label="Voice settings"]');
+      if (!settingsToggle) throw new Error('Settings toggle not rendered');
+      fireEvent.click(settingsToggle);
+      const modeSelect = await view.findByRole('combobox', { name: 'Conversation mode' });
+      // Radix Select is keyboard driven when pointer capture is unavailable
+      // in jsdom: focus the trigger, open with ArrowDown, pick the option.
+      modeSelect.focus();
+      fireEvent.keyDown(modeSelect, { key: 'ArrowDown' });
+      const holdOption = await view.findByRole('option', { name: 'Noisy place — hold to talk' });
+      fireEvent.keyDown(holdOption, { key: 'Enter' });
+      // The settings dialog overlays the panel while open; close it so the
+      // hold button underneath becomes accessible again.
+      const dialog = modeSelect.closest('[role="dialog"]');
+      if (dialog) fireEvent.keyDown(dialog, { key: 'Escape' });
+      await waitFor(() => expect(view.getByRole('button', { name: 'Hold to talk' })).toBeTruthy());
+      // Switching into hold sends a one-off audio_pause control frame (the
+      // select's pauseCapture); clear it so the assertion below measures
+      // only microphone audio frames.
+      socket.send.mockClear();
       speech(); expect(socket.send).not.toHaveBeenCalled();
       vi.stubGlobal('PointerEvent', MouseEvent);
       const hold = view.getByRole('button', { name: 'Hold to talk' });

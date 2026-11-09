@@ -27,6 +27,15 @@ export function microphonePcm(input: Float32Array, sampleRate: number): Int16Arr
   return output;
 }
 
+// Every new voice session starts hands-free. The persisted "voice-capture-mode"
+// preference is deliberately NOT consulted here: a session that once ended in
+// hold mode used to make every later session silently start in hold-to-talk,
+// so the visitor spoke while only silence was sent (2026-11-09 incident).
+// Hold-to-talk stays available as an in-session settings choice only.
+export function initialCaptureMode(): CaptureMode {
+  return "handsfree";
+}
+
 export function shouldSendMicrophone(mode: CaptureMode, held: boolean, muted: boolean, replaying: boolean): boolean {
   return !muted && !replaying && (mode === "handsfree" || held);
 }
