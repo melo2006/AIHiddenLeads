@@ -13,8 +13,13 @@ import { applySinkIdToElement } from "@/lib/speakerOutput";
 export interface SimliAvatarHandle {
   /** Resolves true once the face is on screen; false (with a visible reason) when Simli refuses or fails. */
   start: (options?: { silent?: boolean }) => Promise<boolean>;
-  /** Call inside the visitor's tap: enables the paired voice of a silently prepared face. */
-  activate: () => Promise<void>;
+  /** Call inside the visitor's tap: enables the paired voice of a silently prepared face.
+   *  Resolves false when the face is NOT live (dead client / no audio
+   *  stream) so callers can tell a silent no-op from a real activation
+   *  (paired-audio guard, 2026-11-10); true once the live stream
+   *  plays. (boolean | void: handles predating the signal resolve
+   *  void, which callers treat as "no death reported", never as false.) */
+  activate: () => Promise<boolean | void>;
   stop: () => void;
   /** Stops the session but keeps the last keyed frame on screen: the frozen
    * face covers the gap while a replacement instance mounts (avatar swap). */
@@ -38,8 +43,12 @@ export interface SimliAvatarHandle {
    *  session's selected speaker output (this instance's desired sink
    *  starts unset), then activate() — the designed unmute for a
    *  silently-started instance. Rejects with SOUND_BLOCKED when the
-   *  platform refuses audible play() outside a user gesture. */
-  cutoverAudioSync?: (sync: { muted: boolean; deviceId: string | null }) => Promise<void>;
+   *  platform refuses audible play() outside a user gesture. Resolves
+   *  false when the face is NOT live (dead client / no audio stream) —
+   *  the cut-over MUST abort on false while the outgoing persona's
+   *  socket is still open (paired-audio guard, 2026-11-10); resolving
+   *  true means a live stream was actually activated. */
+  cutoverAudioSync?: (sync: { muted: boolean; deviceId: string | null }) => Promise<boolean>;
   /** Gemini's 24 kHz PCM16 chunk, base64. */
   sendPcm24k: (base64: string) => boolean;
   clear: () => void;
@@ -431,12 +440,13 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
     activate: async () => {
       activatedRef.current = true;
       const audio = audioRef.current, video = videoRef.current;
-      if (!audio || !video) return;
-      if (!liveRef.current || !audio.srcObject) { unlockMediaElements(video, audio); return; }
+      if (!audio || !video) return false;
+      if (!liveRef.current || !audio.srcObject) { unlockMediaElements(video, audio); return false; }
       audio.muted = playbackMutedRef.current; audio.volume = playbackMutedRef.current ? 0 : 1;
       await applyDesiredSink();
       try { await audio.play(); }
       catch (playError) { if (playError instanceof Error && playError.name === 'NotAllowedError') throw new Error(SOUND_BLOCKED); throw playError; }
+      return true;
     },
     stop,
     freeze: () => {
@@ -466,12 +476,18 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
       if (deviceId) { desiredSinkIdRef.current = deviceId; await applyDesiredSink(); }
       activatedRef.current = true;
       const audio = audioRef.current, video = videoRef.current;
-      if (!audio || !video) return;
-      if (!liveRef.current || !audio.srcObject) { unlockMediaElements(video, audio); return; }
+      if (!audio || !video) return false;
+      // Paired-audio guard (2026-11-10): a dead face used to no-op
+      // SILENTLY here, so the swap completed onto a face that could
+      // never speak and the first PCM chunk killed the segment call.
+      // Report not-live honestly — the caller aborts the cut-over
+      // BEFORE the outgoing socket closes.
+      if (!liveRef.current || !audio.srcObject) { unlockMediaElements(video, audio); return false; }
       audio.muted = playbackMutedRef.current; audio.volume = playbackMutedRef.current ? 0 : 1;
       await applyDesiredSink();
       try { await audio.play(); }
       catch (playError) { if (playError instanceof Error && playError.name === 'NotAllowedError') throw new Error(SOUND_BLOCKED); throw playError; }
+      return true;
     },
     setOutputDevice: async (deviceId) => { desiredSinkIdRef.current = deviceId; return applyDesiredSink(); },
     sendPcm24k: (base64) => {

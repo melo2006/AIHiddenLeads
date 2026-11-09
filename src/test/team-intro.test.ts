@@ -357,7 +357,7 @@ describe('swap-audio fix batch (2026-11-09 evening) — defects 1, 2, 4', () => 
     expect(sinkAt).toBeGreaterThan(muteAt);
     expect(playAt).toBeGreaterThan(sinkAt);
     expect(body).toContain("throw new Error(SOUND_BLOCKED)");
-    expect(simli).toContain('cutoverAudioSync?: (sync: { muted: boolean; deviceId: string | null }) => Promise<void>');
+    expect(simli).toContain('cutoverAudioSync?: (sync: { muted: boolean; deviceId: string | null }) => Promise<boolean>');
   });
 
   test('defect 2: both speaking labels render the ACTIVE persona, never the static name prop', () => {

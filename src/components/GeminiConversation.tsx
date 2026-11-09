@@ -34,7 +34,7 @@ import { PERSONAS, SARA_FACE_ID } from '../../supabase/functions/_shared/persona
 import { ALEX_FACE_ID } from '../../supabase/functions/_shared/alex-guide';
 import type { VideoAvatar } from '../../supabase/functions/_shared/video-avatar';
 import { PersonPortrait } from '@/components/FloatingPersonFrame';
-import { assistantOutput, nextVoiceChunkStart, PAIRED_CAPTION_DELAY_SEC } from '@/lib/avatarAudioTransition';
+import { assistantOutput, nextVoiceChunkStart, pairedAudioShouldDegrade, PAIRED_CAPTION_DELAY_SEC } from '@/lib/avatarAudioTransition';
 import { PlaybackCaptions, type PlaybackCaption as Caption } from '@/lib/playbackCaptions';
 import { displayNumbers } from '@/lib/displayNumbers';
 import PlaybackCaption from '@/components/PlaybackCaption';
@@ -900,13 +900,36 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         catch (e) { if (e instanceof Error && e.message === SOUND_BLOCKED) setAudioNeedsTap(true); }
       } else {
         // Her face could not re-stage: continue voice-only on the
-        // segment rather than failing the resume.
+        // segment rather than failing the resume. Paired-audio guard
+        // (2026-11-10): avatarRequested MUST clear here — leaving it
+        // true with avatarLive false made assistantOutput return
+        // 'wait', which the player treated as paired, so the resumed
+        // segment's first chunk hit the fatal paired-send guard.
+        // Clearing it routes this session's output LOCAL from the
+        // first chunk (the voice-only continuation intended above).
+        avatarRequestedRef.current = false;
+        avatarLiveRef.current = false;
+        setFaceLive(false);
         if (slot === 'second') setSecondFace(null); else setMainFace(null);
       }
     }
     connectSegmentSocketRef.current(segment.token);
     return true;
   };
+
+  // The moving face could not start (slow connection): keep the call as a voice-only
+  // session — still photo stays, Gemini audio plays locally (the existing voice-only
+  // mode) and the visitor sees a one-line notice. Her greeting proceeds unchanged.
+  // Defined before playPcmChunk, which now engages this same fallback
+  // mid-session when a paired send fails (paired-audio guard, 2026-11-10).
+  const engageVideoFallback = useCallback(() => {
+    avatarRef.current?.stop();
+    avatarRequestedRef.current = false;
+    avatarLiveRef.current = false;
+    setFaceLive(false);
+    setFaceWaiting(false);
+    setVideoFallback(true);
+  }, []);
 
   // Play a 24 kHz PCM chunk (base64) with gapless scheduling
   const playPcmChunk = useCallback((base64: string, reserved?: ReturnType<PlaybackCaptions['reserve']>) => {
@@ -929,15 +952,41 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     const source = ctx.createBufferSource();
     source.buffer = buffer;
     const output = assistantOutput(avatarRequestedRef.current, avatarLiveRef.current, captureRef.current.replaying);
-    const pairedVideo = output !== 'local';
+    let pairedVideo = output !== 'local';
     if (pairedVideo) {
-      if (!avatarLiveRef.current || !avatarRef.current?.sendPcm24k(base64)) {
-        stopEverything(); setError('The moving face disconnected. Press play to reconnect.'); return;
+      const wasLive = avatarLiveRef.current;
+      const sendSucceeded = wasLive ? (avatarRef.current?.sendPcm24k(base64) ?? false) : false;
+      if (pairedAudioShouldDegrade(output, wasLive, sendSucceeded)) {
+        // PAIRED-AUDIO GUARD (2026-11-10 — segment-death fix): a paired
+        // send failure used to trigger a full teardown here, killing the whole
+        // call ~2 s into a segment whose face had died on a stale
+        // readiness latch (the visitor heard nothing and saw the red
+        // "moving face disconnected" banner). A dead face is NOT a dead
+        // call: degrade to voice-only for the REST of the session (the
+        // engageVideoFallback pattern from session start — face UI
+        // honestly falls back to the portrait, avatarRequested clears
+        // so every later chunk routes local) and play THIS chunk
+        // through the local branch below, so no speech is lost
+        // mid-word. The diag event names this failure class in the
+        // [persona-swap] trace (it previously left no trace at all).
+        // Captions choice: pairedVideo flips to false BEFORE the
+        // caption window is computed below, so the degrading chunk's
+        // captions ride the LOCAL clock (delay 0) — it is heard
+        // locally, at the local schedule, not via Simli's delayed
+        // stream, so the paired 0.4 s shift would misalign it.
+        // Replay is untouched: replaying forces output 'local' in
+        // assistantOutput, so this branch never runs for replay, and
+        // preview sessions never request the face (also 'local').
+        recordSwapDiag({ event: 'audio-degraded', persona: swapStateRef.current.persona, detail: `output=${output} avatarLive=${wasLive} send=${sendSucceeded} slot=${faceSlotOwnerRef.current}` });
+        engageVideoFallback();
+        pairedVideo = false;
+      } else {
+        // Use a silent local clock for captions/lifecycle, never a second audible voice.
+        const clockGain = ctx.createGain(); clockGain.gain.value = 0;
+        source.connect(clockGain); clockGain.connect(ctx.destination);
       }
-      // Use a silent local clock for captions/lifecycle, never a second audible voice.
-      const clockGain = ctx.createGain(); clockGain.gain.value = 0;
-      source.connect(clockGain); clockGain.connect(ctx.destination);
-    } else {
+    }
+    if (!pairedVideo) {
       const spkGain = ctx.createGain();
       spkGain.gain.value = speakerMutedRef.current ? 0 : 1;
       speakerGainRef.current = spkGain;
@@ -971,7 +1020,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       }
       if (isPreviewRef.current && previewDoneRef.current && sourcesRef.current.size === 0) stopEverything();
     };
-  }, [stopEverything]);
+  }, [stopEverything, engageVideoFallback]);
 
   // Interrupt: drop all queued playback instantly
   const clearPlayback = useCallback(() => {
@@ -1131,18 +1180,6 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       captionClockRef.current.complete();
     } catch { captureRef.current.replaying = false; setReplaying(false); setError("Could not replay audio. Check your speaker connection."); }
   }, [pauseCapture, clearPlayback, playPcmChunk]);
-
-  // The moving face could not start (slow connection): keep the call as a voice-only
-  // session — still photo stays, Gemini audio plays locally (the existing voice-only
-  // mode) and the visitor sees a one-line notice. Her greeting proceeds unchanged.
-  const engageVideoFallback = useCallback(() => {
-    avatarRef.current?.stop();
-    avatarRequestedRef.current = false;
-    avatarLiveRef.current = false;
-    setFaceLive(false);
-    setFaceWaiting(false);
-    setVideoFallback(true);
-  }, []);
 
   // Authorize voice concurrently, but never generate/play speech ahead of the face.
   const startFace = useCallback(async (generation: number, silent = false) => {
@@ -2187,14 +2224,43 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         // not fail the swap — it surfaces the same tap-to-enable-sound
         // affordance the initial-face path uses.
         const sync = cutoverAudioSync({ speakerMuted: speakerMutedRef.current, paused: captureRef.current.paused, replaying: captureRef.current.replaying, selectedDeviceId: selectedOutputIdRef.current });
+        // Paired-audio guard (2026-11-10): the sync now REPORTS
+        // liveness (false = dead client / no audio stream). Only an
+        // explicit false aborts — handles that predate the signal
+        // resolve undefined and keep the legacy proceed behavior, and
+        // a SOUND_BLOCKED refusal still does not fail the swap.
+        let incomingFaceLive = true;
         if (incomingHandle?.cutoverAudioSync) {
-          try { await incomingHandle.cutoverAudioSync(sync); }
+          try { incomingFaceLive = (await incomingHandle.cutoverAudioSync(sync)) !== false; }
           catch (e) { if (e instanceof Error && e.message === SOUND_BLOCKED) setAudioNeedsTap(true); }
         } else if (incomingHandle) {
           incomingHandle.setPlaybackMuted(sync.muted);
           if (sync.deviceId) void incomingHandle.setOutputDevice?.(sync.deviceId);
-          try { await incomingHandle.activate(); }
+          try { incomingFaceLive = (await incomingHandle.activate()) !== false; }
           catch (e) { if (e instanceof Error && e.message === SOUND_BLOCKED) setAudioNeedsTap(true); }
+        } else {
+          incomingFaceLive = false;
+        }
+        if (!incomingFaceLive) {
+          // ABORT THE SWAP before partialTeardownForSwap: the incoming
+          // face is dead despite its latched "ready", so completing the
+          // cut-over would strand the new segment on a face that can
+          // never speak (and its first PCM chunk would have killed the
+          // call before the playPcmChunk guard was fixed). The
+          // outgoing persona's socket was never closed — restore the
+          // face pointers to her, discard the dead staged face exactly
+          // like the gate-abort path, and let the retry ledger
+          // (handleSegmentFailure) decide retry vs words-only fallback.
+          avatarRef.current = outgoing;
+          faceSlotOwnerRef.current = outgoingSlot;
+          if (staged.slot === 'main') mainSlotRef.current?.stop();
+          clearFaceSlot(staged.slot);
+          if (warmedFaceRef.current?.boundary === boundary) warmedFaceRef.current = null;
+          preStageRef.current = null;
+          recordSwapDiag({ event: 'gate-abort', boundary, persona: staged.persona, attempt: segmentAttemptsFor(swapStateRef.current, boundary) + 1, detail: 'cutover-face-dead' });
+          handleSegmentFailureRef.current(boundary, 'cutover-face-dead');
+          finalizeTurn();
+          return;
         }
         if (staged.slot === 'second') setSecondFace(face => (face && face.boundary === boundary ? { ...face, revealed: true } : face));
         else setMainFace(face => (face && face.boundary === boundary ? { ...face, revealed: true } : face));
@@ -2584,10 +2650,41 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // onLiveChange is owner-gated: once the second slot owns the face,
   // this slot's events (a staged start, the retirement stop) must not
   // drive the shell's faceLive state.
+  // Paired-audio guard (2026-11-10): BOTH slots now report through this
+  // one slot-aware handler — the second slot previously had NO
+  // onLiveChange at all, so a staged Sara face that died after latching
+  // "ready" was invisible until the first PCM chunk killed the call.
+  //  - The OWNING slot (the active persona's face) mirrors the legacy
+  //    main-slot behavior exactly: faceLive follows the report, and a
+  //    not-live report clears avatarLiveRef.
+  //  - A CONCEALED (staged, unrevealed) face in the non-owning slot
+  //    that reports not-live INVALIDATES the readiness latches instead:
+  //    the stage's faceReady clears and faceFailed sets (so the
+  //    gate-wait fails fast / the gate aborts instead of passing on a
+  //    stale latch), and the warmed-face record flips to failed.
+  //  - Everything else is ignored: a REVEALED non-owning face is a
+  //    retiring/fading slot whose events must not clobber the new
+  //    owner's state, and a staged face reporting live changes nothing
+  //    (readiness still comes from its start() resolution, which waits
+  //    for a displayed frame).
+  const handleFaceLiveChange = (slot: FaceSlot, live: boolean, face: { boundary: PersonaBoundary; revealed: boolean } | null) => {
+    if (faceSlotOwnerRef.current === slot) {
+      setFaceLive(live);
+      if (!live) avatarLiveRef.current = false;
+      return;
+    }
+    if (live || !face || face.revealed) return;
+    if (preStageRef.current?.slot === slot && preStageRef.current.boundary === face.boundary) {
+      preStageRef.current = { ...preStageRef.current, faceReady: false, faceFailed: true };
+    }
+    if (warmedFaceRef.current?.slot === slot && warmedFaceRef.current.boundary === face.boundary) {
+      warmedFaceRef.current = { ...warmedFaceRef.current, ready: false, failed: true };
+    }
+  };
   const mainFaceLayer = mainFace ? (mainFace.revealed ? (fadingSlot === 'main' ? 1 : 2) : 0) : undefined;
   const avatarView = videoAvatar?.enabled && !previewOnly ? (mainFace
-    ? <SimliAvatar ref={mainSlotRef} inline={avatarInline || faceFirst} unboxed={faceFirst} avatar={{ ...videoAvatar, faceId: mainFace.persona === 'sara' ? SARA_FACE_ID : mainFace.persona === 'alex' ? ALEX_FACE_ID : videoAvatar.faceId }} persona={mainFace.persona} personaParentSessionId={parentSessionIdRef.current || undefined} personaVisitorKey={visitorKeyRef.current || undefined} concealed={!mainFace.revealed} layer={mainFaceLayer} onLiveChange={live => { if (faceSlotOwnerRef.current !== 'main') return; setFaceLive(live); if (!live) avatarLiveRef.current = false; }} />
-    : <SimliAvatar ref={mainSlotRef} inline={avatarInline || faceFirst} unboxed={faceFirst} avatar={activeVideoAvatar ?? videoAvatar} agentId={agentId} shareToken={shareToken} draft={draft} guide={guide} onLiveChange={live => { if (faceSlotOwnerRef.current !== 'main') return; setFaceLive(live); if (!live) avatarLiveRef.current = false; }} />) : null;
+    ? <SimliAvatar ref={mainSlotRef} inline={avatarInline || faceFirst} unboxed={faceFirst} avatar={{ ...videoAvatar, faceId: mainFace.persona === 'sara' ? SARA_FACE_ID : mainFace.persona === 'alex' ? ALEX_FACE_ID : videoAvatar.faceId }} persona={mainFace.persona} personaParentSessionId={parentSessionIdRef.current || undefined} personaVisitorKey={visitorKeyRef.current || undefined} concealed={!mainFace.revealed} layer={mainFaceLayer} onLiveChange={live => handleFaceLiveChange('main', live, mainFace)} />
+    : <SimliAvatar ref={mainSlotRef} inline={avatarInline || faceFirst} unboxed={faceFirst} avatar={activeVideoAvatar ?? videoAvatar} agentId={agentId} shareToken={shareToken} draft={draft} guide={guide} onLiveChange={live => handleFaceLiveChange('main', live, null)} />) : null;
   // SECOND face slot: the incoming persona's instance — mounted
   // concealed while a boundary is armed (live but hidden and muted),
   // revealed by the cut-over's crossfade, and kept mounted as the
@@ -2596,7 +2693,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // drives the dissolve, layered above the retiring main slot.
   const stagedAvatarView = secondFace && videoAvatar?.enabled && !previewOnly ? (
     <div key={`staged-${secondFace.boundary}`} className={faceFirst ? "aspen-person-livebox relative z-0 mx-auto overflow-hidden" : undefined} style={faceFirst ? { position: 'absolute', inset: 0, pointerEvents: 'none' } : undefined}>
-      <SimliAvatar ref={stagedAvatarRef} inline={avatarInline || faceFirst} unboxed={faceFirst} avatar={{ ...videoAvatar, faceId: secondFace.persona === 'sara' ? SARA_FACE_ID : secondFace.persona === 'alex' ? ALEX_FACE_ID : videoAvatar.faceId }} persona={secondFace.persona} personaParentSessionId={parentSessionIdRef.current || undefined} personaVisitorKey={visitorKeyRef.current || undefined} concealed={!secondFace.revealed} layer={secondFace.revealed ? (fadingSlot === 'second' ? 1 : 2) : 0} />
+      <SimliAvatar ref={stagedAvatarRef} inline={avatarInline || faceFirst} unboxed={faceFirst} avatar={{ ...videoAvatar, faceId: secondFace.persona === 'sara' ? SARA_FACE_ID : secondFace.persona === 'alex' ? ALEX_FACE_ID : videoAvatar.faceId }} persona={secondFace.persona} personaParentSessionId={parentSessionIdRef.current || undefined} personaVisitorKey={visitorKeyRef.current || undefined} concealed={!secondFace.revealed} layer={secondFace.revealed ? (fadingSlot === 'second' ? 1 : 2) : 0} onLiveChange={live => handleFaceLiveChange('second', live, secondFace)} />
     </div>
   ) : null;
   // While Aspen is speaking, the karaoke caption owns the caption space. The
