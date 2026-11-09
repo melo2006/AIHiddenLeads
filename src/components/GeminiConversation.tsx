@@ -29,7 +29,7 @@ import { classifyMicrophoneFailure, isEmbeddedContext } from "@/lib/embeddedCont
 import {campaignVisit, trackCampaignEvent} from '@/lib/campaignTracking';
 import { salesPlans, type SalesPlan } from '@/lib/salesActions';
 import SimliAvatar, { SOUND_BLOCKED, isVideoStartFailure, type SimliAvatarHandle } from '@/components/SimliAvatar';
-import { boundaryForAssistantLine, buildSwapRecap, chainIsMidSegment, chainStashTarget, cutoverAudioSync, cutoverReady, dropApologyVariant, INITIAL_SWAP_STATE, introYieldOnVisitorLine, noteAlexIntent, noteDoorwayEngagement, otherFaceSlot, PHASE_AFTER_BOUNDARY, PHASE_ENTRY, reconnectTarget, SWAP_CROSSFADE_MS, swapRecapFacts, visitorSignalsStepOut, type ChainStash, type FaceSlot, type PersonaBoundary, type PersonaId, type SwapPhase, type SwapState } from '@/lib/personaSwap';
+import { BOUNDARY_TARGET, boundaryForAssistantLine, buildSwapRecap, chainIsMidSegment, chainStashTarget, cutoverAudioSync, cutoverReady, dropApologyVariant, INITIAL_SWAP_STATE, introYieldOnVisitorLine, noteAlexIntent, noteDoorwayEngagement, noteSegmentFailure, otherFaceSlot, pendingRetryBoundary, PHASE_AFTER_BOUNDARY, PHASE_ENTRY, reconnectTarget, recordSwapDiag, segmentAttemptsFor, segmentConnectRetryAllowed, segmentTokenStale, SWAP_CROSSFADE_MS, swapRecapFacts, visitorSignalsStepOut, type ChainStash, type FaceSlot, type PersonaBoundary, type PersonaId, type SwapPhase, type SwapState } from '@/lib/personaSwap';
 import { PERSONAS, SARA_FACE_ID } from '../../supabase/functions/_shared/personas';
 import { ALEX_FACE_ID } from '../../supabase/functions/_shared/alex-guide';
 import type { VideoAvatar } from '../../supabase/functions/_shared/video-avatar';
@@ -177,7 +177,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const parentSessionIdRef = useRef<string | null>(null);
   const visitorKeyRef = useRef('');
   const businessNameRef = useRef('');
-  const preStageRef = useRef<{ boundary: PersonaBoundary; token: string; faceReady: boolean; persona: PersonaId; slot: FaceSlot } | null>(null);
+  const preStageRef = useRef<{ boundary: PersonaBoundary; token: string; faceReady: boolean; persona: PersonaId; slot: FaceSlot; authorizedAt: number } | null>(null);
   /** Team intro: a true barge-in landed during a bridge beat; the latch
    *  is applied when the interrupted turn completes (design §3.3). */
   const introYieldWasBargeInRef = useRef(false);
@@ -533,6 +533,35 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     return data as { token: string; sessionId: string; persona?: { id: PersonaId; displayName: string; faceId: string | null } };
   }, [leadId, prospectId, currentSwapRecap]);
 
+  /** SEGMENT FAILURE handling (reliability, 2026-11-09): every failure
+   * of an armed boundary's segment — authorization discarded, stage
+   * missing at execution, face gate abort, stale token — funnels here
+   * instead of dying silently. The pure ledger (noteSegmentFailure)
+   * decides retry vs words-only fallback and records the failure as a
+   * recap fact; a retry re-arms through armSwap for a FRESH token
+   * (staged tokens live 120 s server-side — never re-present one) and
+   * executes at the next turn_complete via pendingSegmentRetry. */
+  const rearmSwapRef = useRef<(boundary: PersonaBoundary) => void>(() => {});
+  const handleSegmentFailure = useCallback((boundary: PersonaBoundary, reason: string) => {
+    const { state, outcome, attempt } = noteSegmentFailure(swapStateRef.current, boundary, reason);
+    swapStateRef.current = state;
+    recordSwapDiag({ event: outcome === 'retry' ? 'retry-scheduled' : 'fallback', boundary, persona: BOUNDARY_TARGET[boundary], attempt, detail: reason });
+    if (outcome !== 'retry' || !liveRef.current) return;
+    const staged = preStageRef.current;
+    if (staged?.boundary === boundary) {
+      // A FRESH stage already exists (the original authorization landed
+      // late): keep it — pendingSegmentRetry executes it at the next
+      // turn_complete. A STALE stage is discarded with its face: its
+      // token would be refused by the proxy anyway.
+      if (!segmentTokenStale(staged.authorizedAt, Date.now())) return;
+      if (avatarRequestedRef.current && staged.slot === 'main') mainSlotRef.current?.stop();
+      if (avatarRequestedRef.current) { if (staged.slot === 'second') setSecondFace(null); else setMainFace(null); }
+      preStageRef.current = null;
+    }
+    rearmSwapRef.current(boundary);
+  }, []);
+  const handleSegmentFailureRef = useRef(handleSegmentFailure); handleSegmentFailureRef.current = handleSegmentFailure;
+
   // Cut-over machinery is defined after startConversation (it reuses the
   // socket builder); these refs let the message handlers reach it.
   const executeSwapRef = useRef<(boundary: PersonaBoundary) => Promise<void>>(async () => {});
@@ -547,33 +576,52 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
    * while the outgoing persona is still speaking its handoff line. Any
    * failure disarms quietly — the current persona continues words-only
    * (spec §6.5 fallback 1/2). */
-  const armSwap = useCallback((boundary: PersonaBoundary) => {
+  const armSwap = useCallback((boundary: PersonaBoundary, opts?: { retry?: boolean }) => {
     const state = swapStateRef.current;
-    if (!swapEnabledRef.current || preStageRef.current || state.done.includes(boundary) || state.armed.includes(boundary)) return;
+    if (!swapEnabledRef.current || state.done.includes(boundary)) return;
+    // One-shot for the normal path; a RETRY arm (from
+    // handleSegmentFailure) may re-enter for the same boundary, but
+    // never while another boundary's stage occupies the pre-stage.
+    if (!opts?.retry && (preStageRef.current || state.armed.includes(boundary))) return;
+    if (opts?.retry && preStageRef.current && preStageRef.current.boundary !== boundary) return;
     const target = (Object.entries(PHASE_ENTRY).find(([, v]) => v.boundary === boundary)?.[1]) as { boundary: PersonaBoundary; persona: PersonaId } | undefined;
     // intro-return-2 lands on the same host phase as intro-return-1
     // (an Aspen segment) but is not itself a PHASE_ENTRY value — it is
     // entered from the intro-alex phase in place.
     const persona = boundary === 'return' || boundary === 'intro-return-2' ? 'aspen' as PersonaId : target?.persona;
     if (!persona) return;
-    swapStateRef.current = { ...state, armed: [...state.armed, boundary], ...(boundary === 'intro-sara' || boundary === 'intro-return-1' || boundary === 'intro-alex' || boundary === 'intro-return-2' ? { teamIntroSeen: true } : {}) };
+    recordSwapDiag({ event: 'arm', boundary, persona, attempt: segmentAttemptsFor(state, boundary) + 1, detail: opts?.retry ? 'retry' : undefined });
+    swapStateRef.current = { ...state, armed: state.armed.includes(boundary) ? state.armed : [...state.armed, boundary], ...(boundary === 'intro-sara' || boundary === 'intro-return-1' || boundary === 'intro-alex' || boundary === 'intro-return-2' ? { teamIntroSeen: true } : {}) };
     void (async () => {
       const segment = await requestSegment(persona, boundary, { swap: true });
-      if (!segment) return; // disarmed: words-only continuation
-      if (swapStateRef.current.done.includes(boundary) || !liveRef.current) return;
+      if (!segment) {
+        // Authorization failed (invoke error / parent refused / quota):
+        // previously a silent disarm. Now traced, and retried ONCE via
+        // the ledger before the words-only fallback.
+        recordSwapDiag({ event: 'authorize-failed', boundary, persona, attempt: segmentAttemptsFor(swapStateRef.current, boundary) + 1 });
+        handleSegmentFailureRef.current(boundary, 'authorize-failed');
+        return;
+      }
+      recordSwapDiag({ event: 'authorized', boundary, persona, attempt: segmentAttemptsFor(swapStateRef.current, boundary) + 1 });
+      if (swapStateRef.current.done.includes(boundary) || !liveRef.current) {
+        recordSwapDiag({ event: 'stage-discarded', boundary, persona, detail: swapStateRef.current.done.includes(boundary) ? 'already-done' : 'not-live' });
+        return;
+      }
       const slot = otherFaceSlot(faceSlotOwnerRef.current);
-      preStageRef.current = { boundary, token: segment.token, faceReady: !avatarRequestedRef.current, persona, slot };
+      preStageRef.current = { boundary, token: segment.token, faceReady: !avatarRequestedRef.current, persona, slot, authorizedAt: Date.now() };
       if (avatarRequestedRef.current) {
         // Mount the concealed instance in the free slot; its start()
         // pre-connects during the outgoing line. Face failure leaves
         // faceReady false and the atomic gate will abort the swap at
-        // cut-over.
+        // cut-over — the abort now retries once (handleSegmentFailure)
+        // instead of discarding the swap for the whole session.
         if (slot === 'second') setSecondFace({ persona, boundary, revealed: false });
         else setMainFace({ persona, boundary, revealed: false });
       }
     })();
   }, [requestSegment]);
   const armSwapRef = useRef(armSwap); armSwapRef.current = armSwap;
+  rearmSwapRef.current = (boundary: PersonaBoundary) => armSwap(boundary, { retry: true });
 
   // Shared local teardown. endSession=true also tells the server the visitor
   // ended the conversation; the Stage 3 suspend path passes false so the
@@ -1428,6 +1476,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             if (swapEnabledRef.current && liveRef.current && !preview) {
               const state = swapStateRef.current;
               const boundary = boundaryForAssistantLine(completedLine, state)
+                ?? pendingRetryBoundary(state)
                 ?? (state.phase === 'simulation' && state.pendingStepout && state.armed.includes('stepout') ? 'stepout' as PersonaBoundary : null);
               if (boundary && state.armed.includes(boundary) && !state.done.includes(boundary)) {
                 swapHandled = true;
@@ -1562,8 +1611,23 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // and the SURVIVING mic/playback contexts. It is used by both the
   // planned cut-over and the unplanned-drop recovery.
   // ------------------------------------------------------------------
-  const connectSegmentSocket = useCallback((token: string) => {
+  const connectSegmentSocket = useCallback((token: string, ctx?: { boundary: PersonaBoundary; persona: PersonaId; attempt: number; onFailure?: (info: { stage: 'timeout' | 'error' | 'close'; code?: number; reason?: string }) => void }) => {
     const generation = generationRef.current;
+    // Segment-connect traceability + single failure funnel (reliability,
+    // 2026-11-09): when the caller supplies a ctx (the planned cut-over
+    // does), a pre-ready death of this socket is reported ONCE to
+    // ctx.onFailure — which retries with a fresh authorization — instead
+    // of scattering across the timeout/error/close handlers below.
+    // Callers without a ctx (drop recovery, manual resume) keep the
+    // legacy handling byte-for-byte.
+    let connectFailureReported = false;
+    const reportConnectFailure = (info: { stage: 'timeout' | 'error' | 'close'; code?: number; reason?: string }) => {
+      if (connectFailureReported || !ctx?.onFailure) return;
+      connectFailureReported = true;
+      recordSwapDiag({ event: 'connect-failed', boundary: ctx.boundary, persona: ctx.persona, attempt: ctx.attempt, detail: `${info.stage}${info.code ? `:${info.code}` : ''}${info.reason ? ` ${info.reason}` : ''}` });
+      ctx.onFailure(info);
+    };
+    if (ctx) recordSwapDiag({ event: 'connect-attempt', boundary: ctx.boundary, persona: ctx.persona, attempt: ctx.attempt });
     clearPlayback();
     currentAudioRef.current = [];
     lastAudioRef.current = [];
@@ -1623,8 +1687,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     };
     const readyTimeout = window.setTimeout(() => {
       if (generation === generationRef.current && !liveRef.current) {
-        // The incoming segment never became ready: the call cannot
-        // continue on a dead socket — end cleanly rather than hang.
+        // The incoming segment never became ready. With a connect ctx
+        // the failure funnels to the retry handler; without one, the
+        // call cannot continue on a dead socket — end cleanly rather
+        // than hang.
+        if (ctx?.onFailure) { reportConnectFailure({ stage: 'timeout' }); return; }
         setError("The voice service did not respond in time. Please try again.");
         stopEverything();
       }
@@ -1636,6 +1703,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       switch (msg.type) {
         case "ready":
           window.clearTimeout(readyTimeout);
+          if (ctx) recordSwapDiag({ event: 'connect-ready', boundary: ctx.boundary, persona: ctx.persona, attempt: ctx.attempt });
           assistantTurnsRef.current = 0;
           goLiveSegment();
           break;
@@ -1716,6 +1784,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           if (swapEnabledRef.current && liveRef.current) {
             const state = swapStateRef.current;
             const boundary = boundaryForAssistantLine(completedLine, state)
+              ?? pendingRetryBoundary(state)
               ?? (state.phase === 'simulation' && state.pendingStepout && state.armed.includes('stepout') ? 'stepout' as PersonaBoundary : null);
             if (boundary && state.armed.includes(boundary) && !state.done.includes(boundary)) {
               swapHandled = true;
@@ -1757,12 +1826,18 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     };
     ws.onerror = () => {
       if (generation !== generationRef.current) return;
+      // A pre-ready error on a ctx socket (e.g. the proxy's 401 for an
+      // expired/consumed token surfaces here as a failed handshake)
+      // funnels to the retry handler; the close that follows it is
+      // swallowed by the connectFailureReported guard in onclose.
+      if (ctx?.onFailure && !liveRef.current) { reportConnectFailure({ stage: 'error' }); return; }
       setError("Could not connect to the voice service.");
       stopEverything();
     };
     ws.onclose = (event) => {
       window.clearTimeout(readyTimeout);
       if (generation !== generationRef.current) return;
+      if (connectFailureReported) return;
       if (liveRef.current) {
         stopEverything();
         if (swapEnabledRef.current && (event.code === 1006 || event.code === 1011)) { dropRecoverRef.current(); return; }
@@ -1773,6 +1848,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           return;
         }
         setError(voiceDisconnectMessage(event.code, event.reason));
+      } else if (ctx?.onFailure) {
+        reportConnectFailure({ stage: 'close', code: event.code, reason: event.reason });
       } else {
         setPhase("idle");
         setStatus("Conversation ended. Press Start to begin again.");
@@ -1802,20 +1879,53 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     const staged = preStageRef.current;
     const state = swapStateRef.current;
     const finalizeTurn = () => { flushLine("user"); flushLine("assistant"); };
+    recordSwapDiag({ event: 'execute', boundary, persona: BOUNDARY_TARGET[boundary], attempt: segmentAttemptsFor(state, boundary) + 1 });
     if (swapBusyRef.current) { finalizeTurn(); return; }
-    if (!staged || staged.boundary !== boundary || !liveRef.current) { finalizeTurn(); return; }
+    if (!staged || staged.boundary !== boundary || !liveRef.current) {
+      // Stage missing at the execution instant — the arm/execute race
+      // (authorization still in flight when the handoff line completed)
+      // or a stage discarded upstream. Previously a silent return that
+      // spent the boundary forever; now it funnels into the retry
+      // ledger (one fresh authorization) before words-only fallback.
+      if (liveRef.current && state.armed.includes(boundary) && !state.done.includes(boundary)) {
+        handleSegmentFailureRef.current(boundary, !staged ? 'stage-missing' : 'stage-mismatch');
+      }
+      finalizeTurn();
+      return;
+    }
     // Clear one slot's staged/active persona state (the slot unmounts
     // or reverts to the standard face render once its state is gone).
     const clearFaceSlot = (slot: FaceSlot) => { if (slot === 'second') setSecondFace(null); else setMainFace(null); };
+    if (segmentTokenStale(staged.authorizedAt, Date.now())) {
+      // Token lifecycle guard: staged tokens die server-side 120 s
+      // after authorization (consume_gemini_session refuses expired
+      // tokens). Connecting a stale token would 401 the segment socket
+      // AFTER the partial teardown — stranding the call. Re-authorize
+      // through the retry ledger while the current persona is still
+      // live and untouched instead.
+      recordSwapDiag({ event: 'token-stale', boundary, persona: staged.persona, attempt: segmentAttemptsFor(state, boundary) + 1, detail: `ageMs=${Date.now() - staged.authorizedAt}` });
+      if (avatarRequestedRef.current && staged.slot === 'main') mainSlotRef.current?.stop();
+      if (avatarRequestedRef.current) clearFaceSlot(staged.slot);
+      preStageRef.current = null;
+      handleSegmentFailureRef.current(boundary, 'token-stale');
+      finalizeTurn();
+      return;
+    }
     if (!cutoverReady({ authorized: true, videoRequested: avatarRequestedRef.current, faceReady: staged.faceReady })) {
       // Abort: the pre-stage didn't complete — current persona continues
       // words-only; nothing about the live call was touched. A staged
       // face in the MAIN slot is stopped explicitly (it shares its
       // element with the standard face, so no unmount will stop it);
       // a staged SECOND-slot face stops via its unmount cleanup.
+      // Reliability (2026-11-09): this abort used to discard the swap
+      // for the whole session (armed stayed spent, the anchor never
+      // re-fired). It now retries ONCE with a fresh authorization —
+      // the face gets a full new cover window to pre-connect in.
       if (avatarRequestedRef.current && staged.slot === 'main') mainSlotRef.current?.stop();
       if (avatarRequestedRef.current) clearFaceSlot(staged.slot);
       preStageRef.current = null;
+      recordSwapDiag({ event: 'gate-abort', boundary, persona: staged.persona, attempt: segmentAttemptsFor(swapStateRef.current, boundary) + 1, detail: 'face-not-ready' });
+      handleSegmentFailureRef.current(boundary, 'face-not-ready');
       finalizeTurn();
       return;
     }
@@ -1901,6 +2011,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         // Team intro latch: the show ran to completion — nothing in
         // this session re-arms any intro boundary (design §3.1).
         teamIntroDone: swapStateRef.current.teamIntroDone || boundary === 'intro-return-2',
+        // The retry trigger is consumed by this cut-over.
+        pendingSegmentRetry: swapStateRef.current.pendingSegmentRetry === boundary ? null : swapStateRef.current.pendingSegmentRetry,
       };
       setActivePersona(incoming);
       onPersonaChangeRef.current?.({ id: incoming, displayName: PERSONAS[incoming].displayName });
@@ -1910,7 +2022,34 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       // the incoming persona took over, under the last flushed line.
       setTurns(prev => { const next = [...prev, { role: "divider" as const, text: "", speaker: incoming }]; if (!isPreviewRef.current) visitMemory.set(agentId || "homepage", next); return next; });
       // 4) Open the incoming segment's socket on the pre-authorized token.
-      connectSegmentSocket(staged.token);
+      //    The connect ctx gives a pre-ready death of this socket ONE
+      //    retry with a fresh authorization (the drop-recovery class:
+      //    the cut-over already happened, so the SAME persona is
+      //    re-authorized and reconnected — never a restart). A second
+      //    failure ends the call with the error surfaced, as before,
+      //    but now the diagnostics say exactly where it died.
+      recordSwapDiag({ event: 'cutover', boundary, persona: incoming, attempt: segmentAttemptsFor(swapStateRef.current, boundary) + 1 });
+      const onSegmentConnectFailure = (attempt: number) => (info: { stage: 'timeout' | 'error' | 'close'; code?: number; reason?: string }) => {
+        if (!segmentConnectRetryAllowed(attempt)) {
+          setError("The voice service did not respond in time. Please try again.");
+          stopEverything();
+          return;
+        }
+        recordSwapDiag({ event: 'retry-scheduled', boundary, persona: incoming, attempt: attempt + 1, detail: `connect-${info.stage}` });
+        void (async () => {
+          const fresh = await requestSegment(incoming, boundary, { swap: true });
+          if (!fresh) {
+            recordSwapDiag({ event: 'fallback', boundary, persona: incoming, attempt: attempt + 1, detail: 'reauthorize-failed' });
+            setError('The connection dropped and could not be restored. Press play to reconnect.');
+            stopEverything();
+            return;
+          }
+          generationRef.current += 1;
+          liveRef.current = false;
+          connectSegmentSocket(fresh.token, { boundary, persona: incoming, attempt: attempt + 1, onFailure: onSegmentConnectFailure(attempt + 1) });
+        })();
+      };
+      connectSegmentSocket(staged.token, { boundary, persona: incoming, attempt: 1, onFailure: onSegmentConnectFailure(1) });
       // Boundary analytics through the proxy's log-only message.
       window.setTimeout(() => { try { wsRef.current?.send(JSON.stringify({ type: 'persona_handoff', boundary, to: incoming })); } catch { /* best effort */ } }, 600);
     } finally {

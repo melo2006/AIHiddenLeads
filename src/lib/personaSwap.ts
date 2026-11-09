@@ -75,6 +75,27 @@ export interface SwapState {
    *  doorway/close segments can use the "as promised" callback wording
    *  (design §5.1). Set when the FIRST intro segment is requested. */
   teamIntroSeen: boolean;
+  /** Segment-connect reliability (2026-11-09): how many times an armed
+   *  boundary's segment has FAILED (authorization discarded, cut-over
+   *  gate abort, stale token, connect failure) — the retry ledger.
+   *  Optional so pre-existing state literals stay valid; absent = 0.
+   *  One-shot semantics: a boundary gets at most MAX_SEGMENT_RETRIES
+   *  retries, and a boundary in `done` NEVER retries (the cut-over
+   *  already happened; a later socket death is drop recovery's job). */
+  segmentAttempts?: Partial<Record<PersonaBoundary, number>>;
+  /** The boundary whose retry must EXECUTE at the next turn_complete.
+   *  The original trigger (an anchor phrase in one specific line, or a
+   *  pending flag) does not re-fire after a failed first attempt, so
+   *  the retry carries its own execution trigger — set by
+   *  noteSegmentFailure when the outcome is 'retry', cleared when the
+   *  retry executes, falls back, or the boundary completes. */
+  pendingSegmentRetry?: PersonaBoundary | null;
+  /** Short failure clauses, newest last, capped — folded into the
+   *  swap recap facts (swapRecapFacts) so the NEXT segment
+   *  authorization carries the failure's boundary/persona/attempt to
+   *  the server in its stored resumeContext: the trace survives even
+   *  when nobody is watching the browser console. */
+  segmentFailureFacts?: string[];
 }
 
 export const INITIAL_SWAP_STATE: SwapState = {
@@ -405,9 +426,159 @@ export const TEAM_INTRO_SEEN_FACT = 'teamIntroSeen: the visitor watched the meet
  *  teamIntroSeen fact is present exactly while the chain carries it
  *  (set when the first intro segment was requested in this page
  *  journey). Deterministic position (facts[0]) so a parent
- *  authorization later in the journey reads it back identically. */
+ *  authorization later in the journey reads it back identically.
+ *  Segment-connect failure facts (reliability, 2026-11-09) ride AFTER
+ *  it: a retried segment's authorization recap tells the server — in
+ *  the stored session config — that this segment exists because the
+ *  previous attempt failed, and why. */
 export function swapRecapFacts(state: SwapState): string[] {
-  return state.teamIntroSeen ? [TEAM_INTRO_SEEN_FACT] : [];
+  return [
+    ...(state.teamIntroSeen ? [TEAM_INTRO_SEEN_FACT] : []),
+    ...(state.segmentFailureFacts ?? []),
+  ];
+}
+
+// ---------------------------------------------------------------------------
+// SEGMENT CONNECT RELIABILITY (2026-11-09 — the authorized-but-never-
+// connected failure class). Server record from the owner's Great Gulf
+// demo: the doorway ARMED and a Sara segment was authorized (row
+// ecbdfd71, status 'authorized'), yet it recorded ZERO turns — the
+// consume never happened and Aspen ran the whole demo solo with no
+// error anywhere. Two one-shot races produce exactly that signature:
+// the authorization had not landed when the handoff line completed
+// (executeSwap found no stage), or the incoming face had not reported
+// its first frame at the single gate instant (the gate aborted and
+// discarded the stage). Both left `armed` spent and no way back. The
+// helpers below own the recovery decisions; GeminiConversation owns
+// the effects.
+// ---------------------------------------------------------------------------
+
+/** Segment token lifetime, mirrored from the database: the
+ *  gemini_voice_sessions row defaults `expires_at` to authorization +
+ *  2 minutes and `consume_gemini_session` refuses a token that is
+ *  consumed OR expired (drizzle/migrations/0000, lines 24/30). A
+ *  staged token must therefore be CONNECTED well inside 120 s of its
+ *  authorization — and any retry must RE-AUTHORIZE (a fresh token),
+ *  never re-present the old one. */
+export const SEGMENT_TOKEN_TTL_MS = 120_000;
+/** Safety margin under the TTL: a staged token older than this at
+ *  cut-over is treated as stale and re-authorized instead of being
+ *  connected (the proxy would 401 it at/near the boundary, killing
+ *  the segment socket pre-ready — after the partial teardown, that
+ *  strands the call). 90 s leaves a 30 s connect margin. */
+export const SEGMENT_TOKEN_FRESH_MS = 90_000;
+export function segmentTokenStale(authorizedAtMs: number, nowMs: number): boolean {
+  return nowMs - authorizedAtMs > SEGMENT_TOKEN_FRESH_MS;
+}
+
+/** Retries per boundary after a failed first attempt. Exactly ONE:
+ *  the failure modes are timing races, so one fresh authorization +
+ *  connect inside a fresh cover window is the proportionate repair;
+ *  a second failure is a real outage and must surface, not loop. */
+export const MAX_SEGMENT_RETRIES = 1;
+
+/** Failed attempts recorded for a boundary so far (0 = none). */
+export function segmentAttemptsFor(state: SwapState, boundary: PersonaBoundary): number {
+  return state.segmentAttempts?.[boundary] ?? 0;
+}
+
+/** Fold ONE segment failure into the swap state and decide what
+ *  happens next:
+ *  - outcome 'retry': attempts so far ≤ MAX_SEGMENT_RETRIES and the
+ *    boundary is not done — the caller re-arms through the normal
+ *    arm/request path (fresh token), and `pendingSegmentRetry` gives
+ *    the retry its own turn_complete execution trigger (the original
+ *    anchor line is gone by then).
+ *  - outcome 'fallback': the retry budget is spent, or the boundary
+ *    is already in `done` (a completed cut-over NEVER retries — a
+ *    later death of that segment's socket is drop recovery, a
+ *    different mechanism) — the current persona continues words-only.
+ *  Either way the failure is recorded as a recap fact (boundary,
+ *  target persona, attempt number, reason) so the next authorization
+ *  carries the trace server-side. Pure: returns a NEW state. */
+export function noteSegmentFailure(
+  state: SwapState,
+  boundary: PersonaBoundary,
+  reason: string,
+): { state: SwapState; outcome: 'retry' | 'fallback'; attempt: number } {
+  const attempt = segmentAttemptsFor(state, boundary) + 1;
+  const outcome: 'retry' | 'fallback' =
+    !state.done.includes(boundary) && attempt <= MAX_SEGMENT_RETRIES ? 'retry' : 'fallback';
+  const fact = `segment ${boundary} to ${BOUNDARY_TARGET[boundary]} attempt ${attempt} failed (${reason})`;
+  return {
+    attempt,
+    outcome,
+    state: {
+      ...state,
+      segmentAttempts: { ...(state.segmentAttempts ?? {}), [boundary]: attempt },
+      pendingSegmentRetry: outcome === 'retry' ? boundary : null,
+      segmentFailureFacts: [...(state.segmentFailureFacts ?? []), fact].slice(-3),
+    },
+  };
+}
+
+/** Clear the retry execution trigger for a boundary (the retry
+ *  executed, or the boundary completed by another path). Returns the
+ *  SAME state object when nothing changes. */
+export function clearSegmentRetry(state: SwapState, boundary: PersonaBoundary): SwapState {
+  return state.pendingSegmentRetry === boundary ? { ...state, pendingSegmentRetry: null } : state;
+}
+
+/** The boundary the next turn_complete must execute as a RETRY, if
+ *  one is pending and still executable: armed (a stage exists or is
+ *  being re-authorized), not done, and the chain is still on the
+ *  persona who was supposed to hand over. Null otherwise. */
+export function pendingRetryBoundary(state: SwapState): PersonaBoundary | null {
+  const boundary = state.pendingSegmentRetry ?? null;
+  if (!boundary) return null;
+  if (state.done.includes(boundary) || !state.armed.includes(boundary)) return null;
+  return boundary;
+}
+
+/** Post-cut-over segment CONNECT retry: the cut-over already happened
+ *  (the boundary IS done, the old socket is gone), so this is the
+ *  drop-recovery class, not the arm class — a fresh segment for the
+ *  SAME persona may be authorized and connected exactly once.
+ *  `attempt` is the 1-based connect attempt that just failed. */
+export function segmentConnectRetryAllowed(attempt: number): boolean {
+  return attempt <= MAX_SEGMENT_RETRIES;
+}
+
+// ---------------------------------------------------------------------------
+// SWAP DIAGNOSTICS — the trace tonight's failure never left. Every arm,
+// authorization, connect attempt/outcome and cut-over abort records one
+// structured entry under a single console tag AND in a bounded in-page
+// ring buffer the owner (or a support session) can read back. Paired
+// with the recap-fact channel (noteSegmentFailure), a failure now
+// explains itself in the console, in the buffer, and in the retried
+// segment's server-stored session config.
+// ---------------------------------------------------------------------------
+export const SWAP_DIAG_TAG = '[persona-swap]';
+export interface SwapDiagEntry {
+  at: number;
+  event:
+    | 'arm' | 'authorized' | 'authorize-failed' | 'stage-discarded'
+    | 'execute' | 'gate-abort' | 'token-stale' | 'cutover'
+    | 'connect-attempt' | 'connect-ready' | 'connect-failed'
+    | 'retry-scheduled' | 'fallback';
+  boundary?: PersonaBoundary;
+  persona?: PersonaId;
+  attempt?: number;
+  detail?: string;
+}
+const swapDiagLog: SwapDiagEntry[] = [];
+export function recordSwapDiag(entry: Omit<SwapDiagEntry, 'at'> & { at?: number }): SwapDiagEntry {
+  const full: SwapDiagEntry = { ...entry, at: entry.at ?? Date.now() };
+  swapDiagLog.push(full);
+  if (swapDiagLog.length > 100) swapDiagLog.splice(0, swapDiagLog.length - 100);
+  try { console.info(SWAP_DIAG_TAG, JSON.stringify(full)); } catch { /* diagnostics never break the call */ }
+  return full;
+}
+export function swapDiagnostics(): readonly SwapDiagEntry[] {
+  return swapDiagLog;
+}
+export function resetSwapDiagnostics(): void {
+  swapDiagLog.length = 0;
 }
 
 /** What an UNPLANNED reconnect must re-authorize as: the persona who was
