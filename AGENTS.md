@@ -7,6 +7,7 @@
 - Isolate rank audits and homepage comparisons from voice/site rendering; label deterministic examples simulated and share offer arithmetic. Keep the homepage Aspen window preview session-free.
 
 - Keep Gemini Live session instructions and audio-detection settings server-side in its proxy; this keeps language policy consistent and private credentials out of the browser.
+- Website voice/chat language follows the visitor's explicit site-language selection (Ron's decision, 2026-11-09): the client sends only the stored UI locale (localStorage "lang" — an explicit LanguageSwitcher pick, never browser detection), gemini-session validates it against en / es / pt-BR and stamps the starting language into the session, and the proxy starts Aspen's voice and greeting in it; mid-conversation switches still need an explicit request. Phone/telephony sessions never carry a UI locale and keep the English start.
 - Live provider tests are opt-in via env URL so routine tests spend no call usage.
 - Preview voices through the same Gemini Live model as calls, without microphone capture; save the lab preference locally without altering Retell voices.
 - Gate noisy-place microphone capture in the browser and use explicit Live activity boundaries in the proxy; replay cached response audio locally with capture paused to avoid new usage and acoustic feedback.
