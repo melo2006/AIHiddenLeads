@@ -37,7 +37,6 @@
 // server is untouched — so beat 2 runs ≈ 86 words and the whole show
 // ≈ 227 words ≈ 72 s, still inside the design's 243-word ceiling.
 
-import { DEMO_NOT_TOUCHED_REASSURANCE } from './voice-config.ts';
 
 /** The scripted anchor phrases for the intro boundaries (also exported
  *  from session-opening.ts BOUNDARY_ANCHORS — the matcher table lives
@@ -172,76 +171,17 @@ export const TEAM_INTRO_CALLBACK_DOORWAY = `CALLBACK — THIS VISITOR ALREADY ME
 export const TEAM_INTRO_CALLBACK_CLOSE = `CALLBACK — THIS VISITOR ALREADY MET ALEX: On the demo page, before this demo, Alex introduced himself as the support specialist who will walk them through setup. In the MEET ALEX beat (4b), frame the introduction as a return, in these words or very close to them: "You met him briefly on the demo page — here's Alex again, the one who will walk you through setup when you're ready." Then continue the beat as written.`;
 
 // ---------------------------------------------------------------------
-// DEMO-SITE INTRODUCTION BEAT (rework delta a — owner, 2026-11-09
-// evening). The owner tested an INVITE demo (/demo-site) and Aspen ran
-// the whole opening herself; he expected her to introduce the team and
-// hand the walkthrough to Sara at the START of the demo screen. The
-// /demo explainer cameo chain above cannot serve that moment (invite
-// visitors never see /demo), so the simulation's own opening gains ONE
-// introduction beat: in Aspen's greeting, immediately AFTER the
-// not-touched reassurance (position 2 of the greeting — see the
-// disclaimer-slim greeting sequence map), she introduces Sara by name
-// and role as the walkthrough's receptionist and name-drops Alex for
-// the close. The EXISTING doorway swap then hands the walkthrough to
-// Sara: SIMULATION_HOST_SEGMENT beats 1–3 (announcement → expectations
-// → pause) run in the host's first turn after the greeting, and beat 4
-// is Sara in role — the handoff already fires at walkthrough start;
-// this beat is what makes the visitor KNOW it is Sara arriving.
-// Deliberately NOT the full cameo chain: no extra segments, no new
-// boundaries, SIMULATION_PROMPT untouched. Applied at assembly time in
-// gemini-session ONLY when the team-intro flag family is on (the same
-// teamIntroEnabled() gate as the /demo stamp) and NEVER on the
-// verification-pending greeting (the gate owns that opening; the
-// simulation greeting that follows a completed verification is a
-// fresh parent authorization and earns the beat normally).
+// DEMO-SITE INTRODUCTION — REVISED (owner, 2026-11-09 20:58–21:00):
+// the brief assembly-time introduction beat that briefly lived here
+// (SIMULATION_TEAM_INTRO_BEAT + withSimulationTeamIntro) is GONE,
+// superseded twice in one evening: the demo-site opening now carries
+// a full short Aspen overview (welcome → partner pitch with a rotated
+// statistic → comfort line → Sara introduction) baked into the
+// greeting variants themselves (DEMO_SITE_GREETING_VARIANTS in
+// voice-config.ts, DEMO_INVITE_GREETING_VARIANTS in demo-sales.ts,
+// gated by the same flag family in gemini-session), and the spoken
+// not-touched disclaimer moved from Aspen to Sara (beat 4b of
+// SIMULATION_RECEPTIONIST_SEGMENT). Nothing in this module is needed
+// for the demo-site opening anymore; this module serves the /demo
+// explainer cameo chain only.
 // ---------------------------------------------------------------------
-/** The beat itself, spoken by Aspen inside the simulation greeting,
- *  in these words or very close to them. Written against the SHORTENED
- *  reassurance (disclaimer-slim, 23 words) but anchored so it lands
- *  after either reassurance form (see the anchors below). */
-export const SIMULATION_TEAM_INTRO_BEAT = `Before we go in, meet Sara — she'll walk you through your site, playing your own receptionist, so you can hear how she greets your visitors and handles their questions. And at the end you'll meet Alex, our support specialist.`;
-
-/** The slimmed reassurance — since the disclaimer-slim merge (main
- *  187aafc) this IS the current DEMO_NOT_TOUCHED_REASSURANCE text in
- *  voice-config.ts; the duplicate anchor is retained so the insertion
- *  stays correct even if the code constant is ever edited alone. */
-export const DEMO_NOT_TOUCHED_REASSURANCE_SLIM = 'Before we start: this is a mock-up layered over a copy of your site — we haven\'t touched your website or your server.';
-
-/** The LONG reassurance the slim sentence replaced (pre-2026-11-09
- *  voice-config text). The stored simulationGreeting SNAPSHOT can
- *  still carry a greeting built on this form until the snapshot
- *  update lands, so it stays an explicit insertion anchor: the beat
- *  must land after the reassurance in EVERY greeting the server can
- *  currently serve — slim code, slim snapshot, or long snapshot. */
-export const DEMO_NOT_TOUCHED_REASSURANCE_LONG_LEGACY = 'Before anything else: we have not touched your website — we only read its public pages, like any visitor, and this demo is a mock-up layered over a copy. Your site and your server are exactly as you left them.';
-
-/** Fallback anchor: the explanation sentence that follows the
- *  reassurance in SIMULATION_GREETING (code and snapshot alike). */
-const SIMULATION_EXPLANATION_ANCHOR = 'Here is exactly what this is:';
-
-/**
- * Insert SIMULATION_TEAM_INTRO_BEAT into a simulation greeting,
- * immediately after the not-touched reassurance. Anchor order:
- * (1) the current DEMO_NOT_TOUCHED_REASSURANCE constant (the slim
- * sentence since the disclaimer-slim merge), (2) the legacy LONG
- * reassurance (a not-yet-updated stored snapshot), (3) the slimmed
- * reassurance literal, (4) immediately before the "Here is exactly
- * what this is:" explanation. Identity when the beat is already
- * present or no anchor matches (a greeting shape this beat was not
- * written for is left exactly as served). Because the insertion is
- * assembly-time, NO snapshot needs this beat baked in: the greeting
- * is transformed as each session is authorized, whatever its source.
- */
-export function withSimulationTeamIntro(greetingText: string): string {
-  if (!greetingText || greetingText.includes(SIMULATION_TEAM_INTRO_BEAT)) return greetingText;
-  for (const anchor of [DEMO_NOT_TOUCHED_REASSURANCE, DEMO_NOT_TOUCHED_REASSURANCE_LONG_LEGACY, DEMO_NOT_TOUCHED_REASSURANCE_SLIM]) {
-    const at = greetingText.indexOf(anchor);
-    if (at >= 0) {
-      const end = at + anchor.length;
-      return `${greetingText.slice(0, end)} ${SIMULATION_TEAM_INTRO_BEAT}${greetingText.slice(end)}`;
-    }
-  }
-  const at = greetingText.indexOf(SIMULATION_EXPLANATION_ANCHOR);
-  if (at >= 0) return `${greetingText.slice(0, at)}${SIMULATION_TEAM_INTRO_BEAT} ${greetingText.slice(at)}`;
-  return greetingText;
-}

@@ -15,16 +15,24 @@ import { GATE_LINES } from '../lib/demoVerification';
 
 const read = (rel: string) => fs.readFileSync(path.join(__dirname, '..', '..', rel), 'utf8');
 
-test('C1a: simulation greeting carries mock-up framing + Alex comfort line; transfer-priming sentence removed', () => {
-  expect(SIMULATION_GREETING).toContain('I read the public pages of {businessName} the way any visitor would');
-  expect(SIMULATION_GREETING).toContain('Nothing was changed on the real website and nothing was installed on it');
-  expect(SIMULATION_GREETING).toContain('Our support specialist, Alex, walks you through setup personally');
+test('C1a: simulation greeting is the demo-site opening — welcome, partner pitch, Alex comfort, Sara intro (owner revision 2026-11-09)', () => {
+  // Superseded the same evening by the owner's demo-site opening +
+  // disclaimer-ownership decisions: Aspen's greeting no longer carries
+  // the mock-up explanation or the not-touched line (Sara speaks the
+  // honesty note at the entry, beat 4b); it carries the partner pitch.
+  expect(SIMULATION_GREETING).toContain('thanks for trying the demo I built for {businessName}');
+  expect(SIMULATION_GREETING).toContain('your partner for growth');
+  expect(SIMULATION_GREETING).toContain("you're about to see exactly that");
+  expect(SIMULATION_GREETING).toContain('our support specialist, Alex, walks you through everything personally');
+  expect(SIMULATION_GREETING).toContain('meet Sara');
+  expect(SIMULATION_GREETING).not.toContain('I read the public pages of {businessName} the way any visitor would');
+  expect(SIMULATION_GREETING).not.toContain("haven't touched your website or your server");
   expect(SIMULATION_GREETING).not.toContain('Your own calendar and warm transfers require setup');
   expect(SIMULATION_GREETING).toContain('{timeGreeting}, {visitorFirstName}.');
 });
 
-test('C1b: the entry sequence runs the six beats in order', () => {
-  const beats = ['THE ANNOUNCEMENT', 'EXPECTATIONS', 'THE PAUSE', 'THE IN-ROLE GREETING', 'THE BUSINESS OVERVIEW', 'THE NAME, THEN THE OPENING QUESTION'];
+test('C1b: the entry sequence runs the beats in order (incl. Sara\'s honesty note, 2026-11-09)', () => {
+  const beats = ['THE ANNOUNCEMENT', 'EXPECTATIONS', 'THE PAUSE', 'THE IN-ROLE GREETING', 'THE HONESTY NOTE', 'THE BUSINESS OVERVIEW', 'THE NAME, THEN THE OPENING QUESTION'];
   let last = -1;
   for (const beat of beats) {
     const idx = SIMULATION_PROMPT.indexOf(beat);

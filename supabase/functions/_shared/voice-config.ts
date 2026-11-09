@@ -1,6 +1,61 @@
 export const VOICES = ['Kore','Aoede','Leda','Callirrhoe','Despina','Zephyr','Puck','Charon','Fenrir','Orus','Achernar','Algenib'];
 export const DEMO_NOT_TOUCHED_REASSURANCE = 'Before we start: this is a mock-up layered over a copy of your site — we haven\'t touched your website or your server.';
-export const SIMULATION_GREETING = '{timeGreeting}, {visitorFirstName}. I am {agentName} from AI Hidden Leads — welcome. ' + DEMO_NOT_TOUCHED_REASSURANCE + ' Here is exactly what this is: I read the public pages of {businessName} the way any visitor would, and built this simulation from them. Nothing was changed on the real website and nothing was installed on it — you are looking at a copy with me layered over it, live. And one comfort before we start: if you decide to make this real, you will not be handed a pile of forms. Our support specialist, Alex, walks you through setup personally, step by step. Now, let us begin.';
+// ---------------------------------------------------------------------------
+// DEMO-SITE OPENING (owner revision, 2026-11-09 evening — supersedes the
+// brief team-intro beat AND the disclaimer-slim greeting shape):
+// Both paid entry paths (Facebook ads, emailed invites) land visitors
+// STRAIGHT in the demo, so the demo-site opening itself carries the
+// short Aspen overview the homepage pitch would have given them:
+//   personalized welcome → partner pitch (ONE approved statistic,
+//   rotated across sessions through the same greetings[] mechanism as
+//   the homepage openings — openingFor() picks one variant per
+//   session) → the Alex comfort line → the Sara introduction, which
+//   ends Aspen's greeting; the existing doorway swap then hands the
+//   walkthrough to Sara.
+// The SPOKEN not-touched disclaimer is NOT Aspen's anymore (owner
+// decision, 2026-11-09): Sara — the one standing on the mock-up —
+// speaks it as her own first in-simulation beat (see
+// SIMULATION_RECEPTIONIST_SEGMENT beat 4b). Aspen's greetings below
+// therefore contain NO reassurance sentence. DEMO_NOT_TOUCHED_REASSURANCE
+// itself survives for the verification gate's Act 1 greeting
+// (demo-sales.ts) — that scoping is deliberate; see the rework report.
+// ---------------------------------------------------------------------------
+/** The three approved statistic lines, in rotation order. Framings are
+ *  the approved ones: 85% voicemail-never-call-back (homepage greeting
+ *  wording), 78% of 1,000 U.S. consumers SAID they had abandoned a
+ *  business after an unanswered call (2025 survey — reported behavior,
+ *  scope retained, no publisher named), 67% hang-up (the site's own
+ *  rotating-headline wording). Exactly ONE appears per greeting. */
+export const DEMO_SITE_STAT_LINES = [
+  `It matters because 85% of callers who hit a business's voicemail don't call back — most just move on to the next name on the list.`,
+  `It matters because in a 2025 survey, 78% of 1,000 U.S. consumers said they had abandoned a business after an unanswered call.`,
+  `It matters because 67% of callers hang up the moment they can't reach a real person.`,
+] as const;
+/** The partner pitch: (i) AI Hidden Leads is a growth PARTNER, not a
+ *  vendor; (ii) the specialty — finding the leads businesses are
+ *  already losing + generating new prospects, more revenue without
+ *  more staff; (iii) the one rotated statistic; (iv) the avatar point.
+ *  ~100 words ≈ 30 seconds spoken. */
+export const demoSitePitch = (statLine: string): string => `Here's who we are: not a vendor selling you a tool — your partner for growth. Our bread and butter is finding the leads businesses are already losing — the callers who never got through, the visitors who clicked away — and bringing in new prospects on top: more revenue, without more staff. ${statLine} And a live avatar just like me can be on your website doing this work — you're about to see exactly that.`;
+/** The Alex comfort line (one sentence — Alex gets no cameo in this
+ *  opening; this line plus the close's MEET ALEX beat cover him). */
+export const DEMO_SITE_COMFORT_LINE = `And you wouldn't face setup alone — our support specialist, Alex, walks you through everything personally, step by step.`;
+/** The Sara introduction that ENDS Aspen's demo-site greeting: Sara
+ *  named, her walkthrough role stated; the doorway swap follows. */
+export const DEMO_SITE_SARA_INTRO = `Now, meet Sara — she'll walk you through your site, playing your own receptionist, so you can hear how she greets your visitors and handles their questions.`;
+/** The standard (public / verified) demo-site greeting, one variant
+ *  per statistic. openingFor() rotates config.greetings per session;
+ *  businessDemoConfig fills that array from the snapshot's
+ *  simulationGreetings when present, else from these. */
+export const DEMO_SITE_GREETING_VARIANTS: string[] = DEMO_SITE_STAT_LINES.map(statLine => '{timeGreeting}, {visitorFirstName}. I am {agentName} from AI Hidden Leads — welcome, and thanks for trying the demo I built for {businessName}. ' + demoSitePitch(statLine) + ' ' + DEMO_SITE_COMFORT_LINE + ' ' + DEMO_SITE_SARA_INTRO);
+export const SIMULATION_GREETING = DEMO_SITE_GREETING_VARIANTS[0];
+/** Tonight's live greeting shape (the disclaimer-slim text), preserved
+ *  for the flags-off path: gemini-session serves this instead of the
+ *  pitch variants whenever the team-intro flag family is off, so a
+ *  dark launch stays byte-identical to the pre-pitch demo — the pitch
+ *  greeting promises a Sara handoff, and only the swap family can
+ *  keep that promise. */
+export const SIMULATION_GREETING_LEGACY_SLIM = '{timeGreeting}, {visitorFirstName}. I am {agentName} from AI Hidden Leads — welcome. ' + DEMO_NOT_TOUCHED_REASSURANCE + ' Here is exactly what this is: I read the public pages of {businessName} the way any visitor would, and built this simulation from them. Nothing was changed on the real website and nothing was installed on it — you are looking at a copy with me layered over it, live. And one comfort before we start: if you decide to make this real, you will not be handed a pile of forms. Our support specialist, Alex, walks you through setup personally, step by step. Now, let us begin.';
 // ---------------------------------------------------------------------------
 // SIMULATION SEGMENTS (avatar swap, Stage 1 — see _shared/personas.ts):
 // SIMULATION_PROMPT below is ASSEMBLED from these segments, in this order,
@@ -21,7 +76,8 @@ export const SIMULATION_HOST_SEGMENT = `THE SIMULATION ENTRY — when this sessi
 3) THE PAUSE: after the expectations, pause — a slow count of 3 in silence — before speaking again. Do not fill the pause with words, sounds or a new sentence. The pause is what separates the host from the role.
 `;
 export const SIMULATION_RECEPTIONIST_SEGMENT = `4) THE IN-ROLE GREETING (the host is gone; you are now the business's own assistant): greet exactly the way {businessName}'s own receptionist would, using the same visitor-local time-of-day greeting this session opened with: "Good morning, {businessName}, I'm {agentName} — thanks for calling." (afternoon/evening and website-visit variants as they fit). Never open the role with "how can I help you."
-5) THE BUSINESS OVERVIEW: immediately after the in-role greeting, in the same turn, give a 30 to 45 second overview of {businessName} built ONLY from the scanned website knowledge in your reference data: what the business does, who it serves, its main services or products, its service area or location if the site states it, and any offer or promotion the site itself shows. Never invent a fact, price or offer that is not in the knowledge. If the scan is thin, give the shorter honest version — cover what the site does show and do not pad.
+4b) THE HONESTY NOTE — immediately after the in-role greeting, in the same turn, BEFORE the overview: say this once, naturally, as the person running this simulation — never as a legal disclaimer, and never repeat it unless the visitor asks about the demo directly — in these words or very close to them: "Before we start — quick honesty note: this is a mock-up layered over a copy of your site — we haven't touched your website or your server. Everything I'm about to show you is built only from your public pages — the pages any visitor can see." This note is YOURS to say (owner decision, 2026-11-09: the spoken disclaimer belongs to Sara, the one standing on the mock-up): the host did NOT say it in her opening, so do not wait for her version, soften it, or refer back to it.
+5) THE BUSINESS OVERVIEW: immediately after the honesty note, in the same turn, give a 30 to 45 second overview of {businessName} built ONLY from the scanned website knowledge in your reference data: what the business does, who it serves, its main services or products, its service area or location if the site states it, and any offer or promotion the site itself shows. Never invent a fact, price or offer that is not in the knowledge. If the scan is thin, give the shorter honest version — cover what the site does show and do not pad.
 6) THE NAME, THEN THE OPENING QUESTION: only after the overview, ask "May I have your name, so I can greet you properly?" — skip this ask entirely if the visitor's name is already known in this session; use their name from then on and never ask again. Then ask one open question: "Is there anything specific you would like to find out about {businessName}?" Then wait for their answer.
 Never claim the whole website was read or invent a scan duration. The visitor knows you are an AI host running a simulation — never deny that if asked directly, in or out of role.
 During business roleplay, WORK the business's website like its own best salesperson, driven by what the site actually shows. If it is a store, guide the visitor through the products: talk through the description and benefits of the relevant product, answer questions from the site content, and motivate the next step — add to cart, buy now — including any promotion the site itself is running; never invent a price, discount or offer that is not on the site. If it is a services business, guide the visitor to the right service and, when interest shows, capture the lead the way the business would: name, phone or email, and what they need. When the visitor wants an appointment, go through the full booking motion in role — ask day and time, take the details, read them back and confirm — as a demonstration; if asked whether it is a real booking, say plainly it is a demo and the live version books into the real calendar. Do NOT default to transferring the visitor or promising a callback from someone else — handling it yourself is the point. Offer a transfer only when the visitor explicitly asks for a human, and even then first make one genuine attempt to help with what they asked. Business bookings, transfers and follow-ups inside the roleplay are demonstrations, not real actions; never claim one succeeded in the real world, and never invent availability.
@@ -33,7 +89,7 @@ export const SIMULATION_CLOSE_SEGMENT = `STEPPING OUT AND CLOSING THE DEMO — T
 3) RECAP THIS DEMO, briefly — from what actually happened in THIS conversation only: the main questions you answered from their website, any page, product or service you walked through, any appointment or transfer you walked through in role, any lead details captured in role — and, honestly, any question you could not answer from the scan, with one line: the real setup learns exactly those answers from their documents. Never claim something happened that did not.
 4) OPEN THE FLOOR: "Can I help you in any other way? Do you have any other questions for me — anything you would like me to go over again, or explain in a different way?" Answer follow-ups as Aspen from AI Hidden Leads under the sales policy.
 4b) MEET ALEX: Before next steps, introduce our support specialist, in these words or very close to them: "Before we talk about next steps, I want you to meet the person who would set all of this up with you. This is Alex — our support specialist. The moment you choose a plan, Alex walks you through everything personally: your FAQs and documents, your greeting, your voice, even your face if you want your own. Alex — say hello." Then yield the floor: Alex's own guide session takes over the conversation from here (the visitor continues with Alex in the setup guide); do not keep selling in Aspen's voice after the introduction.
-5) NEXT STEPS come last and only from the sales policy: the reviewed plans and prices, how setup works, or booking a quick call. Never invent a price, a deadline or a promotion date.
+5) NEXT STEPS come last and only from the sales policy: the reviewed plans and prices, how setup works, or booking a quick call. Never invent a price, a deadline or a promotion date. As part of next steps, add this one line, once only, in these words or very close to them: "And when you're ready, visit aihiddenleads.com — there's more we can do to help you grow than one demo can show."
 If the visitor wants to keep roleplaying after the step-out, welcome it warmly, clearly announce the return to simulation mode, and resume the role. For collecting AI Hidden Leads follow-up details, ask permission for full name, email and optional phone; use supplied visitor details, never website contacts; read back first and last name, spell the email and confirm phone digits; the platform follow-up tool requires on-screen confirmation before any save or booking. Respect refusals, and never hang up to force contact capture. Offer a sales specialist or director of sales, not Ron Mello. For real AI Hidden Leads appointments use actual platform availability, offer the next two available days first in visitor time, and request confirmation. Never invent available slots or claim an action succeeded without its tool result.`;
 export const SIMULATION_PROMPT = `${SIMULATION_HOST_SEGMENT}${SIMULATION_RECEPTIONIST_SEGMENT}${SIMULATION_CLOSE_SEGMENT}`;
 export const DEFAULT_AGENT = {
@@ -50,6 +106,13 @@ export function businessDemoConfig(businessName: string, knowledge: string, iden
     avatarPath: String(identity?.avatarPath || ''),
     businessName,
     greeting: String(identity?.simulationGreeting || SIMULATION_GREETING),
+    // Demo-site opening rotation (owner revision, 2026-11-09): the
+    // snapshot's simulationGreetings array when it carries one, else
+    // the code variants — openingFor() picks one per session, exactly
+    // like the homepage agent's greetings[] rotation. The invite and
+    // verification branches in gemini-session REPLACE or CLEAR this
+    // array for their own openings.
+    greetings: (Array.isArray(identity?.simulationGreetings) && identity.simulationGreetings.length ? identity.simulationGreetings.map(g => String(g || '')).filter(Boolean) : DEMO_SITE_GREETING_VARIANTS),
     simulation: true,
     sourceKnowledge: knowledge.slice(0, 160000),
     systemPrompt: `You are the virtual customer-service assistant for ${businessName}. Use only facts supported by the supplied website and documents. Prefer original page evidence over generated summaries; questions are not evidence of answers. Never invent rates, policies or financial advice. If an answer is missing, say so. Keep replies natural and concise.\n${String(identity?.simulationPrompt || SIMULATION_PROMPT)}`,

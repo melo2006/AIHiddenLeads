@@ -12,9 +12,11 @@
 //  - segment routing for the intro family (right persona/boundary
 //    pairs build, wrong pairs throw, host segments require the
 //    teamIntro options)
-//  - the demo-site introduction beat (rework delta a):
-//    withSimulationTeamIntro inserts after BOTH reassurance forms and
-//    on the invite greeting, and is the identity otherwise
+//  - the demo-site opening (REVISED delta a + disclaimer ownership,
+//    owner 2026-11-09 20:58–21:00): greeting variants rotate one
+//    approved statistic each; welcome → pitch → comfort → Sara intro
+//    last; NO spoken disclaimer in Aspen's greetings; Sara's beat 4b
+//    carries it; the close's single homepage line; Act 1 scoping
 //  - opening priority: an intro boundary opening is the planned-swap
 //    branch — no apology, no "you're back", no resume text
 //  - client state machine: intro anchor gating per phase, the
@@ -31,14 +33,18 @@ import {
   avatarSwapEnabled, personaSegmentPrompt, teamIntroEnabled,
 } from '../../supabase/functions/_shared/personas';
 import {
-  ALEX_CAMEO_PROMPT, DEMO_NOT_TOUCHED_REASSURANCE_LONG_LEGACY, DEMO_NOT_TOUCHED_REASSURANCE_SLIM, INTRO_BOUNDARIES, SARA_CAMEO_PROMPT,
-  SIMULATION_TEAM_INTRO_BEAT, TEAM_INTRO_BEAT_ALEX, TEAM_INTRO_BEAT_BRIDGE_ALEX, TEAM_INTRO_BEAT_BRIDGE_SARA,
+  ALEX_CAMEO_PROMPT, INTRO_BOUNDARIES, SARA_CAMEO_PROMPT,
+  TEAM_INTRO_BEAT_ALEX, TEAM_INTRO_BEAT_BRIDGE_ALEX, TEAM_INTRO_BEAT_BRIDGE_SARA,
   TEAM_INTRO_BEAT_RETURN, TEAM_INTRO_BEAT_SARA, TEAM_INTRO_FALLBACK_ALEX, TEAM_INTRO_FALLBACK_SARA,
-  TEAM_INTRO_HOST_SEGMENT, TEAM_INTRO_TEACHING, isIntroBoundary, withSimulationTeamIntro,
+  TEAM_INTRO_HOST_SEGMENT, TEAM_INTRO_TEACHING, isIntroBoundary,
 } from '../../supabase/functions/_shared/team-intro';
-import { DEMO_NOT_TOUCHED_REASSURANCE, SIMULATION_GREETING } from '../../supabase/functions/_shared/voice-config';
-import { DEMO_INVITE_GREETING } from '../../supabase/functions/_shared/demo-sales';
-import { openingText } from '../../supabase/functions/_shared/session-opening';
+import {
+  DEMO_NOT_TOUCHED_REASSURANCE, DEMO_SITE_COMFORT_LINE, DEMO_SITE_GREETING_VARIANTS, DEMO_SITE_SARA_INTRO,
+  DEMO_SITE_STAT_LINES, SIMULATION_CLOSE_SEGMENT, SIMULATION_GREETING, SIMULATION_RECEPTIONIST_SEGMENT,
+  businessDemoConfig,
+} from '../../supabase/functions/_shared/voice-config';
+import { DEMO_INVITE_GREETING, DEMO_INVITE_GREETING_VARIANTS, DEMO_VERIFICATION_GREETING } from '../../supabase/functions/_shared/demo-sales';
+import { openingText, swapOpeningInstruction } from '../../supabase/functions/_shared/session-opening';
 import {
   INITIAL_SWAP_STATE, SWAP_CROSSFADE_MS, TEAM_INTRO_SEEN_FACT, boundaryForAssistantLine, buildSwapRecap,
   introYieldOnVisitorLine, otherFaceSlot, reconnectTarget, swapRecapFacts, type SwapState,
@@ -50,7 +56,7 @@ const RECAP = 'The visitor is Dana from Durgin Electric. Website: durginelectric
 const ALL_INTRO_PROMPTS = [
   TEAM_INTRO_BEAT_BRIDGE_SARA, TEAM_INTRO_BEAT_SARA, TEAM_INTRO_BEAT_BRIDGE_ALEX, TEAM_INTRO_BEAT_ALEX,
   TEAM_INTRO_BEAT_RETURN, TEAM_INTRO_FALLBACK_SARA, TEAM_INTRO_FALLBACK_ALEX, TEAM_INTRO_TEACHING,
-  SARA_CAMEO_PROMPT, TEAM_INTRO_HOST_SEGMENT, ALEX_CAMEO_PROMPT, SIMULATION_TEAM_INTRO_BEAT,
+  SARA_CAMEO_PROMPT, TEAM_INTRO_HOST_SEGMENT, ALEX_CAMEO_PROMPT,
 ];
 
 describe('flag gating', () => {
@@ -92,7 +98,8 @@ describe('prompt content pins', () => {
   });
   test('Alex is framed as the support specialist in every intro surface', () => {
     expect(TEAM_INTRO_BEAT_ALEX.toLowerCase()).toContain('support specialist');
-    expect(SIMULATION_TEAM_INTRO_BEAT).toContain('Alex, our support specialist');
+    // The demo-site opening's only Alex material is the comfort line.
+    expect(DEMO_SITE_COMFORT_LINE).toContain('our support specialist, Alex');
   });
 });
 
@@ -121,44 +128,88 @@ describe('segment routing', () => {
   });
 });
 
-describe('demo-site introduction beat (delta a)', () => {
-  test('inserts immediately after the reassurance in SIMULATION_GREETING (post-disclaimer-slim text)', () => {
-    // Since the disclaimer-slim merge, DEMO_NOT_TOUCHED_REASSURANCE IS
-    // the 23-word slim sentence and SIMULATION_GREETING embeds it.
-    expect(DEMO_NOT_TOUCHED_REASSURANCE).toBe(DEMO_NOT_TOUCHED_REASSURANCE_SLIM);
-    const out = withSimulationTeamIntro(SIMULATION_GREETING);
-    expect(out).toContain(SIMULATION_TEAM_INTRO_BEAT);
-    expect(out.indexOf(SIMULATION_TEAM_INTRO_BEAT)).toBeGreaterThan(out.indexOf(DEMO_NOT_TOUCHED_REASSURANCE));
-    expect(out.indexOf(SIMULATION_TEAM_INTRO_BEAT)).toBeLessThan(out.indexOf('Here is exactly what this is:'));
+describe('demo-site opening (revised delta a + disclaimer ownership, owner 2026-11-09 20:58–21:00)', () => {
+  test('three standard variants rotate exactly one approved statistic each', () => {
+    expect(DEMO_SITE_GREETING_VARIANTS).toHaveLength(3);
+    expect(DEMO_SITE_STAT_LINES).toHaveLength(3);
+    DEMO_SITE_GREETING_VARIANTS.forEach((greeting, i) => {
+      expect(greeting).toContain(DEMO_SITE_STAT_LINES[i]);
+      DEMO_SITE_STAT_LINES.forEach((stat, j) => { if (j !== i) expect(greeting).not.toContain(stat); });
+      // Approved framings survive: the 78% line keeps its survey scope
+      // and SAID framing; no publisher is named in any opening.
+      expect(greeting).not.toContain('Facebook');
+    });
+    expect(DEMO_SITE_STAT_LINES[0]).toContain("85% of callers who hit a business's voicemail don't call back");
+    expect(DEMO_SITE_STAT_LINES[1]).toContain('78% of 1,000 U.S. consumers said they had abandoned a business');
+    expect(DEMO_SITE_STAT_LINES[2]).toContain("67% of callers hang up the moment they can't reach a real person");
   });
-  test('inserts immediately after the LONG legacy reassurance (a not-yet-updated stored snapshot)', () => {
-    const staleSnapshotGreeting = `{timeGreeting}, {visitorFirstName}. I am {agentName} from AI Hidden Leads — welcome. ${DEMO_NOT_TOUCHED_REASSURANCE_LONG_LEGACY} Here is exactly what this is: the explanation.`;
-    const out = withSimulationTeamIntro(staleSnapshotGreeting);
-    expect(out.indexOf(SIMULATION_TEAM_INTRO_BEAT)).toBeGreaterThan(out.indexOf(DEMO_NOT_TOUCHED_REASSURANCE_LONG_LEGACY));
-    expect(out.indexOf(SIMULATION_TEAM_INTRO_BEAT)).toBeLessThan(out.indexOf('Here is exactly what this is:'));
+  test('every standard variant: welcome → pitch → comfort → Sara intro LAST, and NO spoken disclaimer from Aspen', () => {
+    for (const greeting of DEMO_SITE_GREETING_VARIANTS) {
+      expect(greeting).toContain('thanks for trying the demo I built for {businessName}');
+      expect(greeting).toContain('your partner for growth');
+      expect(greeting).toContain('bread and butter');
+      expect(greeting).toContain('more revenue, without more staff');
+      expect(greeting).toContain('a live avatar just like me can be on your website');
+      expect(greeting).toContain(DEMO_SITE_COMFORT_LINE);
+      expect(greeting.endsWith(DEMO_SITE_SARA_INTRO)).toBe(true);
+      expect(greeting).not.toContain(DEMO_NOT_TOUCHED_REASSURANCE);
+      expect(greeting).not.toContain("haven't touched your website or your server");
+      // No Alex cameo in the opening: his name appears only in the comfort line.
+      expect(greeting.split('Alex').length - 1).toBe(1);
+    }
+    expect(SIMULATION_GREETING).toBe(DEMO_SITE_GREETING_VARIANTS[0]);
   });
-  test('inserts immediately after the SLIMMED reassurance (disclaimer-slim form)', () => {
-    const slimGreeting = `{timeGreeting}, {visitorFirstName}. ${DEMO_NOT_TOUCHED_REASSURANCE_SLIM} Here is exactly what this is: the explanation.`;
-    const out = withSimulationTeamIntro(slimGreeting);
-    expect(out.indexOf(SIMULATION_TEAM_INTRO_BEAT)).toBeGreaterThan(out.indexOf(DEMO_NOT_TOUCHED_REASSURANCE_SLIM));
-    expect(out.indexOf(SIMULATION_TEAM_INTRO_BEAT)).toBeLessThan(out.indexOf('Here is exactly what this is:'));
+  test('invite variants mirror the structure with the invitation welcome and the name check', () => {
+    expect(DEMO_INVITE_GREETING_VARIANTS).toHaveLength(3);
+    DEMO_INVITE_GREETING_VARIANTS.forEach((greeting, i) => {
+      expect(greeting).toContain(DEMO_SITE_STAT_LINES[i]);
+      expect(greeting).toContain('Thanks for accepting the invitation');
+      expect(greeting).toContain('already loaded on your website');
+      expect(greeting).toContain('{nameConfirm}');
+      expect(greeting).toContain('your partner for growth');
+      expect(greeting.endsWith(DEMO_SITE_SARA_INTRO)).toBe(true);
+      expect(greeting).not.toContain(DEMO_NOT_TOUCHED_REASSURANCE);
+      // The channel is never named (word-boundary: "voicemail" in the
+      // 85% statistic is obviously not the channel).
+      expect(greeting).not.toContain('Facebook');
+      expect(greeting.toLowerCase()).not.toMatch(/\bemail\b/);
+    });
+    expect(DEMO_INVITE_GREETING).toBe(DEMO_INVITE_GREETING_VARIANTS[0]);
   });
-  test('lands on the invite greeting too (invites arrive on /demo-site)', () => {
-    const out = withSimulationTeamIntro(DEMO_INVITE_GREETING);
-    expect(out).toContain(SIMULATION_TEAM_INTRO_BEAT);
-    expect(out.indexOf(SIMULATION_TEAM_INTRO_BEAT)).toBeGreaterThan(out.indexOf(DEMO_NOT_TOUCHED_REASSURANCE));
+  test('businessDemoConfig wires the rotation: snapshot simulationGreetings win, code variants are the fallback', () => {
+    const fromCode = businessDemoConfig('Durgin Electric', 'knowledge');
+    expect(fromCode.greetings).toEqual(DEMO_SITE_GREETING_VARIANTS);
+    expect(fromCode.greeting).toBe(SIMULATION_GREETING);
+    const fromSnapshot = businessDemoConfig('Durgin Electric', 'knowledge', { simulationGreeting: 'SNAP GREETING', simulationGreetings: ['SNAP A', 'SNAP B'] });
+    expect(fromSnapshot.greeting).toBe('SNAP GREETING');
+    expect(fromSnapshot.greetings).toEqual(['SNAP A', 'SNAP B']);
   });
-  test('identity when the beat is already present, no anchor matches, or input is empty', () => {
-    const once = withSimulationTeamIntro(SIMULATION_GREETING);
-    expect(withSimulationTeamIntro(once)).toBe(once);
-    const unrelated = 'Good morning, and welcome to the show.';
-    expect(withSimulationTeamIntro(unrelated)).toBe(unrelated);
-    expect(withSimulationTeamIntro('')).toBe('');
+  test('gemini-session protects Act 1 and the flags-off path from the pitch rotation', () => {
+    const src = read('supabase/functions/gemini-session/index.ts');
+    // Verification-pending: the rotation array is cleared with the Act 1 greeting.
+    expect(src).toContain("config.greeting=DEMO_VERIFICATION_GREETING; config.greetings=[];");
+    // Invite arrivals rotate the INVITE variants.
+    expect(src).toContain('config.greetings=DEMO_INVITE_GREETING_VARIANTS');
+    // Flags off: legacy slim greetings, rotation cleared (dark launch stays byte-identical).
+    expect(src).toContain('SIMULATION_GREETING_LEGACY_SLIM');
+    expect(src).toContain('DEMO_INVITE_GREETING_LEGACY_SLIM');
   });
-  test('the beat introduces Sara as the walkthrough receptionist and name-drops Alex once', () => {
-    expect(SIMULATION_TEAM_INTRO_BEAT).toContain('meet Sara');
-    expect(SIMULATION_TEAM_INTRO_BEAT).toContain("playing your own receptionist");
-    expect(SIMULATION_TEAM_INTRO_BEAT).toContain("you'll meet Alex");
+  test("Sara's first in-simulation beat carries the disclaimer (all three clauses + public pages)", () => {
+    expect(SIMULATION_RECEPTIONIST_SEGMENT).toContain('THE HONESTY NOTE');
+    expect(SIMULATION_RECEPTIONIST_SEGMENT).toContain("this is a mock-up layered over a copy of your site — we haven't touched your website or your server");
+    expect(SIMULATION_RECEPTIONIST_SEGMENT).toContain('built only from your public pages');
+    // The doorway swap opening directs the same order: greeting → honesty note → overview.
+    const doorway = swapOpeningInstruction({ to: 'sara', boundary: 'doorway' }, RECAP);
+    expect(doorway).toContain('honesty note');
+    expect(doorway.indexOf('honesty note')).toBeLessThan(doorway.indexOf('business overview'));
+  });
+  test('the close gains exactly one homepage invitation line', () => {
+    const line = "visit aihiddenleads.com — there's more we can do to help you grow than one demo can show";
+    expect(SIMULATION_CLOSE_SEGMENT).toContain(line);
+    expect(SIMULATION_CLOSE_SEGMENT.split(line).length - 1).toBe(1);
+  });
+  test("the verification gate's Act 1 greeting keeps Aspen's reassurance (deliberate scoping)", () => {
+    expect(DEMO_VERIFICATION_GREETING).toContain(DEMO_NOT_TOUCHED_REASSURANCE);
   });
 });
 

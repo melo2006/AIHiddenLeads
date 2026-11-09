@@ -1,17 +1,17 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { z } from 'npm:zod@3';
-import { DEFAULT_AGENT, VOICES, openingFor, businessDemoConfig } from '../_shared/voice-config.ts';
+import { DEFAULT_AGENT, VOICES, openingFor, businessDemoConfig, SIMULATION_GREETING_LEGACY_SLIM } from '../_shared/voice-config.ts';
 import { DEFAULT_LIVE_MODEL, officialLivePricing } from '../_shared/live-models.ts';
 import { voiceQuotaClass, voiceLimitResponse } from '../_shared/voice-session-limit.ts';
 import { transferDestination } from '../_shared/browser-handoff.ts';
 import { transcriptAllowed } from '../_shared/transcript-consent.ts';
 import { workspaceAccess } from '../_shared/customer-payments.ts';
 import { resolveDemoShare } from '../_shared/demo-share.ts';
-import { DEMO_INVITE_GREETING, DEMO_INVITE_OPENING, DEMO_VERIFICATION_ACT1, DEMO_VERIFICATION_GREETING } from '../_shared/demo-sales.ts';
+import { DEMO_INVITE_GREETING, DEMO_INVITE_GREETING_LEGACY_SLIM, DEMO_INVITE_GREETING_VARIANTS, DEMO_INVITE_OPENING, DEMO_VERIFICATION_ACT1, DEMO_VERIFICATION_GREETING } from '../_shared/demo-sales.ts';
 import { alexGuideConfig, alexDemoGuestConfig } from '../_shared/alex-guide.ts';
 import { avatarSwapEnabled, teamIntroEnabled, personaFor, personaSegmentPrompt } from '../_shared/personas.ts';
-import { TEAM_INTRO_TEACHING, SIMULATION_TEAM_INTRO_BEAT, isIntroBoundary, teamIntroGreetingFor, withSimulationTeamIntro } from '../_shared/team-intro.ts';
+import { TEAM_INTRO_TEACHING, isIntroBoundary, teamIntroGreetingFor } from '../_shared/team-intro.ts';
 import { PUBLIC_PATHS } from '../_shared/report-context.ts';
 import { normalizeUiLocale, startingLanguageForUiLocale } from '../_shared/conversation-language.ts';
 const personaSegmentSchema=z.object({persona:z.enum(['aspen','sara','alex']),boundary:z.enum(['doorway','stepout','meet-alex','return','intro-sara','intro-return-1','intro-alex','intro-return-2']),parentSessionId:z.string().uuid(),swapRecap:z.string().max(2400),drops:z.number().int().min(0).max(99).default(0),dropRecovery:z.boolean().default(false),swap:z.boolean().default(false),teamIntroSeen:z.boolean().default(false)});
@@ -161,28 +161,27 @@ Deno.serve(async req=>{
     const {data:aspen}=await db.from('voice_agents').select('published').eq('slug','aspen-homepage').maybeSingle();
     const published=aspen?.published as Record<string,unknown>|undefined;
     config={...businessDemoConfig(businessName,knowledge,published), visitorContact, platformFollowup:true};
-    if(b.verification==='pending') { config.greeting=DEMO_VERIFICATION_GREETING; config.systemPrompt=`${DEMO_VERIFICATION_ACT1}\n\n${String(config.systemPrompt)}`; config.verificationGate=true; }
+    if(b.verification==='pending') { config.greeting=DEMO_VERIFICATION_GREETING; config.greetings=[]; config.systemPrompt=`${DEMO_VERIFICATION_ACT1}\n\n${String(config.systemPrompt)}`; config.verificationGate=true; }
     // Invite arrivals (cold-email personal link): the host phase replaces
     // the code gate. Honored ONLY when the demo-invite resolve stamped the
     // lead's arrival server-side — a client flag alone never earns it.
-    else if(b.invite===true && leadInviteArrivedAt) { config.greeting=DEMO_INVITE_GREETING; config.systemPrompt=`${DEMO_INVITE_OPENING}\n\n${String(config.systemPrompt)}`; config.inviteArrival=true; }
-    // DEMO-SITE TEAM INTRODUCTION BEAT (rework delta a — owner,
-    // 2026-11-09): on the demo screen itself (this branch — public
-    // /demo-site AND invite arrivals alike), Aspen's opening introduces
-    // Sara by name and role right after the not-touched reassurance,
-    // with a one-line Alex name-drop for the close; the existing
-    // doorway swap then hands the walkthrough to Sara at its start.
-    // Gated by the SAME flag family as the /demo cameo stamp
-    // (teamIntroOn = AVATAR_SWAP_ENABLED + TEAM_INTRO_ENABLED), so it
-    // dark-launches with the cameo and is byte-absent when the flags
-    // are off. NEVER on the verification-pending greeting: the code
-    // gate owns that opening, and the beat belongs to the simulation
-    // entry itself. The insertion is anchor-based (team-intro.ts), so
-    // it lands after the reassurance in the code greeting, the invite
-    // greeting, and the stored snapshot greeting alike.
-    if(teamIntroOn && b.verification!=='pending') {
-      config.greeting=withSimulationTeamIntro(String(config.greeting || ''));
-      if(String(config.greeting).includes(SIMULATION_TEAM_INTRO_BEAT)) config.simulationTeamIntro=true;
+    else if(b.invite===true && leadInviteArrivedAt) { config.greeting=DEMO_INVITE_GREETING; config.greetings=DEMO_INVITE_GREETING_VARIANTS; config.systemPrompt=`${DEMO_INVITE_OPENING}\n\n${String(config.systemPrompt)}`; config.inviteArrival=true; }
+    // DEMO-SITE OPENING GATING (owner revision, 2026-11-09 — replaces
+    // the brief assembly-time intro beat): businessDemoConfig and the
+    // invite branch above serve the NEW demo-site opening (personalized
+    // welcome → partner pitch with a rotated statistic → Alex comfort
+    // line → Sara introduction; Sara owns the spoken disclaimer at the
+    // simulation entry). That opening promises a Sara handoff, which
+    // only the swap family can keep — so with the team-intro flag
+    // family OFF, the demo-site opening falls back to tonight's live
+    // greeting shapes (byte-identical legacy) and the rotation array
+    // is cleared. The verification-pending greeting is never touched
+    // here: the code gate owns that opening in both worlds (and its
+    // greetings array was already cleared above so openingFor cannot
+    // serve a pitch variant into Act 1).
+    if(!teamIntroOn && b.verification!=='pending') {
+      config.greetings=[];
+      config.greeting=(b.invite===true && leadInviteArrivedAt) ? DEMO_INVITE_GREETING_LEGACY_SLIM : SIMULATION_GREETING_LEGACY_SLIM;
     }
   } else {
     let query=db.from('voice_agents').select('*'); query=b.agentId?query.eq('id',b.agentId):query.eq('slug','aspen-homepage');

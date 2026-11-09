@@ -193,16 +193,21 @@ describe('resolve response parsing', () => {
 });
 
 describe('invite opening copy (Aspen host phase)', () => {
-  test('greeting: pre-built, no waiting, plain simulation explanation', () => {
+  test('greeting: pre-built, no waiting, partner pitch + Sara intro; the spoken disclaimer is Sara\'s now (owner, 2026-11-09)', () => {
     expect(DEMO_INVITE_GREETING).toContain('{timeGreeting}');
     expect(DEMO_INVITE_GREETING).toContain('{visitorFirstName}');
     expect(DEMO_INVITE_GREETING).toContain('{businessName}');
     expect(DEMO_INVITE_GREETING).toContain('Aspen from AI Hidden Leads');
     expect(DEMO_INVITE_GREETING).toContain('already loaded on your website');
     expect(DEMO_INVITE_GREETING).toContain('no waiting');
-    expect(DEMO_INVITE_GREETING).toContain('simulation layered over your website');
-    expect(DEMO_INVITE_GREETING).toContain('has not been changed');
-    expect(DEMO_INVITE_GREETING).toContain('talking with you right now');
+    expect(DEMO_INVITE_GREETING).toContain('Thanks for accepting the invitation');
+    expect(DEMO_INVITE_GREETING).toContain('your partner for growth');
+    expect(DEMO_INVITE_GREETING).toContain('meet Sara');
+    // The scripted not-touched lines moved OUT of Aspen's greeting —
+    // Sara speaks the honesty note at the simulation entry (beat 4b).
+    expect(DEMO_INVITE_GREETING).not.toContain('simulation layered over your website');
+    expect(DEMO_INVITE_GREETING).not.toContain('has not been changed');
+    expect(DEMO_INVITE_GREETING).not.toContain("haven't touched your website or your server");
     expect(DEMO_INVITE_GREETING).toContain('{nameConfirm}');
     expect(DEMO_INVITE_GREETING).not.toContain('being prepared');
     expect(DEMO_INVITE_GREETING).not.toContain('4-digit code');
