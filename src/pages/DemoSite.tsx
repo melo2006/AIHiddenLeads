@@ -274,6 +274,10 @@ const DemoSite = () => {
   const [hasLiveViewLoaded, setHasLiveViewLoaded] = useState(false);
   const [hasIframeLoaded, setHasIframeLoaded] = useState(false);
   const [hasScreenshotLoaded, setHasScreenshotLoaded] = useState(false);
+  // Distinct from "not loaded yet": the stored screenshot URL exists but the
+  // image itself failed (e.g. an expired signed URL → 403). A failed
+  // screenshot must release the Browserbase live view — see demoStartup.ts.
+  const [hasScreenshotFailed, setHasScreenshotFailed] = useState(false);
   const liveViewSessionRef = useRef<string | null>(null);
   const startedScanLeadRef = useRef<string | null>(null);
   const [prospectOwner, setProspectOwner] = useState<{name?: string; email?: string; phone?: string} | null>(null);
@@ -347,6 +351,7 @@ const DemoSite = () => {
 
   useEffect(() => {
     setHasScreenshotLoaded(false);
+    setHasScreenshotFailed(false);
   }, [responsiveScreenshotSrc]);
 
   const returnTo = searchParams.get("returnTo");
@@ -724,7 +729,7 @@ const DemoSite = () => {
       iframeFailureMode !== "unreachable" &&
       (iframeBlocked || isMixedContentPreview(previewUrl, embedOrigin));
 
-    if (!shouldStartRemotePreview(requiresBrowserFallback, Boolean(screenshotSrc)) || liveViewUrl || isLiveViewLoading || liveViewFailed) return;
+    if (!shouldStartRemotePreview(requiresBrowserFallback, Boolean(screenshotSrc), hasScreenshotFailed) || liveViewUrl || isLiveViewLoading || liveViewFailed) return;
 
     let cancelled = false;
 
@@ -765,7 +770,7 @@ const DemoSite = () => {
 
     startLiveView();
     return () => { cancelled = true; };
-  }, [iframeBlocked, iframeFailureMode, isLiveViewLoading, leadData?.websiteUrl, liveViewFailed, liveViewUrl, resolvedIframeUrl, screenshotSrc]);
+  }, [hasScreenshotFailed, iframeBlocked, iframeFailureMode, isLiveViewLoading, leadData?.websiteUrl, liveViewFailed, liveViewUrl, resolvedIframeUrl, screenshotSrc]);
 
   useEffect(() => {
     setHasIframeLoaded(false);
@@ -993,13 +998,19 @@ const DemoSite = () => {
                   fetchPriority="high"
                   decoding="async"
                   draggable={false}
-                  onLoad={() => setHasScreenshotLoaded(true)}
-                  onError={() => setHasScreenshotLoaded(false)}
+                  onLoad={() => {
+                    setHasScreenshotLoaded(true);
+                    setHasScreenshotFailed(false);
+                  }}
+                  onError={() => {
+                    setHasScreenshotLoaded(false);
+                    setHasScreenshotFailed(true);
+                  }}
                 />
               </div>
             )}
 
-            {requiresBrowserFallback && liveViewUrl && !isGeneratedScreenshot && !hasScreenshotAsset && (
+            {requiresBrowserFallback && liveViewUrl && !isGeneratedScreenshot && (!hasScreenshotAsset || hasScreenshotFailed) && (
               <iframe
                 src={liveViewUrl}
                 className={`absolute inset-0 h-full w-full border-0 transition-opacity duration-300 ${hasLiveViewLoaded ? "opacity-100" : "opacity-0"}`}

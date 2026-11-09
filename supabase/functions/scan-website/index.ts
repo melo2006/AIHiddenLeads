@@ -597,6 +597,84 @@ async function scrapeScreenshotFallback(url: string, apiKey: string) {
   }
 }
 
+const REHOST_MAX_BYTES = 8 * 1024 * 1024;
+
+/**
+ * Re-host a Firecrawl screenshot URL into our own public `email-assets`
+ * bucket and return the public bucket URL.
+ *
+ * Why: Firecrawl hands back a signed storage URL that expires — leads saved
+ * with it later render a dead screenshot (verified 2026-11-09: the stored
+ * URL for a live demo returned HTTP 403, leaving the demo blank when the
+ * site also blocked iframe embedding). Downloading the bytes at scan time,
+ * while the signed URL is still fresh, makes the stored link permanent.
+ *
+ * Failure policy: ANY failure (download, size, upload) returns the original
+ * Firecrawl URL — re-hosting must never fail or block the scan.
+ */
+async function rehostScreenshotUrl(
+  screenshotUrl: string,
+  leadId: string,
+  supabaseUrl: string,
+  supabaseServiceKey: string,
+  suffix = 'desktop',
+): Promise<string> {
+  try {
+    // Already ours (public bucket) or an inline image — nothing to re-host.
+    if (
+      screenshotUrl.startsWith('data:') ||
+      screenshotUrl.includes('/storage/v1/object/public/')
+    ) {
+      return screenshotUrl;
+    }
+
+    const response = await fetch(screenshotUrl, { signal: AbortSignal.timeout(15000) });
+    if (!response.ok) {
+      console.warn(`[Rehost] Screenshot download failed (${response.status}), keeping original URL`);
+      return screenshotUrl;
+    }
+
+    const declaredLength = Number(response.headers.get('content-length') || 0);
+    if (declaredLength > REHOST_MAX_BYTES) {
+      console.warn(`[Rehost] Screenshot too large (${declaredLength} bytes), keeping original URL`);
+      return screenshotUrl;
+    }
+
+    const buffer = await response.arrayBuffer();
+    if (buffer.byteLength === 0 || buffer.byteLength > REHOST_MAX_BYTES) {
+      console.warn(`[Rehost] Screenshot size ${buffer.byteLength} out of bounds, keeping original URL`);
+      return screenshotUrl;
+    }
+
+    const contentType = (response.headers.get('content-type') || 'image/png').split(';')[0].trim().toLowerCase();
+    const extension = contentType === 'image/jpeg' ? 'jpg' : contentType === 'image/webp' ? 'webp' : 'png';
+    const filePath = `demo-screenshots/${leadId}-${suffix}.${extension}`;
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const { error: uploadError } = await supabase.storage
+      .from('email-assets')
+      .upload(filePath, buffer, {
+        contentType: contentType.startsWith('image/') ? contentType : 'image/png',
+        upsert: true,
+      });
+
+    if (uploadError) {
+      console.error('[Rehost] Screenshot upload error, keeping original URL:', uploadError);
+      return screenshotUrl;
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from('email-assets')
+      .getPublicUrl(filePath);
+
+    console.log('[Rehost] Screenshot re-hosted:', publicUrlData.publicUrl);
+    return publicUrlData.publicUrl;
+  } catch (err) {
+    console.error('[Rehost] Screenshot re-host failed, keeping original URL:', err);
+    return screenshotUrl;
+  }
+}
+
 const escapeSvgText = (value: string) =>
   value
     .replace(/&/g, '&amp;')
@@ -1195,9 +1273,24 @@ Deno.serve(async (req) => {
     // Await Browserless multi-viewport screenshots and recover with Firecrawl fallback if needed.
     const browserlessResults = await browserlessPromise;
     const browserlessScreenshotResult = browserlessResults.desktop;
-    const firecrawlScreenshotResult = !browserlessScreenshotResult
+    let firecrawlScreenshotResult = !browserlessScreenshotResult
       ? await scrapeScreenshotFallback(formattedUrl, firecrawlKey)
       : null;
+
+    // Re-host the Firecrawl screenshot into our own public bucket before it
+    // is stored on the lead — the signed Firecrawl URL expires and would
+    // leave the demo with a dead screenshot. Browserless screenshots are
+    // already uploaded to storage above, so only the Firecrawl URL needs
+    // this. On any re-host failure the original URL is kept.
+    if (firecrawlScreenshotResult) {
+      firecrawlScreenshotResult = await rehostScreenshotUrl(
+        firecrawlScreenshotResult,
+        leadId,
+        supabaseUrl,
+        supabaseServiceKey,
+        'desktop',
+      );
+    }
 
     // Use Browserless screenshot (higher quality), fall back to Firecrawl, then a generated preview image.
     const finalScreenshot = browserlessScreenshotResult || firecrawlScreenshotResult || null;
