@@ -12,6 +12,12 @@ import {
 } from "@/components/ui/select";
 import { Mic, MicOff, Volume2, VolumeX, FlaskConical, PhoneOff, Loader2, Play, Pause, Save, RotateCcw, RefreshCw, Settings2, ChevronsUpDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useTranslation } from "react-i18next";
+// This component renders in standalone harnesses (Voice Lab, embeds, tests)
+// that never run main.tsx — importing the i18n module here guarantees the
+// locale resources exist wherever the panel mounts (same singleton in the app).
+import "@/i18n";
+import { explicitUiLocale } from "@/lib/uiLocale";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { microphonePcm, shouldSendMicrophone, microphoneGate, microphoneAutoGain, type NoiseFilter, type CaptureMode } from "@/lib/voiceLabAudio";
 
@@ -38,10 +44,7 @@ import { createMediaSink, mediaPlaybackNode, type MediaSink } from '@/lib/mediaS
 
 const MICROPHONE_DENIED = "Microphone permission was denied — allow it in your browser and try again.";
 /** On-screen only: replaces the mic-denied error when the widget runs inside an embedded preview frame, where the parent frame withholds the microphone and the browser can never show a permission prompt — there is nothing for the visitor to "allow" there. */
-const EMBEDDED_MIC_NOTICE = "This embedded preview can't use your microphone. Open the full page to talk to Aspen.";
 const AUDIO_TAP_NEEDED = 'Tap play to enable sound on this phone. Your sign-in and demo allowance are unchanged.';
-/** On-screen only (never spoken): shown when the moving face could not start and the call continues voice-only. */
-const VIDEO_FALLBACK_NOTICE = "Video needs a faster connection — you’re talking with Aspen by voice.";
 /** Opening-gate failsafe only: the gate itself lifts on Aspen's first turn_complete (turn-based, not clock-based); this just stops a lost turn from muting the mic forever. */
 const OPENING_GATE_FAILSAFE_MS = 60_000;
 const VOICES = [
@@ -74,14 +77,14 @@ const WS_URL = SUPABASE_URL.replace(/^https/, "wss") + "/functions/v1/gemini-liv
 /** Calm guidance shown instead of the mic-denied error when the widget is framed by an
  * embedded preview: the parent frame withholds the microphone, so no prompt can ever
  * appear. Opening this same page as its own top-level page is where the prompt works. */
-const EmbeddedMicrophoneNotice = ({ compact = false }: { compact?: boolean }) => (
+const EmbeddedMicrophoneNotice = ({ compact = false }: { compact?: boolean }) => { const { t } = useTranslation(); return (
   <div role="status" className="space-y-1.5">
-    <p className={compact ? "text-[11px] text-muted-foreground" : "text-xs text-muted-foreground"}>{EMBEDDED_MIC_NOTICE}</p>
+    <p className={compact ? "text-[11px] text-muted-foreground" : "text-xs text-muted-foreground"}>{t("voice.embeddedMicNotice")}</p>
     <Button type="button" size="sm" className={compact ? "h-7 text-[11px]" : "h-8 text-xs"} onClick={() => { window.open(window.location.href, "_blank", "noopener"); }}>
-      Open full page
+      {t("voice.openFullPage")}
     </Button>
   </div>
-);
+  ); };
 
 /** Commands the floating shell (Stage 3 minimized bar) can send into a live conversation. */
 export interface GeminiShellControls {
@@ -108,6 +111,8 @@ export interface GeminiShellState {
 }
 export interface GeminiConversationProps { agentId?: string; leadId?: string; prospectId?: string; draft?: boolean; compact?: boolean; name?: string; visitorName?: string; previewVoice?: string; autoStart?: boolean; previewOnly?: boolean; previewAudioContext?: AudioContext; testModel?: string; shareToken?: string; onRecommendedPlan?: (plan: SalesPlan) => void; videoAvatar?: VideoAvatar; avatarInline?: boolean; faceFirst?: boolean; avatarUrl?: string; /** The visitor tapped a launcher that already showed the recording notice; that tap is the agreement. */ consentOnOpen?: boolean; /** Open the paid live session silently before the tap so it starts instantly. */ prewarm?: boolean; onPrewarmed?: (ready: boolean) => void; /** Verified Demo Gate: 'pending' starts the session in the Act 1 host phase (verification before simulation); 'verified' or undefined keeps the standard session. */ verification?: "pending" | "verified"; /** Cold-email invite arrival: asks gemini-session for the invite host phase; honored server-side only when the lead's invite arrival was stamped by the demo-invite resolve. */ invite?: boolean; /** Platform guide: 'alex' starts the authenticated setup-guide session (Alex, support specialist) instead of a tenant agent; honored server-side only for signed-in users. */ guide?: "alex"; /** Fires with each finalized visitor transcript line (used by the demo gate to hear a spoken code). */ onUserTranscript?: (text: string) => void; /** Three-stage widget: the shell fills this ref with live-session commands for its Stage 3 bar. */ shellControlsRef?: { current: GeminiShellControls | null }; /** Three-stage widget: receives the live-session snapshot for the Stage 3 bar. */ onShellState?: (state: GeminiShellState) => void; /** Widget chrome rendered BELOW her face — between the portrait/livebox and the captions/chat panel (the Voice/Type toggle lives here, never above her). */ belowAvatar?: ReactNode; /** Avatar swap (Stage 1): fires when the ACTIVE persona changes at a boundary, so the shell identity (name + portrait) follows the speaker. Never fires when the server flag is off. */ onPersonaChange?: (persona: { id: PersonaId; displayName: string }) => void; }
 const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compact = false, name = "Aspen", visitorName = "", previewVoice, autoStart = false, previewOnly = false, previewAudioContext, testModel, shareToken, onRecommendedPlan, videoAvatar, avatarInline = false, faceFirst = false, avatarUrl, consentOnOpen = false, prewarm = false, onPrewarmed, verification, invite, guide, onUserTranscript, shellControlsRef, onShellState, belowAvatar, onPersonaChange }: GeminiConversationProps) => {
+  const { t } = useTranslation();
+  const transcriptAriaLabel = (role: "user" | "assistant") => role === "user" ? t("voice.callerTranscript") : t("voice.aspenTranscript");
   // On the gate's pending → verified flip, the next session is the demo's
   // fresh start, not a resume: drop this page visit's stored turns so the
   // proxy delivers the simulation opening instead of the resume line.
@@ -856,7 +861,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       const requestSession = (key: string) =>
         voiceSessionHeaders().then(headers => {
           if (generation !== generationRef.current) throw new Error('Demo start cancelled.');
-          return supabase.functions.invoke("gemini-session", { headers, body: { visitorKey: key, agentId, leadId, prospectId, draft, preview, voice: previewVoice || voice, model: testModel, campaign:campaignVisit(), hour: new Date().getHours(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, visitorName, consent: !warm && consentReadyRef.current, prewarm: warm, share: shareToken, resumeContext, reconnect: reconnecting && !!resumeContext, verification, invite, guide } });
+          return supabase.functions.invoke("gemini-session", { headers, body: { visitorKey: key, agentId, leadId, prospectId, draft, preview, voice: previewVoice || voice, model: testModel, campaign:campaignVisit(), hour: new Date().getHours(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, locale: explicitUiLocale(), visitorName, consent: !warm && consentReadyRef.current, prewarm: warm, share: shareToken, resumeContext, reconnect: reconnecting && !!resumeContext, verification, invite, guide } });
         });
       const [initialSession, stream, , , faceOutcome] = await Promise.all([
         requestSession(visitorKey),
@@ -1632,9 +1637,9 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     {faceFirst && <PersonPortrait name={name} avatarUrl={avatarUrl} />}
     {belowAvatar}
     <div className="space-y-3 rounded-md bg-card p-3">
-    <p className="text-sm font-semibold">Try a live demo with {name}</p>
-    <p className="text-xs text-muted-foreground">This call is recorded. Audio, transcript and AI summary are saved privately for our team to review. A copy is emailed only if you ask. Starting means you agree.</p>
-    <Button className="w-full" onClick={()=>{consentReadyRef.current=true;setConsentReady(true);void startConversation();}}><Play className="mr-2 h-4 w-4"/>Start & agree</Button>
+    <p className="text-sm font-semibold">{t("voice.consentTitle", { name })}</p>
+    <p className="text-xs text-muted-foreground">{t("voice.consentBody")}</p>
+    <Button className="w-full" onClick={()=>{consentReadyRef.current=true;setConsentReady(true);void startConversation();}}><Play className="mr-2 h-4 w-4"/>{t("voice.consentStart")}</Button>
     </div>
   </div>;
 
@@ -1644,10 +1649,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
   if (previewOnly) return <div className="space-y-2">
     <div className="flex flex-wrap items-center gap-2">
-      <Button size="sm" variant="outline" disabled={phase !== "idle" || replaying} onClick={() => void startConversation(true)} aria-label="Play selected voice">{phase === 'connecting' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4"/>}Play voice</Button>
-      <Button size="sm" variant="outline" disabled={phase === "idle" && !replaying} onClick={stopEverything} aria-label="Stop voice preview"><PhoneOff className="mr-2 h-4 w-4"/>Stop</Button>
-      {hasReplay && <Button size="sm" variant="outline" disabled={phase !== 'idle' || replaying} onClick={() => void replayLastMessage()} title="Replay saved greeting without another paid request"><RotateCcw className="mr-2 h-4 w-4" />Replay</Button>}
-      <span role="status" className="text-xs text-muted-foreground">{replaying ? 'Replaying saved greeting' : phase === "connecting" || phase === 'preview' && !aspenSpeaking ? status : phase === "preview" ? `Playing ${previewVoice || voice}` : `${previewVoice || voice} selected`}</span>
+      <Button size="sm" variant="outline" disabled={phase !== "idle" || replaying} onClick={() => void startConversation(true)} aria-label={t("voice.playSelectedVoice")}>{phase === 'connecting' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4"/>}{t("voice.playVoice")}</Button>
+      <Button size="sm" variant="outline" disabled={phase === "idle" && !replaying} onClick={stopEverything} aria-label={t("voice.stopVoicePreview")}><PhoneOff className="mr-2 h-4 w-4"/>{t("voice.stop")}</Button>
+      {hasReplay && <Button size="sm" variant="outline" disabled={phase !== 'idle' || replaying} onClick={() => void replayLastMessage()} title={t("voice.replaySavedTitle")}><RotateCcw className="mr-2 h-4 w-4" />{t("voice.replay")}</Button>}
+      <span role="status" className="text-xs text-muted-foreground">{replaying ? t("voice.replayingSavedGreeting") : phase === "connecting" || phase === 'preview' && !aspenSpeaking ? status : phase === "preview" ? t("voice.playingVoice", { voice: previewVoice || voice }) : t("voice.voiceSelected", { voice: previewVoice || voice })}</span>
     </div>
     {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
     {signInAction}
@@ -1692,29 +1697,29 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           <p className="min-w-0 break-words text-xs leading-snug text-foreground" role="status">
             {shownPhase === "live" && (
               <span className="font-semibold text-foreground">
-                {handoffActive ? "Manager handoff" : paused ? "Paused" : replaying ? "Replaying saved audio" : muted ? "Microphone muted" : aspenSpeaking ? `${name} speaking` : captureMode === "hold" && !held ? "Hold to talk" : "Listening"}
+                {handoffActive ? t("voice.managerHandoff") : paused ? t("voice.paused") : replaying ? t("voice.replayingSavedAudio") : muted ? t("voice.micMuted") : aspenSpeaking ? t("voice.speaking", { name }) : captureMode === "hold" && !held ? t("voice.holdToTalk") : t("voice.listening")}
               </span>
             )}
-            {shownPhase !== "live" && (shownPhase === "idle" ? "Ready to talk" : faceWaiting ? "Connecting…" : status)}
+            {shownPhase !== "live" && (shownPhase === "idle" ? t("voice.readyToTalk") : faceWaiting ? t("voice.connecting") : status)}
           </p>
         </div>
-        {phase === 'idle' && endedByVisitor && <p className="text-xs text-muted-foreground">Press play to reconnect to {name}.</p>}
+        {phase === 'idle' && endedByVisitor && <p className="text-xs text-muted-foreground">{t("voice.pressPlayReconnect", { name })}</p>}
 
-        {faceFirst && <Button size="icon" variant="outline" className="h-8 w-8 border-primary/60 bg-transparent text-primary hover:bg-primary/10 hover:text-primary" aria-label={captions ? 'Hide captions' : 'Show captions'} title={captions ? 'Hide captions' : 'Show captions'} aria-expanded={captions} onClick={() => setCaptions(v => !v)}><ChevronsUpDown className="h-4 w-4" /></Button>}
+        {faceFirst && <Button size="icon" variant="outline" className="h-8 w-8 border-primary/60 bg-transparent text-primary hover:bg-primary/10 hover:text-primary" aria-label={captions ? t('voice.hideCaptions') : t('voice.showCaptions')} title={captions ? t('voice.hideCaptions') : t('voice.showCaptions')} aria-expanded={captions} onClick={() => setCaptions(v => !v)}><ChevronsUpDown className="h-4 w-4" /></Button>}
         <div className={faceFirst ? (captions ? 'aspen-caption-space' : 'hidden') : ''}>
         {showPlaybackCaption && playbackCaption && <div className="rounded-md border border-border bg-background/95 p-1.5"><PlaybackCaption caption={playbackCaption} /></div>}
-        <div aria-label="Conversation transcript" tabIndex={0} className={`${showPlaybackCaption || (faceFirst && !captions) ? 'hidden' : ''} ${faceFirst ? 'h-[72px]' : 'max-h-[4.5rem]'} space-y-1 overflow-y-auto overscroll-contain rounded-md border border-border bg-background/95 p-1.5`}>
+        <div aria-label={t("voice.transcriptLabel")} tabIndex={0} className={`${showPlaybackCaption || (faceFirst && !captions) ? 'hidden' : ''} ${faceFirst ? 'h-[72px]' : 'max-h-[4.5rem]'} space-y-1 overflow-y-auto overscroll-contain rounded-md border border-border bg-background/95 p-1.5`}>
           {turns.length === 0 && (!partialAspen || faceFirst) && !partialUser && (
-            <p className="py-1 text-center text-[11px] text-muted-foreground">No conversation yet.</p>
+            <p className="py-1 text-center text-[11px] text-muted-foreground">{t("voice.noConversation")}</p>
           )}
           {turns.map((t, i) => (
             <Message key={i} from={t.role} className="max-w-full">
-              <MessageContent aria-label={t.role === "user" ? "Caller transcript" : "Aspen transcript"} className={t.role === "user" ? "bg-primary text-primary-foreground text-xs px-2 py-1" : faceFirst ? "text-sm font-bold leading-6 text-foreground" : "text-xs text-foreground"}>
+              <MessageContent aria-label={transcriptAriaLabel(t.role)} className={t.role === "user" ? "bg-primary text-primary-foreground text-xs px-2 py-1" : faceFirst ? "text-sm font-bold leading-6 text-foreground" : "text-xs text-foreground"}>
                 <MessageResponse>{t.role === "user" ? t.text : displayNumbers(t.text)}</MessageResponse>
               </MessageContent>
             </Message>
           ))}
-          {partialUser && <Message from="user"><MessageContent className="bg-primary text-primary-foreground text-sm font-bold"><span className="text-[10px] font-semibold">You</span><MessageResponse>{partialUser}</MessageResponse></MessageContent></Message>}
+          {partialUser && <Message from="user"><MessageContent className="bg-primary text-primary-foreground text-sm font-bold"><span className="text-[10px] font-semibold">{t("voice.you")}</span><MessageResponse>{partialUser}</MessageResponse></MessageContent></Message>}
           {!faceFirst && partialAspen && <Message from="assistant"><MessageContent className="text-sm font-bold"><MessageResponse>{displayNumbers(partialAspen)}</MessageResponse></MessageContent></Message>}
           <div ref={transcriptEndRef} />
         </div>
@@ -1722,19 +1727,19 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
         {confirmation}
         {actionNotice && <p role="status" className="text-xs text-primary">{actionNotice}</p>}
-        {videoFallback && <p role="status" className="text-[11px] text-muted-foreground">{VIDEO_FALLBACK_NOTICE}</p>}
-        {remainingSeconds !== null && (!faceFirst || captions) && <p className="text-[11px] text-muted-foreground">Demo time remaining: {Math.floor(remainingSeconds/60)}:{String(remainingSeconds%60).padStart(2,'0')}</p>}
+        {videoFallback && <p role="status" className="text-[11px] text-muted-foreground">{t("voice.videoFallback")}</p>}
+        {remainingSeconds !== null && (!faceFirst || captions) && <p className="text-[11px] text-muted-foreground">{t("voice.demoTimeRemaining")}: {Math.floor(remainingSeconds/60)}:{String(remainingSeconds%60).padStart(2,'0')}</p>}
         {transferControl}
         <div className="voice-controls flex flex-wrap items-center justify-center gap-1 [&_button]:h-auto [&_button]:min-h-11 [&_button]:w-auto [&_button]:min-w-11 [&_button]:flex-col [&_button]:gap-1 [&_button]:px-1.5 [&_button]:py-1.5 [&_span]:text-[10px] [&_span]:leading-tight">
           {phase === "idle" ? (
-            <Button size="icon" onClick={() => void startConversation()} title={`Play to connect to ${name}`} aria-label="Start conversation">
+            <Button size="icon" onClick={() => void startConversation()} title={t("voice.playToConnect", { name })} aria-label={t("voice.startConversation")}>
               <Play className="h-4 w-4" />
-              <span>Play</span>
+              <span>{t("voice.play")}</span>
             </Button>
           ) : (
-            <Button size="icon" variant="destructive" onClick={endByVisitor} title="End conversation" aria-label="End conversation">
+            <Button size="icon" variant="destructive" onClick={endByVisitor} title={t("voice.endConversation")} aria-label={t("voice.endConversation")}>
               <PhoneOff className="h-4 w-4" />
-              <span>End</span>
+              <span>{t("voice.end")}</span>
             </Button>
           )}
           {phase === "live" && captureMode !== "hold" && (
@@ -1743,12 +1748,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
               disabled={handoffActive}
               variant={muted ? "destructive" : "outline"}
               aria-pressed={muted}
-              title={muted ? "Unmute microphone" : "Mute microphone"}
-              aria-label={muted ? "Unmute microphone" : "Mute microphone"}
+              title={muted ? t("voice.unmuteMic") : t("voice.muteMic")}
+              aria-label={muted ? t("voice.unmuteMic") : t("voice.muteMic")}
               onClick={toggleMicMute}
             >
               {muted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-              <span>{muted ? "Unmute" : "Mute"}</span>
+              <span>{muted ? t("voice.unmute") : t("voice.mute")}</span>
             </Button>
           )}
           {phase === "live" && (
@@ -1756,12 +1761,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
               size="icon"
               variant={paused ? "default" : "outline"}
               aria-pressed={paused}
-              title={paused ? "Resume conversation" : "Pause conversation"}
-              aria-label={paused ? "Resume conversation" : "Pause conversation"}
+              title={paused ? t("voice.resumeConversation") : t("voice.pauseConversation")}
+              aria-label={paused ? t("voice.resumeConversation") : t("voice.pauseConversation")}
               disabled={handoffActive} onClick={togglePause}
             >
               {paused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
-              <span>{paused ? "Resume" : "Pause"}</span>
+              <span>{paused ? t("voice.resume") : t("voice.pause")}</span>
             </Button>
           )}
           {phase === "live" && (
@@ -1769,12 +1774,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
               size="icon"
               variant={speakerMuted ? "secondary" : "outline"}
               aria-pressed={speakerMuted}
-              title={speakerMuted ? "Turn speaker sound on" : "Silence speaker (captions only)"}
-              aria-label={speakerMuted ? "Turn speaker sound on" : "Silence speaker"}
+              title={speakerMuted ? t("voice.speakerOn") : t("voice.speakerOff")}
+              aria-label={speakerMuted ? t("voice.speakerOnShort") : t("voice.silenceSpeaker")}
               onClick={toggleSpeakerMute}
             >
               {speakerMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-              <span>{speakerMuted ? "Sound on" : "Silence"}</span>
+              <span>{speakerMuted ? t("voice.soundOn") : t("voice.silence")}</span>
             </Button>
           )}
           <Button
@@ -1782,16 +1787,16 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             variant="outline"
             disabled={!hasReplay || paused || replaying || aspenSpeaking || phase === "connecting" || phase === "preview"}
             onClick={() => void replayLastMessage()}
-            title="Replay last message"
-            aria-label="Replay last message"
+            title={t("voice.replayLastTitle")}
+            aria-label={t("voice.replayLastMessage")}
           >
             <RotateCcw className="h-4 w-4" />
-            <span>Replay</span>
+            <span>{t("voice.replay")}</span>
           </Button>
           {replaying && (
-            <Button size="icon" variant="outline" onClick={clearPlayback} title="Stop replay" aria-label="Stop replay">
+            <Button size="icon" variant="outline" onClick={clearPlayback} title={t("voice.stopReplayTitle")} aria-label={t("voice.stopReplayTitle")}>
               <PhoneOff className="h-4 w-4" />
-              <span>Stop replay</span>
+              <span>{t("voice.stopReplay")}</span>
             </Button>
           )}
           {phase === "live" && captureMode === "hold" && (
@@ -1801,8 +1806,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
               variant={held ? "default" : "secondary"}
               disabled={muted || paused || replaying || handoffActive}
               aria-pressed={held}
-              title={held ? "Listening — release to send" : "Hold to talk"}
-              aria-label={held ? "Listening — release to send" : "Hold to talk"}
+              title={held ? t("voice.holdListening") : t("voice.holdToTalk")}
+              aria-label={held ? t("voice.holdListening") : t("voice.holdToTalk")}
               onContextMenu={(event) => event.preventDefault()}
               onPointerDown={(event) => {
                 if (event.button !== 0 || captureRef.current.held) return;
@@ -1817,27 +1822,27 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
               onLostPointerCapture={endHold}
             >
               <Mic className="h-4 w-4" />
-              <span>Hold</span>
+              <span>{t("voice.hold")}</span>
             </Button>
           )}
           <Button
             size="icon"
             variant="ghost"
             onClick={() => setShowSettings((s) => !s)}
-            title="Voice settings"
-            aria-label="Voice settings"
+            title={t("voice.voiceSettings")}
+            aria-label={t("voice.voiceSettings")}
             aria-expanded={showSettings}
           >
             <Settings2 className="h-4 w-4" />
-            <span>Settings</span>
+            <span>{t("voice.settings")}</span>
           </Button>
         </div>
 
         {phase === "live" && (
           <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-            <span>Mic</span>
-            <meter min="0" max="100" value={micLevel} aria-label="Microphone level" className="h-2 w-16" />
-            <span>{micLevel > 3 ? "Sound" : "Quiet"}</span>
+            <span>{t("voice.mic")}</span>
+            <meter min="0" max="100" value={micLevel} aria-label={t("voice.micLevel")} className="h-2 w-16" />
+            <span>{micLevel > 3 ? t("voice.sound") : t("voice.quiet")}</span>
           </div>
         )}
         {showMicHint && phase === "live" && (
@@ -1849,46 +1854,46 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         {phase === "live" && captureMode === "hold" && (
           <p role="status" className="w-fit rounded-full border border-border bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-foreground">Hold to talk is ON — hold the button while you speak</p>
         )}
-        {audioNeedsTap && <p role="status" className="text-[11px] text-muted-foreground">{AUDIO_TAP_NEEDED}</p>}
+        {audioNeedsTap && <p role="status" className="text-[11px] text-muted-foreground">{t("voice.audioTapNeeded")}</p>}
         {error && (micFailureKind === "mic-denied-embedded" ? <EmbeddedMicrophoneNotice compact /> : <p className="text-[11px] font-semibold text-destructive">{error}</p>)}
         {signInAction}
 
         {showSettings && (
-          <Dialog open={showSettings} onOpenChange={setShowSettings}><DialogContent className="max-h-[85dvh] w-[calc(100vw-24px)] max-w-sm overflow-y-auto"><DialogTitle>Voice settings</DialogTitle><DialogDescription>Microphone and background noise</DialogDescription><div className="space-y-3">
+          <Dialog open={showSettings} onOpenChange={setShowSettings}><DialogContent className="max-h-[85dvh] w-[calc(100vw-24px)] max-w-sm overflow-y-auto"><DialogTitle>{t("voice.voiceSettings")}</DialogTitle><DialogDescription>{t("voice.voiceSettingsDesc")}</DialogDescription><div className="space-y-3">
             {phase !== "idle" && <div className="space-y-2 rounded-md border border-border p-3">
-              <p role="status" className="text-xs text-foreground">Noise filtering can change now. Microphone and conversation mode are set before each call.</p>
-              <Button variant="outline" size="sm" onClick={stopEverything}><PhoneOff className="mr-1.5 h-3.5 w-3.5" />End call to edit settings</Button>
+              <p role="status" className="text-xs text-foreground">{t("voice.settingsLiveNote")}</p>
+              <Button variant="outline" size="sm" onClick={stopEverything}><PhoneOff className="mr-1.5 h-3.5 w-3.5" />{t("voice.endCallToEdit")}</Button>
             </div>}
-            <label className="block space-y-1 text-xs">Background noise filtering
+            <label className="block space-y-1 text-xs">{t("voice.noiseFiltering")}
               <Select value={noiseFilter} onValueChange={value => setNoiseFilter(value as NoiseFilter)}>
-                <SelectTrigger aria-label="Microphone sensitivity" className="h-auto min-h-9 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="light">Minimum filtering — quiet room</SelectItem><SelectItem value="balanced">Balanced filtering — everyday</SelectItem><SelectItem value="strong">Strong filtering — noisy room</SelectItem></SelectContent>
+                <SelectTrigger aria-label={t("voice.micSensitivity")} className="h-auto min-h-9 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="light">{t("voice.noiseLight")}</SelectItem><SelectItem value="balanced">{t("voice.noiseBalanced")}</SelectItem><SelectItem value="strong">{t("voice.noiseStrong")}</SelectItem></SelectContent>
               </Select>
             </label>
             <div>
-              <label className="text-[11px] font-semibold text-muted-foreground">Microphone</label>
+              <label className="text-[11px] font-semibold text-muted-foreground">{t("voice.microphone")}</label>
               <div className="mt-1 flex gap-2">
                 <Select value={microphone} onValueChange={setMicrophone} disabled={phase !== "idle"}>
-                  <SelectTrigger aria-label="Microphone" className="h-8 min-w-0 flex-1 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectTrigger aria-label={t("voice.microphone")} className="h-8 min-w-0 flex-1 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="default">System default microphone</SelectItem>
+                    <SelectItem value="default">{t("voice.systemDefaultMic")}</SelectItem>
                     {microphones.filter((device) => device.deviceId && device.deviceId !== "default").map((device, index) => (
-                      <SelectItem key={device.deviceId} value={device.deviceId}>{device.label || `Microphone ${index + 1}`}</SelectItem>
+                      <SelectItem key={device.deviceId} value={device.deviceId}>{device.label || t("voice.microphoneN", { n: index + 1 })}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <Button size="icon" variant="outline" className="h-8 w-8" disabled={phase !== "idle"} onClick={() => void refreshMicrophones(true)} aria-label="Refresh microphones" title="Allow access and refresh microphones">
+                <Button size="icon" variant="outline" className="h-8 w-8" disabled={phase !== "idle"} onClick={() => void refreshMicrophones(true)} aria-label={t("voice.refreshMics")} title={t("voice.refreshMicsTitle")}>
                   <RefreshCw className="h-3.5 w-3.5" />
                 </Button>
               </div>
             </div>
             <div>
-              <label className="text-[11px] font-semibold text-muted-foreground">Conversation mode</label>
+              <label className="text-[11px] font-semibold text-muted-foreground">{t("voice.conversationMode")}</label>
               <Select value={captureMode} onValueChange={(value) => { const next = value as CaptureMode; if (next === "hold") pauseCapture(); else endHold(); captureRef.current.mode = next; setCaptureMode(next); }}>
-                <SelectTrigger aria-label="Conversation mode" className="mt-1 h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectTrigger aria-label={t("voice.conversationMode")} className="mt-1 h-8 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="handsfree">Hands-free</SelectItem>
-                  <SelectItem value="hold">Noisy place — hold to talk</SelectItem>
+                  <SelectItem value="handsfree">{t("voice.handsFree")}</SelectItem>
+                  <SelectItem value="hold">{t("voice.holdMode")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1898,11 +1903,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
               <span>{micLevel > 3 ? "Sound — your voice is registering" : "Quiet — speak and watch this move"}</span>
             </div>
             {draft && (
-              <Button variant="outline" size="sm" className="h-8 text-xs" disabled={phase !== "idle"} onClick={() => void startConversation(true)} aria-label="Play selected voice preview" title="Play selected voice preview">
-                <Play className="mr-1.5 h-3.5 w-3.5" /> Preview voice
+              <Button variant="outline" size="sm" className="h-8 text-xs" disabled={phase !== "idle"} onClick={() => void startConversation(true)} aria-label={t("voice.previewVoice")} title={t("voice.previewVoice")}>
+                <Play className="mr-1.5 h-3.5 w-3.5" /> {t("voice.previewVoice")}
               </Button>
             )}
-            {phase === "idle" && <Button className="w-full" onClick={() => { setShowSettings(false); void startConversation(); }}><Mic className="mr-1.5 h-4 w-4" />Start call with these settings</Button>}
+            {phase === "idle" && <Button className="w-full" onClick={() => { setShowSettings(false); void startConversation(); }}><Mic className="mr-1.5 h-4 w-4" />{t("voice.startCallWithSettings")}</Button>}
           </div></DialogContent></Dialog>
         )}
         </div>
@@ -1916,8 +1921,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         <div className="mx-auto flex h-14 max-w-3xl items-center gap-2 px-4">
           <FlaskConical className="h-5 w-5 text-primary" />
           <h1 className="text-sm font-extrabold">
-            Voice Lab — Gemini Live Aspen{" "}
-            <span className="text-muted-foreground font-normal">(real-time, Retell untouched)</span>
+            {t("voice.voiceLab")}{" "}
+            <span className="text-muted-foreground font-normal">{t("voice.voiceLabNote")}</span>
           </h1>
         </div>
       </header>}
@@ -1928,12 +1933,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         <Card className="p-4 space-y-3">
           {confirmation}
         {actionNotice && <p role="status" className="text-xs text-primary">{actionNotice}</p>}
-        {videoFallback && <p role="status" className="text-xs text-muted-foreground">{VIDEO_FALLBACK_NOTICE}</p>}
-        {remainingSeconds !== null && <p className="text-[11px] text-muted-foreground">Demo time remaining: {Math.floor(remainingSeconds/60)}:{String(remainingSeconds%60).padStart(2,'0')}</p>}
+        {videoFallback && <p role="status" className="text-xs text-muted-foreground">{t("voice.videoFallback")}</p>}
+        {remainingSeconds !== null && <p className="text-[11px] text-muted-foreground">{t("voice.demoTimeRemaining")}: {Math.floor(remainingSeconds/60)}:{String(remainingSeconds%60).padStart(2,'0')}</p>}
         {transferControl}
           <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
             {!compact && <div className="flex-1">
-              <label className="text-xs font-semibold text-muted-foreground">Voice</label>
+              <label className="text-xs font-semibold text-muted-foreground">{t("voice.voiceLabel")}</label>
               <Select value={voice} onValueChange={setVoice} disabled={phase !== "idle"}>
                 <SelectTrigger className="mt-1">
                   <SelectValue />
@@ -1950,61 +1955,61 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             {phase === "idle" ? (
               <Button onClick={() => void startConversation()} variant="secondary">
                 <Mic className="h-4 w-4" />
-                <span className="ml-2">Start live conversation</span>
+                <span className="ml-2">{t("voice.startLive")}</span>
               </Button>
             ) : (
               <Button onClick={stopEverything} variant="destructive">
                 <PhoneOff className="h-4 w-4" />
-                <span className="ml-2">End conversation</span>
+                <span className="ml-2">{t("voice.endConversation")}</span>
               </Button>
             )}
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block space-y-1 text-xs">Background noise filtering
+            <label className="block space-y-1 text-xs">{t("voice.noiseFiltering")}
               <Select value={noiseFilter} onValueChange={value => setNoiseFilter(value as NoiseFilter)}>
-                <SelectTrigger aria-label="Microphone sensitivity"><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="light">Minimum filtering — quiet room</SelectItem><SelectItem value="balanced">Balanced filtering — everyday</SelectItem><SelectItem value="strong">Strong filtering — noisy room</SelectItem></SelectContent>
+                <SelectTrigger aria-label={t("voice.micSensitivity")}><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="light">{t("voice.noiseLight")}</SelectItem><SelectItem value="balanced">{t("voice.noiseBalanced")}</SelectItem><SelectItem value="strong">{t("voice.noiseStrong")}</SelectItem></SelectContent>
               </Select>
             </label>
             <div>
-              <label className="text-xs font-semibold text-muted-foreground">Microphone</label>
+              <label className="text-xs font-semibold text-muted-foreground">{t("voice.microphone")}</label>
               <div className="mt-1 flex gap-2">
                 <Select value={microphone} onValueChange={setMicrophone} disabled={phase !== "idle"}>
-                  <SelectTrigger aria-label="Microphone" className="min-w-0 flex-1"><SelectValue /></SelectTrigger>
+                  <SelectTrigger aria-label={t("voice.microphone")} className="min-w-0 flex-1"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="default">System default microphone</SelectItem>
-                    {microphones.filter(device => device.deviceId && device.deviceId !== "default").map((device, index) => <SelectItem key={device.deviceId} value={device.deviceId}>{device.label || `Microphone ${index + 1}`}</SelectItem>)}
+                    <SelectItem value="default">{t("voice.systemDefaultMic")}</SelectItem>
+                    {microphones.filter(device => device.deviceId && device.deviceId !== "default").map((device, index) => <SelectItem key={device.deviceId} value={device.deviceId}>{device.label || t("voice.microphoneN", { n: index + 1 })}</SelectItem>)}
                   </SelectContent>
                 </Select>
-                <Button size="icon" variant="outline" disabled={phase !== "idle"} onClick={() => void refreshMicrophones(true)} aria-label="Refresh microphones" title="Allow access and refresh microphones"><RefreshCw className="h-4 w-4" /></Button>
+                <Button size="icon" variant="outline" disabled={phase !== "idle"} onClick={() => void refreshMicrophones(true)} aria-label={t("voice.refreshMics")} title={t("voice.refreshMicsTitle")}><RefreshCw className="h-4 w-4" /></Button>
               </div>
             </div>
             <div>
-              <label className="text-xs font-semibold text-muted-foreground">Conversation mode</label>
+              <label className="text-xs font-semibold text-muted-foreground">{t("voice.conversationMode")}</label>
               <Select value={captureMode} onValueChange={value => setCaptureMode(value as CaptureMode)} disabled={phase !== "idle"}>
-                <SelectTrigger aria-label="Conversation mode" className="mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="handsfree">Hands-free</SelectItem><SelectItem value="hold">Noisy place — hold to talk</SelectItem></SelectContent>
+                <SelectTrigger aria-label={t("voice.conversationMode")} className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="handsfree">{t("voice.handsFree")}</SelectItem><SelectItem value="hold">{t("voice.holdMode")}</SelectItem></SelectContent>
               </Select>
             </div>
           </div>
 
           {phase !== "idle" && <div className="flex flex-wrap items-center gap-2">
-            <p role="status" className="text-xs text-muted-foreground">Transcript permission, microphone and conversation mode can be changed after ending this call. Noise filtering stays adjustable.</p>
-            <Button variant="outline" size="sm" onClick={stopEverything}><PhoneOff className="mr-1.5 h-4 w-4" />End call to edit settings</Button>
+            <p role="status" className="text-xs text-muted-foreground">{t("voice.transcriptNote")}</p>
+            <Button variant="outline" size="sm" onClick={stopEverything}><PhoneOff className="mr-1.5 h-4 w-4" />{t("voice.endCallToEdit")}</Button>
           </div>}
           <div className="flex flex-wrap items-center gap-2">
-            {(!compact || draft) && <Button variant="outline" size="sm" disabled={phase !== "idle"} onClick={() => void startConversation(true)} aria-label="Play selected voice preview" title="Play selected voice preview">
-              <Play className="h-4 w-4 mr-2" /> Preview voice
+            {(!compact || draft) && <Button variant="outline" size="sm" disabled={phase !== "idle"} onClick={() => void startConversation(true)} aria-label={t("voice.previewVoice")} title={t("voice.previewVoice")}>
+              <Play className="h-4 w-4 mr-2" /> {t("voice.previewVoice")}
             </Button>}
             {!compact && <Button variant="outline" size="sm" disabled={phase !== "idle" || savedVoice === voice} onClick={() => {
               try { localStorage.setItem("gemini-aspen-voice", voice); setSavedVoice(voice); setStatus(`${voice} saved for Gemini calls in this browser.`); } catch { setError("Your browser could not save the voice preference."); }
-            }}><Save className="h-4 w-4 mr-2" /> Save Gemini voice</Button>}
-            {phase === "preview" && <span className="text-xs text-muted-foreground">{voice} preview</span>}
-            <Button variant="outline" size="sm" disabled={!hasReplay || paused || replaying || aspenSpeaking || phase === "connecting" || phase === "preview"} onClick={() => void replayLastMessage()} title="Replay saved audio without another AI request"><RotateCcw className="mr-2 h-4 w-4" />Replay last message</Button>
-            {replaying && <Button variant="outline" size="sm" onClick={clearPlayback}><PhoneOff className="mr-2 h-4 w-4" />Stop replay</Button>}
-            {phase === "live" && <Button variant={muted ? "destructive" : "outline"} size="sm" disabled={handoffActive} aria-pressed={muted} onClick={toggleMicMute}>{muted ? <MicOff className="mr-2 h-4 w-4" /> : <Mic className="mr-2 h-4 w-4" />}{muted ? "Unmute microphone" : "Mute microphone"}</Button>}
-            {phase === "live" && <Button variant={paused ? "default" : "outline"} size="sm" aria-pressed={paused} disabled={handoffActive} onClick={togglePause}>{paused ? <Play className="mr-2 h-4 w-4" /> : <Pause className="mr-2 h-4 w-4" />}{paused ? "Resume" : "Pause"}</Button>}
+            }}><Save className="h-4 w-4 mr-2" /> {t("voice.saveVoice")}</Button>}
+            {phase === "preview" && <span className="text-xs text-muted-foreground">{t("voice.voicePreviewSuffix", { voice })}</span>}
+            <Button variant="outline" size="sm" disabled={!hasReplay || paused || replaying || aspenSpeaking || phase === "connecting" || phase === "preview"} onClick={() => void replayLastMessage()} title={t("voice.replayAudioTitle")}><RotateCcw className="mr-2 h-4 w-4" />{t("voice.replayLastMessage")}</Button>
+            {replaying && <Button variant="outline" size="sm" onClick={clearPlayback}><PhoneOff className="mr-2 h-4 w-4" />{t("voice.stopReplay")}</Button>}
+            {phase === "live" && <Button variant={muted ? "destructive" : "outline"} size="sm" disabled={handoffActive} aria-pressed={muted} onClick={toggleMicMute}>{muted ? <MicOff className="mr-2 h-4 w-4" /> : <Mic className="mr-2 h-4 w-4" />}{muted ? t("voice.unmuteMic") : t("voice.muteMic")}</Button>}
+            {phase === "live" && <Button variant={paused ? "default" : "outline"} size="sm" aria-pressed={paused} disabled={handoffActive} onClick={togglePause}>{paused ? <Play className="mr-2 h-4 w-4" /> : <Pause className="mr-2 h-4 w-4" />}{paused ? t("voice.resume") : t("voice.pause")}</Button>}
             {phase === "live" && captureMode === "hold" && <Button
               className="touch-none select-none" variant={held ? "default" : "secondary"} disabled={muted || paused || replaying || handoffActive}
               aria-pressed={held} onContextMenu={event => event.preventDefault()}
@@ -2021,7 +2026,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
                   wsRef.current?.send(JSON.stringify({ type: "activity_start" }));
                 }
               }} onKeyUp={event => { if (event.key === " " || event.key === "Enter") { event.preventDefault(); endHold(); } }} onBlur={endHold}
-            ><Mic className="mr-2 h-4 w-4" />{held ? "Listening — release to send" : "Hold to talk"}</Button>}
+            ><Mic className="mr-2 h-4 w-4" />{held ? t("voice.holdListening") : t("voice.holdToTalk")}</Button>}
           </div>
           <div className="flex items-center gap-2">
             {phase === "connecting" && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
@@ -2035,7 +2040,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             <p className="text-xs text-muted-foreground">
               {phase === "live" && (
                 <span className="font-semibold text-foreground">
-                  {paused ? "Paused — press Resume to continue" : replaying ? "Replaying — microphone paused" : muted ? "Microphone muted" : aspenSpeaking ? `${name} is speaking` : captureMode === "hold" && !held ? "Microphone paused" : "Listening"}
+                  {paused ? t("voice.pausedResume") : replaying ? t("voice.replayingMicPaused") : muted ? t("voice.micMuted") : aspenSpeaking ? t("voice.isSpeaking", { name }) : captureMode === "hold" && !held ? t("voice.micPaused") : t("voice.listening")}
                   {" — "}
                 </span>
               )}
@@ -2048,26 +2053,24 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             </div>
           )}
           {phase === "live" && <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>Microphone</span><meter min="0" max="100" value={micLevel} aria-label="Microphone level" className="h-3 w-24" />
-            <span>{micLevel > 3 ? "Sound detected" : "Quiet"}</span>
+            <span>{t("voice.microphone")}</span><meter min="0" max="100" value={micLevel} aria-label={t("voice.micLevel")} className="h-3 w-24" />
+            <span>{micLevel > 3 ? t("voice.soundDetected") : t("voice.quiet")}</span>
           </div>}
           {phase === "live" && captureMode === "hold" && (
             <p role="status" className="w-fit rounded-full border border-border bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-foreground">Hold to talk is ON — hold the button while you speak</p>
           )}
-          {audioNeedsTap && <p role="status" className="text-xs text-muted-foreground">{AUDIO_TAP_NEEDED}</p>}
+          {audioNeedsTap && <p role="status" className="text-xs text-muted-foreground">{t("voice.audioTapNeeded")}</p>}
           {error && (micFailureKind === "mic-denied-embedded" ? <EmbeddedMicrophoneNotice /> : <p className="text-xs text-destructive font-semibold">{error}</p>)}
           {signInAction}
         </Card>
 
         <Card className="p-3 min-h-[100px] max-h-[25vh] overflow-y-auto space-y-3">
           {turns.length === 0 && !partialAspen && !partialUser && (
-            <p className="text-sm text-muted-foreground text-center pt-16">
-              No conversation yet.
-            </p>
+            <p className="text-sm text-muted-foreground text-center pt-16">{t("voice.noConversation")}</p>
           )}
           {turns.map((t, i) => (
             <Message key={i} from={t.role}>
-              <MessageContent aria-label={t.role === "user" ? "Caller transcript" : "Aspen transcript"} className={t.role === "user" ? "bg-primary text-primary-foreground" : "text-foreground"}>
+              <MessageContent aria-label={transcriptAriaLabel(t.role)} className={t.role === "user" ? "bg-primary text-primary-foreground" : "text-foreground"}>
                 <MessageResponse>{t.role === "user" ? t.text : displayNumbers(t.text)}</MessageResponse>
               </MessageContent>
             </Message>

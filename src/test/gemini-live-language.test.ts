@@ -2,13 +2,26 @@
 import { expect, test } from "vitest";
 
 // Opt-in: uses the deployed lab and incurs Google usage, never runs on routine tests.
+//
+// LANGUAGE RULE (Ron's decision, 2026-11-09 — see
+// supabase/functions/_shared/conversation-language.ts): a WEBSITE session
+// starts in the language the visitor explicitly selected with the site's
+// language switch (validated server-side in gemini-session); with NO
+// explicit UI selection it still starts in English (the tests below use
+// the plain lab URL, which carries no locale). A Portuguese-start session
+// is exercised separately via GEMINI_LIVE_TEST_URL_PT — a proxy URL for a
+// session authorized with locale pt-BR. Mid-conversation switches remain
+// explicit-request-only in BOTH directions. Phone sessions are unaffected.
 const liveUrl = process.env.GEMINI_LIVE_TEST_URL;
 const liveTest = liveUrl ? test : test.skip;
+const liveUrlPt = process.env.GEMINI_LIVE_TEST_URL_PT;
+const liveTestPt = liveUrlPt ? test : test.skip;
 
-async function conversation(prompts: string[]): Promise<string[]> {
-  if (!liveUrl) throw new Error("Set GEMINI_LIVE_TEST_URL to run live language verification");
+async function conversation(prompts: string[], urlOverride?: string): Promise<string[]> {
+  const target = urlOverride ?? liveUrl;
+  if (!target) throw new Error("Set GEMINI_LIVE_TEST_URL to run live language verification");
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(liveUrl);
+    const ws = new WebSocket(target);
     const replies: string[] = [];
     let transcript = "";
     let greeted = false;
@@ -96,3 +109,29 @@ liveTest("starts an audible voice preview without a microphone or caller message
   expect(result.audioChunks).toBeGreaterThan(0);
   expect(result.transcript).toMatch(/Aspen/i);
 }, 40000);
+liveTestPt("starts the ENTIRE greeting in Portuguese when the visitor selected Portuguese in the site UI", async () => {
+  if (!liveUrlPt) throw new Error("Missing PT live test URL");
+  const opening = await new Promise<string>((resolve, reject) => {
+    const ws = new WebSocket(liveUrlPt);
+    let text = '';
+    const timeout = setTimeout(() => { ws.close(); reject(new Error('Greeting timed out')); }, 30000);
+    ws.onmessage = event => {
+      const msg = JSON.parse(String(event.data));
+      if (msg.type === 'aspen_transcript') text += msg.text;
+      if (msg.type === 'turn_complete') { clearTimeout(timeout); ws.close(); resolve(text); }
+      if (msg.type === 'error') { clearTimeout(timeout); ws.close(); reject(new Error('Greeting failed')); }
+    };
+  });
+  expect(opening).toMatch(/\b(olá|bom dia|boa tarde|boa noite|bem-vindo|bem-vinda|sou|meu nome)\b/i);
+  expect(opening).not.toMatch(/\b(hello|good morning|good afternoon|welcome to|my name is)\b/i);
+}, 40000);
+
+liveTestPt("keeps Portuguese despite foreign input, then switches to English on an explicit request (reverse direction)", async () => {
+  const replies = await conversation([
+    "Hola. Bonjour. Quero saber mais sobre os serviços de vocês.",
+    "Pode falar inglês, por favor? I only speak English.",
+  ], liveUrlPt);
+  expect(replies[0]).toMatch(/\b(você|nosso|nossa|posso|serviços|assistente|chamadas|ligações)\b/i);
+  expect(replies[1]).toMatch(/\b(the|you|your|our|hello|can|what|happy|name)\b/i);
+  expect(replies[1]).not.toMatch(/\b(obrigado|obrigada|você|posso|serviços)\b/i);
+}, 70000);

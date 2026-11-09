@@ -1378,6 +1378,18 @@ Deno.serve(async (req) => {
 
       const systemPrompt = body.systemPrompt || 'You are a helpful assistant.';
       const chatMessages = Array.isArray(body.messages) ? body.messages : [];
+      // Website UI locale (Ron, 2026-11-09): when the chat client passes
+      // the visitor's explicit site-language selection, validate it
+      // against the supported set and make the reply language a server
+      // directive — replies are in the UI language from the first
+      // message. Anything unsupported is ignored (English behaviour as
+      // before). This is a website chat only; no phone path uses it.
+      const rawLocale = typeof body.locale === 'string' ? body.locale.trim() : '';
+      const chatLocale = rawLocale === 'pt' ? 'pt-BR' : (['en', 'es', 'pt-BR'].includes(rawLocale) ? rawLocale : null);
+      const chatLanguage = chatLocale === 'es' ? 'Spanish' : chatLocale === 'pt-BR' ? 'Portuguese' : chatLocale === 'en' ? 'English' : null;
+      const effectiveSystemPrompt = chatLanguage
+        ? `${systemPrompt}\n\nRESPONSE LANGUAGE (server directive): The visitor selected ${chatLanguage} with the website's language switch. Reply in ${chatLanguage} from the first message, and stay in it unless the visitor explicitly asks you to switch to another language.`
+        : systemPrompt;
 
       try {
         const response = await fetch(GOOGLE_AI_BASE, {
@@ -1390,7 +1402,7 @@ Deno.serve(async (req) => {
             model: 'gemini-2.5-flash',
             temperature: 0.7,
             messages: [
-              { role: 'system', content: systemPrompt },
+              { role: 'system', content: effectiveSystemPrompt },
               ...chatMessages,
             ],
           }),

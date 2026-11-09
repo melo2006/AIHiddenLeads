@@ -87,6 +87,15 @@ export interface SessionOpeningFacts {
   simulation?: boolean;
   verificationGate?: boolean;
   inviteArrival?: boolean;
+  /**
+   * The session's authorized starting language (Ron's 2026-11-09 rule):
+   * the language the website visitor explicitly selected in the site UI,
+   * stamped server-side by gemini-session from the validated UI locale.
+   * Absent or 'English' reproduces the legacy English-only openings
+   * byte-for-byte; any other value directs the opening — greeting
+   * included — in that language. Phone sessions never set this.
+   */
+  startLanguage?: string;
 }
 
 const recapText = (recap: unknown) => typeof recap === 'string' ? recap : '';
@@ -130,16 +139,23 @@ export function dropReconnectInstruction(recap: unknown): string {
  * through to "Hey, you're back!".
  */
 export function openingText(facts: SessionOpeningFacts): string {
+  const lang = facts.startLanguage && facts.startLanguage !== 'English' ? facts.startLanguage : 'English';
   if (facts.preview) return voicePreviewInstruction(facts.opening);
   if (facts.personaSwap) return swapOpeningInstruction(facts.personaSwap, facts.resumeContext);
   if (facts.personaDrop) return personaDropInstruction(facts.personaDrop, facts.resumeContext);
-  if (facts.resumeContext && facts.reconnect === true) return dropReconnectInstruction(facts.resumeContext);
-  if (facts.resumeContext) return resumeInstruction(recapText(facts.resumeContext));
+  if (facts.resumeContext && facts.reconnect === true) {
+    const drop = dropReconnectInstruction(facts.resumeContext);
+    return lang === 'English' ? drop : `${drop}\nContinue in ${lang} — that is this conversation's current language unless the visitor has explicitly asked to change it.`;
+  }
+  if (facts.resumeContext) {
+    const resume = resumeInstruction(recapText(facts.resumeContext));
+    return lang === 'English' ? resume : `${resume}\nDeliver that resume line in ${lang} — this conversation started in ${lang} because the visitor selected it on the website, and it continues in ${lang} unless they explicitly ask to change it.`;
+  }
   if (facts.simulation === true && (facts.verificationGate === true || facts.inviteArrival === true)) {
-    return `The caller just connected. Deliver this ENTIRE opening in English only, with no foreign phrases. The caller has not requested another language. Say this greeting now in English: ${String(facts.opening ?? '')} That greeting is your entire first turn: after it, stop and wait for their reply. Do not ask anything else yet, do not begin any overview, and do not enter the business role — a host phase comes first, and your instructions govern it.`;
+    return `The caller just connected. Deliver this ENTIRE opening in ${lang} only, with no foreign phrases. ${lang === 'English' ? 'The caller has not requested another language.' : `The visitor selected ${lang} on the website before connecting; that selection authorizes starting in ${lang}.`} Say this greeting now in ${lang}: ${String(facts.opening ?? '')} That greeting is your entire first turn: after it, stop and wait for their reply. Do not ask anything else yet, do not begin any overview, and do not enter the business role — a host phase comes first, and your instructions govern it.`;
   }
   if (facts.simulation === true) {
-    return `The caller just connected. Deliver this ENTIRE opening in English only, with no foreign phrases. The caller has not requested another language. Say this greeting now in English: ${String(facts.opening ?? '')} Then run the SIMULATION ENTRY sequence from your instructions in the same visit, beat by beat: the host announcement, the expectations line, a clear unfilled pause, the in-role greeting as the business, the 30 to 45 second business overview from your knowledge only, the name ask only if the name is not already known, and the one open question about the business. Do not open the business role with "how can I help", do not skip or merge the announcement and the in-role greeting, and do not wait for them to speak first.`;
+    return `The caller just connected. Deliver this ENTIRE opening in ${lang} only, with no foreign phrases. ${lang === 'English' ? 'The caller has not requested another language.' : `The visitor selected ${lang} on the website before connecting; that selection authorizes starting in ${lang}.`} Say this greeting now in ${lang}: ${String(facts.opening ?? '')} Then run the SIMULATION ENTRY sequence from your instructions in the same visit, beat by beat: the host announcement, the expectations line, a clear unfilled pause, the in-role greeting as the business, the 30 to 45 second business overview from your knowledge only, the name ask only if the name is not already known, and the one open question about the business. Do not open the business role with "how can I help", do not skip or merge the announcement and the in-role greeting, and do not wait for them to speak first.`;
   }
-  return `The caller just connected. Deliver this ENTIRE opening and any overview in English only, with no foreign phrases. The caller has not requested another language. Say this greeting now in English: ${String(facts.opening ?? '')} That greeting is your entire first turn: after it, stop and wait for their reply. Do not ask anything else yet.`;
+  return `The caller just connected. Deliver this ENTIRE opening and any overview in ${lang} only, with no foreign phrases. ${lang === 'English' ? 'The caller has not requested another language.' : `The visitor selected ${lang} on the website before connecting; that selection authorizes starting in ${lang}.`} Say this greeting now in ${lang}: ${String(facts.opening ?? '')} That greeting is your entire first turn: after it, stop and wait for their reply. Do not ask anything else yet.`;
 }
