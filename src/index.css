@@ -126,7 +126,28 @@
   .aspen-person-shell .aspen-portrait-trigger,
   .aspen-person-shell .aspen-portrait-trigger:hover,
   .aspen-person-shell .aspen-portrait-trigger:active { background: transparent; box-shadow: none; }
-  .aspen-person-shell { display: flex; flex-direction: column; gap: .25rem; max-width: calc(100vw - 24px); max-height: min(80dvh, var(--aspen-available-height, calc(100dvh - 56px))); overflow-y: auto; overscroll-behavior: auto; }
+  /* The open shell is a BOUNDED flex column, never a scrolling box: its
+     height is capped against the visible viewport (the --aspen-available-
+     height var is DraggableFloating's visualViewport measurement minus
+     margins, so mobile browser chrome can never push the bottom controls
+     off-screen), the whole shell clips instead of scrolling, and the squeeze
+     lands on the conversation region inside (FloatingPersonFrame's children
+     wrapper + the voice panel's caption region) while the portrait, the
+     Voice/Type toggle, the control row and the hint pill stay pinned.
+     vh line first as a legacy fallback; the dvh/var line wins where
+     supported. */
+  .aspen-person-shell { display: flex; flex-direction: column; gap: .25rem; max-width: calc(100vw - 24px); max-height: calc(100vh - 56px); max-height: min(80dvh, var(--aspen-available-height, calc(100dvh - 56px))); overflow: hidden; }
+  /* Voice panel pinning: every direct child (status header, notices,
+     transfer control, control row, mic meter row, hint pill) keeps its
+     natural height; ONLY the caption region (transcript / playback caption)
+     absorbs the squeeze and scrolls internally. */
+  .aspen-voice-panel > * { flex-shrink: 0; }
+  .aspen-voice-panel > .aspen-caption-region { flex: 0 1 auto; min-height: 0; flex-shrink: 1; display: flex; flex-direction: column; }
+  /* Stage 3 (minimized while talking) keeps a safe-area clearance at the
+     bottom edge on top of DraggableFloating's visual-viewport fit. (Resolves
+     to 0 today — the page meta does not opt into viewport-fit=cover — and
+     takes effect automatically if that ever changes.) */
+  .aspen-person-shell.aspen-person-stage3 { margin-bottom: env(safe-area-inset-bottom, 0px); }
   .aspen-person-collapsed { width: 280px; }
   .aspen-person-expanded { width: 280px; }
   .aspen-person-portrait { width: 234px; height: 188px; flex-shrink: 0; object-fit: cover; object-position: top center; }
@@ -183,6 +204,18 @@
 .aspen-drag-top > button[data-drag-handle] { position: absolute; left: 50%; top: 0; transform: translateX(-50%); z-index: 30; margin-top: 0; }
 @media (max-width: 639px) {
   .aspen-person-chest-cluster { top: 132px; }
+}
+/* Short visible viewports (landscape phones, split-screen): shrink the
+   portrait/livebox (188→120px, chest cluster follows at its bottom edge,
+   120−18=102px) and let the voice panel contract below its usual 232px
+   floor, so the whole open panel fits without any scrolling. Width-capped
+   at 1024px so desktop windows keep their current appearance. */
+@media (max-width: 1024px) and (max-height: 560px) {
+  .aspen-person-portrait { height: 120px; }
+  .aspen-person-expanded .aspen-person-portrait { height: 120px; }
+  .aspen-person-livebox { height: 120px; }
+  .aspen-person-chest-cluster { top: 102px; }
+  .aspen-voice-panel { min-height: 0; }
 }
   .aspen-panel { position: relative; z-index: 10; display: flex; flex-direction: column; max-height: min(70dvh, var(--aspen-available-height, 70dvh)); }
   .aspen-panel.hidden { display: none; }

@@ -69,7 +69,7 @@ function AspenDemoWidgetContent({ voiceRequested = false, onClosed, onAssistantR
           <p className="text-xs font-medium text-foreground">Aspen is waiting for your code</p>
           <p className="text-[11px] leading-snug text-muted-foreground">She is still here — say the 4 digits out loud or type them in the card.</p>
         </div>}
-        <div className={gateWaiting ? 'hidden' : undefined} aria-hidden={gateWaiting || undefined}>
+        <div className={gateWaiting ? 'hidden' : 'flex min-h-0 flex-1 flex-col'} aria-hidden={gateWaiting || undefined}>
           <GeminiConversation compact faceFirst avatarInline autoStart={expanded} consentOnOpen={expanded} prewarm={prewarm} onPrewarmed={() => onAssistantReady?.()} leadId={chatProps.leadId} prospectId={chatProps.prospectId} visitorName={chatProps.callerName} onRecommendedPlan={setRecommendedPlan} videoAvatar={matchingAspenVideo(videoAvatar)} verification={verification} invite={invite} onUserTranscript={onUserTranscript} shellControlsRef={shellControlsRef} onShellState={setShellState} belowAvatar={<AspenModeToggle mode={mode} onMode={next => { setMode(next); if (next === 'chat') setChatVisited(true); }} />} />
         </div>
       </>}

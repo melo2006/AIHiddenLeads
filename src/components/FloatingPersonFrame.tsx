@@ -108,7 +108,7 @@ export default function FloatingPersonFrame({ name = 'Aspen', avatarUrl, open, m
         <button type="button" className={barButton} onClick={onOpen} title="Maximize" aria-label="Maximize"><Maximize2 className="h-4 w-4" /></button>
       </div>
     </div>}
-    <div className={open ? 'min-h-0' : keepRendered ? 'aspen-prewarm-offscreen' : 'hidden'} aria-hidden={!open || undefined}>{children}</div>
+    <div className={open ? 'flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain' : keepRendered ? 'aspen-prewarm-offscreen' : 'hidden'} aria-hidden={!open || undefined}>{children}</div>
     {open && <>
       <div className="aspen-person-chest-cluster" role="group" aria-label="Window controls">
         <button type="button" data-drag-handle className="flex h-8 cursor-grab touch-none select-none items-center gap-1 rounded-full border border-primary/60 bg-background/90 px-2 text-primary shadow-sm backdrop-blur-sm transition-colors hover:bg-secondary active:cursor-grabbing" aria-label="Drag widget" title="Drag">
