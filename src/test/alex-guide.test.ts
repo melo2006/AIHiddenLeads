@@ -19,13 +19,13 @@ const read = (rel: string) => fs.readFileSync(path.join(__dirname, '..', rel), '
 const readFn = (rel: string) => fs.readFileSync(path.join(__dirname, '..', '..', 'supabase', 'functions', rel), 'utf8');
 
 describe('Alex guide config', () => {
-  test('identity: Alex, support specialist at AI Hidden Leads, Charon voice', () => {
+  test('identity: Alex, support specialist at AI Hidden Leads, Puck voice', () => {
     const c = alexGuideConfig();
     expect(c.name).toBe('Alex');
     expect(c.businessName).toBe('AI Hidden Leads');
-    expect(c.voice).toBe('Charon');
-    expect(ALEX_VOICE).toBe('Charon');
-    expect(VOICES).toContain('Charon');
+    expect(c.voice).toBe('Puck');
+    expect(ALEX_VOICE).toBe('Puck');
+    expect(VOICES).toContain('Puck');
     expect(ALEX_GUIDE_SLUG).toBe('alex-guide');
     expect(c.guideSlug).toBe('alex-guide');
     expect(c.platformGuide).toBe(true);

@@ -35,9 +35,9 @@ describe('persona registry', () => {
     expect(ALEX_FACE_ID).toBe('a36d66df-a23d-4569-996b-d0e990019857');
     expect(SARA_FACE_ID).toBe(PERSONAS.sara.faceId);
   });
-  test('voices: Aspen Kore, Alex Charon, Sara = the SARA_VOICE constant', () => {
+  test('voices: Aspen Kore, Alex Puck, Sara = the SARA_VOICE constant', () => {
     expect(PERSONAS.aspen.voiceName).toBe('Kore');
-    expect(PERSONAS.alex.voiceName).toBe('Charon');
+    expect(PERSONAS.alex.voiceName).toBe('Puck');
     expect(PERSONAS.sara.voiceName).toBe(SARA_VOICE);
     expect(SARA_VOICE).toBe('Leda');
   });
@@ -79,7 +79,7 @@ describe('prompt split', () => {
     const built = personaSegmentPrompt('alex', 'meet-alex', 'Durgin Electric', SIMULATION_PROMPT, guest);
     expect(built.systemPrompt).toContain('support specialist at AI Hidden Leads');
     expect(built.greeting).toBe(ALEX_DEMO_GREETING);
-    expect(PERSONAS.alex.voiceName).toBe('Charon');
+    expect(PERSONAS.alex.voiceName).toBe('Puck');
     expect(PERSONAS.alex.faceId).toBe(ALEX_FACE_ID);
   });
 });

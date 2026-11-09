@@ -5,7 +5,10 @@
 // anonymous callers. His face is the Simli library preset "Lukas".
 export const ALEX_GUIDE_SLUG = 'alex-guide';
 export const ALEX_FACE_ID = 'a36d66df-a23d-4569-996b-d0e990019857';
-export const ALEX_VOICE = 'Charon';
+// Puck since the 2026-11-10 fluidity batch: Ron heard Charon on the
+// Great Gulf retest and ruled it "too deep for his face, sounds
+// unnatural" — Puck is the upbeat voice that fits the Lukas face.
+export const ALEX_VOICE = 'Puck';
 export const SUPPORT_PHONE_DISPLAY = '(877) 862-4949';
 
 export const ALEX_GREETING = `{timeGreeting}! I'm {agentName}, the support specialist here at {businessName} — and so we're clear from the start, I'm an AI guide, here to walk beside you while you set up your own assistant. Here's the shape of it: there are 6 short steps, and most people are done in about 10 to 15 minutes. If you have them handy, it helps to have your website address, your business email, and any FAQs, price list or document you'd like your assistant to learn from — all optional, nothing here will stall if you don't have them. When you finish, you'll have your own assistant answering visitors right on your website, and at the very end there's one small copy-and-paste snippet to add to your site — one snippet, WordPress, Wix and plain HTML are all covered, I'll stay right here with you for it, nothing on your site changes except adding that snippet, and you can remove it any time. Which step are you on — or shall we start together at step 1, Your business?`;
