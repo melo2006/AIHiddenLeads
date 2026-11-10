@@ -75,7 +75,10 @@ describe('F1 — component wiring (source pins)', () => {
 
   test('executeSwap waits on gateWaitContinues BEFORE any failure funnel', () => {
     expect(execBody).toContain('gateWaitContinues');
-    expect(execBody).toContain('const waitDeadline = waitStartedAt + SWAP_GATE_WAIT_MS');
+    // Handover fix: the deadline is the gate-wait bound normally, and
+    // ZERO for a watchdog-forced (immediate) execution — the decision
+    // the deadline demands must not wait out a second window.
+    expect(execBody).toContain('const waitDeadline = immediate ? waitStartedAt : waitStartedAt + SWAP_GATE_WAIT_MS');
     expect(execBody.indexOf('gateWaitContinues')).toBeLessThan(execBody.indexOf("'stage-missing'"));
     expect(execBody.indexOf('gateWaitContinues')).toBeLessThan(execBody.indexOf("'face-not-ready'"));
   });
@@ -89,19 +92,25 @@ describe('F1 — component wiring (source pins)', () => {
 });
 
 describe('F2 — retry-on-readiness (source pins)', () => {
-  test('the executor is gated on the ledger trigger (pendingRetryBoundary), live, and not busy', () => {
-    expect(convo).toContain('maybeExecuteRetryRef.current = (boundary: PersonaBoundary) => {');
-    expect(convo).toContain('if (pendingRetryBoundary(swapStateRef.current) !== boundary) return;');
-    expect(convo).toContain("recordSwapDiag({ event: 'retry-execute-ready'");
+  // Handover fix (2026-11-10): the executor was GENERALIZED from
+  // retry-only to any pending execution (pendingExecutionBoundary —
+  // the ledger trigger remains its first check) and renamed
+  // maybeExecutePending; the retry path still records the
+  // 'retry-execute-ready' diag event. The pins below assert the
+  // generalized wiring with the same intent as the originals.
+  test('the executor is gated on the pending-execution trigger, live, and not busy', () => {
+    expect(convo).toContain('maybeExecutePendingRef.current = (boundary: PersonaBoundary) => {');
+    expect(convo).toContain('if (pendingExecutionBoundary(state) !== boundary) return;');
+    expect(convo).toContain("pendingRetryBoundary(state) === boundary ? 'retry-execute-ready' : 'execute-ready'");
   });
 
-  test('readiness call sites: retry-arm landing, kept-stage failure, pre-stage settle (ready AND failed)', () => {
-    expect(convo).toContain('maybeExecuteRetryRef.current(boundary);');
-    expect(convo.split('maybeExecuteRetryRef.current(stagedFace.boundary)').length - 1).toBe(2);
+  test('readiness call sites: arm landing, kept-stage failure, pre-stage settle (ready AND failed)', () => {
+    expect(convo).toContain('maybeExecutePendingRef.current(boundary);');
+    expect(convo.split('maybeExecutePendingRef.current(stagedFace.boundary)').length - 1).toBe(1);
   });
 
-  test('the turn_complete pending-retry backstop is untouched (both sockets)', () => {
-    expect(convo.split('?? pendingRetryBoundary(state)').length - 1).toBe(2);
+  test('the turn_complete pending-execution backstop is in place (both sockets)', () => {
+    expect(convo.split('?? pendingExecutionBoundary(state)').length - 1).toBe(2);
   });
 });
 

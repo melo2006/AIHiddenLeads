@@ -160,8 +160,8 @@ describe('component wiring (source pins)', () => {
     expect(src).toContain("'stage-missing' : 'stage-mismatch'");
   });
 
-  test('both turn_complete handlers execute a pending retry', () => {
-    expect(src.split('?? pendingRetryBoundary(state)')).toHaveLength(3); // two call sites
+  test('both turn_complete handlers execute a pending execution (the retry trigger, generalized by the handover fix)', () => {
+    expect(src.split('?? pendingExecutionBoundary(state)')).toHaveLength(3); // two call sites
   });
 
   test('the retry arm re-enters armSwap with the retry flag and a fresh token', () => {

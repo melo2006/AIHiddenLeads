@@ -29,7 +29,7 @@ import { classifyMicrophoneFailure, isEmbeddedContext } from "@/lib/embeddedCont
 import {campaignVisit, trackCampaignEvent} from '@/lib/campaignTracking';
 import { salesPlans, type SalesPlan } from '@/lib/salesActions';
 import SimliAvatar, { SOUND_BLOCKED, isVideoStartFailure, type SimliAvatarHandle } from '@/components/SimliAvatar';
-import { BOUNDARY_TARGET, boundaryForAssistantLine, buildSwapRecap, chainIsMidSegment, chainStashTarget, cutoverAudioSync, cutoverReady, dropApologyVariant, gateWaitContinues, INITIAL_SWAP_STATE, introYieldOnVisitorLine, noteAlexIntent, noteDoorwayEngagement, noteSegmentFailure, otherFaceSlot, pendingRetryBoundary, PHASE_AFTER_BOUNDARY, PHASE_ENTRY, reconnectTarget, recordSwapDiag, segmentAttemptsFor, segmentConnectRetryAllowed, segmentTokenStale, SEGMENT_TOKEN_TTL_MS, SWAP_CROSSFADE_MS, SWAP_GATE_POLL_MS, SWAP_GATE_WAIT_MS, swapRecapFacts, visitorSignalsStepOut, type ChainStash, type FaceSlot, type PersonaBoundary, type PersonaId, type SwapPhase, type SwapState } from '@/lib/personaSwap';
+import { BOUNDARY_TARGET, boundedSettle, boundaryForAssistantLine, buildSwapRecap, chainIsMidSegment, chainStashTarget, cutoverAudioSync, cutoverReady, dequeueSwapExecution, dropApologyVariant, enqueueSwapExecution, faceLivenessOnLive, faceLivenessOnNotLive, faceLivenessOnStartSettled, gateWaitContinues, INITIAL_SWAP_STATE, introYieldOnVisitorLine, micAudioPasses, noteAlexIntent, noteDoorwayEngagement, noteSegmentFailure, otherFaceSlot, pendingExecutionBoundary, pendingRetryBoundary, PHASE_AFTER_BOUNDARY, PHASE_ENTRY, PRESTAGE_START_TIMEOUT_MS, reconnectTarget, recordSwapDiag, segmentAttemptsFor, segmentConnectRetryAllowed, segmentTokenStale, SEGMENT_TOKEN_TTL_MS, swapFallbackLine, swapWatchdogAction, SWAP_CROSSFADE_MS, SWAP_GATE_POLL_MS, SWAP_GATE_WAIT_MS, swapRecapFacts, visitorSignalsStepOut, type ChainStash, type FaceSlot, type PersonaBoundary, type PersonaId, type StagedFaceLiveness, type SwapPhase, type SwapState } from '@/lib/personaSwap';
 import { PERSONAS, SARA_FACE_ID } from '../../supabase/functions/_shared/personas';
 import { ALEX_FACE_ID } from '../../supabase/functions/_shared/alex-guide';
 import type { VideoAvatar } from '../../supabase/functions/_shared/video-avatar';
@@ -177,7 +177,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const parentSessionIdRef = useRef<string | null>(null);
   const visitorKeyRef = useRef('');
   const businessNameRef = useRef('');
-  const preStageRef = useRef<{ boundary: PersonaBoundary; token: string; faceReady: boolean; faceFailed?: boolean; persona: PersonaId; slot: FaceSlot; authorizedAt: number } | null>(null);
+  const preStageRef = useRef<{ boundary: PersonaBoundary; token: string; faceReady: boolean; faceFailed?: boolean; persona: PersonaId; slot: FaceSlot; authorizedAt: number; faceEverLive?: boolean; faceStartFailed?: boolean } | null>(null);
   /** F3 PRE-STAGE (fluidity batch, 2026-11-10): the doorway Sara face
    *  is mounted CONCEALED and started the moment a simulation chain
    *  goes live (host phase) — minutes before the doorway can execute —
@@ -189,7 +189,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
    *  entry that would normally record it; armSwap folds `ready` into
    *  the stage's faceReady (and `failed` into faceFailed) when the
    *  stage is created. Cleared whenever the warmed slot state clears. */
-  const warmedFaceRef = useRef<{ boundary: PersonaBoundary; slot: FaceSlot; ready: boolean; failed: boolean } | null>(null);
+  const warmedFaceRef = useRef<{ boundary: PersonaBoundary; slot: FaceSlot; ready: boolean; failed: boolean; everLive?: boolean; startFailed?: boolean } | null>(null);
   /** F4 DROP SNAPSHOT (fluidity batch, 2026-11-10): the swap-chain
    *  state captured BEFORE any teardown in a close path (teardown
    *  clears swapEnabledRef + swapStateRef, which is exactly what made
@@ -250,6 +250,25 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
    * stay exactly as they were until the new persona is live. */
   const [swapTransition, setSwapTransition] = useState(false);
   const swapBusyRef = useRef(false);
+  /** HANDOVER FIX (2026-11-10): the arm/execution bookkeeping the
+   *  stall investigation found missing. swapHoldRef is the mic hold:
+   *  set at arm time, the mic pipelines send silence frames while it
+   *  is set, so the host generates no further scripted beats into the
+   *  handover; swapConnecting drives the shell's "Connecting Sara…"
+   *  status for the hold's duration. swapArmAtRef stamps each
+   *  boundary's arm instant (the hard deadline + watchdog measure
+   *  from it); swapExecQueueRef is the single-flight queue behind
+   *  executeSwap's busy guard; swapExecForceRef carries the watchdog's
+   *  immediate-gate demand for the queued/in-flight boundary. */
+  const swapHoldRef = useRef<{ boundary: PersonaBoundary } | null>(null);
+  const [swapConnecting, setSwapConnecting] = useState<PersonaId | null>(null);
+  /** The one visible fallback line when a swap is spent (rotating —
+   *  see swapFallbackLine). Display only; cleared on the next start. */
+  const [swapNotice, setSwapNotice] = useState('');
+  const swapFallbackCountRef = useRef(0);
+  const swapArmAtRef = useRef<Partial<Record<PersonaBoundary, number>>>({});
+  const swapExecQueueRef = useRef<PersonaBoundary[]>([]);
+  const swapExecForceRef = useRef<Partial<Record<PersonaBoundary, boolean>>>({});
   const knownNameRef = useRef('');
   const sessionStartedAtRef = useRef(0);
   const warmRef = useRef<{ ready: Promise<boolean>; ok: boolean; activated: boolean; goLive?: () => void } | null>(null);
@@ -414,6 +433,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       if (!liveRef.current || !idle.enabled) return;
       if (handoffRef.current || capture.paused || capture.muted || capture.replaying || capture.held || pendingAction || sourcesRef.current.size > 0) { idle.quietSince = Date.now(); return; }
       if (idle.generating) return;
+      // Handover fix: a pending swap suspends silence check-ins too —
+      // the mic is held (silence frames) while it resolves, so a
+      // check-in prompt would talk over the handover.
+      if (swapHoldRef.current) { idle.quietSince = Date.now(); return; }
       if (homepageWalkthroughRef.current && idle.stage === 'waiting' && homepageWalkthroughDue(walkthroughRef.current.text, walkthroughRef.current.continued, idle.quietSince, Date.now()) && wsRef.current?.readyState === WebSocket.OPEN) {
         walkthroughRef.current.continued = true;
         idle.generating = true;
@@ -575,11 +598,40 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
    *  #14 ledger trigger (pendingRetryBoundary), so normal arms and
    *  stages never auto-execute. The turn_complete
    *  pendingRetryBoundary check remains as the backstop. */
-  const maybeExecuteRetryRef = useRef<(boundary: PersonaBoundary) => void>(() => {});
+  const maybeExecutePendingRef = useRef<(boundary: PersonaBoundary) => void>(() => {});
+  /** MIC HOLD (handover fix item 3): engage at arm time — while set,
+   *  both mic pipelines send silence frames and the shell shows
+   *  "Connecting <persona>…". Released at cut-over (the segment owns
+   *  the mic path from there) and at fallback (the host resumes). A
+   *  retry keeps the hold: the handover is still pending. Defined
+   *  before handleSegmentFailure/armSwap, which both drive it; refs +
+   *  state setters only, so the empty-deps callbacks stay sound. */
+  const startSwapHold = useCallback((boundary: PersonaBoundary) => {
+    if (swapHoldRef.current?.boundary === boundary) return;
+    swapHoldRef.current = { boundary };
+    setSwapConnecting(BOUNDARY_TARGET[boundary]);
+  }, []);
+  const releaseSwapHold = useCallback(() => {
+    if (!swapHoldRef.current) return;
+    swapHoldRef.current = null;
+    setSwapConnecting(null);
+  }, []);
   const handleSegmentFailure = useCallback((boundary: PersonaBoundary, reason: string) => {
     const { state, outcome, attempt } = noteSegmentFailure(swapStateRef.current, boundary, reason);
     swapStateRef.current = state;
     recordSwapDiag({ event: outcome === 'retry' ? 'retry-scheduled' : 'fallback', boundary, persona: BOUNDARY_TARGET[boundary], attempt, detail: reason });
+    if (outcome === 'fallback') {
+      // Handover fix item 4: the spent swap is VISIBLE, never silent —
+      // the mic hold releases (the host resumes) and the shell shows
+      // ONE rotating line saying who continues. A retry keeps the
+      // hold and the "Connecting…" status: still pending.
+      releaseSwapHold();
+      setSwapNotice(swapFallbackLine(
+        PERSONAS[BOUNDARY_TARGET[boundary]].displayName,
+        PERSONAS[swapStateRef.current.persona].displayName,
+        swapFallbackCountRef.current++,
+      ));
+    }
     if (outcome !== 'retry' || !liveRef.current) return;
     const staged = preStageRef.current;
     if (staged?.boundary === boundary) {
@@ -591,7 +643,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         // F2: a kept stage that is ALREADY gate-ready executes NOW,
         // not at some later turn_complete; a still-warming one is
         // executed by the pre-stage effect the moment it settles.
-        if (!avatarRequestedRef.current || staged.faceReady) maybeExecuteRetryRef.current(boundary);
+        if (!avatarRequestedRef.current || staged.faceReady) maybeExecutePendingRef.current(boundary);
         return;
       }
       if (avatarRequestedRef.current && staged.slot === 'main') mainSlotRef.current?.stop();
@@ -600,12 +652,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       if (warmedFaceRef.current?.boundary === boundary) warmedFaceRef.current = null;
     }
     rearmSwapRef.current(boundary);
-  }, []);
+  }, [releaseSwapHold]);
   const handleSegmentFailureRef = useRef(handleSegmentFailure); handleSegmentFailureRef.current = handleSegmentFailure;
 
   // Cut-over machinery is defined after startConversation (it reuses the
   // socket builder); these refs let the message handlers reach it.
-  const executeSwapRef = useRef<(boundary: PersonaBoundary) => Promise<void>>(async () => {});
+  const executeSwapRef = useRef<(boundary: PersonaBoundary, opts?: { immediate?: boolean }) => Promise<void>>(async () => {});
   const dropRecoverRef = useRef<() => void>(() => {});
   /** Segment-socket builder, defined with the swap machinery below; the
    * manual-stop resume path (defined earlier, inside startConversation's
@@ -653,6 +705,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     if (opts?.retry && preStageRef.current) return;
     recordSwapDiag({ event: 'arm', boundary, persona, attempt: segmentAttemptsFor(state, boundary) + 1, detail: opts?.retry ? 'retry' : undefined });
     swapStateRef.current = { ...state, armed: state.armed.includes(boundary) ? state.armed : [...state.armed, boundary], ...(boundary === 'intro-sara' || boundary === 'intro-return-1' || boundary === 'intro-alex' || boundary === 'intro-return-2' ? { teamIntroSeen: true } : {}) };
+    // Handover fix: stamp the arm instant (the watchdog + hard
+    // deadline measure from it) and engage the mic hold — from here
+    // until cut-over or fallback the host's mic sends silence frames,
+    // so she cannot generate the next scripted beat into the stall.
+    swapArmAtRef.current = { ...swapArmAtRef.current, [boundary]: Date.now() };
+    startSwapHold(boundary);
     void (async () => {
       const segment = await requestSegment(persona, boundary, { swap: true });
       if (!segment) {
@@ -666,6 +724,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       recordSwapDiag({ event: 'authorized', boundary, persona, attempt: segmentAttemptsFor(swapStateRef.current, boundary) + 1 });
       if (swapStateRef.current.done.includes(boundary) || !liveRef.current) {
         recordSwapDiag({ event: 'stage-discarded', boundary, persona, detail: swapStateRef.current.done.includes(boundary) ? 'already-done' : 'not-live' });
+        // Handover fix: a discarded stage must never strand the mic
+        // hold — the boundary already completed (its cut-over released
+        // the hold) or the call is ending (teardown clears it); say so
+        // here too so no path leaves the host muted.
+        if (swapStateRef.current.done.includes(boundary)) releaseSwapHold();
         return;
       }
       const slot = otherFaceSlot(faceSlotOwnerRef.current);
@@ -679,6 +742,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         // unchanged slot state, so nobody else would ever record it).
         faceReady: !avatarRequestedRef.current || !!(warmed && warmed.boundary === boundary && warmed.slot === slot && warmed.ready),
         faceFailed: warmed && warmed.boundary === boundary && warmed.slot === slot && warmed.failed ? true : undefined,
+        // Handover fix: the liveness facts ride along, so a not-live
+        // report against THIS stage is judged by the machine (a
+        // warm-up transient is not a death) rather than by the latch
+        // alone. warmed.failed is only ever set by the machine's true
+        // failure paths now, so the fold above stays sound.
+        faceEverLive: warmed && warmed.boundary === boundary && warmed.slot === slot ? warmed.everLive : undefined,
+        faceStartFailed: warmed && warmed.boundary === boundary && warmed.slot === slot ? warmed.startFailed : undefined,
       };
       if (avatarRequestedRef.current) {
         // Mount the concealed instance in the free slot; its start()
@@ -689,13 +759,15 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         if (slot === 'second') setSecondFace({ persona, boundary, revealed: false });
         else setMainFace({ persona, boundary, revealed: false });
       }
-      // F2 RETRY-ON-READINESS: when this arm IS a retry, its stage
-      // landing is the execution trigger — executeSwap's gate-wait
-      // covers the face's remaining warm-up. For a normal arm this is
-      // a no-op (maybeExecuteRetry fires only on a pending retry).
-      maybeExecuteRetryRef.current(boundary);
+      // READINESS EXECUTION (F2 generalized by the handover fix):
+      // the stage landing is an execution trigger for ANY armed
+      // boundary, retry or normal — maybeExecutePending decides via
+      // swapWatchdogAction (execute on readiness once no turn is in
+      // flight; the arm deadline forces the rest), so a normal arm no
+      // longer depends on a later turn_complete to cut over.
+      maybeExecutePendingRef.current(boundary);
     })();
-  }, [requestSegment]);
+  }, [requestSegment, startSwapHold, releaseSwapHold]);
   const armSwapRef = useRef(armSwap); armSwapRef.current = armSwap;
   rearmSwapRef.current = (boundary: PersonaBoundary) => armSwap(boundary, { retry: true });
 
@@ -760,6 +832,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     setActivePersona('aspen');
     setSwapTransition(false);
     swapBusyRef.current = false;
+    // Handover fix: the chain's arm/execution bookkeeping dies with it.
+    swapHoldRef.current = null;
+    setSwapConnecting(null);
+    swapArmAtRef.current = {};
+    swapExecQueueRef.current = [];
+    swapExecForceRef.current = {};
     walkthroughRef.current = {text:'', continued:false};
     idleRef.current = { enabled: false, stage: 'waiting', quietSince: 0, generating: false, requestedAt: 0 };
     setPendingAction(null);
@@ -1513,7 +1591,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             openingGateRef.current = false;
             openingGate = false;
           }
-          const pcm = microphonePcm(capture.mode === "hold" || (gate.open && !openingGate) ? input : new Float32Array(input.length), e.inputBuffer.sampleRate);
+          // Swap hold (handover fix): while a persona swap is armed and
+          // unresolved, every frame is silence too — the host hears no
+          // new visitor turn, so she cannot generate her next scripted
+          // beat into the handover (retest #3's A2/A3 stall).
+          const pcm = microphonePcm(micAudioPasses({ swapHold: swapHoldRef.current !== null, openingGate, noiseGateOpen: gate.open, holdToTalk: capture.mode === "hold" }) ? input : new Float32Array(input.length), e.inputBuffer.sampleRate);
           const bytes = new Uint8Array(pcm.buffer);
           let binary = "";
           for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
@@ -1652,7 +1734,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             if (swapEnabledRef.current && liveRef.current && !preview) {
               const state = swapStateRef.current;
               const boundary = boundaryForAssistantLine(completedLine, state)
-                ?? pendingRetryBoundary(state)
+                ?? pendingExecutionBoundary(state)
                 ?? (state.phase === 'simulation' && state.pendingStepout && state.armed.includes('stepout') ? 'stepout' as PersonaBoundary : null);
               if (boundary && state.armed.includes(boundary) && !state.done.includes(boundary)) {
                 swapHandled = true;
@@ -1863,7 +1945,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           openingGateRef.current = false;
           openingGate = false;
         }
-        const pcm = microphonePcm(capture.mode === "hold" || (gate.open && !openingGate) ? input : new Float32Array(input.length), e.inputBuffer.sampleRate);
+        // Swap hold (handover fix): same silence rule on the segment
+        // socket — a boundary armed from inside a segment (step-out,
+        // meet-alex) holds this persona's mic until it resolves.
+        const pcm = microphonePcm(micAudioPasses({ swapHold: swapHoldRef.current !== null, openingGate, noiseGateOpen: gate.open, holdToTalk: capture.mode === "hold" }) ? input : new Float32Array(input.length), e.inputBuffer.sampleRate);
         const bytes = new Uint8Array(pcm.buffer);
         let binary = "";
         for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
@@ -1971,7 +2056,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           if (swapEnabledRef.current && liveRef.current) {
             const state = swapStateRef.current;
             const boundary = boundaryForAssistantLine(completedLine, state)
-              ?? pendingRetryBoundary(state)
+              ?? pendingExecutionBoundary(state)
               ?? (state.phase === 'simulation' && state.pendingStepout && state.armed.includes('stepout') ? 'stepout' as PersonaBoundary : null);
             if (boundary && state.armed.includes(boundary) && !state.done.includes(boundary)) {
               swapHandled = true;
@@ -2077,12 +2162,22 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
    * region and layout never move. If the incoming face is NOT ready,
    * the gate above aborts the swap whole — the outgoing persona
    * continues live, so no black or empty frame can ever appear. */
-  executeSwapRef.current = async (boundary: PersonaBoundary) => {
+  executeSwapRef.current = async (boundary: PersonaBoundary, opts?: { immediate?: boolean }) => {
     let staged = preStageRef.current;
     const state = swapStateRef.current;
     const finalizeTurn = () => { flushLine("user"); flushLine("assistant"); };
     recordSwapDiag({ event: 'execute', boundary, persona: BOUNDARY_TARGET[boundary], attempt: segmentAttemptsFor(state, boundary) + 1 });
-    if (swapBusyRef.current) { finalizeTurn(); return; }
+    // Handover fix: single-flight QUEUE — a trigger that lands while a
+    // cut-over is busy is remembered (with any immediate-gate demand
+    // the watchdog attached to it), never discarded; the watchdog
+    // interval drains the queue the moment the busy flag clears.
+    if (swapBusyRef.current) {
+      swapExecQueueRef.current = enqueueSwapExecution(swapExecQueueRef.current, boundary);
+      if (opts?.immediate) swapExecForceRef.current = { ...swapExecForceRef.current, [boundary]: true };
+      recordSwapDiag({ event: 'execute-queued', boundary, persona: BOUNDARY_TARGET[boundary], attempt: segmentAttemptsFor(state, boundary) + 1, detail: opts?.immediate ? 'immediate' : undefined });
+      finalizeTurn();
+      return;
+    }
     // F1 GATE-WAIT (fluidity batch, 2026-11-10 — root-cause F1): the
     // gate used to sample the stage EXACTLY ONCE, at this instant,
     // while the incoming face needs seconds to pre-stage (Simli token,
@@ -2097,7 +2192,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     // the busy flag held here; the success path re-asserts it.
     swapBusyRef.current = true;
     const waitStartedAt = Date.now();
-    const waitDeadline = waitStartedAt + SWAP_GATE_WAIT_MS;
+    // Handover fix: a watchdog-forced execution runs an IMMEDIATE gate
+    // (no wait) — the arm deadline / stage watchdog already spent the
+    // waiting budget, so the decision (cut over, or the ledger's retry
+    // vs visible fallback) happens now, not 8 s later.
+    const immediate = opts?.immediate === true || swapExecForceRef.current[boundary] === true;
+    if (swapExecForceRef.current[boundary]) { const rest = { ...swapExecForceRef.current }; delete rest[boundary]; swapExecForceRef.current = rest; }
+    const waitDeadline = immediate ? waitStartedAt : waitStartedAt + SWAP_GATE_WAIT_MS;
     let waited = false;
     while (liveRef.current && Date.now() < waitDeadline) {
       staged = preStageRef.current;
@@ -2286,6 +2387,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       // 2) Partial teardown: old socket closes now (no end_session), mic
       //    and audio contexts survive; the completed turns flush here.
       partialTeardownForSwap();
+      // Handover fix: the cut-over resolves the mic hold — the segment
+      // owns the mic path from here (its socket arms the opening gate
+      // for its first turn), and the "Connecting…" status clears.
+      releaseSwapHold();
       // 3) State + shell identity move to the incoming persona.
       const nextPhase: SwapPhase = PHASE_AFTER_BOUNDARY[boundary];
       swapStateRef.current = {
@@ -2403,19 +2508,67 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     })();
   };
 
-  // F2 RETRY-ON-READINESS executor (fluidity batch, 2026-11-10): the
-  // readiness call sites (a retry arm's stage landing in armSwap, the
-  // pre-stage effect settling, a kept-stage failure) reach executeSwap
-  // through this gate. It fires ONLY for the boundary the segment
-  // reliability ledger marked pending-retry, only while live, and
-  // never over an in-flight cut-over — when busy, the in-flight
-  // gate-wait polls the same stage entry and consumes it instead.
-  maybeExecuteRetryRef.current = (boundary: PersonaBoundary) => {
+  // READINESS EXECUTOR (F2, generalized by the handover fix): the
+  // readiness call sites (any arm's stage landing in armSwap, the
+  // pre-stage effect settling, a kept-stage failure) and the watchdog
+  // interval below reach executeSwap through this ONE decision —
+  // swapWatchdogAction over the live facts. It fires for ANY boundary
+  // pendingExecutionBoundary names (a normal arm included, not only a
+  // ledger retry), only while live, and never over an in-flight
+  // cut-over (executeSwap's queue remembers a busy trigger instead).
+  // 'execute' runs the normal gate-wait; 'force' — the arm deadline
+  // or the stage watchdog expired — runs an immediate gate and is
+  // always traced as a watchdog event first, so an
+  // authorized-but-unconsumed stage can never again sit in silence.
+  maybeExecutePendingRef.current = (boundary: PersonaBoundary) => {
     if (!liveRef.current || swapBusyRef.current) return;
-    if (pendingRetryBoundary(swapStateRef.current) !== boundary) return;
-    recordSwapDiag({ event: 'retry-execute-ready', boundary, persona: BOUNDARY_TARGET[boundary], attempt: segmentAttemptsFor(swapStateRef.current, boundary) });
-    void executeSwapRef.current(boundary);
+    const state = swapStateRef.current;
+    if (pendingExecutionBoundary(state) !== boundary) return;
+    const staged = preStageRef.current?.boundary === boundary ? preStageRef.current : null;
+    const now = Date.now();
+    const action = swapWatchdogAction({
+      boundary,
+      now,
+      armedAt: swapArmAtRef.current[boundary] ?? 0,
+      stagePresent: !!staged,
+      stageAuthorizedAt: staged?.authorizedAt ?? 0,
+      faceFailed: staged?.faceFailed === true,
+      gateReady: !!staged && cutoverReady({ authorized: true, videoRequested: avatarRequestedRef.current, faceReady: staged.faceReady }) && !segmentTokenStale(staged.authorizedAt, now),
+      turnInFlight: idleRef.current.generating,
+    });
+    if (action === 'none') return;
+    if (action === 'force') {
+      recordSwapDiag({ event: 'stage-watchdog', boundary, persona: BOUNDARY_TARGET[boundary], attempt: segmentAttemptsFor(state, boundary) + 1, detail: staged ? `stageAgeMs=${now - staged.authorizedAt}` : 'no-stage' });
+      recordSwapDiag({ event: 'forced-execute', boundary, persona: BOUNDARY_TARGET[boundary], attempt: segmentAttemptsFor(state, boundary) + 1 });
+    } else {
+      recordSwapDiag({ event: pendingRetryBoundary(state) === boundary ? 'retry-execute-ready' : 'execute-ready', boundary, persona: BOUNDARY_TARGET[boundary], attempt: segmentAttemptsFor(state, boundary) });
+    }
+    void executeSwapRef.current(boundary, action === 'force' ? { immediate: true } : undefined);
   };
+
+  // STAGE WATCHDOG (handover fix item 4): twice a second, drain the
+  // single-flight execution queue (a trigger remembered while a
+  // cut-over was busy runs the moment it clears) and ask the readiness
+  // decision about the pending boundary. This interval is what makes
+  // the hard arm deadline real: even if every event-driven trigger
+  // was missed, an armed boundary is forced to a decision — cut over,
+  // ledger retry, or the VISIBLE fallback — within the deadline.
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (!liveRef.current || !swapEnabledRef.current) return;
+      if (!swapBusyRef.current && swapExecQueueRef.current.length) {
+        const { next, rest } = dequeueSwapExecution(swapExecQueueRef.current);
+        swapExecQueueRef.current = rest;
+        if (next && swapStateRef.current.armed.includes(next) && !swapStateRef.current.done.includes(next)) {
+          void executeSwapRef.current(next);
+          return;
+        }
+      }
+      const boundary = pendingExecutionBoundary(swapStateRef.current);
+      if (boundary) maybeExecutePendingRef.current(boundary);
+    }, 500);
+    return () => window.clearInterval(timer);
+  }, []);
 
   // Keep the manual active-face pointer aimed at the owning slot's
   // handle. Slot elements change identity across swaps (a slot's render
@@ -2445,6 +2598,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // written on every settle (the face may settle before any stage
   // exists), and a settle is the F2 readiness trigger for a pending
   // retry staged on this face.
+  // Handover fix (2026-11-10): the start is BOUNDED
+  // (PRESTAGE_START_TIMEOUT_MS — a hung Simli start settles as a
+  // failure instead of leaving the stage in limbo), every settle is
+  // folded through the face-liveness machine (a successful settle
+  // CLEARS an earlier transient failure latch — verdicts are
+  // recoverable), and a settle is the readiness trigger for ANY
+  // pending execution on this face, not only a ledger retry.
   useEffect(() => {
     if (!stagedFace) return;
     let cancelled = false;
@@ -2453,29 +2613,30 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       await new Promise<void>(r => requestAnimationFrame(() => r()));
       if (cancelled) return;
       const handle = stagedFace.slot === 'second' ? stagedAvatarRef.current : mainSlotRef.current;
-      const ok = await handle?.start({ silent: true }).catch(() => false);
+      const ok = await boundedSettle(
+        handle ? handle.start({ silent: true }).catch(() => false) : Promise.resolve(false),
+        PRESTAGE_START_TIMEOUT_MS,
+        false,
+      );
       if (cancelled) return;
-      if (ok) {
-        if (preStageRef.current?.boundary === stagedFace.boundary) {
-          preStageRef.current = { ...preStageRef.current, faceReady: true };
-        }
-        if (warmedFaceRef.current?.boundary === stagedFace.boundary && warmedFaceRef.current.slot === stagedFace.slot) {
-          warmedFaceRef.current = { ...warmedFaceRef.current, ready: true };
-        }
-        // F2 RETRY-ON-READINESS: a pending retry staged on this face
-        // executes the moment the face is ready — no turn_complete.
-        maybeExecuteRetryRef.current(stagedFace.boundary);
-      } else {
-        if (warmedFaceRef.current?.boundary === stagedFace.boundary && warmedFaceRef.current.slot === stagedFace.slot) {
-          warmedFaceRef.current = { ...warmedFaceRef.current, failed: true };
-        }
-        if (preStageRef.current?.boundary === stagedFace.boundary) {
-          preStageRef.current = { ...preStageRef.current, faceFailed: true };
-          // Settled-failed with a retry pending: execute now so the
-          // gate fails fast into the ledger's next step.
-          maybeExecuteRetryRef.current(stagedFace.boundary);
-        }
+      const stageNow = preStageRef.current?.boundary === stagedFace.boundary ? preStageRef.current : null;
+      const warmedNow = warmedFaceRef.current?.boundary === stagedFace.boundary && warmedFaceRef.current.slot === stagedFace.slot ? warmedFaceRef.current : null;
+      const settled = faceLivenessOnStartSettled({
+        ready: stageNow?.faceReady ?? warmedNow?.ready ?? false,
+        failed: (stageNow?.faceFailed ?? warmedNow?.failed) === true,
+        everLive: (stageNow?.faceEverLive ?? warmedNow?.everLive) === true,
+        startFailed: (stageNow?.faceStartFailed ?? warmedNow?.startFailed) === true,
+      }, ok);
+      if (stageNow) {
+        preStageRef.current = { ...stageNow, faceReady: settled.ready, faceFailed: settled.failed ? true : undefined, faceEverLive: settled.everLive, faceStartFailed: settled.startFailed };
       }
+      if (warmedNow) {
+        warmedFaceRef.current = { ...warmedNow, ready: settled.ready, failed: settled.failed, everLive: settled.everLive, startFailed: settled.startFailed };
+      }
+      // READINESS: a pending execution staged on this face decides the
+      // moment the face settles — ready executes, failed fails fast
+      // into the ledger — no turn_complete involved either way.
+      maybeExecutePendingRef.current(stagedFace.boundary);
     })();
     return () => { cancelled = true; };
   }, [stagedFace?.boundary, stagedFace?.slot, stagedFace?.persona]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -2533,7 +2694,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     if (!consentReadyRef.current) { setConsentReady(false); return; }
     w.activated = true;
     const generation = generationRef.current;
-    setPhase("connecting"); setStatus("Connecting…"); setError(null); setAudioNeedsTap(false); setLimitReached(false); setEndedByVisitor(false);
+    setPhase("connecting"); setStatus("Connecting…"); setError(null); setAudioNeedsTap(false); setLimitReached(false); setEndedByVisitor(false); setSwapNotice('');
     // All unlocks start synchronously inside the tap.
     const playCtx = playCtxRef.current && playCtxRef.current.state !== 'closed' ? playCtxRef.current : new AudioContext();
     playCtxRef.current = playCtx;
@@ -2658,28 +2819,40 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   //    main-slot behavior exactly: faceLive follows the report, and a
   //    not-live report clears avatarLiveRef.
   //  - A CONCEALED (staged, unrevealed) face in the non-owning slot
-  //    that reports not-live INVALIDATES the readiness latches instead:
-  //    the stage's faceReady clears and faceFailed sets (so the
-  //    gate-wait fails fast / the gate aborts instead of passing on a
-  //    stale latch), and the warmed-face record flips to failed.
-  //  - Everything else is ignored: a REVEALED non-owning face is a
-  //    retiring/fading slot whose events must not clobber the new
-  //    owner's state, and a staged face reporting live changes nothing
-  //    (readiness still comes from its start() resolution, which waits
-  //    for a displayed frame).
+  //    reports into the FACE-LIVENESS MACHINE (handover fix): a LIVE
+  //    report records that the face has lived (readiness itself still
+  //    comes from its start() resolution, which waits for a displayed
+  //    frame); a NOT-LIVE report invalidates the readiness latches
+  //    ONLY when the machine calls it a death — the face was live
+  //    before, or its start already settled failed. Publish #16's
+  //    original wiring latched faceFailed on EVERY not-live report,
+  //    including Simli's startup stop/error transients during initial
+  //    warm-up — a face that had never been live was judged dead, the
+  //    gate aborted on its first poll, and retest #3's doorway died
+  //    before Sara ever connected. A warm-up transient now changes
+  //    nothing.
+  //  - A REVEALED non-owning face is a retiring/fading slot whose
+  //    events must not clobber the new owner's state: ignored.
   const handleFaceLiveChange = (slot: FaceSlot, live: boolean, face: { boundary: PersonaBoundary; revealed: boolean } | null) => {
     if (faceSlotOwnerRef.current === slot) {
       setFaceLive(live);
       if (!live) avatarLiveRef.current = false;
       return;
     }
-    if (live || !face || face.revealed) return;
-    if (preStageRef.current?.slot === slot && preStageRef.current.boundary === face.boundary) {
-      preStageRef.current = { ...preStageRef.current, faceReady: false, faceFailed: true };
-    }
-    if (warmedFaceRef.current?.slot === slot && warmedFaceRef.current.boundary === face.boundary) {
-      warmedFaceRef.current = { ...warmedFaceRef.current, ready: false, failed: true };
-    }
+    if (!face || face.revealed) return;
+    const stage = preStageRef.current?.slot === slot && preStageRef.current.boundary === face.boundary ? preStageRef.current : null;
+    const warmed = warmedFaceRef.current?.slot === slot && warmedFaceRef.current.boundary === face.boundary ? warmedFaceRef.current : null;
+    if (!stage && !warmed) return;
+    const current: StagedFaceLiveness = {
+      ready: stage?.faceReady ?? warmed?.ready ?? false,
+      failed: (stage?.faceFailed ?? warmed?.failed) === true,
+      everLive: (stage?.faceEverLive ?? warmed?.everLive) === true,
+      startFailed: (stage?.faceStartFailed ?? warmed?.startFailed) === true,
+    };
+    const next = live ? faceLivenessOnLive(current) : faceLivenessOnNotLive(current);
+    if (next === current) return;
+    if (stage) preStageRef.current = { ...stage, faceReady: next.ready, faceFailed: next.failed ? true : undefined, faceEverLive: next.everLive, faceStartFailed: next.startFailed };
+    if (warmed) warmedFaceRef.current = { ...warmed, ready: next.ready, failed: next.failed, everLive: next.everLive, startFailed: next.startFailed };
   };
   const mainFaceLayer = mainFace ? (mainFace.revealed ? (fadingSlot === 'main' ? 1 : 2) : 0) : undefined;
   const avatarView = videoAvatar?.enabled && !previewOnly ? (mainFace
@@ -2718,7 +2891,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           <p className="min-w-0 flex-1 break-words text-xs leading-snug text-foreground" role="status">
             {shownPhase === "live" && (
               <span className="font-semibold text-foreground">
-                {handoffActive ? t("voice.managerHandoff") : paused ? t("voice.paused") : replaying ? t("voice.replayingSavedAudio") : muted ? t("voice.micMuted") : aspenSpeaking ? t("voice.speaking", { name: PERSONAS[activePersona].displayName }) : captureMode === "hold" && !held ? t("voice.holdToTalk") : t("voice.listening")}
+                {swapConnecting ? `Connecting ${PERSONAS[swapConnecting].displayName}…` : handoffActive ? t("voice.managerHandoff") : paused ? t("voice.paused") : replaying ? t("voice.replayingSavedAudio") : muted ? t("voice.micMuted") : aspenSpeaking ? t("voice.speaking", { name: PERSONAS[activePersona].displayName }) : captureMode === "hold" && !held ? t("voice.holdToTalk") : t("voice.listening")}
               </span>
             )}
             {shownPhase !== "live" && (shownPhase === "idle" ? t("voice.readyToTalk") : faceWaiting ? t("voice.connecting") : status)}
@@ -2751,6 +2924,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
         {confirmation}
         {actionNotice && <p role="status" className="text-xs text-primary">{actionNotice}</p>}
+        {swapNotice && <p role="status" className="text-xs text-primary">{swapNotice}</p>}
         {videoFallback && <p role="status" className="text-[11px] text-muted-foreground">{t("voice.videoFallback")}</p>}
         {remainingSeconds !== null && (!faceFirst || captions) && <p className="text-[11px] text-muted-foreground">{t("voice.demoTimeRemaining")}: {Math.floor(remainingSeconds/60)}:{String(remainingSeconds%60).padStart(2,'0')}</p>}
         {transferControl}
@@ -2997,6 +3171,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         <Card className="p-4 space-y-3">
           {confirmation}
         {actionNotice && <p role="status" className="text-xs text-primary">{actionNotice}</p>}
+        {swapNotice && <p role="status" className="text-xs text-primary">{swapNotice}</p>}
         {videoFallback && <p role="status" className="text-xs text-muted-foreground">{t("voice.videoFallback")}</p>}
         {remainingSeconds !== null && <p className="text-[11px] text-muted-foreground">{t("voice.demoTimeRemaining")}: {Math.floor(remainingSeconds/60)}:{String(remainingSeconds%60).padStart(2,'0')}</p>}
         {transferControl}
@@ -3104,7 +3279,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             <p className="text-xs text-muted-foreground">
               {phase === "live" && (
                 <span className="font-semibold text-foreground">
-                  {paused ? t("voice.pausedResume") : replaying ? t("voice.replayingMicPaused") : muted ? t("voice.micMuted") : aspenSpeaking ? t("voice.isSpeaking", { name: PERSONAS[activePersona].displayName }) : captureMode === "hold" && !held ? t("voice.micPaused") : t("voice.listening")}
+                  {swapConnecting ? `Connecting ${PERSONAS[swapConnecting].displayName}…` : paused ? t("voice.pausedResume") : replaying ? t("voice.replayingMicPaused") : muted ? t("voice.micMuted") : aspenSpeaking ? t("voice.isSpeaking", { name: PERSONAS[activePersona].displayName }) : captureMode === "hold" && !held ? t("voice.micPaused") : t("voice.listening")}
                   {" — "}
                 </span>
               )}

@@ -1,14 +1,14 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { z } from 'npm:zod@3';
-import { DEFAULT_AGENT, VOICES, openingFor, businessDemoConfig, SIMULATION_GREETING_LEGACY_SLIM } from '../_shared/voice-config.ts';
+import { DEFAULT_AGENT, VOICES, openingFor, businessDemoConfig, businessDemoConfigSwapParent, SIMULATION_GREETING_LEGACY_SLIM } from '../_shared/voice-config.ts';
 import { DEFAULT_LIVE_MODEL, officialLivePricing } from '../_shared/live-models.ts';
 import { voiceQuotaClass, voiceLimitResponse } from '../_shared/voice-session-limit.ts';
 import { transferDestination } from '../_shared/browser-handoff.ts';
 import { transcriptAllowed } from '../_shared/transcript-consent.ts';
 import { workspaceAccess } from '../_shared/customer-payments.ts';
 import { resolveDemoShare } from '../_shared/demo-share.ts';
-import { DEMO_INVITE_GREETING, DEMO_INVITE_GREETING_LEGACY_SLIM, DEMO_INVITE_GREETING_VARIANTS, DEMO_INVITE_OPENING, DEMO_VERIFICATION_ACT1, DEMO_VERIFICATION_GREETING } from '../_shared/demo-sales.ts';
+import { DEMO_INVITE_GREETING, DEMO_INVITE_GREETING_LEGACY_SLIM, DEMO_INVITE_GREETING_VARIANTS, DEMO_INVITE_OPENING, DEMO_INVITE_OPENING_SWAP, DEMO_VERIFICATION_ACT1, DEMO_VERIFICATION_GREETING } from '../_shared/demo-sales.ts';
 import { alexGuideConfig, alexDemoGuestConfig } from '../_shared/alex-guide.ts';
 import { avatarSwapEnabled, teamIntroEnabled, personaFor, personaSegmentPrompt } from '../_shared/personas.ts';
 import { TEAM_INTRO_TEACHING, isIntroBoundary, teamIntroGreetingFor } from '../_shared/team-intro.ts';
@@ -160,12 +160,24 @@ Deno.serve(async req=>{
     else { const {data:p}=await db.from('prospects').select('business_name,business_data,ai_analysis').eq('id',b.prospectId).maybeSingle(); if(!p) return json({error:'Demo business not found'},404); knowledge=JSON.stringify(p.business_data || {}); businessName=p.business_name; if(knowledge.length<20) return json({error:'Prepare this prospect website demo before starting a call.'},409); }
     const {data:aspen}=await db.from('voice_agents').select('published').eq('slug','aspen-homepage').maybeSingle();
     const published=aspen?.published as Record<string,unknown>|undefined;
-    config={...businessDemoConfig(businessName,knowledge,published), visitorContact, platformFollowup:true};
+    // SWAP-PARENT COMPOSITION (handover fix, 2026-11-10): a
+    // swap-enabled demo parent is composed HOST-ONLY — its prompt
+    // excludes the simulation host entry beats and the receptionist
+    // segment (Sara owns them via her segment prompt), and the invite
+    // branch below prepends the swap variant of the invite opening,
+    // whose script ENDS at the Sara introduction instead of ordering
+    // Aspen to confirm, ask to continue, and enter the simulation
+    // herself (the retest #3 prompt collision). The flags-off path is
+    // untouched: businessDemoConfig + DEMO_INVITE_OPENING, byte-
+    // identical to before. The verification branch composes from
+    // whichever base applies — Act 1's own text is unchanged either
+    // way, and its session still ends at the code gate.
+    config={...(swapEnabled ? businessDemoConfigSwapParent(businessName,knowledge,published) : businessDemoConfig(businessName,knowledge,published)), visitorContact, platformFollowup:true};
     if(b.verification==='pending') { config.greeting=DEMO_VERIFICATION_GREETING; config.greetings=[]; config.systemPrompt=`${DEMO_VERIFICATION_ACT1}\n\n${String(config.systemPrompt)}`; config.verificationGate=true; }
     // Invite arrivals (cold-email personal link): the host phase replaces
     // the code gate. Honored ONLY when the demo-invite resolve stamped the
     // lead's arrival server-side — a client flag alone never earns it.
-    else if(b.invite===true && leadInviteArrivedAt) { config.greeting=DEMO_INVITE_GREETING; config.greetings=DEMO_INVITE_GREETING_VARIANTS; config.systemPrompt=`${DEMO_INVITE_OPENING}\n\n${String(config.systemPrompt)}`; config.inviteArrival=true; }
+    else if(b.invite===true && leadInviteArrivedAt) { config.greeting=DEMO_INVITE_GREETING; config.greetings=DEMO_INVITE_GREETING_VARIANTS; config.systemPrompt=`${swapEnabled ? DEMO_INVITE_OPENING_SWAP : DEMO_INVITE_OPENING}\n\n${String(config.systemPrompt)}`; config.inviteArrival=true; }
     // DEMO-SITE OPENING GATING (owner revision, 2026-11-09 — replaces
     // the brief assembly-time intro beat): businessDemoConfig and the
     // invite branch above serve the NEW demo-site opening (personalized

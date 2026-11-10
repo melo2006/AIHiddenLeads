@@ -147,9 +147,17 @@ describe('2 — face-slot liveness wiring (source pins)', () => {
   test('a staged (concealed) face death invalidates the stage latch AND the warmed-face record', () => {
     const handler = convo.slice(convo.indexOf('const handleFaceLiveChange'), convo.indexOf('const mainFaceLayer'));
     // Retiring/fading (revealed, non-owner) reports are ignored first.
-    expect(handler).toContain('if (live || !face || face.revealed) return;');
-    expect(handler).toContain('preStageRef.current = { ...preStageRef.current, faceReady: false, faceFailed: true };');
-    expect(handler).toContain('warmedFaceRef.current = { ...warmedFaceRef.current, ready: false, failed: true };');
+    expect(handler).toContain('if (!face || face.revealed) return;');
+    // Handover fix (2026-11-10): the invalidation is judged by the
+    // face-liveness machine — a not-live report latches the failure
+    // ONLY for a face that was live before (or whose start settled
+    // failed); a warm-up transient changes nothing. Both records are
+    // written from the machine's verdict, slot- AND boundary-gated as
+    // before.
+    expect(handler).toContain('faceLivenessOnNotLive(current)');
+    expect(handler).toContain('if (next === current) return;');
+    expect(handler).toContain('preStageRef.current = { ...stage, faceReady: next.ready, faceFailed: next.failed ? true : undefined, faceEverLive: next.everLive, faceStartFailed: next.startFailed };');
+    expect(handler).toContain('warmedFaceRef.current = { ...warmed, ready: next.ready, failed: next.failed, everLive: next.everLive, startFailed: next.startFailed };');
     // Both invalidations are slot- AND boundary-gated.
     expect(handler).toContain('preStageRef.current?.slot === slot && preStageRef.current.boundary === face.boundary');
     expect(handler).toContain('warmedFaceRef.current?.slot === slot && warmedFaceRef.current.boundary === face.boundary');

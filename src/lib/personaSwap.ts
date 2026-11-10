@@ -590,6 +590,219 @@ export function pendingRetryBoundary(state: SwapState): PersonaBoundary | null {
   return boundary;
 }
 
+// ---------------------------------------------------------------------------
+// HANDOVER FIX (2026-11-10 — retest #3: the doorway armed, two Sara
+// segments were authorized, NEITHER was ever connected, and Aspen kept
+// running her scripted host beats — including the simulation itself —
+// while the swap died silently; investigation:
+// handover-stall-investigation-2026-11-10.md). The helpers below own
+// the new decisions; GeminiConversation owns the effects:
+//
+//  - pendingExecutionBoundary generalizes the F2 readiness executor
+//    from retry-only to ANY armed boundary, so a NORMAL arm executes
+//    on stage readiness instead of depending on a later turn_complete.
+//  - swapWatchdogAction is the single decision the readiness executor
+//    and the stage watchdog share: execute when the gate would pass
+//    (never mid-line), fail-fast when the face is truly dead, and
+//    FORCE a bounded decision at the arm deadline / stage watchdog —
+//    an authorized stage can never sit unconsumed in silence again.
+//  - The face-liveness machine makes a faceFailed verdict RECOVERABLE:
+//    a staged face that has never been live reporting not-live during
+//    its initial warm-up is the normal pre-live state, NOT a death
+//    (that false verdict, latched by publish #16's liveness wiring,
+//    is what gate-aborted retest #3's doorway). Death requires having
+//    been live first, or a start() that settled failed.
+//  - micAudioPasses folds the swap mic-hold into the mic pipeline's
+//    real-vs-silence decision: from arm until cut-over or fallback,
+//    the host's mic sends silence frames (the opening-gate pattern),
+//    so she generates no further scripted beats into the stall.
+// ---------------------------------------------------------------------------
+
+/** Hard deadline from ARM time: a pending swap must reach a decision
+ *  (cut over, or fail visibly into the retry ledger / fallback) within
+ *  this window. Matches the mic-hold bound — the visitor never waits
+ *  longer than this for the handover to resolve one way or the other. */
+export const SWAP_ARM_DEADLINE_MS = 10_000;
+/** An authorized stage left unconsumed longer than this is orphaned
+ *  by construction (nothing connects a staged token except
+ *  executeSwap's success tail): the watchdog forces a decision. */
+export const STAGE_WATCHDOG_MS = 10_000;
+/** Bound on a pre-stage Simli start(): a hung start must settle as a
+ *  failure deterministically instead of leaving the stage in limbo
+ *  for the gate-wait to misread. */
+export const PRESTAGE_START_TIMEOUT_MS = 10_000;
+
+/** Any boundary whose execution is pending: the retry-ledger trigger
+ *  wins (it is the narrower, older signal); otherwise the FIRST armed
+ *  boundary that is not done — boundaries are sequential by design,
+ *  so at most one is ever executable. This is pendingRetryBoundary
+ *  generalized to normal arms (handover fix item 1). */
+export function pendingExecutionBoundary(state: SwapState): PersonaBoundary | null {
+  const retry = pendingRetryBoundary(state);
+  if (retry) return retry;
+  return state.armed.find(b => !state.done.includes(b)) ?? null;
+}
+
+export interface SwapWatchdogFacts {
+  /** The boundary awaiting execution (pendingExecutionBoundary). */
+  boundary: PersonaBoundary | null;
+  now: number;
+  /** When the boundary armed (armSwap stamps it); 0 = unknown. */
+  armedAt: number;
+  /** A stage entry exists for this boundary. */
+  stagePresent: boolean;
+  /** When the current stage was authorized; 0 = no stage. */
+  stageAuthorizedAt: number;
+  /** The staged face's failure verdict is latched (a TRUE death under
+   *  the liveness machine): the gate-wait fails fast on it, so the
+   *  decision is due immediately — executing runs the gate-abort into
+   *  the retry ledger instead of lingering. */
+  faceFailed: boolean;
+  /** The atomic gate would pass with the current stage right now:
+   *  stage present, face ready when video is requested, token inside
+   *  the freshness bound. */
+  gateReady: boolean;
+  /** The outgoing persona is mid-turn. A ready cut-over waits for her
+   *  line to finish — never truncates it mid-line — unless the arm
+   *  deadline forces the decision. */
+  turnInFlight: boolean;
+}
+
+export type SwapWatchdogAction = 'execute' | 'force' | 'none';
+
+/** The one execution decision shared by the readiness executor (stage
+ *  landing / face settle) and the watchdog interval:
+ *  - 'execute': run executeSwap now (its gate-wait still applies). A
+ *    latched face failure executes immediately — the gate fails fast
+ *    into the ledger; a gate-ready stage executes as soon as no turn
+ *    is in flight.
+ *  - 'force': run executeSwap with an immediate gate (no gate-wait):
+ *    the arm deadline or the stage watchdog expired, so the swap must
+ *    resolve NOW — cut over if possible, else the ledger decides
+ *    retry vs the visible fallback.
+ *  - 'none': still legitimately waiting (face warming, line playing,
+ *    inside every bound). */
+export function swapWatchdogAction(facts: SwapWatchdogFacts): SwapWatchdogAction {
+  if (!facts.boundary) return 'none';
+  if (facts.stagePresent && facts.faceFailed) return 'execute';
+  if (facts.stagePresent && facts.gateReady && !facts.turnInFlight) return 'execute';
+  if (facts.armedAt > 0 && facts.now - facts.armedAt >= SWAP_ARM_DEADLINE_MS) return 'force';
+  if (facts.stagePresent && facts.stageAuthorizedAt > 0 && facts.now - facts.stageAuthorizedAt >= STAGE_WATCHDOG_MS) return 'force';
+  return 'none';
+}
+
+/** Single-flight execution queue (handover fix item 1): a
+ *  turn_complete that arrives while a cut-over is busy is REMEMBERED
+ *  here, never discarded — the old busy-guard silently dropped it,
+ *  which could strand an armed boundary whose only trigger it was.
+ *  Pure: returns a new array; enqueueing a boundary twice is a no-op. */
+export function enqueueSwapExecution(queue: readonly PersonaBoundary[], boundary: PersonaBoundary): PersonaBoundary[] {
+  return queue.includes(boundary) ? [...queue] : [...queue, boundary];
+}
+export function dequeueSwapExecution(queue: readonly PersonaBoundary[]): { next: PersonaBoundary | null; rest: PersonaBoundary[] } {
+  if (!queue.length) return { next: null, rest: [] };
+  return { next: queue[0], rest: queue.slice(1) };
+}
+
+// ---------------------------------------------------------------------------
+// FACE LIVENESS (handover fix item 2). A staged face's readiness state
+// as a small machine, so the death verdict has exactly one definition
+// everywhere it is written (pre-stage effect, liveness wiring, arm
+// fold):
+//   - reporting LIVE only records that the face has lived once
+//     (readiness still comes from start(), which waits for a
+//     displayed frame);
+//   - start() settling OK marks ready AND clears any earlier failure
+//     latch — verdicts are recoverable, never one-way;
+//   - start() settling FAILED (including the bounded-start timeout)
+//     is a true failure;
+//   - reporting NOT-LIVE is a death ONLY when the face was live
+//     before, or its start already settled failed. During initial
+//     warm-up a not-live report is the normal pre-live state —
+//     Simli's startup stop/error transients produce exactly those
+//     reports, and publish #16's wiring latched them as faceFailed,
+//     which gate-aborted retest #3's doorway on the first poll.
+// ---------------------------------------------------------------------------
+export interface StagedFaceLiveness {
+  /** start() resolved with a displayed frame. */
+  ready: boolean;
+  /** A TRUE failure verdict (see the machine rules above). */
+  failed: boolean;
+  /** The face has reported live at least once. */
+  everLive: boolean;
+  /** start() settled failed (bounded timeout included). */
+  startFailed: boolean;
+}
+export const INITIAL_FACE_LIVENESS: StagedFaceLiveness = { ready: false, failed: false, everLive: false, startFailed: false };
+
+export function faceLivenessOnLive(liveness: StagedFaceLiveness): StagedFaceLiveness {
+  return liveness.everLive ? liveness : { ...liveness, everLive: true };
+}
+export function faceLivenessOnStartSettled(liveness: StagedFaceLiveness, ok: boolean): StagedFaceLiveness {
+  return ok
+    ? { ...liveness, ready: true, failed: false, startFailed: false, everLive: true }
+    : { ...liveness, ready: false, failed: true, startFailed: true };
+}
+export function faceLivenessOnNotLive(liveness: StagedFaceLiveness): StagedFaceLiveness {
+  if (liveness.failed) return liveness;
+  if (liveness.everLive || liveness.startFailed) return { ...liveness, ready: false, failed: true };
+  return liveness;
+}
+/** Would a not-live report right now be a death for this face? */
+export function faceNotLiveIsDeath(liveness: StagedFaceLiveness): boolean {
+  return liveness.everLive || liveness.startFailed;
+}
+
+/** The mic pipeline's real-vs-silence decision, with the swap hold
+ *  folded in (handover fix item 3). Pre-existing semantics preserved:
+ *  hold-to-talk passes the raw input (the send gate separately checks
+ *  the hold button); hands-free passes it when the noise gate is open
+ *  and the opening gate is not holding. The swap hold overrides
+ *  everything: while a swap is armed and unresolved, the host's mic
+ *  sends silence frames — the same trick the opening gate uses — so
+ *  the model hears no new visitor turn and generates no further
+ *  scripted beats into the handover stall. */
+export function micAudioPasses(input: { swapHold: boolean; openingGate: boolean; noiseGateOpen: boolean; holdToTalk: boolean }): boolean {
+  if (input.swapHold) return false;
+  if (input.holdToTalk) return true;
+  return input.noiseGateOpen && !input.openingGate;
+}
+
+/** The ONE visible line a spent swap may show when the host resumes
+ *  (handover fix items 3–4): rotating by an index the caller advances
+ *  per fallback, so consecutive fallbacks in one conversation never
+ *  repeat a wording — the same rotation discipline as the drop
+ *  apology. Display only; nothing is spoken by the client. */
+export function swapFallbackLine(incomingName: string, currentName: string, index: number): string {
+  const variants = [
+    `${incomingName} couldn't connect — ${currentName} will continue from here.`,
+    `The handoff to ${incomingName} didn't go through — ${currentName} is staying with you.`,
+    `${incomingName} isn't available right now — ${currentName} will keep going.`,
+  ];
+  return variants[Math.abs(index) % variants.length];
+}
+
+/** Race a promise against a bound: resolves with the timeout value
+ *  when the promise has not settled in time (or rejects). Used to
+ *  bound the pre-stage Simli start() so a hung start settles as a
+ *  failure instead of leaving the stage in limbo. The scheduler is
+ *  injectable for tests. */
+export function boundedSettle<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  timeoutValue: T,
+  schedule: (fn: () => void, ms: number) => unknown = (fn, ms) => setTimeout(fn, ms),
+): Promise<T> {
+  return new Promise<T>((resolve) => {
+    let settled = false;
+    schedule(() => { if (!settled) { settled = true; resolve(timeoutValue); } }, timeoutMs);
+    promise.then(
+      value => { if (!settled) { settled = true; resolve(value); } },
+      () => { if (!settled) { settled = true; resolve(timeoutValue); } },
+    );
+  });
+}
+
 /** Post-cut-over segment CONNECT retry: the cut-over already happened
  *  (the boundary IS done, the old socket is gone), so this is the
  *  drop-recovery class, not the arm class — a fresh segment for the
@@ -619,6 +832,11 @@ export interface SwapDiagEntry {
     // Fluidity batch (2026-11-10): the F3 face pre-stage + token-only
     // refresh, the F1 gate-wait outcome, and the F2 readiness trigger.
     | 'prestage' | 'token-refresh' | 'gate-wait' | 'retry-execute-ready'
+    // Handover fix (2026-11-10): a busy executeSwap queues instead of
+    // discarding; the generalized readiness executor fires for normal
+    // arms; the stage watchdog / arm deadline force a visible decision
+    // on an authorized-but-unconsumed stage.
+    | 'execute-queued' | 'execute-ready' | 'stage-watchdog' | 'forced-execute'
     // Paired-audio guard (2026-11-10): a paired PCM chunk could not be
     // handed to the moving face and the session degraded to voice-only
     // local playback instead of ending (see playPcmChunk).
