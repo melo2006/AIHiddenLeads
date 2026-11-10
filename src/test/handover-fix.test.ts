@@ -139,7 +139,11 @@ describe('2 — face liveness: warm-up not-live is not a death', () => {
   });
   test('the component judges staged faces through the machine on BOTH slots', () => {
     expect(convo).toContain('faceLivenessOnNotLive(current)');
-    expect(convo).toContain('faceLivenessOnLive(current)');
+    // Voice-first batch: the live fold now carries handle FRAME
+    // PROOF (liveness().displayedFrame) so a genuinely live staged
+    // face can repair a false readiness verdict (investigation
+    // Q5 item 3); the no-frame fold stays everLive-only.
+    expect(convo).toContain('faceLivenessOnLive(current, !!(snap?.live && snap.displayedFrame))');
     expect(convo).toContain("onLiveChange={live => handleFaceLiveChange('main', live, mainFace)}");
     expect(convo).toContain("onLiveChange={live => handleFaceLiveChange('second', live, secondFace)}");
     // The #16 degrade-on-paired-failure behavior stays intact.

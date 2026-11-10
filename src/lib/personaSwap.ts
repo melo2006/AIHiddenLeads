@@ -402,6 +402,30 @@ export function cutoverReady(input: { authorized: boolean; videoRequested: boole
 }
 
 // ---------------------------------------------------------------------------
+// VOICE-FIRST DOORWAY (2026-11-10 — retest #4: face-readiness investigation
+// Q3/Q5). The atomic gate above used to VETO the swap when the incoming
+// face was not ready: the segment socket — which never needed the face
+// (connectSegmentSocket takes only a token, and the manual-resume path
+// already connects voice-only when a face re-stage fails) — was held
+// hostage to a readiness channel that a lost 10 s start() race could
+// orphan permanently. The gate's verdict is now a MODE SELECTION, never
+// an abort:
+//   - 'face-first': the incoming face is ready (or no video was
+//     requested) — the classic crossfade cut-over with paired audio
+//     from the first chunk.
+//   - 'voice-first': the face is not ready but the stage carries a
+//     FRESH token — the segment socket connects IMMEDIATELY, the
+//     segment runs voice-over-portrait (chunks route local), and the
+//     face attaches mid-segment via the takeover watcher when it
+//     reports live (deferred audio sync, then the routing flip).
+// A face can therefore delay its own PICTURE, never the conversation.
+// ---------------------------------------------------------------------------
+export type CutoverMode = 'face-first' | 'voice-first';
+export function cutoverMode(input: { videoRequested: boolean; faceReady: boolean }): CutoverMode {
+  return !input.videoRequested || input.faceReady ? 'face-first' : 'voice-first';
+}
+
+// ---------------------------------------------------------------------------
 // GATE-WAIT (fluidity batch, 2026-11-10 — root-cause F1). The cut-over
 // gate used to sample `cutoverReady` EXACTLY ONCE at the handoff line's
 // turn_complete, while the incoming face needs seconds to pre-stage
@@ -629,8 +653,36 @@ export const SWAP_ARM_DEADLINE_MS = 10_000;
 export const STAGE_WATCHDOG_MS = 10_000;
 /** Bound on a pre-stage Simli start(): a hung start must settle as a
  *  failure deterministically instead of leaving the stage in limbo
- *  for the gate-wait to misread. */
-export const PRESTAGE_START_TIMEOUT_MS = 10_000;
+ *  for the gate-wait to misread.
+ *  VOICE-FIRST BATCH (2026-11-10): the bound is now ALIGNED with the
+ *  pre-stage start's real budget. The pre-stage calls start() with
+ *  maxAttempts: 1, whose worst case is one token fetch (sessionToken:
+ *  up to 2 tries × 12 s) + one provider connect cap (12 s) + one
+ *  displayed-frame wait (8 s) ≈ 44 s — so the watch bound is 45 s.
+ *  The old 10 s bound raced a process that legitimately runs far
+ *  longer and manufactured false failures (retest #4's root cause);
+ *  capping the START at one attempt — instead of letting SimliAvatar
+ *  retry internally for 30–60 s+ invisibly — is what makes a single
+ *  honest bound possible. The bound no longer gates anything the
+ *  visitor waits on: executeSwap's gate-wait is unchanged (8 s) and
+ *  expiry now selects voice-first instead of aborting. */
+export const PRESTAGE_START_TIMEOUT_MS = 45_000;
+/** RETRY arm deadline (voice-first batch, investigation Q5-7): a
+ *  retry arm must NOT re-stamp a full fresh SWAP_ARM_DEADLINE_MS —
+ *  the parent socket is already ~100 s old at that point and the
+ *  hosting worker fuse is ~140–150 s, so a full new 10 s window plus
+ *  the gate-wait could outlive the parent it is meant to save. A
+ *  retry gets this shorter force window instead (implemented by
+ *  back-dating its arm stamp, see retryArmStamp). */
+export const SWAP_RETRY_DEADLINE_MS = 5_000;
+/** The arm stamp for a RETRY arm: back-dated so swapWatchdogAction's
+ *  existing arm-deadline check forces the decision
+ *  SWAP_RETRY_DEADLINE_MS after the retry armed, not a full
+ *  SWAP_ARM_DEADLINE_MS. (With voice-first the forced decision is a
+ *  voice-first cut-over in the common case, not a fallback.) */
+export function retryArmStamp(now: number): number {
+  return now - (SWAP_ARM_DEADLINE_MS - SWAP_RETRY_DEADLINE_MS);
+}
 
 /** Any boundary whose execution is pending: the retry-ledger trigger
  *  wins (it is the narrower, older signal); otherwise the FIRST armed
@@ -735,7 +787,19 @@ export interface StagedFaceLiveness {
 }
 export const INITIAL_FACE_LIVENESS: StagedFaceLiveness = { ready: false, failed: false, everLive: false, startFailed: false };
 
-export function faceLivenessOnLive(liveness: StagedFaceLiveness): StagedFaceLiveness {
+export function faceLivenessOnLive(liveness: StagedFaceLiveness, frameDisplayed = false): StagedFaceLiveness {
+  // VOICE-FIRST BATCH (2026-11-10 — investigation Q5-2b): readiness
+  // must never be LESS recoverable than liveness. The pre-voice-first
+  // machine let a live report set everLive ONLY, so a face whose
+  // start() settle was orphaned by the old 10 s bounded race stayed
+  // not-ready forever while visibly live in its concealed slot —
+  // retest #4's exact failure. When the caller can prove a DISPLAYED
+  // FRAME exists on the instance (the handle's liveness query), a
+  // live report folds ready:true and clears any failure latch: the
+  // face demonstrably did what start() was racing to prove. Without
+  // frame proof the legacy behavior is unchanged (everLive only —
+  // readiness still comes from start(), which waits for a frame).
+  if (frameDisplayed) return { ready: true, failed: false, everLive: true, startFailed: false };
   return liveness.everLive ? liveness : { ...liveness, everLive: true };
 }
 export function faceLivenessOnStartSettled(liveness: StagedFaceLiveness, ok: boolean): StagedFaceLiveness {
@@ -840,7 +904,12 @@ export interface SwapDiagEntry {
     // Paired-audio guard (2026-11-10): a paired PCM chunk could not be
     // handed to the moving face and the session degraded to voice-only
     // local playback instead of ending (see playPcmChunk).
-    | 'audio-degraded';
+    | 'audio-degraded'
+    // Voice-first batch (2026-11-10): the gate selected voice-first
+    // mode (segment connected without waiting for the face), and the
+    // pending face later attached mid-segment via the takeover
+    // watcher (deferred audio sync + routing flip).
+    | 'voice-first-cutover' | 'face-takeover';
   boundary?: PersonaBoundary;
   persona?: PersonaId;
   attempt?: number;
@@ -859,6 +928,92 @@ export function swapDiagnostics(): readonly SwapDiagEntry[] {
 }
 export function resetSwapDiagnostics(): void {
   swapDiagLog.length = 0;
+}
+
+// ---------------------------------------------------------------------------
+// SERVER-VISIBLE DIAG (voice-first batch, 2026-11-10 — investigation
+// Q5-5/6). Retest #4's attempt outcomes existed ONLY in the page: the
+// ring buffer above dies with it, and the one server trace was a prose
+// sentence inside the NEXT attempt's resumeContext — the final attempt
+// of a boundary left no record anywhere. The attempt resolutions are
+// now ALSO posted to gemini-session (its swapDiag action), which
+// appends them to the ATTEMPT'S OWN session row at
+// config.personaSwapDiag and stamps last_error on failure-class
+// resolutions of never-consumed rows. The payload shape is owned
+// here so client, server and tests share one definition.
+// ---------------------------------------------------------------------------
+/** The diag events that resolve a doorway attempt and are therefore
+ *  persisted server-side (the rest stay client-trace only). */
+export const SWAP_DIAG_PERSIST_EVENTS: readonly SwapDiagEntry['event'][] = [
+  'gate-abort', 'fallback', 'retry-scheduled', 'token-stale',
+  'stage-watchdog', 'forced-execute',
+  'cutover', 'voice-first-cutover', 'face-takeover',
+];
+/** The failure-class resolutions: gemini-session stamps the failed
+ *  row's last_error for these when the row was never consumed. */
+export const SWAP_DIAG_FAILURE_EVENTS: readonly SwapDiagEntry['event'][] = [
+  'gate-abort', 'fallback', 'token-stale',
+];
+export interface SwapDiagPersistPayload {
+  sessionId: string;
+  event: SwapDiagEntry['event'];
+  boundary: PersonaBoundary;
+  persona?: PersonaId;
+  attempt?: number;
+  /** The structured failure/outcome reason (e.g. 'face-not-ready'). */
+  reason?: string;
+  /** The staged face's state at resolution ('ready' | 'not-ready' |
+   *  'failed' | 'live'). */
+  faceState?: string;
+  /** Epoch ms of the resolution (client clock). */
+  at: number;
+}
+export function swapDiagPersistPayload(
+  entry: SwapDiagEntry,
+  sessionId: string,
+  extra?: { reason?: string; faceState?: string },
+): SwapDiagPersistPayload {
+  return {
+    sessionId,
+    event: entry.event,
+    boundary: entry.boundary as PersonaBoundary,
+    ...(entry.persona ? { persona: entry.persona } : {}),
+    ...(entry.attempt !== undefined ? { attempt: entry.attempt } : {}),
+    ...(extra?.reason ? { reason: extra.reason } : entry.detail ? { reason: entry.detail } : {}),
+    ...(extra?.faceState ? { faceState: extra.faceState } : {}),
+    at: entry.at,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// PRE-STAGE WATCH (voice-first batch, 2026-11-10 — investigation
+// Q5-2a/4). The pre-stage effect used to race ONE start() promise
+// against a bound and then stop watching: a lost race orphaned the
+// readiness channel permanently, and a retry could never re-run the
+// effect for an identical slot state, so start() was never called
+// again (the attempt-2 swallow). The effect now WATCHES the handle's
+// liveness snapshot until the aligned bound (PRESTAGE_START_TIMEOUT_MS):
+//   - 'ready': live with a displayed frame — fold ready.
+//   - 'failed': the instance reports its start failed — fold failed.
+//   - 'kick-start': no start is in flight — (re)start it, one attempt.
+//     Re-running the effect (stage-generation re-key) re-enters this
+//     watch and finds the in-flight start instead of double-calling
+//     or folding a phantom failure.
+//   - 'wait': a start is in flight — keep watching.
+// ---------------------------------------------------------------------------
+export interface PrestageFaceSnapshot {
+  live: boolean;
+  displayedFrame: boolean;
+  starting: boolean;
+  failed: boolean;
+}
+export type PrestageWatchDecision = 'ready' | 'failed' | 'kick-start' | 'wait';
+export function prestageWatchDecision(snap: PrestageFaceSnapshot | null): PrestageWatchDecision {
+  if (!snap) return 'failed';
+  if (snap.live && snap.displayedFrame) return 'ready';
+  if (snap.failed) return 'failed';
+  if (!snap.starting) return 'kick-start';
+  return 'wait';
 }
 
 /** What an UNPLANNED reconnect must re-authorize as: the persona who was

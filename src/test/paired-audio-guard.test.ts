@@ -119,7 +119,11 @@ describe('5 — diag blind spot closed', () => {
 
   test("the diag vocabulary accepts 'audio-degraded' and the ring buffer stores it", () => {
     const swap = read('src/lib/personaSwap.ts');
-    expect(swap).toContain("| 'audio-degraded';");
+    // Voice-first batch: the union grew ('voice-first-cutover' /
+    // 'face-takeover' appended after 'audio-degraded'), so the pin is
+    // on the member itself, not the line terminator.
+    expect(swap).toContain("| 'audio-degraded'");
+    expect(swap).toContain("'voice-first-cutover' | 'face-takeover'");
     resetSwapDiagnostics();
     recordSwapDiag({ event: 'audio-degraded', persona: 'sara', detail: 'output=wait avatarLive=false send=false slot=second' });
     const entries = swapDiagnostics();
@@ -164,7 +168,15 @@ describe('2 — face-slot liveness wiring (source pins)', () => {
   });
 });
 
-describe('3 — cut-over aborts on a dead incoming face (source pins)', () => {
+describe('3 — cut-over on a dead incoming face: DEMOTED to voice-first (source pins)', () => {
+  // Voice-first batch (2026-11-10): this describe originally pinned
+  // the ABORT (restore outgoing pointers, discard the stage, retry
+  // ledger). The investigation (Q3-D4) demoted that abort to a MODE
+  // SELECTION: the sync is still checked BEFORE partialTeardown, and
+  // an explicit false now selects voice-first (attach pended, revival
+  // kicked) instead of aborting the swap. The pins below assert the
+  // demoted shape with the same protective intent: a dead face can
+  // never strand or kill the segment.
   test('SimliAvatar reports liveness honestly: dead face resolves false from BOTH cutoverAudioSync and activate', () => {
     const cutover = simli.slice(simli.indexOf('cutoverAudioSync: async'), simli.indexOf('sendPcm24k:', simli.indexOf('cutoverAudioSync: async')));
     expect(cutover).toContain('if (!liveRef.current || !audio.srcObject) { unlockMediaElements(video, audio); return false; }');
@@ -176,24 +188,28 @@ describe('3 — cut-over aborts on a dead incoming face (source pins)', () => {
     expect(simli).toContain('activate: () => Promise<boolean | void>;');
   });
 
-  test('executeSwap checks the sync result and aborts BEFORE partialTeardownForSwap (old socket survives)', () => {
+  test('executeSwap checks the sync result and demotes BEFORE partialTeardownForSwap (no ledger abort remains)', () => {
     const syncAt = execBody.indexOf('incomingHandle.cutoverAudioSync(sync)');
-    const abortAt = execBody.indexOf("handleSegmentFailureRef.current(boundary, 'cutover-face-dead')");
+    const demoteAt = execBody.indexOf("mode = 'voice-first';");
     const teardownAt = execBody.indexOf('partialTeardownForSwap();');
     expect(syncAt).toBeGreaterThanOrEqual(0);
-    expect(abortAt).toBeGreaterThan(syncAt);
-    expect(teardownAt).toBeGreaterThan(abortAt);
+    expect(demoteAt).toBeGreaterThan(syncAt);
+    expect(teardownAt).toBeGreaterThan(demoteAt);
+    // The old ledger abort is gone from the whole component.
+    expect(execBody).not.toContain("handleSegmentFailureRef.current(boundary, 'cutover-face-dead')");
   });
 
-  test('the abort restores the outgoing pointers, discards the dead stage, and records via the retry ledger', () => {
-    const abort = execBody.slice(execBody.indexOf('if (!incomingFaceLive) {'), execBody.indexOf('partialTeardownForSwap();'));
-    expect(abort).toContain('avatarRef.current = outgoing;');
-    expect(abort).toContain('faceSlotOwnerRef.current = outgoingSlot;');
-    expect(abort).toContain('clearFaceSlot(staged.slot);');
-    expect(abort).toContain('preStageRef.current = null;');
-    expect(abort).toContain("detail: 'cutover-face-dead'");
-    // Only an explicit false aborts: legacy handles resolving
-    // undefined proceed, as does a SOUND_BLOCKED-only refusal.
+  test('the demotion pends the face attach with the cutover-face-dead reason instead of discarding the stage', () => {
+    const demote = execBody.slice(execBody.indexOf('if (!incomingFaceLive) {'), execBody.indexOf('partialTeardownForSwap();'));
+    expect(demote).toContain("mode = 'voice-first';");
+    expect(demote).toContain("voiceFirstReason = 'cutover-face-dead';");
+    // The outgoing pointers are NOT restored and the stage is NOT
+    // discarded through the ledger — the cut-over proceeds.
+    expect(demote).not.toContain('avatarRef.current = outgoing;');
+    expect(demote).not.toContain('handleSegmentFailureRef');
+    expect(execBody).toContain('segmentFacePendingRef.current = { boundary, persona: incoming, slot: staged.slot };');
+    // Only an explicit false demotes: legacy handles resolving
+    // undefined proceed face-first, as does a SOUND_BLOCKED refusal.
     expect(execBody).toContain('incomingFaceLive = (await incomingHandle.cutoverAudioSync(sync)) !== false;');
     expect(execBody).toContain('incomingFaceLive = (await incomingHandle.activate()) !== false;');
   });

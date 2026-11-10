@@ -115,8 +115,17 @@ describe('F2 — retry-on-readiness (source pins)', () => {
 });
 
 describe('F3 — pre-stage Sara (source pins)', () => {
-  test('goLive pre-stages the doorway face; the prestage is host-phase/simulation-gated and face-only', () => {
-    expect(convo).toContain('if (!preview) prestageDoorwayFace();');
+  test('the prestage trigger is the doorway-ENGAGEMENT point, not goLive; the prestage stays face-only', () => {
+    // Voice-first batch (2026-11-10, investigation Q5 item 6): the
+    // goLive trigger was removed — a face warmed at parent go-live
+    // was 87–109 s old at every first-parent gate, the exact age
+    // band where cold starts outran the bounded settle. The trigger
+    // now sits at the two noteDoorwayEngagement folds (parent +
+    // segment socket — the first post-greeting visitor line), so
+    // exactly two call sites exist and goLive has none.
+    expect(convo.split('prestageDoorwayFace();').length - 1).toBe(2);
+    const goLive = convo.slice(convo.indexOf('const goLive = () => {'), convo.indexOf('const connectSegmentSocket'));
+    expect(goLive).not.toContain('prestageDoorwayFace()');
     expect(convo).toContain('const prestageDoorwayFace = useCallback(() => {');
     expect(convo).toContain("warmedFaceRef.current = { boundary: 'doorway', slot, ready: false, failed: false };");
     // Face-only: the prestage never authorizes a segment (recap freshness).
@@ -130,9 +139,14 @@ describe('F3 — pre-stage Sara (source pins)', () => {
     expect(convo).toContain('warmed.failed ? true : undefined');
   });
 
-  test('a warm face survives a gate abort only while a retry will use it (both abort paths)', () => {
-    expect(convo.split('const keepWarmedFace =').length - 1).toBe(2);
-    expect(convo.split('keepWarmedFace && pendingRetryBoundary(swapStateRef.current) !== boundary').length - 1).toBe(2);
+  test('a warm face survives a failure only while a retry will use it (the token-stale path; the gate abort is gone)', () => {
+    // Voice-first batch: the face-not-ready GATE ABORT — the second
+    // keepWarmedFace call site — no longer exists: a not-ready face
+    // cuts over voice-first instead of aborting. The token-stale
+    // funnel is the one abort path that remains, and it keeps the
+    // same conditional keep.
+    expect(convo.split('const keepWarmedFace =').length - 1).toBe(1);
+    expect(convo.split('keepWarmedFace && pendingRetryBoundary(swapStateRef.current) !== boundary').length - 1).toBe(1);
   });
 });
 

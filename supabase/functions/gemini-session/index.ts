@@ -15,7 +15,18 @@ import { TEAM_INTRO_TEACHING, isIntroBoundary, teamIntroGreetingFor } from '../_
 import { PUBLIC_PATHS } from '../_shared/report-context.ts';
 import { normalizeUiLocale, startingLanguageForUiLocale } from '../_shared/conversation-language.ts';
 const personaSegmentSchema=z.object({persona:z.enum(['aspen','sara','alex']),boundary:z.enum(['doorway','stepout','meet-alex','return','intro-sara','intro-return-1','intro-alex','intro-return-2']),parentSessionId:z.string().uuid(),swapRecap:z.string().max(2400),drops:z.number().int().min(0).max(99).default(0),dropRecovery:z.boolean().default(false),manualResume:z.boolean().default(false),swap:z.boolean().default(false),teamIntroSeen:z.boolean().default(false)});
-const schema=z.object({ visitorKey:z.string().min(16).max(100), model:z.string().max(100).optional(), agentId:z.string().uuid().optional(), leadId:z.string().uuid().optional(), prospectId:z.string().uuid().optional(), draft:z.boolean().default(false), preview:z.boolean().default(false), voice:z.enum(VOICES as [string,...string[]]).optional(), hour:z.number().int().min(0).max(23).optional(), visitorName:z.string().max(100).default(''), timeZone:z.string().max(100).default('UTC'), locale:z.string().max(10).optional(), campaign:z.object({visitId:z.string().uuid(),source:z.string().max(100),campaign:z.string().max(100),entryPath:z.enum(PUBLIC_PATHS).optional()}).nullable().optional(), consent:z.boolean().default(false), verification:z.enum(['pending','verified']).optional(), invite:z.boolean().optional(), guide:z.enum(['alex']).optional(), share:z.string().max(100).optional(), resumeContext:z.string().max(1600).optional(), reconnect:z.boolean().default(false), prewarm:z.boolean().default(false), personaSegment:personaSegmentSchema.optional() });
+// SWAP DIAG (voice-first batch, 2026-11-10): the client posts a doorway
+// attempt's RESOLUTION (gate-abort, fallback, forced-execute,
+// voice-first cut-over, face takeover, watchdog action…) against the
+// attempt's OWN session row id; the handler below appends it to that
+// row's config.personaSwapDiag and stamps last_error on failure-class
+// resolutions of never-consumed rows. Before this, attempt outcomes
+// existed only in the page (a 100-entry ring buffer that died with
+// it) or as prose inside a successor's resumeContext — the final
+// attempt of a boundary left no server record at all (retest #4).
+const swapDiagSchema=z.object({sessionId:z.string().uuid(),event:z.enum(['gate-abort','fallback','retry-scheduled','token-stale','stage-watchdog','forced-execute','cutover','voice-first-cutover','face-takeover']),boundary:z.enum(['doorway','stepout','meet-alex','return','intro-sara','intro-return-1','intro-alex','intro-return-2']),persona:z.enum(['aspen','sara','alex']).optional(),attempt:z.number().int().min(0).max(99).optional(),reason:z.string().max(200).optional(),faceState:z.string().max(100).optional(),at:z.number().optional()});
+const SWAP_DIAG_FAILURE_EVENTS: ReadonlySet<string> = new Set(['gate-abort','fallback','token-stale']);
+const schema=z.object({ visitorKey:z.string().min(16).max(100), model:z.string().max(100).optional(), agentId:z.string().uuid().optional(), leadId:z.string().uuid().optional(), prospectId:z.string().uuid().optional(), draft:z.boolean().default(false), preview:z.boolean().default(false), voice:z.enum(VOICES as [string,...string[]]).optional(), hour:z.number().int().min(0).max(23).optional(), visitorName:z.string().max(100).default(''), timeZone:z.string().max(100).default('UTC'), locale:z.string().max(10).optional(), campaign:z.object({visitId:z.string().uuid(),source:z.string().max(100),campaign:z.string().max(100),entryPath:z.enum(PUBLIC_PATHS).optional()}).nullable().optional(), consent:z.boolean().default(false), verification:z.enum(['pending','verified']).optional(), invite:z.boolean().optional(), guide:z.enum(['alex']).optional(), share:z.string().max(100).optional(), resumeContext:z.string().max(1600).optional(), reconnect:z.boolean().default(false), prewarm:z.boolean().default(false), personaSegment:personaSegmentSchema.optional(), swapDiag:swapDiagSchema.optional() });
 const json=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
 export async function hash(value:string) { return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)))).map(b=>b.toString(16).padStart(2,'0')).join(''); }
 Deno.serve(async req=>{
@@ -26,6 +37,31 @@ Deno.serve(async req=>{
  try {
   const parsed=schema.safeParse(await req.json()); if(!parsed.success) return json({error:'Invalid voice session request'},400); const b=parsed.data;
   const db=createClient(Deno.env.get('SUPABASE_URL') || '',Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '');
+  // SWAP DIAG WRITE (voice-first batch): a doorway attempt's resolution
+  // lands on the attempt's OWN session row — never an authorization, so
+  // it is handled before every session-issuing branch. Ownership is the
+  // same visitor-hash proof the segment branch uses: the row must
+  // belong to this visitor. The entry is APPENDED to
+  // config.personaSwapDiag (bounded — the last 30 resolutions) so a
+  // post-mortem is one SELECT, and failure-class resolutions
+  // (SWAP_DIAG_FAILURE_EVENTS) additionally stamp last_error on a row
+  // that was never consumed (started_at NULL) and carries none — the
+  // proxy owns last_error for consumed sessions and is never
+  // overwritten. Best-effort by design: the client fires and forgets,
+  // and a failed stamp loses only the trace, never the call.
+  if(b.swapDiag) {
+    const diagVisitor=await hash(`${b.visitorKey}|${req.headers.get('x-forwarded-for')?.split(',')[0] || ''}`);
+    const {data:diagRow}=await db.from('gemini_voice_sessions').select('id,config,visitor_hash,started_at,last_error').eq('id',b.swapDiag.sessionId).maybeSingle();
+    if(!diagRow || diagRow.visitor_hash!==diagVisitor) return json({error:'Session not found'},404);
+    const diagConfig=(diagRow.config ?? {}) as Record<string,unknown>;
+    const priorDiag=Array.isArray(diagConfig.personaSwapDiag) ? diagConfig.personaSwapDiag : [];
+    const diagEntry={event:b.swapDiag.event,boundary:b.swapDiag.boundary,...(b.swapDiag.persona?{persona:b.swapDiag.persona}:{}),...(b.swapDiag.attempt!==undefined?{attempt:b.swapDiag.attempt}:{}),...(b.swapDiag.reason?{reason:b.swapDiag.reason}:{}),...(b.swapDiag.faceState?{faceState:b.swapDiag.faceState}:{}),at:b.swapDiag.at ?? Date.now()};
+    await db.from('gemini_voice_sessions').update({config:{...diagConfig,personaSwapDiag:[...priorDiag,diagEntry].slice(-30)}}).eq('id',diagRow.id);
+    if(SWAP_DIAG_FAILURE_EVENTS.has(b.swapDiag.event) && !diagRow.started_at && !diagRow.last_error) {
+      await db.from('gemini_voice_sessions').update({last_error:{reason:'client_swap_failure',detail:`${b.swapDiag.event}${b.swapDiag.reason?`: ${b.swapDiag.reason}`:''} (attempt ${b.swapDiag.attempt ?? '?'})`}}).eq('id',diagRow.id).is('last_error',null);
+    }
+    return json({ok:true});
+  }
   const bearer=req.headers.get('Authorization')?.replace(/^Bearer\s+/i,'') || '';
   const {data:{user}}=await db.auth.getUser(bearer);
   const {data:role}=user ? await db.from('voice_platform_roles').select('role').eq('user_id',user.id).maybeSingle() : {data:null};
