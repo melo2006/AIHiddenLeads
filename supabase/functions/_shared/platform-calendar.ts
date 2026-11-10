@@ -38,6 +38,20 @@ export function slotIsFree(iso: string, busy: Busy[]) {
   const start = Date.parse(iso), end = start + SLOT_MINUTES * 60000;
   return busy.every(b => end <= Date.parse(b.start) || start >= Date.parse(b.end));
 }
+/**
+ * True when a candidate slot's full [start, start+SLOT_MINUTES) interval does
+ * not overlap a stored reservation's [slot_start, slot_start+SLOT_MINUTES)
+ * interval. Interval overlap (not exact-start matching) so a reservation made
+ * off the current grid — e.g. a legacy 15-minute-era booking at :15 — still
+ * blocks the whole 30-minute slot it lands in.
+ */
+export function slotConflictsWithReservation(iso: string, reservations: { slot_start: string }[]) {
+  const start = Date.parse(iso), end = start + SLOT_MINUTES * 60000;
+  return reservations.some(r => {
+    const rStart = Date.parse(r.slot_start);
+    return Number.isFinite(rStart) && start < rStart + SLOT_MINUTES * 60000 && rStart < end;
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Direct Google Calendar access (replaces the Lovable connector gateway).
@@ -137,27 +151,40 @@ export async function platformAvailability(db: any) {
   }
   const { data, error } = await db.from('implementation_calls').select('slot_start').neq('status', 'cancelled').gte('slot_start', slots[0].iso);
   if (error) throw new Error('Appointment availability could not be checked.');
-  const taken = new Set((data || []).map((r: { slot_start: string }) => new Date(r.slot_start).toISOString()));
-  return slots.filter(s => !taken.has(s.iso) && slotIsFree(s.iso, busy));
+  const reservations = (data || []) as { slot_start: string }[];
+  return slots.filter(s => !slotConflictsWithReservation(s.iso, reservations) && slotIsFree(s.iso, busy));
 }
-export async function bookPlatformCall(db: any, details: { name: string; email: string; phone?: string; businessName?: string; notes?: string; slotStart: string }) {
-  if (!isValidSlot(details.slotStart)) throw new Error('Choose an upcoming 15-minute weekday slot during 8 AM–6 PM Eastern, at least two hours ahead.');
+export async function bookPlatformCall(db: any, details: { name: string; email: string; phone?: string; businessName?: string; notes?: string; slotStart: string; smsConsent?: boolean }) {
+  if (!isValidSlot(details.slotStart)) throw new Error('Choose an upcoming 30-minute weekday slot during 8 AM–6 PM Eastern, at least two hours ahead.');
   const available = await platformAvailability(db);
   if (!available.some(s => s.iso === details.slotStart)) throw new Error('That time is not available on the sales calendar. Please choose another.');
-  const { data, error } = await db.from('implementation_calls').insert({ name: details.name, email: details.email, phone: details.phone || null, business_name: details.businessName || null, notes: details.notes || null, slot_start: details.slotStart, status: 'pending' }).select('id').single();
+  // sms_consent exists only after the followup-pack migration; the insert
+  // retries without it when the column is absent so bookings never break
+  // on deploy ordering.
+  const baseRow = { name: details.name, email: details.email, phone: details.phone || null, business_name: details.businessName || null, notes: details.notes || null, slot_start: details.slotStart, status: 'pending' };
+  let ins = await db.from('implementation_calls').insert({ ...baseRow, sms_consent: details.smsConsent === true }).select('id').single();
+  if (ins.error && /sms_consent/.test(String(ins.error.message || ''))) {
+    ins = await db.from('implementation_calls').insert(baseRow).select('id').single();
+  }
+  const { data, error } = ins;
   if (error || !data) throw new Error('That appointment could not be reserved. Please refresh availability.');
   try {
     // Deterministic id prevents duplicate events when a provider response is lost.
+    // The prospect rides as an attendee and Google sends the invite
+    // (sendUpdates=all), so the booking lands on THEIR calendar too, not
+    // only the platform one. Voice bookings (gemini-live-proxy) take this
+    // same path and gain the same invite.
     const eventId = data.id.replace(/-/g, '');
-    const event = await calendarRequest(`/calendars/${encodeURIComponent(PLATFORM_CALENDAR)}/events?sendUpdates=none`, {
+    const event = await calendarRequest(`/calendars/${encodeURIComponent(PLATFORM_CALENDAR)}/events?sendUpdates=all`, {
       id: eventId, summary: `AI Hidden Leads implementation call — ${details.name}`,
       description: `Confirmed by visitor for AI Hidden Leads, not the simulated business.\nName: ${details.name}\nEmail: ${details.email}\nPhone: ${details.phone || 'Not supplied'}\nBusiness: ${details.businessName || ''}\n${details.notes || ''}`,
+      attendees: [{ email: details.email, displayName: details.name }],
       start: { dateTime: details.slotStart, timeZone: BUSINESS_TZ }, end: { dateTime: new Date(Date.parse(details.slotStart) + SLOT_MINUTES * 60000).toISOString(), timeZone: BUSINESS_TZ },
     });
     if (!event.id) throw new Error('Calendar did not confirm the appointment.');
     const { error: updateError } = await db.from('implementation_calls').update({ status: 'confirmed' }).eq('id', data.id);
-    if (updateError) return { ok: true, calendarConfirmed: true, slotStart: details.slotStart, warning: 'Calendar event saved; appointment record reconciliation needed.' };
-    return { ok: true, calendarConfirmed: true, slotStart: details.slotStart };
+    if (updateError) return { ok: true, calendarConfirmed: true, slotStart: details.slotStart, bookingId: data.id, warning: 'Calendar event saved; appointment record reconciliation needed.' };
+    return { ok: true, calendarConfirmed: true, slotStart: details.slotStart, bookingId: data.id };
   } catch (e) {
     // Keep the reservation on uncertain provider failures; do not retry or offer this slot again.
     throw e;

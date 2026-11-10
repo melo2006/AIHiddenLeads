@@ -1,7 +1,7 @@
 // Slot generation for the free implementation-call booking page.
-// Slots are 15 minutes, 8:00–17:45 America/New_York, Monday–Friday, up to 14 days ahead.
+// Slots are 30 minutes, 8:00–17:30 America/New_York, Monday–Friday, up to 14 days ahead.
 
-export const SLOT_MINUTES = 15;
+export const SLOT_MINUTES = 30;
 export const BUSINESS_TZ = "America/New_York";
 const START_HOUR = 8;
 const END_HOUR = 18; // last slot ends at 18:00
@@ -78,7 +78,7 @@ export function generateSlots(now: Date = new Date()): Slot[] {
   return slots;
 }
 
-/** True when an ISO instant is a valid bookable slot (15-min aligned, within ET business hours, weekday, future). */
+/** True when an ISO instant is a valid bookable slot (30-min aligned, within ET business hours, weekday, future). */
 export function isValidSlot(iso: string, now: Date = new Date()): boolean {
   const t = new Date(iso);
   if (Number.isNaN(t.getTime())) return false;

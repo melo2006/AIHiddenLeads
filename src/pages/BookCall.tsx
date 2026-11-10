@@ -18,6 +18,7 @@ export default function BookCall() {
   const [day, setDay] = useState<string | null>(null);
   const [slot, setSlot] = useState<Slot | null>(null);
   const [form, setForm] = useState({ name: "", email: "", phone: "", businessName: "", notes: "" });
+  const [smsConsent, setSmsConsent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,7 +52,7 @@ export default function BookCall() {
     }
     setSubmitting(true);
     const { data, error: fnErr } = await supabase.functions.invoke("book-implementation-call", {
-      body: { ...form, slotStart: slot.iso, confirmed: true },
+      body: { ...form, slotStart: slot.iso, confirmed: true, smsConsent },
     });
     setSubmitting(false);
     if (fnErr || !data?.ok) {
@@ -77,7 +78,7 @@ export default function BookCall() {
               <span className="text-foreground font-medium">
                 {slot && new Date(slot.iso).toLocaleString("en-US", { dateStyle: "full", timeStyle: "short", timeZone: "America/New_York" })} (ET)
               </span>
-              . Your details are saved; no email confirmation has been sent.
+              . Your confirmation and calendar invite are on their way to your email{form.phone && smsConsent ? ", and a confirmation text is on its way to your phone" : ""}.
             </p>
             <Button className="mt-6" onClick={() => navigate("/")}>Back to Home</Button>
           </div>
@@ -85,7 +86,7 @@ export default function BookCall() {
           <>
             <h1 className="text-2xl sm:text-3xl font-bold mb-2">Book Your Free Implementation Call</h1>
             <p className="text-muted-foreground mb-8">
-              15 minutes, one-on-one with our team. We'll answer your questions and plan your setup. Weekdays, 8 AM–6 PM Eastern Time (ET), up to two weeks ahead.
+              30 minutes, one-on-one with our team — most calls wrap up in 15–20 minutes. We'll answer your questions and plan your setup. Weekdays, 8 AM–6 PM Eastern Time (ET), up to two weeks ahead.
             </p>
 
             <h2 className="text-sm font-semibold mb-3">1. Pick a day</h2>{checking && <p className="text-sm text-muted-foreground">Checking Google Calendar…</p>}{!checking && !error && !days.length && <p className="text-sm text-muted-foreground">No openings during normal business hours in the next two weeks. Ask Aspen for sales follow-up or an evening appointment by arrangement.</p>}
@@ -127,6 +128,17 @@ export default function BookCall() {
                 <Input placeholder="Business name (optional)" value={form.businessName} onChange={(e) => setForm({ ...form, businessName: e.target.value })} maxLength={150} />
               </div>
               <Textarea placeholder="What would you like help with? (optional)" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} maxLength={1000} rows={3} />
+              <label className="flex items-start gap-2 text-sm text-muted-foreground cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
+                  checked={smsConsent}
+                  onChange={(e) => setSmsConsent(e.target.checked)}
+                />
+                <span>
+                  Text me my booking confirmation and a reminder about this call at the phone number above. Message frequency varies. Msg &amp; data rates may apply. Reply STOP to opt out. Consent is not a condition of purchase.
+                </span>
+              </label>
               {error && <p className="text-sm text-destructive">{error}</p>}
               <Button className="w-full" disabled={!slot || submitting} onClick={submit}>
                 {submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Check className="w-4 h-4 mr-2" />}

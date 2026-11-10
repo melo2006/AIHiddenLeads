@@ -157,7 +157,7 @@ export default function Checkout() {
                 priceId={plan.priceId}
                 returnUrl={`${window.location.origin}/checkout/return?session_id={CHECKOUT_SESSION_ID}`}
                 onUnavailable={() => setPaymentFailed(true)}
-              /> : <div className="space-y-3 p-5" role="status"><h3 className="font-semibold">Online checkout is not available yet</h3><p className="text-sm text-muted-foreground">{paymentNotice || 'Payment setup is incomplete.'} No payment has been taken. Book a quick 15-minute call to discuss this plan and setup.</p><Button onClick={() => navigate('/book')}>Book a quick call</Button></div>}
+              /> : <div className="space-y-3 p-5" role="status"><h3 className="font-semibold">Online checkout is not available yet</h3><p className="text-sm text-muted-foreground">{paymentNotice || 'Payment setup is incomplete.'} No payment has been taken. Book a quick 30-minute call to discuss this plan and setup.</p><Button onClick={() => navigate('/book')}>Book a quick call</Button></div>}
             </div>
           </div>
         </div>

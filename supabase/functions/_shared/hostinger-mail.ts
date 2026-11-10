@@ -88,12 +88,33 @@ export const bookingAlert = (c: Contact & { slotStart: string; notes?: string })
 export const bookingConfirmation = (c: Contact & { slotStart: string }): Mail => ({
   to: c.email,
   subject: `You're booked: AI Hidden Leads call – ${et(c.slotStart)}`,
-  text: `Hi ${first(c.name)},\n\nYour 15–20 minute call with AI Hidden Leads is booked for ${et(c.slotStart)}.\nWe'll call you${c.phone ? ` at ${c.phone}` : ''}. Need to change it? Just reply to this email.\n\nTry Aspen on your website before the call: ${SITE}/demo\n\n${OPT_OUT}`,
+  text: `Hi ${first(c.name)},\n\nYour 30-minute call with AI Hidden Leads is booked for ${et(c.slotStart)} — most calls wrap up in 15–20 minutes.\nWe'll call you${c.phone ? ` at ${c.phone}` : ''}. Need to change it? Just reply to this email.\n\nTry Aspen on your website before the call: ${SITE}/demo\n\n${OPT_OUT}`,
   html: layout({ preheader: `Your call is booked for ${et(c.slotStart)}`, title: `You're booked, ${first(c.name)}!`, footer: OPT_OUT, body:
-    p(`Your 15–20 minute call with an AI Hidden Leads specialist is set for:`)
+    p(`Your 30-minute call with an AI Hidden Leads specialist is set for (most calls wrap up in 15–20 minutes):`)
     + `<div style="margin:0 0 16px;padding:14px 16px;border-left:4px solid ${GREEN};background:#f8fafc;font-size:16px;font-weight:700;color:${INK}">${esc(et(c.slotStart))}</div>`
     + p(`We'll reach you${c.phone ? ` at ${esc(c.phone)}` : ''}. Need a different time? Just reply to this email.`)
     + advantagesBlock() + button(`${SITE}/demo`, 'Try Aspen on your website') }),
+});
+
+export const bookingReminder = (c: Contact & { slotStart: string }): Mail => ({
+  to: c.email,
+  subject: `Reminder: your AI Hidden Leads call is tomorrow – ${et(c.slotStart)}`,
+  text: `Hi ${first(c.name)},\n\nA quick reminder: your 30-minute implementation call with AI Hidden Leads is coming up on ${et(c.slotStart)}.\nWe'll call you${c.phone ? ` at ${c.phone}` : ''}. Need a different time? Just reply to this email and we'll rebook you.\n\nTry Aspen on your website before the call: ${SITE}/demo\n\n${OPT_OUT}`,
+  html: layout({ preheader: `Your call is on ${et(c.slotStart)}`, title: `Tomorrow: your call with AI Hidden Leads`, footer: OPT_OUT, body:
+    p(`Hi ${esc(first(c.name))}, a quick reminder — your 30-minute implementation call with an AI Hidden Leads specialist is coming up:`)
+    + `<div style="margin:0 0 16px;padding:14px 16px;border-left:4px solid ${GREEN};background:#f8fafc;font-size:16px;font-weight:700;color:${INK}">${esc(et(c.slotStart))}</div>`
+    + p(`We'll reach you${c.phone ? ` at ${esc(c.phone)}` : ''}. Need a different time? Just reply to this email and we'll rebook you.`)
+    + button(`${SITE}/demo`, 'Try Aspen on your website') }),
+});
+
+export const bookingNoShowRecovery = (c: Contact & { slotStart: string }): Mail => ({
+  to: c.email,
+  subject: `Sorry we missed you – let's rebook your AI Hidden Leads call`,
+  text: `Hi ${first(c.name)},\n\nWe had your implementation call booked for ${et(c.slotStart)} and it looks like we missed each other — no problem at all.\nPick a new time that suits you here: ${SITE}/book\n\n${OPT_OUT}`,
+  html: layout({ preheader: `Rebook your implementation call`, title: `Sorry we missed you, ${first(c.name)}`, footer: OPT_OUT, body:
+    p(`We had your implementation call booked for ${esc(et(c.slotStart))} and it looks like we missed each other — no problem at all.`)
+    + p(`Pick a new time that suits you:`)
+    + button(`${SITE}/book`, 'Rebook your call') }),
 });
 
 export const followupAlert = (c: Contact): Mail => ({

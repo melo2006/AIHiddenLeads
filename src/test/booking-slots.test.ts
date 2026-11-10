@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import { etWallToUtc, generateSlots, isValidSlot, SLOT_MINUTES } from "@/lib/bookingSlots";
 
 describe("booking slot generation", () => {
-  it("slots are 15 minutes long", () => {
-    expect(SLOT_MINUTES).toBe(15);
+  it("slots are 30 minutes long", () => {
+    expect(SLOT_MINUTES).toBe(30);
   });
 
   it("converts ET wall time to UTC correctly (EST, winter)", () => {
@@ -27,15 +27,15 @@ describe("booking slot generation", () => {
       expect(day).not.toBe(6);
       expect(s.label).toMatch(/^\d{1,2}:\d{2} (AM|PM)$/);
     }
-    // First slot is 8:00 AM, last is 5:45 PM, ending at 6 PM.
+    // First slot is 8:00 AM, last is 5:30 PM, ending at 6 PM.
     const byDay = new Map<string, string[]>();
     for (const s of slots) {
       byDay.set(s.dateStr, [...(byDay.get(s.dateStr) ?? []), s.label]);
     }
     for (const labels of byDay.values()) {
       expect(labels[0]).toBe("8:00 AM");
-      expect(labels[labels.length - 1]).toBe("5:45 PM");
-      expect(labels.length).toBe(40);
+      expect(labels[labels.length - 1]).toBe("5:30 PM");
+      expect(labels.length).toBe(20);
     }
   });
 

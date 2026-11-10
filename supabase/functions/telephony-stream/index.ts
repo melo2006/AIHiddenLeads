@@ -10,6 +10,8 @@ import { PHONE_OPENING_PRIORITY } from '../_shared/homepage-knowledge.ts';
 import { phoneMaxSeconds, monthlyRate } from '../_shared/telephony-rules.ts';
 import { DEFAULT_LIVE_MODEL, officialLivePricing } from '../_shared/live-models.ts';
 import { PHONE_DEMO_DISCLOSURE_VERSION, PHONE_DEMO_HOST_POLICY, PHONE_DEMO_LINK, buildDictatedKnowledge, sanitizeSpokenCode, spellBackForSpeech } from '../_shared/phone-demo.ts';
+import { buildRecapSmsBody, normalizePhoneE164, recapSmsDecision } from '../_shared/followup.ts';
+import { isSmsOptedOut, priorSmsAttempts, trySendFollowupSms } from '../_shared/twilio-sms.ts';
 
 const json = (d: unknown, status = 200) => new Response(JSON.stringify(d), { status, headers: { 'Content-Type': 'application/json' } });
 const xml = (b: string) => new Response(`<?xml version="1.0" encoding="UTF-8"?><Response>${b}</Response>`, { headers: { 'Content-Type': 'text/xml' } });
@@ -251,9 +253,15 @@ Deno.serve(async (req) => {
       const existingId = typeof b.leadId === 'string' ? b.leadId : null;
       if (existingId) {
         // Correction pass (the caller fixed a spelling): update the same
-        // lead; never touch its verification/consent state here.
+        // lead; never touch its verification state here. The SMS-consent
+        // answer MAY change on a later save (step 3 records it after the
+        // first intake save), so it is patched in when the tool supplies it.
         const { error: upErr } = await db.from('leads').update(fields).eq('id', existingId);
         if (upErr) return json({ error: 'save_failed' }, 500);
+        if (typeof d.smsConsent === 'boolean') {
+          const { error: consentErr } = await db.from('leads').update({ sms_consent: d.smsConsent }).eq('id', existingId);
+          if (consentErr) console.error('telephony-stream: sms_consent patch failed (migration pending?)', consentErr.message);
+        }
         return json({ ok: true, leadId: existingId, spellBack });
       }
       const { data: lead, error: insErr } = await db.from('leads').insert({
@@ -261,8 +269,23 @@ Deno.serve(async (req) => {
         code_not_completed: true,
         consent_disclosure_version: PHONE_DEMO_DISCLOSURE_VERSION,
         consent_captured_at: new Date().toISOString(),
+        ...(typeof d.smsConsent === 'boolean' ? { sms_consent: d.smsConsent } : {}),
       }).select('id').single();
-      if (insErr || !lead) return json({ error: 'save_failed' }, 500);
+      if (insErr || !lead) {
+        // Pre-migration fallback: sms_consent does not exist yet — retry the
+        // insert without it; consent treated as not-yet-recorded until the
+        // follow-up pack migration lands (no text is sent on a guess).
+        if (typeof d.smsConsent === 'boolean' && insErr && /sms_consent/.test(String(insErr.message || ''))) {
+          const retry = await db.from('leads').insert({
+            ...fields,
+            code_not_completed: true,
+            consent_disclosure_version: PHONE_DEMO_DISCLOSURE_VERSION,
+            consent_captured_at: new Date().toISOString(),
+          }).select('id').single();
+          if (!retry.error && retry.data) return json({ ok: true, leadId: retry.data.id, spellBack });
+        }
+        return json({ error: 'save_failed' }, 500);
+      }
       return json({ ok: true, leadId: lead.id, spellBack });
     }
 
@@ -318,12 +341,41 @@ Deno.serve(async (req) => {
       if (!phoneDemoOn) return json({ error: 'Phone demo not enabled on this line' }, 400);
       const leadId = typeof b.leadId === 'string' ? b.leadId : '';
       if (!leadId) return json({ error: 'lead_required' }, 400);
-      const { data: lead } = await db.from('leads').select('email, business_name').eq('id', leadId).maybeSingle();
-      if (!lead?.email) return json({ sent: false, reason: 'no_email' });
-      const resendKey = Deno.env.get('RESEND_API_KEY');
-      if (!resendKey) return json({ sent: false, reason: 'resend_not_configured' });
-      const businessName = String(lead.business_name || 'your business');
+      // Two independent channels since the follow-up pack: the recap EMAIL
+      // (as before) and — only when the caller said yes to the text in
+      // step 3 — ONE SMS with the demo link via the A2P messaging service.
+      // Each channel reports its own outcome; the overall `sent` keeps the
+      // legacy meaning (the email) so older bridge builds behave the same.
+      let leadQuery = await db.from('leads').select('email, business_name, phone, sms_consent').eq('id', leadId).maybeSingle();
+      if (leadQuery.error && /sms_consent/.test(String(leadQuery.error.message || ''))) {
+        // Pre-migration: no consent column yet — consent counts as absent.
+        leadQuery = await db.from('leads').select('email, business_name, phone').eq('id', leadId).maybeSingle();
+      }
+      const lead = leadQuery.data as { email?: string | null; business_name?: string | null; phone?: string | null; sms_consent?: boolean | null } | null;
+      const businessName = String(lead?.business_name || 'your business');
       const summary = cleanField(b.summary, 1500) || `You just heard Aspen answer calls as the receptionist for ${businessName}, in a demo built live from the details you gave on the call.`;
+
+      // --- SMS channel (decided on facts; never blocks the email) ---
+      let sms: { sent: boolean; reason?: string; messageSid?: string } = { sent: false, reason: 'no_mobile' };
+      try {
+        const to = normalizePhoneE164(lead?.phone);
+        const optedOut = to ? await isSmsOptedOut(db, to) : false;
+        const prior = to ? await priorSmsAttempts(db, { templateId: 'phone_demo_recap', leadId }, to) : { sent: false, attempts: 0 };
+        const decision = recapSmsDecision({ mobile: lead?.phone, smsConsent: lead?.sms_consent === true, optedOut, prior });
+        if (!decision.send) sms = { sent: false, reason: decision.reason };
+        else {
+          const sent = await trySendFollowupSms(db, { to: decision.to, body: buildRecapSmsBody({ businessName, summary, demoLink: PHONE_DEMO_LINK }), templateId: 'phone_demo_recap', leadId });
+          sms = sent.sent ? { sent: true, messageSid: sent.messageSid } : { sent: false, reason: 'send_failed' };
+        }
+      } catch (e) {
+        console.error('telephony-stream: recap SMS failed', e instanceof Error ? e.message : e);
+        sms = { sent: false, reason: 'error' };
+      }
+
+      // --- Email channel (unchanged behavior) ---
+      if (!lead?.email) return json({ sent: false, reason: 'no_email', email: { sent: false, reason: 'no_email' }, sms });
+      const resendKey = Deno.env.get('RESEND_API_KEY');
+      if (!resendKey) return json({ sent: false, reason: 'resend_not_configured', email: { sent: false, reason: 'resend_not_configured' }, sms });
       const text = [
         `Your phone demo for ${businessName}`,
         '',
@@ -347,12 +399,12 @@ Deno.serve(async (req) => {
             html: buildRecapEmailHtml(businessName, summary, PHONE_DEMO_LINK),
           }),
         });
-        if (!emailRes.ok) { console.error('telephony-stream: recap Resend send failed', emailRes.status); return json({ sent: false, reason: 'send_failed' }); }
+        if (!emailRes.ok) { console.error('telephony-stream: recap Resend send failed', emailRes.status); return json({ sent: false, reason: 'send_failed', email: { sent: false, reason: 'send_failed' }, sms }); }
       } catch (e) {
         console.error('telephony-stream: recap Resend send threw', e instanceof Error ? e.message : e);
-        return json({ sent: false, reason: 'send_failed' });
+        return json({ sent: false, reason: 'send_failed', email: { sent: false, reason: 'send_failed' }, sms });
       }
-      return json({ sent: true });
+      return json({ sent: true, email: { sent: true }, sms });
     }
 
     if (b.action === 'end') {

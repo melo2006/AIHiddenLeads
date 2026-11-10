@@ -110,7 +110,16 @@ describe('PHONE_DEMO_HOST_POLICY choreography', () => {
   });
   test('recap send is gated on the real tool result', () => {
     expect(PHONE_DEMO_HOST_POLICY).toContain('send_demo_recap');
-    expect(PHONE_DEMO_HOST_POLICY).toContain('Only if it returns sent true may you say you have emailed');
+    expect(PHONE_DEMO_HOST_POLICY).toContain('only if it returns email sent true may you say you have emailed');
+    expect(PHONE_DEMO_HOST_POLICY).toContain('only if it returns sms sent true may you say the demo link was texted');
+  });
+  test('step 3 asks the follow-up-text permission and records it as smsConsent (follow-up pack)', () => {
+    expect(PHONE_DEMO_HOST_POLICY).toContain('Can I text the demo link to this number so you can review it later or forward it to your manager?');
+    expect(PHONE_DEMO_HOST_POLICY).toContain('smsConsent');
+  });
+  test('step 7 frames the implementation call as 15–20 minutes of their time, 30 on the calendar (follow-up pack)', () => {
+    expect(PHONE_DEMO_HOST_POLICY).toContain('can I schedule a 15 to 20 minutes appointment');
+    expect(PHONE_DEMO_HOST_POLICY).toContain('the calendar itself reserves a full 30 minutes');
   });
   test('disclosure version is the phone-demo one', () => {
     expect(PHONE_DEMO_DISCLOSURE_VERSION).toBe('phone-demo-v1');
