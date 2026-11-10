@@ -241,6 +241,71 @@ describe("realtor landing page — calendar, evidence, money math (additions 2)"
   });
 });
 
+describe("realtor landing page — v2 polish batch (2026-11-11)", () => {
+  it("slim top contact bar carries both Aspen bridge numbers as tel: links, above the navbar", () => {
+    expect(templateSource).toContain("data-agent-contact-bar");
+    expect(templateSource).toContain('href="tel:+18778624949"');
+    expect(templateSource).toContain("1-877-862-4949 (toll-free)");
+    expect(templateSource).toContain('href="tel:+17723624949"');
+    expect(templateSource).toContain("(772) 362-4949 (local)");
+    expect(templateSource).toContain("Aspen answers live right now");
+    // Bar renders before the shared navbar, which stays below it.
+    expect(templateSource.indexOf("data-agent-contact-bar")).toBeLessThan(
+      templateSource.indexOf("<LandingNavbar />"),
+    );
+  });
+
+  it("hero demo form has exactly the website URL + one optional note entry", () => {
+    expect(templateSource).toContain("data-agent-hero-form");
+    expect(templateSource).toContain("Your website URL");
+    expect(templateSource).toContain("Anything Aspen should know? (optional)");
+    expect(templateSource).toContain(
+      "See your website come alive — under 2 minutes",
+    );
+    // Exactly 2 entries in the hero form.
+    const formStart = templateSource.indexOf("data-agent-hero-form");
+    const formEnd = templateSource.indexOf("</motion.form>", formStart);
+    const formSource = templateSource.slice(formStart, formEnd);
+    expect(formSource.match(/<Input/g)).toHaveLength(2);
+    expect(formSource).toContain("required");
+  });
+
+  it("hero form hands off to the existing /demo flow with the URL prefilled", () => {
+    // TryDemo (/demo) pre-fills its intake from the ?url= search param;
+    // the hero form must use that same handoff, not a new backend field.
+    expect(templateSource).toContain("/demo?url=${encodeURIComponent(");
+    // The optional note rides client-side in router state only.
+    expect(templateSource).toContain("state: { aspenNote: note }");
+  });
+
+  it("big friendly lucide icons on the control steps and hero benefits", () => {
+    // Control steps: large icon tiles.
+    expect(templateSource).toContain("w-16 h-16");
+    expect(templateSource).toContain("w-8 h-8 text-primary");
+    expect(templateSource).toContain("controlIcons");
+    // Hero benefit bullets with icons, from the repo's lucide set.
+    expect(templateSource).toContain("heroBenefits");
+    expect(templateSource).toContain("Answered in seconds — 24/7");
+    expect(templateSource).toContain("Hot leads warm-transferred to your phone");
+    expect(templateSource).toContain("Every lead lands in your dashboard");
+    expect(templateSource).toContain("w-12 h-12");
+    expect(templateSource).toContain("from \"lucide-react\"");
+  });
+
+  it("motion polish honours reduced motion and the stat bar stays static", () => {
+    expect(templateSource).toContain("useReducedMotion");
+    expect(templateSource).toContain("whileInView");
+    // No counting/ticker/spring animation anywhere near the stats.
+    expect(templateSource).not.toMatch(/CountUp|useSpring|useMotionValue|animate\(/);
+    const statBar = templateSource.slice(
+      templateSource.indexOf("Stat bar"),
+      templateSource.indexOf("The vertical's 3 pains"),
+    );
+    expect(statBar).not.toContain("motion.");
+    expect(statBar).toContain("vertical.stats.slice(0, 4)");
+  });
+});
+
 describe("realtor landing page — shared template + pricing rules", () => {
   it("reuses the shared homepage blocks instead of a parallel design", () => {
     expect(templateSource).toContain("LandingNavbar");
