@@ -113,14 +113,21 @@ export function buildAddToCalendarUrl(input: { slotStartIso: string; durationMin
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
 
-export function buildBookingConfirmationSms(input: { slotStartIso: string; durationMinutes: number; name: string }): string {
-  // No add-to-calendar URL in the text: the raw Google link ran ~450 chars
-  // and rendered as broken-looking encoded text on the customer's phone
-  // (Ron's screenshot, Nov 11). The calendar invite rides the confirmation
-  // EMAIL as a one-tap .ics attachment instead — the text just points there.
+/** Short branded calendar-invite link for a booking: /cal/<bookingId>. */
+export function buildBookingCalendarUrl(bookingId: string): string {
+  return `https://aihiddenleads.com/cal/${bookingId}`;
+}
+
+export function buildBookingConfirmationSms(input: { slotStartIso: string; durationMinutes: number; name: string; bookingId: string }): string {
+  // The invite link in the text is OUR short branded /cal/<bookingId> link
+  // (Ron, Nov 11): the raw Google add-to-calendar URL ran ~450 chars and
+  // rendered as broken-looking encoded text on the customer's phone, and
+  // the email-only pointer that briefly replaced it made the text depend
+  // on the email. /cal/<id> serves the same .ics the confirmation email
+  // attaches (see _shared/booking-ics.ts), in one tap from the text itself.
   return [
     `You're booked: 30-minute implementation call with the AiHiddenLeads team, ${formatSlotForSms(input.slotStartIso)}.`,
-    'Your calendar invite is in the confirmation email we just sent you.',
+    `Add to calendar: ${buildBookingCalendarUrl(input.bookingId)}`,
     SMS_OPT_OUT_LINE,
   ].join('\n');
 }

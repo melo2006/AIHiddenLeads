@@ -102,7 +102,7 @@ export async function sendBookingConfirmations(
         if (claimErr) confirmationSms = 'unavailable'; // followup-pack migration not applied yet
         else if (!claimed?.length) confirmationSms = 'sent'; // already claimed by an earlier attempt
         else {
-          const sms = await trySendFollowupSms(db, { to, body: buildBookingConfirmationSms({ slotStartIso: details.slotStart, durationMinutes: SLOT_MINUTES, name: details.name }), templateId: 'booking_confirmation', bookingId: result.bookingId });
+          const sms = await trySendFollowupSms(db, { to, body: buildBookingConfirmationSms({ slotStartIso: details.slotStart, durationMinutes: SLOT_MINUTES, name: details.name, bookingId: result.bookingId }), templateId: 'booking_confirmation', bookingId: result.bookingId });
           confirmationSms = sms.sent ? 'sent' : 'failed';
           // A failed send releases the claim so the sweep/a retry can try once more.
           if (!sms.sent) await db.from('implementation_calls').update({ confirmation_sms_sent_at: null }).eq('id', result.bookingId);

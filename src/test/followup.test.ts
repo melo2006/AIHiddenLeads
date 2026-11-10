@@ -3,6 +3,7 @@ import { describe, expect, test } from 'vitest';
 import {
   BOOK_CALL_URL,
   buildAddToCalendarUrl,
+  buildBookingCalendarUrl,
   buildBookingConfirmationSms,
   buildBookingReminderSms,
   buildNoShowRecoverySms,
@@ -99,17 +100,26 @@ describe('buildAddToCalendarUrl', () => {
   });
 });
 
+describe('buildBookingCalendarUrl', () => {
+  test('is the short branded /cal/<bookingId> link', () => {
+    expect(buildBookingCalendarUrl('9ae89d83-1617-4cc5-9339-80f3705574d0'))
+      .toBe('https://aihiddenleads.com/cal/9ae89d83-1617-4cc5-9339-80f3705574d0');
+  });
+});
+
 describe('booking SMS bodies', () => {
   const slot = '2026-11-18T19:30:00.000Z';
-  test('confirmation states the 30-minute block, the formatted slot, the email-invite pointer and STOP (no raw calendar URL)', () => {
-    const body = buildBookingConfirmationSms({ slotStartIso: slot, durationMinutes: 30, name: 'Sam' });
+  test('confirmation states the 30-minute block, the formatted slot, the SHORT branded invite link and STOP (no raw Google URL, no email pointer)', () => {
+    const bookingId = '9ae89d83-1617-4cc5-9339-80f3705574d0';
+    const body = buildBookingConfirmationSms({ slotStartIso: slot, durationMinutes: 30, name: 'Sam', bookingId });
     expect(body).toBe(
       "You're booked: 30-minute implementation call with the AiHiddenLeads team, Wednesday, Nov 18 at 2:30 PM ET.\n" +
-      'Your calendar invite is in the confirmation email we just sent you.\n' +
+      `Add to calendar: https://aihiddenleads.com/cal/${bookingId}\n` +
       'Reply STOP to opt out',
     );
+    expect(body.split('\n')).toHaveLength(3);
     expect(body).not.toContain('calendar.google.com');
-    expect(body).not.toContain('http');
+    expect(body).not.toContain('confirmation email');
   });
   test('reminder names the slot and the STOP line', () => {
     const body = buildBookingReminderSms({ slotStartIso: slot });
