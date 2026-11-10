@@ -1,5 +1,6 @@
+import { useState, type FormEvent, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   ArrowRight,
   CalendarCheck,
@@ -9,12 +10,14 @@ import {
   LayoutDashboard,
   MoonStar,
   Phone,
+  PhoneCall,
   PhoneForwarded,
   PhoneMissed,
   Sparkles,
   Video,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import Footer from "@/components/landing/Footer";
@@ -29,6 +32,43 @@ import type { AgentVertical } from "@/data/agentVerticals";
 const painIcons = [PhoneMissed, MoonStar, Clock];
 const controlIcons = [Phone, PhoneForwarded, Flame, CalendarCheck];
 
+/** Hero benefit bullets — big, friendly icons, shared by every vertical. */
+const heroBenefits = [
+  { icon: PhoneCall, label: "Answered in seconds — 24/7" },
+  { icon: CalendarCheck, label: "Booked straight onto your calendar" },
+  { icon: PhoneForwarded, label: "Hot leads warm-transferred to your phone" },
+  { icon: LayoutDashboard, label: "Every lead lands in your dashboard" },
+];
+
+/**
+ * Subtle fade/slide-in reveal on scroll for plain page sections (the
+ * card grids carry their own framer-motion reveals). Renders a plain
+ * wrapper when the visitor prefers reduced motion — no movement at all.
+ */
+const Reveal = ({
+  children,
+  className,
+  delay = 0,
+}: {
+  children: ReactNode;
+  className?: string;
+  delay?: number;
+}) => {
+  const reduceMotion = useReducedMotion();
+  if (reduceMotion) return <div className={className}>{children}</div>;
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 24 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-40px" }}
+      transition={{ duration: 0.5, delay }}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  );
+};
+
 /**
  * Shared template for every agent-vertical landing page (~80% shared:
  * layout, Aspen hero/demo, free-demo CTA, $99 pricing block, FAQ shell,
@@ -38,10 +78,67 @@ const controlIcons = [Phone, PhoneForwarded, Flame, CalendarCheck];
  */
 const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
   const navigate = useNavigate();
+  const reduceMotion = useReducedMotion();
+  const [heroWebsite, setHeroWebsite] = useState("");
+  const [heroNote, setHeroNote] = useState("");
+
+  // Hero demo form — hands off to the existing /demo flow exactly like
+  // TryWebsiteCTA does (navigate to /demo), with the website carried in
+  // the ?url= param TryDemo already pre-fills from. The optional note has
+  // no supported field in that flow, so it rides client-side in router
+  // state only — it is never sent to a backend or stored as a lead field.
+  const handleHeroDemoSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const website = heroWebsite.trim();
+    if (!website) return;
+    const note = heroNote.trim();
+    navigate(
+      `/demo?url=${encodeURIComponent(website)}`,
+      note ? { state: { aspenNote: note } } : undefined,
+    );
+  };
 
   return (
     <div className="landing-page min-h-screen bg-background overflow-x-hidden">
-      <LandingNavbar />
+      {/* Slim top contact bar — agent pages only, above the navbar. Both
+          numbers ring Aspen on the Telnyx bridge, live right now. The bar
+          is fixed at h-10, so the shared navbar is offset below it via
+          the wrapper (the navbar component itself is untouched). */}
+      <div
+        data-agent-contact-bar
+        className="fixed top-0 inset-x-0 z-[100] h-10 bg-primary text-primary-foreground"
+      >
+        <div className="container mx-auto flex h-full items-center justify-center gap-3 px-3 sm:gap-4">
+          <a
+            href="tel:+18778624949"
+            className="inline-flex items-center gap-1.5 whitespace-nowrap text-[11px] font-semibold hover:underline sm:text-xs"
+          >
+            <Phone className="h-3.5 w-3.5 shrink-0" />
+            1-877-862-4949 (toll-free)
+          </a>
+          <span aria-hidden className="text-primary-foreground/50">
+            ·
+          </span>
+          <a
+            href="tel:+17723624949"
+            className="inline-flex items-center gap-1.5 whitespace-nowrap text-[11px] font-semibold hover:underline sm:text-xs"
+          >
+            <Phone className="h-3.5 w-3.5 shrink-0" />
+            (772) 362-4949 (local)
+          </a>
+          <span className="hidden items-center gap-2 text-[11px] font-medium sm:inline-flex sm:text-xs">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-foreground opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary-foreground" />
+            </span>
+            Aspen answers live right now
+          </span>
+        </div>
+      </div>
+      <div aria-hidden className="h-10" />
+      <div className="[&>nav]:top-10">
+        <LandingNavbar />
+      </div>
 
       {/* Hero — vertical headline + sub, shared Aspen portrait + demo CTA */}
       <section className="relative overflow-hidden pt-6 sm:pt-8 pb-8 sm:pb-10">
@@ -49,7 +146,7 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
           <div className="flex flex-col lg:flex-row items-center gap-8 lg:gap-10">
             <div className="min-w-0 w-full flex-1 text-center lg:text-left">
               <motion.div
-                initial={{ opacity: 0, y: 20 }}
+                initial={reduceMotion ? false : { opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5 }}
                 className="inline-flex items-center gap-2 px-3 py-2 sm:px-4 rounded-full border border-primary/20 bg-primary/5 mb-4 sm:mb-5"
@@ -64,7 +161,7 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
               </motion.div>
 
               <motion.h1
-                initial={{ opacity: 0, y: 20 }}
+                initial={reduceMotion ? false : { opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: 0.1 }}
                 className="text-3xl sm:text-5xl lg:text-6xl font-bold leading-tight mb-5"
@@ -73,7 +170,7 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
               </motion.h1>
 
               <motion.p
-                initial={{ opacity: 0, y: 20 }}
+                initial={reduceMotion ? false : { opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: 0.2 }}
                 className="text-base sm:text-lg text-muted-foreground max-w-xl mx-auto lg:mx-0 mb-6"
@@ -82,7 +179,7 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
               </motion.p>
 
               <motion.div
-                initial={{ opacity: 0, y: 20 }}
+                initial={reduceMotion ? false : { opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.3 }}
                 className="flex w-full min-w-0 flex-col sm:flex-row sm:flex-wrap gap-3 justify-center lg:justify-start mb-5"
@@ -106,17 +203,92 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
               </motion.div>
 
               <motion.p
-                initial={{ opacity: 0 }}
+                initial={reduceMotion ? false : { opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.5, delay: 0.35 }}
                 className="text-sm font-medium text-foreground max-w-xl mx-auto lg:mx-0"
               >
                 See your own website come alive in about 2 minutes. No signup, no card.
               </motion.p>
+
+              <motion.form
+                data-agent-hero-form
+                onSubmit={handleHeroDemoSubmit}
+                initial={reduceMotion ? false : { opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.4 }}
+                className="w-full max-w-xl mx-auto lg:mx-0 rounded-2xl border border-border bg-card p-4 sm:p-5 text-left shadow-sm mb-6"
+              >
+                <div className="space-y-3">
+                  <div>
+                    <label
+                      htmlFor="agent-hero-website"
+                      className="block text-sm font-semibold text-foreground mb-1.5"
+                    >
+                      Your website URL
+                    </label>
+                    <Input
+                      id="agent-hero-website"
+                      type="text"
+                      inputMode="url"
+                      autoComplete="url"
+                      required
+                      value={heroWebsite}
+                      onChange={(event) => setHeroWebsite(event.target.value)}
+                      placeholder="e.g. janesellsflorida.com"
+                      className="h-12 text-base"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="agent-hero-note"
+                      className="block text-sm font-semibold text-foreground mb-1.5"
+                    >
+                      Anything Aspen should know? (optional)
+                    </label>
+                    <Input
+                      id="agent-hero-note"
+                      type="text"
+                      value={heroNote}
+                      onChange={(event) => setHeroNote(event.target.value)}
+                      placeholder="e.g. I sell mostly condos in Fort Lauderdale"
+                      className="h-12 text-base"
+                    />
+                  </div>
+                  <Button
+                    type="submit"
+                    size="lg"
+                    className="w-full h-auto min-h-12 whitespace-normal py-3 text-base font-semibold rounded-xl"
+                  >
+                    See your website come alive — under 2 minutes
+                  </Button>
+                  <p className="text-xs text-muted-foreground text-center">
+                    Free demo. No signup, no card.
+                  </p>
+                </div>
+              </motion.form>
+
+              <motion.ul
+                initial={reduceMotion ? false : { opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.45 }}
+                className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-3 max-w-xl mx-auto lg:mx-0 text-left"
+              >
+                {heroBenefits.map((benefit) => (
+                  <li key={benefit.label} className="flex items-center gap-3">
+                    <span className="w-12 h-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                      <benefit.icon className="w-6 h-6 text-primary" />
+                    </span>
+                    <span className="text-sm font-medium text-foreground leading-snug">
+                      {benefit.label}
+                    </span>
+                  </li>
+                ))}
+              </motion.ul>
             </div>
 
             <motion.div
-              initial={{ opacity: 0, x: 40 }}
+              initial={reduceMotion ? false : { opacity: 0, x: 40 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.7, delay: 0.3 }}
               className="flex-shrink-0 w-full lg:w-[420px] flex flex-col items-center"
@@ -200,14 +372,14 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
               return (
                 <motion.div
                   key={pain.title}
-                  initial={{ opacity: 0, y: 30 }}
+                  initial={reduceMotion ? false : { opacity: 0, y: 30 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
                   transition={{ delay: i * 0.1 }}
                   className="rounded-2xl border border-border bg-card p-6 sm:p-8"
                 >
-                  <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center mb-4">
-                    <Icon className="w-5 h-5 text-primary" />
+                  <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mb-4">
+                    <Icon className="w-7 h-7 text-primary" />
                   </div>
                   <h3 className="text-lg font-semibold mb-2">{pain.title}</h3>
                   <p className="text-sm text-muted-foreground leading-relaxed">
@@ -298,17 +470,17 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
               return (
                 <motion.div
                   key={step.title}
-                  initial={{ opacity: 0, y: 30 }}
+                  initial={reduceMotion ? false : { opacity: 0, y: 30 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
                   transition={{ delay: i * 0.1 }}
                   className="relative rounded-2xl border border-border bg-card p-6"
                 >
                   <div className="relative mb-4">
-                    <div className="w-12 h-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
-                      <Icon className="w-6 h-6 text-primary" />
+                    <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+                      <Icon className="w-8 h-8 text-primary" />
                     </div>
-                    <span className="absolute -top-2 left-10 w-6 h-6 rounded-full bg-secondary border border-border flex items-center justify-center text-xs font-bold text-foreground">
+                    <span className="absolute -top-2 left-14 w-6 h-6 rounded-full bg-secondary border border-border flex items-center justify-center text-xs font-bold text-foreground">
                       {i + 1}
                     </span>
                   </div>
@@ -356,7 +528,7 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
       {/* Calendar — bookings land on the agent's own calendar */}
       <section className="py-14 sm:py-20 bg-secondary/20 border-y border-border">
         <div className="container mx-auto px-5 sm:px-6">
-          <div className="max-w-3xl mx-auto">
+          <Reveal className="max-w-3xl mx-auto">
             <div className="text-center mb-10">
               <Badge variant="outline" className="mb-4 border-primary/30 text-primary">
                 Your calendar
@@ -388,7 +560,7 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
             <p className="text-center text-base sm:text-lg font-medium text-foreground leading-relaxed">
               {vertical.calendar.framing}
             </p>
-          </div>
+          </Reveal>
         </div>
       </section>
 
@@ -404,7 +576,7 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
             </h2>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl mx-auto mb-6">
+          <Reveal className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl mx-auto mb-6">
             {vertical.stats.slice(4).map((stat) => (
               <div
                 key={stat.value}
@@ -426,7 +598,7 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
                 answer.
               </p>
             </div>
-          </div>
+          </Reveal>
 
           <p className="text-center text-[11px] text-muted-foreground max-w-3xl mx-auto mb-10">
             Sources: WAV Group Agent Responsiveness Study, via Inman (917
@@ -439,7 +611,7 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
           </p>
 
           {/* Money math — a labelled example, not a promise */}
-          <div className="max-w-3xl mx-auto rounded-2xl border border-primary/20 bg-card p-6 sm:p-10 text-center">
+          <Reveal className="max-w-3xl mx-auto rounded-2xl border border-primary/20 bg-card p-6 sm:p-10 text-center">
             <Badge variant="outline" className="mb-4 border-primary/30 text-primary">
               Example math — not a promise
             </Badge>
@@ -462,7 +634,7 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
               example uses averages to show the scale, not a guarantee of any
               result.
             </p>
-          </div>
+          </Reveal>
         </div>
       </section>
 
@@ -474,7 +646,7 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
       {/* Focused Premium summary for this vertical (full shared pricing below) */}
       <section className="py-14 sm:py-20">
         <div className="container mx-auto px-5 sm:px-6">
-          <div className="max-w-3xl mx-auto rounded-2xl border border-primary/20 bg-card p-6 sm:p-10 text-center">
+          <Reveal className="max-w-3xl mx-auto rounded-2xl border border-primary/20 bg-card p-6 sm:p-10 text-center">
             <Badge variant="outline" className="mb-4 border-primary/30 text-primary">
               Premium
             </Badge>
@@ -526,7 +698,7 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
               No other small-business receptionist we found packages a live
               video receptionist like Aspen.
             </p>
-          </div>
+          </Reveal>
         </div>
       </section>
 
@@ -576,7 +748,7 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
               Questions realtors ask us
             </h2>
           </div>
-          <div className="space-y-4">
+          <Reveal className="space-y-4">
             {vertical.faq.map((item) => (
               <div
                 key={item.q}
@@ -588,7 +760,7 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
                 </p>
               </div>
             ))}
-          </div>
+          </Reveal>
           <div className="text-center mt-10">
             <Button
               onClick={() => navigate("/demo")}
