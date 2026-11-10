@@ -1,9 +1,9 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { z } from 'npm:zod@3';
-import { bookPlatformCall } from '../_shared/platform-calendar.ts';
+import { bookPlatformCall, buildBookingInviteIcs } from '../_shared/platform-calendar.ts';
 import { SLOT_MINUTES } from '../_shared/booking-slots.ts';
-import { bookingAlert, bookingConfirmation, trySend } from '../_shared/hostinger-mail.ts';
+import { bookingAlert, bookingConfirmation, OWNER_MAILBOX, trySend } from '../_shared/hostinger-mail.ts';
 import { buildBookingConfirmationSms, normalizePhoneE164 } from '../_shared/followup.ts';
 import { isSmsOptedOut, trySendFollowupSms } from '../_shared/twilio-sms.ts';
 const schema = z.object({ name:z.string().trim().min(1).max(100), email:z.string().trim().email().max(255), phone:z.string().trim().max(30).default(''), businessName:z.string().trim().max(150).default(''), notes:z.string().trim().max(1000).default(''), slotStart:z.string().datetime(), confirmed:z.literal(true), smsConsent:z.boolean().optional().default(false) });
@@ -17,7 +17,8 @@ Deno.serve(async req => {
   const result=await bookPlatformCall(db,parsed.data) as {ok?:boolean; bookingId?:string; slotStart?:string};
   let confirmationSms:'sent'|'failed'|'not_consented'|'no_phone'|'opted_out'|'unavailable'='not_consented';
   if(result.ok) {
-   await Promise.all([trySend(bookingAlert(parsed.data)),trySend(bookingConfirmation(parsed.data))]);
+   const inviteIcs = result.bookingId ? buildBookingInviteIcs({ name: parsed.data.name, email: parsed.data.email, phone: parsed.data.phone || undefined, businessName: parsed.data.businessName || undefined, notes: parsed.data.notes || undefined, slotStart: parsed.data.slotStart, bookingId: result.bookingId, organizerEmail: OWNER_MAILBOX }) : undefined;
+   await Promise.all([trySend(bookingAlert(parsed.data)),trySend(bookingConfirmation(parsed.data, inviteIcs))]);
    // Confirmation text (follow-up pack): only with the form's explicit SMS
    // consent + a usable phone + no opt-out, exactly once — the row stamp
    // and the delivery-ledger template both guard a retry, and stamping

@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { slotIsFree, slotConflictsWithReservation, timedBusyIntervals, voiceAvailability, platformAvailability } from '../../supabase/functions/_shared/platform-calendar';
+import { slotIsFree, slotConflictsWithReservation, timedBusyIntervals, voiceAvailability, platformAvailability, bookPlatformCall, buildBookingInviteIcs, escapeIcsText, icsUtcStamp } from '../../supabase/functions/_shared/platform-calendar';
 import { etWallToUtc, generateSlots } from '@/lib/bookingSlots';
 import { vi } from 'vitest';
 
@@ -111,6 +111,102 @@ describe('platform calendar booking policy', () => {
       expect(day).not.toContain(iso('2026-10-26', 9));
       expect(day).not.toContain(iso('2026-10-26', 9, 30));
       expect(day).toContain(iso('2026-10-26', 10));
+    } finally { vi.unstubAllGlobals(); vi.useRealTimers(); }
+  });
+});
+describe('booking invite .ics builder', () => {
+  const base = {
+    name: 'Jane Prospect', email: 'jane@example.com', phone: '+1 555 010 2030',
+    businessName: 'Jane Plumbing', notes: '', slotStart: '2026-11-18T19:30:00.000Z',
+    bookingId: '123e4567-e89b-42d3-a456-426614174000', organizerEmail: 'info@aihiddenleads.com',
+    now: new Date('2026-11-11T10:00:00.000Z'),
+  };
+  it('emits a METHOD:REQUEST invite with CRLF endings and UTC stamps', () => {
+    const ics = buildBookingInviteIcs(base);
+    expect(ics.startsWith('BEGIN:VCALENDAR\r\n')).toBe(true);
+    expect(ics.endsWith('END:VCALENDAR\r\n')).toBe(true);
+    // No bare LF anywhere — every line break is CRLF.
+    expect(ics.replace(/\r\n/g, '')).not.toContain('\n');
+    expect(ics).toContain('METHOD:REQUEST');
+    expect(ics).toContain('DTSTAMP:20261111T100000Z');
+    // 19:30 UTC start, +30 minutes end.
+    expect(ics).toContain('DTSTART:20261118T193000Z');
+    expect(ics).toContain('DTEND:20261118T200000Z');
+    expect(ics).toContain('STATUS:CONFIRMED');
+    expect(ics).toContain('SEQUENCE:0');
+    expect(ics).toContain('ORGANIZER:mailto:info@aihiddenleads.com');
+    expect(ics).toContain('ATTENDEE;CN=Jane Prospect;RSVP=TRUE:mailto:jane@example.com');
+    // The Eastern wall time is spelled out in the summary.
+    expect(ics).toContain('2:30 PM Eastern');
+  });
+  it('derives a deterministic UID from the booking id', () => {
+    const a = buildBookingInviteIcs(base);
+    const b = buildBookingInviteIcs({ ...base, now: new Date('2026-11-12T00:00:00.000Z') });
+    expect(a).toContain('UID:123e4567e89b42d3a456426614174000@aihiddenleads.com');
+    expect(b).toContain('UID:123e4567e89b42d3a456426614174000@aihiddenleads.com');
+    // A re-send differs only in DTSTAMP — the UID (and everything else) is stable.
+    const stripStamp = (s: string) => s.replace(/DTSTAMP:[^\r]+/, 'DTSTAMP:X');
+    expect(stripStamp(a)).toBe(stripStamp(b));
+  });
+  it('escapes commas, semicolons, backslashes and newlines in text fields', () => {
+    expect(escapeIcsText('a,b;c\\d\ne')).toBe('a\\,b\\;c\\\\d\\ne');
+    const ics = buildBookingInviteIcs({ ...base, name: 'Doe, Jane; "Boss"', businessName: 'Pipes, Inc; LLC', notes: 'line one\nline two, urgent; call first' });
+    expect(ics).toContain('SUMMARY:AI Hidden Leads implementation call — Doe\\, Jane\\; "Boss" —');
+    expect(ics).toContain('Business: Pipes\\, Inc\\; LLC');
+    expect(ics).toContain('line one\\nline two\\, urgent\\; call first');
+    // Escaped newlines must not create real extra lines.
+    expect(ics.split('\r\n').filter(l => l.startsWith('DESCRIPTION'))).toHaveLength(1);
+  });
+  it('formats UTC stamps in RFC 5545 basic form', () => {
+    expect(icsUtcStamp(new Date('2026-01-05T08:09:10.123Z'))).toBe('20260105T080910Z');
+  });
+});
+
+describe('bookPlatformCall calendar insert regression', () => {
+  it('inserts the Google event guest-less with sendUpdates=none (no attendees)', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-26T10:00:00Z'));
+    const keyPair = await crypto.subtle.generateKey(
+      { name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' },
+      true, ['sign'],
+    );
+    const pkcs8 = new Uint8Array(await crypto.subtle.exportKey('pkcs8', keyPair.privateKey));
+    let b64 = '';
+    pkcs8.forEach(b => { b64 += String.fromCharCode(b); });
+    const pem = `-----BEGIN PRIVATE KEY-----\n${btoa(b64).replace(/(.{64})/g, '$1\n')}\n-----END PRIVATE KEY-----`;
+    vi.stubGlobal('Deno', { env: { get: (name: string) => name === 'GOOGLE_SA_PRIVATE_KEY' ? pem : name === 'GOOGLE_SA_CLIENT_EMAIL' ? 'test@example.iam.gserviceaccount.com' : 'test-only' } });
+    const fetchMock = vi.fn(async (input: unknown) => {
+      const url = String(input);
+      if (url.includes('oauth2.googleapis.com')) return new Response(JSON.stringify({ access_token: 'tok', expires_in: 3600 }));
+      if (url.includes('/events?sendUpdates=')) return new Response(JSON.stringify({ id: 'event-1' })); // event insert
+      return new Response(JSON.stringify({ items: [] })); // availability list
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const bookingId = '123e4567-e89b-42d3-a456-426614174000';
+    const db = {
+      from: (table: string) => {
+        if (table !== 'implementation_calls') throw new Error(`unexpected table ${table}`);
+        return {
+          select: () => ({ neq: () => ({ gte: async () => ({ data: [], error: null }) }) }),
+          insert: () => ({ select: () => ({ single: async () => ({ data: { id: bookingId }, error: null }) }) }),
+          update: () => ({ eq: async () => ({ error: null }) }),
+        };
+      },
+    };
+    try {
+      const slot = iso('2026-10-26', 14); // Monday 2 PM ET, valid + >2h ahead of 10:00Z
+      const result = await bookPlatformCall(db, { name: 'Jane Prospect', email: 'jane@example.com', phone: '+1 555 010 2030', slotStart: slot }) as { ok?: boolean; bookingId?: string };
+      expect(result.ok).toBe(true);
+      expect(result.bookingId).toBe(bookingId);
+      const insertCall = fetchMock.mock.calls.find(call => String(call[0]).includes('/events?sendUpdates='));
+      expect(insertCall).toBeTruthy();
+      expect(String(insertCall![0])).toContain('sendUpdates=none');
+      expect(String(insertCall![0])).not.toContain('sendUpdates=all');
+      const body = JSON.parse(String((insertCall![1] as RequestInit).body));
+      expect(body).not.toHaveProperty('attendees');
+      expect(body.id).toBe('123e4567e89b42d3a456426614174000');
+      expect(body.summary).toContain('Jane Prospect');
+      expect(body.start.dateTime).toBe(slot);
+      expect(body.end.dateTime).toBe(new Date(Date.parse(slot) + 30 * 60000).toISOString());
     } finally { vi.unstubAllGlobals(); vi.useRealTimers(); }
   });
 });

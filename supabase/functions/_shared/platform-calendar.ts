@@ -38,6 +38,65 @@ export function slotIsFree(iso: string, busy: Busy[]) {
   const start = Date.parse(iso), end = start + SLOT_MINUTES * 60000;
   return busy.every(b => end <= Date.parse(b.start) || start >= Date.parse(b.end));
 }
+// ---------------------------------------------------------------------------
+// Self-sent calendar invite (.ics)
+//
+// The service account can insert guest-less events on the platform calendar
+// (proven shape), but Google rejects attendee invites from it on a personal
+// calendar without domain-wide delegation — so the Google event stays
+// guest-less (sendUpdates=none) and the CONFIRMATION EMAIL carries the
+// invite as an .ics attachment the prospect adds in one tap.
+// ---------------------------------------------------------------------------
+/** RFC 5545 TEXT escaping: backslash first, then ; , and newlines. */
+export function escapeIcsText(value: string): string {
+  return String(value ?? '')
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\r\n|\r|\n/g, '\\n');
+}
+/** RFC 5545 UTC basic stamp: YYYYMMDDTHHMMSSZ. */
+export function icsUtcStamp(d: Date): string {
+  return d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+}
+/**
+ * The METHOD:REQUEST invite attached to the booking confirmation email.
+ * UID is derived from the booking's deterministic Google event id so a
+ * re-sent confirmation references the same event instead of duplicating it.
+ * DTSTART/DTEND are the booked slot in UTC; the Eastern wall time is spelled
+ * out in the SUMMARY/DESCRIPTION so no client has to guess the zone.
+ */
+export function buildBookingInviteIcs(input: {
+  name: string; email: string; phone?: string; businessName?: string; notes?: string;
+  slotStart: string; bookingId: string; organizerEmail: string; now?: Date;
+}): string {
+  const start = new Date(input.slotStart);
+  const end = new Date(start.getTime() + SLOT_MINUTES * 60000);
+  const etWhen = start.toLocaleString('en-US', { timeZone: BUSINESS_TZ, dateStyle: 'full', timeStyle: 'short' }) + ' Eastern';
+  const summary = `AI Hidden Leads implementation call — ${input.name} — ${etWhen}`;
+  const description = `Confirmed by visitor for AI Hidden Leads, not the simulated business.\nName: ${input.name}\nEmail: ${input.email}\nPhone: ${input.phone || 'Not supplied'}\nBusiness: ${input.businessName || ''}\n${input.notes || ''}\nStarts: ${etWhen} (30 minutes).`;
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'PRODID:-//AI Hidden Leads//Booking//EN',
+    'VERSION:2.0',
+    'CALSCALE:GREGORIAN',
+    'METHOD:REQUEST',
+    'BEGIN:VEVENT',
+    `UID:${input.bookingId.replace(/-/g, '')}@aihiddenleads.com`,
+    `DTSTAMP:${icsUtcStamp(input.now ?? new Date())}`,
+    `DTSTART:${icsUtcStamp(start)}`,
+    `DTEND:${icsUtcStamp(end)}`,
+    `SUMMARY:${escapeIcsText(summary)}`,
+    `DESCRIPTION:${escapeIcsText(description)}`,
+    `ORGANIZER:mailto:${input.organizerEmail}`,
+    `ATTENDEE;CN=${escapeIcsText(input.name)};RSVP=TRUE:mailto:${input.email}`,
+    'STATUS:CONFIRMED',
+    'SEQUENCE:0',
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ];
+  return lines.join('\r\n') + '\r\n';
+}
 /**
  * True when a candidate slot's full [start, start+SLOT_MINUTES) interval does
  * not overlap a stored reservation's [slot_start, slot_start+SLOT_MINUTES)
@@ -170,15 +229,15 @@ export async function bookPlatformCall(db: any, details: { name: string; email: 
   if (error || !data) throw new Error('That appointment could not be reserved. Please refresh availability.');
   try {
     // Deterministic id prevents duplicate events when a provider response is lost.
-    // The prospect rides as an attendee and Google sends the invite
-    // (sendUpdates=all), so the booking lands on THEIR calendar too, not
-    // only the platform one. Voice bookings (gemini-live-proxy) take this
-    // same path and gain the same invite.
+    // Guest-less on purpose: Google rejects attendee invites from the
+    // service account on this personal calendar (no domain-wide
+    // delegation), so the event stays on the platform calendar only and
+    // the prospect's invite travels as an .ics attachment on the
+    // confirmation email instead (see buildBookingInviteIcs).
     const eventId = data.id.replace(/-/g, '');
-    const event = await calendarRequest(`/calendars/${encodeURIComponent(PLATFORM_CALENDAR)}/events?sendUpdates=all`, {
+    const event = await calendarRequest(`/calendars/${encodeURIComponent(PLATFORM_CALENDAR)}/events?sendUpdates=none`, {
       id: eventId, summary: `AI Hidden Leads implementation call — ${details.name}`,
       description: `Confirmed by visitor for AI Hidden Leads, not the simulated business.\nName: ${details.name}\nEmail: ${details.email}\nPhone: ${details.phone || 'Not supplied'}\nBusiness: ${details.businessName || ''}\n${details.notes || ''}`,
-      attendees: [{ email: details.email, displayName: details.name }],
       start: { dateTime: details.slotStart, timeZone: BUSINESS_TZ }, end: { dateTime: new Date(Date.parse(details.slotStart) + SLOT_MINUTES * 60000).toISOString(), timeZone: BUSINESS_TZ },
     });
     if (!event.id) throw new Error('Calendar did not confirm the appointment.');

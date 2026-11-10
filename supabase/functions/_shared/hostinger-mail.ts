@@ -7,7 +7,8 @@ const LOGO = `${SITE}/logo.png`;
 const ASPEN = 'https://mrtvqttecdfgphgxeygj.supabase.co/storage/v1/object/public/website-screenshots/email/aspen.jpg';
 const OPT_OUT = 'You received this because you asked AI Hidden Leads to follow up. Reply STOP or "unsubscribe" to this email and we will not contact you again.';
 
-type Mail = { to: string; subject: string; text: string; html?: string };
+export type MailAttachment = { filename: string; content: string; contentType: string };
+type Mail = { to: string; subject: string; text: string; html?: string; attachments?: MailAttachment[] };
 
 export async function sendOwnerMail(opts: Mail) {
   const password = Deno.env.get('HOSTINGER_SMTP_PASSWORD');
@@ -16,7 +17,8 @@ export async function sendOwnerMail(opts: Mail) {
     connection: { hostname: 'smtp.hostinger.com', port: 465, tls: true, auth: { username: OWNER_MAILBOX, password } },
   });
   try {
-    await client.send({ from: `AI Hidden Leads <${OWNER_MAILBOX}>`, to: opts.to, replyTo: OWNER_MAILBOX, subject: opts.subject, content: opts.text, ...(opts.html ? { html: opts.html } : {}) });
+    // denomailer Attachment: text content travels as encoding:'text'.
+    await client.send({ from: `AI Hidden Leads <${OWNER_MAILBOX}>`, to: opts.to, replyTo: OWNER_MAILBOX, subject: opts.subject, content: opts.text, ...(opts.html ? { html: opts.html } : {}), ...(opts.attachments?.length ? { attachments: opts.attachments.map(a => ({ filename: a.filename, contentType: a.contentType, encoding: 'text' as const, content: a.content })) } : {}) });
   } finally {
     await client.close();
   }
@@ -85,13 +87,18 @@ export const bookingAlert = (c: Contact & { slotStart: string; notes?: string })
     + p('The event is already on your Google Calendar.') + button(`${SITE}/dashboard/calls`, 'Open dashboard') }),
 });
 
-export const bookingConfirmation = (c: Contact & { slotStart: string }): Mail => ({
+export const bookingConfirmation = (c: Contact & { slotStart: string }, inviteIcs?: string): Mail => ({
   to: c.email,
   subject: `You're booked: AI Hidden Leads call – ${et(c.slotStart)}`,
-  text: `Hi ${first(c.name)},\n\nYour 30-minute call with AI Hidden Leads is booked for ${et(c.slotStart)} — most calls wrap up in 15–20 minutes.\nWe'll call you${c.phone ? ` at ${c.phone}` : ''}. Need to change it? Just reply to this email.\n\nTry Aspen on your website before the call: ${SITE}/demo\n\n${OPT_OUT}`,
+  // Google cannot invite the prospect from the platform calendar (service
+  // account, no domain delegation), so the invite rides on THIS email as an
+  // .ics attachment — one tap adds it to their calendar.
+  ...(inviteIcs ? { attachments: [{ filename: 'ai-hidden-leads-call.ics', content: inviteIcs, contentType: 'text/calendar; method=REQUEST' }] } : {}),
+  text: `Hi ${first(c.name)},\n\nYour 30-minute call with AI Hidden Leads is booked for ${et(c.slotStart)} — most calls wrap up in 15–20 minutes.\nWe've attached a calendar invite to this email — open it to add the call to your calendar in one tap.\nWe'll call you${c.phone ? ` at ${c.phone}` : ''}. Need to change it? Just reply to this email.\n\nTry Aspen on your website before the call: ${SITE}/demo\n\n${OPT_OUT}`,
   html: layout({ preheader: `Your call is booked for ${et(c.slotStart)}`, title: `You're booked, ${first(c.name)}!`, footer: OPT_OUT, body:
     p(`Your 30-minute call with an AI Hidden Leads specialist is set for (most calls wrap up in 15–20 minutes):`)
     + `<div style="margin:0 0 16px;padding:14px 16px;border-left:4px solid ${GREEN};background:#f8fafc;font-size:16px;font-weight:700;color:${INK}">${esc(et(c.slotStart))}</div>`
+    + p(`We've attached a calendar invite to this email — open the attachment to add the call to your calendar in one tap.`)
     + p(`We'll reach you${c.phone ? ` at ${esc(c.phone)}` : ''}. Need a different time? Just reply to this email.`)
     + advantagesBlock() + button(`${SITE}/demo`, 'Try Aspen on your website') }),
 });

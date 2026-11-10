@@ -5,9 +5,9 @@ import { languagePolicyFor, VOICE_DISCONNECT_PLAIN } from '../_shared/voice-conf
 import { openingText } from '../_shared/session-opening.ts'
 import { goAwayReconnectDelayMs, goAwayTimeLeftSeconds, providerResumeAllowed, resumptionHandleFromUpdate, sessionResumptionConfig } from '../_shared/session-resumption.ts'
 import { pcmSeconds, audioCost, validPricing } from '../_shared/voice-usage.ts'
-import { platformAvailability, bookPlatformCall, voiceAvailability } from '../_shared/platform-calendar.ts'
+import { platformAvailability, bookPlatformCall, voiceAvailability, buildBookingInviteIcs } from '../_shared/platform-calendar.ts'
 import { confirmedVisitorContact, CONTACT_READBACK_POLICY } from '../_shared/visitor-followup.ts'
-import { bookingAlert, bookingConfirmation, followupAlert, visitorFollowup, trySend } from '../_shared/hostinger-mail.ts'
+import { bookingAlert, bookingConfirmation, followupAlert, visitorFollowup, trySend, OWNER_MAILBOX } from '../_shared/hostinger-mail.ts'
 import { DEFAULT_LIVE_MODEL, officialLivePricing } from '../_shared/live-models.ts'
 import { callReview } from '../_shared/call-review.ts'
 import { demoPacingAction, DEMO_SALES_POLICY, SALES_ACTION_POLICY, salesRecommendation } from '../_shared/demo-sales.ts'
@@ -568,7 +568,7 @@ Deno.serve(async (req) => {
           } else {
             if(!confirmedContact || !action.slotStart)throw new Error('Confirm contact details and appointment first.');
             response=await bookPlatformCall(db,{...confirmedContact,businessName:String(config.businessName),slotStart:action.slotStart});
-            if((response as {ok?:boolean}).ok){const bc={...confirmedContact,businessName:String(config.businessName||''),slotStart:action.slotStart}; void trySend(bookingAlert(bc)); void trySend(bookingConfirmation(bc));}
+            if((response as {ok?:boolean}).ok){const bc={...confirmedContact,businessName:String(config.businessName||''),slotStart:action.slotStart}; const inviteIcs=(response as {bookingId?:string}).bookingId ? buildBookingInviteIcs({name:bc.name,email:bc.email,phone:bc.phone,businessName:bc.businessName,slotStart:action.slotStart,bookingId:(response as {bookingId?:string}).bookingId!,organizerEmail:OWNER_MAILBOX}) : undefined; void trySend(bookingAlert(bc)); void trySend(bookingConfirmation(bc, inviteIcs));}
           }
         } catch(e) {response={error:e instanceof Error?e.message:'Action failed'};}
         clientSocket.send(JSON.stringify({type:'action_result',id:msg.id,...response}));
