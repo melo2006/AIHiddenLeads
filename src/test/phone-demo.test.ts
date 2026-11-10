@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { readFileSync } from 'node:fs';
 import { describe, expect, test } from 'vitest';
 import {
   PHONE_DEMO_DISCLOSURE_VERSION,
@@ -140,5 +141,32 @@ describe('PHONE_DEMO_HOST_POLICY choreography', () => {
   test('step 8 keeps per-channel honesty: no confirmation-text promise when texting is off', () => {
     expect(PHONE_DEMO_HOST_POLICY).toContain('do NOT promise a confirmation text');
     expect(PHONE_DEMO_HOST_POLICY).toContain('the confirmation and the invite come by EMAIL');
+  });
+});
+
+describe('telephony-stream phone-demo-save persists the forwarded smsConsent (source pin)', () => {
+  // The handler is Deno.serve code and cannot be imported into vitest, so
+  // pin the exact write shapes in source (the bridge node tests cover the
+  // declaration + forwarding half of this chain end to end).
+  const stream = readFileSync(new URL('../../supabase/functions/telephony-stream/index.ts', import.meta.url), 'utf8');
+  const saveBlock = stream.slice(
+    stream.indexOf("b.action === 'phone-demo-save'"),
+    stream.indexOf("b.action === 'phone-demo-code'"),
+  );
+
+  test('the save block is found and reads the answer off the demo payload', () => {
+    expect(saveBlock.length).toBeGreaterThan(0);
+    expect(saveBlock).toContain("typeof d.smsConsent === 'boolean'");
+  });
+  test('first save stores the boolean verbatim: sms_consent true stays true, false stays false', () => {
+    // No coercion or inversion in the insert: a boolean d.smsConsent is
+    // stored as-is, so both answers persist correctly.
+    expect(saveBlock).toContain('{ sms_consent: d.smsConsent }');
+  });
+  test('correction save patches sms_consent on the same lead row', () => {
+    expect(saveBlock).toContain("update({ sms_consent: d.smsConsent }).eq('id', existingId)");
+  });
+  test('no boolean supplied means no consent write (an un-asked permission never lands)', () => {
+    expect(saveBlock).toContain("typeof d.smsConsent === 'boolean' ? { sms_consent: d.smsConsent } : {}");
   });
 });

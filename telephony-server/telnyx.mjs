@@ -64,6 +64,7 @@ export function phoneDemoToolDeclarations() {
       bestPractice: { type: 'BOOLEAN', description: 'True when the caller accepted best-practice fills for hours, emergencies and service area; false when they asked to stick strictly to what they stated.' },
       email: { type: 'STRING', description: "The caller's email address, as dictated." },
       mobile: { type: 'STRING', description: "The mobile number the demo link should be texted to (may be the number they are calling from)." },
+      smsConsent: { type: 'BOOLEAN', description: "The caller's answer to the texting-permission ask — true only when they explicitly agreed to receive the demo-link text; false when they declined. Omit until the permission has been asked (the step 3 save carries the answer)." },
     }, required: ['businessName'] } },
     { name: 'send_demo_code', description: 'Text the 4-digit demo verification code to the saved mobile. Only say a code was sent when the result says sent is true; when it returns mode caller_id, texting is not switched on for this line yet and the demo proceeds on caller ID.', parameters: { type: 'OBJECT', properties: {} } },
     { name: 'check_demo_code', description: 'Check the 4-digit code the caller read back. Only say the caller is verified when the result says verified is true.', parameters: { type: 'OBJECT', properties: { code: { type: 'STRING', description: 'The 4 digits the caller read back.' } }, required: ['code'] } },
@@ -307,6 +308,11 @@ export function createTelnyx({ api, env = process.env, onActiveChange = () => {}
         bestPractice: args.bestPractice !== false,
         email: str(args.email), mobile: str(args.mobile),
       };
+      // The step-3 texting-permission answer rides inside demo (the backend
+      // reads d.smsConsent); forward it only when the model actually
+      // supplied a boolean, so an un-asked permission never overwrites a
+      // stored answer — same guard as phone-booking-book's top-level field.
+      if (typeof args.smsConsent === 'boolean') extra.demo.smsConsent = args.smsConsent;
       if (s.phoneDemoLeadId) extra.leadId = s.phoneDemoLeadId; // correction pass updates the same lead
     } else if (action === 'phone-demo-verify' || action === 'phone-demo-resume') {
       extra.code = str(args.code);

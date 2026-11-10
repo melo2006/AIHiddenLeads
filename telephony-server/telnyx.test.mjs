@@ -216,6 +216,18 @@ test('phone demo declarations: five demo tools, each mapped 1:1 to a phone-demo-
   for (const d of demoDecls) assert.match(PHONE_DEMO_TOOL_ACTIONS[d.name], /^phone-demo-/);
 });
 
+test('phone demo declarations: save_phone_demo_lead carries the step-3 smsConsent answer', () => {
+  const save = phoneDemoToolDeclarations().find(d => d.name === 'save_phone_demo_lead');
+  assert.ok(save);
+  const prop = save.parameters.properties.smsConsent;
+  assert.ok(prop, 'smsConsent parameter declared');
+  assert.equal(prop.type, 'BOOLEAN');
+  assert.match(prop.description, /texting-permission ask/);
+  assert.match(prop.description, /true only when they explicitly agreed to receive the demo-link text/);
+  // Optional, never required: the first intake save runs before the ask.
+  assert.ok(!save.parameters.required.includes('smsConsent'));
+});
+
 test('phone booking declarations: three booking tools mapped to phone-booking-* actions (phase 2)', () => {
   const decls = phoneDemoToolDeclarations();
   assert.equal(decls.length, 8); // 5 demo + 3 booking
@@ -248,13 +260,23 @@ test('phone demo flow: save -> code (caller-ID mode) -> recap, results returned 
     return h.geminiReceived.find(m => m.toolResponse?.functionResponses?.[0]?.id === id).toolResponse.functionResponses[0];
   };
 
-  h.geminiSend({ toolCall: { functionCalls: [{ id: 'pd1', name: 'save_phone_demo_lead', args: { callerName: 'Sam', businessName: 'Speedy Tow', trade: 'towing', serviceArea: 'Dallas', services: ['emergency towing'], bestPractice: true, email: 'sam@example.com', mobile: '+15551234567' } }] } });
+  h.geminiSend({ toolCall: { functionCalls: [{ id: 'pd1', name: 'save_phone_demo_lead', args: { callerName: 'Sam', businessName: 'Speedy Tow', trade: 'towing', serviceArea: 'Dallas', services: ['emergency towing'], bestPractice: true, email: 'sam@example.com', mobile: '+15551234567', smsConsent: true } }] } });
   const r1 = await toolResult('pd1');
   const save = h.backendCalls.find(c => c.action === 'phone-demo-save');
   assert.ok(save); assert.equal(save.demo.businessName, 'Speedy Tow');
   assert.equal(save.demo.services[0], 'emergency towing');
+  assert.equal(save.demo.smsConsent, true); // step-3 yes reaches the backend inside demo
   assert.equal(r1.response.leadId, 'lead-1');
   assert.equal(r1.response.spellBack.website, 's, i, 2, dot, com');
+
+  // Correction save after the caller declines the text instead: the false
+  // answer forwards too (a stored yes must never survive a later no).
+  h.geminiSend({ toolCall: { functionCalls: [{ id: 'pd1b', name: 'save_phone_demo_lead', args: { businessName: 'Speedy Tow', smsConsent: false } }] } });
+  await toolResult('pd1b');
+  const saves = h.backendCalls.filter(c => c.action === 'phone-demo-save');
+  assert.equal(saves.length, 2);
+  assert.equal(saves[1].demo.smsConsent, false);
+  assert.equal(saves[1].leadId, 'lead-1'); // correction pass updates the same lead
 
   // The SMS lane is closed in the stub: the result must say so, never "sent".
   h.geminiSend({ toolCall: { functionCalls: [{ id: 'pd2', name: 'send_demo_code', args: {} }] } });
