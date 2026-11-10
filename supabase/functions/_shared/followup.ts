@@ -114,9 +114,13 @@ export function buildAddToCalendarUrl(input: { slotStartIso: string; durationMin
 }
 
 export function buildBookingConfirmationSms(input: { slotStartIso: string; durationMinutes: number; name: string }): string {
+  // No add-to-calendar URL in the text: the raw Google link ran ~450 chars
+  // and rendered as broken-looking encoded text on the customer's phone
+  // (Ron's screenshot, Nov 11). The calendar invite rides the confirmation
+  // EMAIL as a one-tap .ics attachment instead — the text just points there.
   return [
     `You're booked: 30-minute implementation call with the AiHiddenLeads team, ${formatSlotForSms(input.slotStartIso)}.`,
-    `Add to calendar: ${buildAddToCalendarUrl(input)}`,
+    'Your calendar invite is in the confirmation email we just sent you.',
     SMS_OPT_OUT_LINE,
   ].join('\n');
 }

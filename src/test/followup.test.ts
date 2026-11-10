@@ -101,11 +101,15 @@ describe('buildAddToCalendarUrl', () => {
 
 describe('booking SMS bodies', () => {
   const slot = '2026-11-18T19:30:00.000Z';
-  test('confirmation states the 30-minute block, the formatted slot, calendar link and STOP', () => {
+  test('confirmation states the 30-minute block, the formatted slot, the email-invite pointer and STOP (no raw calendar URL)', () => {
     const body = buildBookingConfirmationSms({ slotStartIso: slot, durationMinutes: 30, name: 'Sam' });
-    expect(body).toContain("You're booked: 30-minute implementation call with the AiHiddenLeads team, Wednesday, Nov 18 at 2:30 PM ET.");
-    expect(body).toContain('Add to calendar: https://calendar.google.com/calendar/render?');
-    expect(body).toContain('Reply STOP to opt out');
+    expect(body).toBe(
+      "You're booked: 30-minute implementation call with the AiHiddenLeads team, Wednesday, Nov 18 at 2:30 PM ET.\n" +
+      'Your calendar invite is in the confirmation email we just sent you.\n' +
+      'Reply STOP to opt out',
+    );
+    expect(body).not.toContain('calendar.google.com');
+    expect(body).not.toContain('http');
   });
   test('reminder names the slot and the STOP line', () => {
     const body = buildBookingReminderSms({ slotStartIso: slot });
