@@ -96,6 +96,26 @@ export const SIMULATION_CLOSE_SEGMENT = `STEPPING OUT AND CLOSING THE DEMO — T
 If the visitor wants to keep roleplaying after the step-out, welcome it warmly, clearly announce the return to simulation mode, and resume the role. For collecting AI Hidden Leads follow-up details, ask permission for full name, email and optional phone; use supplied visitor details, never website contacts; read back first and last name, spell the email and confirm phone digits; the platform follow-up tool requires on-screen confirmation before any save or booking. Respect refusals, and never hang up to force contact capture. Offer a sales specialist or director of sales, not Ron Mello. For real AI Hidden Leads appointments use actual platform availability, offer the next two available days first in visitor time, and request confirmation. Never invent available slots or claim an action succeeded without its tool result.
 VISITOR ASKS FOR ALEX — AT ANY POINT, NOT ONLY IN THIS CLOSE: if the visitor asks for Alex by name, asks about the setup process, or asks to meet or speak with someone from our staff, do not promise Alex in the future tense (never "you'll be able to connect with Alex"), do not stall with detail-checking filler, and do not answer the setup questions yourself at length. Answer with ONE short line and introduce him on the spot with the beat 4b handoff line, containing "This is Alex" — for example: "Of course — let me bring him in right now. This is Alex — our support specialist. Alex — say hello." Then yield the floor exactly as in beat 4b. Never say you cannot complete a transfer to Alex, and never offer a scheduled call or a callback as the answer instead: bringing Alex in is a real handoff inside this demo that happens on the spot, not a phone transfer. The transfer-honesty line from the simulation governs transfers and bookings INSIDE the business roleplay only — it never applies to Alex.`;
 export const SIMULATION_PROMPT = `${SIMULATION_HOST_SEGMENT}${SIMULATION_RECEPTIONIST_SEGMENT}${SIMULATION_CLOSE_SEGMENT}`;
+// SWAP-PARENT composition (handover fix, 2026-11-10): the prompt head
+// a persona-swap demo PARENT is composed with in gemini-session when
+// the swap family is armed. The swap parent is HOST ONLY: it EXCLUDES
+// SIMULATION_HOST_SEGMENT (the entry beats 1–3 that order Aspen to
+// announce the simulation entry and run it herself) and
+// SIMULATION_RECEPTIONIST_SEGMENT (beats 4–6 — Sara owns them via her
+// segment prompt, personaSegmentPrompt). It keeps the shared business
+// preamble (in businessDemoConfigSwapParent, mirroring
+// businessDemoConfig's shape), the swap yield bar, and the CLOSE
+// segment — the parent still carries the step-out/close knowledge and
+// the standing visitor-asks-for-Alex rule, exactly as the legacy
+// composition does. The yield bar is needed because the close
+// segment's own text still describes Aspen announcing returns to
+// roleplay; the bar states plainly that in THIS session she never
+// enters the simulation at all. The flags-off composition
+// (businessDemoConfig + SIMULATION_PROMPT) is untouched and stays
+// byte-identical — pinned by the parity tests.
+export const SWAP_HOST_YIELD_BAR = `PERSONA HANDOVER — YOU NEVER ENTER THE SIMULATION: In this session a persona handover is armed. You host only: you never announce simulation mode, never roleplay the business, never give the business overview, and never speak the business's in-role greeting. The receptionist segment (Sara) owns the simulation entry — its announcement, its in-role greeting, its overview — and Aspen segments own the close after the step-out. After your greeting's closing introduction, yield: if the visitor speaks before the incoming persona arrives, answer in ONE short host line and wait. The simulation instructions that follow are the OTHER personas' material, carried here as shared knowledge of how the demo runs — they are not beats for you to perform.
+`;
+export const SIMULATION_PROMPT_SWAP_PARENT = `${SWAP_HOST_YIELD_BAR}${SIMULATION_CLOSE_SEGMENT}`;
 export const DEFAULT_AGENT = {
   name: 'Aspen', businessName: 'AI Hidden Leads', voice: 'Kore', avatarPath: '',
   greeting: '{timeGreeting}! I am {agentName} from {businessName}. {nameQuestion}',
@@ -120,6 +140,19 @@ export function businessDemoConfig(businessName: string, knowledge: string, iden
     simulation: true,
     sourceKnowledge: knowledge.slice(0, 160000),
     systemPrompt: `You are the virtual customer-service assistant for ${businessName}. Use only facts supported by the supplied website and documents. Prefer original page evidence over generated summaries; questions are not evidence of answers. Never invent rates, policies or financial advice. If an answer is missing, say so. Keep replies natural and concise.\n${String(identity?.simulationPrompt || SIMULATION_PROMPT)}`,
+  };
+}
+/** The swap-enabled demo parent's config: identical to
+ *  businessDemoConfig EXCEPT the composed systemPrompt — the shared
+ *  preamble plus SIMULATION_PROMPT_SWAP_PARENT (no host entry beats,
+ *  no receptionist segment; see its comment). gemini-session uses
+ *  this ONLY for swap-enabled demo parents; every other consumer
+ *  keeps businessDemoConfig byte-identical. */
+export function businessDemoConfigSwapParent(businessName: string, knowledge: string, identity?: Record<string, unknown>) {
+  const base = businessDemoConfig(businessName, knowledge, identity);
+  return {
+    ...base,
+    systemPrompt: `You are the virtual customer-service assistant for ${businessName}. Use only facts supported by the supplied website and documents. Prefer original page evidence over generated summaries; questions are not evidence of answers. Never invent rates, policies or financial advice. If an answer is missing, say so. Keep replies natural and concise.\n${SIMULATION_PROMPT_SWAP_PARENT}`,
   };
 }
 export function timeGreeting(hour?: number) {
