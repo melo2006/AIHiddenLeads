@@ -25,6 +25,7 @@ import VoiceActionConfirmation, { type VoiceAction } from "./VoiceActionConfirma
 import BrowserVoiceHandoff from "@/components/BrowserVoiceHandoff";
 import { voiceIdleAction, homepageWalkthroughDue, type VoiceIdleStage } from '@/lib/voiceIdle';
 import { voiceDisconnectMessage } from '@/lib/voiceDisconnect';
+import { voiceProxyWsUrl } from '@/lib/voiceProxy';
 import { classifyMicrophoneFailure, isEmbeddedContext } from "@/lib/embeddedContext";
 import {campaignVisit, trackCampaignEvent} from '@/lib/campaignTracking';
 import { salesPlans, type SalesPlan } from '@/lib/salesActions';
@@ -86,8 +87,9 @@ export function resumeRecap(turns: Turn[]) {
 }
 type Phase = "idle" | "connecting" | "live" | "preview";
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
-const WS_URL = SUPABASE_URL.replace(/^https/, "wss") + "/functions/v1/gemini-live-proxy";
+// The voice socket host is resolved AT EACH CONNECT by voiceProxyWsUrl()
+// (@/lib/voiceProxy): per-device ?voiceProxy override > VITE_VOICE_PROXY_WS_URL
+// build default > the historical Edge derivation (Part 2 server move).
 
 /** Calm guidance shown instead of the mic-denied error when the widget is framed by an
  * embedded preview: the parent frame withholds the microphone, so no prompt can ever
@@ -1637,7 +1639,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       homepageWalkthroughRef.current = authorized.homepageSales === true;
       idleRef.current = { enabled: (authorized.idleChecks === true || authorized.homepageSales === true) && !preview, stage: 'waiting', quietSince: Date.now(), generating: true, requestedAt: 0 };
       setHandoffToken(authorized.handoffToken || null);
-      const ws = new WebSocket(`${WS_URL}?token=${encodeURIComponent(authorized.token)}&capture=${captureMode}${warm ? '&hold=1' : ''}`);
+      const ws = new WebSocket(`${voiceProxyWsUrl()}?token=${encodeURIComponent(authorized.token)}&capture=${captureMode}${warm ? '&hold=1' : ''}`);
       wsRef.current = ws;
 
       ws.onopen = () => !silentWarm() && setStatus(preview ? "Voice connected · generating your greeting…" : "Connecting…");
@@ -2025,7 +2027,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     setPartialAspen("");
     setTurns([...(visitMemory.get(agentId || "homepage") || [])]);
     sessionStartedAtRef.current = Date.now();
-    const ws = new WebSocket(`${WS_URL}?token=${encodeURIComponent(token)}&capture=${captureMode}`);
+    const ws = new WebSocket(`${voiceProxyWsUrl()}?token=${encodeURIComponent(token)}&capture=${captureMode}`);
     wsRef.current = ws;
     const goLiveSegment = () => {
       if (generation !== generationRef.current) return;
