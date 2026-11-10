@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import { WebSocketServer, WebSocket } from 'ws';
-import { createTelnyx, verifyTelnyxSignature, parseTelnyxStart, telnyxMediaFrame, telnyxClearFrame, phoneDemoToolDeclarations, PHONE_DEMO_TOOL_ACTIONS } from './telnyx.mjs';
+import { createTelnyx, verifyTelnyxSignature, parseTelnyxStart, telnyxMediaFrame, telnyxClearFrame, phoneDemoToolDeclarations, PHONE_DEMO_TOOL_ACTIONS, PHONE_BOOKING_TOOL_ACTIONS } from './telnyx.mjs';
 import { createLatencyTracker } from './latency.mjs';
 
 const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519');
@@ -209,11 +209,18 @@ test('warm transfer: dial -> whisper speak -> gather -> press 1 -> bridge, repor
   client.close();
 });
 
-test('phone demo declarations: five tools, each mapped 1:1 to a backend action', () => {
+test('phone demo declarations: five demo tools, each mapped 1:1 to a phone-demo-* action', () => {
   const decls = phoneDemoToolDeclarations();
-  assert.equal(decls.length, 5);
-  assert.deepEqual(decls.map(d => d.name).sort(), Object.keys(PHONE_DEMO_TOOL_ACTIONS).sort());
-  for (const d of decls) assert.match(PHONE_DEMO_TOOL_ACTIONS[d.name], /^phone-demo-/);
+  const demoDecls = decls.filter(d => d.name in PHONE_DEMO_TOOL_ACTIONS);
+  assert.equal(demoDecls.length, 5);
+  for (const d of demoDecls) assert.match(PHONE_DEMO_TOOL_ACTIONS[d.name], /^phone-demo-/);
+});
+
+test('phone booking declarations: three booking tools mapped to phone-booking-* actions (phase 2)', () => {
+  const decls = phoneDemoToolDeclarations();
+  assert.equal(decls.length, 8); // 5 demo + 3 booking
+  assert.deepEqual(decls.map(d => d.name).sort(), [...Object.keys(PHONE_DEMO_TOOL_ACTIONS), ...Object.keys(PHONE_BOOKING_TOOL_ACTIONS)].sort());
+  for (const name of Object.keys(PHONE_BOOKING_TOOL_ACTIONS)) assert.match(PHONE_BOOKING_TOOL_ACTIONS[name], /^phone-booking-/);
 });
 
 test('phone demo tools: absent from the setup when the backend does not enable them', async (t) => {
@@ -233,7 +240,7 @@ test('phone demo flow: save -> code (caller-ID mode) -> recap, results returned 
   const setup = h.geminiReceived.find(m => m.setup);
   const names = setup.setup.tools[0].functionDeclarations.map(d => d.name);
   assert.ok(names.includes('transfer_call'));
-  for (const n of ['save_phone_demo_lead', 'send_demo_code', 'check_demo_code', 'resume_demo_by_code', 'send_demo_recap']) assert.ok(names.includes(n), n);
+  for (const n of ['save_phone_demo_lead', 'send_demo_code', 'check_demo_code', 'resume_demo_by_code', 'send_demo_recap', 'get_availability', 'check_time', 'book_call']) assert.ok(names.includes(n), n);
 
   h.geminiSend({ serverContent: { turnComplete: true } });
   const toolResult = async (id) => {
@@ -263,6 +270,23 @@ test('phone demo flow: save -> code (caller-ID mode) -> recap, results returned 
   const recap = h.backendCalls.find(c => c.action === 'phone-demo-recap');
   assert.equal(recap.leadId, 'lead-1');
   assert.match(recap.summary, /emergency towing/);
+
+  // Phase 2 booking tools: availability carries the stated preference;
+  // book_call carries the saved lead id + the exact slot + the in-flow
+  // consent answer, and its result returns to the model truthfully.
+  h.geminiSend({ toolCall: { functionCalls: [{ id: 'pb1', name: 'get_availability', args: { day: 'tomorrow', dayPart: 'morning' } }] } });
+  const ra = await toolResult('pb1');
+  const availCall = h.backendCalls.find(c => c.action === 'phone-booking-availability');
+  assert.ok(availCall); assert.equal(availCall.day, 'tomorrow'); assert.equal(availCall.dayPart, 'morning');
+  assert.equal(ra.response.ok, true);
+
+  h.geminiSend({ toolCall: { functionCalls: [{ id: 'pb2', name: 'book_call', args: { slotStart: '2026-11-18T16:00:00.000Z', smsConsent: true } }] } });
+  const rb = await toolResult('pb2');
+  const bookCallReq = h.backendCalls.find(c => c.action === 'phone-booking-book');
+  assert.ok(bookCallReq); assert.equal(bookCallReq.leadId, 'lead-1');
+  assert.equal(bookCallReq.slotStart, '2026-11-18T16:00:00.000Z');
+  assert.equal(bookCallReq.smsConsent, true);
+  assert.equal(rb.response.ok, true);
   client.close();
 });
 

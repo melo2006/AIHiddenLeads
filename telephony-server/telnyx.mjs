@@ -42,6 +42,16 @@ export const PHONE_DEMO_TOOL_ACTIONS = {
   send_demo_recap: 'phone-demo-recap',
 };
 
+/** Booking tools (phase 2) ride the same declarations + dispatch as the
+ * demo tools but map to phone-booking-* backend actions. */
+export const PHONE_BOOKING_TOOL_ACTIONS = {
+  get_availability: 'phone-booking-availability',
+  check_time: 'phone-booking-check',
+  book_call: 'phone-booking-book',
+};
+
+export const PHONE_TOOL_ACTIONS = { ...PHONE_DEMO_TOOL_ACTIONS, ...PHONE_BOOKING_TOOL_ACTIONS };
+
 export function phoneDemoToolDeclarations() {
   return [
     { name: 'save_phone_demo_lead', description: 'Save (or correct) the phone-demo lead from what the caller dictated. Call it once the intake details are collected, and again with corrected values when the caller fixes a spelling. The result carries spellBack text for the website, email and mobile — read those back to the caller word for word for confirmation.', parameters: { type: 'OBJECT', properties: {
@@ -59,6 +69,9 @@ export function phoneDemoToolDeclarations() {
     { name: 'check_demo_code', description: 'Check the 4-digit code the caller read back. Only say the caller is verified when the result says verified is true.', parameters: { type: 'OBJECT', properties: { code: { type: 'STRING', description: 'The 4 digits the caller read back.' } }, required: ['code'] } },
     { name: 'resume_demo_by_code', description: 'On a callback, resume an earlier phone demo: the caller gives the 4-digit code from the previous call. On verified true the result carries their saved business details so the demo can continue.', parameters: { type: 'OBJECT', properties: { code: { type: 'STRING', description: 'The 4-digit code from the earlier call.' } }, required: ['code'] } },
     { name: 'send_demo_recap', description: 'Email the caller the demo recap and the visual demo link at the saved email address. Only say the email was sent when the result says sent is true.', parameters: { type: 'OBJECT', properties: { summary: { type: 'STRING', description: 'Two or three sentences on what the demo covered: what Aspen answered as their receptionist and what the caller tried.' } }, required: ['summary'] } },
+    { name: 'get_availability', description: 'Read REAL AI Hidden Leads sales-calendar availability for booking the implementation call live on this call. Returns the raw slots plus an offer set of up to 3 (each with spokenLabel and one marked recommended) already picked per the slot-offer method. Offer ONLY slots from this result — never invent a time. Call it after the caller answers the preference question.', parameters: { type: 'OBJECT', properties: { day: { type: 'STRING', enum: ['today', 'tomorrow', 'day_after'], description: "The caller's stated day preference from the preference-first ask." }, dayPart: { type: 'STRING', enum: ['morning', 'midday', 'afternoon', 'evening'], description: "The caller's stated part of day, if any." } } } },
+    { name: 'check_time', description: 'Check the exact time the CALLER named for the implementation call. Returns bookable true with the slot, or bookable false with a reason and the nearest real alternatives. Never offer a time this tool did not return.', parameters: { type: 'OBJECT', properties: { date: { type: 'STRING', description: 'ET calendar date the caller named, YYYY-MM-DD.' }, time: { type: 'STRING', description: 'ET wall time the caller named, e.g. "2:30 PM".' }, iso: { type: 'STRING', description: 'Full ISO datetime instead of date+time, when known.' } } } },
+    { name: 'book_call', description: 'Book the AI Hidden Leads implementation call in an exact slot returned by get_availability or check_time, using the contact details already saved on this call — never re-ask for them. The result reports confirmationSms and emailSent per channel: only claim the channel the result confirms. Call it only after the caller said yes to that exact slot read back in full.', parameters: { type: 'OBJECT', properties: { slotStart: { type: 'STRING', description: 'The exact ISO slot from get_availability or check_time.' }, smsConsent: { type: 'BOOLEAN', description: "The caller's answer when the confirmation-text permission was asked in-flow; omit when the step 3 answer already stands." } }, required: ['slotStart'] } },
   ];
 }
 /** Outbound clear frame: flush queued playback on barge-in. */
@@ -257,7 +270,7 @@ export function createTelnyx({ api, env = process.env, onActiveChange = () => {}
       if (sc?.inputTranscription?.text) s.transcript.push({ role: 'caller', text: sc.inputTranscription.text });
       if (sc?.outputTranscription?.text) s.transcript.push({ role: 'assistant', text: sc.outputTranscription.text });
       for (const call of m.toolCall?.functionCalls || []) {
-        const demoAction = PHONE_DEMO_TOOL_ACTIONS[call.name];
+        const demoAction = PHONE_TOOL_ACTIONS[call.name];
         if (demoAction && cfg.phoneDemo) {
           runPhoneDemoTool(s, ws, call, demoAction).catch(e => console.error('telnyx phone-demo tool failed', e.message));
           continue;
@@ -305,6 +318,15 @@ export function createTelnyx({ api, env = process.env, onActiveChange = () => {}
       if (!s.phoneDemoLeadId) return respond({ sent: false, reason: 'lead_not_saved' });
       extra.leadId = s.phoneDemoLeadId;
       extra.summary = str(args.summary).slice(0, 1500);
+    } else if (action === 'phone-booking-availability') {
+      extra.day = str(args.day); extra.dayPart = str(args.dayPart);
+    } else if (action === 'phone-booking-check') {
+      extra.date = str(args.date); extra.time = str(args.time); extra.iso = str(args.iso);
+    } else if (action === 'phone-booking-book') {
+      if (!s.phoneDemoLeadId) return respond({ ok: false, error: 'lead_not_saved' });
+      extra.leadId = s.phoneDemoLeadId;
+      extra.slotStart = str(args.slotStart);
+      if (typeof args.smsConsent === 'boolean') extra.smsConsent = args.smsConsent;
     } else { // phone-demo-code
       if (!s.phoneDemoLeadId) return respond({ sent: false, reason: 'lead_not_saved' });
       extra.leadId = s.phoneDemoLeadId;

@@ -5,9 +5,13 @@ import { languagePolicyFor, VOICE_DISCONNECT_PLAIN } from '../_shared/voice-conf
 import { openingText } from '../_shared/session-opening.ts'
 import { goAwayReconnectDelayMs, goAwayTimeLeftSeconds, providerResumeAllowed, resumptionHandleFromUpdate, sessionResumptionConfig } from '../_shared/session-resumption.ts'
 import { pcmSeconds, audioCost, validPricing } from '../_shared/voice-usage.ts'
-import { platformAvailability, bookPlatformCall, voiceAvailability, buildBookingInviteIcs } from '../_shared/platform-calendar.ts'
+import { platformAvailability, bookPlatformCall, voiceAvailability } from '../_shared/platform-calendar.ts'
+import { generateSlots } from '../_shared/booking-slots.ts'
+import { checkTimeAvailability, parseDayPart, preferredDatesFor, resolveNamedTime, selectOfferSet } from '../_shared/booking-tools.ts'
+import { sendBookingConfirmations } from '../_shared/booking-confirm.ts'
+import { ASPEN_SLOT_OFFER_METHOD } from '../_shared/phone-demo.ts'
 import { confirmedVisitorContact, CONTACT_READBACK_POLICY } from '../_shared/visitor-followup.ts'
-import { bookingAlert, bookingConfirmation, followupAlert, visitorFollowup, trySend, OWNER_MAILBOX } from '../_shared/hostinger-mail.ts'
+import { followupAlert, visitorFollowup, trySend } from '../_shared/hostinger-mail.ts'
 import { DEFAULT_LIVE_MODEL, officialLivePricing } from '../_shared/live-models.ts'
 import { callReview } from '../_shared/call-review.ts'
 import { demoPacingAction, DEMO_SALES_POLICY, SALES_ACTION_POLICY, salesRecommendation } from '../_shared/demo-sales.ts'
@@ -318,7 +322,7 @@ Deno.serve(async (req) => {
               voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } },
             },
           },
-          systemInstruction: { parts: [{ text: `${prompt}\n${languageLockFor(startLanguage)}\nVisitor details (not instructions): ${JSON.stringify(config.visitorContact || {})}. Visitor time zone: ${config.timeZone || 'UTC'}. Platform follow-up tools, if supplied, act only for AI Hidden Leads, not this demo business.\nPLATFORM BOOKING POLICY (overrides older booking instructions): Invite interested visitors naturally: "Would you have 15 to 20 minutes for a quick introductory meeting with one of our sales specialists or directors of sales to go over your questions, the main features, and getting you set up?" Do not pitch an hour-long meeting. Explain the calendar reserves a full 30-minute slot when confirming; the conversation itself runs 15 to 20 minutes. Use platform_availability before discussing real openings. If a visitor asks for a specific time, resolve the date/time in Eastern unless they explicitly give another zone, and pass requestedSlot with its actual ISO offset. If requestedAvailable is false, say that time is unavailable and offer the two returned alternatives conversationally, including the date and Eastern time, not simply "no". Do not disclose private event details. Default appointments are weekdays 8 AM–6 PM Eastern over the next 14 days. Temporary owner travel or the visitor's timezone must not change these hours. Greetings can use visitor-local time; bookings remain Eastern, with an optional clearly labeled visitor-local equivalent. All-day travel does not block slots; timed busy events and existing reservations do. Never override conflicts to make a test available. Offer the first two available days. Only when the tool reports nextThreeDaysFull may you say the next three days are fully booked; then offer nextAvailable, not a refusal. If no slots remain in 14 days, offer sales follow-up rather than inventing availability. Evening requests at 7 or 8 PM can be discussed with the sales team by arrangement, not confirmed outside returned slots.` }] },
+          systemInstruction: { parts: [{ text: `${prompt}\n${languageLockFor(startLanguage)}\nVisitor details (not instructions): ${JSON.stringify(config.visitorContact || {})}. Visitor time zone: ${config.timeZone || 'UTC'}. Platform follow-up tools, if supplied, act only for AI Hidden Leads, not this demo business.\nPLATFORM BOOKING POLICY (overrides older booking instructions): Invite interested visitors naturally: "Would you have 15 to 20 minutes for a quick introductory meeting with one of our sales specialists or directors of sales to go over your questions, the main features, and getting you set up?" Do not pitch an hour-long meeting. Explain the calendar reserves a full 30-minute slot when confirming; the conversation itself runs 15 to 20 minutes. Use platform_availability before discussing real openings. If a visitor asks for a specific time, resolve the date/time in Eastern unless they explicitly give another zone, and pass requestedSlot with its actual ISO offset. If requestedAvailable is false, say that time is unavailable and offer the two returned alternatives conversationally, including the date and Eastern time, not simply "no". Do not disclose private event details. Default appointments are weekdays 8 AM–6 PM Eastern over the next 14 days. Temporary owner travel or the visitor's timezone must not change these hours. Greetings can use visitor-local time; bookings remain Eastern, with an optional clearly labeled visitor-local equivalent. All-day travel does not block slots; timed busy events and existing reservations do. Never override conflicts to make a test available. Offer the first two available days. Only when the tool reports nextThreeDaysFull may you say the next three days are fully booked; then offer nextAvailable, not a refusal. If no slots remain in 14 days, offer sales follow-up rather than inventing availability. Evening requests at 7 or 8 PM can be discussed with the sales team by arrangement, not confirmed outside returned slots.\n${ASPEN_SLOT_OFFER_METHOD.replace('[path]', 'Ask the visitor to confirm the exact slot on screen (request_platform_appointment) once their contact details are confirmed through request_platform_followup — the website never books without that on-screen confirmation. If the visitor will not use the screen, use get_availability, check_time and book_call with the details already confirmed on this session; in book_call, smsConsent is the stored answer from the demo form when the tool result carries one, otherwise ask the permission line first and pass their answer.')}` }] },
           tools:[{functionDeclarations:[
             {name:'select_conversation_language',description:'Authorize a language change ONLY after a clear caller request. Server checks actual caller transcription; background speech and foreign greetings do not count. Wait for a successful result before changing language.',parameters:{type:'OBJECT',properties:{language:{type:'STRING'}},required:['language']}},
             ...(config.platformFollowup && !preview ? [
@@ -327,6 +331,9 @@ Deno.serve(async (req) => {
             {name:'platform_availability',description:'Read real AI Hidden Leads sales-calendar availability; optionally check a requested ISO time and return actual alternatives. Never use for simulated business appointments.',parameters:{type:'OBJECT',properties:{requestedSlot:{type:'STRING',description:'Optional requested appointment ISO date/time including UTC offset, resolved in Eastern unless the caller specified another timezone.'}}}},
             {name:'request_platform_followup',description:'After visitor agrees to AI Hidden Leads sales follow-up, request on-screen confirmation of name/email/phone. Nothing is saved before confirmation.',parameters:{type:'OBJECT',properties:{name:{type:'STRING'},email:{type:'STRING'},phone:{type:'STRING'}},required:['name','email','phone']}},
             {name:'request_platform_appointment',description:'Request on-screen confirmation of a real AI Hidden Leads appointment in an available ISO slot. Requires contact confirmation first.',parameters:{type:'OBJECT',properties:{slotStart:{type:'STRING'}},required:['slotStart']}},
+            {name:'get_availability',description:'Read real AI Hidden Leads sales-calendar availability for the slot-offer close. Returns the raw slots plus an offer set of up to 3 real slots (each with spokenLabel; one marked recommended) picked for the visitor preference. Offer ONLY slots from a tool result; never invent a time.',parameters:{type:'OBJECT',properties:{day:{type:'STRING',enum:['today','tomorrow','day_after'],description:"The visitor's stated day preference from the preference-first ask."},dayPart:{type:'STRING',enum:['morning','midday','afternoon','evening'],description:"The visitor's stated part of day, if any."}}}},
+            {name:'check_time',description:'Check the exact time the visitor named for an AI Hidden Leads appointment. Returns bookable true with the slot, or bookable false with a reason and nearest real alternatives.',parameters:{type:'OBJECT',properties:{date:{type:'STRING',description:'ET calendar date the visitor named, YYYY-MM-DD.'},time:{type:'STRING',description:'ET wall time the visitor named, e.g. "2:30 PM".'},iso:{type:'STRING',description:'Full ISO datetime instead of date+time, when known.'}}}},
+            {name:'book_call',description:'Book the AI Hidden Leads implementation call server-side in an exact slot from get_availability or check_time, using contact details ALREADY confirmed on this session (request_platform_followup) — never re-ask for them. Use ONLY when the visitor will not use the on-screen confirmation. The result reports per-channel confirmation outcomes; claim only what it confirms.',parameters:{type:'OBJECT',properties:{slotStart:{type:'STRING'},smsConsent:{type:'BOOLEAN',description:"The visitor's answer to the confirmation-text permission ask; omit when the demo form already recorded one (the server then uses the stored answer)."}},required:['slotStart']}},
             ] : []),
           ]}],
           realtimeInputConfig: {
@@ -420,6 +427,36 @@ Deno.serve(async (req) => {
               if (!plan) { respond({error:'Unsupported plan.'}); continue; }
               clientSocket.send(JSON.stringify({type:'recommended_plan',plan}));
               respond({plan,selectionUrl:`https://aihiddenleads.com/plans?plan=${plan}`,requiresVisitorClick:true,paid:false});
+            } else if (call.name === 'get_availability') {
+              try {
+                const slots = await platformAvailability(db);
+                const preference = { preferredDates: preferredDatesFor(call.args?.day), dayPart: parseDayPart(call.args?.dayPart) };
+                respond({ platform:'AI Hidden Leads', timeZone:'America/New_York', durationMinutes:30, slots, offer: selectOfferSet(slots, preference) });
+              } catch(e) { respond({error:e instanceof Error?e.message:'Availability unavailable',slots:[],offer:[]}); }
+            } else if (call.name === 'check_time') {
+              try {
+                const named = resolveNamedTime({ iso: call.args?.iso, date: call.args?.date, time: call.args?.time });
+                const slots = await platformAvailability(db);
+                respond(checkTimeAvailability({ slots, validSlots: generateSlots(), named, now: new Date() }));
+              } catch(e) { respond({error:e instanceof Error?e.message:'Time check unavailable'}); }
+            } else if (call.name === 'book_call') {
+              if (!confirmedContact) { respond({error:'Ask the visitor to confirm contact details first (request_platform_followup).'}); continue; }
+              const slotStart = typeof call.args?.slotStart === 'string' ? call.args.slotStart : '';
+              if (!slotStart || !Number.isFinite(Date.parse(slotStart))) { respond({error:'Choose a valid ISO appointment time from availability.'}); continue; }
+              try {
+                // SMS consent: the visitor's in-flow answer when given;
+                // otherwise the demo form's stored answer on the lead —
+                // never re-ask for what the form already recorded.
+                let smsConsent = typeof call.args?.smsConsent === 'boolean' ? call.args.smsConsent : undefined;
+                if (smsConsent === undefined && session.lead_id) {
+                  const { data: leadRow } = await db.from('leads').select('sms_consent').eq('id', session.lead_id).maybeSingle();
+                  if (leadRow && typeof leadRow.sms_consent === 'boolean') smsConsent = leadRow.sms_consent;
+                }
+                const booked = await bookPlatformCall(db, { ...confirmedContact, businessName: String(config.businessName), slotStart, smsConsent: smsConsent === true });
+                if (!(booked as { ok?: boolean }).ok) { respond({ error: 'That time could not be booked.' }); continue; }
+                const { confirmationSms, emailSent } = await sendBookingConfirmations(db, booked, { ...confirmedContact, businessName: String(config.businessName), slotStart, smsConsent: smsConsent === true });
+                respond({ booked: true, slotStart, confirmationSms, emailSent, textSent: confirmationSms === 'sent' });
+              } catch(e) { respond({ error: e instanceof Error ? e.message : 'Booking failed' }); }
             } else if (call.name === 'platform_availability') {
               const requestedSlot = call.args?.requestedSlot;
               if (requestedSlot !== undefined && (typeof requestedSlot !== 'string' || requestedSlot.length > 100 || !/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(requestedSlot) || !Number.isFinite(Date.parse(requestedSlot)))) { respond({error:'Provide a valid requested ISO date and time with its UTC offset.'}); continue; }
@@ -567,8 +604,13 @@ Deno.serve(async (req) => {
             void trySend(followupAlert(mailContact)); void trySend(visitorFollowup({...mailContact,screenshot:(lead as {website_screenshot?:string|null}).website_screenshot,didDemo:!!session.prospect_id}));
           } else {
             if(!confirmedContact || !action.slotStart)throw new Error('Confirm contact details and appointment first.');
-            response=await bookPlatformCall(db,{...confirmedContact,businessName:String(config.businessName),slotStart:action.slotStart});
-            if((response as {ok?:boolean}).ok){const bc={...confirmedContact,businessName:String(config.businessName||''),slotStart:action.slotStart}; const inviteIcs=(response as {bookingId?:string}).bookingId ? buildBookingInviteIcs({name:bc.name,email:bc.email,phone:bc.phone,businessName:bc.businessName,slotStart:action.slotStart,bookingId:(response as {bookingId?:string}).bookingId!,organizerEmail:OWNER_MAILBOX}) : undefined; void trySend(bookingAlert(bc)); void trySend(bookingConfirmation(bc, inviteIcs));}
+            const booked=await bookPlatformCall(db,{...confirmedContact,businessName:String(config.businessName),slotStart:action.slotStart});
+            response=booked;
+            // Same confirmation machinery as every booking path (emails
+            // + .ics invite + consented SMS), via the shared helper.
+            // Fire-and-forget as before: the visitor sees action_result
+            // without waiting on SMTP.
+            if((booked as {ok?:boolean}).ok){ void sendBookingConfirmations(db, booked, {...confirmedContact, businessName:String(config.businessName||''), slotStart:action.slotStart}); }
           }
         } catch(e) {response={error:e instanceof Error?e.message:'Action failed'};}
         clientSocket.send(JSON.stringify({type:'action_result',id:msg.id,...response}));

@@ -9,9 +9,13 @@ import { LANGUAGE_POLICY } from '../_shared/voice-config.ts';
 import { PHONE_OPENING_PRIORITY } from '../_shared/homepage-knowledge.ts';
 import { phoneMaxSeconds, monthlyRate } from '../_shared/telephony-rules.ts';
 import { DEFAULT_LIVE_MODEL, officialLivePricing } from '../_shared/live-models.ts';
-import { PHONE_DEMO_DISCLOSURE_VERSION, PHONE_DEMO_HOST_POLICY, PHONE_DEMO_LINK, buildDictatedKnowledge, sanitizeSpokenCode, spellBackForSpeech } from '../_shared/phone-demo.ts';
+import { PHONE_DEMO_DISCLOSURE_VERSION, PHONE_DEMO_HOST_POLICY, PHONE_DEMO_LINK, BOOKING_PAGE_LINK, buildDictatedKnowledge, sanitizeSpokenCode, spellBackForSpeech } from '../_shared/phone-demo.ts';
 import { buildRecapSmsBody, normalizePhoneE164, recapSmsDecision } from '../_shared/followup.ts';
 import { isSmsOptedOut, priorSmsAttempts, trySendFollowupSms } from '../_shared/twilio-sms.ts';
+import { platformAvailability } from '../_shared/platform-calendar.ts';
+import { generateSlots } from '../_shared/booking-slots.ts';
+import { checkTimeAvailability, parseDayPart, preferredDatesFor, resolveNamedTime, selectOfferSet } from '../_shared/booking-tools.ts';
+import { bookCallWithConfirmations } from '../_shared/booking-confirm.ts';
 
 const json = (d: unknown, status = 200) => new Response(JSON.stringify(d), { status, headers: { 'Content-Type': 'application/json' } });
 const xml = (b: string) => new Response(`<?xml version="1.0" encoding="UTF-8"?><Response>${b}</Response>`, { headers: { 'Content-Type': 'text/xml' } });
@@ -48,7 +52,7 @@ async function demoVerification(payload: Record<string, unknown>): Promise<{ sta
   return { status: r.status, data };
 }
 
-function buildRecapEmailHtml(businessName: string, summary: string, link: string): string {
+function buildRecapEmailHtml(businessName: string, summary: string, link: string, booked: boolean): string {
   const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   return `<!DOCTYPE html>
 <html lang="en">
@@ -65,6 +69,10 @@ function buildRecapEmailHtml(businessName: string, summary: string, link: string
     <a href="${link}" style="display:inline-block;background:#16a34a;color:#ffffff;border-radius:12px;padding:14px 32px;font-size:16px;font-weight:700;text-decoration:none;">See the visual version of your demo</a>
     <p style="margin:12px 0 0;font-size:12px;color:#9ca3af;line-height:1.6;">Aspen on your actual website — the version your visitors would meet.</p>
   </td></tr>
+  ${booked ? '' : `<tr><td align="center" style="padding:4px 30px 8px;">
+    <p style="margin:0 0 10px;font-size:14px;color:#374151;line-height:1.6;">Ready when you are — book your 15 to 20 minute introductory call, no rush:</p>
+    <a href="${BOOKING_PAGE_LINK}" style="display:inline-block;background:#ffffff;color:#16a34a;border:2px solid #16a34a;border-radius:12px;padding:12px 28px;font-size:15px;font-weight:700;text-decoration:none;">Book your intro call</a>
+  </td></tr>`}
   <tr><td style="padding:0 30px 24px;text-align:center;">
     <p style="font-size:12px;color:#9ca3af;margin:0;line-height:1.6;">We saved everything from your call, so nothing needs repeating.</p>
   </td></tr>
@@ -337,6 +345,52 @@ Deno.serve(async (req) => {
       return json({ verified: false, reason: 'no_match' });
     }
 
+    // ---------- Phone booking tools (phase 2; front-door clients only) ----------
+    // Aspen books the implementation call live on the call, following
+    // Ron's slot-offer method (PHONE_DEMO_HOST_POLICY step 8). Contact
+    // details come from the saved phone-demo lead — never re-asked. The
+    // booking phone is the mobile on the lead (step 3) or the caller's
+    // own number; SMS consent is the stored step-3 answer unless the
+    // caller answers the permission ask in-flow (smsConsent arg).
+
+    if (b.action === 'phone-booking-availability') {
+      if (!phoneDemoOn) return json({ error: 'Phone demo not enabled on this line' }, 400);
+      try {
+        const slots = await platformAvailability(db);
+        const preference = { preferredDates: preferredDatesFor(b.day), dayPart: parseDayPart(b.dayPart) };
+        return json({ platform: 'AI Hidden Leads', timeZone: 'America/New_York', slots, offer: selectOfferSet(slots, preference) });
+      } catch (e) { return json({ error: e instanceof Error ? e.message : 'Availability unavailable', slots: [], offer: [] }); }
+    }
+
+    if (b.action === 'phone-booking-check') {
+      if (!phoneDemoOn) return json({ error: 'Phone demo not enabled on this line' }, 400);
+      try {
+        const named = resolveNamedTime({ iso: b.iso, date: b.date, time: b.time });
+        const slots = await platformAvailability(db);
+        return json(checkTimeAvailability({ slots, validSlots: generateSlots(), named, now: new Date() }));
+      } catch (e) { return json({ error: e instanceof Error ? e.message : 'Time check unavailable' }); }
+    }
+
+    if (b.action === 'phone-booking-book') {
+      if (!phoneDemoOn) return json({ error: 'Phone demo not enabled on this line' }, 400);
+      const leadId = typeof b.leadId === 'string' ? b.leadId : '';
+      const slotStart = typeof b.slotStart === 'string' ? b.slotStart : '';
+      if (!leadId) return json({ ok: false, error: 'lead_not_saved' });
+      if (!slotStart || !Number.isFinite(Date.parse(slotStart))) return json({ ok: false, error: 'invalid_slot' });
+      const { data: lead } = await db.from('leads').select('full_name, email, phone, business_name, sms_consent').eq('id', leadId).maybeSingle();
+      if (!lead?.email || !lead?.full_name) return json({ ok: false, error: 'contact_incomplete' });
+      const phone = lead.phone || call.from_phone || '';
+      const smsConsent = typeof b.smsConsent === 'boolean' ? b.smsConsent : lead.sms_consent === true;
+      try {
+        const result = await bookCallWithConfirmations(db, {
+          name: lead.full_name, email: lead.email, phone, businessName: lead.business_name || undefined,
+          slotStart, smsConsent,
+          notes: 'Booked by Aspen during a phone demo call.',
+        });
+        return json({ ok: true, booked: true, slotStart, confirmationSms: result.confirmationSms, emailSent: result.emailSent });
+      } catch (e) { return json({ ok: false, error: e instanceof Error ? e.message : 'Booking failed' }); }
+    }
+
     if (b.action === 'phone-demo-recap') {
       if (!phoneDemoOn) return json({ error: 'Phone demo not enabled on this line' }, 400);
       const leadId = typeof b.leadId === 'string' ? b.leadId : '';
@@ -354,6 +408,11 @@ Deno.serve(async (req) => {
       const lead = leadQuery.data as { email?: string | null; business_name?: string | null; phone?: string | null; sms_consent?: boolean | null } | null;
       const businessName = String(lead?.business_name || 'your business');
       const summary = cleanField(b.summary, 1500) || `You just heard Aspen answer calls as the receptionist for ${businessName}, in a demo built live from the details you gave on the call.`;
+      // Zero-pressure booking fallback (phase 2): when this caller booked
+      // nothing on the call, the recap carries the booking link on both
+      // channels (email always; SMS too) so the booking survives the call.
+      const { data: bookedRows } = await db.from('implementation_calls').select('id').eq('email', lead?.email || '').neq('status', 'cancelled').limit(1);
+      const bookingPending = !bookedRows?.length;
 
       // --- SMS channel (decided on facts; never blocks the email) ---
       let sms: { sent: boolean; reason?: string; messageSid?: string } = { sent: false, reason: 'no_mobile' };
@@ -364,7 +423,7 @@ Deno.serve(async (req) => {
         const decision = recapSmsDecision({ mobile: lead?.phone, smsConsent: lead?.sms_consent === true, optedOut, prior });
         if (!decision.send) sms = { sent: false, reason: decision.reason };
         else {
-          const sent = await trySendFollowupSms(db, { to: decision.to, body: buildRecapSmsBody({ businessName, summary, demoLink: PHONE_DEMO_LINK }), templateId: 'phone_demo_recap', leadId });
+          const sent = await trySendFollowupSms(db, { to: decision.to, body: buildRecapSmsBody({ businessName, summary, demoLink: PHONE_DEMO_LINK, bookingPending }), templateId: 'phone_demo_recap', leadId });
           sms = sent.sent ? { sent: true, messageSid: sent.messageSid } : { sent: false, reason: 'send_failed' };
         }
       } catch (e) {
@@ -382,6 +441,7 @@ Deno.serve(async (req) => {
         summary,
         '',
         `See the visual version — Aspen on your actual website: ${PHONE_DEMO_LINK}`,
+        ...(bookingPending ? ['', `Book your 15 to 20 minute introductory call whenever it suits — no rush: ${BOOKING_PAGE_LINK}`] : []),
         '',
         'We saved everything from your call, so nothing needs repeating.',
         '',
@@ -396,7 +456,7 @@ Deno.serve(async (req) => {
             to: [lead.email],
             subject: `Your AI Hidden Leads phone demo for ${businessName}`,
             text,
-            html: buildRecapEmailHtml(businessName, summary, PHONE_DEMO_LINK),
+            html: buildRecapEmailHtml(businessName, summary, PHONE_DEMO_LINK, !bookingPending),
           }),
         });
         if (!emailRes.ok) { console.error('telephony-stream: recap Resend send failed', emailRes.status); return json({ sent: false, reason: 'send_failed', email: { sent: false, reason: 'send_failed' }, sms }); }

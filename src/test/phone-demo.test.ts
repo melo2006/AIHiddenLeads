@@ -124,4 +124,21 @@ describe('PHONE_DEMO_HOST_POLICY choreography', () => {
   test('disclosure version is the phone-demo one', () => {
     expect(PHONE_DEMO_DISCLOSURE_VERSION).toBe('phone-demo-v1');
   });
+  test('step 8 books the call live with the slot-offer method (phase 2)', () => {
+    expect(PHONE_DEMO_HOST_POLICY).toContain('STEP 8 — BOOK THE IMPLEMENTATION CALL LIVE');
+    expect(PHONE_DEMO_HOST_POLICY).toContain('What works best for you — later today, tomorrow morning, or would the next day be better?');
+    expect(PHONE_DEMO_HOST_POLICY).toContain('NEVER invent a time');
+    expect(PHONE_DEMO_HOST_POLICY).toContain('get_availability');
+    expect(PHONE_DEMO_HOST_POLICY).toContain('check_time');
+    expect(PHONE_DEMO_HOST_POLICY).toContain('book_call');
+    expect(PHONE_DEMO_HOST_POLICY).toContain('shall I book that one?');
+  });
+  test('step 7 recap carries the booking link as the zero-pressure fallback (phase 2)', () => {
+    expect(PHONE_DEMO_HOST_POLICY).toContain('https://aihiddenleads.com/book');
+    expect(PHONE_DEMO_HOST_POLICY).toContain('grab any time that suits');
+  });
+  test('step 8 keeps per-channel honesty: no confirmation-text promise when texting is off', () => {
+    expect(PHONE_DEMO_HOST_POLICY).toContain('do NOT promise a confirmation text');
+    expect(PHONE_DEMO_HOST_POLICY).toContain('the confirmation and the invite come by EMAIL');
+  });
 });

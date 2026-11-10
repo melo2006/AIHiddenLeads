@@ -68,6 +68,17 @@ describe('buildRecapSmsBody', () => {
     expect(body).toContain('your business');
     expect(body).toContain('answer calls as the receptionist');
   });
+  test('bookingPending adds the /book fallback link before the STOP line (phase 2 zero-pressure exit)', () => {
+    const body = buildRecapSmsBody({ businessName: 'Lassiter Electric', summary: 'Aspen took a panel-upgrade request.', demoLink: PHONE_DEMO_LINK, bookingPending: true });
+    const lines = body.split('\n');
+    expect(lines[2]).toBe(`Book your 15–20 min intro call any time: ${BOOK_CALL_URL}`);
+    expect(lines[3]).toBe('Reply STOP to opt out');
+    expect(BOOK_CALL_URL).toBe('https://aihiddenleads.com/book');
+  });
+  test('a caller who already booked gets NO booking link in the recap', () => {
+    const body = buildRecapSmsBody({ businessName: 'Lassiter Electric', summary: 'Aspen took a panel-upgrade request.', demoLink: PHONE_DEMO_LINK, bookingPending: false });
+    expect(body).not.toContain(BOOK_CALL_URL);
+  });
 });
 
 describe('formatSlotForSms', () => {

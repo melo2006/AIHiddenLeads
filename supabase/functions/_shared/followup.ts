@@ -61,8 +61,13 @@ export function recapSmsDecision(facts: RecapSmsFacts): RecapSmsDecision {
   return { send: true, to };
 }
 
-/** Two-line summary on top, then the demo link, then the opt-out line. */
-export function buildRecapSmsBody(input: { businessName: string; summary: string; demoLink: string }): string {
+/**
+ * Recap SMS body: summary on top, then the demo link, then — when the
+ * caller booked nothing on the call (bookingPending) — the booking link
+ * as the zero-pressure fallback from Ron's slot-offer method ("grab any
+ * time that suits you, no rush"), then the opt-out line.
+ */
+export function buildRecapSmsBody(input: { businessName: string; summary: string; demoLink: string; bookingPending?: boolean }): string {
   const clean = (v: unknown, n: number) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
   const businessName = clean(input.businessName, 80) || 'your business';
   const summary = clean(input.summary, 220)
@@ -70,6 +75,7 @@ export function buildRecapSmsBody(input: { businessName: string; summary: string
   return [
     `Your AI Hidden Leads phone demo for ${businessName}: ${summary}`,
     `See Aspen on your website: ${input.demoLink}`,
+    ...(input.bookingPending ? [`Book your 15–20 min intro call any time: ${BOOK_CALL_URL}`] : []),
     SMS_OPT_OUT_LINE,
   ].join('\n');
 }
