@@ -1,0 +1,27 @@
+# aspen-voice-proxy.service — systemd unit for the website voice proxy
+# (Gemini Live relay) on the Hostinger VPS. Design: proxy-vps-move-design-2026-11-10.md §2.1.
+#
+# Install (Phase C):
+#   cp aspen-voice-proxy.service /etc/systemd/system/
+#   systemctl daemon-reload
+#   systemctl enable aspen-voice-proxy
+# Runs alongside the phone bridge's `aspen` unit, which is never touched by
+# this move. Same accepted caveat as the bridge: a restart drops in-flight
+# calls — deploy in quiet windows (client drop-recovery makes it a blip).
+[Unit]
+Description=Aspen website voice proxy (Gemini Live relay)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=aspen
+Group=aspen
+WorkingDirectory=/opt/aspen-voice
+EnvironmentFile=/etc/aspen-voice.env
+ExecStart=/usr/local/bin/deno run --allow-net --allow-env server.ts
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
