@@ -29,7 +29,7 @@ import { classifyMicrophoneFailure, isEmbeddedContext } from "@/lib/embeddedCont
 import {campaignVisit, trackCampaignEvent} from '@/lib/campaignTracking';
 import { salesPlans, type SalesPlan } from '@/lib/salesActions';
 import SimliAvatar, { SOUND_BLOCKED, isVideoStartFailure, type SimliAvatarHandle } from '@/components/SimliAvatar';
-import { BOUNDARY_TARGET, boundedSettle, boundaryForAssistantLine, buildSwapRecap, chainIsMidSegment, chainStashTarget, cutoverAudioSync, cutoverReady, dequeueSwapExecution, dropApologyVariant, enqueueSwapExecution, faceLivenessOnLive, faceLivenessOnNotLive, faceLivenessOnStartSettled, gateWaitContinues, INITIAL_SWAP_STATE, introYieldOnVisitorLine, micAudioPasses, noteAlexIntent, noteDoorwayEngagement, noteSegmentFailure, otherFaceSlot, pendingExecutionBoundary, pendingRetryBoundary, PHASE_AFTER_BOUNDARY, PHASE_ENTRY, PRESTAGE_START_TIMEOUT_MS, reconnectTarget, recordSwapDiag, segmentAttemptsFor, segmentConnectRetryAllowed, segmentTokenStale, SEGMENT_TOKEN_TTL_MS, swapFallbackLine, swapWatchdogAction, SWAP_CROSSFADE_MS, SWAP_GATE_POLL_MS, SWAP_GATE_WAIT_MS, swapRecapFacts, visitorSignalsStepOut, type ChainStash, type FaceSlot, type PersonaBoundary, type PersonaId, type StagedFaceLiveness, type SwapPhase, type SwapState } from '@/lib/personaSwap';
+import { BOUNDARY_TARGET, boundedSettle, boundaryForAssistantLine, buildSwapRecap, chainIsMidSegment, chainStashTarget, cutoverAudioSync, cutoverMode, cutoverReady, dequeueSwapExecution, dropApologyVariant, enqueueSwapExecution, faceLivenessOnLive, faceLivenessOnNotLive, faceLivenessOnStartSettled, gateWaitContinues, INITIAL_SWAP_STATE, introYieldOnVisitorLine, micAudioPasses, noteAlexIntent, noteDoorwayEngagement, noteSegmentFailure, otherFaceSlot, pendingExecutionBoundary, pendingRetryBoundary, PHASE_AFTER_BOUNDARY, PHASE_ENTRY, PRESTAGE_START_TIMEOUT_MS, prestageWatchDecision, reconnectTarget, recordSwapDiag, retryArmStamp, segmentAttemptsFor, segmentConnectRetryAllowed, segmentTokenStale, SEGMENT_TOKEN_TTL_MS, swapDiagPersistPayload, swapFallbackLine, swapWatchdogAction, SWAP_CROSSFADE_MS, SWAP_GATE_POLL_MS, SWAP_GATE_WAIT_MS, swapRecapFacts, SWAP_DIAG_PERSIST_EVENTS, visitorSignalsStepOut, type ChainStash, type FaceSlot, type PersonaBoundary, type PersonaId, type StagedFaceLiveness, type SwapDiagEntry, type SwapPhase, type SwapState } from '@/lib/personaSwap';
 import { PERSONAS, SARA_FACE_ID } from '../../supabase/functions/_shared/personas';
 import { ALEX_FACE_ID } from '../../supabase/functions/_shared/alex-guide';
 import type { VideoAvatar } from '../../supabase/functions/_shared/video-avatar';
@@ -269,6 +269,25 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const swapArmAtRef = useRef<Partial<Record<PersonaBoundary, number>>>({});
   const swapExecQueueRef = useRef<PersonaBoundary[]>([]);
   const swapExecForceRef = useRef<Partial<Record<PersonaBoundary, boolean>>>({});
+  /** VOICE-FIRST BATCH (2026-11-10): the doorway's new bookkeeping.
+   *  segmentFacePendingRef — a segment is RUNNING voice-first (its
+   *  socket connected without waiting for the face) and its face may
+   *  still attach: the takeover watcher (handleFaceLiveChange) runs
+   *  the deferred audio sync + reveal when the face reports live.
+   *  While set, playPcmChunk routes chunks LOCAL and the degrade path
+   *  must NOT engage the session-wide video fallback (which stops
+   *  avatarRef — by then the incoming, still-warming handle).
+   *  stageGeneration — bumped every time a stage entry is (re)built
+   *  for a mounted face; the pre-stage watch effect keys on it, so a
+   *  retry actually re-enters the watch and re-kicks start() instead
+   *  of folding the previous attempt's never-settled record (the
+   *  attempt-2 swallow). attemptSessionRef — the gemini_voice_sessions
+   *  row id of each boundary's current attempt, so a resolution can be
+   *  persisted onto the ATTEMPT'S OWN row (server-visible diag). */
+  const segmentFacePendingRef = useRef<{ boundary: PersonaBoundary; persona: PersonaId; slot: FaceSlot } | null>(null);
+  const faceTakeoverBusyRef = useRef(false);
+  const [stageGeneration, setStageGeneration] = useState(0);
+  const attemptSessionRef = useRef<Partial<Record<PersonaBoundary, { sessionId: string; attempt: number }>>>({});
   const knownNameRef = useRef('');
   const sessionStartedAtRef = useRef(0);
   const warmRef = useRef<{ ready: Promise<boolean>; ok: boolean; activated: boolean; goLive?: () => void } | null>(null);
@@ -616,10 +635,40 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     swapHoldRef.current = null;
     setSwapConnecting(null);
   }, []);
+  /** SERVER-VISIBLE DIAG (voice-first batch, 2026-11-10): post an
+   *  attempt resolution to gemini-session's swapDiag action, which
+   *  appends it to the attempt's OWN gemini_voice_sessions row
+   *  (config.personaSwapDiag) and stamps last_error on failure-class
+   *  resolutions of never-consumed rows. Retest #4's outcomes existed
+   *  only in this page's ring buffer; after this batch a single SQL
+   *  SELECT shows every attempt's resolution. Fire-and-forget —
+   *  diagnostics never break the call — and a boundary whose
+   *  authorization never landed has no row to write to, so the write
+   *  is skipped (that failure rides the successor's recap fact, as
+   *  before). */
+  const persistSwapDiag = useCallback((entry: { event: SwapDiagEntry['event']; boundary: PersonaBoundary; persona?: PersonaId; attempt?: number; reason?: string; faceState?: string }) => {
+    if (!SWAP_DIAG_PERSIST_EVENTS.includes(entry.event)) return;
+    const attemptRow = attemptSessionRef.current[entry.boundary];
+    const visitorKey = visitorKeyRef.current;
+    if (!attemptRow?.sessionId || !visitorKey) return;
+    const payload = swapDiagPersistPayload(
+      { at: Date.now(), event: entry.event, boundary: entry.boundary, persona: entry.persona, attempt: entry.attempt ?? attemptRow.attempt, detail: entry.reason },
+      attemptRow.sessionId,
+      { faceState: entry.faceState },
+    );
+    void (async () => {
+      try {
+        const headers = await voiceSessionHeaders();
+        await supabase.functions.invoke('gemini-session', { headers, body: { visitorKey, swapDiag: payload } });
+      } catch { /* diagnostics never break the call */ }
+    })();
+  }, []);
+  const persistSwapDiagRef = useRef(persistSwapDiag); persistSwapDiagRef.current = persistSwapDiag;
   const handleSegmentFailure = useCallback((boundary: PersonaBoundary, reason: string) => {
     const { state, outcome, attempt } = noteSegmentFailure(swapStateRef.current, boundary, reason);
     swapStateRef.current = state;
     recordSwapDiag({ event: outcome === 'retry' ? 'retry-scheduled' : 'fallback', boundary, persona: BOUNDARY_TARGET[boundary], attempt, detail: reason });
+    persistSwapDiag({ event: outcome === 'retry' ? 'retry-scheduled' : 'fallback', boundary, persona: BOUNDARY_TARGET[boundary], attempt, reason });
     if (outcome === 'fallback') {
       // Handover fix item 4: the spent swap is VISIBLE, never silent —
       // the mic hold releases (the host resumes) and the shell shows
@@ -652,12 +701,19 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       if (warmedFaceRef.current?.boundary === boundary) warmedFaceRef.current = null;
     }
     rearmSwapRef.current(boundary);
-  }, [releaseSwapHold]);
+  }, [releaseSwapHold, persistSwapDiag]);
   const handleSegmentFailureRef = useRef(handleSegmentFailure); handleSegmentFailureRef.current = handleSegmentFailure;
 
   // Cut-over machinery is defined after startConversation (it reuses the
   // socket builder); these refs let the message handlers reach it.
   const executeSwapRef = useRef<(boundary: PersonaBoundary, opts?: { immediate?: boolean }) => Promise<void>>(async () => {});
+  /** VOICE-FIRST TAKEOVER: attach a pending segment face mid-segment
+   *  (deferred audio sync + reveal + routing flip). Assigned in the
+   *  render body next to executeSwap; triggered from
+   *  handleFaceLiveChange (the face's live report) and from
+   *  executeSwap's post-connect re-sample. */
+  const runFaceTakeoverRef = useRef<(slot: FaceSlot) => Promise<void>>(async () => {});
+  const kickFaceRevivalRef = useRef<(slot: FaceSlot) => void>(() => {});
   const dropRecoverRef = useRef<() => void>(() => {});
   /** Segment-socket builder, defined with the swap machinery below; the
    * manual-stop resume path (defined earlier, inside startConversation's
@@ -693,6 +749,9 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         if (!segment || !liveRef.current || swapStateRef.current.done.includes(boundary)) return;
         if (preStageRef.current?.boundary === boundary) {
           preStageRef.current = { ...preStageRef.current, token: segment.token, authorizedAt: Date.now() };
+          // The refreshed token is a NEW session row: it becomes the
+          // attempt row server-visible diag writes to.
+          attemptSessionRef.current = { ...attemptSessionRef.current, [boundary]: { sessionId: segment.sessionId, attempt: segmentAttemptsFor(swapStateRef.current, boundary) + 1 } };
           recordSwapDiag({ event: 'token-refresh', boundary, persona });
         }
       })();
@@ -709,7 +768,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     // deadline measure from it) and engage the mic hold — from here
     // until cut-over or fallback the host's mic sends silence frames,
     // so she cannot generate the next scripted beat into the stall.
-    swapArmAtRef.current = { ...swapArmAtRef.current, [boundary]: Date.now() };
+    // Voice-first batch: a RETRY arm is back-dated (retryArmStamp) so
+    // its force deadline lands SWAP_RETRY_DEADLINE_MS out, not a full
+    // fresh 10 s — the parent is already ~100 s old by then and the
+    // hosting fuse is ~140–150 s (investigation Q5-7).
+    swapArmAtRef.current = { ...swapArmAtRef.current, [boundary]: opts?.retry ? retryArmStamp(Date.now()) : Date.now() };
     startSwapHold(boundary);
     void (async () => {
       const segment = await requestSegment(persona, boundary, { swap: true });
@@ -733,6 +796,14 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       }
       const slot = otherFaceSlot(faceSlotOwnerRef.current);
       const warmed = warmedFaceRef.current;
+      // Voice-first batch: this authorization IS the attempt's server
+      // row — remember it for server-visible diag — and bump the
+      // stage generation so the pre-stage watch effect RE-ENTERS for
+      // this stage even when the mounted face's slot state is
+      // unchanged (the attempt-2 swallow: identical [boundary, slot,
+      // persona] deps meant start() was never re-kicked).
+      attemptSessionRef.current = { ...attemptSessionRef.current, [boundary]: { sessionId: segment.sessionId, attempt: segmentAttemptsFor(swapStateRef.current, boundary) + 1 } };
+      setStageGeneration(g => g + 1);
       preStageRef.current = {
         boundary, token: segment.token, persona, slot, authorizedAt: Date.now(),
         // F3: the doorway face pre-warmed at chain start can ALREADY
@@ -772,22 +843,32 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   rearmSwapRef.current = (boundary: PersonaBoundary) => armSwap(boundary, { retry: true });
 
   /** F3 PRE-STAGE (fluidity batch, 2026-11-10): mount Sara's face
-   *  CONCEALED in the free slot the moment a simulation chain goes
-   *  live (host phase) and let the pre-stage effect start it silently,
-   *  so the doorway gate usually finds her warm instead of sampling a
-   *  cold face at the handoff instant and aborting. Face-only: NO
-   *  segment is authorized here (see warmedFaceRef). Respects the
-   *  2-concurrent-session reality: Aspen's live face + this ONE
-   *  pre-stage, and only while no stage occupies the free slot. The
-   *  intro chain never pre-stages (its first boundary is a cameo, not
-   *  the doorway) — class is tested as NOT 'intro' because the phase
-   *  check already confines this to simulation host phases. */
+   *  CONCEALED in the free slot and let the pre-stage effect start it
+   *  silently, so the doorway gate usually finds her warm instead of
+   *  sampling a cold face at the handoff instant and aborting.
+   *  Face-only: NO segment is authorized here (see warmedFaceRef).
+   *  Respects the 2-concurrent-session reality: Aspen's live face +
+   *  this ONE pre-stage, and only while no stage occupies the free
+   *  slot. The intro chain never pre-stages (its first boundary is a
+   *  cameo, not the doorway) — class is tested as NOT 'intro' because
+   *  the phase check already confines this to simulation host phases.
+   *  VOICE-FIRST BATCH (2026-11-10 — investigation Q4): the trigger
+   *  MOVED from parent go-live to the doorway-ENGAGEMENT point (the
+   *  visitor's first post-greeting line, where noteDoorwayEngagement
+   *  folds). At go-live the face waited ~87–109 s concealed before
+   *  the gate — its readiness record stale or orphaned by then, and
+   *  a zero-audio concealed Simli session is exactly what provider
+   *  idle reapers target. From engagement, her age at gate time is
+   *  ~10–30 s; if the visitor never engages, armSwap mounts the face
+   *  at arm time as before. Under voice-first the pre-stage only
+   *  accelerates the face attach — it never gates the voice. */
   const prestageDoorwayFace = useCallback(() => {
     if (!avatarRequestedRef.current || warmedFaceRef.current || preStageRef.current) return;
     if (!swapEnabledRef.current || swapStateRef.current.phase !== 'host') return;
     if (swapChainClassRef.current === 'intro' || swapStateRef.current.done.includes('doorway')) return;
     const slot = otherFaceSlot(faceSlotOwnerRef.current);
     warmedFaceRef.current = { boundary: 'doorway', slot, ready: false, failed: false };
+    setStageGeneration(g => g + 1);
     recordSwapDiag({ event: 'prestage', boundary: 'doorway', persona: 'sara' });
     if (slot === 'second') setSecondFace({ persona: 'sara', boundary: 'doorway', revealed: false });
     else setMainFace({ persona: 'sara', boundary: 'doorway', revealed: false });
@@ -838,6 +919,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     swapArmAtRef.current = {};
     swapExecQueueRef.current = [];
     swapExecForceRef.current = {};
+    // Voice-first batch: the pending face attach and the attempt-row
+    // map die with the chain too — a stale pending must never let a
+    // later session's face attach into a dead segment.
+    segmentFacePendingRef.current = null;
+    faceTakeoverBusyRef.current = false;
+    attemptSessionRef.current = {};
     walkthroughRef.current = {text:'', continued:false};
     idleRef.current = { enabled: false, stage: 'waiting', quietSince: 0, generating: false, requestedAt: 0 };
     setPendingAction(null);
@@ -1004,6 +1091,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     avatarRef.current?.stop();
     avatarRequestedRef.current = false;
     avatarLiveRef.current = false;
+    // Voice-first batch: the session-wide fallback is TERMINAL for
+    // any pending face attach — the segment-level pending variant
+    // (playPcmChunk) deliberately does NOT come through here.
+    segmentFacePendingRef.current = null;
     setFaceLive(false);
     setFaceWaiting(false);
     setVideoFallback(true);
@@ -1029,7 +1120,16 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     buffer.getChannelData(0).set(floats);
     const source = ctx.createBufferSource();
     source.buffer = buffer;
-    const output = assistantOutput(avatarRequestedRef.current, avatarLiveRef.current, captureRef.current.replaying);
+    // VOICE-FIRST ROUTING (voice-first batch, 2026-11-10): while a
+    // segment runs voice-first (segmentFacePendingRef set — its
+    // socket connected before its face was ready), EVERY chunk routes
+    // LOCAL: the visitor hears the segment through the speaker while
+    // the face warms, and caption windows stay on the local clock.
+    // The takeover flips avatarLiveRef only AFTER the deferred audio
+    // sync resolves, so the first paired chunk is always post-sync —
+    // the flip is safe chunk-by-chunk.
+    const facePending = segmentFacePendingRef.current != null;
+    const output = facePending ? 'local' as const : assistantOutput(avatarRequestedRef.current, avatarLiveRef.current, captureRef.current.replaying);
     let pairedVideo = output !== 'local';
     if (pairedVideo) {
       const wasLive = avatarLiveRef.current;
@@ -1056,7 +1156,18 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         // assistantOutput, so this branch never runs for replay, and
         // preview sessions never request the face (also 'local').
         recordSwapDiag({ event: 'audio-degraded', persona: swapStateRef.current.persona, detail: `output=${output} avatarLive=${wasLive} send=${sendSucceeded} slot=${faceSlotOwnerRef.current}` });
-        engageVideoFallback();
+        // VOICE-FIRST DEGRADE VARIANT (voice-first batch): while a
+        // face attach is PENDING, the degrade must NOT run
+        // engageVideoFallback — it stops avatarRef, which by then
+        // points at the INCOMING still-warming face, and clears
+        // avatarRequested session-wide, permanently preventing the
+        // mid-segment takeover. Degrade THIS chunk (and, via the
+        // routing above, every chunk until the takeover) to local
+        // playback and leave the face warming. Once the takeover has
+        // landed (pending cleared), a later face death degrades via
+        // the session-wide fallback exactly as publish #16 built it —
+        // degrade stays one-way per segment.
+        if (!segmentFacePendingRef.current) engageVideoFallback();
         pairedVideo = false;
       } else {
         // Use a silent local clock for captions/lifecycle, never a second audible voice.
@@ -1550,12 +1661,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         if(!preview)void trackCampaignEvent('voice_started');
         setPhase(preview ? "preview" : "live");
         setStatus(preview ? "Preparing greeting audio…" : captureMode === "hold" ? "Live — hold to talk" : "Live — hands-free");
-        // F3 PRE-STAGE: on a simulation chain, Sara's face starts
-        // warming NOW (concealed, silent) so the doorway gate finds
-        // her ready; self-gated to host-phase simulation chains. For
-        // a warm (prewarmed) session this runs at tap activation —
-        // goLive is only invoked then — never during the silent hold.
-        if (!preview) prestageDoorwayFace();
+        // F3 PRE-STAGE — MOVED (voice-first batch, 2026-11-10):
+        // warming Sara's face at go-live left it ~87–109 s old at
+        // the doorway gate (Aspen's opening runs that long), its
+        // readiness record stale/orphaned by then. The pre-stage now
+        // triggers at the doorway-ENGAGEMENT point (the visitor's
+        // first post-greeting line) in the transcript handlers below;
+        // see prestageDoorwayFace.
         const micCtx = micCtxRef.current, stream = micStreamRef.current;
         if (!micCtx || !stream) return;
         void micCtx.resume();
@@ -1705,6 +1817,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             // 'intro' and a homepage session has no chain at all.
             if (swapEnabledRef.current && liveRef.current && swapChainClassRef.current === 'simulation') {
               swapStateRef.current = noteDoorwayEngagement(swapStateRef.current, assistantTurnsRef.current > 0);
+              // DELAYED F3 PRE-STAGE (voice-first batch): the SAME
+              // engagement point starts Sara's face warming — tens of
+              // seconds before the doorway can arm, not ~90 s early
+              // at go-live. Self-gated (host phase, no stage/warmed
+              // face yet), so repeat visitor lines are no-ops.
+              prestageDoorwayFace();
             }
             // Team intro bridge yield: a visitor line DURING a bridge
             // beat flags the abandonment; the turn_complete handler
@@ -2034,6 +2152,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           // Structural doorway — same rule as the main socket.
           if (swapEnabledRef.current && liveRef.current && swapChainClassRef.current === 'simulation') {
             swapStateRef.current = noteDoorwayEngagement(swapStateRef.current, assistantTurnsRef.current > 0);
+            // Delayed F3 pre-stage — same engagement trigger as the
+            // main socket (self-gated; a segment socket is past the
+            // host phase, so this is a no-op there by construction).
+            prestageDoorwayFace();
           }
           // Team intro bridge yield — same rule as the main socket.
           if (swapEnabledRef.current && liveRef.current && introYieldOnVisitorLine(swapStateRef.current)) {
@@ -2144,6 +2266,75 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     };
   }, [agentId, captureMode, clearPlayback, flushLine, onRecommendedPlan, playPcmChunk, stopEverything, recoverFromProviderClosed]);
   connectSegmentSocketRef.current = connectSegmentSocket;
+
+  /** VOICE-FIRST FACE TAKEOVER (voice-first batch, 2026-11-10 —
+   *  investigation Q3-D3): a segment running voice-first has its face
+   *  attach the moment the face reports live. The takeover runs the
+   *  DEFERRED cut-over audio sync (mute-sync → speaker routing →
+   *  activate, the same order as the face-first path) and only AFTER
+   *  it resolves flips avatarLiveRef — so the first paired PCM chunk
+   *  is always post-sync, and chunks arriving during the sync still
+   *  route local (the pending record is cleared only on success).
+   *  The reveal lands mid-segment over the portrait (a short
+   *  crossfade — strictly better than the old all-or-nothing gate).
+   *  A sync that reports the face dead after all leaves the pending
+   *  in place: the segment keeps running voice-over-portrait and a
+   *  later live report may retry the attach. Guards: the pending
+   *  must name THIS slot, the slot must own the face, and the active
+   *  persona must still be the pending persona (a later boundary's
+   *  cut-over invalidates a stale takeover). */
+  /* REVIVAL KICK (voice-first batch): when a voice-first cut-over
+   * pends the attach on an instance that is neither live nor
+   * starting, kick ONE bounded revival start on the SAME instance
+   * (never a second Simli session — the 2-session cap holds). It
+   * lives OUTSIDE executeSwap on purpose: the cut-over body carries
+   * a pinned invariant — no start() re-call inside it (the
+   * 2026-11-09 defect-1 trap restarted a live face mid-sync) — and
+   * this kick is a revival of a dead/idle instance, gated on exactly
+   * that liveness read, so it can never restart a live stream. */
+  kickFaceRevivalRef.current = (slot: FaceSlot) => {
+    const handle = slot === 'second' ? stagedAvatarRef.current : mainSlotRef.current;
+    if (!handle?.start || !handle.liveness) return;
+    const snap = handle.liveness();
+    if (snap.live || snap.starting) return;
+    void handle.start({ silent: true, maxAttempts: 1 }).catch(() => false);
+  };
+  runFaceTakeoverRef.current = async (slot: FaceSlot) => {
+    const pending = segmentFacePendingRef.current;
+    if (!pending || pending.slot !== slot || faceTakeoverBusyRef.current) return;
+    if (faceSlotOwnerRef.current !== slot) return;
+    if (swapStateRef.current.persona !== pending.persona) return;
+    const handle = slot === 'second' ? stagedAvatarRef.current : mainSlotRef.current;
+    if (!handle) return;
+    faceTakeoverBusyRef.current = true;
+    try {
+      const sync = cutoverAudioSync({ speakerMuted: speakerMutedRef.current, paused: captureRef.current.paused, replaying: captureRef.current.replaying, selectedDeviceId: selectedOutputIdRef.current });
+      let faceLive = true;
+      if (handle.cutoverAudioSync) {
+        try { faceLive = (await handle.cutoverAudioSync(sync)) !== false; }
+        catch (e) { if (e instanceof Error && e.message === SOUND_BLOCKED) setAudioNeedsTap(true); }
+      } else {
+        handle.setPlaybackMuted(sync.muted);
+        if (sync.deviceId) void handle.setOutputDevice?.(sync.deviceId);
+        try { faceLive = (await handle.activate()) !== false; }
+        catch (e) { if (e instanceof Error && e.message === SOUND_BLOCKED) setAudioNeedsTap(true); }
+      }
+      if (!faceLive) return;
+      // Re-validate after the await: the segment may have ended or
+      // handed over while the sync ran.
+      if (segmentFacePendingRef.current !== pending) return;
+      if (swapStateRef.current.persona !== pending.persona) return;
+      segmentFacePendingRef.current = null;
+      avatarLiveRef.current = true;
+      if (slot === 'second') setSecondFace(face => (face && face.boundary === pending.boundary ? { ...face, revealed: true } : face));
+      else setMainFace(face => (face && face.boundary === pending.boundary ? { ...face, revealed: true } : face));
+      setFaceLive(true);
+      recordSwapDiag({ event: 'face-takeover', boundary: pending.boundary, persona: pending.persona });
+      persistSwapDiagRef.current({ event: 'face-takeover', boundary: pending.boundary, persona: pending.persona, faceState: 'live' });
+    } finally {
+      faceTakeoverBusyRef.current = false;
+    }
+  };
 
   /** ATOMIC CUT-OVER (spec §5.4/§6.2 corrected order): the gate decides
    * BEFORE anything visible changes; then the old face freezes (its last
@@ -2261,40 +2452,26 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       swapBusyRef.current = false;
       return;
     }
-    if (!cutoverReady({ authorized: true, videoRequested: avatarRequestedRef.current, faceReady: staged.faceReady })) {
-      // Abort: the face never became ready inside the gate-wait (or
-      // settled failed) — current persona continues words-only;
-      // nothing about the live call was touched. A staged face in the
-      // MAIN slot is stopped explicitly (it shares its element with
-      // the standard face, so no unmount will stop it); a staged
-      // SECOND-slot face stops via its unmount cleanup.
-      // Reliability (2026-11-09): this abort used to discard the swap
-      // for the whole session (armed stayed spent, the anchor never
-      // re-fired). It now retries ONCE with a fresh authorization —
-      // the face gets a full new cover window to pre-connect in.
-      // F3 (fluidity batch): a stage sitting on the pre-warmed
-      // second-slot face keeps that face mounted across the abort
-      // when a retry will use it — discarding a still-warming (or
-      // already warm) face here is what made retries start cold.
-      const keepWarmedFace = staged.slot === 'second' && !staged.faceFailed
-        && warmedFaceRef.current?.boundary === boundary && warmedFaceRef.current.slot === 'second';
-      if (!keepWarmedFace) {
-        if (avatarRequestedRef.current && staged.slot === 'main') mainSlotRef.current?.stop();
-        if (avatarRequestedRef.current) clearFaceSlot(staged.slot);
-        if (warmedFaceRef.current?.boundary === boundary) warmedFaceRef.current = null;
-      }
-      preStageRef.current = null;
-      recordSwapDiag({ event: 'gate-abort', boundary, persona: staged.persona, attempt: segmentAttemptsFor(swapStateRef.current, boundary) + 1, detail: 'face-not-ready' });
-      handleSegmentFailureRef.current(boundary, 'face-not-ready');
-      if (keepWarmedFace && pendingRetryBoundary(swapStateRef.current) !== boundary) {
-        // Words-only fallback: nothing may linger concealed in the slot.
-        clearFaceSlot(staged.slot);
-        if (warmedFaceRef.current?.boundary === boundary) warmedFaceRef.current = null;
-      }
-      finalizeTurn();
-      swapBusyRef.current = false;
-      return;
-    }
+    // VOICE-FIRST MODE SELECTION (voice-first batch, 2026-11-10 —
+    // investigation Q3/Q5-1): the gate no longer ABORTS on a
+    // not-ready face. With a fresh token in hand the cut-over ALWAYS
+    // proceeds; face readiness only selects the MODE — face-first
+    // (the classic crossfade + paired audio from the first chunk) or
+    // voice-first (the segment socket connects NOW over the portrait
+    // and the face attaches mid-segment via the takeover watcher).
+    // The mode also samples the handle's LIVE state directly: a face
+    // that came live after its readiness record was orphaned (the
+    // retest #4 shape — the start() settle was lost and the live
+    // report folded everLive only) is face-first after all. The old
+    // 'face-not-ready' gate-abort and its retry-ledger round trip
+    // are gone; the failure funnels that remain are stage-missing
+    // and token-stale above (a stale token cannot connect at all).
+    const incomingHandleEarly = avatarRequestedRef.current
+      ? (staged.slot === 'second' ? stagedAvatarRef.current : mainSlotRef.current)
+      : null;
+    const earlySnap = incomingHandleEarly?.liveness?.();
+    const faceReadyNow = staged.faceReady || !!(earlySnap?.live && earlySnap.displayedFrame);
+    let mode = cutoverMode({ videoRequested: avatarRequestedRef.current, faceReady: faceReadyNow });
     swapBusyRef.current = true;
     setSwapTransition(true);
     const incoming = staged.persona;
@@ -2313,58 +2490,75 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         incomingHandle?.setFrameKeeper?.(false);
         avatarRef.current = incomingHandle;
         faceSlotOwnerRef.current = staged.slot;
-        // 1b) AUDIO SYNC — the defect that left Sara silent: the incoming
-        // instance was pre-staged SILENT (element muted, volume 0) and
-        // nothing on the swap path ever unmuted it; PCM reached her
-        // Simli client (her lips moved) while her paired stream stayed
-        // muted forever. Sync the session's mute state into the incoming
-        // instance FIRST, re-apply the selected speaker output (its
-        // desired sink starts unset), then activate() — the designed
-        // unmute. NOT start(): it early-returns on a live instance and
-        // never reaches the unmute block. A SOUND_BLOCKED refusal does
-        // not fail the swap — it surfaces the same tap-to-enable-sound
+        // 1b) AUDIO SYNC (face-first mode only) — the defect that left
+        // Sara silent: the incoming instance was pre-staged SILENT
+        // (element muted, volume 0) and nothing on the swap path ever
+        // unmuted it; PCM reached her Simli client (her lips moved)
+        // while her paired stream stayed muted forever. Sync the
+        // session's mute state into the incoming instance FIRST,
+        // re-apply the selected speaker output (its desired sink
+        // starts unset), then activate() — the designed unmute. NOT
+        // start(): it early-returns on a live instance and never
+        // reaches the unmute block. A SOUND_BLOCKED refusal does not
+        // fail the swap — it surfaces the same tap-to-enable-sound
         // affordance the initial-face path uses.
-        const sync = cutoverAudioSync({ speakerMuted: speakerMutedRef.current, paused: captureRef.current.paused, replaying: captureRef.current.replaying, selectedDeviceId: selectedOutputIdRef.current });
-        // Paired-audio guard (2026-11-10): the sync now REPORTS
-        // liveness (false = dead client / no audio stream). Only an
-        // explicit false aborts — handles that predate the signal
-        // resolve undefined and keep the legacy proceed behavior, and
-        // a SOUND_BLOCKED refusal still does not fail the swap.
-        let incomingFaceLive = true;
-        if (incomingHandle?.cutoverAudioSync) {
-          try { incomingFaceLive = (await incomingHandle.cutoverAudioSync(sync)) !== false; }
-          catch (e) { if (e instanceof Error && e.message === SOUND_BLOCKED) setAudioNeedsTap(true); }
-        } else if (incomingHandle) {
-          incomingHandle.setPlaybackMuted(sync.muted);
-          if (sync.deviceId) void incomingHandle.setOutputDevice?.(sync.deviceId);
-          try { incomingFaceLive = (await incomingHandle.activate()) !== false; }
-          catch (e) { if (e instanceof Error && e.message === SOUND_BLOCKED) setAudioNeedsTap(true); }
+        // In voice-first mode the sync is DEFERRED to the takeover
+        // (runFaceTakeover) — it runs there, in this same order,
+        // before the first paired chunk is routed.
+        let voiceFirstReason = staged.faceFailed ? 'face-failed' : 'face-not-ready';
+        if (mode === 'face-first') {
+          const sync = cutoverAudioSync({ speakerMuted: speakerMutedRef.current, paused: captureRef.current.paused, replaying: captureRef.current.replaying, selectedDeviceId: selectedOutputIdRef.current });
+          // Paired-audio guard (2026-11-10): the sync REPORTS liveness
+          // (false = dead client / no audio stream). Handles that
+          // predate the signal resolve undefined and keep the legacy
+          // proceed behavior, and a SOUND_BLOCKED refusal still does
+          // not fail the swap.
+          let incomingFaceLive = true;
+          if (incomingHandle?.cutoverAudioSync) {
+            try { incomingFaceLive = (await incomingHandle.cutoverAudioSync(sync)) !== false; }
+            catch (e) { if (e instanceof Error && e.message === SOUND_BLOCKED) setAudioNeedsTap(true); }
+          } else if (incomingHandle) {
+            incomingHandle.setPlaybackMuted(sync.muted);
+            if (sync.deviceId) void incomingHandle.setOutputDevice?.(sync.deviceId);
+            try { incomingFaceLive = (await incomingHandle.activate()) !== false; }
+            catch (e) { if (e instanceof Error && e.message === SOUND_BLOCKED) setAudioNeedsTap(true); }
+          } else {
+            incomingFaceLive = false;
+          }
+          if (!incomingFaceLive) {
+            // DEMOTED (voice-first batch, 2026-11-10): a face whose
+            // readiness latched but whose sync finds it dead used to
+            // ABORT the whole swap here ('cutover-face-dead', back
+            // through the retry ledger while the outgoing socket was
+            // still open). A dead face is not a dead doorway: the
+            // cut-over proceeds VOICE-FIRST instead — the attach is
+            // pended below, ONE revival start is kicked on the same
+            // instance, and the takeover watcher completes the
+            // attach if the face comes back; if it never does, the
+            // segment runs voice-over-portrait (publish #16's worst
+            // case) instead of the visitor losing Sara entirely.
+            mode = 'voice-first';
+            voiceFirstReason = 'cutover-face-dead';
+          }
+        }
+        if (mode === 'face-first') {
+          if (staged.slot === 'second') setSecondFace(face => (face && face.boundary === boundary ? { ...face, revealed: true } : face));
+          else setMainFace(face => (face && face.boundary === boundary ? { ...face, revealed: true } : face));
         } else {
-          incomingFaceLive = false;
+          // VOICE-FIRST CUT-OVER: pend the face attach BEFORE the
+          // segment socket connects, so its first chunk already
+          // routes local (playPcmChunk) and the portrait (faceLive
+          // stays false below) covers the portrait area until the
+          // takeover reveals the moving face. The pending record is
+          // what the degrade path checks before it may touch the
+          // session-wide video fallback. If the instance is neither
+          // live nor starting, kick ONE bounded revival start on the
+          // SAME instance (never a second Simli session).
+          segmentFacePendingRef.current = { boundary, persona: incoming, slot: staged.slot };
+          recordSwapDiag({ event: 'voice-first-cutover', boundary, persona: incoming, attempt: segmentAttemptsFor(swapStateRef.current, boundary) + 1, detail: voiceFirstReason });
+          persistSwapDiagRef.current({ event: 'voice-first-cutover', boundary, persona: incoming, attempt: segmentAttemptsFor(swapStateRef.current, boundary) + 1, reason: voiceFirstReason, faceState: staged.faceFailed ? 'failed' : 'not-ready' });
+          kickFaceRevivalRef.current(staged.slot);
         }
-        if (!incomingFaceLive) {
-          // ABORT THE SWAP before partialTeardownForSwap: the incoming
-          // face is dead despite its latched "ready", so completing the
-          // cut-over would strand the new segment on a face that can
-          // never speak (and its first PCM chunk would have killed the
-          // call before the playPcmChunk guard was fixed). The
-          // outgoing persona's socket was never closed — restore the
-          // face pointers to her, discard the dead staged face exactly
-          // like the gate-abort path, and let the retry ledger
-          // (handleSegmentFailure) decide retry vs words-only fallback.
-          avatarRef.current = outgoing;
-          faceSlotOwnerRef.current = outgoingSlot;
-          if (staged.slot === 'main') mainSlotRef.current?.stop();
-          clearFaceSlot(staged.slot);
-          if (warmedFaceRef.current?.boundary === boundary) warmedFaceRef.current = null;
-          preStageRef.current = null;
-          recordSwapDiag({ event: 'gate-abort', boundary, persona: staged.persona, attempt: segmentAttemptsFor(swapStateRef.current, boundary) + 1, detail: 'cutover-face-dead' });
-          handleSegmentFailureRef.current(boundary, 'cutover-face-dead');
-          finalizeTurn();
-          return;
-        }
-        if (staged.slot === 'second') setSecondFace(face => (face && face.boundary === boundary ? { ...face, revealed: true } : face));
-        else setMainFace(face => (face && face.boundary === boundary ? { ...face, revealed: true } : face));
         preStageRef.current = null;
         if (warmedFaceRef.current?.boundary === boundary) warmedFaceRef.current = null;
         setFadingSlot(outgoingSlot);
@@ -2417,7 +2611,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       };
       setActivePersona(incoming);
       onPersonaChangeRef.current?.({ id: incoming, displayName: PERSONAS[incoming].displayName });
-      setFaceLive(avatarRequestedRef.current);
+      // Voice-first: the PORTRAIT stays the visible face until the
+      // takeover reveals the moving one (faceLive drives the shell's
+      // portrait/live swap) — only a face-first cut-over marks the
+      // face live here.
+      setFaceLive(avatarRequestedRef.current && mode === 'face-first');
       // Transcript divider (owner transition spec): the transcript is
       // never cleared at a handoff; a centered divider row marks where
       // the incoming persona took over, under the last flushed line.
@@ -2430,6 +2628,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       //    failure ends the call with the error surfaced, as before,
       //    but now the diagnostics say exactly where it died.
       recordSwapDiag({ event: 'cutover', boundary, persona: incoming, attempt: segmentAttemptsFor(swapStateRef.current, boundary) + 1 });
+      // Server-visible: a face-first cut-over resolves the attempt on
+      // its own row (a voice-first cut-over already persisted its own
+      // event above; a later takeover persists separately).
+      if (mode === 'face-first') {
+        persistSwapDiagRef.current({ event: 'cutover', boundary, persona: incoming, attempt: segmentAttemptsFor(swapStateRef.current, boundary) + 1, faceState: 'ready' });
+      }
       const onSegmentConnectFailure = (attempt: number) => (info: { stage: 'timeout' | 'error' | 'close'; code?: number; reason?: string }) => {
         if (!segmentConnectRetryAllowed(attempt)) {
           setError("The voice service did not respond in time. Please try again.");
@@ -2447,10 +2651,19 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           }
           generationRef.current += 1;
           liveRef.current = false;
+          attemptSessionRef.current = { ...attemptSessionRef.current, [boundary]: { sessionId: fresh.sessionId, attempt: attempt + 1 } };
           connectSegmentSocket(fresh.token, { boundary, persona: incoming, attempt: attempt + 1, onFailure: onSegmentConnectFailure(attempt + 1) });
         })();
       };
       connectSegmentSocket(staged.token, { boundary, persona: incoming, attempt: 1, onFailure: onSegmentConnectFailure(1) });
+      if (mode === 'voice-first') {
+        // The face may have come live DURING the cut-over — its live
+        // report folded before the pending was set, so no new report
+        // will fire. Re-sample the handle and run the takeover now
+        // if it is already live with a displayed frame.
+        const snapAfter = incomingHandleEarly?.liveness?.();
+        if (snapAfter?.live && snapAfter.displayedFrame) void runFaceTakeoverRef.current(staged.slot);
+      }
       // Boundary analytics through the proxy's log-only message.
       window.setTimeout(() => { try { wsRef.current?.send(JSON.stringify({ type: 'persona_handoff', boundary, to: incoming })); } catch { /* best effort */ } }, 600);
     } finally {
@@ -2540,6 +2753,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     if (action === 'force') {
       recordSwapDiag({ event: 'stage-watchdog', boundary, persona: BOUNDARY_TARGET[boundary], attempt: segmentAttemptsFor(state, boundary) + 1, detail: staged ? `stageAgeMs=${now - staged.authorizedAt}` : 'no-stage' });
       recordSwapDiag({ event: 'forced-execute', boundary, persona: BOUNDARY_TARGET[boundary], attempt: segmentAttemptsFor(state, boundary) + 1 });
+      // Server-visible (voice-first batch): watchdog actions are
+      // attempt resolutions too — they land in the same
+      // config.personaSwapDiag, queryable after the fact.
+      persistSwapDiagRef.current({ event: 'stage-watchdog', boundary, persona: BOUNDARY_TARGET[boundary], attempt: segmentAttemptsFor(state, boundary) + 1, reason: staged ? `stageAgeMs=${now - staged.authorizedAt}` : 'no-stage' });
+      persistSwapDiagRef.current({ event: 'forced-execute', boundary, persona: BOUNDARY_TARGET[boundary], attempt: segmentAttemptsFor(state, boundary) + 1 });
     } else {
       recordSwapDiag({ event: pendingRetryBoundary(state) === boundary ? 'retry-execute-ready' : 'execute-ready', boundary, persona: BOUNDARY_TARGET[boundary], attempt: segmentAttemptsFor(state, boundary) });
     }
@@ -2587,46 +2805,84 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       ? { persona: mainFace.persona, boundary: mainFace.boundary, slot: 'main' as FaceSlot }
       : null;
 
-  // Persona pre-stage effect: when armSwap mounts the concealed
-  // instance in the free slot, start it (silent — its audio element
-  // stays muted; it has nothing to play until cut-over) and record
-  // frame readiness on the staged entry. Start failures leave
-  // faceReady false → the atomic gate aborts the swap and the current
-  // persona continues words-only. Fluidity batch (2026-11-10): a
-  // settled failure also records faceFailed (the gate-wait fails fast
-  // instead of waiting out its window), the F3 warmed-face record is
-  // written on every settle (the face may settle before any stage
-  // exists), and a settle is the F2 readiness trigger for a pending
-  // retry staged on this face.
-  // Handover fix (2026-11-10): the start is BOUNDED
-  // (PRESTAGE_START_TIMEOUT_MS — a hung Simli start settles as a
-  // failure instead of leaving the stage in limbo), every settle is
-  // folded through the face-liveness machine (a successful settle
-  // CLEARS an earlier transient failure latch — verdicts are
-  // recoverable), and a settle is the readiness trigger for ANY
-  // pending execution on this face, not only a ledger retry.
+  // Persona pre-stage effect: when armSwap (or the delayed F3
+  // pre-stage) mounts the concealed instance in the free slot, WATCH
+  // it (silent — its audio element stays muted; it has nothing to
+  // play until cut-over) and record frame readiness on the staged
+  // entry. Fluidity batch (2026-11-10): a settled failure also
+  // records faceFailed, the F3 warmed-face record is written on every
+  // settle (the face may settle before any stage exists), and a
+  // settle is the readiness trigger for a pending execution.
+  // Handover fix (2026-11-10): settles fold through the face-liveness
+  // machine (a successful settle CLEARS an earlier transient failure
+  // latch — verdicts are recoverable).
+  // VOICE-FIRST BATCH (2026-11-10 — investigation Q5-2/4): the single
+  // raced start() promise is GONE. The old shape raced ONE start()
+  // against a 10 s bound; when the race lost, nobody awaited the real
+  // start anymore, its eventual success folded everLive only, and
+  // readiness stayed false forever — and because the effect keyed on
+  // [boundary, slot, persona] alone, a retry staging an identical
+  // slot state never re-ran it, so start() was never called again
+  // (the attempt-2 swallow). The effect now POLLS the handle's
+  // liveness() snapshot (prestageWatchDecision) until the ALIGNED
+  // bound (PRESTAGE_START_TIMEOUT_MS = 45 s, matching a single-
+  // attempt start's real budget — start() is kicked with
+  // maxAttempts: 1): live+frame folds ready, a reported failure
+  // folds failed, no-start-in-flight (re)kicks start, and an
+  // in-flight start is simply observed — so a re-run of this effect
+  // (the deps now include stageGeneration, bumped whenever a stage
+  // is (re)built for this face) picks up the SAME start instead of
+  // double-calling or folding a phantom failure. A face belonging to
+  // an already-completed boundary is the live segment's own face —
+  // the takeover watcher owns it, so the watch stands down.
   useEffect(() => {
     if (!stagedFace) return;
+    if (swapStateRef.current.done.includes(stagedFace.boundary)) return;
     let cancelled = false;
     void (async () => {
       // The instance mounts on this render; wait one frame for its ref.
       await new Promise<void>(r => requestAnimationFrame(() => r()));
       if (cancelled) return;
       const handle = stagedFace.slot === 'second' ? stagedAvatarRef.current : mainSlotRef.current;
-      const ok = await boundedSettle(
-        handle ? handle.start({ silent: true }).catch(() => false) : Promise.resolve(false),
-        PRESTAGE_START_TIMEOUT_MS,
-        false,
-      );
+      if (!handle) return;
+      const deadline = Date.now() + PRESTAGE_START_TIMEOUT_MS;
+      let ok = false;
+      for (;;) {
+        if (cancelled) return;
+        const decision = prestageWatchDecision(handle.liveness?.() ?? null);
+        if (decision === 'ready') { ok = true; break; }
+        if (decision === 'failed') { ok = false; break; }
+        if (decision === 'kick-start') {
+          // Await the kicked start's SETTLE (bounded by the remaining
+          // watch budget) — but the settle is not the verdict: the
+          // next poll re-reads liveness(), so a start that outlives
+          // its race is observed to completion by later polls instead
+          // of being orphaned (the pre-voice-first defect), and a
+          // verdict-less settle simply re-polls rather than spinning
+          // fresh kicks.
+          await boundedSettle(
+            handle.start({ silent: true, maxAttempts: 1 }).catch(() => false),
+            Math.max(0, deadline - Date.now()),
+            false,
+          );
+          continue;
+        }
+        if (Date.now() >= deadline) { ok = false; break; }
+        await new Promise<void>(r => window.setTimeout(r, 250));
+      }
       if (cancelled) return;
       const stageNow = preStageRef.current?.boundary === stagedFace.boundary ? preStageRef.current : null;
       const warmedNow = warmedFaceRef.current?.boundary === stagedFace.boundary && warmedFaceRef.current.slot === stagedFace.slot ? warmedFaceRef.current : null;
+      const currentReady = (stageNow?.faceReady ?? warmedNow?.ready) === true;
       const settled = faceLivenessOnStartSettled({
         ready: stageNow?.faceReady ?? warmedNow?.ready ?? false,
         failed: (stageNow?.faceFailed ?? warmedNow?.failed) === true,
         everLive: (stageNow?.faceEverLive ?? warmedNow?.everLive) === true,
         startFailed: (stageNow?.faceStartFailed ?? warmedNow?.startFailed) === true,
-      }, ok);
+        // A settle must never clobber a readiness the live-fold
+        // already proved (frame-proof live report): ok is OR-ed with
+        // the currently recorded readiness.
+      }, ok || currentReady);
       if (stageNow) {
         preStageRef.current = { ...stageNow, faceReady: settled.ready, faceFailed: settled.failed ? true : undefined, faceEverLive: settled.everLive, faceStartFailed: settled.startFailed };
       }
@@ -2634,12 +2890,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         warmedFaceRef.current = { ...warmedNow, ready: settled.ready, failed: settled.failed, everLive: settled.everLive, startFailed: settled.startFailed };
       }
       // READINESS: a pending execution staged on this face decides the
-      // moment the face settles — ready executes, failed fails fast
-      // into the ledger — no turn_complete involved either way.
+      // moment the face settles — ready executes face-first, failed
+      // fails fast into a voice-first decision — no turn_complete
+      // involved either way.
       maybeExecutePendingRef.current(stagedFace.boundary);
     })();
     return () => { cancelled = true; };
-  }, [stagedFace?.boundary, stagedFace?.slot, stagedFace?.persona]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [stagedFace?.boundary, stagedFace?.slot, stagedFace?.persona, stageGeneration]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // TRUE SUSPEND (Stage 3 pause): close the socket and release mic/avatar/
   // audio locally WITHOUT an end_session send, so no minutes burn while the
@@ -2820,9 +3077,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   //    not-live report clears avatarLiveRef.
   //  - A CONCEALED (staged, unrevealed) face in the non-owning slot
   //    reports into the FACE-LIVENESS MACHINE (handover fix): a LIVE
-  //    report records that the face has lived (readiness itself still
-  //    comes from its start() resolution, which waits for a displayed
-  //    frame); a NOT-LIVE report invalidates the readiness latches
+  //    report records that the face has lived — and, since the
+  //    voice-first batch, folds READY when the handle's liveness
+  //    query proves a displayed frame (readiness recoverable from
+  //    liveness, not only from a start() settle that can be
+  //    orphaned); a NOT-LIVE report invalidates the readiness latches
   //    ONLY when the machine calls it a death — the face was live
   //    before, or its start already settled failed. Publish #16's
   //    original wiring latched faceFailed on EVERY not-live report,
@@ -2833,7 +3092,16 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   //    nothing.
   //  - A REVEALED non-owning face is a retiring/fading slot whose
   //    events must not clobber the new owner's state: ignored.
-  const handleFaceLiveChange = (slot: FaceSlot, live: boolean, face: { boundary: PersonaBoundary; revealed: boolean } | null) => {
+  const handleFaceLiveChange = (slot: FaceSlot, live: boolean, face: { boundary: PersonaBoundary; revealed: boolean; persona: PersonaId } | null) => {
+    // VOICE-FIRST TAKEOVER TRIGGER (voice-first batch, 2026-11-10): a
+    // live report for the face a voice-first segment is waiting on —
+    // owning slot (after the cut-over re-pointed ownership) or staged
+    // slot — runs the takeover: deferred audio sync, reveal, routing
+    // flip. The takeover validates the pending record itself, so a
+    // report for any other face is a no-op here.
+    if (live && face && !face.revealed && segmentFacePendingRef.current?.slot === slot && segmentFacePendingRef.current.persona === face.persona) {
+      void runFaceTakeoverRef.current(slot);
+    }
     if (faceSlotOwnerRef.current === slot) {
       setFaceLive(live);
       if (!live) avatarLiveRef.current = false;
@@ -2849,7 +3117,14 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       everLive: (stage?.faceEverLive ?? warmed?.everLive) === true,
       startFailed: (stage?.faceStartFailed ?? warmed?.startFailed) === true,
     };
-    const next = live ? faceLivenessOnLive(current) : faceLivenessOnNotLive(current);
+    // VOICE-FIRST READINESS REPAIR: a live report WITH a displayed
+    // frame on the instance (the handle's liveness query) folds
+    // ready:true — readiness is never again less recoverable than
+    // liveness (the disjoint-channel defect behind retest #4). A
+    // live report without frame proof keeps the legacy everLive-only
+    // fold.
+    const snap = live ? (slot === 'second' ? stagedAvatarRef.current : mainSlotRef.current)?.liveness?.() : undefined;
+    const next = live ? faceLivenessOnLive(current, !!(snap?.live && snap.displayedFrame)) : faceLivenessOnNotLive(current);
     if (next === current) return;
     if (stage) preStageRef.current = { ...stage, faceReady: next.ready, faceFailed: next.failed ? true : undefined, faceEverLive: next.everLive, faceStartFailed: next.startFailed };
     if (warmed) warmedFaceRef.current = { ...warmed, ready: next.ready, failed: next.failed, everLive: next.everLive, startFailed: next.startFailed };

@@ -66,7 +66,26 @@ ${DEMO_INVITE_OPENING_TAIL}`;
 // simulation beat with an explicit bar: the script ENDS at the Sara
 // introduction and Aspen yields.
 const DEMO_INVITE_SWAP_YIELD_BEAT = `The handover to Sara: Your greeting ends with the Sara introduction ("Now, meet Sara — she'll walk you through your site, playing your own receptionist"), and that is where your host script ENDS. The handoff to Sara is automatic — you never announce simulation mode, never roleplay the business, never give the business overview, and never ask "Shall we continue?": those beats are SARA's, and she runs them when she arrives. If the visitor speaks to you before she arrives, answer in ONE short host line, in your own words — keep it brief, do not start any new topic, do not re-ask their name (your greeting already checked it), and do not confirm the website (Sara confirms it as her first beat) — then wait for her.`;
+// SCRIPT LOCK (voice-first batch, 2026-11-10 — retest #4 content
+// regressions): BOTH of Aspen's retest-#4 swap openings improvised
+// OFF the approved script — Great Gulf got a long rambling monologue
+// ("let me give you my two cents on waiting… I'm not here to sell
+// you anything… hey, hey, hey…") and Lassiter an invented
+// feedback-ask framing ("Let me get your feedback on our system
+// after our quick demonstration. Ten minutes of your time, friendly,
+// friendly chat…"). The greeting itself is a finished, approved,
+// near-verbatim script (openingFor picks one variant; the proxy
+// serves it as her entire first turn), so the strongest feasible
+// lock is to say exactly that: deliver it as written, beats in
+// order, and name the drifted framings as never-say lines. SWAP
+// VARIANT ONLY, like the yield beat — the non-swap
+// DEMO_INVITE_OPENING above stays byte-identical (its solo flow
+// performs its beats in her own words by design). The interruption
+// rule is the standing OPENING RECOVERY rule (resume where she
+// stopped, never restart), carried unchanged.
+const DEMO_INVITE_SCRIPT_LOCK_BEAT = `The opening script — deliver it, do not improvise it: Your first turn is the greeting exactly as given to you, beat for beat, in this order: (1) the greeting — who you are, thanks for accepting the invitation, and the demo already loaded on their website, so there is no waiting; (2) the one approved statistic (the greeting's rotation: 85%, 78% or 67%); (3) the partner-for-hidden-leads pitch — not a vendor selling a tool, but their partner for growth: finding the leads businesses are already losing — the callers who never got through, the visitors who clicked away — and bringing in new prospects on top: more revenue, without more staff; (4) the Alex comfort line — if they decide to make this real, our support specialist Alex walks them through setup personally, step by step; (5) the handover, exactly: "Now, meet Sara". Never add a beat, never drop a beat, and never pad the opening with small talk or asides. NEVER say "let me get your feedback", never ask for feedback on our system or on this demonstration, never say "my two cents on waiting", never say "I'm not here to sell you anything", and never fill time by commenting on the waiting, the system, or yourself instead of delivering the script. If you are interrupted mid-greeting, resume the script where you stopped — never restart it, never abandon it for a new topic.`;
 export const DEMO_INVITE_OPENING_SWAP = `${DEMO_INVITE_OPENING_HEAD}
+${DEMO_INVITE_SCRIPT_LOCK_BEAT}
 ${DEMO_INVITE_ALEX_ONCE_BEAT}
 ${DEMO_INVITE_CONTACT_BEAT}
 ${DEMO_INVITE_SWAP_YIELD_BEAT}

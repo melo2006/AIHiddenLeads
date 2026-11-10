@@ -155,7 +155,12 @@ describe('component wiring (source pins)', () => {
   test('arm failures funnel into the retry ledger instead of a silent disarm', () => {
     expect(src).not.toContain('if (!segment) return; // disarmed: words-only continuation');
     expect(src).toContain("handleSegmentFailureRef.current(boundary, 'authorize-failed')");
-    expect(src).toContain("handleSegmentFailureRef.current(boundary, 'face-not-ready')");
+    // Voice-first batch (2026-11-10): a not-ready face no longer
+    // funnels into the ledger at all — the gate verdict selects the
+    // cut-over MODE (voice-first) instead of aborting the swap
+    // (investigation Q3-D4). The remaining funnels still cover the
+    // genuinely unrecoverable failures (no token / stale token).
+    expect(src).not.toContain("handleSegmentFailureRef.current(boundary, 'face-not-ready')");
     expect(src).toContain("handleSegmentFailureRef.current(boundary, 'token-stale')");
     expect(src).toContain("'stage-missing' : 'stage-mismatch'");
   });

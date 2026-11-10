@@ -11,8 +11,23 @@ import { startChromaKey } from "@/lib/chromaKey";
 import { applySinkIdToElement } from "@/lib/speakerOutput";
 
 export interface SimliAvatarHandle {
-  /** Resolves true once the face is on screen; false (with a visible reason) when Simli refuses or fails. */
-  start: (options?: { silent?: boolean }) => Promise<boolean>;
+  /** Resolves true once the face is on screen; false (with a visible reason) when Simli refuses or fails.
+   *  `maxAttempts` bounds the internal startup-timeout retries for THIS
+   *  call (default MAX_VIDEO_ATTEMPTS): the persona pre-stage passes 1
+   *  so its settle is the REAL settle of a single attempt — the old
+   *  default let one start() run 30–60 s+ of invisible retries while
+   *  the client's bounded watch raced it at 10 s and manufactured a
+   *  false failure verdict (voice-first batch, 2026-11-10). */
+  start: (options?: { silent?: boolean; maxAttempts?: number }) => Promise<boolean>;
+  /** Live state query (voice-first batch, 2026-11-10): a synchronous
+   *  snapshot of this instance — whether it reports live, whether a
+   *  frame is actually displayed, whether a start() is in flight, and
+   *  whether the last start failed. The pre-stage watch polls it
+   *  (readiness becomes observable instead of a single raced promise)
+   *  and the cut-over samples it so a face that came live after its
+   *  readiness record was orphaned can still attach. Optional: handles
+   *  predating the query simply don't answer. */
+  liveness?: () => { live: boolean; displayedFrame: boolean; starting: boolean; failed: boolean };
   /** Call inside the visitor's tap: enables the paired voice of a silently prepared face.
    *  Resolves false when the face is NOT live (dead client / no audio
    *  stream) so callers can tell a silent no-op from a real activation
@@ -231,6 +246,9 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
   }, [debug]);
   const clientRef = useRef<SimliClient | null>(null);
   const startingRef = useRef(false);
+  /** Mirror of the last start()'s failure verdict for the liveness()
+   *  query (React state would be stale inside the handle closure). */
+  const startFailedRef = useRef(false);
   const liveRef = useRef(false);
   const audioReadyRef = useRef(false);
   const lifecycleRef = useRef(0);
@@ -282,7 +300,13 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
   useEffect(() => () => stop(), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useImperativeHandle(ref, () => ({
-    start: async (options?: { silent?: boolean }) => {
+    liveness: () => ({
+      live: liveRef.current,
+      displayedFrame: !!(videoRef.current && videoRef.current.readyState >= 2 && videoRef.current.videoWidth > 0),
+      starting: startingRef.current,
+      failed: startFailedRef.current,
+    }),
+    start: async (options?: { silent?: boolean; maxAttempts?: number }) => {
       if (clientRef.current) {
         if (liveRef.current) return true;
         if (startingRef.current) return liveRef.current;
@@ -292,6 +316,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
         stopSimliClient(stale);
       }
       startingRef.current = true;
+      startFailedRef.current = false;
       const lifecycle = ++lifecycleRef.current;
       setState("connecting"); setReason("");
       try {
@@ -340,9 +365,9 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
           if (clientRef.current !== client || audioReadyRef.current) return;
           audioReadyRef.current = true;
         });
-        client.on("stop", () => { if (clientRef.current === client) { startupRejectRef.current?.(new Error('Video disconnected during startup')); stopKey(); setLive(false); setState("failed"); setReason('Video disconnected'); } });
+        client.on("stop", () => { if (clientRef.current === client) { startupRejectRef.current?.(new Error('Video disconnected during startup')); stopKey(); setLive(false); startFailedRef.current = true; setState("failed"); setReason('Video disconnected'); } });
         client.on("warning" as never, ((m: unknown) => console.warn("Simli:", m)) as never);
-        client.on("error", () => { if (clientRef.current === client) { startupRejectRef.current?.(new Error('Video connection failed')); audioReadyRef.current = false; stopKey(); setLive(false); setState('failed'); setReason('Video connection failed'); stopSimliClient(client); } });
+        client.on("error", () => { if (clientRef.current === client) { startupRejectRef.current?.(new Error('Video connection failed')); audioReadyRef.current = false; stopKey(); setLive(false); startFailedRef.current = true; setState('failed'); setReason('Video connection failed'); stopSimliClient(client); } });
         let deadline: ReturnType<typeof setTimeout> | undefined;
         try {
           await Promise.race([
@@ -399,8 +424,12 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
         // never became a displayed frame) earns another attempt, on a fresh token.
         // Anything else — a provider refusal/error, a sound block, a cancel — is final
         // and lands in the same failure teardown a single attempt always produced.
+        // The caller may cap the attempts (the persona pre-stage passes 1:
+        // its watch loop owns any re-kick, visibly, instead of retries
+        // burning single-use tokens invisibly inside one start() call).
+        const maxAttempts = Math.max(1, Math.min(MAX_VIDEO_ATTEMPTS, options?.maxAttempts ?? MAX_VIDEO_ATTEMPTS));
         let lastError: Error = new Error('Video did not arrive. Please try again.');
-        for (let attempt = 0; attempt < MAX_VIDEO_ATTEMPTS; attempt++) {
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
           if (attempt > 0) {
             // Brief pause before the fresh token; a stop during it cancels the retry.
             await new Promise(r => setTimeout(r, 600));
@@ -430,7 +459,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
         stopKey();
         const client = clientRef.current; clientRef.current = null;
         stopSimliClient(client);
-        setLive(false); setState("failed");
+        setLive(false); startFailedRef.current = true; setState("failed");
         setReason(e instanceof Error ? e.message : String(e || "Video avatar could not start"));
         throw e instanceof Error ? e : new Error(String(e || 'Video connection failed'));
       } finally {
