@@ -176,6 +176,7 @@ export function createTelnyx({ api, env = process.env, onActiveChange = () => {}
       resumeHandle: null, reconnects: 0, inSec: 0, outSec: 0,
       gateOpen: false, gateTimer: null, limitTimer: null, cpTimer: null, streamFallbackTimer: null, fallbackTimer: null,
       phoneDemoLeadId: null, // set by the phone-demo tool flow once the backend saves the lead
+      phoneDemoRecapCalled: false, // set when Aspen calls send_demo_recap; finish() fires the dropped-call rescue only when this stays false
       transcript: [], latency: createLatencyTracker('telnyx'), transfer: null,
       // Dashboard call report transfer block: outcome is 'connected' only when
       // the Bridge command succeeds; connectMs = tool-call -> bridged.
@@ -223,6 +224,18 @@ export function createTelnyx({ api, env = process.env, onActiveChange = () => {}
     const callReport = { provider: 'telnyx', transport: 'telnyx-stream', durationSec, greetingMs: latency.greetingMs, latency, transfer: { attempted: s.transferInfo.attempted, outcome: s.transferInfo.outcome, connectMs: s.transferInfo.connectMs, reason: s.transferInfo.reason } };
     console.log(JSON.stringify({ telnyx_latency: latency }));
     console.log(JSON.stringify({ telnyx_call_report: callReport }));
+    // Dropped-call rescue (2026-11-11): the call ended with a saved demo
+    // lead but Aspen never called send_demo_recap (drop, hang-up, max
+    // duration) — ask the backend for the ONE rescue text. The bridge
+    // decides nothing: the backend re-checks consent, opt-out, prior
+    // sends and bookings from the database before sending. Transferred
+    // calls are excluded (the caller reached a human; a rescue text
+    // would be wrong). Fire-and-forget, fired BEFORE the awaited end
+    // report so the rescue decision never waits on — and can never
+    // block or break — the end-of-session path.
+    if (s.phoneDemoLeadId && !s.phoneDemoRecapCalled && !s.transferred) {
+      report(s, 'phone-demo-rescue', { leadId: s.phoneDemoLeadId })?.catch(e => console.error('telnyx rescue failed', e.message));
+    }
     await report(s, 'end', { durationSec, latency, callReport })?.catch(e => console.error('telnyx end failed', e.message));
   }
 
@@ -322,6 +335,7 @@ export function createTelnyx({ api, env = process.env, onActiveChange = () => {}
       }
     } else if (action === 'phone-demo-recap') {
       if (!s.phoneDemoLeadId) return respond({ sent: false, reason: 'lead_not_saved' });
+      s.phoneDemoRecapCalled = true; // the rescue in finish() must never double-send after a recap call
       extra.leadId = s.phoneDemoLeadId;
       extra.summary = str(args.summary).slice(0, 1500);
     } else if (action === 'phone-booking-availability') {

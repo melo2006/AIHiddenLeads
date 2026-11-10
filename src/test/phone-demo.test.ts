@@ -114,6 +114,11 @@ describe('PHONE_DEMO_HOST_POLICY choreography', () => {
     expect(PHONE_DEMO_HOST_POLICY).toContain('only if it returns email sent true may you say you have emailed');
     expect(PHONE_DEMO_HOST_POLICY).toContain('only if it returns sms sent true may you say the demo link was texted');
   });
+  test('step 7 notes the automatic dropped-call rescue text — never promised, never claimed (rescue text)', () => {
+    expect(PHONE_DEMO_HOST_POLICY).toContain('if the call ends unexpectedly after step 3');
+    expect(PHONE_DEMO_HOST_POLICY).toContain('ONE rescue text with the demo link');
+    expect(PHONE_DEMO_HOST_POLICY).toContain('never promise it and never claim it');
+  });
   test('step 3 asks the follow-up-text permission and records it as smsConsent (follow-up pack)', () => {
     expect(PHONE_DEMO_HOST_POLICY).toContain('Can I text the demo link to this number so you can review it later or forward it to your manager?');
     expect(PHONE_DEMO_HOST_POLICY).toContain('smsConsent');

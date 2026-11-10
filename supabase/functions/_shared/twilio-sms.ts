@@ -59,6 +59,27 @@ export async function priorSmsAttempts(db: any, ctx: SmsLogContext, toE164: stri
 }
 
 /**
+ * Prior send attempts across SEVERAL templates for one recipient — the
+ * cross-template exactly-once source for the dropped-call rescue: a
+ * caller whose recap text already went out (or was attempted) must
+ * never also get the rescue text, and vice versa. Same counting rule
+ * as priorSmsAttempts: a 'failed' row is an attempt; any non-failed
+ * row counts as sent.
+ */
+export async function priorSmsAttemptsAny(db: any, ctx: { leadId?: string | null; prospectId?: string | null; bookingId?: string | null }, templateIds: string[], toE164: string): Promise<{ sent: boolean; attempts: number }> {
+  let q = db.from('sms_delivery_log').select('status').in('template_id', templateIds).eq('to_phone', toE164);
+  if (ctx.leadId) q = q.eq('lead_id', ctx.leadId);
+  else if (ctx.prospectId) q = q.eq('prospect_id', ctx.prospectId);
+  else if (ctx.bookingId) q = q.eq('booking_id', ctx.bookingId);
+  const { data } = await q;
+  const rows = (data || []) as { status?: string }[];
+  return {
+    sent: rows.some(r => String(r.status || '').toLowerCase() !== 'failed'),
+    attempts: rows.length,
+  };
+}
+
+/**
  * Send one SMS through the A2P Messaging Service and log the attempt.
  * Never throws for a Twilio-level failure — the result says what happened,
  * so callers can honor the "only claim what the tool reports" rule.

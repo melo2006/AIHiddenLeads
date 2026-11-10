@@ -61,6 +61,71 @@ export function recapSmsDecision(facts: RecapSmsFacts): RecapSmsDecision {
   return { send: true, to };
 }
 
+export interface RescueSmsFacts {
+  /** The lead has a usable mobile number (raw value; normalized here). */
+  mobile: string | null | undefined;
+  /** The caller explicitly said yes to the follow-up text on the call. */
+  smsConsent: boolean;
+  /** The number is on the sms_opt_outs list (replied STOP before). */
+  optedOut: boolean;
+  /**
+   * Prior recap OR rescue SMS markers read from the sms_delivery_log.
+   * The rescue is the recap's stand-in for a dropped call: dedupe runs
+   * across BOTH templates, so a caller can never receive recap + rescue.
+   */
+  prior: { sent: boolean; attempts: number };
+  /** A non-cancelled implementation-call booking already exists for this lead. */
+  bookingExists: boolean;
+}
+
+export type RescueSmsDecision =
+  | { send: true; to: string }
+  | { send: false; reason: 'no_mobile' | 'no_consent' | 'opted_out' | 'already_sent' | 'retry_exhausted' | 'already_booked' };
+
+/** A failed rescue text may be retried once by a later rescue call; never more. */
+export const RESCUE_SMS_MAX_ATTEMPTS = 2;
+
+/**
+ * Should the dropped-call rescue text go out? Same consent gating as the
+ * recap (recapSmsDecision), plus the rescue-only rule: a caller who
+ * already booked has the confirmation text — a rescue would be noise.
+ */
+export function rescueSmsDecision(facts: RescueSmsFacts): RescueSmsDecision {
+  const to = normalizePhoneE164(facts.mobile);
+  if (!to) return { send: false, reason: 'no_mobile' };
+  if (!facts.smsConsent) return { send: false, reason: 'no_consent' };
+  if (facts.optedOut) return { send: false, reason: 'opted_out' };
+  if (facts.prior.sent) return { send: false, reason: 'already_sent' };
+  if (facts.prior.attempts >= RESCUE_SMS_MAX_ATTEMPTS) return { send: false, reason: 'retry_exhausted' };
+  if (facts.bookingExists) return { send: false, reason: 'already_booked' };
+  return { send: true, to };
+}
+
+/**
+ * Dropped-call rescue SMS body (Ron, 2026-11-11): the call ended before
+ * Aspen could run the step-7 recap, so this short text carries the demo
+ * link — for review or forwarding to a manager — plus the booking link
+ * (the rescue only fires when no booking exists, so the walkthrough
+ * offer always belongs). Four lines, no summary: there is no completed
+ * demo to summarize.
+ *
+ * On the brief's "personal invite link when one is resolvable": it is
+ * NOT resolvable, by design of the invite store — demo_invites keeps
+ * only the SHA-256 hash of the code (the raw code exists once, in the
+ * create response / the sent email), and a phone-demo lead is not
+ * invite-ready anyway (no real website screenshot). Every rescue
+ * therefore uses the generic demo link, exactly like the recap SMS and
+ * the recap email already do.
+ */
+export function buildRescueSmsBody(input: { demoLink: string }): string {
+  return [
+    'Hi, this is Aspen from AiHiddenLeads — looks like we got cut off.',
+    `Here's the demo link from your call — review it any time or forward it to your manager: ${input.demoLink}`,
+    `Want the 15 to 20 minute walkthrough? Book any time: ${BOOK_CALL_URL}`,
+    SMS_OPT_OUT_LINE,
+  ].join('\n');
+}
+
 /**
  * Recap SMS body: summary on top, then the demo link, then — when the
  * caller booked nothing on the call (bookingPending) — the booking link

@@ -312,6 +312,82 @@ test('phone demo flow: save -> code (caller-ID mode) -> recap, results returned 
   client.close();
 });
 
+test('rescue text: finish() asks the backend for the rescue only when a lead was saved, no recap ran, and no transfer happened', async (t) => {
+  // One full session per case — finish() is first-wins per session, and
+  // the warm-transfer machinery is already covered by its own test; here
+  // the transferred case is driven only far enough for the bridge leg to
+  // bridge (which sets s.transferred and runs finish() itself).
+  const rescueCalls = (h) => h.backendCalls.filter(c => c.action === 'phone-demo-rescue');
+
+  // Case 1 — lead saved, call ends (media stop) with NO recap: rescue fires
+  // exactly once, carrying the saved lead id.
+  {
+    const h = makeHarness({ phoneDemo: true }); t.after(() => h.geminiWss.close());
+    const telnyx = createTelnyx({ api: h.api, env: await h.env(), fetchImpl: h.fetchImpl });
+    const { client } = await startCall(t, h, telnyx, 'v2:leg-rescue-1');
+    h.geminiSend({ serverContent: { turnComplete: true } });
+    h.geminiSend({ toolCall: { functionCalls: [{ id: 'rs1', name: 'save_phone_demo_lead', args: { businessName: 'Speedy Tow', smsConsent: true } }] } });
+    await waitFor(() => h.geminiReceived.some(m => m.toolResponse?.functionResponses?.[0]?.id === 'rs1'));
+    client.send(JSON.stringify({ event: 'stop', stop: { call_control_id: 'v2:leg-rescue-1' } }));
+    await waitFor(() => h.backendCalls.some(c => c.action === 'end'));
+    assert.equal(rescueCalls(h).length, 1);
+    assert.equal(rescueCalls(h)[0].leadId, 'lead-1');
+    client.close();
+  }
+
+  // Case 2 — lead saved AND send_demo_recap called: NO rescue (the recap
+  // already carried the demo link; the backend dedupe is the second lock).
+  {
+    const h = makeHarness({ phoneDemo: true }); t.after(() => h.geminiWss.close());
+    const telnyx = createTelnyx({ api: h.api, env: await h.env(), fetchImpl: h.fetchImpl });
+    const { client } = await startCall(t, h, telnyx, 'v2:leg-rescue-2');
+    h.geminiSend({ serverContent: { turnComplete: true } });
+    h.geminiSend({ toolCall: { functionCalls: [{ id: 'rs2a', name: 'save_phone_demo_lead', args: { businessName: 'Speedy Tow', smsConsent: true } }] } });
+    await waitFor(() => h.geminiReceived.some(m => m.toolResponse?.functionResponses?.[0]?.id === 'rs2a'));
+    h.geminiSend({ toolCall: { functionCalls: [{ id: 'rs2b', name: 'send_demo_recap', args: { summary: 'Covered towing questions.' } }] } });
+    await waitFor(() => h.backendCalls.some(c => c.action === 'phone-demo-recap'));
+    client.send(JSON.stringify({ event: 'stop', stop: { call_control_id: 'v2:leg-rescue-2' } }));
+    await waitFor(() => h.backendCalls.some(c => c.action === 'end'));
+    assert.equal(rescueCalls(h).length, 0);
+    client.close();
+  }
+
+  // Case 3 — NO lead was ever saved: NO rescue (nothing to rescue to).
+  {
+    const h = makeHarness({ phoneDemo: true }); t.after(() => h.geminiWss.close());
+    const telnyx = createTelnyx({ api: h.api, env: await h.env(), fetchImpl: h.fetchImpl });
+    const { client } = await startCall(t, h, telnyx, 'v2:leg-rescue-3');
+    h.geminiSend({ serverContent: { turnComplete: true } });
+    client.send(JSON.stringify({ event: 'stop', stop: { call_control_id: 'v2:leg-rescue-3' } }));
+    await waitFor(() => h.backendCalls.some(c => c.action === 'end'));
+    assert.equal(rescueCalls(h).length, 0);
+    client.close();
+  }
+
+  // Case 4 — lead saved, then the call warm-transfers and bridges: NO
+  // rescue (the caller reached a human), even though no recap ran.
+  {
+    const h = makeHarness({ phoneDemo: true }); t.after(() => h.geminiWss.close());
+    const telnyx = createTelnyx({ api: h.api, env: await h.env(), fetchImpl: h.fetchImpl });
+    const legA4 = 'v2:leg-rescue-4';
+    const { client } = await startCall(t, h, telnyx, legA4);
+    h.geminiSend({ serverContent: { turnComplete: true } });
+    h.geminiSend({ toolCall: { functionCalls: [{ id: 'rs4a', name: 'save_phone_demo_lead', args: { businessName: 'Speedy Tow', smsConsent: true } }] } });
+    await waitFor(() => h.geminiReceived.some(m => m.toolResponse?.functionResponses?.[0]?.id === 'rs4a'));
+    h.geminiSend({ toolCall: { functionCalls: [{ id: 'rs4b', name: 'transfer_call', args: { summary: 'Caller wants Ron' } }] } });
+    await waitFor(() => h.telnyxCalls.some(c => /\/calls$/.test(c.url)), 9000); // dial after the 2.5 s pause
+    const dial = h.telnyxCalls.find(c => /\/calls$/.test(c.url));
+    const fire = async (id, event_type, payload) => { const b = evtBody(id, event_type, payload); await telnyx.handleWebhook(Buffer.from(b), signHeaders(b)); await telnyx.whenIdle(); };
+    await fire('evt-r4-init', 'call.initiated', { call_control_id: LEG_B, direction: 'outgoing', from: '+17723624949', to: '+19547706622', client_state: dial.body.client_state });
+    await fire('evt-r4-ans', 'call.answered', { call_control_id: LEG_B, client_state: dial.body.client_state });
+    await fire('evt-r4-spoke', 'call.speak.ended', { call_control_id: LEG_B, client_state: dial.body.client_state });
+    await fire('evt-r4-gather', 'call.gather.ended', { call_control_id: LEG_B, client_state: dial.body.client_state, digits: '1' }); // press 1 -> bridge -> finish()
+    await waitFor(() => h.backendCalls.some(c => c.action === 'end'));
+    assert.equal(rescueCalls(h).length, 0);
+    client.close();
+  }
+});
+
 test('phone demo guard: check_demo_code before any save answers lead_not_saved without a backend call', async (t) => {
   const h = makeHarness({ phoneDemo: true }); t.after(() => h.geminiWss.close());
   const telnyx = createTelnyx({ api: h.api, env: await h.env(), fetchImpl: h.fetchImpl });

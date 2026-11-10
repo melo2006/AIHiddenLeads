@@ -12,6 +12,7 @@ import { DEFAULT_LIVE_MODEL, officialLivePricing } from '../_shared/live-models.
 import { PHONE_DEMO_DISCLOSURE_VERSION, PHONE_DEMO_HOST_POLICY, PHONE_DEMO_LINK, BOOKING_PAGE_LINK, buildDictatedKnowledge, sanitizeSpokenCode, spellBackForSpeech } from '../_shared/phone-demo.ts';
 import { buildRecapSmsBody, normalizePhoneE164, recapSmsDecision } from '../_shared/followup.ts';
 import { isSmsOptedOut, priorSmsAttempts, trySendFollowupSms } from '../_shared/twilio-sms.ts';
+import { resolvePhoneDemoRescue } from '../_shared/phone-rescue.ts';
 import { platformAvailability } from '../_shared/platform-calendar.ts';
 import { generateSlots } from '../_shared/booking-slots.ts';
 import { checkTimeAvailability, parseDayPart, preferredDatesFor, resolveNamedTime, selectOfferSet } from '../_shared/booking-tools.ts';
@@ -465,6 +466,19 @@ Deno.serve(async (req) => {
         return json({ sent: false, reason: 'send_failed', email: { sent: false, reason: 'send_failed' }, sms });
       }
       return json({ sent: true, email: { sent: true }, sms });
+    }
+
+    if (b.action === 'phone-demo-rescue') {
+      if (!phoneDemoOn) return json({ error: 'Phone demo not enabled on this line' }, 400);
+      // Dropped-call rescue (2026-11-11): the call ended before Aspen
+      // could call send_demo_recap, so the bridge asks for ONE rescue
+      // text with the demo link. All decision logic lives in
+      // _shared/phone-rescue.ts (resolvePhoneDemoRescue), which
+      // re-decides everything from the database — consent, opt-out,
+      // cross-template dedupe, existing booking — and never trusts the
+      // bridge's claim. Response mirrors the recap action's SMS shape.
+      const rescue = await resolvePhoneDemoRescue(db, typeof b.leadId === 'string' ? b.leadId : '');
+      return json(rescue.sent ? { sent: true, messageSid: rescue.messageSid } : { sent: false, reason: rescue.reason });
     }
 
     if (b.action === 'end') {

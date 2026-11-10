@@ -8,10 +8,13 @@ import {
   buildBookingReminderSms,
   buildNoShowRecoverySms,
   buildRecapSmsBody,
+  buildRescueSmsBody,
   dueFollowupActions,
   formatSlotForSms,
   normalizePhoneE164,
   recapSmsDecision,
+  rescueSmsDecision,
+  SMS_OPT_OUT_LINE,
   type FollowupBooking,
 } from '../../supabase/functions/_shared/followup';
 import { PHONE_DEMO_LINK } from '../../supabase/functions/_shared/phone-demo';
@@ -79,6 +82,60 @@ describe('buildRecapSmsBody', () => {
   test('a caller who already booked gets NO booking link in the recap', () => {
     const body = buildRecapSmsBody({ businessName: 'Lassiter Electric', summary: 'Aspen took a panel-upgrade request.', demoLink: PHONE_DEMO_LINK, bookingPending: false });
     expect(body).not.toContain(BOOK_CALL_URL);
+  });
+});
+
+describe('buildRescueSmsBody (dropped-call rescue text)', () => {
+  test('exact 4-line body: cut-off line, demo link line, walkthrough line, shared STOP line', () => {
+    const body = buildRescueSmsBody({ demoLink: PHONE_DEMO_LINK });
+    expect(body).toBe(
+      'Hi, this is Aspen from AiHiddenLeads — looks like we got cut off.\n' +
+      `Here's the demo link from your call — review it any time or forward it to your manager: ${PHONE_DEMO_LINK}\n` +
+      `Want the 15 to 20 minute walkthrough? Book any time: ${BOOK_CALL_URL}\n` +
+      'Reply STOP to opt out',
+    );
+    expect(body.split('\n')).toHaveLength(4);
+    expect(body.split('\n')[3]).toBe(SMS_OPT_OUT_LINE);
+    expect(BOOK_CALL_URL).toBe('https://aihiddenleads.com/book');
+  });
+  // The brief's personal-link preference is unresolvable BY DESIGN: an
+  // existing invite's raw code is never stored (only its SHA-256), so no
+  // code path can rebuild a personal /demo/<slug>/<code> URL for a lead.
+  // The generic demo link is therefore the only link the rescue can ever
+  // carry — the same link the recap SMS and recap email already use.
+  test('carries the generic demo link (a personal invite link cannot be rebuilt from its stored hash)', () => {
+    expect(PHONE_DEMO_LINK).toBe('https://aihiddenleads.com/demo');
+    expect(buildRescueSmsBody({ demoLink: PHONE_DEMO_LINK })).toContain(`manager: ${PHONE_DEMO_LINK}`);
+  });
+});
+
+describe('rescueSmsDecision (dropped-call rescue gating)', () => {
+  const base = { mobile: '9547706622', smsConsent: true, optedOut: false, prior: { sent: false, attempts: 0 }, bookingExists: false };
+  test('happy path: consented, reachable, fresh, unbooked → sends once', () => {
+    expect(rescueSmsDecision(base)).toEqual({ send: true, to: '+19547706622' });
+  });
+  test('no consent → no send', () => {
+    expect(rescueSmsDecision({ ...base, smsConsent: false })).toEqual({ send: false, reason: 'no_consent' });
+  });
+  test('no usable mobile → no send (checked before consent)', () => {
+    expect(rescueSmsDecision({ ...base, mobile: null })).toEqual({ send: false, reason: 'no_mobile' });
+    expect(rescueSmsDecision({ ...base, mobile: '123' })).toEqual({ send: false, reason: 'no_mobile' });
+  });
+  test('opted out → no send even with consent', () => {
+    expect(rescueSmsDecision({ ...base, optedOut: true })).toEqual({ send: false, reason: 'opted_out' });
+  });
+  test('a prior recap send blocks the rescue (cross-template dedupe: never recap + rescue)', () => {
+    expect(rescueSmsDecision({ ...base, prior: { sent: true, attempts: 1 } })).toEqual({ send: false, reason: 'already_sent' });
+  });
+  test('a prior rescue send makes a repeat rescue invocation a no-op', () => {
+    expect(rescueSmsDecision({ ...base, prior: { sent: true, attempts: 1 } })).toEqual({ send: false, reason: 'already_sent' });
+  });
+  test('failed attempts retry once across both templates, then exhaust', () => {
+    expect(rescueSmsDecision({ ...base, prior: { sent: false, attempts: 1 } }).send).toBe(true);
+    expect(rescueSmsDecision({ ...base, prior: { sent: false, attempts: 2 } })).toEqual({ send: false, reason: 'retry_exhausted' });
+  });
+  test('a confirmed booking already exists → skip (the caller has the confirmation text)', () => {
+    expect(rescueSmsDecision({ ...base, bookingExists: true })).toEqual({ send: false, reason: 'already_booked' });
   });
 });
 
