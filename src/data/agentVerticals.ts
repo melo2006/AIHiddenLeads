@@ -18,6 +18,20 @@ export interface AgentVertical {
   route: string;
   /** Short job label used in the hero badge, e.g. "Built for realtors". */
   builtFor: string;
+  /**
+   * Optional slogan line for the hero badge pill; when present it
+   * replaces builtFor in the pill (builtFor stays the short label).
+   */
+  badgeLine?: string;
+  /**
+   * Optional hero photo banner — real photographs of the vertical's
+   * world, shown as floating cards under the hero. `key` selects the
+   * image in the template's photo map, so a vertical only ever shows
+   * its own photos; omit the field and no banner renders.
+   */
+  heroPhotos?: { key: string; alt: string; caption: string }[];
+  /** Attribution line for heroPhotos (source + licence), tiny print. */
+  heroPhotosCredit?: string;
   headline: string;
   sub: string;
   pains: { title: string; body: string }[];
@@ -31,10 +45,26 @@ export interface AgentVertical {
   controlSteps: { title: string; body: string }[];
   /** What the agent sees in their dashboard for every lead. */
   dashboardPoints: string[];
-  /** Verified evidence figures — only the owner-supplied verified set. */
-  stats: { value: string; label: string; source: string }[];
+  /** Verified evidence figures — only the owner-supplied verified set.
+   *  `value`/`label` are the canonical figure + wording (evidence
+   *  section, sources). Optional barValue/barLabel override ONLY how
+   *  the entry renders in the big hero stat bar. */
+  stats: {
+    value: string;
+    label: string;
+    source: string;
+    barValue?: string;
+    barLabel?: string;
+  }[];
   /** "Sound familiar?" buyer scenario (generalized, no names). */
   scenario: string;
+  /** One-line follow-up rendered under the scenario card. */
+  scenarioPunchline: string;
+  /**
+   * The full AiHiddenLeads services list (same names as the homepage
+   * hero list), rendered as a balanced checklist when present.
+   */
+  services?: string[];
   /** Worked money-math example — labelled an example, not a promise. */
   moneyMath: { lines: string[]; punchline: string; source: string };
   /** Calendar section: bookings on the agent's own connected calendar. */
@@ -48,6 +78,27 @@ export const REALTOR_VERTICAL: AgentVertical = {
   slug: "realtors",
   route: "/agents/realtors",
   builtFor: "Built for realtors",
+  badgeLine:
+    "Buyers and sellers won't wait · The first agent to answer wins the client · Aspen answers in seconds, 24/7",
+  heroPhotos: [
+    {
+      key: "condos",
+      alt: "Fort Lauderdale condominiums — a beachfront condo tower with curved balconies",
+      caption: "Fort Lauderdale condos",
+    },
+    {
+      key: "skyline",
+      alt: "Downtown Miami skyline seen from Biscayne Bay",
+      caption: "Downtown Miami",
+    },
+    {
+      key: "home",
+      alt: "A single-family home in Coral Gables, South Florida, with a red tile roof and palm trees",
+      caption: "South Florida homes",
+    },
+  ],
+  heroPhotosCredit:
+    "Photos: Fort Lauderdale condo tower by Eric Fredericks, CC BY-SA 2.0 · Downtown Miami skyline by P. Hughes, CC BY-SA 4.0 · Coral Gables home by SebasTorrente, CC BY-SA 3.0 — via Wikimedia Commons.",
   headline:
     "Realtors: Never Miss a Buyer or Seller Call Again — Even at a Showing",
   sub: "Aspen answers calls and website visitors 24/7, books the appointment, sends the summary.",
@@ -58,7 +109,7 @@ export const REALTOR_VERTICAL: AgentVertical = {
     },
     {
       title: "Inquiries arrive at night — and wait hours",
-      body: "Website and portal inquiries arrive nights and weekends, when buyers and sellers are actually looking. Left waiting for hours, that inquiry goes cold — or gets answered first by another agent.",
+      body: "Website and portal inquiries arrive nights and weekends, when buyers and sellers are actually looking. Left waiting for hours, that inquiry goes cold — or gets answered first by another agent at another brokerage.",
     },
     {
       title: "You pay for ads — then answer every call yourself",
@@ -110,6 +161,11 @@ export const REALTOR_VERTICAL: AgentVertical = {
       label:
         "Average agent response time to a new inquiry — over 15 hours",
       source: "WAV Group Agent Responsiveness Study, via Inman",
+      // Ron (2026-11-11): "917 min" is too number-heavy as the big stat —
+      // the bar leads with the human version; the exact figure stays in
+      // the subline and in the evidence/sources section.
+      barValue: "15+ hours",
+      barLabel: "Average agent response time to a new inquiry (917 minutes)",
     },
     {
       value: "48%",
@@ -126,6 +182,12 @@ export const REALTOR_VERTICAL: AgentVertical = {
       label:
         "More likely to qualify a lead when you respond in 5 minutes instead of 30 minutes",
       source: "MIT / InsideSales Lead Response Management Study",
+      // Ron (2026-11-11): bare "21x" is not self-explanatory up front —
+      // the bar carries "more likely" in the big line, so big line +
+      // subline read as one sentence with no duplication.
+      barValue: "21x more likely",
+      barLabel:
+        "To qualify a lead when you respond in 5 minutes instead of 30 minutes",
     },
     {
       value: "33%",
@@ -147,10 +209,22 @@ export const REALTOR_VERTICAL: AgentVertical = {
   ],
   scenario:
     "You drive past a home and call the number on the sign. No answer. You don't leave a voicemail — you call the next agent. When the first agent calls back 2 days later, you've already forgotten which house it was.",
+  scenarioPunchline:
+    "That is what your buyers do, too. Answer now — or lose them to the next brokerage.",
+  services: [
+    "Live Video Receptionist on Your Website",
+    "AI Phone Receptionist — No Website Needed",
+    "Fresh B2B Prospects, Delivered Weekly",
+    "Google Maps & AI Search Visibility",
+    "Reviews & Reputation Management",
+    "Social Media, Handled",
+    "Comments & Reviews, Answered",
+    "Website Revamp or a Brand-New Site",
+  ],
   moneyMath: {
     lines: [
       "Average total commission in 2025: about 5.44%. One agent's side, at about 2.5%, is about $10,000 on a $400,000 home — and about $25,000 on a $1,000,000 home or condo.",
-      "Miss just 1 closing a month at the $400,000 level and that is about $120,000 a year walking to the next agent.",
+      "Miss just 1 closing a month at the $400,000 level and that is about $120,000 a year walking to the next agent — or straight to the brokerage down the street.",
     ],
     punchline: "Aspen is $99/mo.",
     source: "Commission example: Redfin / Clever data, 2025",

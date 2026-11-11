@@ -27,7 +27,21 @@ import TeamSection from "@/components/landing/TeamSection";
 import GeminiAgentWidget from "@/components/GeminiAgentWidget";
 import AssistantErrorBoundary from "@/components/AssistantErrorBoundary";
 import aspenPortrait from "@/assets/aspen-idle-wave.gif";
+import realtorCondosPhoto from "@/assets/realtor-fort-lauderdale-condos.jpg";
+import realtorSkylinePhoto from "@/assets/realtor-miami-skyline.jpg";
+import realtorHomePhoto from "@/assets/realtor-florida-home.jpg";
 import type { AgentVertical } from "@/data/agentVerticals";
+
+/**
+ * Hero photo banner images, keyed by the `key` each vertical's
+ * heroPhotos data carries — a vertical only ever shows its own photos,
+ * and a vertical with no heroPhotos renders no banner at all.
+ */
+const heroPhotoImages: Record<string, string> = {
+  condos: realtorCondosPhoto,
+  skyline: realtorSkylinePhoto,
+  home: realtorHomePhoto,
+};
 
 const painIcons = [PhoneMissed, MoonStar, Clock];
 const controlIcons = [Phone, PhoneForwarded, Flame, CalendarCheck];
@@ -156,7 +170,7 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
                 </span>
                 <span className="text-xs sm:text-base font-medium text-primary">
-                  {vertical.builtFor}
+                  {vertical.badgeLine ?? vertical.builtFor}
                 </span>
               </motion.div>
 
@@ -328,6 +342,53 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
               </p>
             </motion.div>
           </div>
+
+          {/* Photo banner — real photographs from this vertical's world,
+              floating cards under the hero. Data-driven: only renders
+              when the vertical carries heroPhotos. Slight tilts on
+              desktop give the floating feel; reduced motion (and small
+              screens) get a calm, straight grid. */}
+          {vertical.heroPhotos && vertical.heroPhotos.length > 0 && (
+            <div data-agent-hero-photos className="mt-10 sm:mt-12">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-5xl mx-auto">
+                {vertical.heroPhotos.map((photo, i) => {
+                  const src = heroPhotoImages[photo.key];
+                  if (!src) return null;
+                  return (
+                    <motion.figure
+                      key={photo.key}
+                      initial={reduceMotion ? false : { opacity: 0, y: 24 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true, margin: "-40px" }}
+                      transition={{ duration: 0.5, delay: i * 0.12 }}
+                      className={`relative overflow-hidden rounded-2xl border border-primary/20 shadow-xl shadow-black/30 ${
+                        i === 0 ? "sm:-rotate-1" : i === 2 ? "sm:rotate-1" : ""
+                      }`}
+                    >
+                      <img
+                        src={src}
+                        alt={photo.alt}
+                        loading="lazy"
+                        className="aspect-[4/3] w-full object-cover"
+                      />
+                      <div
+                        aria-hidden
+                        className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-primary/10"
+                      />
+                      <figcaption className="absolute bottom-3 left-3 rounded-full bg-background/80 px-3 py-1 text-xs font-semibold text-foreground backdrop-blur-sm">
+                        {photo.caption}
+                      </figcaption>
+                    </motion.figure>
+                  );
+                })}
+              </div>
+              {vertical.heroPhotosCredit && (
+                <p className="mt-3 text-center text-[11px] text-muted-foreground">
+                  {vertical.heroPhotosCredit}
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </section>
 
@@ -338,10 +399,10 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
             {vertical.stats.slice(0, 4).map((stat) => (
               <div key={stat.value}>
                 <p className="text-3xl sm:text-4xl font-extrabold text-primary">
-                  {stat.value}
+                  {stat.barValue ?? stat.value}
                 </p>
                 <p className="mt-1 text-xs sm:text-sm text-muted-foreground leading-snug">
-                  {stat.label}
+                  {stat.barLabel ?? stat.label}
                 </p>
               </div>
             ))}
@@ -378,10 +439,14 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
                   transition={{ delay: i * 0.1 }}
                   className="rounded-2xl border border-border bg-card p-6 sm:p-8"
                 >
-                  <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mb-4">
-                    <Icon className="w-7 h-7 text-primary" />
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="w-12 h-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                      <Icon className="w-6 h-6 text-primary" />
+                    </div>
+                    <h3 className="text-lg font-semibold leading-snug">
+                      {pain.title}
+                    </h3>
                   </div>
-                  <h3 className="text-lg font-semibold mb-2">{pain.title}</h3>
                   <p className="text-sm text-muted-foreground leading-relaxed">
                     {pain.body}
                   </p>
@@ -594,8 +659,7 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
                 {vertical.scenario}
               </p>
               <p className="mt-3 text-sm font-medium text-foreground">
-                That is what your buyers do, too — to the agent who doesn't
-                answer.
+                {vertical.scenarioPunchline}
               </p>
             </div>
           </Reveal>
@@ -642,6 +706,49 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
 
       {/* Meet the team — same component as the homepage, verbatim */}
       <TeamSection />
+
+      {/* The full services list — same names as the homepage hero list,
+          balanced checklist. Data-driven per vertical. */}
+      {vertical.services && vertical.services.length > 0 && (
+        <section className="py-14 sm:py-20 bg-secondary/20 border-y border-border">
+          <div className="container mx-auto px-5 sm:px-6">
+            <Reveal className="max-w-4xl mx-auto">
+              <div className="text-center mb-10">
+                <Badge variant="outline" className="mb-4 border-primary/30 text-primary">
+                  The full toolkit
+                </Badge>
+                <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+                  More than call answering
+                </h2>
+                <p className="text-muted-foreground text-base sm:text-lg max-w-2xl mx-auto">
+                  Aspen answering your calls and your website is where it
+                  starts. Behind her is the full AiHiddenLeads toolkit — the
+                  same services every customer can grow into.
+                </p>
+              </div>
+              <ul
+                data-agent-services
+                className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4 max-w-3xl mx-auto"
+              >
+                {vertical.services.map((service) => (
+                  <li key={service} className="flex items-center gap-3">
+                    <span className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                      <Check className="w-5 h-5 text-primary" />
+                    </span>
+                    <span className="text-sm sm:text-base font-medium text-foreground leading-snug">
+                      {service}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-8 text-center text-sm text-muted-foreground">
+                Aspen answering is the $99/mo start; the rest are available
+                as add-ons or quoted scope when you want to grow.
+              </p>
+            </Reveal>
+          </div>
+        </section>
+      )}
 
       {/* Focused Premium summary for this vertical (full shared pricing below) */}
       <section className="py-14 sm:py-20">
