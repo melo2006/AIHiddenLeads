@@ -338,6 +338,11 @@ export const REALTOR_VERTICAL: AgentVertical = {
             city: "Coral Gables",
             url: "https://miamisignaturehomes.com/",
           },
+          {
+            agent: "Michael Martinez",
+            city: "Coral Gables",
+            url: "https://michaelmartinezrealtor.com/",
+          },
         ],
       },
       {
@@ -353,6 +358,11 @@ export const REALTOR_VERTICAL: AgentVertical = {
             city: "Boca Raton",
             url: "https://jeanlucandriot.com/",
           },
+          {
+            agent: "Paul Saperstein",
+            city: "Delray Beach",
+            url: "https://paulsapersteinhomes.com/",
+          },
         ],
       },
       {
@@ -367,6 +377,46 @@ export const REALTOR_VERTICAL: AgentVertical = {
             agent: "Logan Walter",
             city: "Dallas",
             url: "https://loganwalter.com/",
+          },
+        ],
+      },
+      {
+        area: "Los Angeles, CA",
+        options: [
+          {
+            agent: "Ray Miramontes",
+            city: "Long Beach",
+            url: "https://mira-realestate.com/",
+          },
+        ],
+      },
+      {
+        area: "San Francisco, CA",
+        options: [
+          {
+            agent: "Danielle Lazier",
+            city: "San Francisco",
+            url: "https://daniellelazier.com/",
+          },
+        ],
+      },
+      {
+        area: "New York, NY",
+        options: [
+          {
+            agent: "Richard Steinberg Team",
+            city: "New York",
+            url: "https://www.therichardsteinbergteam.com/",
+          },
+        ],
+      },
+      {
+        area: "Salt Lake City, UT",
+        options: [
+          {
+            agent: "Gian Sexsmith",
+            city: "Salt Lake City",
+            url: "https://sexsmithrealty.com/",
           },
         ],
       },
