@@ -89,6 +89,24 @@ export interface AgentVertical {
     homeTurfLabel: string;
     counties: { county: string; cities: string[] }[];
   };
+  /**
+   * One-click example demos for the hero form — real agents' public
+   * websites, grouped by area. Picking one launches the live demo on
+   * that site immediately (no typing) under a generic visitor name.
+   * Only verticals that carry this field render the dropdown.
+   */
+  demoExamples?: {
+    /** Label/intro line rendered above the select. */
+    intro: string;
+    /** Disabled placeholder option. */
+    placeholder: string;
+    /** Generic visitor name a sample session is authorized with. */
+    visitorName: string;
+    groups: {
+      area: string;
+      options: { agent: string; city: string; url: string }[];
+    }[];
+  };
   /** Worked money-math example — labelled an example, not a promise. */
   moneyMath: { lines: string[]; punchline: string; source: string };
   /** Calendar section: bookings on the agent's own connected calendar. */
@@ -158,7 +176,7 @@ export const REALTOR_VERTICAL: AgentVertical = {
       key: "dallas",
       alt: "Downtown Dallas skyline panorama — glass towers over Klyde Warren Park and the Arts District",
       caption: "Downtown Dallas",
-      slogan: "Serving realtors nationwide — Dallas to Miami.",
+      slogan: "Serving realtors nationwide — coast to coast.",
       focusClass: "object-[50%_40%]",
     },
   ],
@@ -286,10 +304,78 @@ export const REALTOR_VERTICAL: AgentVertical = {
     "Comments & Reviews, Answered",
     "Website Revamp or a Brand-New Site",
   ],
+  demoExamples: {
+    intro:
+      "No typing needed — pick an example realtor website and watch the demo run on it live:",
+    placeholder: "Pick an example realtor website…",
+    visitorName: "John Doe",
+    groups: [
+      {
+        area: "Broward County, FL",
+        options: [
+          {
+            agent: "Aurelia Perez",
+            city: "Fort Lauderdale",
+            url: "https://www.aureliaperez.com/",
+          },
+          {
+            agent: "Ann Chamberlain",
+            city: "Fort Lauderdale",
+            url: "https://www.annchamberlain.com/",
+          },
+        ],
+      },
+      {
+        area: "Miami-Dade County, FL",
+        options: [
+          {
+            agent: "Ashley Cusack",
+            city: "Coral Gables",
+            url: "https://ashleycusack.com/",
+          },
+          {
+            agent: "Mauricio J. Barba",
+            city: "Coral Gables",
+            url: "https://miamisignaturehomes.com/",
+          },
+        ],
+      },
+      {
+        area: "Palm Beach County, FL",
+        options: [
+          {
+            agent: "Alexa Scalone",
+            city: "Delray Beach",
+            url: "https://alexascalone.com/",
+          },
+          {
+            agent: "Jean-Luc Andriot",
+            city: "Boca Raton",
+            url: "https://jeanlucandriot.com/",
+          },
+        ],
+      },
+      {
+        area: "Dallas, TX",
+        options: [
+          {
+            agent: "Baldemar De Leon",
+            city: "Dallas",
+            url: "https://www.baldemardeleon.com/",
+          },
+          {
+            agent: "Logan Walter",
+            city: "Dallas",
+            url: "https://loganwalter.com/",
+          },
+        ],
+      },
+    ],
+  },
   serviceAreas: {
     heading: "Serving realtors nationwide",
     framing:
-      "Aspen answers wherever your buyers and sellers call from. Our home base is South Florida — our agents' markets are everywhere. Dallas to Miami: if the phone rings, she picks up.",
+      "Aspen answers wherever your buyers and sellers call from. Our home base is South Florida — our agents' markets are everywhere. Coast to coast: if the phone rings, she picks up.",
     homeTurfLabel: "Home turf — South Florida",
     counties: [
       {

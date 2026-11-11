@@ -11,6 +11,7 @@ const read = (rel: string) => readFileSync(new URL(rel, import.meta.url), "utf8"
 const appSource = read("../App.tsx");
 const templateSource = read("../components/landing/AgentLandingTemplate.tsx");
 const pageSource = read("../pages/Realtors.tsx");
+const tryDemoSource = read("../pages/TryDemo.tsx");
 
 describe("realtor landing page — route", () => {
   it("is registered at /agents/realtors in App.tsx", () => {
@@ -306,6 +307,84 @@ describe("realtor landing page — v2 polish batch (2026-11-11)", () => {
   });
 });
 
+describe("realtor landing page — one-click example demos (2026-11-12)", () => {
+  it("realtors data carries eight example sites in four area groups", () => {
+    const examples = REALTOR_VERTICAL.demoExamples;
+    expect(examples).toBeDefined();
+    expect(examples?.intro).toBe(
+      "No typing needed — pick an example realtor website and watch the demo run on it live:",
+    );
+    expect(examples?.placeholder).toBe("Pick an example realtor website…");
+    expect(examples?.visitorName).toBe("John Doe");
+    expect(examples?.groups.map((group) => group.area)).toEqual([
+      "Broward County, FL",
+      "Miami-Dade County, FL",
+      "Palm Beach County, FL",
+      "Dallas, TX",
+    ]);
+    expect(
+      examples?.groups.flatMap((group) =>
+        group.options.map(
+          (option) => `${option.agent} — ${option.city}|${option.url}`,
+        ),
+      ),
+    ).toEqual([
+      "Aurelia Perez — Fort Lauderdale|https://www.aureliaperez.com/",
+      "Ann Chamberlain — Fort Lauderdale|https://www.annchamberlain.com/",
+      "Ashley Cusack — Coral Gables|https://ashleycusack.com/",
+      "Mauricio J. Barba — Coral Gables|https://miamisignaturehomes.com/",
+      "Alexa Scalone — Delray Beach|https://alexascalone.com/",
+      "Jean-Luc Andriot — Boca Raton|https://jeanlucandriot.com/",
+      "Baldemar De Leon — Dallas|https://www.baldemardeleon.com/",
+      "Logan Walter — Dallas|https://loganwalter.com/",
+    ]);
+    // Examples are a realtors-only data addition, not a shared default.
+    for (const vertical of AGENT_VERTICALS) {
+      if (vertical.slug !== "realtors") {
+        expect(vertical.demoExamples).toBeUndefined();
+      }
+    }
+  });
+
+  it("hero form renders a labelled grouped select without changing its two text inputs", () => {
+    expect(templateSource).toContain("data-agent-demo-examples");
+    expect(templateSource).toContain('htmlFor="agent-hero-example"');
+    expect(templateSource).toContain("{vertical.demoExamples.intro}");
+    expect(templateSource).toContain('id="agent-hero-example"');
+    expect(templateSource).toContain('defaultValue=""');
+    expect(templateSource).toContain("onChange={handleExampleSelect}");
+    expect(templateSource).toContain("{vertical.demoExamples.placeholder}");
+    expect(templateSource).toContain(
+      "vertical.demoExamples.groups.map((group)",
+    );
+    expect(templateSource).toContain("<optgroup key={group.area} label={group.area}>");
+    expect(templateSource).toContain("<option key={option.url} value={option.url}>");
+    expect(templateSource).toContain("{option.agent} — {option.city}");
+  });
+
+  it("selecting an example uses the /demo handoff with the sample flag and generic visitor name", () => {
+    expect(templateSource).toContain(
+      "`/demo?url=${encodeURIComponent(exampleUrl)}&sample=1&callerName=${encodeURIComponent(vertical.demoExamples.visitorName)}`",
+    );
+    // /demo forwards a marked sample straight to /demo-site, where the
+    // callerName param is the existing channel into visitorName.
+    expect(tryDemoSource).toContain('searchParams.get("sample") !== "1"');
+    expect(tryDemoSource).toContain('searchParams.get("callerName")');
+    expect(tryDemoSource).toContain("callerName: sampleCallerName");
+    expect(tryDemoSource).toContain('sample: "1"');
+    expect(tryDemoSource).toContain(
+      "navigate(`/demo-site?${params.toString()}`, { replace: true })",
+    );
+  });
+
+  it("uses coast-to-coast nationwide wording in the realtor data", () => {
+    const serialized = JSON.stringify(REALTOR_VERTICAL);
+    expect(serialized).toContain("Serving realtors nationwide — coast to coast.");
+    expect(serialized).toContain("Coast to coast: if the phone rings, she picks up.");
+    expect(serialized).not.toMatch(/Dallas to (Miami|Florida)/);
+  });
+});
+
 describe("realtor landing page — v3 real-estate batch (2026-11-11)", () => {
   it("hero badge pill carries the realtor slogan line, data-driven", () => {
     expect(REALTOR_VERTICAL.badgeLine).toBe(
@@ -458,7 +537,7 @@ describe("realtor landing page — v4 hero photo carousel (2026-11-11 addenda)",
       "Every buyer. Every seller. Answered.",
       "Aspen answers in seconds, 24/7.",
       "Voicemail? Your buyer just called the next agent on the list.",
-      "Serving realtors nationwide — Dallas to Miami.",
+      "Serving realtors nationwide — coast to coast.",
     ]);
     // Every slide names its subject in alt text and carries a focal
     // crop class so the subject survives the mobile/desktop crops.
@@ -614,7 +693,7 @@ describe("realtor landing page — areas we serve strip (2026-11-11)", () => {
     expect(areas?.framing).toMatch(/wherever your buyers and sellers call from/);
     expect(areas?.framing).toMatch(/home base is South Florida/);
     expect(areas?.framing).toMatch(/our agents' markets are everywhere/);
-    expect(areas?.framing).toMatch(/Dallas to Miami/);
+    expect(areas?.framing).toMatch(/Coast to coast/);
     expect(areas?.framing).toMatch(/if the phone rings, she picks up/);
     expect(areas?.framing).not.toMatch(/\bonly\b/i);
     expect(areas?.homeTurfLabel).toBe("Home turf — South Florida");

@@ -2,6 +2,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type ChangeEvent,
   type FormEvent,
   type ReactNode,
 } from "react";
@@ -305,6 +306,19 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
     );
   };
 
+  // One-click example demos — picking an example launches the demo on
+  // that site immediately, through the same /demo handoff as a typed
+  // URL, marked as a sample launch (sample=1) and carrying the generic
+  // visitor name the data entry supplies (callerName — the param the
+  // demo flow already threads into the session's visitorName).
+  const handleExampleSelect = (event: ChangeEvent<HTMLSelectElement>) => {
+    const exampleUrl = event.target.value;
+    if (!exampleUrl || !vertical.demoExamples) return;
+    navigate(
+      `/demo?url=${encodeURIComponent(exampleUrl)}&sample=1&callerName=${encodeURIComponent(vertical.demoExamples.visitorName)}`,
+    );
+  };
+
   return (
     <div className="landing-page min-h-screen bg-background overflow-x-hidden">
       {/* Slim top contact bar — agent pages only, above the navbar. Both
@@ -491,6 +505,38 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
                   <p className="text-xs text-muted-foreground text-center">
                     Free demo. No signup, no card.
                   </p>
+                  {vertical.demoExamples && (
+                    <div
+                      data-agent-demo-examples
+                      className="border-t border-border pt-3"
+                    >
+                      <label
+                        htmlFor="agent-hero-example"
+                        className="block text-sm font-semibold text-foreground mb-1.5"
+                      >
+                        {vertical.demoExamples.intro}
+                      </label>
+                      <select
+                        id="agent-hero-example"
+                        defaultValue=""
+                        onChange={handleExampleSelect}
+                        className="h-12 w-full min-w-0 rounded-md border border-input bg-background px-3 text-base text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      >
+                        <option value="" disabled>
+                          {vertical.demoExamples.placeholder}
+                        </option>
+                        {vertical.demoExamples.groups.map((group) => (
+                          <optgroup key={group.area} label={group.area}>
+                            {group.options.map((option) => (
+                              <option key={option.url} value={option.url}>
+                                {option.agent} — {option.city}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
               </motion.form>
 

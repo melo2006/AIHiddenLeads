@@ -85,6 +85,26 @@ const TryDemo = () => {
     if (urlParam) setUrl((current) => current || urlParam.replace(/^https?:\/\//i, ""));
   }, [searchParams]);
 
+  // One-click sample launch: a landing-page example supplies both the
+  // website and the generic visitor identity, so there is no intake to
+  // collect. Forward to the same no-lead /demo-site path DemoSite uses
+  // for its sample escape hatch; its callerName param is already read
+  // there and threaded into the voice session as visitorName.
+  useEffect(() => {
+    if (searchParams.get("sample") !== "1") return;
+    const sampleUrl = searchParams.get("url");
+    const sampleCallerName = searchParams.get("callerName");
+    if (!sampleUrl || !sampleCallerName) return;
+
+    const params = new URLSearchParams({
+      url: sampleUrl,
+      callerName: sampleCallerName,
+      sample: "1",
+      lang: i18n.resolvedLanguage || i18n.language || "en",
+    });
+    navigate(`/demo-site?${params.toString()}`, { replace: true });
+  }, [i18n, navigate, searchParams]);
+
   // "Continue my demo" — a saved, unfinished verified demo can be resumed.
   useEffect(() => {
     setResume(loadDemoResume());
