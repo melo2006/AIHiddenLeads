@@ -19,6 +19,11 @@ User=aspen
 Group=aspen
 WorkingDirectory=/opt/aspen-voice
 EnvironmentFile=/etc/aspen-voice.env
+# Deno must cache under the service-owned tree: running as user aspen, its
+# default cache location resolves under /nonexistent and the unit crash-loops
+# on npm-package caching (production finding, 2026-11-11). deploy.sh creates
+# this directory owned by aspen:aspen.
+Environment=DENO_DIR=/opt/aspen-voice/cache
 ExecStart=/usr/local/bin/deno run --allow-net --allow-env server.ts
 Restart=always
 RestartSec=2

@@ -33,7 +33,7 @@ Required by the proxy's import closure — every one must be present:
 | `TWILIO_ACCOUNT_SID` | Follow-up SMS via Twilio (`_shared/twilio-sms.ts`, in the closure since the follow-up pack). Exists as a Supabase function secret today. |
 | `TWILIO_AUTH_TOKEN` | Twilio API auth for follow-up SMS. |
 | `TWILIO_MESSAGING_SERVICE_SID` | Has a code-constant fallback (the AI Hidden Leads messaging service); set explicitly anyway so the VPS matches Edge behaviour exactly. |
-| `PORT` | Set to `8081` (bridge owns 8080). Read by `waituntil-prelude.ts`, which injects the listen address into the proxy's `Deno.serve` call. Loopback bind is the prelude default (`VOICE_PROXY_BIND` can override it — don't, unless there is a reason). |
+| `PORT` | Set to `8081` (bridge owns 8080). Read by `waituntil-prelude.ts`, which injects the listen address into the proxy's `Deno.serve` call. Loopback bind is the prelude default (`VOICE_PROXY_BIND` can override it — don't, unless there is a reason). **Production does override it** — see “Production state (as deployed 2026-11-11)” below. |
 
 Surfaced by the full-tree grep but **NOT** needed by this service — they belong
 to `_shared` modules outside the proxy's import closure (payments/Stripe
@@ -132,6 +132,75 @@ File rules: root-owned, `chmod 600`. `deploy.sh` refuses to run otherwise.
   (`/opt/aspen-voice/functions.bak-<timestamp>`) over
   `/opt/aspen-voice/functions`, re-run `deno cache server.ts` in
   `/opt/aspen-voice`, and `systemctl restart aspen-voice-proxy`.
+
+## Production state (as deployed 2026-11-11)
+
+Phase C–E were executed on the box on 2026-11-11. The live edge layout
+differs from the Phase C sketch above in one load-bearing way: the proxy
+does **not** bind loopback in production.
+
+### Bind: Docker gateway, not loopback, not public
+
+The proxy binds **`172.16.0.1:8081`** — the Docker gateway address — via the
+`VOICE_PROXY_BIND` env var (read by `waituntil-prelude.ts`; loopback is only
+the default). The value is supplied on the box by a systemd drop-in (below),
+not by the repo unit, because the gateway bind is a property of this box's
+Docker edge, not of the service in general.
+
+Why: the public edge for this host is a **sibling nginx container**,
+`aspen-voice-edge` (config `/opt/aspen-voice-edge/nginx.conf`, in the same
+docker traefik stack as the phone path's `aspen-edge` container — which is
+never touched). Its upstream is `host.docker.internal:8081` — i.e. the
+gateway address — with WebSocket upgrade headers and the load-bearing
+**1200 s** `proxy_read_timeout` / `proxy_send_timeout` (they must exceed the
+proxy's 900 s session ceiling). Traefik labels on the container route
+`Host(\`voice-proxy.aihiddenleads.com\`)` with the stack's letsencrypt
+certresolver, same mechanism as `voice.aihiddenleads.com`.
+`nginx-voice-proxy.conf` in this folder remains the reference server block;
+the deployed container config is its adapted form.
+
+Because the proxy binds only the gateway address, **port 8081 stays off the
+public internet** — the only public path in is Traefik → `aspen-voice-edge`
+→ gateway:8081.
+
+### Health checks after the gateway bind
+
+Loopback no longer answers: `curl http://127.0.0.1:8081/?ping=1` fails on
+the production box even when the service is healthy. Use either:
+
+- `curl 'http://172.16.0.1:8081/?ping=1'` (on the box), or
+- `curl 'https://voice-proxy.aihiddenleads.com/?ping=1'` (public path,
+  proves edge + proxy together).
+
+Note: `deploy.sh` step 5 still pings loopback (it predates the gateway
+bind). On the production box a re-deploy can therefore end with the
+loopback health-check error on an otherwise good deploy — verify with the
+gateway or public ping above before concluding anything is broken.
+
+### Production drop-ins (box state, recorded here in full)
+
+Directory: `/etc/systemd/system/aspen-voice-proxy.service.d/`
+
+`10-deno-dir.conf` — the DENO_DIR fix, applied on the box during the first
+production start (without it, Deno running as user `aspen` tried to cache
+npm packages under `/nonexistent` and the unit crash-looped). **Superseded
+by this repo:** `aspen-voice-proxy.service` now carries the same
+`Environment=` line and `deploy.sh` now creates `/opt/aspen-voice/cache`
+owned by `aspen:aspen`. Once a deploy has run with those fixes, this
+drop-in is a harmless duplicate and can be removed in a later sitting.
+
+```ini
+[Service]
+Environment=DENO_DIR=/opt/aspen-voice/cache
+```
+
+`20-bind.conf` — the gateway bind described above. **Still load-bearing:**
+nothing in the repo sets `VOICE_PROXY_BIND`, by design.
+
+```ini
+[Service]
+Environment=VOICE_PROXY_BIND=172.16.0.1
+```
 
 ### Phase B local verification (build VM, 2026-11-11 — for the Phase C operator)
 

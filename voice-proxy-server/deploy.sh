@@ -91,7 +91,7 @@ fi
 GIT_SHA="$(git -C "${REPO_ROOT}" rev-parse HEAD 2>/dev/null || echo 'unknown (not a git checkout)')"
 
 # --- 2. Backup ----------------------------------------------------------------
-mkdir -p "${DEST}/functions/_shared"
+mkdir -p "${DEST}/functions/_shared" "${DEST}/functions/gemini-live-proxy"
 if [[ -f "${DEST}/functions/gemini-live-proxy/index.ts" ]]; then
   BACKUP="${DEST}/functions.bak-$(date +%Y%m%d%H%M%S)"
   cp -a "${DEST}/functions" "${BACKUP}"
@@ -107,6 +107,15 @@ cp -a "${SCRIPT_DIR}/server.ts" "${DEST}/server.ts"
 cp -a "${SCRIPT_DIR}/waituntil-prelude.ts" "${DEST}/waituntil-prelude.ts"
 cp -a "${SCRIPT_DIR}/edge-runtime.d.ts" "${DEST}/edge-runtime.d.ts"
 echo "copied: gemini-live-proxy + ${#SHARED_CLOSURE[@]} _shared modules + server entry → ${DEST}"
+
+# --- 3b. Service Deno cache dir -------------------------------------------------
+# The unit sets DENO_DIR=${DEST}/cache and runs as user aspen. Without this
+# directory, owned by aspen, Deno tries to cache npm packages under the aspen
+# user's home (/nonexistent) and the unit crash-loops (production finding,
+# 2026-11-11). deploy.sh runs as root, so create it explicitly. Idempotent:
+# re-running install -d on an existing directory just reasserts ownership.
+install -d -o aspen -g aspen "${DEST}/cache"
+echo "service cache dir: ${DEST}/cache (aspen:aspen) ✓"
 
 # --- 4. Pre-warm module cache (also the closure authority) ---------------------
 (cd "${DEST}" && "${DENO}" cache server.ts)
