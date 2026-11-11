@@ -396,6 +396,51 @@ describe("realtor landing page — v3 real-estate batch (2026-11-11)", () => {
   });
 });
 
+describe("realtor landing page — v4 card layout consistency (2026-11-11)", () => {
+  it("seller sample-call card: icon chip and headline share one header row, body below", () => {
+    const titleAt = templateSource.indexOf("vertical.sampleCall.sellerTitle");
+    expect(titleAt).toBeGreaterThan(-1);
+    const card = templateSource.slice(titleAt - 800, titleAt + 400);
+    // Calendar icon chip sits in the same flex header row as the headline.
+    const headerAt = card.indexOf("flex items-center gap-4 mb-3");
+    expect(headerAt).toBeGreaterThan(-1);
+    expect(card.indexOf("CalendarCheck", headerAt)).toBeGreaterThan(headerAt);
+    expect(card.indexOf("shrink-0", headerAt)).toBeGreaterThan(headerAt);
+    // Headline follows the header row start; body follows the headline.
+    const titleInCard = card.indexOf("vertical.sampleCall.sellerTitle", headerAt);
+    expect(titleInCard).toBeGreaterThan(headerAt);
+    expect(card.indexOf("vertical.sampleCall.sellerBody")).toBeGreaterThan(
+      titleInCard,
+    );
+    // The old stacked tile (icon alone on its own row above the headline) is gone.
+    expect(templateSource).not.toContain("justify-center mb-4");
+  });
+
+  it("control step cards: icon chip and headline share one header row, numbered badge on the chip corner", () => {
+    const stepsAt = templateSource.indexOf("vertical.controlSteps.map");
+    expect(stepsAt).toBeGreaterThan(-1);
+    const block = templateSource.slice(stepsAt, stepsAt + 2200);
+    const headerAt = block.indexOf("flex items-center gap-4 mb-4");
+    expect(headerAt).toBeGreaterThan(-1);
+    // Big icon tile kept (v2 design pin) inside a shrink-0 relative wrapper.
+    expect(block).toContain("w-16 h-16");
+    expect(block).toContain("w-8 h-8 text-primary");
+    expect(block.indexOf("relative shrink-0", headerAt)).toBeGreaterThan(headerAt);
+    // Step-number badge rides the chip's top-right corner, inside the row.
+    const badgeAt = block.indexOf("-top-2 -right-2", headerAt);
+    expect(badgeAt).toBeGreaterThan(headerAt);
+    expect(block.indexOf("{i + 1}", badgeAt)).toBeGreaterThan(badgeAt);
+    // Headline shares the row; body sits below it.
+    const titleAt = block.indexOf("{step.title}", headerAt);
+    const bodyAt = block.indexOf("{step.body}", headerAt);
+    expect(titleAt).toBeGreaterThan(headerAt);
+    expect(bodyAt).toBeGreaterThan(titleAt);
+    // The old stacked wrapper + off-tile badge offset are gone.
+    expect(templateSource).not.toContain("relative mb-4");
+    expect(templateSource).not.toContain("left-14");
+  });
+});
+
 describe("realtor landing page — shared template + pricing rules", () => {
   it("reuses the shared homepage blocks instead of a parallel design", () => {
     expect(templateSource).toContain("LandingNavbar");
