@@ -148,6 +148,13 @@ export const REALTOR_VERTICAL: AgentVertical = {
       focusClass: "object-[50%_45%]",
     },
     {
+      key: "beach",
+      alt: "Fort Lauderdale Beach — white sand and turquoise ocean along the beachfront condo and hotel strip, including the curved W Fort Lauderdale towers",
+      caption: "Fort Lauderdale Beach",
+      slogan: "Voicemail? Your buyer just called the next agent on the list.",
+      focusClass: "object-[50%_55%]",
+    },
+    {
       key: "dallas",
       alt: "Downtown Dallas skyline panorama — glass towers over Klyde Warren Park and the Arts District",
       caption: "Downtown Dallas",
@@ -156,7 +163,7 @@ export const REALTOR_VERTICAL: AgentVertical = {
     },
   ],
   heroSlidesCredit:
-    "Real photographs via Wikimedia Commons: Fort Lauderdale aerial by Yanjipy, CC BY-SA 4.0 · Downtown Dallas skyline by Gattacal, CC BY-SA 4.0. All other hero imagery created for AiHiddenLeads.",
+    "Real photographs via Wikimedia Commons: Fort Lauderdale aerial by Yanjipy, CC BY-SA 4.0 · Downtown Dallas skyline by Gattacal, CC BY-SA 4.0. All other hero imagery created for or provided to AiHiddenLeads.",
   headline:
     "Realtors: Never Miss a Buyer or Seller Call Again — Even at a Showing",
   sub: "Aspen answers calls and website visitors 24/7, books the appointment, sends the summary.",

@@ -437,9 +437,9 @@ describe("realtor landing page — v4 card layout consistency (2026-11-11)", () 
 });
 
 describe("realtor landing page — v4 hero photo carousel (2026-11-11 addenda)", () => {
-  it("hero slides: 7 photo + slogan pairs in the approved order (realtors only)", () => {
+  it("hero slides: 8 photo + slogan pairs in the approved order (realtors only)", () => {
     const slides = REALTOR_VERTICAL.heroSlides ?? [];
-    expect(slides).toHaveLength(7);
+    expect(slides).toHaveLength(8);
     expect(slides.map((s) => s.key)).toEqual([
       "sold",
       "condo",
@@ -447,6 +447,7 @@ describe("realtor landing page — v4 hero photo carousel (2026-11-11 addenda)",
       "house",
       "couple",
       "aerial",
+      "beach",
       "dallas",
     ]);
     expect(slides.map((s) => s.slogan)).toEqual([
@@ -456,6 +457,7 @@ describe("realtor landing page — v4 hero photo carousel (2026-11-11 addenda)",
       "Your next closing starts with one answered call.",
       "Every buyer. Every seller. Answered.",
       "Aspen answers in seconds, 24/7.",
+      "Voicemail? Your buyer just called the next agent on the list.",
       "Serving realtors nationwide — Dallas to Miami.",
     ]);
     // Every slide names its subject in alt text and carries a focal
@@ -473,16 +475,22 @@ describe("realtor landing page — v4 hero photo carousel (2026-11-11 addenda)",
     expect(alts).toMatch(/older couple/);
     expect(alts).toMatch(/Aerial view of Fort Lauderdale/);
     expect(alts).toMatch(/Intracoastal/);
+    expect(alts).toMatch(/Fort Lauderdale Beach/);
+    expect(alts).toMatch(/W Fort Lauderdale/);
     expect(alts).toMatch(/Downtown Dallas skyline/);
     // No placeholder language survives anywhere in the slide data.
     expect(alts).not.toMatch(/placeholder/i);
-    // Credit line: slides 6 + 7 are real Wikimedia Commons photographs
+    // Credit line: slides 6 + 8 are real Wikimedia Commons photographs
     // (CC BY-SA 4.0, each credited to its author); the rest of the
-    // hero imagery was created for AiHiddenLeads and needs no credit.
+    // hero imagery was created for — or provided to — AiHiddenLeads
+    // (slide 7 is Ron's own Fort Lauderdale Beach photo).
     expect(REALTOR_VERTICAL.heroSlidesCredit).toMatch(/Yanjipy/);
     expect(REALTOR_VERTICAL.heroSlidesCredit).toMatch(/Gattacal/);
     expect(REALTOR_VERTICAL.heroSlidesCredit).toMatch(/CC BY-SA 4\.0/);
     expect(REALTOR_VERTICAL.heroSlidesCredit).toMatch(/Wikimedia Commons/);
+    expect(REALTOR_VERTICAL.heroSlidesCredit).toMatch(
+      /created for or provided to AiHiddenLeads/,
+    );
     expect(REALTOR_VERTICAL.heroSlidesCredit).not.toMatch(/placeholder/i);
     // No other vertical carries slides — no carousel renders for them.
     for (const vertical of AGENT_VERTICALS) {
@@ -492,7 +500,7 @@ describe("realtor landing page — v4 hero photo carousel (2026-11-11 addenda)",
     }
   });
 
-  it("template: full-bleed slideshow band at the top of the hero, all 7 assets wired", () => {
+  it("template: full-bleed slideshow band at the top of the hero, all 8 assets wired", () => {
     expect(templateSource).toContain("data-agent-hero-slides");
     expect(templateSource).toContain("heroSlideImages");
     // The final approved set (Ron, 2026-11-11) — no placeholder files.
@@ -502,6 +510,7 @@ describe("realtor landing page — v4 hero photo carousel (2026-11-11 addenda)",
     expect(templateSource).toContain("@/assets/realtor-hero-house-qr.jpg");
     expect(templateSource).toContain("@/assets/realtor-hero-couple.jpg");
     expect(templateSource).toContain("@/assets/realtor-hero-fll-aerial.jpg");
+    expect(templateSource).toContain("@/assets/realtor-hero-fll-beach.jpg");
     expect(templateSource).toContain("@/assets/realtor-hero-dallas.jpg");
     expect(templateSource).not.toContain("realtor-slide-placeholder");
     expect(templateSource).toContain("vertical.heroSlidesCredit");
@@ -510,10 +519,23 @@ describe("realtor landing page — v4 hero photo carousel (2026-11-11 addenda)",
     const h1At = templateSource.indexOf("vertical.headline");
     expect(bandAt).toBeGreaterThan(-1);
     expect(h1At).toBeGreaterThan(bandAt);
-    // Panoramic background treatment: fixed band heights + object-cover.
-    expect(templateSource).toContain("h-[340px]");
-    expect(templateSource).toContain("lg:h-[520px]");
+    // Panoramic background treatment: skinnier fixed band heights
+    // (v4.1, Ron's live-test feedback: the v4 band ate too much page)
+    // + object-cover, and the hero section's top padding is tight so
+    // the band lifts up close to the header.
+    expect(templateSource).toContain("h-[250px]");
+    expect(templateSource).toContain("lg:h-[430px]");
+    expect(templateSource).not.toContain("h-[340px]");
+    expect(templateSource).not.toContain("lg:h-[520px]");
     expect(templateSource).toContain("object-cover");
+    expect(templateSource).toContain("pt-2 sm:pt-3");
+    // Slogan type steps down on mobile (text-2xl) so the longest
+    // slogan fits the skinnier band without clipping; the text block
+    // also carries extra side padding so no letter slides under the
+    // prev/next arrow buttons.
+    expect(templateSource).toContain("text-2xl font-bold leading-tight");
+    expect(templateSource).toContain("sm:text-5xl");
+    expect(templateSource).toContain("px-14");
   });
 
   it("slogan pill is removed from the realtor hero — its phrases live as slide slogans", () => {
@@ -528,18 +550,57 @@ describe("realtor landing page — v4 hero photo carousel (2026-11-11 addenda)",
     expect(templateSource).toContain("setInterval");
     expect(templateSource).toContain("transition-opacity duration-1000");
     // The rotation effect refuses to run under reduced motion or while
-    // paused — so reduced-motion visitors keep slide 1, static.
-    expect(templateSource).toContain("if (reduceMotion || paused");
-    // Pause hooks on hover / focus / tap, resume on leave.
-    expect(templateSource).toContain("onMouseEnter={() => setPaused(true)}");
-    expect(templateSource).toContain("onMouseLeave={() => setPaused(false)}");
-    expect(templateSource).toContain("onFocus={() => setPaused(true)}");
-    expect(templateSource).toContain("onPointerDown={() => setPaused(true)}");
+    // paused — so reduced-motion visitors keep slide 1, static (the
+    // manual controls below still move between slides for them).
+    expect(templateSource).toContain(
+      "if (reduceMotion || hoverPaused || userPaused",
+    );
+    // Transient pause hooks on hover / focus / tap, resume on leave.
+    expect(templateSource).toContain(
+      "onMouseEnter={() => setHoverPaused(true)}",
+    );
+    expect(templateSource).toContain(
+      "onMouseLeave={() => setHoverPaused(false)}",
+    );
+    expect(templateSource).toContain("onFocus={() => setHoverPaused(true)}");
+    expect(templateSource).toContain(
+      "onPointerDown={() => setHoverPaused(true)}",
+    );
     // Clickable dot indicators, one per slide, labelled per slide.
     expect(templateSource).toContain("aria-label={`Show slide ${i + 1}: ${slide.caption}`}");
     expect(templateSource).toContain('aria-roledescription="carousel"');
     // Slide 1 preloads (eager); the rest lazy-load.
     expect(templateSource).toContain('loading={i === 0 ? "eager" : "lazy"}');
+  });
+
+  it("controls: swipe, prev/next arrows and a pause/play toggle (v4.1)", () => {
+    // Touch swipe: the band records the touch start X and, past the
+    // threshold, a left swipe goes next and a right swipe goes prev;
+    // swiping counts as manual control, so it pauses the rotation.
+    expect(templateSource).toContain("HERO_SWIPE_MIN_PX = 40");
+    expect(templateSource).toContain("onTouchStart");
+    expect(templateSource).toContain("onTouchEnd");
+    expect(templateSource).toContain("touchStartX");
+    expect(templateSource).toContain("if (deltaX < 0) goNext();");
+    // Prev / next chevron buttons: labelled, real buttons (keyboard
+    // focusable), full 44px tap targets.
+    expect(templateSource).toContain('aria-label="Previous slide"');
+    expect(templateSource).toContain('aria-label="Next slide"');
+    expect(templateSource).toContain("ChevronLeft");
+    expect(templateSource).toContain("ChevronRight");
+    expect(templateSource).toContain("h-11 w-11");
+    // Pause / play toggle: aria-pressed state, label + icon swap.
+    expect(templateSource).toContain("aria-pressed={userPaused}");
+    expect(templateSource).toContain(
+      'userPaused ? "Play slideshow" : "Pause slideshow"',
+    );
+    expect(templateSource).toContain("<Pause");
+    expect(templateSource).toContain("<Play");
+    // Manual navigation routes through goTo, which pauses rotation
+    // until the visitor presses play again.
+    expect(templateSource).toContain("setUserPaused(true)");
+    expect(templateSource).toContain("const goPrev = () => goTo(active - 1);");
+    expect(templateSource).toContain("const goNext = () => goTo(active + 1);");
   });
 });
 

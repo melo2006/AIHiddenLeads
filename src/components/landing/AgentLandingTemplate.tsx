@@ -1,19 +1,29 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import {
   ArrowRight,
   CalendarCheck,
   Check,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   Flame,
   LayoutDashboard,
   MapPin,
   MoonStar,
+  Pause,
   Phone,
   PhoneCall,
   PhoneForwarded,
   PhoneMissed,
+  Play,
   Sparkles,
   Video,
 } from "lucide-react";
@@ -28,7 +38,7 @@ import TeamSection from "@/components/landing/TeamSection";
 import GeminiAgentWidget from "@/components/GeminiAgentWidget";
 import AssistantErrorBoundary from "@/components/AssistantErrorBoundary";
 import aspenPortrait from "@/assets/aspen-idle-wave.gif";
-// Final hero photos — the 7-slide set Ron approved in chat
+// Final hero photos — the 8-slide set Ron approved in chat
 // (2026-11-11), sourced from ~/workspace/hero-approved/.
 import realtorSoldPhoto from "@/assets/realtor-hero-sold.jpg";
 import realtorCondoPhoto from "@/assets/realtor-hero-condo.jpg";
@@ -36,6 +46,7 @@ import realtorKeysPhoto from "@/assets/realtor-hero-keys.jpg";
 import realtorHousePhoto from "@/assets/realtor-hero-house-qr.jpg";
 import realtorCouplePhoto from "@/assets/realtor-hero-couple.jpg";
 import realtorAerialPhoto from "@/assets/realtor-hero-fll-aerial.jpg";
+import realtorBeachPhoto from "@/assets/realtor-hero-fll-beach.jpg";
 import realtorDallasPhoto from "@/assets/realtor-hero-dallas.jpg";
 import type { AgentVertical } from "@/data/agentVerticals";
 
@@ -51,19 +62,27 @@ const heroSlideImages: Record<string, string> = {
   house: realtorHousePhoto,
   couple: realtorCouplePhoto,
   aerial: realtorAerialPhoto,
+  beach: realtorBeachPhoto,
   dallas: realtorDallasPhoto,
 };
 
 /** How long each hero slide stays up before crossfading to the next. */
 const HERO_SLIDE_ROTATE_MS = 5600;
 
+/** Horizontal swipe distance (px) that counts as a slide change. */
+const HERO_SWIPE_MIN_PX = 40;
+
 /**
  * Full-bleed hero slideshow — a panoramic photo fills the band as the
  * background (object-cover, per-slide focal classes), a dark gradient
  * scrim keeps the overlaid slogan legible, and photo + slogan crossfade
- * together as pairs. Dot indicators jump to a slide; auto-rotation
- * pauses on hover, focus or tap; a visitor who prefers reduced motion
- * gets slide 1, static — no rotation at all.
+ * together as pairs. Controls: dot indicators jump to a slide, prev/next
+ * chevron buttons step through, a pause/play toggle stops or resumes
+ * the rotation, and a touch swipe moves between slides. Taking manual
+ * control (dot, arrow, swipe) pauses auto-rotation until play is
+ * pressed; hovering or focusing the band pauses it only while the
+ * pointer/focus stays. A visitor who prefers reduced motion gets
+ * slide 1, static — no rotation — with every control still usable.
  */
 const HeroSlideshow = ({
   slides,
@@ -74,15 +93,30 @@ const HeroSlideshow = ({
 }) => {
   const reduceMotion = useReducedMotion();
   const [active, setActive] = useState(0);
-  const [paused, setPaused] = useState(false);
+  // Transient pause while the pointer hovers or focus is inside.
+  const [hoverPaused, setHoverPaused] = useState(false);
+  // Sticky pause: the pause/play toggle, or any manual navigation.
+  const [userPaused, setUserPaused] = useState(false);
+  const touchStartX = useRef<number | null>(null);
+
+  const goTo = (index: number) => {
+    setActive(((index % slides.length) + slides.length) % slides.length);
+    setUserPaused(true);
+  };
+  const goPrev = () => goTo(active - 1);
+  const goNext = () => goTo(active + 1);
 
   useEffect(() => {
-    if (reduceMotion || paused || slides.length < 2) return;
+    if (reduceMotion || hoverPaused || userPaused || slides.length < 2)
+      return;
     const id = window.setInterval(() => {
       setActive((current) => (current + 1) % slides.length);
     }, HERO_SLIDE_ROTATE_MS);
     return () => window.clearInterval(id);
-  }, [reduceMotion, paused, slides.length]);
+  }, [reduceMotion, hoverPaused, userPaused, slides.length]);
+
+  const controlButtonClass =
+    "flex h-11 w-11 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm transition hover:bg-black/65 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2";
 
   return (
     <div>
@@ -91,12 +125,27 @@ const HeroSlideshow = ({
         role="region"
         aria-roledescription="carousel"
         aria-label="Real estate scenes — South Florida and nationwide"
-        className="relative h-[340px] overflow-hidden rounded-2xl border border-primary/25 shadow-2xl shadow-primary/10 sm:h-[440px] lg:h-[520px]"
-        onMouseEnter={() => setPaused(true)}
-        onMouseLeave={() => setPaused(false)}
-        onFocus={() => setPaused(true)}
-        onBlur={() => setPaused(false)}
-        onPointerDown={() => setPaused(true)}
+        className="relative h-[250px] overflow-hidden rounded-2xl border border-primary/25 shadow-2xl shadow-primary/10 sm:h-[350px] lg:h-[430px]"
+        onMouseEnter={() => setHoverPaused(true)}
+        onMouseLeave={() => setHoverPaused(false)}
+        onFocus={() => setHoverPaused(true)}
+        onBlur={() => setHoverPaused(false)}
+        onPointerDown={() => setHoverPaused(true)}
+        onPointerUp={() => setHoverPaused(false)}
+        onTouchStart={(event) => {
+          touchStartX.current = event.touches[0]?.clientX ?? null;
+        }}
+        onTouchEnd={(event) => {
+          const startX = touchStartX.current;
+          touchStartX.current = null;
+          if (startX === null) return;
+          const endX = event.changedTouches[0]?.clientX;
+          if (endX === undefined) return;
+          const deltaX = endX - startX;
+          if (Math.abs(deltaX) < HERO_SWIPE_MIN_PX) return;
+          if (deltaX < 0) goNext();
+          else goPrev();
+        }}
       >
         {slides.map((slide, i) => {
           const src = heroSlideImages[slide.key];
@@ -114,14 +163,15 @@ const HeroSlideshow = ({
                 src={src}
                 alt={isActive ? slide.alt : ""}
                 loading={i === 0 ? "eager" : "lazy"}
+                draggable={false}
                 className={`h-full w-full object-cover ${slide.focusClass}`}
               />
               <div
                 aria-hidden
                 className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background/90 via-background/25 to-transparent"
               />
-              <div className="absolute inset-x-0 bottom-0 p-6 pb-12 sm:p-10 sm:pb-14">
-                <p className="max-w-2xl text-3xl font-bold leading-tight text-white drop-shadow-md sm:text-5xl">
+              <div className="absolute inset-x-0 bottom-0 px-14 pt-6 pb-12 sm:px-[4.5rem] sm:pt-10 sm:pb-14">
+                <p className="max-w-2xl text-2xl font-bold leading-tight text-white drop-shadow-md sm:text-5xl">
                   {slide.slogan}
                 </p>
                 <p className="mt-2 text-xs font-semibold uppercase tracking-wider text-white/80">
@@ -131,15 +181,41 @@ const HeroSlideshow = ({
             </div>
           );
         })}
+        <button
+          type="button"
+          onClick={goPrev}
+          aria-label="Previous slide"
+          className={`${controlButtonClass} absolute left-3 top-1/2 z-10 -translate-y-1/2`}
+        >
+          <ChevronLeft className="h-6 w-6" aria-hidden />
+        </button>
+        <button
+          type="button"
+          onClick={goNext}
+          aria-label="Next slide"
+          className={`${controlButtonClass} absolute right-3 top-1/2 z-10 -translate-y-1/2`}
+        >
+          <ChevronRight className="h-6 w-6" aria-hidden />
+        </button>
+        <button
+          type="button"
+          onClick={() => setUserPaused((value) => !value)}
+          aria-label={userPaused ? "Play slideshow" : "Pause slideshow"}
+          aria-pressed={userPaused}
+          className={`${controlButtonClass} absolute right-4 top-4 z-10`}
+        >
+          {userPaused ? (
+            <Play className="h-5 w-5" aria-hidden />
+          ) : (
+            <Pause className="h-5 w-5" aria-hidden />
+          )}
+        </button>
         <div className="absolute bottom-4 right-5 z-10 flex gap-2 sm:right-8">
           {slides.map((slide, i) => (
             <button
               key={slide.key}
               type="button"
-              onClick={() => {
-                setActive(i);
-                setPaused(true);
-              }}
+              onClick={() => goTo(i)}
               aria-label={`Show slide ${i + 1}: ${slide.caption}`}
               aria-current={i === active}
               className={`h-2.5 rounded-full transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
@@ -272,7 +348,7 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
       </div>
 
       {/* Hero — vertical headline + sub, shared Aspen portrait + demo CTA */}
-      <section className="relative overflow-hidden pt-6 sm:pt-8 pb-8 sm:pb-10">
+      <section className="relative overflow-hidden pt-2 sm:pt-3 pb-8 sm:pb-10">
         <div className="container mx-auto px-5 sm:px-6 relative z-10">
           {/* Hero slideshow — full-bleed photo band at the very top of
               the hero, data-driven: only renders when the vertical
