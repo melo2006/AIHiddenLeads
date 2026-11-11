@@ -11,6 +11,30 @@ export const SETUP_PROMO_END = 'this month'; // evergreen promo wording only —
 
 export const HOMEPAGE_GREETING = `{timeGreeting}, and thanks for calling {businessName}! I'm {agentName}. Did you know that 85% of callers who reach a business's voicemail don't call back — most just move on to the next name on the list. Those aren't just missed calls; they're customers quietly choosing somebody else. We're no vendor selling you something you don't need — we're your partner for finding the leads you're already losing: the hidden ones. I answer with a natural voice, just like the one you're hearing now — and on your website I can even appear on live video as your spokesperson: keep me, choose another face from our library, or make it personal with your own photo and even your own voice — helping visitors, answering questions, and capturing leads around the clock. And may I have your name, so I can greet you by it?`;
 
+// REALTOR LANDING GREETINGS (owner-approved 2026-11-11): a website
+// session that STARTS on /agents/realtors opens with this rotation
+// instead of the standard homepage greeting above. Applied as an
+// assembly-time override in gemini-session (the entryPath stamp,
+// mirroring the team-intro /demo pattern): the stored snapshot greeting
+// is never edited, so sessions starting on every other page keep the
+// standard opening byte-for-byte, and a session that starts elsewhere
+// keeps its own greeting even if the visitor later navigates to the
+// realtor page (the opening is fixed at authorization). Each variant
+// carries exactly TWO of the page's approved statistics, framed as
+// curiosity questions (owner's wording note, 2026-11-11); the figures
+// match the landing page's evidence: 15+ hours / 48% (WAV Group),
+// 78% / 21x (NAR / MIT-InsideSales), 85% / 1-in-3 (voicemail call-back /
+// Pied Piper). English source texts: the proxy delivers the picked
+// opening in the session's starting language through the same
+// session-opening channel as the standard greeting, so the website
+// start-language rule applies unchanged. Stored text keeps digits
+// ($99, 400, 78%) — display renders digits; speech naturalizes.
+export const REALTOR_GREETING_VARIANTS = [
+  `Hi, I'm Aspen — and this page was built for realtors. Did you know the average agent takes over 15 hours to respond to a new inquiry? And here's the part that stings — 48% of inquiries never get a response at all. I answer your calls and website visitors in seconds, 24/7. I qualify buyers and sellers, book showings on your calendar, and warm-transfer hot leads straight to your phone. It's $99 a month with 400 minutes, and I can show you live on your own website, free. May I have your name?`,
+  `Hi, I'm Aspen with AiHiddenLeads — this page is for realtors and brokers. Have you heard that 78% of buyers work with the first agent who responds? And did you know that answering in 5 minutes, instead of 30, makes you 21x more likely to qualify that lead? While you're at a showing or a closing, I answer in seconds — I qualify them, book them on your calendar, or transfer them to you live with a quick summary. $99 a month, 400 minutes included. Want to see me do it on your own website, free? May I have your name?`,
+  `Hi, I'm Aspen — realtors, this one's for you. Ever wonder where callers who hit your voicemail actually go? 85% of them never call back. And here's another one — only 1 in 3 callers ever reaches an agent at all. I make sure they reach you: I answer 24/7, talk with your buyers and sellers, book showings on your calendar, and hand hot leads back to you live. I'm also the video receptionist your website visitors would get — $99 a month with 400 minutes. Try me free on your own website. May I have your name?`,
+] as const;
+
 export const HOMEPAGE_OPENING_PRIORITY = `OPENING PRIORITY (supersedes the opening flow in the reference data): The session opening supplied for this call is the complete first turn. Deliver it in full, exactly as provided, then stop and wait for the visitor to speak. It ends by asking the visitor's name. Do not ask the missed-call capacity question, or any discovery question, until the visitor has spoken at least once. When they reply, use their name if they gave one, then ask one open question about their business or what they would like help with, and follow their lead. The opening already contains a statistic; do not deliver further opening statistics.`;
 
 export const PHONE_OPENING_PRIORITY = `OPENING PRIORITY (supersedes the opening flow in the reference data): The greeting supplied when the call connects is the complete first turn. Deliver it in full, word for word, exactly as provided, then stop and wait for the caller to speak. Do not shorten it, do not paraphrase it, and do not ask the missed-call capacity question, or any discovery question, until the caller has spoken at least once. When they reply, use their name if they gave one, then ask one open question about their business or what they would like help with, and follow their lead.`;

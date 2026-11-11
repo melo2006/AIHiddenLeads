@@ -12,6 +12,7 @@ import { DEMO_INVITE_GREETING, DEMO_INVITE_GREETING_LEGACY_SLIM, DEMO_INVITE_GRE
 import { alexGuideConfig, alexDemoGuestConfig } from '../_shared/alex-guide.ts';
 import { avatarSwapEnabled, teamIntroEnabled, personaFor, personaSegmentPrompt } from '../_shared/personas.ts';
 import { TEAM_INTRO_TEACHING, isIntroBoundary, teamIntroGreetingFor } from '../_shared/team-intro.ts';
+import { REALTOR_GREETING_VARIANTS } from '../_shared/homepage-knowledge.ts';
 import { PUBLIC_PATHS } from '../_shared/report-context.ts';
 import { normalizeUiLocale, startingLanguageForUiLocale } from '../_shared/conversation-language.ts';
 const personaSegmentSchema=z.object({persona:z.enum(['aspen','sara','alex']),boundary:z.enum(['doorway','stepout','meet-alex','return','intro-sara','intro-return-1','intro-alex','intro-return-2']),parentSessionId:z.string().uuid(),swapRecap:z.string().max(2400),drops:z.number().int().min(0).max(99).default(0),dropRecovery:z.boolean().default(false),manualResume:z.boolean().default(false),swap:z.boolean().default(false),teamIntroSeen:z.boolean().default(false)});
@@ -257,6 +258,26 @@ Deno.serve(async req=>{
       config.systemPrompt=`${String(config.systemPrompt || '')}\n${TEAM_INTRO_TEACHING}`;
       config.greeting=teamIntroGreetingFor(String(config.greeting || ''));
       if(Array.isArray(config.greetings)) config.greetings=(config.greetings as unknown[]).map(g=>teamIntroGreetingFor(String(g || '')));
+    }
+    // REALTOR LANDING STAMP (owner-approved 2026-11-11): a session that
+    // STARTS on /agents/realtors opens with the realtor greeting
+    // rotation (REALTOR_GREETING_VARIANTS) instead of the standard
+    // homepage greeting — same trust pattern as the team-intro stamp
+    // above: server-derived from the campaign entryPath
+    // ('/agents/realtors' is a member of PUBLIC_PATHS), never from a
+    // client flag alone. The stored snapshot greeting is never edited:
+    // sessions starting on any other page keep the standard opening
+    // byte-for-byte, and a session that starts elsewhere keeps its own
+    // greeting even if the visitor later navigates to the realtor page
+    // (the opening is fixed at authorization, in the final assembly
+    // below). The swap REPLACES the rotation — greeting AND greetings —
+    // exactly like businessDemoConfig fills a demo config, so
+    // openingFor rotates the three realtor variants per session.
+    // AgentId-addressed tenants, drafts and shares never carry it.
+    if(!b.agentId && agent.slug==='aspen-homepage' && b.campaign?.entryPath==='/agents/realtors') {
+      config.realtorLanding=true;
+      config.greeting=REALTOR_GREETING_VARIANTS[0];
+      config.greetings=[...REALTOR_GREETING_VARIANTS];
     }
   }
   const requestedModel = b.model;
