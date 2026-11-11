@@ -24,14 +24,24 @@ export interface AgentVertical {
    */
   badgeLine?: string;
   /**
-   * Optional hero photo banner — real photographs of the vertical's
-   * world, shown as floating cards under the hero. `key` selects the
-   * image in the template's photo map, so a vertical only ever shows
-   * its own photos; omit the field and no banner renders.
+   * Optional hero slideshow — a full-bleed photo band at the top of
+   * the hero. Each slide pairs a panoramic photo with the slogan
+   * overlaid on it; photo + slogan crossfade together. `key` selects
+   * the image in the template's slide map, so a vertical only ever
+   * shows its own photos; omit the field and no band renders (and the
+   * badge pill shows instead). `focusClass` carries the Tailwind
+   * object-position classes that keep each photo's subject in frame
+   * under the portrait-mobile and landscape-desktop crops.
    */
-  heroPhotos?: { key: string; alt: string; caption: string }[];
-  /** Attribution line for heroPhotos (source + licence), tiny print. */
-  heroPhotosCredit?: string;
+  heroSlides?: {
+    key: string;
+    alt: string;
+    caption: string;
+    slogan: string;
+    focusClass: string;
+  }[];
+  /** Attribution line for heroSlides (source + licence), tiny print. */
+  heroSlidesCredit?: string;
   headline: string;
   sub: string;
   pains: { title: string; body: string }[];
@@ -80,25 +90,45 @@ export const REALTOR_VERTICAL: AgentVertical = {
   builtFor: "Built for realtors",
   badgeLine:
     "Buyers and sellers won't wait · The first agent to answer wins the client · Aspen answers in seconds, 24/7",
-  heroPhotos: [
+  heroSlides: [
+    {
+      key: "sold",
+      alt: "Placeholder for a photo of a real estate agent handing the keys to a smiling couple in front of their new South Florida home, a red SOLD sign in the front yard",
+      caption: "The closing moment",
+      slogan: "The first agent to answer wins the client.",
+      focusClass: "object-[12%_30%] sm:object-[50%_32%]",
+    },
     {
       key: "condos",
       alt: "Fort Lauderdale condominiums — a beachfront condo tower with curved balconies",
       caption: "Fort Lauderdale condos",
+      slogan: "Buyers and sellers won't wait.",
+      focusClass: "object-[50%_40%]",
     },
     {
-      key: "skyline",
-      alt: "Downtown Miami skyline seen from Biscayne Bay",
-      caption: "Downtown Miami",
+      key: "townhouses",
+      alt: "Placeholder for a photo of a row of modern townhouses along a sunny suburban street",
+      caption: "Townhouse communities",
+      slogan: "Never miss a showing, a closing, or a call.",
+      focusClass: "object-[50%_45%]",
     },
     {
       key: "home",
       alt: "A single-family home in Coral Gables, South Florida, with a red tile roof and palm trees",
       caption: "South Florida homes",
+      slogan: "Every buyer. Every seller. Answered.",
+      focusClass: "object-[50%_50%]",
+    },
+    {
+      key: "skyline",
+      alt: "Downtown Miami skyline seen from Biscayne Bay",
+      caption: "Downtown Miami",
+      slogan: "Aspen answers in seconds, 24/7.",
+      focusClass: "object-[50%_45%]",
     },
   ],
-  heroPhotosCredit:
-    "Photos: Fort Lauderdale condo tower by Eric Fredericks, CC BY-SA 2.0 · Downtown Miami skyline by P. Hughes, CC BY-SA 4.0 · Coral Gables home by SebasTorrente, CC BY-SA 3.0 — via Wikimedia Commons.",
+  heroSlidesCredit:
+    "Slides 1 and 3 are placeholders — final photos pending approval. Photos via Wikimedia Commons: Fort Lauderdale condo tower by Eric Fredericks, CC BY-SA 2.0 · Coral Gables home by SebasTorrente, CC BY-SA 3.0 · Downtown Miami skyline by P. Hughes, CC BY-SA 4.0.",
   headline:
     "Realtors: Never Miss a Buyer or Seller Call Again — Even at a Showing",
   sub: "Aspen answers calls and website visitors 24/7, books the appointment, sends the summary.",
