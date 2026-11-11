@@ -54,6 +54,25 @@ ANSWER WITH THE MATCHING HELP — ONE THREAD AT A TIME, NEVER A MENU RECITAL: fo
 PRICING ANCHORS FOR THIS SESSION: Premium is $99 a month with 400 minutes included; the live video avatar is a separate optional add-on at $79 a month — never present the plan as its price plus the add-on. The core pitch stays the receptionist who never misses a call; everything else is matched help, offered when their answers call for it.
 UNCHANGED FOR THIS SESSION: everything else about a homepage session still applies — the free live demo on their own website (about 2 minutes), capturing their name, email and phone for follow-up, the booking and warm-transfer rules, and the honesty rules: never invent facts about their business, their listings or their numbers; "built for realtors" is fine, but never claim we only serve realtors or that any result is guaranteed.`;
 
+// realtorLandingApplies is the REALTOR LANDING STAMP decision, kept as
+// a pure predicate so the production request shape can be regression-
+// tested directly (src/test/realtor-mode.test.ts). A session earns the
+// stamp when the RESOLVED agent is the homepage agent and the campaign
+// entryPath is /agents/realtors. Deliberately NOT a term: the presence
+// of an agentId in the request. The public widget resolves the
+// homepage agent's public identity (voice-agent-public returns the
+// agent row id) and addresses the conversation by that id, so every
+// genuine widget session arrives agentId-addressed — the 08126c5 stamp
+// required !b.agentId and therefore never fired in production (proven
+// by the 2026-11-11 session rows: entryPath '/agents/realtors' present
+// in config, realtorLanding NULL, generic opening, in all 7 sessions
+// including a fresh one started 38 minutes after the deploy). Tenancy
+// is decided by the resolved slug: an agentId naming a tenant agent
+// resolves to that tenant's slug and fails this predicate.
+export function realtorLandingApplies(slug: unknown, campaign: { entryPath?: unknown } | null | undefined): boolean {
+  return slug === 'aspen-homepage' && campaign?.entryPath === '/agents/realtors';
+}
+
 // stampRealtorLanding applies the full REALTOR LANDING STAMP to a
 // homepage session config (mutates and returns it): the realtorLanding
 // flag, the greeting rotation swap, and the conversation layer appended

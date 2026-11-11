@@ -12,7 +12,7 @@ import { DEMO_INVITE_GREETING, DEMO_INVITE_GREETING_LEGACY_SLIM, DEMO_INVITE_GRE
 import { alexGuideConfig, alexDemoGuestConfig } from '../_shared/alex-guide.ts';
 import { avatarSwapEnabled, teamIntroEnabled, personaFor, personaSegmentPrompt } from '../_shared/personas.ts';
 import { TEAM_INTRO_TEACHING, isIntroBoundary, teamIntroGreetingFor } from '../_shared/team-intro.ts';
-import { stampRealtorLanding } from '../_shared/homepage-knowledge.ts';
+import { realtorLandingApplies, stampRealtorLanding } from '../_shared/homepage-knowledge.ts';
 import { PUBLIC_PATHS } from '../_shared/report-context.ts';
 import { normalizeUiLocale, startingLanguageForUiLocale } from '../_shared/conversation-language.ts';
 const personaSegmentSchema=z.object({persona:z.enum(['aspen','sara','alex']),boundary:z.enum(['doorway','stepout','meet-alex','return','intro-sara','intro-return-1','intro-alex','intro-return-2']),parentSessionId:z.string().uuid(),swapRecap:z.string().max(2400),drops:z.number().int().min(0).max(99).default(0),dropRecovery:z.boolean().default(false),manualResume:z.boolean().default(false),swap:z.boolean().default(false),teamIntroSeen:z.boolean().default(false)});
@@ -289,8 +289,10 @@ Deno.serve(async req=>{
     // by the absence of an id: an agentId naming a tenant agent
     // resolves to that tenant's slug and never reaches this line, and
     // drafts, previews, shares, guides and demo parents are separate
-    // branches above. So the condition is the slug + the entryPath.
-    if(agent.slug==='aspen-homepage' && b.campaign?.entryPath==='/agents/realtors') {
+    // branches above. So the decision is the slug + the entryPath,
+    // factored as realtorLandingApplies so the production request
+    // shape is regression-tested directly.
+    if(realtorLandingApplies(agent.slug, b.campaign)) {
       stampRealtorLanding(config);
     }
   }

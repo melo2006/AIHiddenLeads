@@ -34,6 +34,7 @@ import {
   HOMEPAGE_SALES_PROMPT,
   REALTOR_CONVERSATION_LAYER,
   REALTOR_GREETING_VARIANTS,
+  realtorLandingApplies,
   stampRealtorLanding,
 } from '../../supabase/functions/_shared/homepage-knowledge';
 import { openingFor } from '../../supabase/functions/_shared/voice-config';
@@ -188,6 +189,63 @@ describe('the stamp — reconnect/resume retention', () => {
   });
 });
 
+describe('the stamp decision — production-shaped regression (the 2026-11-11 row pull)', () => {
+  // THE PRODUCTION SHAPE, taken from Ron's actual sessions of
+  // 2026-11-11 (gemini_voice_sessions pull): the request that reached
+  // gemini-session from the realtor page carried the homepage agent's
+  // resolved UUID as agentId (the widget resolves the public identity
+  // first — see GeminiAgentWidget) AND a campaign whose entryPath was
+  // '/agents/realtors'. The stored rows prove it: config.campaign.
+  // entryPath = '/agents/realtors' in all 7 sessions, yet
+  // config.realtorLanding was NULL and config.opening the generic
+  // homepage opening in every one — including a fresh session started
+  // 38 minutes after the greeting deploy finished. The 08126c5 rule
+  // below is that production rule, encoded verbatim: it answers NO for
+  // the exact shape production sends, which is why the stamp never
+  // fired. These tests feed the decision the production shape — not an
+  // idealized agentId-less one.
+  const PRODUCTION_REQUEST = {
+    agentId: '11111111-2222-3333-4444-555555555555', // the resolved aspen-homepage row id, as the widget sends it
+    campaign: { visitId: '99999999-8888-7777-6666-555555555555', source: '', campaign: '', entryPath: '/agents/realtors' },
+  };
+  const legacyRule08126c5 = (agentId: string | undefined, slug: string, campaign: { entryPath?: string } | null | undefined) =>
+    !agentId && slug === 'aspen-homepage' && campaign?.entryPath === '/agents/realtors';
+
+  it('the 08126c5 rule rejects the exact production shape — the documented failure', () => {
+    expect(legacyRule08126c5(PRODUCTION_REQUEST.agentId, 'aspen-homepage', PRODUCTION_REQUEST.campaign)).toBe(false);
+  });
+
+  it('the fixed decision stamps the production shape (agentId present, realtor entryPath)', () => {
+    expect(realtorLandingApplies('aspen-homepage', PRODUCTION_REQUEST.campaign)).toBe(true);
+  });
+
+  it('end to end on the production shape: decision → stamp → realtor opening AND layer', () => {
+    expect(realtorLandingApplies('aspen-homepage', PRODUCTION_REQUEST.campaign)).toBe(true);
+    const config = stampRealtorLanding(snapshotConfig());
+    expect(config.realtorLanding).toBe(true);
+    expect(REALTOR_GREETING_VARIANTS).toContain(openingFor(config, 10));
+    expect(occurrences(config.systemPrompt, 'REALTOR SESSION LAYER')).toBe(1);
+  });
+
+  it('an agentId-less homepage request on the realtor page also stamps (both addressing modes)', () => {
+    expect(realtorLandingApplies('aspen-homepage', PRODUCTION_REQUEST.campaign)).toBe(true);
+    expect(legacyRule08126c5(undefined, 'aspen-homepage', PRODUCTION_REQUEST.campaign)).toBe(true);
+  });
+
+  it('tenancy is by resolved slug: a tenant agent id resolving to a tenant slug never stamps', () => {
+    expect(realtorLandingApplies('some-tenant-agent', PRODUCTION_REQUEST.campaign)).toBe(false);
+    expect(realtorLandingApplies(undefined, PRODUCTION_REQUEST.campaign)).toBe(false);
+  });
+
+  it('other entry paths, a missing campaign and a missing entryPath never stamp', () => {
+    expect(realtorLandingApplies('aspen-homepage', { ...PRODUCTION_REQUEST.campaign, entryPath: '/' })).toBe(false);
+    expect(realtorLandingApplies('aspen-homepage', { ...PRODUCTION_REQUEST.campaign, entryPath: '/demo' })).toBe(false);
+    expect(realtorLandingApplies('aspen-homepage', null)).toBe(false);
+    expect(realtorLandingApplies('aspen-homepage', undefined)).toBe(false);
+    expect(realtorLandingApplies('aspen-homepage', { visitId: PRODUCTION_REQUEST.campaign.visitId, source: '', campaign: '' })).toBe(false);
+  });
+});
+
 describe('absence — non-realtor sessions stay byte-identical', () => {
   it('the shared homepage prompt constant carries no realtor layer', () => {
     expect(HOMEPAGE_SALES_PROMPT).not.toContain('REALTOR SESSION LAYER');
@@ -201,10 +259,11 @@ describe('absence — non-realtor sessions stay byte-identical', () => {
     expect(REALTOR_GREETING_VARIANTS).not.toContain(openingFor(config, 10));
   });
 
-  it('gemini-session applies the stamp only under the slug + entryPath condition, before opening assembly', () => {
+  it('gemini-session applies the stamp only under the predicate, before opening assembly', () => {
     const src = read('supabase/functions/gemini-session/index.ts');
     expect(occurrences(src, 'stampRealtorLanding(config);')).toBe(1);
-    const conditionAt = src.indexOf("if(agent.slug==='aspen-homepage' && b.campaign?.entryPath==='/agents/realtors')");
+    expect(occurrences(src, 'realtorLandingApplies(agent.slug, b.campaign)')).toBe(1);
+    const conditionAt = src.indexOf('if(realtorLandingApplies(agent.slug, b.campaign))');
     const callAt = src.indexOf('stampRealtorLanding(config);');
     const assemblyAt = src.indexOf('opening:openingFor(');
     expect(conditionAt).toBeGreaterThan(-1);
