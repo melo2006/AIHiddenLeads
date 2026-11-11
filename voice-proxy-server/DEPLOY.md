@@ -14,8 +14,10 @@ The phone bridge (systemd unit `aspen`, port 8080) is a separate service and is
 ## 0. `/etc/aspen-voice.env` checklist (NAMES ONLY)
 
 Authority: `grep -rn "Deno.env.get" supabase/functions/gemini-live-proxy supabase/functions/_shared`,
-diffed against the proxy's actual transitive import closure (traced
-2026-11-11 from `gemini-live-proxy/index.ts`: the proxy + 19 `_shared` modules).
+diffed against the proxy's actual transitive import closure (re-traced
+2026-11-11 from `gemini-live-proxy/index.ts` against origin/main f46856f:
+the proxy + 24 `_shared` modules — the follow-up pack added `twilio-sms.ts`,
+which is why the three Twilio names below are now required).
 
 Required by the proxy's import closure — every one must be present:
 
@@ -28,6 +30,9 @@ Required by the proxy's import closure — every one must be present:
 | `GOOGLE_SA_PRIVATE_KEY` | Calendar JWT signing. Copy byte-exact from the dashboard. |
 | `GOOGLE_SA_TOKEN_URI` | Has a code default; set anyway. |
 | `HOSTINGER_SMTP_PASSWORD` | Follow-up / booking / transcript-copy mail via Hostinger SMTP (info@aihiddenleads.com mailbox). |
+| `TWILIO_ACCOUNT_SID` | Follow-up SMS via Twilio (`_shared/twilio-sms.ts`, in the closure since the follow-up pack). Exists as a Supabase function secret today. |
+| `TWILIO_AUTH_TOKEN` | Twilio API auth for follow-up SMS. |
+| `TWILIO_MESSAGING_SERVICE_SID` | Has a code-constant fallback (the AI Hidden Leads messaging service); set explicitly anyway so the VPS matches Edge behaviour exactly. |
 | `PORT` | Set to `8081` (bridge owns 8080). Read by `waituntil-prelude.ts`, which injects the listen address into the proxy's `Deno.serve` call. Loopback bind is the prelude default (`VOICE_PROXY_BIND` can override it — don't, unless there is a reason). |
 
 Surfaced by the full-tree grep but **NOT** needed by this service — they belong

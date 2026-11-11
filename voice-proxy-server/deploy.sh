@@ -37,26 +37,33 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 FUNCTIONS_SRC="${REPO_ROOT}/supabase/functions"
 
-# The proxy's transitive _shared import closure, traced from
-# supabase/functions/gemini-live-proxy/index.ts (2026-11-11, main b5260bc).
-# deno cache (step 4) is the authority: a missing file fails the deploy.
+# The proxy's transitive _shared import closure, RE-TRACED 2026-11-11 against
+# origin/main f46856f (24 modules — the Phase B list of 19 predates the
+# follow-up pack: booking-confirm, booking-tools, followup, phone-demo and
+# twilio-sms are new). deno cache (step 4) is the authority: a missing file
+# fails the deploy.
 SHARED_CLOSURE=(
+  booking-confirm.ts
   booking-slots.ts
+  booking-tools.ts
   call-review.ts
   conversation-language.ts
   conversation-records.ts
   demo-sales.ts
+  followup.ts
   homepage-evidence.ts
   homepage-knowledge.ts
   homepage-pacing.ts
   homepage-services.ts
   hostinger-mail.ts
   live-models.ts
+  phone-demo.ts
   platform-calendar.ts
   recording-audio.ts
   session-opening.ts
   session-resumption.ts
   team-intro.ts
+  twilio-sms.ts
   visitor-followup.ts
   voice-config.ts
   voice-usage.ts
