@@ -306,6 +306,59 @@ describe("realtor landing page — v2 polish batch (2026-11-11)", () => {
   });
 });
 
+describe("realtor landing page — v3 real-estate batch (2026-11-11)", () => {
+  it("hero badge pill carries the realtor slogan line, data-driven", () => {
+    expect(REALTOR_VERTICAL.badgeLine).toBe(
+      "Buyers and sellers won't wait · The first agent to answer wins the client · Aspen answers in seconds, 24/7",
+    );
+    expect(templateSource).toContain("vertical.badgeLine ?? vertical.builtFor");
+  });
+
+  it("photo banner: 3 real photos with subject-named alt text, credit line, template photo map", () => {
+    expect(REALTOR_VERTICAL.heroPhotos).toHaveLength(3);
+    const alts = (REALTOR_VERTICAL.heroPhotos ?? []).map((p) => p.alt).join("\n");
+    expect(alts).toMatch(/Fort Lauderdale condominiums/);
+    expect(alts).toMatch(/Downtown Miami skyline/);
+    expect(alts).toMatch(/single-family home/);
+    expect(REALTOR_VERTICAL.heroPhotosCredit).toMatch(/CC BY-SA/);
+    expect(REALTOR_VERTICAL.heroPhotosCredit).toMatch(/Wikimedia Commons/);
+    expect(templateSource).toContain("data-agent-hero-photos");
+    expect(templateSource).toContain("heroPhotoImages");
+    expect(templateSource).toContain("@/assets/realtor-fort-lauderdale-condos.jpg");
+    expect(templateSource).toContain("@/assets/realtor-miami-skyline.jpg");
+    expect(templateSource).toContain("@/assets/realtor-florida-home.jpg");
+    expect(templateSource).toContain("vertical.heroPhotosCredit");
+  });
+
+  it("services list on the page is the split 8, matching the homepage hero names", () => {
+    expect(REALTOR_VERTICAL.services).toEqual([
+      "Live Video Receptionist on Your Website",
+      "AI Phone Receptionist — No Website Needed",
+      "Fresh B2B Prospects, Delivered Weekly",
+      "Google Maps & AI Search Visibility",
+      "Reviews & Reputation Management",
+      "Social Media, Handled",
+      "Comments & Reviews, Answered",
+      "Website Revamp or a Brand-New Site",
+    ]);
+    expect(templateSource).toContain("data-agent-services");
+    expect(templateSource).toContain("vertical.services.map");
+    expect(templateSource).toContain("sm:grid-cols-2");
+  });
+
+  it("lingo pass: brokerage language lands in pains, scenario and money math", () => {
+    const pains = REALTOR_VERTICAL.pains.map((p) => p.body).join("\n");
+    expect(pains).toMatch(/another agent at another brokerage/);
+    expect(REALTOR_VERTICAL.scenarioPunchline).toBe(
+      "That is what your buyers do, too. Answer now — or lose them to the next brokerage.",
+    );
+    expect(templateSource).toContain("vertical.scenarioPunchline");
+    expect(templateSource).not.toContain("to the agent who doesn't");
+    const math = REALTOR_VERTICAL.moneyMath.lines.join("\n");
+    expect(math).toMatch(/brokerage down the street/);
+  });
+});
+
 describe("realtor landing page — shared template + pricing rules", () => {
   it("reuses the shared homepage blocks instead of a parallel design", () => {
     expect(templateSource).toContain("LandingNavbar");

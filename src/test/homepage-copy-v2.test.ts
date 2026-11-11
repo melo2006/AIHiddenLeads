@@ -42,8 +42,11 @@ test("services section title, intro and closing line carry the approved v2 copy"
   }
 });
 
-test("the seven approved services lead, in order, in the copy data and the details", () => {
-  const approvedIds = ["video", "voice", "leads", "search", "reputation", "social", "website"];
+test("the eight services lead, in order, in the copy data and the details", () => {
+  // 2026-11-11: "Social Media, Handled" split in two — social keeps
+  // content creation + publishing; the new "comments" entry carries
+  // reading + responding to comments and reviews (7 -> 8, grid 4+4).
+  const approvedIds = ["video", "voice", "leads", "search", "reputation", "social", "comments", "website"];
   for (const copy of [en, es, pt]) {
     expect(copy.services.map((s) => s.id)).toEqual(approvedIds);
     for (const service of copy.services) {
@@ -51,7 +54,16 @@ test("the seven approved services lead, in order, in the copy data and the detai
       expect(service.solution, `${service.id} solution`).toBeTruthy();
     }
   }
-  // Details order: the approved seven, with the retained "b2c" entry after "leads".
+  expect(en.services.find((s) => s.id === "comments")?.name).toBe("Comments & Reviews, Answered");
+  expect(en.services.find((s) => s.id === "social")?.name).toBe("Social Media, Handled");
+  // The split is real: social no longer claims replying/responding.
+  const social = en.services.find((s) => s.id === "social");
+  expect(`${social?.problem} ${social?.solution}`).not.toMatch(/replying|responds|automate replies/i);
+  const comments = en.services.find((s) => s.id === "comments");
+  expect(comments?.solution).toMatch(/reads and responds to comments and reviews/);
+  expect(comments?.solution).toMatch(/Google reviews/);
+  // Details order: the canonical eight detail cards, with the retained "b2c"
+  // entry after "leads".
   // The two receptionist entries keep their pre-v2 order (phone "voice" first): the
   // services grid renders the canonical details order, while the hero name list
   // follows the approved video-first copy order pinned above.
