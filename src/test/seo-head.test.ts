@@ -5,8 +5,12 @@ import { describe, expect, it } from "vitest";
 // + transforms the postbuild prerender ships (no copied fixtures).
 import { SEO_ROUTES, buildRouteHtml } from "../../scripts/seo-routes.mjs";
 import { SEO_PAGE_HEADS, seoHeadForPath } from "../lib/seoRoutes";
+import { REALTOR_VERTICAL } from "../data/agentVerticals";
 
 const indexHtml = readFileSync(new URL("../../index.html", import.meta.url), "utf8");
+const enLocale = JSON.parse(readFileSync(new URL("../i18n/locales/en.json", import.meta.url), "utf8"));
+const esLocale = JSON.parse(readFileSync(new URL("../i18n/locales/es.json", import.meta.url), "utf8"));
+const ptLocale = JSON.parse(readFileSync(new URL("../i18n/locales/pt-BR.json", import.meta.url), "utf8"));
 
 interface RouteHead {
   path: string;
@@ -17,6 +21,7 @@ interface RouteHead {
   ogDescription: string;
   heading: string;
   summary: string[];
+  faq?: { q: string; a: string }[];
 }
 const routes = SEO_ROUTES as RouteHead[];
 const byPath = (p: string) => routes.find((r) => r.path === p)!;
@@ -142,5 +147,111 @@ describe("homepage JSON-LD (index.html)", () => {
     // sameAs takes only profile URLs the site itself publishes — today it
     // publishes none, so the field stays out rather than being invented.
     expect(ld.sameAs).toBeUndefined();
+  });
+});
+
+describe("keyword Q&A (FAQPage schema + fallback + visible copy parity)", () => {
+  const escapeHtml = (s: string) =>
+    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const faqBlockOf = (html: string) =>
+    html.match(/<script type="application\/ld\+json" data-faq-schema>([\s\S]*?)<\/script>/)?.[1];
+  const schemaItems = (html: string) => {
+    const block = faqBlockOf(html);
+    if (!block) return null;
+    const parsed = JSON.parse(block);
+    expect(parsed["@type"]).toBe("FAQPage");
+    return parsed.mainEntity.map((e: { name: string; acceptedAnswer: { text: string } }) => ({
+      q: e.name,
+      a: e.acceptedAnswer.text,
+    }));
+  };
+  const faqOf = (p: string) => byPath(p).faq ?? [];
+
+  it("carries the approved question sets: 5 homepage, 3 demo, 4 realtors, none on /book", () => {
+    expect(faqOf("/")).toHaveLength(5);
+    expect(faqOf("/demo")).toHaveLength(3);
+    expect(faqOf("/agents/realtors")).toHaveLength(4);
+    expect(faqOf("/book")).toHaveLength(0);
+    // The client mirror carries the same sets.
+    for (const r of routes) expect(seoHeadForPath(r.path)?.faq).toEqual(faqOf(r.path));
+  });
+
+  it("pins the exact keyword questions per page", () => {
+    expect(faqOf("/").map((f) => f.q)).toEqual([
+      "What is the best AI receptionist for a small business?",
+      "How much does an AI receptionist cost per month?",
+      "Is there an AI receptionist with a video avatar?",
+      "Does an AI receptionist answer calls 24/7 and book appointments?",
+      "How is an AI receptionist different from an answering service?",
+    ]);
+    expect(faqOf("/demo").map((f) => f.q)).toEqual([
+      "What happens in the free demo?",
+      "How long does the demo take?",
+      "Do you change or hack my website?",
+    ]);
+    expect(faqOf("/agents/realtors").map((f) => f.q)).toEqual([
+      "How much does an AI receptionist for real estate agents cost?",
+      "What happens when I'm at a showing?",
+      "Do I get recordings?",
+      "Can it book showings and consultations?",
+    ]);
+  });
+
+  it("homepage: index.html FAQPage schema and fallback mirror the data exactly", () => {
+    expect(schemaItems(indexHtml)).toEqual(faqOf("/"));
+    for (const item of faqOf("/")) {
+      expect(indexHtml).toContain(`<h3>${escapeHtml(item.q)}</h3>`);
+      expect(indexHtml).toContain(`<p>${escapeHtml(item.a)}</p>`);
+    }
+  });
+
+  for (const path of ["/demo", "/agents/realtors"]) {
+    it(`${path}: prerendered schema + fallback carry the route's own Q&A, never the homepage's`, () => {
+      const html = buildRouteHtml(indexHtml, byPath(path)) as string;
+      expect(schemaItems(html)).toEqual(faqOf(path));
+      for (const item of faqOf(path)) {
+        expect(html).toContain(`<h3>${escapeHtml(item.q)}</h3>`);
+        expect(html).toContain(`<p>${escapeHtml(item.a)}</p>`);
+      }
+      // No homepage question leaks into another route's page.
+      for (const homeItem of faqOf("/")) expect(html).not.toContain(homeItem.q);
+    });
+  }
+
+  it("/book: prerender strips the homepage FAQPage block and declares none of its own", () => {
+    const html = buildRouteHtml(indexHtml, byPath("/book")) as string;
+    expect(html).not.toContain("data-faq-schema");
+    expect(html).not.toContain('"@type": "FAQPage"');
+  });
+
+  it("visible copy parity: homepage FAQ, demo Q&A and realtor FAQ show the same wording", () => {
+    // Homepage: the 5 keyword items lead the visible FAQ section (en).
+    expect(enLocale.faqSection.items.slice(0, 5)).toEqual(faqOf("/"));
+    // /demo: the page's visible Q&A section renders tryDemo.faqItems.
+    expect(enLocale.tryDemo.faqItems).toEqual(faqOf("/demo"));
+    // /agents/realtors: every keyword item appears verbatim in the vertical FAQ.
+    for (const item of faqOf("/agents/realtors")) {
+      expect(REALTOR_VERTICAL.faq).toContainEqual(item);
+    }
+  });
+
+  it("locales keep the same Q&A structure (translated, not missing)", () => {
+    for (const locale of [esLocale, ptLocale]) {
+      expect(locale.faqSection.items).toHaveLength(enLocale.faqSection.items.length);
+      expect(locale.tryDemo.faqItems).toHaveLength(3);
+      expect(locale.tryDemo.faqTitle.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("honesty guards: entry price is never framed as $99 + $79, and recordings are not promised", () => {
+    for (const r of routes) {
+      for (const item of faqOf(r.path)) {
+        expect(item.a).not.toMatch(/\$\s?99\s*\+\s*\$\s?79/);
+      }
+    }
+    const recordings = faqOf("/agents/realtors").find((f) => f.q === "Do I get recordings?");
+    expect(recordings?.a).toMatch(/Not yet/);
+    expect(recordings?.a).toMatch(/summary/);
+    expect(recordings?.a).toMatch(/transcript/);
   });
 });

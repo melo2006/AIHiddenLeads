@@ -9,6 +9,9 @@ export interface SeoRouteHead {
   ogDescription: string;
   heading: string;
   summary: string[];
+  /** Keyword Q&A set for this route (visible section + fallback + FAQPage
+   * schema all carry this same wording); empty for routes without one. */
+  faq: { q: string; a: string }[];
 }
 
 // Typed view over scripts/seo-routes.mjs — the single source of truth shared
@@ -24,6 +27,7 @@ export const SEO_PAGE_HEADS: SeoRouteHead[] = (SEO_ROUTES as any[]).map((r) => (
   ogDescription: r.ogDescription,
   heading: r.heading,
   summary: r.summary,
+  faq: r.faq ?? [],
 }));
 
 export function seoHeadForPath(pathname: string): SeoRouteHead | null {

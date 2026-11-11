@@ -135,6 +135,12 @@ const TryDemo = () => {
     setResume(null);
   };
 
+  // Keyword Q&A (bottom of the page): the exact questions buyers ask about
+  // the demo, answered on the page. Wording is shared with the /demo
+  // FAQPage schema and the no-JS fallback (scripts/seo-routes.mjs) — the
+  // English items are pinned against it in src/test/seo-head.test.ts.
+  const faqItems = (t("tryDemo.faqItems", { returnObjects: true }) as { q: string; a: string }[]) || [];
+
   return (
     <div className="min-h-screen bg-background px-4 pt-[3.75rem] pb-8 sm:pt-16 relative overflow-hidden">
       {/* Sticky header */}
@@ -427,6 +433,28 @@ const TryDemo = () => {
               <span>{t('tryDemo.free')} live demo</span>
             </div>
           </motion.div>
+
+          {/* Keyword Q&A — the demo questions buyers actually search for,
+              answered on the page (see faqItems note above). */}
+          <section aria-labelledby="demo-faq-title" className="mt-8 border-t border-border pt-6 text-left">
+            <h2 id="demo-faq-title" className="text-base font-bold">{t("tryDemo.faqTitle")}</h2>
+            <Accordion type="single" collapsible className="mt-3 space-y-2">
+              {faqItems.map((item, i) => (
+                <AccordionItem
+                  key={i}
+                  value={`demo-faq-${i}`}
+                  className="border border-border rounded-lg bg-card/60 px-4 backdrop-blur-sm"
+                >
+                  <AccordionTrigger className="text-left text-sm font-semibold hover:no-underline py-3.5">
+                    {item.q}
+                  </AccordionTrigger>
+                  <AccordionContent className="text-sm text-muted-foreground leading-relaxed pb-4">
+                    {item.a}
+                  </AccordionContent>
+                </AccordionItem>
+              ))}
+            </Accordion>
+          </section>
         </div>
       </div>
 

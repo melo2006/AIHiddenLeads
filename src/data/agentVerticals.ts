@@ -194,7 +194,7 @@ export const REALTOR_VERTICAL: AgentVertical = {
       a: "She answers in your name, answers basic listing questions from the details you give her, checks pre-approval and timeline, offers spaced showing or consultation times, captures name, phone, and email, asks permission to text a confirmation, and sends you the summary instantly. For a seller, she books a valuation consultation instead.",
     },
     {
-      q: "What does it cost?",
+      q: "How much does an AI receptionist for real estate agents cost?",
       a: "Premium is $99/mo with 400 minutes included. The live video avatar — Aspen with a real, lip-synced video face on your website — is an optional add-on at $79/mo. You choose it or skip it; the $99 plan works on its own.",
     },
     {
@@ -202,8 +202,8 @@ export const REALTOR_VERTICAL: AgentVertical = {
       a: "Yes — that's the free demo. Enter your website and see your website come alive with Aspen on it, in about 2 minutes. No signup, no card.",
     },
     {
-      q: "What happens when I'm with a client?",
-      a: "Nothing changes for you. Aspen keeps answering calls and website visitors, books the appointment, and sends you the summary — you read it when you're free, with the appointment already on your calendar.",
+      q: "What happens when I'm at a showing?",
+      a: "Your phone rings first — 2–3 rings, a setting you choose. If you don't pick up, Aspen answers in your name, qualifies the caller, and books the showing or consultation on your calendar. If the lead is hot, she warm-transfers them straight back to you with a short summary first — and after every call you get the summary and the transcript.",
     },
     {
       q: "Do I need a new phone number?",
@@ -220,6 +220,14 @@ export const REALTOR_VERTICAL: AgentVertical = {
     {
       q: "Can I see what Aspen said to a caller?",
       a: "Yes. In your dashboard you see every lead that came through — their name and contact details, where they came from (call or website), what they wanted, the AI summary and transcript of the conversation, and the appointment booked.",
+    },
+    {
+      q: "Do I get recordings?",
+      a: "Not yet — recordings are not part of the service today. What you do get, in your dashboard after every call, is the lead's name and contact details, the AI summary, and the full transcript of the conversation, plus the appointment that was booked.",
+    },
+    {
+      q: "Can it book showings and consultations?",
+      a: "Yes. Aspen books showings, buyer consultations, and seller valuation appointments as 30-minute bookings, against your real availability once your calendar is connected in setup. Each booking sends a confirmation with a calendar invite, and reminders go out before the appointment.",
     },
   ],
 };

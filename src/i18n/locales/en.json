@@ -334,6 +334,21 @@
     "examplesTitle": "No website handy? Try a ready-made demo",
     "examplesHint": "Pick a business, then add your name in the form above and start — Aspen opens the demo on their website.",
     "rankTitle": "Free check: your 25-point Google Maps rank grid",
+    "faqTitle": "Demo questions",
+    "faqItems": [
+      {
+        "q": "What happens in the free demo?",
+        "a": "You enter your website address, and Aspen builds a live simulation on a preview of your actual site: she greets visitors by voice and chat, answers questions from your own pages, and shows how she would capture inquiries and book appointments for your business. Nothing is installed and nothing on your site changes — it is a mock-up built from your public pages."
+      },
+      {
+        "q": "How long does the demo take?",
+        "a": "About 2 minutes to see Aspen live on your website. Building the full simulation from your site's pages takes around 10 minutes, and Aspen uses that time to learn your business and answer your questions."
+      },
+      {
+        "q": "Do you change or hack my website?",
+        "a": "No. Demo mock-up — your website is untouched, nothing on your server is changed. The demo runs on a preview copy built from your public pages, so your live site stays exactly as it is."
+      }
+    ],
     "headline1": "See Your Website With",
     "headline2": "— Live Demo",
     "sub": "Try natural AI voice and chat on your original website preview. Enter your name and URL; learning and preparation time vary by site. Telephone answering and forwarding are set up separately, not part of this website simulation.",
@@ -538,6 +553,26 @@
     "subtitle": "Pricing, limits, overages, lead sources, and how everything works — clearly explained.",
     "footer": "Still have questions? Talk to Aspen (bottom-right) or scroll up to book a live demo.",
     "items": [
+      {
+        "q": "What is the best AI receptionist for a small business?",
+        "a": "The best AI receptionist for a small business answers every call instantly, around the clock, books appointments into your calendar, and sends you a summary after each call. AiHiddenLeads is built to that checklist: Aspen answers by voice and website chat, can appear as a live video avatar, and starts at $99/mo with 400 voice minutes included. The honest test is your own website — the free live demo takes about 2 minutes."
+      },
+      {
+        "q": "How much does an AI receptionist cost per month?",
+        "a": "Premium is $99/mo for the first 3 months (50% off the regular $199; the offer ends this month), with 400 voice minutes, website chat, and up to 50 B2B prospects per month included (no specific count is guaranteed). Professional is $199/mo for the first 3 months (regular $399) with 1,200 minutes and up to 100 prospects. The $199 setup fee is waived, and Aspen's live video avatar is an optional add-on at $79/mo if you want it."
+      },
+      {
+        "q": "Is there an AI receptionist with a video avatar?",
+        "a": "Yes. Aspen, the AiHiddenLeads AI receptionist, can appear on your website as a live, lip-synced video avatar — your AI spokesperson — while she talks with visitors by voice and chat. The avatar is an optional add-on at $79/mo on Premium; the voice receptionist works on its own if you skip it. You can watch her work in the free live demo on your own website."
+      },
+      {
+        "q": "Does an AI receptionist answer calls 24/7 and book appointments?",
+        "a": "Yes. Aspen answers 24/7 — nights, weekends, and holidays — so callers never land in voicemail; 85% of callers who hit voicemail don't call back. She books appointments straight into your calendar, sends confirmations and reminders, and can transfer a caller straight to you when a human is needed."
+      },
+      {
+        "q": "How is an AI receptionist different from an answering service?",
+        "a": "A traditional answering service has people take messages — often with a fee for every message or minute — and you call back later. An AI receptionist answers instantly, follows your script the same way on every call, and does the work during the call itself: answering questions, booking the appointment, and sending you a summary with the transcript. At AiHiddenLeads the price is one flat monthly plan with minutes included, not a meter running on every message."
+      },
       {
         "q": "What is included in Premium for $99/month?",
         "a": "Premium includes 400 browser voice minutes per month during the current launch promotion, website chat and 50 B2B prospects per month. Professional is $199 with 1,200 minutes and 100 prospects; Platinum is $349 with 2,500 minutes and 200 prospects. Live video is optional and telephone usage is separate."

@@ -337,6 +337,21 @@
     "examplesTitle": "Sem um site em mãos? Teste uma demo pronta",
     "examplesHint": "Escolha uma empresa, adicione seu nome no formulário acima e comece — a Aspen abre a demo no site dela.",
     "rankTitle": "Verificação gratuita: sua grade de 25 pontos no Google Maps",
+    "faqTitle": "Perguntas sobre a demonstração",
+    "faqItems": [
+      {
+        "q": "O que acontece na demonstração gratuita?",
+        "a": "Você informa o endereço do seu site e a Aspen cria uma simulação ao vivo sobre uma prévia do seu site real: ela recebe os visitantes por voz e chat, responde perguntas a partir das suas próprias páginas e mostra como capturaria consultas e agendaria compromissos para o seu negócio. Nada é instalado e nada muda no seu site — é uma maquete criada a partir das suas páginas públicas."
+      },
+      {
+        "q": "Quanto tempo dura a demonstração?",
+        "a": "Cerca de 2 minutos para ver a Aspen ao vivo no seu site. Criar a simulação completa a partir das páginas do seu site leva cerca de 10 minutos, e a Aspen usa esse tempo para conhecer o seu negócio e responder às suas perguntas."
+      },
+      {
+        "q": "Vocês alteram ou hackeiam meu site?",
+        "a": "Não. Maquete de demonstração — seu site não foi mexido, nada no seu servidor muda. A demonstração roda sobre uma cópia de prévia criada a partir das suas páginas públicas, então o seu site ao vivo fica exatamente como está."
+      }
+    ],
     "headline1": "Veja Seu Site Com",
     "headline2": "— Demo Ao Vivo",
     "sub": "Preencha seus dados abaixo e, em cerca de 90 segundos, veja seu site ganhar vida com Voz de IA e Chat de IA — personalizado para o seu negócio.",
@@ -540,6 +555,26 @@
     "subtitle": "Preços, limites, excedentes, fontes de leads e como tudo funciona — explicado de forma clara.",
     "footer": "Ainda tem dúvidas? Fale com a Aspen (canto inferior direito) ou role para cima para agendar uma demo ao vivo.",
     "items": [
+      {
+        "q": "Qual é a melhor recepcionista de IA para uma pequena empresa?",
+        "a": "A melhor recepcionista de IA para uma pequena empresa atende cada ligação na hora, a qualquer momento, agenda compromissos na sua agenda e envia um resumo após cada chamada. A AiHiddenLeads foi criada com essa lista em mente: a Aspen responde por voz e chat no seu site, pode aparecer como um avatar de vídeo ao vivo, e custa a partir de $99/mês com 400 minutos de voz incluídos. O teste honesto é o seu próprio site — a demonstração gratuita ao vivo leva cerca de 2 minutos."
+      },
+      {
+        "q": "Quanto custa uma recepcionista de IA por mês?",
+        "a": "O Premium custa $99/mês nos primeiros 3 meses (50% de desconto sobre o preço regular de $199; a oferta termina este mês), com 400 minutos de voz, chat no site e até 50 prospects B2B por mês incluídos (nenhuma quantidade específica é garantida). O Professional custa $199/mês nos primeiros 3 meses (regular $399) com 1.200 minutos e até 100 prospects. A taxa de instalação de $199 é isenta, e o avatar de vídeo ao vivo da Aspen é um adicional opcional de $79/mês, se você quiser."
+      },
+      {
+        "q": "Existe uma recepcionista de IA com avatar de vídeo?",
+        "a": "Sim. A Aspen, a recepcionista de IA da AiHiddenLeads, pode aparecer no seu site como um avatar de vídeo ao vivo, com sincronização labial — a sua porta-voz de IA — enquanto conversa com os visitantes por voz e chat. O avatar é um adicional opcional de $79/mês no Premium; a recepcionista de voz funciona sozinha se você pular essa opção. Você pode vê-la em ação na demonstração gratuita ao vivo no seu próprio site."
+      },
+      {
+        "q": "Uma recepcionista de IA atende ligações 24/7 e agenda compromissos?",
+        "a": "Sim. A Aspen atende 24/7 — noites, fins de semana e feriados — para que nenhuma ligação caia na caixa postal; 85% das pessoas que caem na caixa postal não ligam de volta. Ela agenda compromissos direto na sua agenda, envia confirmações e lembretes, e pode transferir uma ligação direto para você quando uma pessoa é necessária."
+      },
+      {
+        "q": "Qual é a diferença entre uma recepcionista de IA e um serviço de atendimento telefônico?",
+        "a": "Um serviço de atendimento tradicional usa pessoas que anotam recados — muitas vezes com uma taxa por recado ou por minuto — e você retorna a ligação depois. Uma recepcionista de IA atende na hora, segue o seu roteiro da mesma forma em cada ligação e faz o trabalho durante a própria chamada: responde perguntas, agenda o compromisso e envia um resumo com a transcrição. Na AiHiddenLeads, o preço é um plano mensal fixo com minutos incluídos, e não um medidor rodando a cada recado."
+      },
       {
         "q": "O que exatamente conta como uma 'interação de IA' no plano de $99?",
         "a": "Uma interação de IA = uma conversa no seu site (voz ou chat) de até 5 minutos. O plano Premium de $99 inclui 100 interações por mês — suficiente para cobrir o tráfego da maioria dos pequenos negócios. Se ultrapassar, conversas adicionais custam apenas $0,50 cada, para que você nunca perca um lead. Você recebe um aviso amigável por SMS aos 80 e novamente aos 100 atendimentos."

@@ -56,6 +56,57 @@
       }
     }
   </script>
+  <!-- FAQPage schema for the homepage keyword Q&A — mirrors the visible FAQ
+       section and the no-JS fallback below exactly (same wording lives in
+       scripts/seo-routes.mjs; the prerender swaps this block per route). -->
+  <script type="application/ld+json" data-faq-schema>
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "What is the best AI receptionist for a small business?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The best AI receptionist for a small business answers every call instantly, around the clock, books appointments into your calendar, and sends you a summary after each call. AiHiddenLeads is built to that checklist: Aspen answers by voice and website chat, can appear as a live video avatar, and starts at $99/mo with 400 voice minutes included. The honest test is your own website — the free live demo takes about 2 minutes."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How much does an AI receptionist cost per month?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Premium is $99/mo for the first 3 months (50% off the regular $199; the offer ends this month), with 400 voice minutes, website chat, and up to 50 B2B prospects per month included (no specific count is guaranteed). Professional is $199/mo for the first 3 months (regular $399) with 1,200 minutes and up to 100 prospects. The $199 setup fee is waived, and Aspen's live video avatar is an optional add-on at $79/mo if you want it."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is there an AI receptionist with a video avatar?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. Aspen, the AiHiddenLeads AI receptionist, can appear on your website as a live, lip-synced video avatar — your AI spokesperson — while she talks with visitors by voice and chat. The avatar is an optional add-on at $79/mo on Premium; the voice receptionist works on its own if you skip it. You can watch her work in the free live demo on your own website."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Does an AI receptionist answer calls 24/7 and book appointments?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. Aspen answers 24/7 — nights, weekends, and holidays — so callers never land in voicemail; 85% of callers who hit voicemail don't call back. She books appointments straight into your calendar, sends confirmations and reminders, and can transfer a caller straight to you when a human is needed."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How is an AI receptionist different from an answering service?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "A traditional answering service has people take messages — often with a fee for every message or minute — and you call back later. An AI receptionist answers instantly, follows your script the same way on every call, and does the work during the call itself: answering questions, booking the appointment, and sending you a summary with the transcript. At AiHiddenLeads the price is one flat monthly plan with minutes included, not a meter running on every message."
+          }
+        }
+      ]
+    }
+  </script>
   <link rel="icon" href="/favicon.png" type="image/png">
   <style>
     :root { --startup-background: 220 20% 4%; --startup-foreground: 210 40% 96%; --startup-primary: 160 84% 50%; }
@@ -100,6 +151,19 @@
           <h2 id="public-demo">Try your website with Aspen</h2>
           <p>Submit a business website to explore a quick AI voice and chat simulation based on its public information. The demo preserves the original website appearance and is not a full business implementation.</p>
           <p><a href="/demo">Try the free website demo</a> · <a href="/book">Book a brief introductory call</a></p>
+        </section>
+        <section aria-labelledby="public-faq">
+          <h2 id="public-faq">Common questions</h2>
+          <h3>What is the best AI receptionist for a small business?</h3>
+          <p>The best AI receptionist for a small business answers every call instantly, around the clock, books appointments into your calendar, and sends you a summary after each call. AiHiddenLeads is built to that checklist: Aspen answers by voice and website chat, can appear as a live video avatar, and starts at $99/mo with 400 voice minutes included. The honest test is your own website — the free live demo takes about 2 minutes.</p>
+          <h3>How much does an AI receptionist cost per month?</h3>
+          <p>Premium is $99/mo for the first 3 months (50% off the regular $199; the offer ends this month), with 400 voice minutes, website chat, and up to 50 B2B prospects per month included (no specific count is guaranteed). Professional is $199/mo for the first 3 months (regular $399) with 1,200 minutes and up to 100 prospects. The $199 setup fee is waived, and Aspen's live video avatar is an optional add-on at $79/mo if you want it.</p>
+          <h3>Is there an AI receptionist with a video avatar?</h3>
+          <p>Yes. Aspen, the AiHiddenLeads AI receptionist, can appear on your website as a live, lip-synced video avatar — your AI spokesperson — while she talks with visitors by voice and chat. The avatar is an optional add-on at $79/mo on Premium; the voice receptionist works on its own if you skip it. You can watch her work in the free live demo on your own website.</p>
+          <h3>Does an AI receptionist answer calls 24/7 and book appointments?</h3>
+          <p>Yes. Aspen answers 24/7 — nights, weekends, and holidays — so callers never land in voicemail; 85% of callers who hit voicemail don't call back. She books appointments straight into your calendar, sends confirmations and reminders, and can transfer a caller straight to you when a human is needed.</p>
+          <h3>How is an AI receptionist different from an answering service?</h3>
+          <p>A traditional answering service has people take messages — often with a fee for every message or minute — and you call back later. An AI receptionist answers instantly, follows your script the same way on every call, and does the work during the call itself: answering questions, booking the appointment, and sending you a summary with the transcript. At AiHiddenLeads the price is one flat monthly plan with minutes included, not a meter running on every message.</p>
         </section>
         <footer>
           <a href="/privacy">Privacy policy</a> · <a href="/terms">Terms of service</a>
