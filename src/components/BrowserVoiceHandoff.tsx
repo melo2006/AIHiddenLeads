@@ -10,7 +10,7 @@ async function request(action: string, handoffToken: string) {
   if(error){const detail=error instanceof FunctionsHttpError?await error.context.json().catch(()=>null):null;throw new Error(detail?.error||error.message);}
   return data;
 }
-export default function BrowserVoiceHandoff({token,onActive,microphone}:{token:string;onActive:(active:boolean)=>void;microphone:string}){
+export default function BrowserVoiceHandoff({token,onActive,microphone,pill=false}:{token:string;onActive:(active:boolean)=>void;microphone:string;pill?:boolean}){
  const [status,setStatus]=useState(''),[active,setActive]=useState(false),[used,setUsed]=useState(false);
  const device=useRef<Device|null>(null),call=useRef<Call|null>(null),timer=useRef<ReturnType<typeof setInterval>>(),generation=useRef(0),callback=useRef(onActive),polling=useRef(false);
  callback.current=onActive;
@@ -43,6 +43,18 @@ export default function BrowserVoiceHandoff({token,onActive,microphone}:{token:s
    timer.current=setInterval(()=>void poll(),1500);void poll();
   }catch(e){if(run===generation.current)finish(e instanceof Error?e.message:'Could not connect — back with Aspen.');}
  }
+ // Pill variant (caption-panel rearrangement, 2026-11-11): the transfer
+ // lives INSIDE the voice control row as a compact phone-icon + "Manager"
+ // pill instead of its own full-width row. Same begin/cancel actions,
+ // same visibility (the parent still gates on live phase + token); the
+ // status line wraps onto its own line under the row (w-full inside the
+ // row's flex-wrap container). The visible label is a bare text node, not
+ // a <span>, so the control row's "[&_span]:text-[10px]" label shrink and
+ // its small-viewport span-hiding rule can never shrink or hide it.
+ if(pill)return <>
+  {active?<Button size="sm" variant="outline" className="aspen-manager-pill !flex-row !min-h-11 !px-3 rounded-full" onClick={()=>{void request('cancel',token).catch(()=>{});finish('Back with Aspen.');}} aria-label="Return to Aspen"><RotateCcw className="mr-1 h-4 w-4"/>Return to Aspen</Button>:!used&&<Button size="sm" variant="outline" className="aspen-manager-pill !flex-row !min-h-11 !px-3 rounded-full" onClick={()=>void begin()} aria-label="Talk to manager"><PhoneForwarded className="mr-1 h-4 w-4"/>Manager</Button>}
+  {status&&<p role="status" className="w-full break-words text-center text-xs text-muted-foreground">{status}</p>}
+ </>;
  return <div className="space-y-1 border-t border-border pt-2">
   {active?<Button size="sm" variant="outline" onClick={()=>{void request('cancel',token).catch(()=>{});finish('Back with Aspen.');}} aria-label="Return to Aspen"><RotateCcw className="mr-1 h-4 w-4"/>Return to Aspen</Button>:!used&&<Button size="sm" variant="outline" onClick={()=>void begin()} aria-label="Talk to manager"><PhoneForwarded className="mr-1 h-4 w-4"/>Talk to manager</Button>}
   {status&&<p role="status" className="break-words text-xs text-muted-foreground">{status}</p>}

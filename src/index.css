@@ -138,16 +138,26 @@
      supported. */
   .aspen-person-shell { display: flex; flex-direction: column; gap: .25rem; max-width: calc(100vw - 24px); max-height: calc(100vh - 56px); max-height: min(80dvh, var(--aspen-available-height, calc(100dvh - 56px))); overflow: hidden; }
   /* Voice panel pinning: every direct child (status header, notices,
-     transfer control, control row, mic meter row, hint pill) keeps its
-     natural height; ONLY the caption region (transcript / playback caption)
-     absorbs the squeeze and scrolls internally. */
+     control row, mic meter row, hint pill) keeps its natural height; the
+     caption region (transcript / playback caption) is the ONLY child that
+     may absorb the squeeze, and only down to its floor (below). The space
+     the captions gained in the 2026-11-11 rearrangement is funded by the
+     rows that left the panel body: the demo timer moved into the header
+     as a pill and the manager transfer became a pill inside the control
+     row, so the portrait and controls never pay for it. */
   .aspen-voice-panel > * { flex-shrink: 0; }
   /* overflow: hidden is load-bearing (2026-11-09 caption/timer overlap):
      the karaoke caption box inside has an unshrinkable content minimum, so
      when this region is squeezed below it the box would otherwise PAINT
      over the timer line and control row below. Containment here means
-     nothing inside the region can ever render outside it. */
-  .aspen-voice-panel > .aspen-caption-region { flex: 0 1 auto; min-height: 0; flex-shrink: 1; display: flex; flex-direction: column; overflow: hidden; }
+     nothing inside the region can ever render outside it.
+     min-height is the caption FLOOR (2026-11-11, Ron's crushed-captions
+     screenshot): caption text is text-sm / leading-6 (24px per line) in a
+     p-1.5 bordered box (12px padding + 2px border), so 62px always fits
+     2 FULL lines. The old min-height: 0 let viewport pressure crush the
+     region to a single half-cut line; the floor makes that impossible —
+     past it, the shell's children wrapper scrolls instead. */
+  .aspen-voice-panel > .aspen-caption-region { flex: 0 1 auto; min-height: 62px; flex-shrink: 1; display: flex; flex-direction: column; overflow: hidden; }
   /* Stage 3 (minimized while talking) keeps a safe-area clearance at the
      bottom edge on top of DraggableFloating's visual-viewport fit. (Resolves
      to 0 today — the page meta does not opt into viewport-fit=cover — and
@@ -182,7 +192,10 @@
      waving cutout's edge shadow reads consistently on light and dark sites. */
   .aspen-person-portrait { background: radial-gradient(115% 100% at 50% 0%, hsl(var(--primary) / 0.10), hsl(var(--muted) / 0.35) 78%); }
   .aspen-voice-panel { position: relative; z-index: 10; min-height: 232px; }
-  .aspen-caption-space { height: 72px; min-width: 0; }
+  /* Caption home (2026-11-11): a FIXED 86px = 3 full caption lines
+     (3 x 24px leading-6) + the box's p-1.5 padding (12px) and border
+     (2px). The old 72px held barely 2 lines before any squeeze. */
+  .aspen-caption-space { height: 86px; min-width: 0; }
   /* The open widget's face box: identical dimensions to the static/collapsed portrait
      (234x188 on tablet/desktop, 187x150 on compact phones) across ready, connecting,
      live and paused, clipped cleanly along the top border of the voice/chat box. */

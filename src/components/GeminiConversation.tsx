@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Mic, MicOff, Volume2, VolumeX, FlaskConical, PhoneOff, Loader2, Play, Pause, Save, RotateCcw, RefreshCw, Settings2, ChevronsUpDown, Check, Speaker, Smartphone, Bluetooth } from "lucide-react";
+import { Mic, MicOff, Volume2, VolumeX, FlaskConical, PhoneOff, Loader2, Play, Pause, Save, RotateCcw, RefreshCw, Settings2, ChevronsUpDown, Check, Speaker, Smartphone, Bluetooth, Timer } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useTranslation } from "react-i18next";
 // This component renders in standalone harnesses (Voice Lab, embeds, tests)
@@ -3027,6 +3027,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   };
   const confirmation = pendingAction ? <VoiceActionConfirmation key={pendingAction.id} action={pendingAction} onAnswer={(approved, contact) => { wsRef.current?.send(JSON.stringify({type:'confirm_action',id:pendingAction.id,approved,contact})); setPendingAction(null); }}/> : null;
   const transferControl = phase === 'live' && handoffToken ? <BrowserVoiceHandoff token={handoffToken} onActive={onHandoffActive} microphone={microphone}/> : null;
+  // Compact panel (2026-11-11 rearrangement): the same handoff, same live +
+  // token gate, rendered as the compact Manager pill inside the control row
+  // instead of a standalone full-width row above it.
+  const transferPill = phase === 'live' && handoffToken ? <BrowserVoiceHandoff pill token={handoffToken} onActive={onHandoffActive} microphone={microphone}/> : null;
 
   if (!previewOnly && !consentReady && !prewarm) return <div className="space-y-3 p-3 text-foreground">
     {faceFirst && <PersonPortrait name={name} avatarUrl={avatarUrl} />}
@@ -3171,6 +3175,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             )}
             {shownPhase !== "live" && (shownPhase === "idle" ? t("voice.readyToTalk") : faceWaiting ? t("voice.connecting") : status)}
           </p>
+          {remainingSeconds !== null && <span data-testid="demo-timer-pill" title={`${t("voice.demoTimeRemaining")}: ${Math.floor(remainingSeconds/60)}:${String(remainingSeconds%60).padStart(2,'0')}`} aria-label={`${t("voice.demoTimeRemaining")}: ${Math.floor(remainingSeconds/60)}:${String(remainingSeconds%60).padStart(2,'0')}`} className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-background/95 px-2 py-0.5 text-[11px] leading-tight text-muted-foreground"><Timer className="h-3 w-3" />{Math.floor(remainingSeconds/60)}:{String(remainingSeconds%60).padStart(2,'0')}</span>}
           {faceFirst && <Button size="icon" variant="outline" className="ml-auto h-10 w-10 shrink-0 border-primary/60 bg-transparent text-primary hover:bg-primary/10 hover:text-primary" aria-label={captions ? t('voice.hideCaptions') : t('voice.showCaptions')} title={captions ? t('voice.hideCaptions') : t('voice.showCaptions')} aria-expanded={captions} onClick={() => setCaptions(v => !v)}><ChevronsUpDown className="h-4 w-4" /></Button>}
         </div>
         {phase === 'idle' && endedByVisitor && <p className="text-xs text-muted-foreground">{t("voice.pressPlayReconnect", { name })}</p>}
@@ -3201,8 +3206,6 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         {actionNotice && <p role="status" className="text-xs text-primary">{actionNotice}</p>}
         {swapNotice && <p role="status" className="text-xs text-primary">{swapNotice}</p>}
         {videoFallback && <p role="status" className="text-[11px] text-muted-foreground">{t("voice.videoFallback")}</p>}
-        {remainingSeconds !== null && (!faceFirst || captions) && <p className="text-[11px] text-muted-foreground">{t("voice.demoTimeRemaining")}: {Math.floor(remainingSeconds/60)}:{String(remainingSeconds%60).padStart(2,'0')}</p>}
-        {transferControl}
         <div className="voice-controls flex flex-wrap items-center justify-center gap-1 [&_button]:h-auto [&_button]:min-h-11 [&_button]:w-auto [&_button]:min-w-11 [&_button]:flex-col [&_button]:gap-1 [&_button]:px-1.5 [&_button]:py-1.5 [&_span]:text-[10px] [&_span]:leading-tight">
           {phase === "idle" ? (
             <Button size="icon" onClick={() => void startConversation()} title={t("voice.playToConnect", { name })} aria-label={t("voice.startConversation")}>
@@ -3346,6 +3349,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             <Settings2 className="h-4 w-4" />
             <span>{t("voice.settings")}</span>
           </Button>
+          {transferPill}
         </div>
 
         {phase === "live" && speakerOutputNotice && (

@@ -53,10 +53,14 @@ describe("widget viewport fit — shell is bounded and never scrolls as a whole"
 });
 
 describe("widget viewport fit — pinned chrome, scrolling transcript", () => {
-  it("voice panel children are pinned; only the caption region may shrink", () => {
+  it("voice panel children are pinned; only the caption region may shrink, and only to its 2-line floor", () => {
     expect(rule(".aspen-voice-panel > * {")).toContain("flex-shrink: 0");
     const region = rule(".aspen-voice-panel > .aspen-caption-region {");
-    expect(region).toContain("min-height: 0");
+    // Caption floor (2026-11-11): 62px = 2 full leading-6 lines (48px) +
+    // the caption box's p-1.5 padding (12px) and border (2px). The old
+    // min-height: 0 let viewport pressure crush captions to ~1 half line.
+    expect(region).toContain("min-height: 62px");
+    expect(region).not.toContain("min-height: 0");
     expect(region).toContain("flex-shrink: 1");
     expect(region).toContain("flex-direction: column");
   });
