@@ -1,5 +1,6 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { businessNameVariants } from "../_shared/places-name-variants.ts";
 
 // Live 25-Point Visibility Audit powered by Serper (google.serper.dev).
 // - "maps" mode: 5x5 lat/lng grid around the verified business location,
@@ -53,10 +54,9 @@ function websiteHostOf(websiteUrl?: string): string | undefined {
   }
 }
 
-async function findBusinessLocation(businessName: string, city: string, websiteUrl?: string) {
-  if (!GOOGLE_MAPS_API_KEY) return null;
+async function placesSearchOnce(queryName: string, city: string, websiteUrl?: string) {
   try {
-    const query = [businessName, city, websiteHostOf(websiteUrl)].filter(Boolean).join(" ");
+    const query = [queryName, city, websiteHostOf(websiteUrl)].filter(Boolean).join(" ");
     const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
       method: "POST",
       headers: {
@@ -74,6 +74,26 @@ async function findBusinessLocation(businessName: string, city: string, websiteU
     console.error("findBusinessLocation error:", e);
     return null;
   }
+}
+
+// Locate the business on Google Places, retrying with conservative name
+// variants (camel-split, legal-suffix added/stripped — see
+// _shared/places-name-variants.ts) when the name as typed finds nothing.
+// Our own brand failed as "AiHiddenLeads" and matched as "AI Hidden Leads";
+// prospects hit the same wall. Max 3 lookups; failures stay honest nulls.
+async function findBusinessLocation(businessName: string, city: string, websiteUrl?: string) {
+  if (!GOOGLE_MAPS_API_KEY) return null;
+  const variants = businessNameVariants(businessName);
+  for (let i = 0; i < variants.length; i++) {
+    const found = await placesSearchOnce(variants[i], city, websiteUrl);
+    if (found) {
+      if (variants[i] !== businessName) {
+        console.log(`demo-rank-audit: Places matched name variant "${variants[i]}" (typed: "${businessName}")`);
+      }
+      return { ...found, matchedName: variants[i] };
+    }
+  }
+  return null;
 }
 
 async function serperMapsCell(keyword: string, lat: number, lng: number): Promise<any[]> {
@@ -222,6 +242,7 @@ Deno.serve(async (req) => {
       if (!center) {
         return reply({ error: `Could not locate "${businessName}" on Google Maps. Check the city or add the business address.` }, 400);
       }
+      const locatedName = center.matchedName || businessName;
       const half = Math.floor(GRID_SIZE / 2);
       const kmPerDegLat = 110.574;
       const kmPerDegLng = 111.320 * Math.cos((center.lat * Math.PI) / 180);
@@ -240,7 +261,7 @@ Deno.serve(async (req) => {
       const grid: GridCell[] = points.map((p, i) => {
         const s = settled[i];
         if (s.status !== "fulfilled") return { ...p, rank: null };
-        const { rank, matched } = findRankInMaps(s.value as any[], businessName, host);
+        const { rank, matched } = findRankInMaps(s.value as any[], locatedName, host);
         return { ...p, rank, matchedName: matched };
       });
       const result = {

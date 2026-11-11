@@ -10,7 +10,7 @@ import { REALTOR_VERTICAL } from "@/data/agentVerticals";
  */
 const Realtors = () => {
   useEffect(() => {
-    document.title = "Realtors | AI Hidden Leads";
+    document.title = "AI Receptionist for Real Estate Agents | AI Hidden Leads";
   }, []);
 
   return <AgentLandingTemplate vertical={REALTOR_VERTICAL} />;
