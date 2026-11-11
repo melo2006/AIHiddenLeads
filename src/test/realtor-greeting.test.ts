@@ -126,16 +126,23 @@ describe('rotation through openingFor (the standard mechanism)', () => {
 
 describe('route scoping in gemini-session', () => {
   const src = read('supabase/functions/gemini-session/index.ts');
+  const knowledge = read('supabase/functions/_shared/homepage-knowledge.ts');
 
-  it('imports the variants from the shared homepage knowledge module', () => {
-    expect(src).toContain("import { REALTOR_GREETING_VARIANTS } from '../_shared/homepage-knowledge.ts';");
+  it('gemini-session applies the shared stamp helper; the helper owns the swap', () => {
+    expect(src).toContain("import { stampRealtorLanding } from '../_shared/homepage-knowledge.ts';");
+    expect(knowledge).toContain('config.realtorLanding = true;');
+    expect(knowledge).toContain('config.greeting = REALTOR_GREETING_VARIANTS[0];');
+    expect(knowledge).toContain('config.greetings = [...REALTOR_GREETING_VARIANTS];');
   });
 
   it('stamps only the homepage agent, only when the session starts on /agents/realtors', () => {
-    expect(src).toContain("if(!b.agentId && agent.slug==='aspen-homepage' && b.campaign?.entryPath==='/agents/realtors') {");
-    expect(src).toContain('config.realtorLanding=true;');
-    expect(src).toContain('config.greeting=REALTOR_GREETING_VARIANTS[0];');
-    expect(src).toContain('config.greetings=[...REALTOR_GREETING_VARIANTS];');
+    // Reachability fix (2026-11-11): NO !b.agentId term — the public
+    // widget addresses the homepage agent by its resolved public id,
+    // so an agentId is present on every genuine widget session and the
+    // old term silently disabled the stamp in production. Tenancy is
+    // decided by the resolved slug in this condition.
+    expect(src).toContain("if(agent.slug==='aspen-homepage' && b.campaign?.entryPath==='/agents/realtors') {");
+    expect(src).toContain('stampRealtorLanding(config);');
   });
 
   it('the stamp lands inside the homepage branch, before the opening is assembled', () => {
