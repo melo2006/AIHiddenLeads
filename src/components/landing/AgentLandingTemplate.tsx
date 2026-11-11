@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import {
@@ -27,20 +27,133 @@ import TeamSection from "@/components/landing/TeamSection";
 import GeminiAgentWidget from "@/components/GeminiAgentWidget";
 import AssistantErrorBoundary from "@/components/AssistantErrorBoundary";
 import aspenPortrait from "@/assets/aspen-idle-wave.gif";
+// Slides 1 + 3 ship as clearly-marked placeholders until Ron approves
+// the final photos in chat; the approved files land in
+// ~/workspace/hero-approved/ and swap in here as drop-in replacements.
+import realtorSoldPhoto from "@/assets/realtor-slide-placeholder-sold.jpg";
 import realtorCondosPhoto from "@/assets/realtor-fort-lauderdale-condos.jpg";
+import realtorTownhousesPhoto from "@/assets/realtor-slide-placeholder-townhouses.jpg";
 import realtorSkylinePhoto from "@/assets/realtor-miami-skyline.jpg";
 import realtorHomePhoto from "@/assets/realtor-florida-home.jpg";
 import type { AgentVertical } from "@/data/agentVerticals";
 
 /**
- * Hero photo banner images, keyed by the `key` each vertical's
- * heroPhotos data carries — a vertical only ever shows its own photos,
- * and a vertical with no heroPhotos renders no banner at all.
+ * Hero slideshow images, keyed by the `key` each vertical's heroSlides
+ * data carries — a vertical only ever shows its own photos, and a
+ * vertical with no heroSlides renders no slideshow at all.
  */
-const heroPhotoImages: Record<string, string> = {
+const heroSlideImages: Record<string, string> = {
+  sold: realtorSoldPhoto,
   condos: realtorCondosPhoto,
+  townhouses: realtorTownhousesPhoto,
   skyline: realtorSkylinePhoto,
   home: realtorHomePhoto,
+};
+
+/** How long each hero slide stays up before crossfading to the next. */
+const HERO_SLIDE_ROTATE_MS = 5600;
+
+/**
+ * Full-bleed hero slideshow — a panoramic photo fills the band as the
+ * background (object-cover, per-slide focal classes), a dark gradient
+ * scrim keeps the overlaid slogan legible, and photo + slogan crossfade
+ * together as pairs. Dot indicators jump to a slide; auto-rotation
+ * pauses on hover, focus or tap; a visitor who prefers reduced motion
+ * gets slide 1, static — no rotation at all.
+ */
+const HeroSlideshow = ({
+  slides,
+  credit,
+}: {
+  slides: NonNullable<AgentVertical["heroSlides"]>;
+  credit?: string;
+}) => {
+  const reduceMotion = useReducedMotion();
+  const [active, setActive] = useState(0);
+  const [paused, setPaused] = useState(false);
+
+  useEffect(() => {
+    if (reduceMotion || paused || slides.length < 2) return;
+    const id = window.setInterval(() => {
+      setActive((current) => (current + 1) % slides.length);
+    }, HERO_SLIDE_ROTATE_MS);
+    return () => window.clearInterval(id);
+  }, [reduceMotion, paused, slides.length]);
+
+  return (
+    <div>
+      <div
+        data-agent-hero-slides
+        role="region"
+        aria-roledescription="carousel"
+        aria-label="South Florida real estate scenes"
+        className="relative h-[340px] overflow-hidden rounded-2xl border border-primary/25 shadow-2xl shadow-primary/10 sm:h-[440px] lg:h-[520px]"
+        onMouseEnter={() => setPaused(true)}
+        onMouseLeave={() => setPaused(false)}
+        onFocus={() => setPaused(true)}
+        onBlur={() => setPaused(false)}
+        onPointerDown={() => setPaused(true)}
+      >
+        {slides.map((slide, i) => {
+          const src = heroSlideImages[slide.key];
+          if (!src) return null;
+          const isActive = i === active;
+          return (
+            <div
+              key={slide.key}
+              aria-hidden={!isActive}
+              className={`absolute inset-0 transition-opacity duration-1000 ${
+                isActive ? "opacity-100" : "pointer-events-none opacity-0"
+              }`}
+            >
+              <img
+                src={src}
+                alt={isActive ? slide.alt : ""}
+                loading={i === 0 ? "eager" : "lazy"}
+                className={`h-full w-full object-cover ${slide.focusClass}`}
+              />
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background/90 via-background/25 to-transparent"
+              />
+              <div className="absolute inset-x-0 bottom-0 p-6 pb-12 sm:p-10 sm:pb-14">
+                <p className="max-w-2xl text-3xl font-bold leading-tight text-white drop-shadow-md sm:text-5xl">
+                  {slide.slogan}
+                </p>
+                <p className="mt-2 text-xs font-semibold uppercase tracking-wider text-white/80">
+                  {slide.caption}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+        <div className="absolute bottom-4 right-5 z-10 flex gap-2 sm:right-8">
+          {slides.map((slide, i) => (
+            <button
+              key={slide.key}
+              type="button"
+              onClick={() => {
+                setActive(i);
+                setPaused(true);
+              }}
+              aria-label={`Show slide ${i + 1}: ${slide.caption}`}
+              aria-current={i === active}
+              className={`h-2.5 rounded-full transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
+                i === active
+                  ? "w-7 bg-primary"
+                  : "w-2.5 bg-white/50 hover:bg-white/80"
+              }`}
+            />
+          ))}
+        </div>
+      </div>
+      {credit && (
+        <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+          {credit}
+        </p>
+      )}
+    </div>
+  );
 };
 
 const painIcons = [PhoneMissed, MoonStar, Clock];
@@ -157,22 +270,41 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
       {/* Hero — vertical headline + sub, shared Aspen portrait + demo CTA */}
       <section className="relative overflow-hidden pt-6 sm:pt-8 pb-8 sm:pb-10">
         <div className="container mx-auto px-5 sm:px-6 relative z-10">
-          <div className="flex flex-col lg:flex-row items-center gap-8 lg:gap-10">
+          {/* Hero slideshow — full-bleed photo band at the very top of
+              the hero, data-driven: only renders when the vertical
+              carries heroSlides. The H1, demo form and everything else
+              stay below it on the solid background. */}
+          {vertical.heroSlides && vertical.heroSlides.length > 0 && (
+            <HeroSlideshow
+              slides={vertical.heroSlides}
+              credit={vertical.heroSlidesCredit}
+            />
+          )}
+          <div
+            className={`flex flex-col lg:flex-row items-center gap-8 lg:gap-10 ${
+              vertical.heroSlides?.length ? "mt-10 sm:mt-12" : ""
+            }`}
+          >
             <div className="min-w-0 w-full flex-1 text-center lg:text-left">
-              <motion.div
-                initial={reduceMotion ? false : { opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
-                className="inline-flex items-center gap-2 px-3 py-2 sm:px-4 rounded-full border border-primary/20 bg-primary/5 mb-4 sm:mb-5"
-              >
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
-                </span>
-                <span className="text-xs sm:text-base font-medium text-primary">
-                  {vertical.badgeLine ?? vertical.builtFor}
-                </span>
-              </motion.div>
+              {/* Badge pill — suppressed on slideshow verticals: the
+                  pill's phrases live on as slide slogans there, so
+                  showing both would duplicate them. */}
+              {!vertical.heroSlides?.length && (
+                <motion.div
+                  initial={reduceMotion ? false : { opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5 }}
+                  className="inline-flex items-center gap-2 px-3 py-2 sm:px-4 rounded-full border border-primary/20 bg-primary/5 mb-4 sm:mb-5"
+                >
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
+                  </span>
+                  <span className="text-xs sm:text-base font-medium text-primary">
+                    {vertical.badgeLine ?? vertical.builtFor}
+                  </span>
+                </motion.div>
+              )}
 
               <motion.h1
                 initial={reduceMotion ? false : { opacity: 0, y: 20 }}
@@ -343,52 +475,6 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
             </motion.div>
           </div>
 
-          {/* Photo banner — real photographs from this vertical's world,
-              floating cards under the hero. Data-driven: only renders
-              when the vertical carries heroPhotos. Slight tilts on
-              desktop give the floating feel; reduced motion (and small
-              screens) get a calm, straight grid. */}
-          {vertical.heroPhotos && vertical.heroPhotos.length > 0 && (
-            <div data-agent-hero-photos className="mt-10 sm:mt-12">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-5xl mx-auto">
-                {vertical.heroPhotos.map((photo, i) => {
-                  const src = heroPhotoImages[photo.key];
-                  if (!src) return null;
-                  return (
-                    <motion.figure
-                      key={photo.key}
-                      initial={reduceMotion ? false : { opacity: 0, y: 24 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      viewport={{ once: true, margin: "-40px" }}
-                      transition={{ duration: 0.5, delay: i * 0.12 }}
-                      className={`relative overflow-hidden rounded-2xl border border-primary/20 shadow-xl shadow-black/30 ${
-                        i === 0 ? "sm:-rotate-1" : i === 2 ? "sm:rotate-1" : ""
-                      }`}
-                    >
-                      <img
-                        src={src}
-                        alt={photo.alt}
-                        loading="lazy"
-                        className="aspect-[4/3] w-full object-cover"
-                      />
-                      <div
-                        aria-hidden
-                        className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-primary/10"
-                      />
-                      <figcaption className="absolute bottom-3 left-3 rounded-full bg-background/80 px-3 py-1 text-xs font-semibold text-foreground backdrop-blur-sm">
-                        {photo.caption}
-                      </figcaption>
-                    </motion.figure>
-                  );
-                })}
-              </div>
-              {vertical.heroPhotosCredit && (
-                <p className="mt-3 text-center text-[11px] text-muted-foreground">
-                  {vertical.heroPhotosCredit}
-                </p>
-              )}
-            </div>
-          )}
         </div>
       </section>
 
@@ -493,12 +579,14 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
             </div>
 
             <div className="rounded-2xl border border-primary/20 bg-primary/5 p-6 sm:p-8 flex flex-col">
-              <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center mb-4">
-                <CalendarCheck className="w-5 h-5 text-primary" />
+              <div className="flex items-center gap-4 mb-3">
+                <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                  <CalendarCheck className="w-5 h-5 text-primary" />
+                </div>
+                <h3 className="text-xl font-semibold leading-snug">
+                  {vertical.sampleCall.sellerTitle}
+                </h3>
               </div>
-              <h3 className="text-xl font-semibold mb-3">
-                {vertical.sampleCall.sellerTitle}
-              </h3>
               <p className="text-sm text-muted-foreground leading-relaxed flex-1">
                 {vertical.sampleCall.sellerBody}
               </p>
@@ -541,15 +629,19 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
                   transition={{ delay: i * 0.1 }}
                   className="relative rounded-2xl border border-border bg-card p-6"
                 >
-                  <div className="relative mb-4">
-                    <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
-                      <Icon className="w-8 h-8 text-primary" />
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="relative shrink-0">
+                      <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+                        <Icon className="w-8 h-8 text-primary" />
+                      </div>
+                      <span className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-secondary border border-border flex items-center justify-center text-xs font-bold text-foreground">
+                        {i + 1}
+                      </span>
                     </div>
-                    <span className="absolute -top-2 left-14 w-6 h-6 rounded-full bg-secondary border border-border flex items-center justify-center text-xs font-bold text-foreground">
-                      {i + 1}
-                    </span>
+                    <h3 className="text-base font-semibold leading-snug">
+                      {step.title}
+                    </h3>
                   </div>
-                  <h3 className="text-base font-semibold mb-2">{step.title}</h3>
                   <p className="text-sm text-muted-foreground leading-relaxed">
                     {step.body}
                   </p>

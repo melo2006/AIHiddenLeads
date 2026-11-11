@@ -314,20 +314,15 @@ describe("realtor landing page — v3 real-estate batch (2026-11-11)", () => {
     expect(templateSource).toContain("vertical.badgeLine ?? vertical.builtFor");
   });
 
-  it("photo banner: 3 real photos with subject-named alt text, credit line, template photo map", () => {
-    expect(REALTOR_VERTICAL.heroPhotos).toHaveLength(3);
-    const alts = (REALTOR_VERTICAL.heroPhotos ?? []).map((p) => p.alt).join("\n");
-    expect(alts).toMatch(/Fort Lauderdale condominiums/);
-    expect(alts).toMatch(/Downtown Miami skyline/);
-    expect(alts).toMatch(/single-family home/);
-    expect(REALTOR_VERTICAL.heroPhotosCredit).toMatch(/CC BY-SA/);
-    expect(REALTOR_VERTICAL.heroPhotosCredit).toMatch(/Wikimedia Commons/);
-    expect(templateSource).toContain("data-agent-hero-photos");
-    expect(templateSource).toContain("heroPhotoImages");
-    expect(templateSource).toContain("@/assets/realtor-fort-lauderdale-condos.jpg");
-    expect(templateSource).toContain("@/assets/realtor-miami-skyline.jpg");
-    expect(templateSource).toContain("@/assets/realtor-florida-home.jpg");
-    expect(templateSource).toContain("vertical.heroPhotosCredit");
+  it("photo banner (v3 shape, superseded by the v4 hero slideshow below): data moved to heroSlides", () => {
+    // The v3 floating-cards banner was replaced in v4 by the hero
+    // slideshow (see the v4 hero-carousel describe). The old fields
+    // are gone from the data and the template.
+    expect(
+      (REALTOR_VERTICAL as Record<string, unknown>).heroPhotos,
+    ).toBeUndefined();
+    expect(templateSource).not.toContain("data-agent-hero-photos");
+    expect(templateSource).not.toContain("heroPhotoImages");
   });
 
   it("services list on the page is the split 8, matching the homepage hero names", () => {
@@ -393,6 +388,144 @@ describe("realtor landing page — v3 real-estate batch (2026-11-11)", () => {
     const bodyAt = painsBlock.indexOf("{pain.body}", headerAt);
     expect(titleAt).toBeGreaterThan(headerAt);
     expect(bodyAt).toBeGreaterThan(titleAt);
+  });
+});
+
+describe("realtor landing page — v4 card layout consistency (2026-11-11)", () => {
+  it("seller sample-call card: icon chip and headline share one header row, body below", () => {
+    const titleAt = templateSource.indexOf("vertical.sampleCall.sellerTitle");
+    expect(titleAt).toBeGreaterThan(-1);
+    const card = templateSource.slice(titleAt - 800, titleAt + 400);
+    // Calendar icon chip sits in the same flex header row as the headline.
+    const headerAt = card.indexOf("flex items-center gap-4 mb-3");
+    expect(headerAt).toBeGreaterThan(-1);
+    expect(card.indexOf("CalendarCheck", headerAt)).toBeGreaterThan(headerAt);
+    expect(card.indexOf("shrink-0", headerAt)).toBeGreaterThan(headerAt);
+    // Headline follows the header row start; body follows the headline.
+    const titleInCard = card.indexOf("vertical.sampleCall.sellerTitle", headerAt);
+    expect(titleInCard).toBeGreaterThan(headerAt);
+    expect(card.indexOf("vertical.sampleCall.sellerBody")).toBeGreaterThan(
+      titleInCard,
+    );
+    // The old stacked tile (icon alone on its own row above the headline) is gone.
+    expect(templateSource).not.toContain("justify-center mb-4");
+  });
+
+  it("control step cards: icon chip and headline share one header row, numbered badge on the chip corner", () => {
+    const stepsAt = templateSource.indexOf("vertical.controlSteps.map");
+    expect(stepsAt).toBeGreaterThan(-1);
+    const block = templateSource.slice(stepsAt, stepsAt + 2200);
+    const headerAt = block.indexOf("flex items-center gap-4 mb-4");
+    expect(headerAt).toBeGreaterThan(-1);
+    // Big icon tile kept (v2 design pin) inside a shrink-0 relative wrapper.
+    expect(block).toContain("w-16 h-16");
+    expect(block).toContain("w-8 h-8 text-primary");
+    expect(block.indexOf("relative shrink-0", headerAt)).toBeGreaterThan(headerAt);
+    // Step-number badge rides the chip's top-right corner, inside the row.
+    const badgeAt = block.indexOf("-top-2 -right-2", headerAt);
+    expect(badgeAt).toBeGreaterThan(headerAt);
+    expect(block.indexOf("{i + 1}", badgeAt)).toBeGreaterThan(badgeAt);
+    // Headline shares the row; body sits below it.
+    const titleAt = block.indexOf("{step.title}", headerAt);
+    const bodyAt = block.indexOf("{step.body}", headerAt);
+    expect(titleAt).toBeGreaterThan(headerAt);
+    expect(bodyAt).toBeGreaterThan(titleAt);
+    // The old stacked wrapper + off-tile badge offset are gone.
+    expect(templateSource).not.toContain("relative mb-4");
+    expect(templateSource).not.toContain("left-14");
+  });
+});
+
+describe("realtor landing page — v4 hero photo carousel (2026-11-11 addenda)", () => {
+  it("hero slides: 5 photo + slogan pairs in the approved order (realtors only)", () => {
+    const slides = REALTOR_VERTICAL.heroSlides ?? [];
+    expect(slides).toHaveLength(5);
+    expect(slides.map((s) => s.key)).toEqual([
+      "sold",
+      "condos",
+      "townhouses",
+      "home",
+      "skyline",
+    ]);
+    expect(slides.map((s) => s.slogan)).toEqual([
+      "The first agent to answer wins the client.",
+      "Buyers and sellers won't wait.",
+      "Never miss a showing, a closing, or a call.",
+      "Every buyer. Every seller. Answered.",
+      "Aspen answers in seconds, 24/7.",
+    ]);
+    // Every slide names its subject in alt text and carries a focal
+    // crop class so the subject survives the mobile/desktop crops.
+    for (const slide of slides) {
+      expect(slide.alt.length).toBeGreaterThan(20);
+      expect(slide.caption.length).toBeGreaterThan(3);
+      expect(slide.focusClass).toContain("object-[");
+    }
+    const alts = slides.map((s) => s.alt).join("\n");
+    expect(alts).toMatch(/SOLD sign/);
+    expect(alts).toMatch(/Fort Lauderdale condominiums/);
+    expect(alts).toMatch(/townhouses/);
+    expect(alts).toMatch(/single-family home/);
+    expect(alts).toMatch(/Downtown Miami skyline/);
+    // Credit line: CC licences for the Commons photos; slides 1 + 3
+    // are marked placeholders until Ron approves the final photos.
+    expect(REALTOR_VERTICAL.heroSlidesCredit).toMatch(/CC BY-SA/);
+    expect(REALTOR_VERTICAL.heroSlidesCredit).toMatch(/Wikimedia Commons/);
+    expect(REALTOR_VERTICAL.heroSlidesCredit).toMatch(/placeholders/);
+    // No other vertical carries slides — no carousel renders for them.
+    for (const vertical of AGENT_VERTICALS) {
+      if (vertical.slug !== "realtors") {
+        expect(vertical.heroSlides).toBeUndefined();
+      }
+    }
+  });
+
+  it("template: full-bleed slideshow band at the top of the hero, all 5 assets wired", () => {
+    expect(templateSource).toContain("data-agent-hero-slides");
+    expect(templateSource).toContain("heroSlideImages");
+    // Slides 1 + 3 wire to clearly-marked placeholder files until the
+    // approved photos arrive (drop-in swap in the template's imports).
+    expect(templateSource).toContain("@/assets/realtor-slide-placeholder-sold.jpg");
+    expect(templateSource).toContain("@/assets/realtor-fort-lauderdale-condos.jpg");
+    expect(templateSource).toContain("@/assets/realtor-slide-placeholder-townhouses.jpg");
+    expect(templateSource).toContain("@/assets/realtor-miami-skyline.jpg");
+    expect(templateSource).toContain("@/assets/realtor-florida-home.jpg");
+    expect(templateSource).toContain("vertical.heroSlidesCredit");
+    // The band renders above the H1 block in the hero section.
+    const bandAt = templateSource.indexOf("data-agent-hero-slides");
+    const h1At = templateSource.indexOf("vertical.headline");
+    expect(bandAt).toBeGreaterThan(-1);
+    expect(h1At).toBeGreaterThan(bandAt);
+    // Panoramic background treatment: fixed band heights + object-cover.
+    expect(templateSource).toContain("h-[340px]");
+    expect(templateSource).toContain("lg:h-[520px]");
+    expect(templateSource).toContain("object-cover");
+  });
+
+  it("slogan pill is removed from the realtor hero — its phrases live as slide slogans", () => {
+    // The pill only renders for verticals WITHOUT slides.
+    expect(templateSource).toContain("{!vertical.heroSlides?.length && (");
+    // The fallback chain itself stays for the other verticals.
+    expect(templateSource).toContain("vertical.badgeLine ?? vertical.builtFor");
+  });
+
+  it("rotation: ~5.6s crossfade pairs, dots, pause on interaction, reduced motion = static slide 1", () => {
+    expect(templateSource).toContain("HERO_SLIDE_ROTATE_MS = 5600");
+    expect(templateSource).toContain("setInterval");
+    expect(templateSource).toContain("transition-opacity duration-1000");
+    // The rotation effect refuses to run under reduced motion or while
+    // paused — so reduced-motion visitors keep slide 1, static.
+    expect(templateSource).toContain("if (reduceMotion || paused");
+    // Pause hooks on hover / focus / tap, resume on leave.
+    expect(templateSource).toContain("onMouseEnter={() => setPaused(true)}");
+    expect(templateSource).toContain("onMouseLeave={() => setPaused(false)}");
+    expect(templateSource).toContain("onFocus={() => setPaused(true)}");
+    expect(templateSource).toContain("onPointerDown={() => setPaused(true)}");
+    // Clickable dot indicators, one per slide, labelled per slide.
+    expect(templateSource).toContain("aria-label={`Show slide ${i + 1}: ${slide.caption}`}");
+    expect(templateSource).toContain('aria-roledescription="carousel"');
+    // Slide 1 preloads (eager); the rest lazy-load.
+    expect(templateSource).toContain('loading={i === 0 ? "eager" : "lazy"}');
   });
 });
 
