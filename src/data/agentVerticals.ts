@@ -75,6 +75,20 @@ export interface AgentVertical {
    * hero list), rendered as a balanced checklist when present.
    */
   services?: string[];
+  /**
+   * "Areas we serve" strip — a visible locality list grouped by
+   * county, rendered near the bottom of the page when present.
+   * Honest, visible copy only: the real service area in real text —
+   * no hidden text, no zip-code lists.
+   */
+  serviceAreas?: {
+    heading: string;
+    framing: string;
+    /** Small label above the county groups — the home base, framed
+     *  as local proof, never as the limit of service. */
+    homeTurfLabel: string;
+    counties: { county: string; cities: string[] }[];
+  };
   /** Worked money-math example — labelled an example, not a promise. */
   moneyMath: { lines: string[]; punchline: string; source: string };
   /** Calendar section: bookings on the agent's own connected calendar. */
@@ -251,6 +265,51 @@ export const REALTOR_VERTICAL: AgentVertical = {
     "Comments & Reviews, Answered",
     "Website Revamp or a Brand-New Site",
   ],
+  serviceAreas: {
+    heading: "Serving realtors nationwide",
+    framing:
+      "Aspen answers wherever your buyers and sellers call from. Our home base is South Florida — our agents' markets are everywhere. Dallas to Miami: if the phone rings, she picks up.",
+    homeTurfLabel: "Home turf — South Florida",
+    counties: [
+      {
+        county: "Broward County",
+        cities: [
+          "Fort Lauderdale",
+          "Pompano Beach",
+          "Coral Springs",
+          "Plantation",
+          "Weston",
+          "Davie",
+          "Hollywood",
+          "Deerfield Beach",
+          "Lauderdale-by-the-Sea",
+        ],
+      },
+      {
+        county: "Miami-Dade County",
+        cities: [
+          "Miami",
+          "Coral Gables",
+          "Aventura",
+          "Miami Beach",
+          "Doral",
+          "Hialeah",
+          "Homestead",
+        ],
+      },
+      {
+        county: "Palm Beach County",
+        cities: [
+          "Boca Raton",
+          "Delray Beach",
+          "West Palm Beach",
+          "Boynton Beach",
+          "Jupiter",
+          "Palm Beach Gardens",
+        ],
+      },
+    ],
+  },
   moneyMath: {
     lines: [
       "Average total commission in 2025: about 5.44%. One agent's side, at about 2.5%, is about $10,000 on a $400,000 home — and about $25,000 on a $1,000,000 home or condo.",

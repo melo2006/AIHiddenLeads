@@ -529,6 +529,94 @@ describe("realtor landing page — v4 hero photo carousel (2026-11-11 addenda)",
   });
 });
 
+describe("realtor landing page — areas we serve strip (2026-11-11)", () => {
+  it("realtors data carries the nationwide framing with the South Florida home turf", () => {
+    const areas = REALTOR_VERTICAL.serviceAreas;
+    expect(areas).toBeDefined();
+    // AiHiddenLeads serves nationwide — South Florida is the home
+    // base, never presented as the limit of service.
+    expect(areas?.heading).toBe("Serving realtors nationwide");
+    expect(areas?.framing).toMatch(/wherever your buyers and sellers call from/);
+    expect(areas?.framing).toMatch(/home base is South Florida/);
+    expect(areas?.framing).toMatch(/our agents' markets are everywhere/);
+    expect(areas?.framing).toMatch(/Dallas to Miami/);
+    expect(areas?.framing).toMatch(/if the phone rings, she picks up/);
+    expect(areas?.framing).not.toMatch(/\bonly\b/i);
+    expect(areas?.homeTurfLabel).toBe("Home turf — South Florida");
+    expect(areas?.counties.map((c) => c.county)).toEqual([
+      "Broward County",
+      "Miami-Dade County",
+      "Palm Beach County",
+    ]);
+    const byCounty = Object.fromEntries(
+      (areas?.counties ?? []).map((c) => [c.county, c.cities]),
+    );
+    expect(byCounty["Broward County"]).toEqual([
+      "Fort Lauderdale",
+      "Pompano Beach",
+      "Coral Springs",
+      "Plantation",
+      "Weston",
+      "Davie",
+      "Hollywood",
+      "Deerfield Beach",
+      "Lauderdale-by-the-Sea",
+    ]);
+    expect(byCounty["Miami-Dade County"]).toEqual([
+      "Miami",
+      "Coral Gables",
+      "Aventura",
+      "Miami Beach",
+      "Doral",
+      "Hialeah",
+      "Homestead",
+    ]);
+    expect(byCounty["Palm Beach County"]).toEqual([
+      "Boca Raton",
+      "Delray Beach",
+      "West Palm Beach",
+      "Boynton Beach",
+      "Jupiter",
+      "Palm Beach Gardens",
+    ]);
+  });
+
+  it("stays honest: visible copy only — no zip codes, no stuffed lists", () => {
+    const serialized = JSON.stringify(REALTOR_VERTICAL.serviceAreas);
+    // No 5-digit zip codes anywhere in the strip's data.
+    expect(serialized).not.toMatch(/\b\d{5}\b/);
+    // And the rendered section uses plain visible text — no visually
+    // hidden / off-screen / zero-size utility classes in the template.
+    const areasAt = templateSource.indexOf("data-agent-service-areas");
+    const block = templateSource.slice(areasAt - 200, areasAt + 1800);
+    expect(block).not.toMatch(/sr-only|hidden|invisible|opacity-0|text-\[0px\]/);
+  });
+
+  it("template renders the strip from data, guarded, before the FAQ", () => {
+    expect(templateSource).toContain("{vertical.serviceAreas && (");
+    expect(templateSource).toContain("data-agent-service-areas");
+    expect(templateSource).toContain("vertical.serviceAreas.counties.map");
+    expect(templateSource).toContain("vertical.serviceAreas.heading");
+    expect(templateSource).toContain("vertical.serviceAreas.framing");
+    expect(templateSource).toContain("vertical.serviceAreas.homeTurfLabel");
+    const areasAt = templateSource.indexOf("data-agent-service-areas");
+    expect(areasAt).toBeGreaterThan(-1);
+    // Placement: after the calendar section, before the FAQ / final CTA.
+    expect(areasAt).toBeGreaterThan(
+      templateSource.indexOf("Booked straight onto your calendar"),
+    );
+    expect(areasAt).toBeLessThan(
+      templateSource.indexOf("Questions realtors ask us"),
+    );
+    // Realtors-only: no other vertical carries the field.
+    for (const vertical of AGENT_VERTICALS) {
+      if (vertical.slug !== "realtors") {
+        expect(vertical.serviceAreas).toBeUndefined();
+      }
+    }
+  });
+});
+
 describe("realtor landing page — shared template + pricing rules", () => {
   it("reuses the shared homepage blocks instead of a parallel design", () => {
     expect(templateSource).toContain("LandingNavbar");
