@@ -399,10 +399,10 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
             {vertical.stats.slice(0, 4).map((stat) => (
               <div key={stat.value}>
                 <p className="text-3xl sm:text-4xl font-extrabold text-primary">
-                  {stat.value}
+                  {stat.barValue ?? stat.value}
                 </p>
                 <p className="mt-1 text-xs sm:text-sm text-muted-foreground leading-snug">
-                  {stat.label}
+                  {stat.barLabel ?? stat.label}
                 </p>
               </div>
             ))}
@@ -439,10 +439,14 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
                   transition={{ delay: i * 0.1 }}
                   className="rounded-2xl border border-border bg-card p-6 sm:p-8"
                 >
-                  <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mb-4">
-                    <Icon className="w-7 h-7 text-primary" />
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="w-12 h-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                      <Icon className="w-6 h-6 text-primary" />
+                    </div>
+                    <h3 className="text-lg font-semibold leading-snug">
+                      {pain.title}
+                    </h3>
                   </div>
-                  <h3 className="text-lg font-semibold mb-2">{pain.title}</h3>
                   <p className="text-sm text-muted-foreground leading-relaxed">
                     {pain.body}
                   </p>

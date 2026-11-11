@@ -45,8 +45,17 @@ export interface AgentVertical {
   controlSteps: { title: string; body: string }[];
   /** What the agent sees in their dashboard for every lead. */
   dashboardPoints: string[];
-  /** Verified evidence figures — only the owner-supplied verified set. */
-  stats: { value: string; label: string; source: string }[];
+  /** Verified evidence figures — only the owner-supplied verified set.
+   *  `value`/`label` are the canonical figure + wording (evidence
+   *  section, sources). Optional barValue/barLabel override ONLY how
+   *  the entry renders in the big hero stat bar. */
+  stats: {
+    value: string;
+    label: string;
+    source: string;
+    barValue?: string;
+    barLabel?: string;
+  }[];
   /** "Sound familiar?" buyer scenario (generalized, no names). */
   scenario: string;
   /** One-line follow-up rendered under the scenario card. */
@@ -152,6 +161,11 @@ export const REALTOR_VERTICAL: AgentVertical = {
       label:
         "Average agent response time to a new inquiry — over 15 hours",
       source: "WAV Group Agent Responsiveness Study, via Inman",
+      // Ron (2026-11-11): "917 min" is too number-heavy as the big stat —
+      // the bar leads with the human version; the exact figure stays in
+      // the subline and in the evidence/sources section.
+      barValue: "15+ hours",
+      barLabel: "Average agent response time to a new inquiry (917 minutes)",
     },
     {
       value: "48%",
@@ -168,6 +182,12 @@ export const REALTOR_VERTICAL: AgentVertical = {
       label:
         "More likely to qualify a lead when you respond in 5 minutes instead of 30 minutes",
       source: "MIT / InsideSales Lead Response Management Study",
+      // Ron (2026-11-11): bare "21x" is not self-explanatory up front —
+      // the bar carries "more likely" in the big line, so big line +
+      // subline read as one sentence with no duplication.
+      barValue: "21x more likely",
+      barLabel:
+        "To qualify a lead when you respond in 5 minutes instead of 30 minutes",
     },
     {
       value: "33%",

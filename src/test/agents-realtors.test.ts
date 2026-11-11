@@ -357,6 +357,43 @@ describe("realtor landing page — v3 real-estate batch (2026-11-11)", () => {
     const math = REALTOR_VERTICAL.moneyMath.lines.join("\n");
     expect(math).toMatch(/brokerage down the street/);
   });
+
+  it("stat bar display: 15+ hours and 21x more likely lead, canonical figures untouched", () => {
+    const byValue = Object.fromEntries(
+      REALTOR_VERTICAL.stats.map((s) => [s.value, s]),
+    );
+    // Canonical data (evidence section + sources) keeps the exact figures.
+    expect(byValue["917 min"].label).toMatch(/over 15 hours/);
+    expect(byValue["917 min"].source).toMatch(/WAV Group/);
+    expect(byValue["21x"].label).toMatch(/^More likely to qualify a lead/);
+    // The hero stat bar renders the plain-language display overrides.
+    expect(byValue["917 min"].barValue).toBe("15+ hours");
+    expect(byValue["917 min"].barLabel).toBe(
+      "Average agent response time to a new inquiry (917 minutes)",
+    );
+    expect(byValue["21x"].barValue).toBe("21x more likely");
+    expect(byValue["21x"].barLabel).toBe(
+      "To qualify a lead when you respond in 5 minutes instead of 30 minutes",
+    );
+    // Big line + subline read as one sentence, no duplicated wording.
+    expect(byValue["21x"].barLabel).not.toMatch(/more likely/i);
+    expect(templateSource).toContain("stat.barValue ?? stat.value");
+    expect(templateSource).toContain("stat.barLabel ?? stat.label");
+  });
+
+  it("pain cards: icon chip and headline share one header row, body below", () => {
+    // The old stacked layout (icon tile alone on its own row) is gone.
+    expect(templateSource).not.toContain("w-14 h-14");
+    const painsAt = templateSource.indexOf("vertical.pains.map");
+    const painsBlock = templateSource.slice(painsAt, painsAt + 1800);
+    expect(painsBlock).toContain("flex items-center gap-4 mb-4");
+    expect(painsBlock).toContain("shrink-0");
+    const headerAt = painsBlock.indexOf("flex items-center gap-4 mb-4");
+    const titleAt = painsBlock.indexOf("{pain.title}", headerAt);
+    const bodyAt = painsBlock.indexOf("{pain.body}", headerAt);
+    expect(titleAt).toBeGreaterThan(headerAt);
+    expect(bodyAt).toBeGreaterThan(titleAt);
+  });
 });
 
 describe("realtor landing page — shared template + pricing rules", () => {
