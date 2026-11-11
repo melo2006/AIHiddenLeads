@@ -8,6 +8,7 @@ import {
   Clock,
   Flame,
   LayoutDashboard,
+  MapPin,
   MoonStar,
   Phone,
   PhoneCall,
@@ -938,6 +939,59 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
           </div>
         </div>
       </section>
+
+      {/* Areas we serve — visible locality strip near the bottom of
+          the page, data-driven per vertical; renders only when the
+          vertical carries serviceAreas. Plain visible text: the
+          cities grouped by county, as pills under each county. */}
+      {vertical.serviceAreas && (
+        <section className="py-14 sm:py-20 border-t border-border">
+          <div className="container mx-auto px-5 sm:px-6">
+            <Reveal className="max-w-5xl mx-auto">
+              <div className="text-center mb-10">
+                <Badge
+                  variant="outline"
+                  className="mb-4 border-primary/30 text-primary"
+                >
+                  Areas we serve
+                </Badge>
+                <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+                  {vertical.serviceAreas.heading}
+                </h2>
+                <p className="text-muted-foreground text-base sm:text-lg max-w-2xl mx-auto">
+                  {vertical.serviceAreas.framing}
+                </p>
+              </div>
+              <p className="mb-6 text-center text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                {vertical.serviceAreas.homeTurfLabel}
+              </p>
+              <div
+                data-agent-service-areas
+                className="grid grid-cols-1 sm:grid-cols-3 gap-8"
+              >
+                {vertical.serviceAreas.counties.map((group) => (
+                  <div key={group.county}>
+                    <h3 className="flex items-center gap-2 text-base font-semibold mb-3">
+                      <MapPin className="w-4 h-4 text-primary shrink-0" />
+                      {group.county}
+                    </h3>
+                    <ul className="flex flex-wrap gap-2">
+                      {group.cities.map((city) => (
+                        <li
+                          key={city}
+                          className="rounded-full border border-border bg-card px-3 py-1 text-sm text-muted-foreground"
+                        >
+                          {city}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </Reveal>
+          </div>
+        </section>
+      )}
 
       {/* Vertical FAQ */}
       <section className="py-14 sm:py-20 bg-secondary/20 border-t border-border">
