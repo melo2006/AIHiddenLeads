@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Sitemap for aihiddenleads.com — added 2026-11-11 (Ron's approval).
+     Only verified public marketing pages are listed.
+     Deliberately EXCLUDED: /demo/<site>/<code> personal invite links (must never be indexed),
+     /cal/<id> (per-booking), /setup, /dashboard/*, /voice-lab (signed-in / internal),
+     /agents/mortgage and /agents/insurance (do not exist yet).
+     Add any future public marketing pages here only after verifying they return 200. -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://aihiddenleads.com/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://aihiddenleads.com/demo</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://aihiddenleads.com/agents/realtors</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://aihiddenleads.com/book</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+</urlset>
