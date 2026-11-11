@@ -28,14 +28,15 @@ import TeamSection from "@/components/landing/TeamSection";
 import GeminiAgentWidget from "@/components/GeminiAgentWidget";
 import AssistantErrorBoundary from "@/components/AssistantErrorBoundary";
 import aspenPortrait from "@/assets/aspen-idle-wave.gif";
-// Slides 1 + 3 ship as clearly-marked placeholders until Ron approves
-// the final photos in chat; the approved files land in
-// ~/workspace/hero-approved/ and swap in here as drop-in replacements.
-import realtorSoldPhoto from "@/assets/realtor-slide-placeholder-sold.jpg";
-import realtorCondosPhoto from "@/assets/realtor-fort-lauderdale-condos.jpg";
-import realtorTownhousesPhoto from "@/assets/realtor-slide-placeholder-townhouses.jpg";
-import realtorSkylinePhoto from "@/assets/realtor-miami-skyline.jpg";
-import realtorHomePhoto from "@/assets/realtor-florida-home.jpg";
+// Final hero photos — the 7-slide set Ron approved in chat
+// (2026-11-11), sourced from ~/workspace/hero-approved/.
+import realtorSoldPhoto from "@/assets/realtor-hero-sold.jpg";
+import realtorCondoPhoto from "@/assets/realtor-hero-condo.jpg";
+import realtorKeysPhoto from "@/assets/realtor-hero-keys.jpg";
+import realtorHousePhoto from "@/assets/realtor-hero-house-qr.jpg";
+import realtorCouplePhoto from "@/assets/realtor-hero-couple.jpg";
+import realtorAerialPhoto from "@/assets/realtor-hero-fll-aerial.jpg";
+import realtorDallasPhoto from "@/assets/realtor-hero-dallas.jpg";
 import type { AgentVertical } from "@/data/agentVerticals";
 
 /**
@@ -45,10 +46,12 @@ import type { AgentVertical } from "@/data/agentVerticals";
  */
 const heroSlideImages: Record<string, string> = {
   sold: realtorSoldPhoto,
-  condos: realtorCondosPhoto,
-  townhouses: realtorTownhousesPhoto,
-  skyline: realtorSkylinePhoto,
-  home: realtorHomePhoto,
+  condo: realtorCondoPhoto,
+  keys: realtorKeysPhoto,
+  house: realtorHousePhoto,
+  couple: realtorCouplePhoto,
+  aerial: realtorAerialPhoto,
+  dallas: realtorDallasPhoto,
 };
 
 /** How long each hero slide stays up before crossfading to the next. */
@@ -87,7 +90,7 @@ const HeroSlideshow = ({
         data-agent-hero-slides
         role="region"
         aria-roledescription="carousel"
-        aria-label="South Florida real estate scenes"
+        aria-label="Real estate scenes — South Florida and nationwide"
         className="relative h-[340px] overflow-hidden rounded-2xl border border-primary/25 shadow-2xl shadow-primary/10 sm:h-[440px] lg:h-[520px]"
         onMouseEnter={() => setPaused(true)}
         onMouseLeave={() => setPaused(false)}

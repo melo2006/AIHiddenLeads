@@ -437,22 +437,26 @@ describe("realtor landing page — v4 card layout consistency (2026-11-11)", () 
 });
 
 describe("realtor landing page — v4 hero photo carousel (2026-11-11 addenda)", () => {
-  it("hero slides: 5 photo + slogan pairs in the approved order (realtors only)", () => {
+  it("hero slides: 7 photo + slogan pairs in the approved order (realtors only)", () => {
     const slides = REALTOR_VERTICAL.heroSlides ?? [];
-    expect(slides).toHaveLength(5);
+    expect(slides).toHaveLength(7);
     expect(slides.map((s) => s.key)).toEqual([
       "sold",
-      "condos",
-      "townhouses",
-      "home",
-      "skyline",
+      "condo",
+      "keys",
+      "house",
+      "couple",
+      "aerial",
+      "dallas",
     ]);
     expect(slides.map((s) => s.slogan)).toEqual([
       "The first agent to answer wins the client.",
       "Buyers and sellers won't wait.",
       "Never miss a showing, a closing, or a call.",
+      "Your next closing starts with one answered call.",
       "Every buyer. Every seller. Answered.",
       "Aspen answers in seconds, 24/7.",
+      "Serving realtors nationwide — Dallas to Miami.",
     ]);
     // Every slide names its subject in alt text and carries a focal
     // crop class so the subject survives the mobile/desktop crops.
@@ -463,15 +467,23 @@ describe("realtor landing page — v4 hero photo carousel (2026-11-11 addenda)",
     }
     const alts = slides.map((s) => s.alt).join("\n");
     expect(alts).toMatch(/SOLD sign/);
-    expect(alts).toMatch(/Fort Lauderdale condominiums/);
-    expect(alts).toMatch(/townhouses/);
-    expect(alts).toMatch(/single-family home/);
-    expect(alts).toMatch(/Downtown Miami skyline/);
-    // Credit line: CC licences for the Commons photos; slides 1 + 3
-    // are marked placeholders until Ron approves the final photos.
-    expect(REALTOR_VERTICAL.heroSlidesCredit).toMatch(/CC BY-SA/);
+    expect(alts).toMatch(/condo buyers/);
+    expect(alts).toMatch(/townhouse/);
+    expect(alts).toMatch(/QR code/);
+    expect(alts).toMatch(/older couple/);
+    expect(alts).toMatch(/Aerial view of Fort Lauderdale/);
+    expect(alts).toMatch(/Intracoastal/);
+    expect(alts).toMatch(/Downtown Dallas skyline/);
+    // No placeholder language survives anywhere in the slide data.
+    expect(alts).not.toMatch(/placeholder/i);
+    // Credit line: slides 6 + 7 are real Wikimedia Commons photographs
+    // (CC BY-SA 4.0, each credited to its author); the rest of the
+    // hero imagery was created for AiHiddenLeads and needs no credit.
+    expect(REALTOR_VERTICAL.heroSlidesCredit).toMatch(/Yanjipy/);
+    expect(REALTOR_VERTICAL.heroSlidesCredit).toMatch(/Gattacal/);
+    expect(REALTOR_VERTICAL.heroSlidesCredit).toMatch(/CC BY-SA 4\.0/);
     expect(REALTOR_VERTICAL.heroSlidesCredit).toMatch(/Wikimedia Commons/);
-    expect(REALTOR_VERTICAL.heroSlidesCredit).toMatch(/placeholders/);
+    expect(REALTOR_VERTICAL.heroSlidesCredit).not.toMatch(/placeholder/i);
     // No other vertical carries slides — no carousel renders for them.
     for (const vertical of AGENT_VERTICALS) {
       if (vertical.slug !== "realtors") {
@@ -480,16 +492,18 @@ describe("realtor landing page — v4 hero photo carousel (2026-11-11 addenda)",
     }
   });
 
-  it("template: full-bleed slideshow band at the top of the hero, all 5 assets wired", () => {
+  it("template: full-bleed slideshow band at the top of the hero, all 7 assets wired", () => {
     expect(templateSource).toContain("data-agent-hero-slides");
     expect(templateSource).toContain("heroSlideImages");
-    // Slides 1 + 3 wire to clearly-marked placeholder files until the
-    // approved photos arrive (drop-in swap in the template's imports).
-    expect(templateSource).toContain("@/assets/realtor-slide-placeholder-sold.jpg");
-    expect(templateSource).toContain("@/assets/realtor-fort-lauderdale-condos.jpg");
-    expect(templateSource).toContain("@/assets/realtor-slide-placeholder-townhouses.jpg");
-    expect(templateSource).toContain("@/assets/realtor-miami-skyline.jpg");
-    expect(templateSource).toContain("@/assets/realtor-florida-home.jpg");
+    // The final approved set (Ron, 2026-11-11) — no placeholder files.
+    expect(templateSource).toContain("@/assets/realtor-hero-sold.jpg");
+    expect(templateSource).toContain("@/assets/realtor-hero-condo.jpg");
+    expect(templateSource).toContain("@/assets/realtor-hero-keys.jpg");
+    expect(templateSource).toContain("@/assets/realtor-hero-house-qr.jpg");
+    expect(templateSource).toContain("@/assets/realtor-hero-couple.jpg");
+    expect(templateSource).toContain("@/assets/realtor-hero-fll-aerial.jpg");
+    expect(templateSource).toContain("@/assets/realtor-hero-dallas.jpg");
+    expect(templateSource).not.toContain("realtor-slide-placeholder");
     expect(templateSource).toContain("vertical.heroSlidesCredit");
     // The band renders above the H1 block in the hero section.
     const bandAt = templateSource.indexOf("data-agent-hero-slides");
