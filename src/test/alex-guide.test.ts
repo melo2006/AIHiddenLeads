@@ -171,7 +171,7 @@ describe('guide branch: auth + quota behavior (source pins)', () => {
   test('client forwards the guide flag on both session requests', () => {
     const convo = read('components/GeminiConversation.tsx');
     expect(convo).toContain('guide?: "alex"');
-    expect(convo).toContain('verification, invite, guide }');
+    expect(convo).toContain('verification, invite, sample, guide }');
     expect(convo).toContain('guide={guide}');
     const avatar = read('components/SimliAvatar.tsx');
     expect(avatar).toContain('guide?: "alex"');

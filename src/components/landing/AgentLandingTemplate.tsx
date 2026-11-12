@@ -49,7 +49,42 @@ import realtorCouplePhoto from "@/assets/realtor-hero-couple.jpg";
 import realtorAerialPhoto from "@/assets/realtor-hero-fll-aerial.jpg";
 import realtorBeachPhoto from "@/assets/realtor-hero-fll-beach.jpg";
 import realtorDallasPhoto from "@/assets/realtor-hero-dallas.jpg";
+import exampleThumbAureliaPerez from "@/assets/realtor-example-aurelia-perez.webp";
+import exampleThumbAnnChamberlain from "@/assets/realtor-example-ann-chamberlain.webp";
+import exampleThumbAshleyCusack from "@/assets/realtor-example-ashley-cusack.webp";
+import exampleThumbMauricioBarba from "@/assets/realtor-example-mauricio-barba.webp";
+import exampleThumbMichaelMartinez from "@/assets/realtor-example-michael-martinez.webp";
+import exampleThumbAlexaScalone from "@/assets/realtor-example-alexa-scalone.webp";
+import exampleThumbJeanLucAndriot from "@/assets/realtor-example-jean-luc-andriot.webp";
+import exampleThumbPaulSaperstein from "@/assets/realtor-example-paul-saperstein.webp";
+import exampleThumbBaldemarDeLeon from "@/assets/realtor-example-baldemar-deleon.webp";
+import exampleThumbLoganWalter from "@/assets/realtor-example-logan-walter.webp";
+import exampleThumbRayMiramontes from "@/assets/realtor-example-ray-miramontes.webp";
+import exampleThumbDanielleLazier from "@/assets/realtor-example-danielle-lazier.webp";
+import exampleThumbRichardSteinberg from "@/assets/realtor-example-richard-steinberg.webp";
+import exampleThumbGianSexsmith from "@/assets/realtor-example-gian-sexsmith.webp";
 import type { AgentVertical } from "@/data/agentVerticals";
+
+// Example-grid thumbnails (Batch 2, 2026-11-12): one per demo example,
+// keyed by the option's slug in the vertical data. Each image is a real
+// capture of that agent's own website with Aspen open on it (see
+// batch2-build-report-2026-11-12.md for how they were produced).
+const EXAMPLE_THUMBNAILS: Record<string, string> = {
+  "aurelia-perez": exampleThumbAureliaPerez,
+  "ann-chamberlain": exampleThumbAnnChamberlain,
+  "ashley-cusack": exampleThumbAshleyCusack,
+  "mauricio-barba": exampleThumbMauricioBarba,
+  "michael-martinez": exampleThumbMichaelMartinez,
+  "alexa-scalone": exampleThumbAlexaScalone,
+  "jean-luc-andriot": exampleThumbJeanLucAndriot,
+  "paul-saperstein": exampleThumbPaulSaperstein,
+  "baldemar-deleon": exampleThumbBaldemarDeLeon,
+  "logan-walter": exampleThumbLoganWalter,
+  "ray-miramontes": exampleThumbRayMiramontes,
+  "danielle-lazier": exampleThumbDanielleLazier,
+  "richard-steinberg": exampleThumbRichardSteinberg,
+  "gian-sexsmith": exampleThumbGianSexsmith,
+};
 
 /**
  * Hero slideshow images, keyed by the `key` each vertical's heroSlides
@@ -311,12 +346,15 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
   // URL, marked as a sample launch (sample=1) and carrying the generic
   // visitor name the data entry supplies (callerName — the param the
   // demo flow already threads into the session's visitorName).
-  const handleExampleSelect = (event: ChangeEvent<HTMLSelectElement>) => {
-    const exampleUrl = event.target.value;
+  const runExampleDemo = (exampleUrl: string) => {
     if (!exampleUrl || !vertical.demoExamples) return;
     navigate(
       `/demo?url=${encodeURIComponent(exampleUrl)}&sample=1&callerName=${encodeURIComponent(vertical.demoExamples.visitorName)}`,
     );
+  };
+
+  const handleExampleSelect = (event: ChangeEvent<HTMLSelectElement>) => {
+    runExampleDemo(event.target.value);
   };
 
   return (
@@ -603,6 +641,77 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
 
         </div>
       </section>
+
+      {/* Examples grid (Batch 2, 2026-11-12) — directly below the hero
+          demo form: what Aspen looks like answering on real agents'
+          websites. Honest framing: these are example simulations, NOT
+          customers. The frame shows two rows at a time; the rest scroll
+          INSIDE the frame so the page never grows a 14-card strip.
+          Clicking a card runs the live demo on that site immediately —
+          the same /demo sample handoff as the hero dropdown. */}
+      {vertical.demoExamples && (
+        <section
+          data-agent-example-grid
+          className="border-b border-primary/20 bg-background py-12 sm:py-16"
+        >
+          <div className="container mx-auto px-5 sm:px-6">
+            <div className="max-w-3xl mx-auto text-center mb-8">
+              <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+                What your website could look like
+              </h2>
+              <p className="text-muted-foreground text-base sm:text-lg">
+                These are example simulations — real agents' websites, not
+                our customers — each with Aspen answering on it. Click any
+                one and the demo starts live on that site. On your site,
+                she leads with your listings first.
+              </p>
+            </div>
+            <div className="max-w-5xl mx-auto rounded-2xl border border-border bg-card p-3 sm:p-4">
+              <div
+                data-agent-example-grid-scroll
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[572px] sm:max-h-[500px] lg:max-h-[528px] overflow-y-auto pr-1"
+              >
+                {vertical.demoExamples.groups
+                  .flatMap((group) => group.options)
+                  .map((option) => (
+                    <button
+                      key={option.url}
+                      type="button"
+                      onClick={() => runExampleDemo(option.url)}
+                      aria-label={`Run the live demo on ${option.agent}'s website`}
+                      className="group block w-full text-left rounded-xl border border-border bg-background overflow-hidden shadow-sm transition-colors hover:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    >
+                      <img
+                        src={EXAMPLE_THUMBNAILS[option.slug]}
+                        alt={`${option.agent}'s website with Aspen answering on it`}
+                        loading="lazy"
+                        className="aspect-[16/10] w-full object-cover object-top"
+                      />
+                      <span className="flex items-center justify-between gap-2 px-3 py-2.5">
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-semibold text-foreground">
+                            {option.agent}
+                          </span>
+                          <span className="block text-xs text-muted-foreground">
+                            {option.city}
+                          </span>
+                        </span>
+                        <span className="shrink-0 text-xs font-semibold text-primary">
+                          Run the demo
+                        </span>
+                      </span>
+                    </button>
+                  ))}
+              </div>
+            </div>
+            <p className="mt-4 text-center text-xs text-muted-foreground">
+              Scroll inside the frame to see all 14 examples. Each demo is a
+              simulation — Aspen answers as that site's receptionist,
+              listings first.
+            </p>
+          </div>
+        </section>
+      )}
 
       {/* Stat bar — the verified headline figures */}
       <section className="border-y border-primary/20 bg-primary/5 py-8">
@@ -958,6 +1067,17 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
                     </span>
                   </li>
                 ))}
+                {vertical.slug === "realtors" && (
+                  <li className="flex items-center gap-3">
+                    <span className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                      <Check className="w-5 h-5 text-primary" />
+                    </span>
+                    <span className="text-sm sm:text-base font-medium text-foreground leading-snug">
+                      Your listings first — Aspen leads with your active
+                      listings on every call and visit
+                    </span>
+                  </li>
+                )}
               </ul>
               <p className="mt-8 text-center text-sm text-muted-foreground">
                 Aspen answering is the $99/mo start; the rest are available

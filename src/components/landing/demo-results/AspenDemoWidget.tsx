@@ -18,12 +18,14 @@ type Props = React.ComponentProps<typeof ChatWidget> & {
   verification?: 'pending' | 'verified';
   /** Cold-email invite arrival: forwarded to gemini-session, which honors it only when the lead's invite arrival was stamped server-side (invite host phase instead of the code gate). */
   invite?: boolean;
+  /** One-click example sample (Batch 2): forwarded to gemini-session, which honors it only when the lead's stored site URL matches one of the 14 known example sites. */
+  sample?: boolean;
   /** Finalized visitor transcript lines (the gate listens for a spoken code). */
   onUserTranscript?: (text: string) => void;
   /** While the gate waits for the code, her live video pauses to the static portrait; the session stays mounted and alive underneath. */
   gateWaiting?: boolean;
 };
-function AspenDemoWidgetContent({ voiceRequested = false, onClosed, onAssistantReady, verification, invite, onUserTranscript, gateWaiting = false, ...chatProps }: Props) {
+function AspenDemoWidgetContent({ voiceRequested = false, onClosed, onAssistantReady, verification, invite, sample, onUserTranscript, gateWaiting = false, ...chatProps }: Props) {
   const [open, setOpen] = useState(false);
   const [minimized, setMinimized] = useState(false);
   // The first conversation is prepared live (silently) while the demo loads; later reopenings start normally.
@@ -70,7 +72,7 @@ function AspenDemoWidgetContent({ voiceRequested = false, onClosed, onAssistantR
           <p className="text-[11px] leading-snug text-muted-foreground">She is still here — say the 4 digits out loud or type them in the card.</p>
         </div>}
         <div className={gateWaiting ? 'hidden' : 'flex min-h-0 flex-1 flex-col'} aria-hidden={gateWaiting || undefined}>
-          <GeminiConversation compact faceFirst avatarInline autoStart={expanded} consentOnOpen={expanded} prewarm={prewarm} onPrewarmed={() => onAssistantReady?.()} leadId={chatProps.leadId} prospectId={chatProps.prospectId} visitorName={chatProps.callerName} onRecommendedPlan={setRecommendedPlan} videoAvatar={matchingAspenVideo(videoAvatar)} verification={verification} invite={invite} onUserTranscript={onUserTranscript} shellControlsRef={shellControlsRef} onShellState={setShellState} belowAvatar={<AspenModeToggle mode={mode} onMode={next => { setMode(next); if (next === 'chat') setChatVisited(true); }} />} />
+          <GeminiConversation compact faceFirst avatarInline autoStart={expanded} consentOnOpen={expanded} prewarm={prewarm} onPrewarmed={() => onAssistantReady?.()} leadId={chatProps.leadId} prospectId={chatProps.prospectId} visitorName={chatProps.callerName} onRecommendedPlan={setRecommendedPlan} videoAvatar={matchingAspenVideo(videoAvatar)} verification={verification} invite={invite} sample={sample} onUserTranscript={onUserTranscript} shellControlsRef={shellControlsRef} onShellState={setShellState} belowAvatar={<AspenModeToggle mode={mode} onMode={next => { setMode(next); if (next === 'chat') setChatVisited(true); }} />} />
         </div>
       </>}
       {chatVisited && <div className={mode === 'chat' ? 'aspen-panel min-h-80 overflow-hidden rounded-lg border border-border bg-card' : 'hidden'}><div className="aspen-chat-content"><ChatWidget {...chatProps} embedded active={expanded && mode === 'chat'} /></div></div>}

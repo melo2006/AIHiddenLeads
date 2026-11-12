@@ -104,7 +104,7 @@ export interface AgentVertical {
     visitorName: string;
     groups: {
       area: string;
-      options: { agent: string; city: string; url: string }[];
+      options: { agent: string; city: string; url: string; slug: string }[];
     }[];
   };
   /** Worked money-math example — labelled an example, not a promise. */
@@ -317,11 +317,13 @@ export const REALTOR_VERTICAL: AgentVertical = {
             agent: "Aurelia Perez",
             city: "Fort Lauderdale",
             url: "https://www.aureliaperez.com/",
+            slug: "aurelia-perez",
           },
           {
             agent: "Ann Chamberlain",
             city: "Fort Lauderdale",
             url: "https://www.annchamberlain.com/",
+            slug: "ann-chamberlain",
           },
         ],
       },
@@ -332,16 +334,19 @@ export const REALTOR_VERTICAL: AgentVertical = {
             agent: "Ashley Cusack",
             city: "Coral Gables",
             url: "https://ashleycusack.com/",
+            slug: "ashley-cusack",
           },
           {
             agent: "Mauricio J. Barba",
             city: "Coral Gables",
             url: "https://miamisignaturehomes.com/",
+            slug: "mauricio-barba",
           },
           {
             agent: "Michael Martinez",
             city: "Coral Gables",
             url: "https://michaelmartinezrealtor.com/",
+            slug: "michael-martinez",
           },
         ],
       },
@@ -352,16 +357,19 @@ export const REALTOR_VERTICAL: AgentVertical = {
             agent: "Alexa Scalone",
             city: "Delray Beach",
             url: "https://alexascalone.com/",
+            slug: "alexa-scalone",
           },
           {
             agent: "Jean-Luc Andriot",
             city: "Boca Raton",
             url: "https://jeanlucandriot.com/",
+            slug: "jean-luc-andriot",
           },
           {
             agent: "Paul Saperstein",
             city: "Delray Beach",
             url: "https://paulsapersteinhomes.com/",
+            slug: "paul-saperstein",
           },
         ],
       },
@@ -372,11 +380,13 @@ export const REALTOR_VERTICAL: AgentVertical = {
             agent: "Baldemar De Leon",
             city: "Dallas",
             url: "https://www.baldemardeleon.com/",
+            slug: "baldemar-deleon",
           },
           {
             agent: "Logan Walter",
             city: "Dallas",
             url: "https://loganwalter.com/",
+            slug: "logan-walter",
           },
         ],
       },
@@ -387,6 +397,7 @@ export const REALTOR_VERTICAL: AgentVertical = {
             agent: "Ray Miramontes",
             city: "Long Beach",
             url: "https://mira-realestate.com/",
+            slug: "ray-miramontes",
           },
         ],
       },
@@ -397,6 +408,7 @@ export const REALTOR_VERTICAL: AgentVertical = {
             agent: "Danielle Lazier",
             city: "San Francisco",
             url: "https://daniellelazier.com/",
+            slug: "danielle-lazier",
           },
         ],
       },
@@ -407,6 +419,7 @@ export const REALTOR_VERTICAL: AgentVertical = {
             agent: "Richard Steinberg Team",
             city: "New York",
             url: "https://www.therichardsteinbergteam.com/",
+            slug: "richard-steinberg",
           },
         ],
       },
@@ -417,6 +430,7 @@ export const REALTOR_VERTICAL: AgentVertical = {
             agent: "Gian Sexsmith",
             city: "Salt Lake City",
             url: "https://sexsmithrealty.com/",
+            slug: "gian-sexsmith",
           },
         ],
       },
