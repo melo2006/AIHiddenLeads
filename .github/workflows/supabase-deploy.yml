@@ -10,6 +10,10 @@ on:
         description: 'Skip schema migrations (functions-only redeploy; schema already applied)'
         type: boolean
         default: false
+      diagnose_only:
+        description: 'READ-ONLY remote reconciliation (migration state + suite objects); skips ALL mutating steps'
+        type: boolean
+        default: false
 
 jobs:
   deploy:
@@ -31,14 +35,60 @@ jobs:
           SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
+      - name: READ-ONLY remote reconciliation (diagnose_only)
+        if: ${{ inputs.diagnose_only }}
+        # Every statement below is a SELECT. Nothing in this step writes to the
+        # remote project; it exists so migration state can be proven from the
+        # run log before any deploy step is allowed to touch production.
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+          PSQL="psql postgresql://postgres.$SUPABASE_PROJECT_ID@aws-0-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require -v ON_ERROR_STOP=0 -At"
+          export PGPASSWORD="$SUPABASE_DB_PASSWORD"
+          echo '=== core schema_migrations table present? ==='
+          $PSQL -c "SELECT coalesce(to_regclass('supabase_migrations.schema_migrations')::text, 'MISSING');"
+          echo '=== core migrations recorded remotely: count|min|max ==='
+          $PSQL -c "SELECT count(*) || '|' || coalesce(min(version), '') || '|' || coalesce(max(version), '') FROM supabase_migrations.schema_migrations;"
+          echo '=== core migration versions recorded remotely ==='
+          $PSQL -c "SELECT string_agg(version, ',' ORDER BY version) FROM supabase_migrations.schema_migrations;"
+          echo '=== recent core migration marker objects ==='
+          $PSQL -c "SELECT coalesce(to_regclass('public.demo_verification_codes')::text, 'MISSING');"
+          $PSQL -c "SELECT count(*) FROM information_schema.columns WHERE table_schema = 'public' AND column_name = 'phone_demo_enabled';"
+          echo '=== usage suite objects (drizzle 0020) ==='
+          $PSQL -c "SELECT coalesce(to_regclass('public.usage_events')::text, 'MISSING') || '|' || coalesce(to_regclass('public.usage_report_settings')::text, 'MISSING') || '|' || coalesce(to_regclass('public.minute_packs')::text, 'MISSING') || '|' || coalesce(to_regclass('public.minute_pack_purchases')::text, 'MISSING');"
+          echo '=== RLS flags on suite tables ==='
+          $PSQL -c "SELECT c.relname || '=' || c.relrowsecurity FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relname IN ('usage_events', 'usage_report_settings', 'minute_packs', 'minute_pack_purchases') ORDER BY 1;"
+          echo '=== usage_events rows by service (count|minutes) ==='
+          $PSQL -c "SELECT service || '|' || count(*) || '|' || round(coalesce(sum(minutes), 0)::numeric, 1) FROM public.usage_events GROUP BY service ORDER BY 1;"
+          echo '=== usage_report_settings row count (must be 0 pre-launch) ==='
+          $PSQL -c "SELECT count(*) FROM public.usage_report_settings;"
+          echo '=== minute_packs catalog rows ==='
+          $PSQL -c "SELECT count(*) FROM public.minute_packs;"
+          echo '=== pg_cron jobs (engine must stay unscheduled) ==='
+          $PSQL -c "SELECT coalesce(to_regclass('cron.job')::text, 'MISSING');"
+          $PSQL -c "SELECT jobname || '|' || schedule || '|' || active FROM cron.job ORDER BY 1;"
+          echo '=== duration/timestamp columns on source tables ==='
+          $PSQL -c "SELECT table_name || '.' || column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name IN ('gemini_voice_sessions', 'telephony_calls') AND (column_name ILIKE '%duration%' OR column_name ILIKE '%created%' OR column_name ILIKE '%started%') ORDER BY 1, 2;"
+          echo '=== November 2026 source baselines (count|with-duration|minutes) ==='
+          $PSQL -c "SELECT count(*) || '|' || count(*) FILTER (WHERE duration_seconds > 0) || '|' || round(coalesce(sum(duration_seconds), 0) / 60.0, 1) FROM public.gemini_voice_sessions WHERE created_at >= '2026-11-01' AND created_at < '2026-12-01';"
+          $PSQL -c "SELECT count(*) || '|' || count(*) FILTER (WHERE duration_seconds > 0) || '|' || round(coalesce(sum(duration_seconds), 0) / 60.0, 1) FROM public.telephony_calls WHERE created_at >= '2026-11-01' AND created_at < '2026-12-01';"
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+
+      - name: List deployed functions (diagnose_only)
+        if: ${{ inputs.diagnose_only }}
+        run: supabase functions list
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
       - name: Apply supabase/migrations (core 24 tables)
-        if: ${{ !inputs.skip_migrations }}
+        if: ${{ !inputs.skip_migrations && !inputs.diagnose_only }}
         run: supabase db push
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
 
       - name: Apply drizzle/migrations (voice/telephony tables) via psql
-        if: ${{ !inputs.skip_migrations }}
+        if: ${{ !inputs.skip_migrations && !inputs.diagnose_only }}
         # drizzle-kit exits silently (code 1, no error) in CI, so apply the plain-SQL
         # migration files directly with psql, which reports real Postgres errors.
         # ON_ERROR_STOP=1 halts on the first failing statement.
@@ -56,6 +106,7 @@ jobs:
           SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
 
       - name: Deploy all edge functions
+        if: ${{ !inputs.diagnose_only }}
         run: supabase functions deploy --yes
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
