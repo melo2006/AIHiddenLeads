@@ -317,6 +317,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const [handoffStartSignal, setHandoffStartSignal] = useState(0);
   const [handoffActive, setHandoffActive] = useState(false);
   const handoffRef = useRef(false);
+  // Come-back after handoff (Handoff improvement batch, 2026-11-12):
+  // BrowserVoiceHandoff reports the terminal outcome (onEnded) just
+  // before onActive(false); it is kept in a ref so onHandoffActive
+  // can forward it to the proxy, which authors the return line.
+  const handoffOutcomeRef = useRef<'completed' | 'unavailable' | null>(null);
   const consent = consentReadyRef.current;
   const [voice, setVoice] = useState(() => {
     try { const saved = localStorage.getItem("gemini-aspen-voice"); return VOICES.some(v => v.id === saved) ? saved ?? "Kore" : "Kore"; } catch { return "Kore"; }
@@ -3066,6 +3071,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     else if (consentReadyRef.current || consentReady) { autoStartedRef.current = true; void startConversation(); }
   }, [compact, autoStart, previewOnly, startConversation, consentReady]);
 
+  const onHandoffEnded = (outcome: 'completed' | 'unavailable') => { handoffOutcomeRef.current = outcome; };
   const onHandoffActive = (active: boolean) => {
     handoffRef.current = active;
     setHandoffActive(active);
@@ -3076,16 +3082,24 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     } else {
       captureRef.current.paused = false; setPaused(false);
       void playCtxRef.current?.resume();
-      if (wsRef.current?.readyState === WebSocket.OPEN) wsRef.current.send(JSON.stringify({type:'text',text:'The human handoff has ended or was unavailable. Briefly welcome the caller back and continue helping in your business role. Do not claim a manager answered.'}));
+      // Come-back after handoff (Handoff improvement batch,
+      // 2026-11-12): report ONLY the terminal outcome; the proxy
+      // authors the return instruction server-side (welcome-back,
+      // what-did-you-arrange, and on sales sessions the demo /
+      // workflow beats + wizard close). This replaces the old
+      // outcome-blind client-authored text line, which claimed
+      // nothing and asked nothing the same way after every ending.
+      if (wsRef.current?.readyState === WebSocket.OPEN) wsRef.current.send(JSON.stringify({type:'handoff_ended',outcome:handoffOutcomeRef.current ?? 'unavailable'}));
+      handoffOutcomeRef.current = null;
     }
   };
   const confirmation = pendingAction ? <VoiceActionConfirmation key={pendingAction.id} action={pendingAction} onAnswer={(approved, contact) => { wsRef.current?.send(JSON.stringify({type:'confirm_action',id:pendingAction.id,approved,contact})); setPendingAction(null); }}/> : null;
-  const transferControl = phase === 'live' && handoffToken ? <BrowserVoiceHandoff token={handoffToken} onActive={onHandoffActive} microphone={microphone} startSignal={handoffStartSignal}/> : null;
+  const transferControl = phase === 'live' && handoffToken ? <BrowserVoiceHandoff token={handoffToken} onActive={onHandoffActive} onEnded={onHandoffEnded} microphone={microphone} startSignal={handoffStartSignal}/> : null;
   // Compact panel (2026-11-11 rearrangement; Batch 1 move, 2026-11-12):
   // the same handoff, same live + token gate, rendered as the compact
   // Manager pill in the Voice/Type toggle row (right side) instead of the
   // voice-controls row, where it wrapped onto its own row on phones.
-  const transferPill = phase === 'live' && handoffToken ? <BrowserVoiceHandoff pill token={handoffToken} onActive={onHandoffActive} microphone={microphone} startSignal={handoffStartSignal}/> : null;
+  const transferPill = phase === 'live' && handoffToken ? <BrowserVoiceHandoff pill token={handoffToken} onActive={onHandoffActive} onEnded={onHandoffEnded} microphone={microphone} startSignal={handoffStartSignal}/> : null;
 
   if (!previewOnly && !consentReady && !prewarm) return <div className="space-y-3 p-3 text-foreground">
     {faceFirst && <PersonPortrait name={name} avatarUrl={avatarUrl} />}

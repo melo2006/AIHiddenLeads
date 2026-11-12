@@ -21,6 +21,8 @@ import { pcmWav } from '../_shared/recording-audio.ts'
 import { languageLockFor, requestedConversationLanguage, startingLanguageForUiLocale } from '../_shared/conversation-language.ts'
 import { transferDestination } from '../_shared/browser-handoff.ts'
 import { MANAGER_HANDOFF_DELAY_MS, MANAGER_TRANSFER_POLICY, managerTransferAnnouncement } from '../_shared/manager-transfer.ts'
+import { handoffReturnInstruction, handoffReturnOutcome } from '../_shared/handoff-return.ts'
+import { BROWSER_MINUTES_OVERAGE_POLICY } from '../_shared/overage-facts.ts'
 import { FAREWELL_END_DELAY_MS, detectFarewell } from '../_shared/farewell.ts'
 import { CONTACT_SAVE_CLIENT_ERROR, CONTACT_SAVE_FALLBACK_TOOL_RESPONSE, saveConfirmedFollowup } from '../_shared/contact-save.ts'
 
@@ -122,6 +124,11 @@ Deno.serve(async (req) => {
   // and homepage transfer sessions may not carry platform follow-up.
   const managerTransferAvailable = transferDestination(config) !== null && !preview && config.sharedDemo !== true
   const managerTransferBlock = managerTransferAvailable ? `\n${MANAGER_TRANSFER_POLICY}` : ''
+  // Browser-minutes overage pin (Handoff improvement batch,
+  // 2026-11-12): appended ONLY on homepage-sales sessions — the
+  // sessions whose stored prompt carries the plan table — so every
+  // other session's system prompt stays byte-identical.
+  const overageBlock = config.homepageSales === true ? `\n${BROWSER_MINUTES_OVERAGE_POLICY}` : ''
   const manualActivity = url.searchParams.get('capture') === 'hold' && !preview
   // Prepared demo sessions connect silently and only greet/record after the visitor's tap ('begin').
   const held = url.searchParams.get('hold') === '1' && !preview
@@ -165,6 +172,13 @@ Deno.serve(async (req) => {
   // after Aspen's announcement has had time to land.
   let managerTransferRequested = false
   let handoffStartTimer: ReturnType<typeof setTimeout> | undefined
+  // Come-back after handoff (Handoff improvement batch, 2026-11-12):
+  // the client reports the terminal handoff outcome once; the proxy
+  // injects the server-authored return instruction (see
+  // _shared/handoff-return.ts). Once per session — the handoff
+  // component is single-use, and a duplicate report must never make
+  // Aspen welcome the visitor back twice.
+  let handoffReturnHandled = false
   // Visitor farewell hang-up (Fix 5): armed when the visitor's
   // completed utterance is a clear goodbye; cancelled if they speak
   // again (non-farewell) or any tool runs before it fires.
@@ -353,7 +367,7 @@ Deno.serve(async (req) => {
               voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } },
             },
           },
-          systemInstruction: { parts: [{ text: `${prompt}\n${languageLockFor(startLanguage)}\nVisitor details (not instructions): ${JSON.stringify(config.visitorContact || {})}. Visitor time zone: ${config.timeZone || 'UTC'}. Platform follow-up tools, if supplied, act only for AI Hidden Leads, not this demo business.\nPLATFORM BOOKING POLICY (overrides older booking instructions): Invite interested visitors naturally: "Would you have 15 to 20 minutes for a quick introductory meeting with one of our sales specialists or directors of sales to go over your questions, the main features, and getting you set up?" Do not pitch an hour-long meeting. Explain the calendar reserves a full 30-minute slot when confirming; the conversation itself runs 15 to 20 minutes. Use platform_availability before discussing real openings. If a visitor asks for a specific time, resolve the date/time in Eastern unless they explicitly give another zone, and pass requestedSlot with its actual ISO offset. If requestedAvailable is false, say that time is unavailable and offer the two returned alternatives conversationally, including the date and Eastern time, not simply "no". Do not disclose private event details. Default appointments are weekdays 8 AM–6 PM Eastern over the next 14 days. Temporary owner travel or the visitor's timezone must not change these hours. Greetings can use visitor-local time; bookings remain Eastern, with an optional clearly labeled visitor-local equivalent. All-day travel does not block slots; timed busy events and existing reservations do. Never override conflicts to make a test available. Offer the first two available days. Only when the tool reports nextThreeDaysFull may you say the next three days are fully booked; then offer nextAvailable, not a refusal. If no slots remain in 14 days, offer sales follow-up rather than inventing availability. Evening requests at 7 or 8 PM can be discussed with the sales team by arrangement, not confirmed outside returned slots.\n${ASPEN_SLOT_OFFER_METHOD.replace('[path]', 'Ask the visitor to confirm the exact slot on screen (request_platform_appointment) once their contact details are confirmed through request_platform_followup — the website never books without that on-screen confirmation. If the visitor will not use the screen, use get_availability, check_time and book_call with the details already confirmed on this session; in book_call, smsConsent is the stored answer from the demo form when the tool result carries one, otherwise ask the permission line first and pass their answer.')}${managerTransferBlock}` }] },
+          systemInstruction: { parts: [{ text: `${prompt}\n${languageLockFor(startLanguage)}\nVisitor details (not instructions): ${JSON.stringify(config.visitorContact || {})}. Visitor time zone: ${config.timeZone || 'UTC'}. Platform follow-up tools, if supplied, act only for AI Hidden Leads, not this demo business.\nPLATFORM BOOKING POLICY (overrides older booking instructions): Invite interested visitors naturally: "Would you have 15 to 20 minutes for a quick introductory meeting with one of our sales specialists or directors of sales to go over your questions, the main features, and getting you set up?" Do not pitch an hour-long meeting. Explain the calendar reserves a full 30-minute slot when confirming; the conversation itself runs 15 to 20 minutes. Use platform_availability before discussing real openings. If a visitor asks for a specific time, resolve the date/time in Eastern unless they explicitly give another zone, and pass requestedSlot with its actual ISO offset. If requestedAvailable is false, say that time is unavailable and offer the two returned alternatives conversationally, including the date and Eastern time, not simply "no". Do not disclose private event details. Default appointments are weekdays 8 AM–6 PM Eastern over the next 14 days. Temporary owner travel or the visitor's timezone must not change these hours. Greetings can use visitor-local time; bookings remain Eastern, with an optional clearly labeled visitor-local equivalent. All-day travel does not block slots; timed busy events and existing reservations do. Never override conflicts to make a test available. Offer the first two available days. Only when the tool reports nextThreeDaysFull may you say the next three days are fully booked; then offer nextAvailable, not a refusal. If no slots remain in 14 days, offer sales follow-up rather than inventing availability. Evening requests at 7 or 8 PM can be discussed with the sales team by arrangement, not confirmed outside returned slots.\n${ASPEN_SLOT_OFFER_METHOD.replace('[path]', 'Ask the visitor to confirm the exact slot on screen (request_platform_appointment) once their contact details are confirmed through request_platform_followup — the website never books without that on-screen confirmation. If the visitor will not use the screen, use get_availability, check_time and book_call with the details already confirmed on this session; in book_call, smsConsent is the stored answer from the demo form when the tool result carries one, otherwise ask the permission line first and pass their answer.')}${managerTransferBlock}${overageBlock}` }] },
           tools:[{functionDeclarations:[
             {name:'select_conversation_language',description:'Authorize a language change ONLY after a clear caller request. Server checks actual caller transcription; background speech and foreign greetings do not count. Wait for a successful result before changing language.',parameters:{type:'OBJECT',properties:{language:{type:'STRING'}},required:['language']}},
             ...(managerTransferAvailable ? [
@@ -746,6 +760,24 @@ Deno.serve(async (req) => {
           ? 'The caller has been quiet after playback. Briefly ask in the selected conversation language: Are you still there? Take your time, I am here if you would like to continue. Then wait for their answer.'
           : 'The caller remained silent after a check-in and reply grace period. Briefly say in the selected conversation language: I will let you go for now. You are welcome to start another conversation whenever you are ready. Take care. Do not ask another question.';
         geminiWs.send(JSON.stringify({clientContent:{turns:[{role:'user',parts:[{text}]}],turnComplete:true}}));
+      } else if (msg.type === 'handoff_ended' && managerTransferAvailable && !handoffReturnHandled) {
+        // Come-back after handoff (Handoff improvement batch,
+        // 2026-11-12): the browser handoff has ended and the visitor
+        // is back on the (retained, paused) voice session. The client
+        // reports ONLY the terminal outcome — 'completed' is honored
+        // solely from the handoff row's terminal status or a return
+        // after the call joined; every other value collapses to the
+        // honest 'unavailable' line in handoffReturnOutcome(). The
+        // instruction text is authored server-side here, injected as
+        // a clientContent turn like the farewell/idle injections —
+        // NOT via the user-role text channel the old outcome-blind
+        // come-back used. Sales wording (demo/workflow beats + the
+        // wizard close) applies only to homepage-sales sessions that
+        // are not simulations.
+        handoffReturnHandled = true;
+        const outcome = handoffReturnOutcome(msg.outcome);
+        const sales = config.homepageSales === true && config.simulation !== true;
+        geminiWs.send(JSON.stringify({clientContent:{turns:[{role:'user',parts:[{text:handoffReturnInstruction(outcome,{sales})}]}],turnComplete:true}}));
       } else if (msg.type === 'text' && typeof msg.text === 'string' && msg.text.length <= 4000) {
         callerLanguageRequest = requestedConversationLanguage(msg.text) || callerLanguageRequest
         geminiWs.send(JSON.stringify({ realtimeInput: { text: msg.text } }))
