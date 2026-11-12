@@ -78,16 +78,47 @@ describe('detectFarewell — the false-positive suite is rejected', () => {
   });
 });
 
-describe('proxy wiring — PARKED (INCIDENT 2026-11-12 rollback)', () => {
+describe('proxy wiring — detection at turnComplete, with cancel paths', () => {
   const src = read('supabase/functions/gemini-live-proxy/index.ts');
 
-  it('the farewell wiring is NOT in the deployed proxy while it is rolled back', () => {
-    // On 2026-11-12 the provider began closing every Edge session at
-    // setup (code 1011) after the Batch 1/2 function deploys; the Edge
-    // proxy was rolled back to the last-known-good 17331b2 file. The
-    // detector module and its tests above remain in the tree; this
-    // wiring returns with the Batch 1 proxy re-land.
-    expect(src).not.toContain('detectFarewell(');
-    expect(src).not.toContain('visitor_goodbye');
+  it('evaluates the completed utterance BEFORE callerUtterance is reset', () => {
+    const capture = src.indexOf('const completedUtterance = callerUtterance');
+    expect(capture).toBeGreaterThan(-1);
+    expect(src.indexOf("callerUtterance = ''", capture)).toBeGreaterThan(capture);
+    expect(src).toContain('detectFarewell(completedUtterance)');
+  });
+
+  it('fires once per session, never for previews or before the visitor began', () => {
+    expect(src).toContain('if (!farewellHandled && !preview && begun && detectFarewell(completedUtterance))');
+    expect(src).toContain('farewellHandled = true');
+  });
+
+  it('injects exactly one brief closing instruction — no question, no new offers', () => {
+    expect(src).toContain('The visitor has clearly said goodbye.');
+    expect(src).toContain('give ONE brief, warm closing line now');
+    expect(src).toContain('do not re-open any topic');
+  });
+
+  it('arms the end timer: visitor_goodbye, code 1000, the plain closed message', () => {
+    expect(src).toContain('FAREWELL_END_DELAY_MS');
+    expect(src).toContain("endReason = 'visitor_goodbye'; closeCode = 1000");
+    expect(src).toContain("clientSocket.send(JSON.stringify({ type: 'closed', reason: 'Call ended — thanks for talking with Aspen.' }))");
+  });
+
+  it('cancels the armed end on new speech, on a non-farewell completed turn, on any tool call, and in closeAll', () => {
+    // inputTranscription fragment path
+    expect(src).toContain('if (farewellTimer && callerUtterance.trim()');
+    // turnComplete path (spoke again, not a farewell)
+    expect(src).toContain('} else if (farewellTimer && !detectFarewell(completedUtterance)) {');
+    // tool dispatch + closeAll + the two paths above
+    expect(occurrences(src, 'cancelFarewellEnd()')).toBeGreaterThanOrEqual(4);
+    expect(src).toContain('clearTimeout(handoffStartTimer); cancelFarewellEnd()');
+  });
+
+  it('the handoff summary stamp on turnComplete still runs after the farewell block', () => {
+    const farewellAt = src.indexOf('const completedUtterance = callerUtterance');
+    const stampAt = src.indexOf("browser_voice_handoffs').update({summary})");
+    expect(stampAt).toBeGreaterThan(farewellAt);
+    expect(src).toContain("clientSocket.send(JSON.stringify({ type: 'turn_complete' }))");
   });
 });

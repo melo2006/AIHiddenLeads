@@ -157,18 +157,39 @@ describe('the failure shaping (Fix 7c)', () => {
   });
 });
 
-describe('proxy wiring — PARKED (INCIDENT 2026-11-12 rollback)', () => {
+describe('proxy wiring', () => {
   const src = read('supabase/functions/gemini-live-proxy/index.ts');
 
-  it('the retrying save helper is NOT wired into the rolled-back proxy', () => {
-    // On 2026-11-12 the Edge proxy was rolled back to the
-    // last-known-good 17331b2 file after the provider began closing
-    // every session at setup (code 1011). The helper module and its
-    // tests above remain; the rolled-back followup path is the old
-    // single-shot code, and the wiring returns with the Batch 1
-    // proxy re-land.
-    expect(src).not.toContain('saveConfirmedFollowup({');
-    expect(src).not.toContain('orphanedToolCalls');
-    expect(src).toContain('This demo has no visitor record for follow-up.');
+  it('the followup branch saves through the retrying helper', () => {
+    expect(src).toContain('saveConfirmedFollowup({');
+    expect(src).toContain("from '../_shared/contact-save.ts'");
+  });
+
+  it('the old single-shot throws are gone from the followup path', () => {
+    expect(src).not.toContain('This demo has no visitor record for follow-up.');
+    expect(src).not.toContain('Contact details could not be saved.');
+    expect(src).not.toContain('Confirmed follow-up could not be recorded.');
+    expect(src).not.toContain('Visitor record unavailable.');
+  });
+
+  it('a failed save answers the model with the fallback and the client with the honest marker', () => {
+    expect(src).toContain('response={...CONTACT_SAVE_FALLBACK_TOOL_RESPONSE};');
+    expect(src).toContain('clientResult={saved:false,keptInCallRecord:true,error:CONTACT_SAVE_CLIENT_ERROR};');
+    expect(src).toContain('...(clientResult ?? response)');
+  });
+
+  it('confirmedVisitorContact semantics are unchanged and still gate the save', () => {
+    const validateAt = src.indexOf('const contact=confirmedVisitorContact(msg.contact);');
+    const saveAt = src.indexOf('saveConfirmedFollowup({');
+    expect(validateAt).toBeGreaterThan(-1);
+    expect(saveAt).toBeGreaterThan(validateAt);
+  });
+
+  it('cancelled tool calls are remembered so a late confirmation still answers (Fix 7b)', () => {
+    expect(src).toContain('const orphanedToolCalls = new Map');
+    expect(src).toContain('if(pending)orphanedToolCalls.set(id,pending.call);');
+    expect(src).toContain('const orphan = orphanedToolCalls.get(msg.id);');
+    expect(src).toContain("type:'action_result',id:msg.id,cancelled:true");
+    expect(src).toContain('confirm for unknown action');
   });
 });

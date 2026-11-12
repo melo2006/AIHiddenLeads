@@ -89,19 +89,52 @@ describe('the transfer policy + timing constants', () => {
   });
 });
 
-describe('proxy wiring — PARKED (INCIDENT 2026-11-12 rollback)', () => {
+describe('proxy wiring — declaration, gate and dispatch', () => {
   const src = read('supabase/functions/gemini-live-proxy/index.ts');
 
-  it('no transfer wiring is in the rolled-back proxy', () => {
-    // On 2026-11-12 the Edge proxy was rolled back to the
-    // last-known-good 17331b2 file after the provider began closing
-    // every session at setup (code 1011). The announcement helper and
-    // its wording tests above remain in the tree; the declaration,
-    // policy block and dispatcher return with the Batch 1 proxy
-    // re-land, in a setup shape validated by
-    // live-setup-declarations.test.ts.
-    expect(src).not.toContain('request_manager_transfer');
-    expect(src).not.toContain('start_handoff');
-    expect(src).not.toContain('managerTransferAnnouncement');
+  it('availability is the handoff-capability gate, computed from transferDestination', () => {
+    expect(src).toContain("import { transferDestination } from '../_shared/browser-handoff.ts'");
+    expect(src).toContain('const managerTransferAvailable = transferDestination(config) !== null && !preview && config.sharedDemo !== true');
+  });
+
+  it('the tool is declared in its OWN gate, before the platformFollowup declarations', () => {
+    expect(src).toContain("...(managerTransferAvailable ? [");
+    expect(src).toContain("{name:'request_manager_transfer'");
+    expect(src.indexOf("{name:'request_manager_transfer'")).toBeLessThan(src.indexOf("{name:'request_conversation_copy'"));
+  });
+
+  it('dispatch runs BEFORE the platformFollowup rejection branch, which stays intact', () => {
+    const dispatch = src.indexOf("call.name === 'request_manager_transfer'");
+    const gate = src.indexOf("!config.platformFollowup || preview");
+    expect(dispatch).toBeGreaterThan(-1);
+    expect(gate).toBeGreaterThan(dispatch);
+    expect(src).toContain("respond({error:'Action unavailable.'})");
+  });
+
+  it('the tool answer carries transferring + the announcement + the say-it-once instruction', () => {
+    expect(src).toContain('respond({transferring:true,announcement,instruction:');
+    expect(src).toContain('Say the announcement exactly once, word for word');
+    expect(src).toContain('managerTransferAnnouncement(config)');
+  });
+
+  it('repeats are guarded once per session and never re-schedule the handoff', () => {
+    expect(src).toContain('let managerTransferRequested = false');
+    expect(src).toContain('alreadyRequested:true');
+    expect(occurrences(src, 'managerTransferRequested = true')).toBe(1);
+  });
+
+  it('the client is told to start the handoff after the delay, guarded on the session being open', () => {
+    expect(src).toContain("clientSocket.send(JSON.stringify({type:'start_handoff'}))");
+    expect(src).toContain('MANAGER_HANDOFF_DELAY_MS');
+    expect(src).toContain('if (!closed && clientSocket.readyState === WebSocket.OPEN) clientSocket.send');
+  });
+
+  it('the setup instruction block is appended ONLY when the tool is available', () => {
+    expect(src).toContain("const managerTransferBlock = managerTransferAvailable ? `\\n${MANAGER_TRANSFER_POLICY}` : ''");
+    expect(src).toContain('${managerTransferBlock}` }] }');
+  });
+
+  it('closeAll clears the scheduled handoff start', () => {
+    expect(src).toContain('clearTimeout(handoffStartTimer); cancelFarewellEnd()');
   });
 });
