@@ -5,8 +5,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import { WebSocketServer, WebSocket } from 'ws';
-import { createTelnyx, verifyTelnyxSignature, parseTelnyxStart, telnyxMediaFrame, telnyxClearFrame, phoneDemoToolDeclarations, PHONE_DEMO_TOOL_ACTIONS, PHONE_BOOKING_TOOL_ACTIONS } from './telnyx.mjs';
-import { createLatencyTracker } from './latency.mjs';
+import { createTelnyx, verifyTelnyxSignature, parseTelnyxStart, telnyxMediaFrame, telnyxClearFrame, phoneDemoToolDeclarations, PHONE_DEMO_TOOL_ACTIONS, PHONE_BOOKING_TOOL_ACTIONS, watchdogShouldFire, parsePhoneVadSilenceMs, pcm16Base64Rms, isSpeechPcm16, SPEECH_RMS_THRESHOLD, createToolCallRecord, finishToolCallRecord, TOOL_FILLER_NOTE } from './telnyx.mjs';
+import { createLatencyTracker, SILENCE_GAP_MS } from './latency.mjs';
 
 const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519');
 const pubDer = publicKey.export({ type: 'spki', format: 'der' });
@@ -399,5 +399,216 @@ test('phone demo guard: check_demo_code before any save answers lead_not_saved w
   assert.equal(fr.response.verified, false);
   assert.equal(fr.response.reason, 'lead_not_saved');
   assert.equal(h.backendCalls.some(c => c.action === 'phone-demo-verify'), false);
+  client.close();
+});
+
+test('latency: SILENCE_GAP_MS is 1000, aligned with the phone VAD silenceDurationMs', () => {
+  assert.equal(SILENCE_GAP_MS, 1000);
+});
+
+test('latency tracker: conversational turns measure last speech end -> first outbound of the reply', () => {
+  const tr = createLatencyTracker('telnyx');
+  tr.noteSetup('initiated', 1000);
+  tr.noteOutbound(1400); // greeting: no caller burst yet -> no conversational turn
+  // Burst 1: speech ending at 3000, a 300 ms non-speech gap completes it.
+  tr.noteInbound(2000, { speech: true }); tr.noteInbound(2500, { speech: true }); tr.noteInbound(3000, { speech: true });
+  tr.noteInbound(3300, { speech: false });
+  tr.noteOutbound(4000); // reply: conv latency = 4000 - 3000 = 1000
+  tr.noteOutbound(4100); // same outbound turn: must NOT record a second conv turn
+  assert.equal(tr.snapshot().convTurns.length, 1);
+  // Burst 2: a 100 ms mid-word pause must NOT split the burst; the reply is
+  // measured from the burst's true end (6000), and the outbound frame itself
+  // is the first observer of the completing gap.
+  tr.noteInbound(5000, { speech: true }); tr.noteInbound(5400, { speech: true });
+  tr.noteInbound(5500, { speech: false });
+  tr.noteInbound(5600, { speech: true }); tr.noteInbound(6000, { speech: true });
+  tr.noteOutbound(7000); // conv latency = 7000 - 6000 = 1000
+  const snap = tr.snapshot();
+  assert.deepEqual(snap.convTurns, [
+    { t_last_speech_end: 3000, t_first_out: 4000, conv_turn_latency_ms: 1000 },
+    { t_last_speech_end: 6000, t_first_out: 7000, conv_turn_latency_ms: 1000 },
+  ]);
+  assert.equal(snap.convTurnLatencyAvgMs, 1000);
+  assert.equal(snap.convTurnLatencyMedianMs, 1000);
+  assert.equal(snap.convTurnLatencyP95Ms, 1000);
+  // Legacy turns are still produced alongside, unchanged in shape.
+  assert.equal(snap.turns.length, 2);
+  assert.equal(snap.turns[0].t_last_in, 3300);
+  assert.equal(typeof snap.turnLatencyAvgMs, 'number');
+});
+
+test('latency tracker: a burst not yet completed (gap < 250 ms) records no conversational turn', () => {
+  const tr = createLatencyTracker('telnyx');
+  tr.noteInbound(1000, { speech: true }); tr.noteInbound(1100, { speech: true });
+  tr.noteOutbound(1200); // only 100 ms after last speech: burst not completed
+  const snap = tr.snapshot();
+  assert.deepEqual(snap.convTurns, []);
+  assert.equal(snap.convTurnLatencyAvgMs, null);
+  assert.equal(snap.convTurnLatencyMedianMs, null);
+  assert.equal(snap.convTurnLatencyP95Ms, null);
+});
+
+test('latency tracker: no speech flags ever supplied -> convTurns empty and conv summaries null (legacy shape)', () => {
+  const tr = createLatencyTracker('twilio');
+  tr.noteInbound(1000); tr.noteInbound(1200);
+  tr.noteOutbound(2000);
+  const snap = tr.snapshot();
+  assert.equal(snap.turns.length, 1);
+  assert.deepEqual(snap.convTurns, []);
+  assert.equal(snap.convTurnLatencyAvgMs, null);
+  assert.equal(snap.convTurnLatencyMedianMs, null);
+  assert.equal(snap.convTurnLatencyP95Ms, null);
+});
+
+test('speech energy: silence sits far below the RMS threshold, clear speech above it', () => {
+  assert.equal(SPEECH_RMS_THRESHOLD, 250);
+  const silence = Buffer.alloc(640).toString('base64'); // PCM16 zeros
+  assert.equal(pcm16Base64Rms(silence), 0);
+  assert.equal(isSpeechPcm16(silence), false);
+  const loud = Buffer.alloc(640);
+  for (let i = 0; i < loud.length / 2; i++) loud.writeInt16LE(5000, i * 2);
+  assert.equal(pcm16Base64Rms(loud.toString('base64')), 5000);
+  assert.equal(isSpeechPcm16(loud.toString('base64')), true);
+});
+
+test('watchdogShouldFire: fires only when every condition holds', () => {
+  const base = { ended: false, transferring: false, gateOpen: true, pendingTools: 0, callerSpoke: true, lastOutboundAt: 10000, lastCallerSpeechAt: 10000, watchdogFires: 0, lastWatchdogAt: null };
+  assert.equal(watchdogShouldFire(base, 20000), true); // 10 s of mutual silence
+  assert.equal(watchdogShouldFire(base, 14500), true); // exactly at the 4500 ms threshold
+  assert.equal(watchdogShouldFire(base, 14499), false); // 1 ms under it (the ~3 s STEP-6 pause sits safely below)
+  assert.equal(watchdogShouldFire({ ...base, ended: true }, 20000), false);
+  assert.equal(watchdogShouldFire({ ...base, transferring: true }, 20000), false);
+  assert.equal(watchdogShouldFire({ ...base, gateOpen: false }, 20000), false);
+  assert.equal(watchdogShouldFire({ ...base, pendingTools: 1 }, 20000), false);
+  assert.equal(watchdogShouldFire({ ...base, callerSpoke: false }, 20000), false);
+  assert.equal(watchdogShouldFire({ ...base, lastOutboundAt: 17000 }, 20000), false); // Aspen spoke 3 s ago
+  assert.equal(watchdogShouldFire({ ...base, lastCallerSpeechAt: 17000 }, 20000), false); // caller spoke 3 s ago
+  assert.equal(watchdogShouldFire({ ...base, lastOutboundAt: null }, 20000), false);
+  assert.equal(watchdogShouldFire({ ...base, lastCallerSpeechAt: null }, 20000), false);
+  assert.equal(watchdogShouldFire({ ...base, watchdogFires: 2 }, 60000), false); // per-call cap
+  assert.equal(watchdogShouldFire({ ...base, watchdogFires: 1, lastWatchdogAt: 15000 }, 20000), false); // 20 s refire suppression
+  assert.equal(watchdogShouldFire({ ...base, watchdogFires: 1, lastWatchdogAt: 0, lastOutboundAt: 10000, lastCallerSpeechAt: 10000 }, 20000), true); // suppression window elapsed
+  assert.equal(watchdogShouldFire(null, 20000), false);
+});
+
+test('VAD knob: parsePhoneVadSilenceMs accepts only integers in [700, 1500], else exactly 1000', () => {
+  assert.deepEqual(parsePhoneVadSilenceMs(undefined), { ms: 1000, overridden: false });
+  assert.deepEqual(parsePhoneVadSilenceMs(''), { ms: 1000, overridden: false });
+  assert.deepEqual(parsePhoneVadSilenceMs('800'), { ms: 800, overridden: true });
+  assert.deepEqual(parsePhoneVadSilenceMs('700'), { ms: 700, overridden: true });
+  assert.deepEqual(parsePhoneVadSilenceMs('1500'), { ms: 1500, overridden: true });
+  assert.deepEqual(parsePhoneVadSilenceMs('699'), { ms: 1000, overridden: false });
+  assert.deepEqual(parsePhoneVadSilenceMs('1501'), { ms: 1000, overridden: false });
+  assert.deepEqual(parsePhoneVadSilenceMs('abc'), { ms: 1000, overridden: false });
+  assert.deepEqual(parsePhoneVadSilenceMs('800.5'), { ms: 1000, overridden: false });
+});
+
+test('VAD knob: PHONE_VAD_SILENCE_MS=800 lands in the Gemini setup payload', async (t) => {
+  const h = makeHarness(); t.after(() => h.geminiWss.close());
+  const env = { ...(await h.env()), PHONE_VAD_SILENCE_MS: '800' };
+  const telnyx = createTelnyx({ api: h.api, env, fetchImpl: h.fetchImpl });
+  const { client } = await startCall(t, h, telnyx, 'v2:leg-vad-800');
+  const setup = h.geminiReceived.find(m => m.setup);
+  assert.equal(setup.setup.realtimeInputConfig.automaticActivityDetection.silenceDurationMs, 800);
+  client.close();
+});
+
+test('tool call record: create/finish produce the { name, action, startedAt, durationMs, ok } shape', () => {
+  const rec = createToolCallRecord('save_phone_demo_lead', 'phone-demo-save', 1000);
+  assert.deepEqual(rec, { name: 'save_phone_demo_lead', action: 'phone-demo-save', startedAt: 1000, durationMs: 0, ok: false });
+  finishToolCallRecord(rec, true, 1750);
+  assert.deepEqual(rec, { name: 'save_phone_demo_lead', action: 'phone-demo-save', startedAt: 1000, durationMs: 750, ok: true });
+});
+
+test('greeting prefetch: backend start fires at call.initiated, before any media socket, and is awaited (not re-called) at media start', async (t) => {
+  const h = makeHarness(); t.after(() => h.geminiWss.close());
+  const telnyx = createTelnyx({ api: h.api, env: await h.env(), fetchImpl: h.fetchImpl });
+  const legA = 'v2:leg-prefetch';
+  const body = evtBody(`evt-init-${legA}`, 'call.initiated', { call_control_id: legA, direction: 'incoming', from: '+15551234567', to: '+17723624949', connection_id: 'conn-1' });
+  await telnyx.handleWebhook(Buffer.from(body), signHeaders(body));
+  await telnyx.whenIdle();
+  // No media socket exists yet, but the start config fetch is already done.
+  assert.equal(h.backendCalls.filter(c => c.action === 'start').length, 1);
+  const { client } = await startCallRest(t, h, telnyx, legA);
+  assert.equal(h.backendCalls.filter(c => c.action === 'start').length, 1); // media start awaited the prefetch
+  client.close();
+});
+
+// Media connection for a call whose webhook was already fired by the test.
+async function startCallRest(t, h, telnyx, legA) {
+  const mediaWss = new WebSocketServer({ port: 0 });
+  t.after(() => mediaWss.close());
+  mediaWss.on('connection', (ws) => telnyx.handleConnection(ws));
+  const client = new WebSocket(`ws://127.0.0.1:${mediaWss.address().port}`);
+  await new Promise(r => client.on('open', r));
+  client.send(JSON.stringify({ event: 'start', stream_id: 'stream-1', start: { call_control_id: legA, media_format: { encoding: 'PCMU', sample_rate: 8000, channels: 1 }, custom_parameters: [{ name: 'token', value: TOKEN }] } }));
+  await waitFor(() => h.geminiReceived.some(m => m.setup));
+  return { client };
+}
+
+test('tool safety: a backend throw still answers the tool call with backend_error and records ok:false', async (t) => {
+  const h = makeHarness({ phoneDemo: true }); t.after(() => h.geminiWss.close());
+  const api = async (body) => { if (body.action === 'phone-demo-save') throw new Error('[500] backend exploded'); return h.api(body); };
+  const telnyx = createTelnyx({ api, env: await h.env(), fetchImpl: h.fetchImpl });
+  const { client } = await startCall(t, h, telnyx, 'v2:leg-tool-err');
+  h.geminiSend({ serverContent: { turnComplete: true } });
+  h.geminiSend({ toolCall: { functionCalls: [{ id: 'err1', name: 'save_phone_demo_lead', args: { businessName: 'Speedy Tow' } }] } });
+  await waitFor(() => h.geminiReceived.some(m => m.toolResponse?.functionResponses?.[0]?.id === 'err1'));
+  const fr = h.geminiReceived.find(m => m.toolResponse?.functionResponses?.[0]?.id === 'err1').toolResponse.functionResponses[0];
+  assert.deepEqual(fr.response, { ok: false, reason: 'backend_error' }); // NEVER unanswered
+  client.send(JSON.stringify({ event: 'stop', stop: { call_control_id: 'v2:leg-tool-err' } }));
+  await waitFor(() => h.backendCalls.some(c => c.action === 'end'));
+  const end = h.backendCalls.find(c => c.action === 'end');
+  const rec = end.callReport.tools.find(x => x.name === 'save_phone_demo_lead');
+  assert.ok(rec); assert.equal(rec.action, 'phone-demo-save'); assert.equal(rec.ok, false);
+  assert.equal(typeof rec.startedAt, 'number'); assert.equal(typeof rec.durationMs, 'number');
+  client.close();
+});
+
+test('tool timing + end report: happy-path tools land in callReport.tools and phoneDemo carries { leadId, recapCalled }', async (t) => {
+  const h = makeHarness({ phoneDemo: true }); t.after(() => h.geminiWss.close());
+  const telnyx = createTelnyx({ api: h.api, env: await h.env(), fetchImpl: h.fetchImpl });
+  const { client } = await startCall(t, h, telnyx, 'v2:leg-tool-ok');
+  h.geminiSend({ serverContent: { turnComplete: true } });
+  h.geminiSend({ toolCall: { functionCalls: [{ id: 'ok1', name: 'save_phone_demo_lead', args: { businessName: 'Speedy Tow' } }] } });
+  await waitFor(() => h.geminiReceived.some(m => m.toolResponse?.functionResponses?.[0]?.id === 'ok1'));
+  client.send(JSON.stringify({ event: 'stop', stop: { call_control_id: 'v2:leg-tool-ok' } }));
+  await waitFor(() => h.backendCalls.some(c => c.action === 'end'));
+  const end = h.backendCalls.find(c => c.action === 'end');
+  assert.deepEqual(end.phoneDemo, { leadId: 'lead-1', recapCalled: false });
+  assert.equal(end.callReport.droppedFrames, 0);
+  const rec = end.callReport.tools.find(x => x.name === 'save_phone_demo_lead');
+  assert.ok(rec); assert.equal(rec.action, 'phone-demo-save'); assert.equal(rec.ok, true);
+  assert.equal(typeof rec.startedAt, 'number'); assert.ok(rec.durationMs >= 0);
+  client.close();
+});
+
+test('end report: non-phone-demo calls omit the phoneDemo field entirely', async (t) => {
+  const h = makeHarness(); t.after(() => h.geminiWss.close());
+  const telnyx = createTelnyx({ api: h.api, env: await h.env(), fetchImpl: h.fetchImpl });
+  const { client } = await startCall(t, h, telnyx, 'v2:leg-no-demo');
+  client.send(JSON.stringify({ event: 'stop', stop: { call_control_id: 'v2:leg-no-demo' } }));
+  await waitFor(() => h.backendCalls.some(c => c.action === 'end'));
+  const end = h.backendCalls.find(c => c.action === 'end');
+  assert.equal('phoneDemo' in end, false);
+  assert.deepEqual(end.callReport.tools, []);
+  client.close();
+});
+
+test('dead-air filler: a slow tool gets exactly ONE non-committal acknowledgement, queued before the tool response', async (t) => {
+  const h = makeHarness({ phoneDemo: true }); t.after(() => h.geminiWss.close());
+  const api = async (body) => { if (body.action === 'phone-demo-save') await new Promise(r => setTimeout(r, 1800)); return h.api(body); };
+  const telnyx = createTelnyx({ api, env: await h.env(), fetchImpl: h.fetchImpl });
+  const { client } = await startCall(t, h, telnyx, 'v2:leg-filler');
+  h.geminiSend({ serverContent: { turnComplete: true } });
+  h.geminiSend({ toolCall: { functionCalls: [{ id: 'fill1', name: 'save_phone_demo_lead', args: { businessName: 'Speedy Tow' } }] } });
+  await waitFor(() => h.geminiReceived.some(m => m.toolResponse?.functionResponses?.[0]?.id === 'fill1'), 9000);
+  const fillers = h.geminiReceived.filter(m => m.clientContent?.turns?.[0]?.parts?.[0]?.text === TOOL_FILLER_NOTE);
+  assert.equal(fillers.length, 1);
+  assert.match(TOOL_FILLER_NOTE, /one moment while I save that/);
+  assert.match(TOOL_FILLER_NOTE, /Do not claim anything has been saved/);
+  const fillerIdx = h.geminiReceived.indexOf(fillers[0]);
+  const responseIdx = h.geminiReceived.findIndex(m => m.toolResponse?.functionResponses?.[0]?.id === 'fill1');
+  assert.ok(fillerIdx < responseIdx); // queued while the tool was still pending, not after its answer
   client.close();
 });
