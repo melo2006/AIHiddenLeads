@@ -31,6 +31,12 @@ project_id = "mrtvqttecdfgphgxeygj"
     verify_jwt = false
   [functions.retell-setup]
     verify_jwt = false
+  # Server-to-server sweep (pg_cron / manual): no caller JWT; the function
+  # authenticates via its USAGE_REPORTS_SECRET header when that secret is
+  # set, the followup-sweep pattern. (followup-sweep itself has no entry;
+  # this one is registered explicitly because cron calls carry no JWT.)
+  [functions.usage-reports]
+    verify_jwt = false
   [functions.retell-web-call]
     verify_jwt = false
   [functions.scan-website]

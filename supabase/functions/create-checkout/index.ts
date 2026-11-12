@@ -2,7 +2,7 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { z } from 'npm:zod@3';
 import { createStripeClient } from '../_shared/stripe.ts';
-import { PAYMENT_PLANS, validPaymentPlan, CUSTOM_AVATAR_PRICE } from '../_shared/payment-rules.ts';
+import { PAYMENT_PLANS, validPaymentPlan, CUSTOM_AVATAR_PRICE, MINUTE_PACKS, validMinutePack } from '../_shared/payment-rules.ts';
 const json=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
 async function resolveOrCreateCustomer(stripe: ReturnType<typeof createStripeClient>, options:{email?:string;userId?:string}):Promise<string>{
  if(options.userId&&!/^[a-zA-Z0-9_-]+$/.test(options.userId))throw new Error('Invalid userId');
@@ -13,7 +13,7 @@ async function resolveOrCreateCustomer(stripe: ReturnType<typeof createStripeCli
 Deno.serve(async req=>{
  if(req.method==='OPTIONS')return new Response('ok',{headers:corsHeaders});if(req.method!=='POST')return json({error:'POST required'},405);
  try{
- const body=z.object({priceId:z.string(),environment:z.enum(['sandbox','live']),returnUrl:z.string().url(),customAvatar:z.boolean().optional()}).safeParse(await req.json());if(!body.success||!(validPaymentPlan(body.data.priceId)||body.data.priceId===CUSTOM_AVATAR_PRICE.id))return json({error:'Invalid checkout plan'},400);
+ const body=z.object({priceId:z.string(),environment:z.enum(['sandbox','live']),returnUrl:z.string().url(),customAvatar:z.boolean().optional(),organizationId:z.string().uuid().optional(),organization_id:z.string().uuid().optional()}).safeParse(await req.json());if(!body.success||!(validPaymentPlan(body.data.priceId)||body.data.priceId===CUSTOM_AVATAR_PRICE.id||validMinutePack(body.data.priceId)))return json({error:'Invalid checkout plan'},400);
  const db=createClient(Deno.env.get('SUPABASE_URL')||'',Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')||'');
  const {data:{user}}=await db.auth.getUser(req.headers.get('Authorization')?.replace(/^Bearer\s+/i,'')||'');if(!user?.email_confirmed_at)return json({error:'Sign in with a verified account to continue'},401);
  const b=body.data;const target=new URL(b.returnUrl);const origin=req.headers.get('origin');if(!origin||target.origin!==origin||target.pathname!=='/checkout/return')return json({error:'Invalid return destination'},400);
@@ -23,6 +23,17 @@ Deno.serve(async req=>{
   const stripe=createStripeClient(b.environment);const extra=(await stripe.prices.list({lookup_keys:[CUSTOM_AVATAR_PRICE.id],active:true,expand:['data.product']})).data[0];if(!extra||extra.unit_amount!==CUSTOM_AVATAR_PRICE.amount||extra.currency!=='usd'||extra.recurring)return json({error:'Custom avatar option is unavailable'},400);
   const customer=await resolveOrCreateCustomer(stripe,{userId:user.id,email:user.email});const name=typeof extra.product==='object'&&'name' in extra.product?extra.product.name:'Custom Avatar From Your Photo';
   const session=await stripe.checkout.sessions.create({line_items:[{price:extra.id,quantity:1}],mode:'payment',ui_mode:'embedded_page',return_url:b.returnUrl,customer,automatic_tax:{enabled:true},customer_update:{address:'auto'},payment_intent_data:{description:name},metadata:{userId:user.id,custom_avatar:'true',managed_payments:'false'}});
+  return json({clientSecret:session.client_secret});
+ }
+ if(validMinutePack(b.priceId)){
+  // One-time minute pack for existing customers (Usage Reporting Suite):
+  // mirrors the custom-avatar branch — active plan required, price resolved
+  // by lookup key and validated against the code-owned MINUTE_PACKS catalog.
+  const pack=MINUTE_PACKS[b.priceId];const organizationId=b.organizationId||b.organization_id||null;
+  const {data:active}=await db.from('subscriptions').select('id').eq('user_id',user.id).eq('environment',b.environment).in('status',['active','trialing']).limit(1);if(!active?.length)return json({error:'Choose a plan first; you can add minute packs at checkout.'},409);
+  const stripe=createStripeClient(b.environment);const extra=(await stripe.prices.list({lookup_keys:[b.priceId],active:true,expand:['data.product']})).data[0];if(!extra||extra.unit_amount!==pack.amount||extra.currency!=='usd'||extra.recurring)return json({error:'Minute pack is unavailable'},400);
+  const customer=await resolveOrCreateCustomer(stripe,{userId:user.id,email:user.email});const name=typeof extra.product==='object'&&'name' in extra.product?extra.product.name:`${pack.minutes} voice minutes`;
+  const session=await stripe.checkout.sessions.create({line_items:[{price:extra.id,quantity:1}],mode:'payment',ui_mode:'embedded_page',return_url:b.returnUrl,customer,automatic_tax:{enabled:true},customer_update:{address:'auto'},payment_intent_data:{description:name},metadata:{userId:user.id,kind:'minute_pack',pack_id:b.priceId,managed_payments:'false',...(organizationId?{organization_id:organizationId}:{})}});
   return json({clientSecret:session.client_secret});
  }
  const {data:existing}=await db.from('subscriptions').select('id').eq('user_id',user.id).eq('environment',b.environment).in('status',['active','past_due','trialing']).limit(1);if(existing?.length)return json({error:'You already have a subscription. Change your plan from customer setup.'},409);

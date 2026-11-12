@@ -10,6 +10,7 @@
 // Env: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, SUPABASE_URL (status callback),
 // optional TWILIO_MESSAGING_SERVICE_SID override.
 import { AIHL_MESSAGING_SERVICE_SID, AIHL_PHONE_NUMBER, normalizePhoneE164 } from './followup.ts';
+import { logUsageEvent } from './usage-ledger.ts';
 
 declare const Deno: { env: { get(name: string): string | undefined } };
 
@@ -145,6 +146,23 @@ export async function sendFollowupSms(db: any, input: { to: string; body: string
       segments: data?.num_segments ? Number(data.num_segments) : null,
       price_usd: data?.price ? Math.abs(Number(data.price)) : null,
     });
+    // Usage ledger (Usage Reporting Suite): the message SID is unique in
+    // sms_delivery_log, so it doubles as the ledger's source_id. Failure-
+    // isolated — logUsageEvent never throws, and this stays best-effort.
+    try {
+      if (data?.sid) {
+        await logUsageEvent(db, {
+          service: 'sms',
+          provider: 'twilio',
+          line_number: AIHL_PHONE_NUMBER,
+          quantity_count: data?.num_segments ? Number(data.num_segments) : 1,
+          est_cost_usd: data?.price ? Math.abs(Number(data.price)) : null,
+          source_table: 'sms_delivery_log',
+          source_id: String(data.sid),
+          occurred_at: new Date().toISOString(),
+        });
+      }
+    } catch { /* ledger is best-effort only */ }
     return { sent: true, messageSid: data?.sid || undefined, status: (data?.status || 'queued').toLowerCase() };
   } catch (e) {
     const error = e instanceof Error ? e.message : 'SMS send failed';

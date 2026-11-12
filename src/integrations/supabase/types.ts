@@ -1269,6 +1269,87 @@ export type Database = {
         }
         Relationships: []
       }
+      minute_pack_purchases: {
+        Row: {
+          created_at: string
+          environment: string
+          id: string
+          minutes: number
+          organization_id: string | null
+          pack_id: string
+          price_cents: number
+          status: string
+          stripe_checkout_session_id: string | null
+          stripe_payment_intent_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          environment?: string
+          id?: string
+          minutes: number
+          organization_id?: string | null
+          pack_id: string
+          price_cents: number
+          status?: string
+          stripe_checkout_session_id?: string | null
+          stripe_payment_intent_id?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          environment?: string
+          id?: string
+          minutes?: number
+          organization_id?: string | null
+          pack_id?: string
+          price_cents?: number
+          status?: string
+          stripe_checkout_session_id?: string | null
+          stripe_payment_intent_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "minute_pack_purchases_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "voice_organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "minute_pack_purchases_pack_id_fkey"
+            columns: ["pack_id"]
+            isOneToOne: false
+            referencedRelation: "minute_packs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      minute_packs: {
+        Row: {
+          active: boolean
+          id: string
+          kind: string
+          minutes: number
+          price_cents: number
+        }
+        Insert: {
+          active?: boolean
+          id: string
+          kind: string
+          minutes: number
+          price_cents: number
+        }
+        Update: {
+          active?: boolean
+          id?: string
+          kind?: string
+          minutes?: number
+          price_cents?: number
+        }
+        Relationships: []
+      }
       prospect_enrichment_job_items: {
         Row: {
           attempts: number
@@ -2231,6 +2312,135 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "telephony_clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      usage_events: {
+        Row: {
+          agent_id: string | null
+          carrier_cost_usd: number | null
+          created_at: string
+          est_cost_usd: number | null
+          id: string
+          line_number: string | null
+          occurred_at: string
+          organization_id: string | null
+          provider: string
+          quantity_count: number | null
+          quantity_minutes: number | null
+          service: string
+          source_id: string
+          source_table: string
+          telephony_client_id: string | null
+        }
+        Insert: {
+          agent_id?: string | null
+          carrier_cost_usd?: number | null
+          created_at?: string
+          est_cost_usd?: number | null
+          id?: string
+          line_number?: string | null
+          occurred_at: string
+          organization_id?: string | null
+          provider: string
+          quantity_count?: number | null
+          quantity_minutes?: number | null
+          service: string
+          source_id: string
+          source_table: string
+          telephony_client_id?: string | null
+        }
+        Update: {
+          agent_id?: string | null
+          carrier_cost_usd?: number | null
+          created_at?: string
+          est_cost_usd?: number | null
+          id?: string
+          line_number?: string | null
+          occurred_at?: string
+          organization_id?: string | null
+          provider?: string
+          quantity_count?: number | null
+          quantity_minutes?: number | null
+          service?: string
+          source_id?: string
+          source_table?: string
+          telephony_client_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "usage_events_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "voice_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "usage_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "voice_organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "usage_events_telephony_client_id_fkey"
+            columns: ["telephony_client_id"]
+            isOneToOne: false
+            referencedRelation: "telephony_clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      usage_report_settings: {
+        Row: {
+          alert_phone: string | null
+          cadence: string
+          created_at: string
+          id: string
+          last_report_period: string | null
+          last_report_sent_at: string | null
+          organization_id: string
+          report_email: string | null
+          sms_alerts: boolean
+          threshold_100_period: string | null
+          threshold_80_period: string | null
+          updated_at: string
+        }
+        Insert: {
+          alert_phone?: string | null
+          cadence?: string
+          created_at?: string
+          id?: string
+          last_report_period?: string | null
+          last_report_sent_at?: string | null
+          organization_id: string
+          report_email?: string | null
+          sms_alerts?: boolean
+          threshold_100_period?: string | null
+          threshold_80_period?: string | null
+          updated_at?: string
+        }
+        Update: {
+          alert_phone?: string | null
+          cadence?: string
+          created_at?: string
+          id?: string
+          last_report_period?: string | null
+          last_report_sent_at?: string | null
+          organization_id?: string
+          report_email?: string | null
+          sms_alerts?: boolean
+          threshold_100_period?: string | null
+          threshold_80_period?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "usage_report_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "voice_organizations"
             referencedColumns: ["id"]
           },
         ]

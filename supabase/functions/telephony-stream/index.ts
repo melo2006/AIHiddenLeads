@@ -17,6 +17,7 @@ import { platformAvailability } from '../_shared/platform-calendar.ts';
 import { generateSlots } from '../_shared/booking-slots.ts';
 import { checkTimeAvailability, parseDayPart, preferredDatesFor, resolveNamedTime, selectOfferSet } from '../_shared/booking-tools.ts';
 import { bookCallWithConfirmations } from '../_shared/booking-confirm.ts';
+import { logUsageEvent, phoneVoiceEventFromCall } from '../_shared/usage-ledger.ts';
 
 const json = (d: unknown, status = 200) => new Response(JSON.stringify(d), { status, headers: { 'Content-Type': 'application/json' } });
 const xml = (b: string) => new Response(`<?xml version="1.0" encoding="UTF-8"?><Response>${b}</Response>`, { headers: { 'Content-Type': 'text/xml' } });
@@ -563,6 +564,8 @@ Deno.serve(async (req) => {
         if (fresh && fresh.status !== 'completed' && fresh.status !== 'transferred_done') {
           await db.from('telephony_calls').update({ status: fresh.status === 'transferred' ? 'transferred_done' : 'completed', seconds, ended_at: new Date().toISOString() }).eq('id', call.id);
           await db.from('telephony_usage').insert({ client_id: call.client_id, kind: 'voice', direction: 'inbound', seconds, segments: 0, provider_sid: call.call_sid, provider_cost_usd: null });
+          // Usage ledger (Usage Reporting Suite): failure-isolated, never throws.
+          try { await logUsageEvent(db, phoneVoiceEventFromCall({ ...call, seconds, ai_usage: aiUsage ?? call.ai_usage }, client)); } catch { /* ledger is best-effort only */ }
         }
       }
       return json({ ok: true, ...(phoneDemoAudit ? { phone_demo_audit: phoneDemoAudit } : {}) });
