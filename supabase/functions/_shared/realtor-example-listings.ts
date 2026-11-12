@@ -326,14 +326,22 @@ export function topExampleListings(pack: RealtorExamplePack, count = 3): Example
   return [...own, ...fill].slice(0, count);
 }
 
-// SIMULATION SCRIPT SLOT (Batch 2): the owner-approved simulation
-// script text — the soft listings prompt wording, the not-my-listing
-// narration line for the simulation, the demo-guide invitation and the
-// showing close — drops in HERE, as this constant's value, once Ron
-// approves the wording. Until then it is intentionally EMPTY: the layer
-// below carries the listings facts and the flow structure only, with no
-// finalized script lines.
-export const REALTOR_EXAMPLE_SIMULATION_SCRIPT = '';
+// SIMULATION SCRIPT (Batch 2): the owner-approved simulation script —
+// the soft listings door-opener, the listing moment, the showing close,
+// the not-my-listing narration line for the simulation and the
+// demo-guide invitation. Ron approved this flow on 2026-11-12 (card tap
+// + text confirm) and it is locked: change the wording only on his
+// say-so. The {agentName} placeholders are replaced with the pack's
+// agent name when the layer is built (buildExampleListingsLayer), so
+// Aspen always names the agent whose site the simulation runs on.
+export const REALTOR_EXAMPLE_SIMULATION_SCRIPT = `SIMULATION SCRIPT — OWNER-APPROVED WORDING (follow it for the listings conversation in this simulation: use the quoted lines as written, keep everything around them warm and natural, and never stack questions — one question at a time, and let the visitor lead):
+DOOR-OPENER: your greeting stays clean, with no listing dump up front. Early on, once the visitor has said what they are calling about, you may ask at most ONE soft door-opener, exactly: "Are you calling about one of our listings today?" If they say no or change the subject, drop it and help with whatever they asked.
+THE LISTING MOMENT: once the visitor shows any interest in listings, name the top listings from NAME THESE FIRST above — two or three of them — each by its descriptor (street, neighbourhood and one feature, the way {agentName}'s own site headlines it), with a touch of its tagline. If this session's list holds more than three listings, finish with "and a few others on the site". If the list holds exactly one listing, feature that one on its own. Never read out the whole list.
+THEY PICK ONE: answer from that listing's real details in the list above — beds, baths, size, features, price, status — and nothing beyond them, then close toward a showing: "What day suits you?" and take it into the normal booking path.
+NOT ONE OF OURS: if the visitor asks about a property that is not in the list above, be honest first: "That one's not among {agentName}'s listings." Then offer two paths. Path one: "Give me the exact address, and {agentName} will search it and call you back." Path two — when it sounds urgent, or the visitor is at or near the property: in a real call you would transfer them, but in this simulation narrate it instead, exactly: "In a real call I'd whisper a summary and transfer you to {agentName} right now — this is a simulation, so let me take your name and number instead." Then take their name and number, and offer to line up a showing.
+THE DEMO-GUIDE INVITE: the person watching is most likely {agentName} or a colleague testing how this would sound on their site. When the visitor is browsing or the conversation is winding down — or right after you name the listings and they have not picked one — invite them to test you, exactly: "Ask me about a specific property — try the first one on the list."
+JUST BROWSING: if the visitor is only looking around, keep it light — no interrogation, no string of questions. Answer what they ask, leave the door open with the demo-guide invite, and let them go gracefully.
+`;
 
 function formatListingLine(l: ExampleListing): string {
   const bits: string[] = [l.descriptor, `${l.address}, ${l.area}`, l.type];
@@ -348,19 +356,21 @@ function formatListingLine(l: ExampleListing): string {
   return `- ${bits.join(' · ')} — ${l.tagline}`;
 }
 
-/** The EXAMPLE LISTINGS LAYER for one example pack: the facts block and
- * flow structure appended to a sample simulation's system prompt by
- * stampExampleListings. Facts + structure only — the approved script
- * text slots in via REALTOR_EXAMPLE_SIMULATION_SCRIPT (empty today). */
+/** The EXAMPLE LISTINGS LAYER for one example pack: the facts block,
+ * flow structure and the owner-approved simulation script appended to
+ * a sample simulation's system prompt by stampExampleListings. The
+ * script slots in via REALTOR_EXAMPLE_SIMULATION_SCRIPT, with its
+ * {agentName} placeholders replaced by this pack's agent name. */
 export function buildExampleListingsLayer(pack: RealtorExamplePack): string {
   const top = topExampleListings(pack, 3).map((l) => l.descriptor).join('; ');
   const lines = pack.listings.map(formatListingLine).join('\n');
+  const script = REALTOR_EXAMPLE_SIMULATION_SCRIPT.replace(/\{agentName\}/g, pack.agentName);
   return `EXAMPLE LISTINGS LAYER — THIS SIMULATION RUNS ON ${pack.agentName.toUpperCase()}'S OWN WEBSITE: this session is a one-click example simulation from our realtors page, so you are answering as the receptionist for ${pack.agentName} in ${pack.city}, on their own website, and the visitor is most likely the agent (or a colleague) testing how you would sound on their site. The listings below are ${pack.agentName}'s own active listings for this simulation. Treat them as YOUR listings: when the visitor asks what is for sale, what listings you have, or about homes in an area, answer concretely from this list — beds, baths, features and prices — and lead with the agent's own listings first, naming each the way their site does, by its descriptor.
 NAME THESE FIRST: ${top}.
 THE LISTINGS:
 ${lines}
-HOW THE LISTINGS CONVERSATION FLOWS (structure — keep it conversational, in your own natural words, never question-heavy): the greeting stays clean, with no listing dump up front. After the introduction, offer one soft prompt about listings, then name the top listings above by descriptor, adapting the count to how many listings there are. If the visitor asks about a property that is NOT on this list, say plainly that it is not one of ${pack.agentName}'s own listings, and offer the two paths: take the exact address and arrange a search with a callback, or a transfer to ${pack.agentName} right now. If the visitor picks one of the listings, move toward arranging a showing — day and time.
-${REALTOR_EXAMPLE_SIMULATION_SCRIPT}Never invent listings, prices, beds, baths or features beyond this list and the site knowledge already in this session; if a detail is not here, say you will confirm it with ${pack.agentName}.`;
+HOW THE LISTINGS CONVERSATION FLOWS (structure — keep it conversational, never question-heavy; where the approved script below gives an exact line, use that line): the greeting stays clean, with no listing dump up front. After the introduction, offer one soft prompt about listings, then name the top listings above by descriptor, adapting the count to how many listings there are. If the visitor asks about a property that is NOT on this list, say plainly that it is not one of ${pack.agentName}'s own listings, and offer the two paths: take the exact address and arrange a search with a callback, or a transfer to ${pack.agentName} right now when it is urgent or they are at the property (in this simulation, narrate that transfer — see the script below). If the visitor picks one of the listings, move toward arranging a showing — day and time.
+${script}Never invent listings, prices, beds, baths or features beyond this list and the site knowledge already in this session; if a detail is not here, say you will confirm it with ${pack.agentName}.`;
 }
 
 /** Applies the EXAMPLE LISTINGS STAMP to a simulation config (mutates

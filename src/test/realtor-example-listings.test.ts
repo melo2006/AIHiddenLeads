@@ -117,13 +117,50 @@ describe("example listings stamp — predicate and layer", () => {
       expect(layer).toContain(listing.descriptor);
     }
     expect(layer).toContain("$16,500,000");
-    // Structure for the not-my-listing branch, without finalized script.
+    // Structure for the not-my-listing branch.
     expect(layer).toContain("NOT on this list");
     expect(layer).toContain("transfer to Michael Martinez right now");
+    // The approved script lands in the layer with this pack's agent
+    // name substituted — no {agentName} placeholder survives.
+    expect(layer).toContain(
+      "In a real call I'd whisper a summary and transfer you to Michael Martinez right now",
+    );
+    expect(layer).toContain(
+      "Are you calling about one of our listings today?",
+    );
+    expect(layer).toContain(
+      "Ask me about a specific property — try the first one on the list.",
+    );
+    expect(layer).not.toContain("{agentName}");
   });
 
-  it("keeps the simulation script slot empty until the owner approves the wording", () => {
-    expect(REALTOR_EXAMPLE_SIMULATION_SCRIPT).toBe("");
+  it("carries the owner-approved simulation script (approved 2026-11-12)", () => {
+    const script = REALTOR_EXAMPLE_SIMULATION_SCRIPT;
+    expect(script.length).toBeGreaterThan(400);
+    // The one soft door-opener, verbatim — and the greeting stays clean.
+    expect(script).toContain(
+      "Are you calling about one of our listings today?",
+    );
+    expect(script).toContain("no listing dump up front");
+    // The listing moment adapts to the pack's real count.
+    expect(script).toContain("and a few others on the site");
+    expect(script).toContain("exactly one listing, feature that one");
+    // The showing close, verbatim.
+    expect(script).toContain("What day suits you?");
+    // The not-my-listing branch: the honest line and both offers, with
+    // the {agentName} placeholder the layer substitutes per pack.
+    expect(script).toContain("not among {agentName}'s listings");
+    expect(script).toContain("Give me the exact address");
+    expect(script).toContain("will search it and call you back");
+    // Ron's transfer narration line, verbatim.
+    expect(script).toContain(
+      "In a real call I'd whisper a summary and transfer you to {agentName} right now — this is a simulation, so let me take your name and number instead",
+    );
+    expect(script).toContain("offer to line up a showing");
+    // The demo-guide invite, verbatim.
+    expect(script).toContain(
+      "Ask me about a specific property — try the first one on the list.",
+    );
   });
 
   it("stamps a production-shaped simulation config exactly once", () => {
