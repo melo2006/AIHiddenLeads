@@ -54,7 +54,7 @@ const p = (s: string) => `<p style="margin:0 0 14px;font-size:15px;line-height:1
 const ADVANTAGES = [
   ['Never miss a caller', 'Aspen answers every call and chat, day or night, so leads stop going to voicemail.'],
   ['Sounds natural', 'A friendly 2026-era voice that knows your services, hours and prices.'],
-  ['Leads, not just answers', 'Plans include fresh B2B prospects every month, starting with 50 on Premium.'],
+  ['Leads, not just answers', 'Plans include up to 50 fresh B2B prospects/month on Premium, in weekly batches — counts vary by market, and no specific count is guaranteed.'],
   ['Get found locally', 'See how you show up on Google Maps across your area, not just from one address.'],
   ['Try it free first', 'Hear Aspen talk about your own business with just your website address.'],
 ];
