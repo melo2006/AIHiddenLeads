@@ -25,6 +25,7 @@ import { handoffReturnInstruction, handoffReturnOutcome } from '../_shared/hando
 import { BROWSER_MINUTES_OVERAGE_POLICY } from '../_shared/overage-facts.ts'
 import { FAREWELL_END_DELAY_MS, detectFarewell } from '../_shared/farewell.ts'
 import { CONTACT_SAVE_CLIENT_ERROR, CONTACT_SAVE_FALLBACK_TOOL_RESPONSE, saveConfirmedFollowup } from '../_shared/contact-save.ts'
+import { logUsageEvent, videoAvatarEventFromSession, webVoiceEventFromSession } from '../_shared/usage-ledger.ts'
 
 const GEMINI_WS =
   'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent'
@@ -238,6 +239,17 @@ Deno.serve(async (req) => {
       await queueRecording(true);
       const { error } = await db.from('gemini_voice_sessions').update({ status: 'ended', ended_at: new Date().toISOString(), last_activity_at: new Date().toISOString(), duration_seconds: duration, usage: usage(), last_error: `${endReason} (code ${closeCode})`, transcript: config.recordTranscript ? transcript : [] }).eq('id', session.id)
       if (error) console.error('session persistence failed', error.message)
+      // Usage ledger (Usage Reporting Suite): failure-isolated — logUsageEvent
+      // never throws, and the extra try/catch keeps finalize untouched either way.
+      if (!error && duration > 0) {
+        try {
+          const finalizedSession = { ...session, duration_seconds: duration, config }
+          const finalUsage = usage()
+          await logUsageEvent(db, webVoiceEventFromSession(finalizedSession, finalUsage))
+          const videoEvent = videoAvatarEventFromSession(finalizedSession, finalUsage)
+          if (videoEvent) await logUsageEvent(db, videoEvent)
+        } catch { /* ledger is best-effort only */ }
+      }
       if (!preview) {
         const review = config.recordTranscript && config.homepageSales ? callReview(transcript) : null;
         const {data:previous}=await db.from('call_history').select('metadata').eq('retell_call_id',`gemini_${session.id}`).maybeSingle();

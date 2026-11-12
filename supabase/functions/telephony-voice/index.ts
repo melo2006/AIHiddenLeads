@@ -8,6 +8,7 @@ import twilio from 'npm:twilio@5';
 import { escapeXml, sha256 } from '../_shared/browser-handoff.ts';
 import { LANGUAGE_POLICY } from '../_shared/voice-config.ts';
 import { phoneMaxSeconds, monthlyRate, chirpVoice } from '../_shared/telephony-rules.ts';
+import { logUsageEvent, phoneVoiceEventFromCall } from '../_shared/usage-ledger.ts';
 
 const json = (d: unknown, status = 200) => new Response(JSON.stringify(d), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 const xml = (b: string) => new Response(`<?xml version="1.0" encoding="UTF-8"?><Response>${b}</Response>`, { headers: { 'Content-Type': 'text/xml' } });
@@ -87,13 +88,18 @@ Deno.serve(async (req) => {
 
     if (action === 'status') {
       if (p.CallStatus !== 'completed' && p.CallStatus !== 'no-answer' && p.CallStatus !== 'busy' && p.CallStatus !== 'failed') return xml('');
-      const { data: call } = await db.from('telephony_calls').select('id,client_id,status').eq('call_sid', p.CallSid || '').maybeSingle();
+      const { data: call } = await db.from('telephony_calls').select('*').eq('call_sid', p.CallSid || '').maybeSingle();
       if (!call || call.status === 'completed' || call.status === 'transferred_done') return xml('');
       const seconds = Number(p.CallDuration || 0);
       let price: number | null = null;
       try { const c = await twilioApi(`/Calls/${p.CallSid}.json`); if (c.price != null) price = Math.abs(Number(c.price)); } catch { /* price posts later */ }
       await db.from('telephony_calls').update({ status: call.status === 'transferred' ? 'transferred_done' : 'completed', seconds, ended_at: new Date().toISOString() }).eq('id', call.id);
       await db.from('telephony_usage').insert({ client_id: call.client_id, kind: 'voice', direction: 'inbound', seconds, segments: 0, provider_sid: p.CallSid, provider_cost_usd: price });
+      // Usage ledger (Usage Reporting Suite): failure-isolated, never throws.
+      try {
+        const { data: usageClient } = await db.from('telephony_clients').select('*').eq('id', call.client_id).maybeSingle();
+        await logUsageEvent(db, { ...phoneVoiceEventFromCall({ ...call, seconds }, usageClient), carrier_cost_usd: price });
+      } catch { /* ledger is best-effort only */ }
       return xml('');
     }
 
