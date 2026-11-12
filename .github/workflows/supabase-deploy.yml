@@ -81,11 +81,42 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
 
-      - name: Apply supabase/migrations (core 24 tables)
+      - name: Apply supabase/migrations (core tree, guarded)
         if: ${{ !inputs.skip_migrations && !inputs.diagnose_only }}
-        run: supabase db push
+        # GUARDED (2026-11-12): the bare 'supabase db push' this step used to run
+        # now targets a LOCAL stack under the current CLI (run 43318177716 died
+        # with ECONNREFUSED 127.0.0.1:54322), and the core tree is a one-shot,
+        # non-idempotent history — replaying unrecorded files against
+        # production is unsafe. So reconcile first: the push runs ONLY when
+        # every local core migration is already recorded in the remote
+        # schema_migrations (a verified no-op). Any unrecorded file downgrades
+        # this step to a loud warning, and the drizzle loop + functions deploy
+        # still proceed; core reconciliation then happens manually, on purpose.
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+          export PGPASSWORD="$SUPABASE_DB_PASSWORD"
+          PSQL="psql postgresql://postgres.$SUPABASE_PROJECT_ID@aws-0-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require -v ON_ERROR_STOP=1 -At"
+          ls supabase/migrations/*.sql | xargs -n1 basename | cut -d_ -f1 | LC_ALL=C sort -u > /tmp/local_versions.txt
+          HAS_TABLE=$($PSQL -c "SELECT coalesce(to_regclass('supabase_migrations.schema_migrations')::text, '');")
+          if [ -n "$HAS_TABLE" ]; then
+            $PSQL -c "SELECT version FROM supabase_migrations.schema_migrations ORDER BY 1;" | LC_ALL=C sort -u > /tmp/remote_versions.txt
+          else
+            echo 'Remote has no supabase_migrations.schema_migrations table.'
+            : > /tmp/remote_versions.txt
+          fi
+          echo "Core migrations: local=$(wc -l < /tmp/local_versions.txt) recorded-remotely=$(wc -l < /tmp/remote_versions.txt)"
+          MISSING=$(comm -23 /tmp/local_versions.txt /tmp/remote_versions.txt)
+          if [ -n "$MISSING" ]; then
+            echo "::warning title=Core push skipped - unrecorded core migrations::These supabase/migrations versions are NOT recorded in the remote schema_migrations, and the tree is not idempotent, so 'supabase db push' is NOT safe to run: $(echo $MISSING | tr '\n' ' ')"
+            echo 'Drizzle migrations and functions will still deploy. Reconcile the core tree manually before re-enabling this push.'
+          else
+            echo 'All local core migrations are recorded remotely - supabase db push --remote is a verified no-op.'
+            supabase db push --remote
+          fi
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
 
       - name: Apply drizzle/migrations (voice/telephony tables) via psql
         if: ${{ !inputs.skip_migrations && !inputs.diagnose_only }}
