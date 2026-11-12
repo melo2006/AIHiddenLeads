@@ -97,10 +97,15 @@ describe('proxy wiring — declaration, gate and dispatch', () => {
     expect(src).toContain('const managerTransferAvailable = transferDestination(config) !== null && !preview && config.sharedDemo !== true');
   });
 
-  it('the tool is declared in its OWN gate, before the platformFollowup declarations', () => {
-    expect(src).toContain("...(managerTransferAvailable ? [");
-    expect(src).toContain("{name:'request_manager_transfer'");
-    expect(src.indexOf("{name:'request_manager_transfer'")).toBeLessThan(src.indexOf("{name:'request_conversation_copy'"));
+  it('the declaration is WITHHELD from the setup payload (INCIDENT 2026-11-12: Edge setup regression)', () => {
+    // The declaration was the only setup-payload delta in the Batch 1
+    // proxy deploy; after it, the provider closed every session before
+    // setupComplete. It stays out until reintroduced with a schema
+    // validated against the Live API's accepted shape (guarded by
+    // live-setup-declarations.test.ts). The dispatcher + gate below
+    // remain, dormant.
+    expect(src).not.toContain("{name:'request_manager_transfer'");
+    expect(src).toContain('INCIDENT 2026-11-12');
   });
 
   it('dispatch runs BEFORE the platformFollowup rejection branch, which stays intact', () => {
@@ -129,9 +134,9 @@ describe('proxy wiring — declaration, gate and dispatch', () => {
     expect(src).toContain('if (!closed && clientSocket.readyState === WebSocket.OPEN) clientSocket.send');
   });
 
-  it('the setup instruction block is appended ONLY when the tool is available', () => {
+  it('the setup instruction block is withheld together with the declaration (INCIDENT 2026-11-12)', () => {
     expect(src).toContain("const managerTransferBlock = managerTransferAvailable ? `\\n${MANAGER_TRANSFER_POLICY}` : ''");
-    expect(src).toContain('${managerTransferBlock}` }] }');
+    expect(src).not.toContain('${managerTransferBlock}` }] }');
   });
 
   it('closeAll clears the scheduled handoff start', () => {
