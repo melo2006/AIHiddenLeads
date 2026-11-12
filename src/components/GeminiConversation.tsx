@@ -19,7 +19,7 @@ import { useTranslation } from "react-i18next";
 import "@/i18n";
 import { explicitUiLocale } from "@/lib/uiLocale";
 import { FunctionsHttpError } from "@supabase/supabase-js";
-import { microphonePcm, shouldSendMicrophone, microphoneGate, microphoneAutoGain, initialCaptureMode, type NoiseFilter, type CaptureMode } from "@/lib/voiceLabAudio";
+import { microphonePcm, shouldSendMicrophone, microphoneGate, microphoneAutoGain, initialCaptureMode, ambientLevelForFloor, createAmbientGateState, pushAmbientRms, type AmbientGateState, type NoiseFilter, type CaptureMode } from "@/lib/voiceLabAudio";
 
 import VoiceActionConfirmation, { type VoiceAction } from "./VoiceActionConfirmation";
 import BrowserVoiceHandoff from "@/components/BrowserVoiceHandoff";
@@ -310,6 +310,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const [videoFallback, setVideoFallback] = useState(false);
   useEffect(() => { const timer = window.setInterval(() => { if (liveRef.current && deadlineRef.current) setRemainingSeconds(Math.max(0, Math.ceil((deadlineRef.current-Date.now())/1000))); }, 1000); return () => window.clearInterval(timer); }, []);
   const [handoffToken, setHandoffToken] = useState<string | null>(null);
+  // Voice-asked transfer trigger (Batch 1, 2026-11-12): the voice proxy
+  // sends {type:'start_handoff'} a few seconds after Aspen announces a
+  // manager transfer; each message bumps this counter and
+  // BrowserVoiceHandoff auto-starts its dial when the value changes.
+  const [handoffStartSignal, setHandoffStartSignal] = useState(0);
   const [handoffActive, setHandoffActive] = useState(false);
   const handoffRef = useRef(false);
   const consent = consentReadyRef.current;
@@ -329,6 +334,40 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     try { const saved = localStorage.getItem("voice-noise-filter"); return saved === "light" || saved === "strong" ? saved : "balanced"; } catch { return "balanced"; }
   });
   const noiseFilterRef = useRef(noiseFilter);
+  // Mic environment auto-pick (Batch 1, 2026-11-12): the capture loops feed
+  // every frame's RMS into a rolling ambient tracker; while the visitor has
+  // NOT manually picked a filter this session, the tracker's hysteresis pick
+  // drives noiseFilter. The persisted localStorage value is only the
+  // starting point — it does NOT count as a manual pick, so auto may still
+  // adjust after connect. Any in-session pick (the in-panel Quiet/Normal/
+  // Noisy control or either settings-dialog Select) marks manual and stops
+  // auto-picking for the rest of the session; the pick itself still
+  // persists to localStorage via the effect below, exactly as before.
+  const [noiseFilterManual, setNoiseFilterManual] = useState(false);
+  const noiseFilterManualRef = useRef(false);
+  const ambientTrackerRef = useRef<AmbientGateState>(createAmbientGateState(noiseFilter));
+  const ambientCheckedAtRef = useRef(0);
+  const [ambientFloor, setAmbientFloor] = useState(0);
+  const chooseNoiseFilter = (value: NoiseFilter) => {
+    noiseFilterManualRef.current = true;
+    setNoiseFilterManual(true);
+    // Keep the tracker's hysteresis reference on the visitor's own pick.
+    ambientTrackerRef.current = { ...ambientTrackerRef.current, filter: value };
+    setNoiseFilter(value);
+  };
+  // Called by BOTH capture loops for every microphone frame. The window
+  // updates per frame; the floor state + auto-pick re-evaluate at most
+  // once every ~3s, so a passing speech burst never jerks the control.
+  const feedAmbientSample = (rms: number) => {
+    const next = pushAmbientRms(ambientTrackerRef.current, rms);
+    ambientTrackerRef.current = next;
+    const now = performance.now();
+    if (now - ambientCheckedAtRef.current < 3000) return;
+    ambientCheckedAtRef.current = now;
+    setAmbientFloor(next.floor);
+    if (!noiseFilterManualRef.current && next.filter !== noiseFilterRef.current) setNoiseFilter(next.filter);
+  };
+  const ambientLevel = ambientLevelForFloor(ambientFloor);
   useEffect(() => {
     const track = micStreamRef.current?.getAudioTracks()[0];
     if (track) void track.applyConstraints({autoGainControl: microphoneAutoGain(captureMode, noiseFilter)}).catch(() => { /* Browser may not support gain adjustment. */ });
@@ -1682,6 +1721,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           if (!liveRef.current || handoffRef.current || ws.readyState !== WebSocket.OPEN) return;
           const input = e.inputBuffer.getChannelData(0);
           const rms = Math.sqrt(input.reduce((sum, x) => sum + x * x, 0) / input.length);
+          feedAmbientSample(rms);
           if (++frame % 4 === 0) {
             setMicLevel(Math.min(100, Math.round(rms * 500)));
           }
@@ -1742,6 +1782,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             goLive();
             break;
           }
+          case "start_handoff":
+            // Server contract (Batch 1): {type:'start_handoff'} sent a
+            // few seconds after Aspen announces the manager transfer.
+            // Bump the counter BrowserVoiceHandoff watches to auto-dial.
+            setHandoffStartSignal(value => value + 1);
+            break;
           case "recommended_plan": {
             const plan = salesPlans.find(value => value === msg.plan);
             if (plan) onRecommendedPlan?.(plan);
@@ -2049,6 +2095,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         if (!liveRef.current || handoffRef.current || ws.readyState !== WebSocket.OPEN) return;
         const input = e.inputBuffer.getChannelData(0);
         const rms = Math.sqrt(input.reduce((sum, x) => sum + x * x, 0) / input.length);
+        feedAmbientSample(rms);
         if (++frame % 4 === 0) setMicLevel(Math.min(100, Math.round(rms * 500)));
         const capture = captureRef.current;
         if (capture.paused) return;
@@ -2098,6 +2145,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           if (ctx) recordSwapDiag({ event: 'connect-ready', boundary: ctx.boundary, persona: ctx.persona, attempt: ctx.attempt });
           assistantTurnsRef.current = 0;
           goLiveSegment();
+          break;
+        case "start_handoff":
+          // Same server contract as the main socket (Batch 1): bump the
+          // counter BrowserVoiceHandoff watches to auto-dial.
+          setHandoffStartSignal(value => value + 1);
           break;
         case "recommended_plan": {
           const plan = salesPlans.find(value => value === msg.plan);
@@ -3028,11 +3080,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     }
   };
   const confirmation = pendingAction ? <VoiceActionConfirmation key={pendingAction.id} action={pendingAction} onAnswer={(approved, contact) => { wsRef.current?.send(JSON.stringify({type:'confirm_action',id:pendingAction.id,approved,contact})); setPendingAction(null); }}/> : null;
-  const transferControl = phase === 'live' && handoffToken ? <BrowserVoiceHandoff token={handoffToken} onActive={onHandoffActive} microphone={microphone}/> : null;
-  // Compact panel (2026-11-11 rearrangement): the same handoff, same live +
-  // token gate, rendered as the compact Manager pill inside the control row
-  // instead of a standalone full-width row above it.
-  const transferPill = phase === 'live' && handoffToken ? <BrowserVoiceHandoff pill token={handoffToken} onActive={onHandoffActive} microphone={microphone}/> : null;
+  const transferControl = phase === 'live' && handoffToken ? <BrowserVoiceHandoff token={handoffToken} onActive={onHandoffActive} microphone={microphone} startSignal={handoffStartSignal}/> : null;
+  // Compact panel (2026-11-11 rearrangement; Batch 1 move, 2026-11-12):
+  // the same handoff, same live + token gate, rendered as the compact
+  // Manager pill in the Voice/Type toggle row (right side) instead of the
+  // voice-controls row, where it wrapped onto its own row on phones.
+  const transferPill = phase === 'live' && handoffToken ? <BrowserVoiceHandoff pill token={handoffToken} onActive={onHandoffActive} microphone={microphone} startSignal={handoffStartSignal}/> : null;
 
   if (!previewOnly && !consentReady && !prewarm) return <div className="space-y-3 p-3 text-foreground">
     {faceFirst && <PersonPortrait name={name} avatarUrl={avatarUrl} />}
@@ -3162,7 +3215,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     return (
       <div className={faceFirst ? "flex h-full min-h-0 flex-1 flex-col px-2 pb-2 pt-0 text-foreground" : "space-y-2 p-2 text-foreground"}>
         {faceFirst ? <div className="aspen-person-livebox relative z-0 mx-auto shrink-0 overflow-hidden"><div className={`h-full w-full ${faceLive ? 'invisible' : ''}`}><PersonPortrait name={name} avatarUrl={avatarUrl} animated={false} /></div>{avatarView}{stagedAvatarView}</div> : <>{avatarView}{stagedAvatarView}</>}
-        {belowAvatar && <div className="shrink-0 py-1">{belowAvatar}</div>}
+        {(belowAvatar || transferPill) && (
+          <div data-testid="toggle-manager-row" className="flex shrink-0 items-start gap-1 py-1">
+            <div aria-hidden className="flex-1" />
+            <div className="flex shrink-0 justify-center">{belowAvatar}</div>
+            <div className="flex min-w-0 flex-1 flex-col items-end">{transferPill}</div>
+          </div>
+        )}
         <div className={faceFirst ? 'aspen-voice-panel relative z-10 flex min-h-0 flex-1 flex-col space-y-2 rounded-lg border border-primary/40 bg-card p-2 shadow-lg ring-1 ring-foreground/10' : 'space-y-2'}>
         <div className="flex items-center gap-1.5">
           {shownPhase === "connecting" && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" />}
@@ -3351,17 +3410,22 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             <Settings2 className="h-4 w-4" />
             <span>{t("voice.settings")}</span>
           </Button>
-          {transferPill}
         </div>
 
         {phase === "live" && speakerOutputNotice && (
           <p role="status" className="text-[11px] text-muted-foreground">{speakerOutputNotice}</p>
         )}
         {phase === "live" && (
-          <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
             <span>{t("voice.mic")}</span>
             <meter min="0" max="100" value={micLevel} aria-label={t("voice.micLevel")} className="h-2 w-16" />
-            <span>{micLevel > 3 ? t("voice.sound") : t("voice.quiet")}</span>
+            <span data-testid="ambient-level-label">{ambientLevel === "quiet" ? t("voice.envQuiet") : ambientLevel === "noisy" ? t("voice.envNoisy") : t("voice.envNormal")}</span>
+            <div className="ml-auto flex items-center gap-0.5" role="group" aria-label={t("voice.micEnvironment")}>
+              {([["light", "envQuiet"], ["balanced", "envNormal"], ["strong", "envNoisy"]] as const).map(([value, labelKey]) => (
+                <button key={value} type="button" aria-pressed={noiseFilter === value} data-noise-filter={value} onClick={() => chooseNoiseFilter(value)} className={`flex min-h-8 items-center rounded-full px-2 text-[11px] font-semibold transition-colors ${noiseFilter === value ? "bg-primary text-primary-foreground" : "bg-muted text-foreground hover:bg-muted/70"}`}>{t(`voice.${labelKey}`)}</button>
+              ))}
+              {!noiseFilterManual && <span data-testid="noise-auto-indicator" className="ml-1 rounded-full border border-primary/40 px-1.5 py-0.5 text-[10px] font-semibold text-primary">{t("voice.envAuto")}</span>}
+            </div>
           </div>
         )}
         {showMicHint && phase === "live" && (
@@ -3384,7 +3448,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
               <Button variant="outline" size="sm" onClick={stopEverything}><PhoneOff className="mr-1.5 h-3.5 w-3.5" />{t("voice.endCallToEdit")}</Button>
             </div>}
             <label className="block space-y-1 text-xs">{t("voice.noiseFiltering")}
-              <Select value={noiseFilter} onValueChange={value => setNoiseFilter(value as NoiseFilter)}>
+              <Select value={noiseFilter} onValueChange={value => chooseNoiseFilter(value as NoiseFilter)}>
                 <SelectTrigger aria-label={t("voice.micSensitivity")} className="h-auto min-h-9 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent><SelectItem value="light">{t("voice.noiseLight")}</SelectItem><SelectItem value="balanced">{t("voice.noiseBalanced")}</SelectItem><SelectItem value="strong">{t("voice.noiseStrong")}</SelectItem></SelectContent>
               </Select>
@@ -3487,7 +3551,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block space-y-1 text-xs">{t("voice.noiseFiltering")}
-              <Select value={noiseFilter} onValueChange={value => setNoiseFilter(value as NoiseFilter)}>
+              <Select value={noiseFilter} onValueChange={value => chooseNoiseFilter(value as NoiseFilter)}>
                 <SelectTrigger aria-label={t("voice.micSensitivity")}><SelectValue /></SelectTrigger>
                 <SelectContent><SelectItem value="light">{t("voice.noiseLight")}</SelectItem><SelectItem value="balanced">{t("voice.noiseBalanced")}</SelectItem><SelectItem value="strong">{t("voice.noiseStrong")}</SelectItem></SelectContent>
               </Select>

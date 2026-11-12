@@ -25,8 +25,10 @@ function rule(selector: string): string {
  * pressure landed on the captions and could crush them to ~1 half-cut
  * line (Ron's /demo phone screenshot). The fix gives captions a fixed
  * 3-line home with a 2-line floor, funded by moving the demo timer into
- * the header as a pill and the manager transfer into the control row as
- * a compact pill. Layout is CSS + Tailwind classes, so these pins assert
+ * the header as a pill and the manager transfer into the panel as a
+ * compact pill (Batch 1, 2026-11-12: the pill moved again, from the
+ * control row into the Voice/Type toggle row — see the manager describe
+ * below). Layout is CSS + Tailwind classes, so these pins assert
  * the stylesheet rules and structural classes (the repo's established
  * seam — see widget-viewport-fit.test.ts); geometry is verified by the
  * headless render check in the build report.
@@ -80,19 +82,39 @@ describe("caption panel — demo timer is a pill in the header row", () => {
   });
 });
 
-describe("caption panel — manager transfer is a compact pill at the end of the control row", () => {
+describe("caption panel — manager transfer is a compact pill in the Voice/Type toggle row (Batch 1 move, 2026-11-12)", () => {
   it("the pill variant shares the exact visibility gate as the standalone control", () => {
-    expect(conversation).toContain("const transferPill = phase === 'live' && handoffToken ? <BrowserVoiceHandoff pill token={handoffToken} onActive={onHandoffActive} microphone={microphone}/> : null;");
-    expect(conversation).toContain("const transferControl = phase === 'live' && handoffToken ? <BrowserVoiceHandoff token={handoffToken} onActive={onHandoffActive} microphone={microphone}/> : null;");
+    expect(conversation).toContain("const transferPill = phase === 'live' && handoffToken ? <BrowserVoiceHandoff pill token={handoffToken} onActive={onHandoffActive} microphone={microphone} startSignal={handoffStartSignal}/> : null;");
+    expect(conversation).toContain("const transferControl = phase === 'live' && handoffToken ? <BrowserVoiceHandoff token={handoffToken} onActive={onHandoffActive} microphone={microphone} startSignal={handoffStartSignal}/> : null;");
   });
 
-  it("the pill is rendered inside the voice-controls row, after the settings button (the row's previous last button)", () => {
+  it("the pill is rendered in the toggle row, NOT in the voice-controls row (it wrapped onto its own row on phones there)", () => {
     const rowStart = conversation.indexOf('className="voice-controls flex flex-wrap');
     const row = conversation.slice(rowStart, conversation.indexOf("{phase === \"live\" && speakerOutputNotice", rowStart));
-    expect(row).toContain("{transferPill}");
-    expect(row.indexOf("{transferPill}")).toBeGreaterThan(row.indexOf('t("voice.voiceSettings")'));
+    expect(row).not.toContain("{transferPill}");
     // The control row keeps its 44px minimum targets ([&_button]:min-h-11).
     expect(row).toContain("[&_button]:min-h-11");
+  });
+
+  it("the toggle row keeps the Voice/Type toggle centered with flex-1 spacers and parks the pill at the right", () => {
+    const rowStart = conversation.indexOf('data-testid="toggle-manager-row"');
+    expect(rowStart).toBeGreaterThan(-1);
+    const row = conversation.slice(rowStart, conversation.indexOf("</div>", conversation.indexOf("{transferPill}", rowStart)));
+    // Left flex-1 spacer, then the toggle, then a flex-1 right zone —
+    // equal outer zones keep the toggle centered whether or not the
+    // pill is present.
+    expect(row).toContain('<div aria-hidden className="flex-1" />');
+    expect(row.indexOf('className="flex-1"')).toBeLessThan(row.indexOf("{belowAvatar}"));
+    expect(row.indexOf("{belowAvatar}")).toBeLessThan(row.indexOf("{transferPill}"));
+    expect(row).toContain('className="flex min-w-0 flex-1 flex-col items-end">{transferPill}');
+    // The row renders when either piece exists, so a pill-less toggle
+    // (and a toggle-less pill) keep their places.
+    expect(conversation).toContain("{(belowAvatar || transferPill) && (");
+  });
+
+  it("the pill status line hangs under the pill, right-aligned in its zone — not a full-width centered line", () => {
+    expect(handoff).toContain('className="max-w-full break-words text-right text-xs text-muted-foreground"');
+    expect(handoff).not.toContain('className="w-full break-words text-center text-xs text-muted-foreground"');
   });
 
   it("the old standalone manager row above the controls is gone from the compact panel (its only remaining render is the non-compact lab view)", () => {

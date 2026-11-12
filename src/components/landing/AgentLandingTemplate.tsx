@@ -399,8 +399,16 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
         <LandingNavbar />
       </div>
 
-      {/* Hero — vertical headline + sub, shared Aspen portrait + demo CTA */}
-      <section className="relative overflow-hidden pt-2 sm:pt-3 pb-8 sm:pb-10">
+      {/* Hero — vertical headline + sub, shared Aspen portrait + demo CTA.
+          Batch 1 (2026-11-12): the wide empty black band Ron saw above the
+          hero. The two fixed bars are NOT the waste — the h-10 spacer above
+          exactly matches the fixed contact bar and LandingNavbar's own
+          spacer exactly matches the fixed navbar (offset top-10), so both
+          spacers stay or content slides under a bar. The reducible empty
+          space was this section's top padding plus the mt-10/sm:mt-12 gap
+          under the slideshow; both shrink to a small breathing room here
+          and below, lifting every vertical's hero (slides or not). */}
+      <section className="relative overflow-hidden pt-1 sm:pt-2 pb-8 sm:pb-10">
         <div className="container mx-auto px-5 sm:px-6 relative z-10">
           {/* Hero slideshow — full-bleed photo band at the very top of
               the hero, data-driven: only renders when the vertical
@@ -414,7 +422,7 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
           )}
           <div
             className={`flex flex-col lg:flex-row items-center gap-8 lg:gap-10 ${
-              vertical.heroSlides?.length ? "mt-10 sm:mt-12" : ""
+              vertical.heroSlides?.length ? "mt-4 sm:mt-6" : ""
             }`}
           >
             <div className="min-w-0 w-full flex-1 text-center lg:text-left">

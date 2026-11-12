@@ -10,7 +10,7 @@ async function request(action: string, handoffToken: string) {
   if(error){const detail=error instanceof FunctionsHttpError?await error.context.json().catch(()=>null):null;throw new Error(detail?.error||error.message);}
   return data;
 }
-export default function BrowserVoiceHandoff({token,onActive,microphone,pill=false}:{token:string;onActive:(active:boolean)=>void;microphone:string;pill?:boolean}){
+export default function BrowserVoiceHandoff({token,onActive,microphone,pill=false,startSignal=0}:{token:string;onActive:(active:boolean)=>void;microphone:string;pill?:boolean;startSignal?:number}){
  const [status,setStatus]=useState(''),[active,setActive]=useState(false),[used,setUsed]=useState(false);
  const device=useRef<Device|null>(null),call=useRef<Call|null>(null),timer=useRef<ReturnType<typeof setInterval>>(),generation=useRef(0),callback=useRef(onActive),polling=useRef(false);
  callback.current=onActive;
@@ -43,17 +43,36 @@ export default function BrowserVoiceHandoff({token,onActive,microphone,pill=fals
    timer.current=setInterval(()=>void poll(),1500);void poll();
   }catch(e){if(run===generation.current)finish(e instanceof Error?e.message:'Could not connect — back with Aspen.');}
  }
- // Pill variant (caption-panel rearrangement, 2026-11-11): the transfer
- // lives INSIDE the voice control row as a compact phone-icon + "Manager"
- // pill instead of its own full-width row. Same begin/cancel actions,
- // same visibility (the parent still gates on live phase + token); the
- // status line wraps onto its own line under the row (w-full inside the
- // row's flex-wrap container). The visible label is a bare text node, not
- // a <span>, so the control row's "[&_span]:text-[10px]" label shrink and
- // its small-viewport span-hiding rule can never shrink or hide it.
+ // Voice-asked transfer (Batch 1, 2026-11-12): the server sends a
+ // {type:'start_handoff'} WS message a few seconds after Aspen announces
+ // the transfer; GeminiConversation counts those into startSignal. A NEW
+ // positive value auto-starts the same begin() the pill tap runs (begin
+ // itself guards active/used). The mount-time value is latched into the
+ // ref, so mounting or re-rendering with an already-counted signal can
+ // never fire a dial on its own.
+ const lastStartSignal=useRef(startSignal);
+ useEffect(()=>{
+  if(startSignal===lastStartSignal.current)return;
+  lastStartSignal.current=startSignal;
+  if(startSignal>0)void begin();
+ // begin() reads only refs + state setters + the current token/microphone
+ // props; the signal change is the one trigger this effect answers to.
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ },[startSignal]);
+ // Pill variant (caption-panel rearrangement, 2026-11-11; moved in
+ // Batch 1, 2026-11-12): the transfer lives in the Voice/Type toggle row
+ // as a compact phone-icon + "Manager" pill instead of its own full-width
+ // row. Same begin/cancel actions, same visibility (the parent still
+ // gates on live phase + token). The toggle row hosts the pill in a
+ // right-aligned flex column, so the status line hangs under the pill,
+ // right-aligned and wrapping inside that zone — NOT a full-width
+ // centered line (that shape belonged to the old flex-wrap controls row
+ // and would stretch the toggle row). The visible label is a bare text
+ // node, not a <span>, so small-viewport span rules elsewhere can never
+ // shrink or hide it.
  if(pill)return <>
   {active?<Button size="sm" variant="outline" className="aspen-manager-pill !flex-row !min-h-11 !px-3 rounded-full" onClick={()=>{void request('cancel',token).catch(()=>{});finish('Back with Aspen.');}} aria-label="Return to Aspen"><RotateCcw className="mr-1 h-4 w-4"/>Return to Aspen</Button>:!used&&<Button size="sm" variant="outline" className="aspen-manager-pill !flex-row !min-h-11 !px-3 rounded-full" onClick={()=>void begin()} aria-label="Talk to manager"><PhoneForwarded className="mr-1 h-4 w-4"/>Manager</Button>}
-  {status&&<p role="status" className="w-full break-words text-center text-xs text-muted-foreground">{status}</p>}
+  {status&&<p role="status" className="max-w-full break-words text-right text-xs text-muted-foreground">{status}</p>}
  </>;
  return <div className="space-y-1 border-t border-border pt-2">
   {active?<Button size="sm" variant="outline" onClick={()=>{void request('cancel',token).catch(()=>{});finish('Back with Aspen.');}} aria-label="Return to Aspen"><RotateCcw className="mr-1 h-4 w-4"/>Return to Aspen</Button>:!used&&<Button size="sm" variant="outline" onClick={()=>void begin()} aria-label="Talk to manager"><PhoneForwarded className="mr-1 h-4 w-4"/>Talk to manager</Button>}

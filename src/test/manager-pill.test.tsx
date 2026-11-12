@@ -53,3 +53,43 @@ describe('BrowserVoiceHandoff pill variant', () => {
     expect(button.className).not.toContain('aspen-manager-pill');
   });
 });
+
+describe('BrowserVoiceHandoff startSignal (voice-asked transfer, Batch 1)', () => {
+  it('mounting with an already-positive signal does NOT dial — the mount value is latched', async () => {
+    const onActive = vi.fn();
+    render(<BrowserVoiceHandoff pill token="tok-1" onActive={onActive} microphone="default" startSignal={3} />);
+    // Give any (buggy) mount effect a chance to fire.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(mocks.invoke).not.toHaveBeenCalled();
+    expect(onActive).not.toHaveBeenCalled();
+  });
+
+  it('a NEW positive signal value auto-starts the same begin() as a pill tap', async () => {
+    const onActive = vi.fn();
+    const view = render(<BrowserVoiceHandoff pill token="tok-1" onActive={onActive} microphone="default" startSignal={0} />);
+    expect(mocks.invoke).not.toHaveBeenCalled();
+    view.rerender(<BrowserVoiceHandoff pill token="tok-1" onActive={onActive} microphone="default" startSignal={1} />);
+    await waitFor(() => expect(onActive).toHaveBeenCalledWith(true));
+    await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith('browser-voice-handoff', { body: { action: 'token', handoffToken: 'tok-1' } }));
+    await waitFor(() => expect(view.getByRole('status').textContent).toMatch(/manager/i));
+  });
+
+  it('re-rendering with the SAME signal value does not dial twice (begin guard + latch)', async () => {
+    const onActive = vi.fn();
+    const view = render(<BrowserVoiceHandoff pill token="tok-1" onActive={onActive} microphone="default" startSignal={0} />);
+    view.rerender(<BrowserVoiceHandoff pill token="tok-1" onActive={onActive} microphone="default" startSignal={1} />);
+    await waitFor(() => expect(onActive).toHaveBeenCalledWith(true));
+    view.rerender(<BrowserVoiceHandoff pill token="tok-1" onActive={onActive} microphone="default" startSignal={1} />);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const tokenCalls = mocks.invoke.mock.calls.filter((call) => (call[1] as { body: { action: string } }).body.action === 'token');
+    expect(tokenCalls).toHaveLength(1);
+  });
+
+  it('the full (non-pill) control also answers a new signal — the lab view shares the trigger', async () => {
+    const onActive = vi.fn();
+    const view = render(<BrowserVoiceHandoff token="tok-1" onActive={onActive} microphone="default" startSignal={0} />);
+    view.rerender(<BrowserVoiceHandoff token="tok-1" onActive={onActive} microphone="default" startSignal={2} />);
+    await waitFor(() => expect(onActive).toHaveBeenCalledWith(true));
+    await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith('browser-voice-handoff', { body: { action: 'token', handoffToken: 'tok-1' } }));
+  });
+});

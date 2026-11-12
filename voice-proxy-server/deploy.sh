@@ -37,19 +37,21 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 FUNCTIONS_SRC="${REPO_ROOT}/supabase/functions"
 
-# The proxy's transitive _shared import closure, RE-TRACED 2026-11-11 against
-# origin/main f46856f (24 modules — the Phase B list of 19 predates the
-# follow-up pack: booking-confirm, booking-tools, followup, phone-demo and
-# twilio-sms are new). deno cache (step 4) is the authority: a missing file
-# fails the deploy.
+# The proxy's transitive _shared import closure, RE-TRACED 2026-11-12 against
+# Batch 1 (28 modules — the 2026-11-11 trace had 24; Batch 1's proxy work
+# added browser-handoff, contact-save, farewell and manager-transfer).
+# deno cache (step 4) is the authority: a missing file fails the deploy.
 SHARED_CLOSURE=(
   booking-confirm.ts
   booking-slots.ts
   booking-tools.ts
+  browser-handoff.ts
   call-review.ts
+  contact-save.ts
   conversation-language.ts
   conversation-records.ts
   demo-sales.ts
+  farewell.ts
   followup.ts
   homepage-evidence.ts
   homepage-knowledge.ts
@@ -57,6 +59,7 @@ SHARED_CLOSURE=(
   homepage-services.ts
   hostinger-mail.ts
   live-models.ts
+  manager-transfer.ts
   phone-demo.ts
   platform-calendar.ts
   recording-audio.ts

@@ -3,6 +3,12 @@ project_id = "mrtvqttecdfgphgxeygj"
 [functions]
   [functions.auth-email-hook]
     verify_jwt = false
+  # Twilio callbacks carry no Supabase JWT, so the gateway rejected them
+  # 401 (UNAUTHORIZED_NO_AUTH_HEADER) before the function ran. The
+  # function authenticates callbacks by Twilio signature and browser
+  # actions by the single-use handoff capability.
+  [functions.browser-voice-handoff]
+    verify_jwt = false
   [functions.check-iframe-embed]
     verify_jwt = false
   [functions.create-checkout]

@@ -611,13 +611,14 @@ describe("realtor landing page — v4 hero photo carousel (2026-11-11 addenda)",
     // Panoramic background treatment: skinnier fixed band heights
     // (v4.1, Ron's live-test feedback: the v4 band ate too much page)
     // + object-cover, and the hero section's top padding is tight so
-    // the band lifts up close to the header.
+    // the band lifts up close to the header (Batch 1, 2026-11-12:
+    // pt-2/sm:pt-3 shrunk to pt-1/sm:pt-2 — see the black-band describe).
     expect(templateSource).toContain("h-[250px]");
     expect(templateSource).toContain("lg:h-[430px]");
     expect(templateSource).not.toContain("h-[340px]");
     expect(templateSource).not.toContain("lg:h-[520px]");
     expect(templateSource).toContain("object-cover");
-    expect(templateSource).toContain("pt-2 sm:pt-3");
+    expect(templateSource).toContain("pt-1 sm:pt-2");
     // Slogan type steps down on mobile (text-2xl) so the longest
     // slogan fits the skinnier band without clipping; the text block
     // also carries extra side padding so no letter slides under the
@@ -690,6 +691,30 @@ describe("realtor landing page — v4 hero photo carousel (2026-11-11 addenda)",
     expect(templateSource).toContain("setUserPaused(true)");
     expect(templateSource).toContain("const goPrev = () => goTo(active - 1);");
     expect(templateSource).toContain("const goNext = () => goTo(active + 1);");
+  });
+});
+
+describe("realtor landing page — Batch 1 black band shrink (2026-11-12)", () => {
+  it("the fixed-bar clearance stack is untouched: contact spacer, navbar offset and navbar stay", () => {
+    // The h-10 spacer exactly matches the fixed h-10 contact bar and the
+    // navbar (offset to top-10 inside its wrapper) carries its own
+    // spacer — shrinking either would slide content under a fixed bar.
+    expect(templateSource).toContain('<div aria-hidden className="h-10" />');
+    expect(templateSource).toContain('<div className="[&>nav]:top-10">');
+    expect(templateSource).toContain('className="fixed top-0 inset-x-0 z-[100] h-10 bg-primary text-primary-foreground"');
+  });
+
+  it("the reducible empty space shrank: hero top padding and the under-slideshow gap", () => {
+    expect(templateSource).toContain("pt-1 sm:pt-2");
+    expect(templateSource).not.toContain("pt-2 sm:pt-3");
+    expect(templateSource).toContain('vertical.heroSlides?.length ? "mt-4 sm:mt-6" : ""');
+    expect(templateSource).not.toContain("mt-10 sm:mt-12");
+  });
+
+  it("verticals without hero slides keep the no-margin layout (the ternary's empty branch)", () => {
+    // The margin only ever applied when heroSlides exist; mortgage /
+    // insurance share this template and must not gain or lose spacing.
+    expect(templateSource).toContain('vertical.heroSlides?.length ? "mt-4 sm:mt-6" : ""');
   });
 });
 
