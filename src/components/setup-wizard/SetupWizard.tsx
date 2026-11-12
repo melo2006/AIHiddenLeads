@@ -16,6 +16,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import GeminiConversation from "@/components/GeminiConversation";
 import AgentInstallationGuide from "@/components/AgentInstallationGuide";
+import PhoneSetupPanel from "./PhoneSetupPanel";
+import { EMPTY_PHONE_SETUP, type PhoneSetupState } from "../../../supabase/functions/_shared/onboarding";
 import SitePreview from "./SitePreview";
 import ShareDemoLink from "./ShareDemoLink";
 import { rankAuditExamples } from "@/lib/rankAuditExamples";
@@ -71,6 +73,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
   const [linkInput, setLinkInput] = useState("");
   const [drag, setDrag] = useState(false);
   const [published, setPublished] = useState(false);
+  const [phoneSetup, setPhoneSetup] = useState<PhoneSetupState>(EMPTY_PHONE_SETUP);
   const [calling, setCalling] = useState(false);
   const [loading, setLoading] = useState(true);
   const [suggestedIndustry, setSuggestedIndustry] = useState("");
@@ -120,6 +123,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
         corner: d.launcherCorner === "bottom-left" ? "bottom-left" : "bottom-right", videoAvatar: normalizeVideoAvatar(d.videoAvatar),
       });
       setPublished(Boolean(a.published));
+      setPhoneSetup((d.phoneSetup as PhoneSetupState) || EMPTY_PHONE_SETUP);
     } finally { if (generation === loadGeneration.current) setLoading(false); }
   }
   useEffect(() => {
@@ -132,7 +136,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
     const faq = faqKnowledge(s.faqs);
     const config = {
       ...draft, websiteUrl: s.websiteUrl ? (/^https?:\/\//i.test(s.websiteUrl) ? s.websiteUrl : `https://${s.websiteUrl}`) : "", businessName: s.businessName || "My business", industry: industryName(s), subNiche: s.subNiche || "", businessNotes: s.businessNotes || "", knowledgeGuidance: s.knowledgeGuidance || "", assistantRestrictions: s.assistantRestrictions || "", systemPrompt: replaceSection(String(draft.systemPrompt || ""), GUARDRAILS_MARK, s.assistantRestrictions || ""), name: s.name || "Aspen",
-      greeting: s.greeting, voice: s.voice, theme: { background: "#101216", foreground: "#F4F6F8", font: "system", ...(draft.theme || {}), primary: s.color }, launcherLabel: s.label, launcherCorner: s.corner, videoAvatar: normalizeVideoAvatar(s.videoAvatar),
+      greeting: s.greeting, voice: s.voice, phoneSetup, theme: { background: "#101216", foreground: "#F4F6F8", font: "system", ...(draft.theme || {}), primary: s.color }, launcherLabel: s.label, launcherCorner: s.corner, videoAvatar: normalizeVideoAvatar(s.videoAvatar),
       knowledge: faq ? `${base}\n\n${FAQ_MARK}\n${faq}`.trim() : base,
     };
     try { await request({ action: "save", agentId: selectedId, config }); setDraft(config); return true; }
@@ -441,6 +445,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
             <div className="grid gap-6 md:grid-cols-2">
               <div className="space-y-4">
                 <StepHead title={published ? "You're live!" : "Try it, then go live"} hint={published ? "Add it to your website with the steps below." : "Make a test call, then publish."} help="Test calls use your saved draft. Publishing makes it available to your website visitors." />
+                <PhoneSetupPanel agentId={selectedId} value={phoneSetup} onSaved={setPhoneSetup} />
                 {realVoice ? (
                   calling ? <div className="rounded-xl border border-border p-2"><GeminiConversation key={`call-${selectedId}`} draft agentId={selectedId} name={s.name} previewVoice={s.voice} compact videoAvatar={normalizeVideoAvatar(s.videoAvatar)} /></div>
                     : <Button size="lg" variant="outline" className="w-full" disabled={busy || sources.some(x => x.status !== "ready")} onClick={() => void prepareVoice(true)}><Phone className="mr-2 h-5 w-5" />Try a test call</Button>

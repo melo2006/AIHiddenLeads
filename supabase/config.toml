@@ -70,3 +70,8 @@ project_id = "mrtvqttecdfgphgxeygj"
   # gateway AND the function re-checks voice_platform_roles itself.
   [functions.outreach-report]
     verify_jwt = true
+  # Scheduler-invoked sweep (day-1 onboarding nudge): no user JWT exists on
+  # a cron call; the function gates on the ONBOARDING_SWEEP_SECRET header
+  # when that secret is set, exactly like followup-sweep.
+  [functions.onboarding-reminders]
+    verify_jwt = false

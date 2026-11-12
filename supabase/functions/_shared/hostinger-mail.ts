@@ -204,6 +204,46 @@ export const dailySummary = (s: { day: string; visits: number; scans: number; vo
 export async function trySend(mail: Mail) {
   try { await sendOwnerMail(mail); return true; } catch (e) { console.error('mail send failed', (e as Error).message); return false; }
 }
+
+// ---------------------------------------------------------------------------
+// Customer onboarding emails (onboarding batch, 2026-11-12). The welcome
+// email is sent once, right after the first paid checkout provisions the
+// workspace (payments-webhook → _shared/welcome.ts). The set-password link
+// is a Supabase Auth recovery link generated server-side at send time —
+// NEVER a password, and never a link the client could have invented.
+// ---------------------------------------------------------------------------
+
+const FIRST_STEPS: [string, string][] = [
+  ['Set up your phone number', 'Keep your number, bring it to us, or get a new one — your phone rings first, then Aspen answers.'],
+  ['Teach Aspen your business', 'Add your website, a price list or your most common questions.'],
+  ['Make a test call', 'Hear Aspen answer before your customers do.'],
+  ['Go live', 'Publish and add one small snippet to your website.'],
+];
+
+export const customerWelcome = (c: { name: string; email: string; setPasswordUrl: string }): Mail => ({
+  to: c.email,
+  subject: 'Welcome to AI Hidden Leads — set your password and meet Aspen',
+  text: `Hi ${first(c.name)},\n\nWelcome aboard — your AI Hidden Leads workspace is ready.\n\nFirst, set your password so you can sign in any time with your email (${c.email}) and a password only you know:\n${c.setPasswordUrl}\n\nThat link signs you in to finish setting the password. It expires, so use it soon — you can always request a fresh one from the sign-in page.\n\nWhat Aspen is: your AI receptionist. She answers your website visitors and your phone calls 24/7, books appointments and captures every lead, so callers stop reaching voicemail.\n\nYour first steps (about 10–15 minutes, in your dashboard):\n${FIRST_STEPS.map(([h, d], i) => `${i + 1}. ${h} — ${d}`).join('\n')}\n\nYour dashboard: ${SITE}/account\nYour setup wizard: ${SITE}/setup\nHelp & carrier forwarding guides: ${SITE}/help\n\nQuestions? Reply to this email or call us at (877) 862-4949 — Alex, our setup guide inside the wizard, can also walk you through every step live.\n\nAI Hidden Leads`,
+  html: layout({ preheader: 'Your workspace is ready — set your password to get started', title: `Welcome aboard, ${first(c.name)}!`, body:
+    p('Your AI Hidden Leads workspace is ready. First, set your password so you can sign in any time with your email and a password only you know:')
+    + button(c.setPasswordUrl, 'Set my password')
+    + p('That link signs you in to finish setting the password. It expires, so use it soon — you can always request a fresh one from the sign-in page.')
+    + p('<strong>What Aspen is:</strong> your AI receptionist. She answers your website visitors and your phone calls 24/7, books appointments and captures every lead, so callers stop reaching voicemail.')
+    + `<div style="margin:0 0 16px"><div style="font-size:13px;font-weight:700;color:${GREEN};text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Your first steps · about 10–15 minutes</div>${FIRST_STEPS.map(([h, d], i) => `<div style="margin:8px 0;font-size:14px;line-height:1.5;color:${INK}"><span style="color:${GREEN};font-weight:700">${i + 1}.</span> <strong>${esc(h)}</strong> — ${esc(d)}</div>`).join('')}</div>`
+    + button(`${SITE}/setup`, 'Open my setup wizard') + button(`${SITE}/account`, 'My dashboard', false)
+    + p(`Questions? Reply to this email or call us at (877) 862-4949. Alex, the setup guide inside the wizard, can also walk you through every step live. Forwarding guides for your phone carrier live on our ${link(`${SITE}/help`, 'help page')}.`) }),
+});
+
+export const onboardingDay1Nudge = (c: { name: string; email: string }): Mail => ({
+  to: c.email,
+  subject: 'One step left: connect your phone number so Aspen can answer',
+  text: `Hi ${first(c.name)},\n\nQuick nudge from AI Hidden Leads: your Aspen setup is nearly done, but your phone number is not connected yet — that is the step that lets Aspen answer your business calls (your phone rings first, then she picks up).\n\nIt takes a few minutes in the setup wizard, and the wizard shows the exact forwarding steps for your carrier:\n${SITE}/setup\n\nPrefer a human walkthrough? Reply to this email or call (877) 862-4949.\n\nAI Hidden Leads`,
+  html: layout({ preheader: 'Finish your phone setup so Aspen can answer your calls', title: `One step left, ${first(c.name)}`, body:
+    p('Your Aspen setup is nearly done — but your <strong>phone number is not connected yet</strong>. That is the step that lets Aspen answer your business calls: your phone rings first, then she picks up.')
+    + p('It takes a few minutes in the setup wizard, which shows the exact forwarding steps for your carrier.')
+    + button(`${SITE}/setup`, 'Finish my phone setup')
+    + p('Prefer a human walkthrough? Reply to this email or call us at (877) 862-4949.') }),
+});
 export const conversationCopy = (c: {name:string;email:string;url:string}): Mail => ({
   to:c.email, subject:'Your Aspen conversation · private transcript and summary',
   text:`Hi ${first(c.name)},\n\nHere is the private conversation copy you requested: ${c.url}\nThe link expires in seven days. Keep it private; anyone with it can read your transcript and AI summary. AI summaries may contain errors.\n\nThis request does not subscribe you to marketing.\n\nAI Hidden Leads`,
