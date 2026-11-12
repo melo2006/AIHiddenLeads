@@ -108,8 +108,10 @@ describe('proxy wiring — detection at turnComplete, with cancel paths', () => 
   it('cancels the armed end on new speech, on a non-farewell completed turn, on any tool call, and in closeAll', () => {
     // inputTranscription fragment path
     expect(src).toContain('if (farewellTimer && callerUtterance.trim()');
-    // turnComplete path (spoke again, not a farewell)
-    expect(src).toContain('} else if (farewellTimer && !detectFarewell(completedUtterance)) {');
+    // turnComplete path (spoke again, not a farewell) — a SUBSTANTIVE
+    // completed utterance only: an empty one is Aspen's own closing
+    // turn completing and must not cancel (live proof 2026-11-12)
+    expect(src).toContain('} else if (farewellTimer && completedUtterance.trim() && !detectFarewell(completedUtterance)) {');
     // tool dispatch + closeAll + the two paths above
     expect(occurrences(src, 'cancelFarewellEnd()')).toBeGreaterThanOrEqual(4);
     expect(src).toContain('clearTimeout(handoffStartTimer); cancelFarewellEnd()');

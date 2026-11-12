@@ -574,8 +574,15 @@ Deno.serve(async (req) => {
               farewellHandled = true
               if (geminiWs?.readyState === WebSocket.OPEN) geminiWs.send(JSON.stringify({clientContent:{turns:[{role:'user',parts:[{text:'The visitor has clearly said goodbye. If you have not already closed, give ONE brief, warm closing line now. Do not ask a question, make no new offers, and do not re-open any topic. The call ends right after your closing.'}]}],turnComplete:true}}))
               farewellTimer = setTimeout(() => { farewellTimer = undefined; if (closed) return; endReason = 'visitor_goodbye'; closeCode = 1000; if (clientSocket.readyState === WebSocket.OPEN) clientSocket.send(JSON.stringify({ type: 'closed', reason: 'Call ended — thanks for talking with Aspen.' })); closeAll() }, FAREWELL_END_DELAY_MS)
-            } else if (farewellTimer && !detectFarewell(completedUtterance)) {
-              // They spoke again and it was not another farewell.
+            } else if (farewellTimer && completedUtterance.trim() && !detectFarewell(completedUtterance)) {
+              // They spoke again and it was not another farewell. An
+              // EMPTY completed utterance is not the visitor speaking
+              // again — it is Aspen's own closing turn (the one the
+              // injection above asked for) completing, and cancelling
+              // on it made the hang-up self-defeating: the closing
+              // line's own turnComplete killed the timer every time
+              // (live proof 2026-11-12, session 59d8731e: detector
+              // fired, closing was spoken, session never ended).
               cancelFarewellEnd()
             }
             if(config.transferPhone) EdgeRuntime.waitUntil((async()=>{
