@@ -108,8 +108,33 @@ describe("caption panel — manager transfer is a compact pill in the Voice/Type
     expect(row.indexOf("{belowAvatar}")).toBeLessThan(row.indexOf("{transferPill}"));
     expect(row).toContain('className="flex min-w-0 flex-1 flex-col items-end">{transferPill}');
     // The row renders when either piece exists, so a pill-less toggle
-    // (and a toggle-less pill) keep their places.
-    expect(conversation).toContain("{(belowAvatar || transferPill) && (");
+    // (and a toggle-less pill) keep their places. It is built once as a
+    // shared element (2026-11-12: the row moved inside the panel) and
+    // placed per layout below.
+    expect(conversation).toContain("const toggleManagerRow = (belowAvatar || transferPill) ? (");
+  });
+
+  it("panel layout fix (2026-11-12): in face-first mode the window-controls row and the toggle row render INSIDE the voice panel, in that order, under the livebox", () => {
+    const livebox = conversation.indexOf('className="aspen-person-livebox');
+    const panel = conversation.indexOf("'aspen-voice-panel relative z-10");
+    const controls = conversation.indexOf("{faceFirst && windowControls}");
+    const toggleRow = conversation.indexOf("{faceFirst && toggleManagerRow}");
+    const header = conversation.indexOf('<div className="flex items-center gap-1.5">');
+    // Portrait first, then the panel; inside the panel: window controls,
+    // then the toggle row, then the status header — nothing between the
+    // livebox and the panel, and no row overlaps the portrait.
+    expect(livebox).toBeGreaterThan(-1);
+    expect(livebox).toBeLessThan(panel);
+    expect(panel).toBeLessThan(controls);
+    expect(controls).toBeLessThan(toggleRow);
+    expect(toggleRow).toBeLessThan(header);
+    // The non-face-first compact flow keeps both rows under the avatar
+    // (it has no panel card), ahead of the panel-less content div.
+    expect(conversation).toContain("{!faceFirst && windowControls}");
+    expect(conversation).toContain("{!faceFirst && toggleManagerRow}");
+    expect(conversation.indexOf("{!faceFirst && windowControls}")).toBeLessThan(conversation.indexOf("{!faceFirst && toggleManagerRow}"));
+    // The slot is an optional prop on the conversation component.
+    expect(conversation).toContain("windowControls?: ReactNode");
   });
 
   it("the pill status line hangs under the pill, right-aligned in its zone — not a full-width centered line", () => {

@@ -4,7 +4,7 @@ import type { VideoAvatar } from '../../../../supabase/functions/_shared/video-a
 import GeminiConversation, { type GeminiShellControls, type GeminiShellState } from '@/components/GeminiConversation';
 import ChatWidget from './ChatWidget';
 import DraggableFloating from './DraggableFloating';
-import FloatingPersonFrame, { AspenModeToggle, type Stage3Controls } from '@/components/FloatingPersonFrame';
+import FloatingPersonFrame, { AspenModeToggle, AspenWindowControls, type Stage3Controls } from '@/components/FloatingPersonFrame';
 import AssistantErrorBoundary from '@/components/AssistantErrorBoundary';
 import AspenSalesActions from '@/components/AspenSalesActions';
 import { matchingAspenVideo } from '@/lib/aspenFace';
@@ -72,7 +72,7 @@ function AspenDemoWidgetContent({ voiceRequested = false, onClosed, onAssistantR
           <p className="text-[11px] leading-snug text-muted-foreground">She is still here — say the 4 digits out loud or type them in the card.</p>
         </div>}
         <div className={gateWaiting ? 'hidden' : 'flex min-h-0 flex-1 flex-col'} aria-hidden={gateWaiting || undefined}>
-          <GeminiConversation compact faceFirst avatarInline autoStart={expanded} consentOnOpen={expanded} prewarm={prewarm} onPrewarmed={() => onAssistantReady?.()} leadId={chatProps.leadId} prospectId={chatProps.prospectId} visitorName={chatProps.callerName} onRecommendedPlan={setRecommendedPlan} videoAvatar={matchingAspenVideo(videoAvatar)} verification={verification} invite={invite} sample={sample} onUserTranscript={onUserTranscript} shellControlsRef={shellControlsRef} onShellState={setShellState} belowAvatar={<AspenModeToggle mode={mode} onMode={next => { setMode(next); if (next === 'chat') setChatVisited(true); }} />} />
+          <GeminiConversation compact faceFirst avatarInline autoStart={expanded} consentOnOpen={expanded} prewarm={prewarm} onPrewarmed={() => onAssistantReady?.()} leadId={chatProps.leadId} prospectId={chatProps.prospectId} visitorName={chatProps.callerName} onRecommendedPlan={setRecommendedPlan} videoAvatar={matchingAspenVideo(videoAvatar)} verification={verification} invite={invite} sample={sample} onUserTranscript={onUserTranscript} shellControlsRef={shellControlsRef} onShellState={setShellState} belowAvatar={<AspenModeToggle mode={mode} onMode={next => { setMode(next); if (next === 'chat') setChatVisited(true); }} />} windowControls={<AspenWindowControls onMinimize={minimize} onClose={close} />} />
         </div>
       </>}
       {chatVisited && <div className={mode === 'chat' ? 'aspen-panel min-h-80 overflow-hidden rounded-lg border border-border bg-card' : 'hidden'}><div className="aspen-chat-content"><ChatWidget {...chatProps} embedded active={expanded && mode === 'chat'} /></div></div>}

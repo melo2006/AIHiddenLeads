@@ -1,16 +1,19 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import FloatingPersonFrame, { type Stage3Controls } from '@/components/FloatingPersonFrame';
+import FloatingPersonFrame, { AspenWindowControls, type Stage3Controls } from '@/components/FloatingPersonFrame';
 
 // Three-stage widget chrome (Ron, 2026-11-08 — reverses the 2026-11-03
 // controls-v2 ruling): Stage 1 is ONE small bubble with a single "Tap to
 // talk" label and no stacked bars; Stage 2 (open) keeps the recording
-// disclosure as small print inside the open view, puts the Voice/Type
-// segmented toggle BELOW her chest (between the portrait and the chat /
-// captions box — never above her), and gathers the window controls into
-// ONE chest cluster at the portrait's bottom edge: drag handle + dash =
-// minimize (session preserved) + X = END the conversation, exactly one
-// each, nothing over her face; Stage 3 (minimized while talking) is her
+// disclosure as small print inside the open view and gathers the window
+// controls into ONE row INSIDE the panel: drag handle + dash = minimize
+// (session preserved) + X = END the conversation, exactly one each. The
+// Voice/Type segmented toggle sits directly under that row, between the
+// controls and the chat / captions box. Panel layout fix (2026-11-12,
+// Ron's circled screenshot): the controls row used to be a "chest
+// cluster" absolutely positioned across the portrait's bottom edge,
+// slicing her torso — it is now in flow inside the panel, so NO control
+// ever overlaps the portrait; Stage 3 (minimized while talking) is her
 // bubble head with a pulsing live ring + one slim control bar — no
 // thread, no captions.
 const baseProps = { mode: 'voice' as const, onOpen: vi.fn(), onClose: vi.fn(), onMinimize: vi.fn(), onMode: vi.fn() };
@@ -37,8 +40,9 @@ describe('widget chrome layout — three stages', () => {
     render(<FloatingPersonFrame {...baseProps} open mode="chat"><div>panel</div></FloatingPersonFrame>);
     const toggle = screen.getByRole('group', { name: 'Conversation mode' });
     const portrait = screen.getByAltText('Aspen');
-    // Below her chest: the portrait comes first in DOM order, then the
-    // toggle, then the chat thread box — never above her.
+    // In flow under the portrait: portrait first in DOM order, then the
+    // window-controls row, then the toggle, then the chat thread box —
+    // never above her, never over her.
     expectBefore(portrait, toggle);
     expectBefore(toggle, screen.getByText('panel'));
     const voice = screen.getByRole('button', { name: /Voice/ });
@@ -49,27 +53,31 @@ describe('widget chrome layout — three stages', () => {
     expect(baseProps.onMode).toHaveBeenCalledWith('voice');
   });
 
-  it('stage 2: exactly one Minimize and one End, together with the drag handle in the chest cluster', () => {
-    render(<FloatingPersonFrame {...baseProps} open><div>conversation panel</div></FloatingPersonFrame>);
-    const panel = screen.getByText('conversation panel');
+  it('stage 2 (chat): exactly one Minimize and one End, with the drag handle, in ONE in-flow row between the portrait and the toggle', () => {
+    render(<FloatingPersonFrame {...baseProps} open mode="chat"><div>chat panel</div></FloatingPersonFrame>);
     // Exactly one of each window control in the whole open shell.
     expect(screen.getAllByRole('button', { name: 'Minimize' })).toHaveLength(1);
     expect(screen.getAllByRole('button', { name: 'End conversation' })).toHaveLength(1);
     const dash = screen.getByRole('button', { name: 'Minimize' });
     const x = screen.getByRole('button', { name: 'End conversation' });
-    expectBefore(panel, dash);
-    expectBefore(panel, x);
-    // All three controls live in the single chest cluster; the drag handle
-    // is the shell's [data-drag-handle] for DraggableFloating.
+    // All three controls live in the single window-controls row; the drag
+    // handle is the shell's [data-drag-handle] for DraggableFloating.
     const cluster = dash.closest('.aspen-person-chest-cluster');
     expect(cluster).toBeTruthy();
     expect(cluster?.contains(x)).toBe(true);
     const drag = cluster?.querySelector('[data-drag-handle]');
     expect(drag).toBeTruthy();
     expect(drag?.getAttribute('aria-label')).toBe('Drag widget');
+    // In flow inside the panel: the portrait ends first, then the row,
+    // then the toggle, then the chat box — the row is a shell child in
+    // normal flow, NOT an overlay straddling the portrait.
+    const portrait = screen.getByAltText('Aspen');
+    const toggle = screen.getByRole('group', { name: 'Conversation mode' });
+    expectBefore(portrait, cluster as Element);
+    expectBefore(cluster as Element, toggle);
+    expect(screen.queryByRole('group', { name: 'Window controls' })?.className).toContain('aspen-person-chest-cluster');
     // No face overlay remains: the old portrait-overlay X class is gone.
     expect(x.className).not.toContain('aspen-person-x-overlay');
-    expect(screen.queryByRole('group', { name: 'Window controls' })?.className).toContain('aspen-person-chest-cluster');
     expectNoLegacyControls();
     fireEvent.click(dash);
     expect(baseProps.onMinimize).toHaveBeenCalledTimes(1);
@@ -77,6 +85,27 @@ describe('widget chrome layout — three stages', () => {
     fireEvent.click(x);
     expect(baseProps.onClose).toHaveBeenCalledTimes(1);
     expect(baseProps.onMinimize).toHaveBeenCalledTimes(1);
+  });
+
+  it('stage 2 (voice): the shell renders NO window controls itself — the conversation places the row inside its panel via the windowControls slot', () => {
+    // Mirrors the real composition: the widget hands AspenWindowControls
+    // to GeminiConversation, which renders it as the first row inside the
+    // voice panel card. The stand-in child plays that consumer role.
+    render(<FloatingPersonFrame {...baseProps} open mode="voice">
+      <div className="aspen-voice-panel"><AspenWindowControls onMinimize={baseProps.onMinimize} onClose={baseProps.onClose} /><div>captions</div></div>
+    </FloatingPersonFrame>);
+    expect(screen.getAllByRole('button', { name: 'Minimize' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'End conversation' })).toHaveLength(1);
+    const dash = screen.getByRole('button', { name: 'Minimize' });
+    const cluster = dash.closest('.aspen-person-chest-cluster');
+    // The row sits INSIDE the panel element, ahead of the panel content.
+    const panel = dash.closest('.aspen-voice-panel');
+    expect(panel).toBeTruthy();
+    expectBefore(cluster as Element, screen.getByText('captions'));
+    fireEvent.click(dash);
+    expect(baseProps.onMinimize).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: 'End conversation' }));
+    expect(baseProps.onClose).toHaveBeenCalledTimes(1);
   });
 
   it('stage 2: the recording disclosure is small print inside the open view only', () => {

@@ -213,26 +213,30 @@
     .aspen-person-shell .aspen-sales-actions { display: none; }
   }
 
-/* Stage 2 chest cluster: ONE row — drag handle + minimize (dash) + end (X) —
-   straddling the bottom edge of her portrait (chest level), never over her
-   face. The portrait/livebox is 188px tall starting at the shell's top
-   (150px on compact phones), so the 32px cluster sits at its bottom edge. */
-.aspen-person-chest-cluster { position: absolute; left: 50%; top: 170px; transform: translateX(-50%); z-index: 30; display: flex; align-items: center; gap: .25rem; }
+/* Stage 2 window-controls row (historical class name — it began life as
+   the "chest cluster"): ONE in-flow row — drag handle + minimize (dash)
+   + end (X) — at the TOP INSIDE the panel, below its top border: in chat
+   mode the frame renders it between the portrait and the Voice/Type
+   toggle; in voice mode it is the voice panel card's first row.
+   Panel layout fix (2026-11-12, Ron's circled screenshot): this row used
+   to be absolutely positioned across the portrait's bottom edge
+   (top: 170px desktop / 132px compact phones / 102px short viewports),
+   slicing her torso — "half of her body disappears" behind the buttons.
+   In flow it can never overlap the portrait: her rendered box ends
+   cleanly at the panel's top edge and she reads as standing behind the
+   panel. */
+.aspen-person-chest-cluster { display: flex; align-items: center; justify-content: center; gap: .25rem; flex-shrink: 0; }
 .aspen-drag-pill-top { position: absolute; left: 50%; top: 0; transform: translateX(-50%); z-index: 30; }
 .aspen-drag-top > button[data-drag-handle] { position: absolute; left: 50%; top: 0; transform: translateX(-50%); z-index: 30; margin-top: 0; }
-@media (max-width: 639px) {
-  .aspen-person-chest-cluster { top: 132px; }
-}
 /* Short visible viewports (landscape phones, split-screen): shrink the
-   portrait/livebox (188→120px, chest cluster follows at its bottom edge,
-   120−18=102px) and let the voice panel contract below its usual 232px
-   floor, so the whole open panel fits without any scrolling. Width-capped
-   at 1024px so desktop windows keep their current appearance. */
+   portrait/livebox (188→120px) and let the voice panel contract below
+   its usual 232px floor, so the whole open panel fits without any
+   scrolling. Width-capped at 1024px so desktop windows keep their
+   current appearance. */
 @media (max-width: 1024px) and (max-height: 560px) {
   .aspen-person-portrait { height: 120px; }
   .aspen-person-expanded .aspen-person-portrait { height: 120px; }
   .aspen-person-livebox { height: 120px; }
-  .aspen-person-chest-cluster { top: 102px; }
   .aspen-voice-panel { min-height: 0; }
 }
   .aspen-panel { position: relative; z-index: 10; display: flex; flex-direction: column; max-height: min(70dvh, var(--aspen-available-height, 70dvh)); }

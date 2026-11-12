@@ -126,8 +126,8 @@ export interface GeminiShellState {
   replaying: boolean;
   speaking: boolean;
 }
-export interface GeminiConversationProps { agentId?: string; leadId?: string; prospectId?: string; draft?: boolean; compact?: boolean; name?: string; visitorName?: string; previewVoice?: string; autoStart?: boolean; previewOnly?: boolean; previewAudioContext?: AudioContext; testModel?: string; shareToken?: string; onRecommendedPlan?: (plan: SalesPlan) => void; videoAvatar?: VideoAvatar; avatarInline?: boolean; faceFirst?: boolean; avatarUrl?: string; /** The visitor tapped a launcher that already showed the recording notice; that tap is the agreement. */ consentOnOpen?: boolean; /** Open the paid live session silently before the tap so it starts instantly. */ prewarm?: boolean; onPrewarmed?: (ready: boolean) => void; /** Verified Demo Gate: 'pending' starts the session in the Act 1 host phase (verification before simulation); 'verified' or undefined keeps the standard session. */ verification?: "pending" | "verified"; /** Cold-email invite arrival: asks gemini-session for the invite host phase; honored server-side only when the lead's invite arrival was stamped by the demo-invite resolve. */ invite?: boolean; /** One-click example sample (Batch 2): the /agents/realtors examples grid/dropdown marks the session sample=1; forwarded to gemini-session, which honors it only when the lead's stored site URL matches one of the 14 known example sites (that example's listings pack is then stamped into the simulation). */ sample?: boolean; /** Platform guide: 'alex' starts the authenticated setup-guide session (Alex, support specialist) instead of a tenant agent; honored server-side only for signed-in users. */ guide?: "alex"; /** Fires with each finalized visitor transcript line (used by the demo gate to hear a spoken code). */ onUserTranscript?: (text: string) => void; /** Three-stage widget: the shell fills this ref with live-session commands for its Stage 3 bar. */ shellControlsRef?: { current: GeminiShellControls | null }; /** Three-stage widget: receives the live-session snapshot for the Stage 3 bar. */ onShellState?: (state: GeminiShellState) => void; /** Widget chrome rendered BELOW her face — between the portrait/livebox and the captions/chat panel (the Voice/Type toggle lives here, never above her). */ belowAvatar?: ReactNode; /** Avatar swap (Stage 1): fires when the ACTIVE persona changes at a boundary, so the shell identity (name + portrait) follows the speaker. Never fires when the server flag is off. */ onPersonaChange?: (persona: { id: PersonaId; displayName: string }) => void; }
-const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compact = false, name = "Aspen", visitorName = "", previewVoice, autoStart = false, previewOnly = false, previewAudioContext, testModel, shareToken, onRecommendedPlan, videoAvatar, avatarInline = false, faceFirst = false, avatarUrl, consentOnOpen = false, prewarm = false, onPrewarmed, verification, invite, sample, guide, onUserTranscript, shellControlsRef, onShellState, belowAvatar, onPersonaChange }: GeminiConversationProps) => {
+export interface GeminiConversationProps { agentId?: string; leadId?: string; prospectId?: string; draft?: boolean; compact?: boolean; name?: string; visitorName?: string; previewVoice?: string; autoStart?: boolean; previewOnly?: boolean; previewAudioContext?: AudioContext; testModel?: string; shareToken?: string; onRecommendedPlan?: (plan: SalesPlan) => void; videoAvatar?: VideoAvatar; avatarInline?: boolean; faceFirst?: boolean; avatarUrl?: string; /** The visitor tapped a launcher that already showed the recording notice; that tap is the agreement. */ consentOnOpen?: boolean; /** Open the paid live session silently before the tap so it starts instantly. */ prewarm?: boolean; onPrewarmed?: (ready: boolean) => void; /** Verified Demo Gate: 'pending' starts the session in the Act 1 host phase (verification before simulation); 'verified' or undefined keeps the standard session. */ verification?: "pending" | "verified"; /** Cold-email invite arrival: asks gemini-session for the invite host phase; honored server-side only when the lead's invite arrival was stamped by the demo-invite resolve. */ invite?: boolean; /** One-click example sample (Batch 2): the /agents/realtors examples grid/dropdown marks the session sample=1; forwarded to gemini-session, which honors it only when the lead's stored site URL matches one of the 14 known example sites (that example's listings pack is then stamped into the simulation). */ sample?: boolean; /** Platform guide: 'alex' starts the authenticated setup-guide session (Alex, support specialist) instead of a tenant agent; honored server-side only for signed-in users. */ guide?: "alex"; /** Fires with each finalized visitor transcript line (used by the demo gate to hear a spoken code). */ onUserTranscript?: (text: string) => void; /** Three-stage widget: the shell fills this ref with live-session commands for its Stage 3 bar. */ shellControlsRef?: { current: GeminiShellControls | null }; /** Three-stage widget: receives the live-session snapshot for the Stage 3 bar. */ onShellState?: (state: GeminiShellState) => void; /** Widget chrome rendered INSIDE the panel, in the toggle row directly under the window-controls row (the Voice/Type toggle lives here, never over her). */ belowAvatar?: ReactNode; /** Window controls (drag/minimize/end) rendered as the FIRST row inside the panel, below its top border (2026-11-12 panel layout fix: no control overlaps the portrait; the shell hands its AspenWindowControls row here in voice mode). */ windowControls?: ReactNode; /** Avatar swap (Stage 1): fires when the ACTIVE persona changes at a boundary, so the shell identity (name + portrait) follows the speaker. Never fires when the server flag is off. */ onPersonaChange?: (persona: { id: PersonaId; displayName: string }) => void; }
+const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compact = false, name = "Aspen", visitorName = "", previewVoice, autoStart = false, previewOnly = false, previewAudioContext, testModel, shareToken, onRecommendedPlan, videoAvatar, avatarInline = false, faceFirst = false, avatarUrl, consentOnOpen = false, prewarm = false, onPrewarmed, verification, invite, sample, guide, onUserTranscript, shellControlsRef, onShellState, belowAvatar, windowControls, onPersonaChange }: GeminiConversationProps) => {
   const { t } = useTranslation();
   const transcriptAriaLabel = (role: "user" | "assistant") => role === "user" ? t("voice.callerTranscript") : t("voice.aspenTranscript");
   // On the gate's pending → verified flip, the next session is the demo's
@@ -3089,6 +3089,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
   if (!previewOnly && !consentReady && !prewarm) return <div className="space-y-3 p-3 text-foreground">
     {faceFirst && <PersonPortrait name={name} avatarUrl={avatarUrl} />}
+    {windowControls}
     {belowAvatar}
     <div className="space-y-3 rounded-md bg-card p-3">
     <p className="text-sm font-semibold">{t("voice.consentTitle", { name })}</p>
@@ -3211,18 +3212,28 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // the visitor's live line and the history) shows whenever she is silent.
   const liveCaption = aspenSpeaking || partialAspen !== "" || (playbackCaption !== null && playbackCaption.word >= 0);
   const showPlaybackCaption = !!playbackCaption && (!partialUser || liveCaption) && (!faceFirst || captions);
+  // Panel layout fix (2026-11-12): the toggle/manager row moved INSIDE the
+  // voice panel, directly under the window-controls row — it used to sit
+  // between the livebox and the panel, crowding the portrait's bottom
+  // edge. One row element, two placements: inside the panel card in
+  // face-first mode; in the legacy non-face-first compact flow it keeps
+  // its spot under the avatar (there is no panel card there).
+  const toggleManagerRow = (belowAvatar || transferPill) ? (
+    <div data-testid="toggle-manager-row" className="flex shrink-0 items-start gap-1 py-1">
+      <div aria-hidden className="flex-1" />
+      <div className="flex shrink-0 justify-center">{belowAvatar}</div>
+      <div className="flex min-w-0 flex-1 flex-col items-end">{transferPill}</div>
+    </div>
+  ) : null;
   if (compact) {
     return (
       <div className={faceFirst ? "flex h-full min-h-0 flex-1 flex-col px-2 pb-2 pt-0 text-foreground" : "space-y-2 p-2 text-foreground"}>
         {faceFirst ? <div className="aspen-person-livebox relative z-0 mx-auto shrink-0 overflow-hidden"><div className={`h-full w-full ${faceLive ? 'invisible' : ''}`}><PersonPortrait name={name} avatarUrl={avatarUrl} animated={false} /></div>{avatarView}{stagedAvatarView}</div> : <>{avatarView}{stagedAvatarView}</>}
-        {(belowAvatar || transferPill) && (
-          <div data-testid="toggle-manager-row" className="flex shrink-0 items-start gap-1 py-1">
-            <div aria-hidden className="flex-1" />
-            <div className="flex shrink-0 justify-center">{belowAvatar}</div>
-            <div className="flex min-w-0 flex-1 flex-col items-end">{transferPill}</div>
-          </div>
-        )}
+        {!faceFirst && windowControls}
+        {!faceFirst && toggleManagerRow}
         <div className={faceFirst ? 'aspen-voice-panel relative z-10 flex min-h-0 flex-1 flex-col space-y-2 rounded-lg border border-primary/40 bg-card p-2 shadow-lg ring-1 ring-foreground/10' : 'space-y-2'}>
+        {faceFirst && windowControls}
+        {faceFirst && toggleManagerRow}
         <div className="flex items-center gap-1.5">
           {shownPhase === "connecting" && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" />}
           {shownPhase === "live" && !aspenSpeaking && <Mic className="h-3.5 w-3.5 shrink-0 animate-pulse text-primary" />}

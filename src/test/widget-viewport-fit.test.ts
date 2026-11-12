@@ -106,13 +106,25 @@ describe("widget viewport fit — stage 3 and short viewports", () => {
     expect(start).toBeGreaterThanOrEqual(0);
     const block = css.slice(start, start + 600);
     expect(block).toContain(".aspen-person-livebox { height: 120px; }");
-    expect(block).toContain(".aspen-person-chest-cluster { top: 102px; }");
     expect(block).toContain(".aspen-voice-panel { min-height: 0; }");
+    // The window-controls row is in flow (2026-11-12 panel layout fix):
+    // no per-breakpoint top offset follows the shrinking portrait anymore.
+    expect(block).not.toContain(".aspen-person-chest-cluster");
   });
 
   it("desktop rules are untouched: portrait stays 234x188 and the panel floor stays 232px", () => {
     expect(rule(".aspen-person-livebox {")).toContain("width: 234px; height: 188px");
     expect(rule(".aspen-voice-panel {")).toContain("min-height: 232px");
-    expect(rule(".aspen-person-chest-cluster {")).toContain("top: 170px");
+  });
+
+  it("the window-controls row is in flow inside the panel — never an absolute overlay on the portrait (2026-11-12)", () => {
+    const cluster = rule(".aspen-person-chest-cluster {");
+    expect(cluster).toContain("display: flex");
+    expect(cluster).toContain("flex-shrink: 0");
+    // The old chest-overlay geometry is gone at every breakpoint: no
+    // absolute positioning, no top offset keyed to the portrait height.
+    expect(cluster).not.toContain("position: absolute");
+    expect(cluster).not.toContain("top:");
+    expect(css).not.toContain(".aspen-person-chest-cluster { top:");
   });
 });
