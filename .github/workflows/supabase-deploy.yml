@@ -40,37 +40,40 @@ jobs:
         # Every statement below is a SELECT. Nothing in this step writes to the
         # remote project; it exists so migration state can be proven from the
         # run log before any deploy step is allowed to touch production.
+        # HARDENED (2026-11-12, run 43326565091): every probe carries '|| true' —
+        # pre-deploy the suite tables do not exist yet, and one erroring probe
+        # must not black out the remaining reconciliation facts.
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
           PSQL="psql postgresql://postgres.$SUPABASE_PROJECT_ID@aws-0-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require -v ON_ERROR_STOP=0 -At"
           export PGPASSWORD="$SUPABASE_DB_PASSWORD"
           echo '=== core schema_migrations table present? ==='
-          $PSQL -c "SELECT coalesce(to_regclass('supabase_migrations.schema_migrations')::text, 'MISSING');"
+          $PSQL -c "SELECT coalesce(to_regclass('supabase_migrations.schema_migrations')::text, 'MISSING');" || true
           echo '=== core migrations recorded remotely: count|min|max ==='
-          $PSQL -c "SELECT count(*) || '|' || coalesce(min(version), '') || '|' || coalesce(max(version), '') FROM supabase_migrations.schema_migrations;"
+          $PSQL -c "SELECT count(*) || '|' || coalesce(min(version), '') || '|' || coalesce(max(version), '') FROM supabase_migrations.schema_migrations;" || true
           echo '=== core migration versions recorded remotely ==='
-          $PSQL -c "SELECT string_agg(version, ',' ORDER BY version) FROM supabase_migrations.schema_migrations;"
+          $PSQL -c "SELECT string_agg(version, ',' ORDER BY version) FROM supabase_migrations.schema_migrations;" || true
           echo '=== recent core migration marker objects ==='
-          $PSQL -c "SELECT coalesce(to_regclass('public.demo_verification_codes')::text, 'MISSING');"
-          $PSQL -c "SELECT count(*) FROM information_schema.columns WHERE table_schema = 'public' AND column_name = 'phone_demo_enabled';"
+          $PSQL -c "SELECT coalesce(to_regclass('public.demo_verification_codes')::text, 'MISSING');" || true
+          $PSQL -c "SELECT count(*) FROM information_schema.columns WHERE table_schema = 'public' AND column_name = 'phone_demo_enabled';" || true
           echo '=== usage suite objects (drizzle 0020) ==='
-          $PSQL -c "SELECT coalesce(to_regclass('public.usage_events')::text, 'MISSING') || '|' || coalesce(to_regclass('public.usage_report_settings')::text, 'MISSING') || '|' || coalesce(to_regclass('public.minute_packs')::text, 'MISSING') || '|' || coalesce(to_regclass('public.minute_pack_purchases')::text, 'MISSING');"
+          $PSQL -c "SELECT coalesce(to_regclass('public.usage_events')::text, 'MISSING') || '|' || coalesce(to_regclass('public.usage_report_settings')::text, 'MISSING') || '|' || coalesce(to_regclass('public.minute_packs')::text, 'MISSING') || '|' || coalesce(to_regclass('public.minute_pack_purchases')::text, 'MISSING');" || true
           echo '=== RLS flags on suite tables ==='
-          $PSQL -c "SELECT c.relname || '=' || c.relrowsecurity FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relname IN ('usage_events', 'usage_report_settings', 'minute_packs', 'minute_pack_purchases') ORDER BY 1;"
+          $PSQL -c "SELECT c.relname || '=' || c.relrowsecurity FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relname IN ('usage_events', 'usage_report_settings', 'minute_packs', 'minute_pack_purchases') ORDER BY 1;" || true
           echo '=== usage_events rows by service (count|minutes) ==='
-          $PSQL -c "SELECT service || '|' || count(*) || '|' || round(coalesce(sum(minutes), 0)::numeric, 1) FROM public.usage_events GROUP BY service ORDER BY 1;"
+          $PSQL -c "SELECT service || '|' || count(*) || '|' || round(coalesce(sum(minutes), 0)::numeric, 1) FROM public.usage_events GROUP BY service ORDER BY 1;" || true
           echo '=== usage_report_settings row count (must be 0 pre-launch) ==='
-          $PSQL -c "SELECT count(*) FROM public.usage_report_settings;"
+          $PSQL -c "SELECT count(*) FROM public.usage_report_settings;" || true
           echo '=== minute_packs catalog rows ==='
-          $PSQL -c "SELECT count(*) FROM public.minute_packs;"
+          $PSQL -c "SELECT count(*) FROM public.minute_packs;" || true
           echo '=== pg_cron jobs (engine must stay unscheduled) ==='
-          $PSQL -c "SELECT coalesce(to_regclass('cron.job')::text, 'MISSING');"
-          $PSQL -c "SELECT jobname || '|' || schedule || '|' || active FROM cron.job ORDER BY 1;"
+          $PSQL -c "SELECT coalesce(to_regclass('cron.job')::text, 'MISSING');" || true
+          $PSQL -c "SELECT jobname || '|' || schedule || '|' || active FROM cron.job ORDER BY 1;" || true
           echo '=== duration/timestamp columns on source tables ==='
-          $PSQL -c "SELECT table_name || '.' || column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name IN ('gemini_voice_sessions', 'telephony_calls') AND (column_name ILIKE '%duration%' OR column_name ILIKE '%created%' OR column_name ILIKE '%started%') ORDER BY 1, 2;"
+          $PSQL -c "SELECT table_name || '.' || column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name IN ('gemini_voice_sessions', 'telephony_calls') AND (column_name ILIKE '%duration%' OR column_name ILIKE '%created%' OR column_name ILIKE '%started%') ORDER BY 1, 2;" || true
           echo '=== November 2026 source baselines (count|with-duration|minutes) ==='
-          $PSQL -c "SELECT count(*) || '|' || count(*) FILTER (WHERE duration_seconds > 0) || '|' || round(coalesce(sum(duration_seconds), 0) / 60.0, 1) FROM public.gemini_voice_sessions WHERE created_at >= '2026-11-01' AND created_at < '2026-12-01';"
-          $PSQL -c "SELECT count(*) || '|' || count(*) FILTER (WHERE duration_seconds > 0) || '|' || round(coalesce(sum(duration_seconds), 0) / 60.0, 1) FROM public.telephony_calls WHERE created_at >= '2026-11-01' AND created_at < '2026-12-01';"
+          $PSQL -c "SELECT count(*) || '|' || count(*) FILTER (WHERE duration_seconds > 0) || '|' || round(coalesce(sum(duration_seconds), 0) / 60.0, 1) FROM public.gemini_voice_sessions WHERE created_at >= '2026-11-01' AND created_at < '2026-12-01';" || true
+          $PSQL -c "SELECT count(*) || '|' || count(*) FILTER (WHERE duration_seconds > 0) || '|' || round(coalesce(sum(duration_seconds), 0) / 60.0, 1) FROM public.telephony_calls WHERE created_at >= '2026-11-01' AND created_at < '2026-12-01';" || true
         env:
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
           SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
