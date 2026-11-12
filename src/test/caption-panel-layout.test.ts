@@ -84,8 +84,8 @@ describe("caption panel — demo timer is a pill in the header row", () => {
 
 describe("caption panel — manager transfer is a compact pill in the Voice/Type toggle row (Batch 1 move, 2026-11-12)", () => {
   it("the pill variant shares the exact visibility gate as the standalone control", () => {
-    expect(conversation).toContain("const transferPill = phase === 'live' && handoffToken ? <BrowserVoiceHandoff pill token={handoffToken} onActive={onHandoffActive} microphone={microphone} startSignal={handoffStartSignal}/> : null;");
-    expect(conversation).toContain("const transferControl = phase === 'live' && handoffToken ? <BrowserVoiceHandoff token={handoffToken} onActive={onHandoffActive} microphone={microphone} startSignal={handoffStartSignal}/> : null;");
+    expect(conversation).toContain("const transferPill = phase === 'live' && handoffToken ? <BrowserVoiceHandoff pill token={handoffToken} onActive={onHandoffActive} onEnded={onHandoffEnded} microphone={microphone} startSignal={handoffStartSignal}/> : null;");
+    expect(conversation).toContain("const transferControl = phase === 'live' && handoffToken ? <BrowserVoiceHandoff token={handoffToken} onActive={onHandoffActive} onEnded={onHandoffEnded} microphone={microphone} startSignal={handoffStartSignal}/> : null;");
   });
 
   it("the pill is rendered in the toggle row, NOT in the voice-controls row (it wrapped onto its own row on phones there)", () => {

@@ -24,54 +24,60 @@ const occurrences = (haystack: string, needle: string) => haystack.split(needle)
 describe('managerTransferAnnouncement — the wording matrix', () => {
   it('transferRole wins over realtor, name and business defaults', () => {
     expect(managerTransferAnnouncement({ transferRole: 'the owner', realtorLanding: true, transferManagerName: 'Sarah Chen', businessName: 'Bright Realty' }))
-      .toBe("I'll transfer you to the owner from Bright Realty now.");
+      .toBe("I'll transfer you to the owner from Bright Realty now. I'll stay right here until you're through — then I'll step away, and you can talk to the owner directly.");
   });
 
   it('transferRole without a business name', () => {
     expect(managerTransferAnnouncement({ transferRole: 'a sales director' }))
-      .toBe("I'll transfer you to a sales director now.");
+      .toBe("I'll transfer you to a sales director now. I'll stay right here until you're through — then I'll step away, and you can talk to a sales director directly.");
   });
 
   it('a blank or non-string transferRole falls through', () => {
     expect(managerTransferAnnouncement({ transferRole: '   ', realtorLanding: true, businessName: 'Bright Realty' }))
-      .toBe("I'll transfer you to a realtor from Bright Realty now.");
+      .toBe("I'll transfer you to a realtor from Bright Realty now. I'll stay right here until you're through — then I'll step away, and you can talk to a realtor directly.");
     expect(managerTransferAnnouncement({ transferRole: 42 }))
-      .toBe("I'll transfer you to the manager now.");
+      .toBe("I'll transfer you to the manager now. I'll stay right here until you're through — then I'll step away, and you can talk to the manager directly.");
   });
 
   it('realtor landing transfers to a realtor, with and without the business name', () => {
     expect(managerTransferAnnouncement({ realtorLanding: true, businessName: 'Bright Realty' }))
-      .toBe("I'll transfer you to a realtor from Bright Realty now.");
+      .toBe("I'll transfer you to a realtor from Bright Realty now. I'll stay right here until you're through — then I'll step away, and you can talk to a realtor directly.");
     expect(managerTransferAnnouncement({ realtorLanding: true }))
-      .toBe("I'll transfer you to a realtor now.");
+      .toBe("I'll transfer you to a realtor now. I'll stay right here until you're through — then I'll step away, and you can talk to a realtor directly.");
   });
 
   it('a real manager name is the person, with and without the business name', () => {
     expect(managerTransferAnnouncement({ transferManagerName: 'Sarah Chen', businessName: 'Bright Realty' }))
-      .toBe("I'll transfer you to Sarah Chen from Bright Realty now.");
+      .toBe("I'll transfer you to Sarah Chen from Bright Realty now. I'll stay right here until you're through — then I'll step away, and you can talk to Sarah Chen directly.");
     expect(managerTransferAnnouncement({ transferManagerName: 'Sarah Chen' }))
-      .toBe("I'll transfer you to Sarah Chen now.");
+      .toBe("I'll transfer you to Sarah Chen now. I'll stay right here until you're through — then I'll step away, and you can talk to Sarah Chen directly.");
   });
 
   it("the placeholder 'the manager' is not treated as a person's name", () => {
     expect(managerTransferAnnouncement({ transferManagerName: 'the manager', businessName: 'Acme' }))
-      .toBe("I'll transfer you to the manager from Acme now.");
+      .toBe("I'll transfer you to the manager from Acme now. I'll stay right here until you're through — then I'll step away, and you can talk to the manager directly.");
   });
 
   it('empty config and non-string fields fall back to the plain manager line', () => {
-    expect(managerTransferAnnouncement({})).toBe("I'll transfer you to the manager now.");
+    expect(managerTransferAnnouncement({})).toBe("I'll transfer you to the manager now. I'll stay right here until you're through — then I'll step away, and you can talk to the manager directly.");
     expect(managerTransferAnnouncement({ transferManagerName: '', businessName: '' }))
-      .toBe("I'll transfer you to the manager now.");
+      .toBe("I'll transfer you to the manager now. I'll stay right here until you're through — then I'll step away, and you can talk to the manager directly.");
     expect(managerTransferAnnouncement({ transferManagerName: 42, businessName: 7 }))
-      .toBe("I'll transfer you to the manager now.");
+      .toBe("I'll transfer you to the manager now. I'll stay right here until you're through — then I'll step away, and you can talk to the manager directly.");
   });
 
-  it('the announcement is always exactly one short line', () => {
+  it('the announcement is one line: transfer sentence + stay-until-connected sentence', () => {
+    // Handoff improvement batch (2026-11-12): Ron's stay-until-
+    // connected wording rides as the announcement's second sentence;
+    // the shape pinned before (a bare one-sentence line ending in
+    // 'now.') was Batch 1's and is superseded by that design.
     for (const config of [{}, { realtorLanding: true, businessName: 'Bright Realty' }, { transferManagerName: 'Sarah Chen', businessName: 'Bright Realty' }]) {
       const line = managerTransferAnnouncement(config);
       expect(line).not.toContain('\n');
-      expect(line.split(' ').length).toBeLessThanOrEqual(10);
-      expect(line.endsWith('now.')).toBe(true);
+      expect(line).toContain(' now. ');
+      expect(line).toContain("I'll stay right here until you're through");
+      expect(line).toContain('step away');
+      expect(line.endsWith('directly.')).toBe(true);
     }
   });
 });
@@ -86,6 +92,7 @@ describe('the transfer policy + timing constants', () => {
     expect(MANAGER_TRANSFER_POLICY).toContain('manager, the owner, or a real person');
     expect(MANAGER_TRANSFER_POLICY).toContain('Never claim the transfer has happened');
     expect(MANAGER_TRANSFER_POLICY).toContain('on-screen Manager button');
+    expect(MANAGER_TRANSFER_POLICY).toContain('stay right here until they are through');
   });
 });
 
@@ -131,7 +138,11 @@ describe('proxy wiring — declaration, gate and dispatch', () => {
 
   it('the setup instruction block is appended ONLY when the tool is available', () => {
     expect(src).toContain("const managerTransferBlock = managerTransferAvailable ? `\\n${MANAGER_TRANSFER_POLICY}` : ''");
-    expect(src).toContain('${managerTransferBlock}` }] }');
+    // Handoff improvement batch: the overage pin appends immediately
+    // after the transfer block (its own homepageSales-only gate is
+    // pinned in overage-facts.test.ts); the transfer block's position
+    // at the very end of the system instruction is unchanged.
+    expect(src).toContain('${managerTransferBlock}${overageBlock}` }] }');
   });
 
   it('closeAll clears the scheduled handoff start', () => {

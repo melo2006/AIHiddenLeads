@@ -40,6 +40,10 @@ FUNCTIONS_SRC="${REPO_ROOT}/supabase/functions"
 # The proxy's transitive _shared import closure, RE-TRACED 2026-11-12 against
 # Batch 1 (28 modules — the 2026-11-11 trace had 24; Batch 1's proxy work
 # added browser-handoff, contact-save, farewell and manager-transfer).
+# Handoff improvement batch (2026-11-12) re-trace: 30 modules — the proxy
+# now also imports handoff-return and overage-facts. (handoff-briefing-
+# voice is imported only by browser-voice-handoff, which does not run on
+# this box, so it is deliberately NOT in the closure.)
 # deno cache (step 4) is the authority: a missing file fails the deploy.
 SHARED_CLOSURE=(
   booking-confirm.ts
@@ -53,6 +57,7 @@ SHARED_CLOSURE=(
   demo-sales.ts
   farewell.ts
   followup.ts
+  handoff-return.ts
   homepage-evidence.ts
   homepage-knowledge.ts
   homepage-pacing.ts
@@ -60,6 +65,7 @@ SHARED_CLOSURE=(
   hostinger-mail.ts
   live-models.ts
   manager-transfer.ts
+  overage-facts.ts
   phone-demo.ts
   platform-calendar.ts
   recording-audio.ts

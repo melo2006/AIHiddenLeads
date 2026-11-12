@@ -18,14 +18,14 @@ export const MANAGER_HANDOFF_DELAY_MS = 4000;
 /** Setup instruction appended ONLY when the transfer tool is declared
  *  (the proxy adds it conditionally, so sessions without the tool keep
  *  a byte-identical system prompt). */
-export const MANAGER_TRANSFER_POLICY = `MANAGER TRANSFER TOOL: When the visitor asks to speak to a manager, the owner, or a real person, call request_manager_transfer. Say the announcement the tool result returns, exactly once, and then stop talking while the transfer connects. Never claim the transfer has happened, or that anyone has answered, before the tool succeeds. If request_manager_transfer is not available in this session, do not promise a live transfer — offer the on-screen Manager button instead, and if there is no button either, take their name and number for a callback.`;
+export const MANAGER_TRANSFER_POLICY = `MANAGER TRANSFER TOOL: When the visitor asks to speak to a manager, the owner, or a real person, call request_manager_transfer. Say the announcement the tool result returns, exactly once, and then stop talking while the transfer connects. The announcement itself tells the visitor you will stay right here until they are through and then step away — do not repeat that promise in other words, and never say you have stepped away, or that anyone has answered, before the handoff actually connects. Never claim the transfer has happened, or that anyone has answered, before the tool succeeds. If request_manager_transfer is not available in this session, do not promise a live transfer — offer the on-screen Manager button instead, and if there is no button either, take their name and number for a callback.`;
 
 function clean(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
 /**
- * The one short line Aspen says as the transfer starts, aware of the
+ * The announcement Aspen says as the transfer starts, aware of the
  * business she is answering for:
  *  - config.transferRole, when a non-empty string, names the role
  *    ("the owner", "a sales director") and wins over everything else.
@@ -35,14 +35,23 @@ function clean(value: unknown): string {
  *  - Otherwise the generic "the manager".
  * The business name rides along as "from {businessName}" whenever the
  * session config carries one.
+ *
+ * Handoff improvement batch (2026-11-12, Ron's design): the
+ * announcement carries a second sentence — she STAYS until the
+ * connection is through, then steps away so the visitor talks to
+ * the person directly. It rides inside the announcement (said once,
+ * word for word, per the tool-result instruction) rather than as a
+ * separate line, so the say-it-once + stop-talking contract and the
+ * 4s handoff-start timing are unchanged.
  */
 export function managerTransferAnnouncement(config: Record<string, unknown>): string {
   const role = clean(config.transferRole);
   const managerName = clean(config.transferManagerName);
   const businessName = clean(config.businessName);
   const from = businessName ? ` from ${businessName}` : '';
-  if (role) return `I'll transfer you to ${role}${from} now.`;
-  if (config.realtorLanding) return `I'll transfer you to a realtor${from} now.`;
-  if (managerName && managerName !== 'the manager') return `I'll transfer you to ${managerName}${from} now.`;
-  return `I'll transfer you to the manager${from} now.`;
+  const stay = (target: string) => `I'll transfer you to ${target}${from} now. I'll stay right here until you're through — then I'll step away, and you can talk to ${target} directly.`;
+  if (role) return stay(role);
+  if (config.realtorLanding) return stay('a realtor');
+  if (managerName && managerName !== 'the manager') return stay(managerName);
+  return stay('the manager');
 }
