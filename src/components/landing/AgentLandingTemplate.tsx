@@ -43,6 +43,7 @@ import {
   REALTOR_LINE_DISPLAY,
   TOLL_FREE_DISPLAY,
 } from "@/lib/phoneDisplay";
+import { pinnedLeadIdForExampleUrl } from "@/data/realtorExamplePinnedLeads";
 import aspenPortrait from "@/assets/aspen-idle-wave.gif";
 // Final hero photos — the 8-slide set Ron approved in chat
 // (2026-11-11), sourced from ~/workspace/hero-approved/.
@@ -352,10 +353,22 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
   // URL, marked as a sample launch (sample=1) and carrying the generic
   // visitor name the data entry supplies (callerName — the param the
   // demo flow already threads into the session's visitorName).
+  // Examples with a PINNED demo lead (pre-scanned once, refreshed
+  // weekly — src/data/realtorExamplePinnedLeads.ts) also carry leadId:
+  // /demo-site then loads the stored scan and opens without the
+  // ~2-minute rebuild every visitor used to wait through. The URL
+  // stays in the link — /demo's sample forwarder requires it, and the
+  // demo loading state keys off it. An example without a pinned lead
+  // falls back to the original URL-only launch (fresh scan), so a new
+  // example can ship before its pinned lead exists.
   const runExampleDemo = (exampleUrl: string) => {
     if (!exampleUrl || !vertical.demoExamples) return;
+    const visitorName = encodeURIComponent(vertical.demoExamples.visitorName);
+    const pinnedLeadId = pinnedLeadIdForExampleUrl(exampleUrl);
     navigate(
-      `/demo?url=${encodeURIComponent(exampleUrl)}&sample=1&callerName=${encodeURIComponent(vertical.demoExamples.visitorName)}`,
+      pinnedLeadId
+        ? `/demo?leadId=${pinnedLeadId}&url=${encodeURIComponent(exampleUrl)}&sample=1&callerName=${visitorName}`
+        : `/demo?url=${encodeURIComponent(exampleUrl)}&sample=1&callerName=${visitorName}`,
     );
   };
 
