@@ -44,6 +44,28 @@ export interface AgentVertical {
   heroSlidesCredit?: string;
   headline: string;
   sub: string;
+  /**
+   * Optional spend-hook tagline rendered directly under the hero
+   * headline/sub (owner-approved verbatim 2026-11-12): the agent
+   * already pays to be found; the tagline names the moment Aspen
+   * covers. heroTaglineSub is its supporting line.
+   */
+  heroTagline?: string;
+  heroTaglineSub?: string;
+  /**
+   * Optional "You already bought the attention" section, rendered
+   * between the examples grid and the stats band when present: three
+   * tiles (the agent's farming, their placement, Aspen as the
+   * answer), the verified never-answered stat as the sting (rendered
+   * from this vertical's stats — no separate figure lives here), and
+   * a social strip presenting social media management as an
+   * available add-on, no invented results.
+   */
+  attention?: {
+    heading: string;
+    tiles: { title: string; body: string }[];
+    socialStrip: string;
+  };
   pains: { title: string; body: string }[];
   sampleCall: {
     buyerTitle: string;
@@ -75,6 +97,21 @@ export interface AgentVertical {
    * hero list), rendered as a balanced checklist when present.
    */
   services?: string[];
+  /**
+   * Optional plain-language note rendered under the services checklist:
+   * what the plan's included "prospects" mean FOR THIS VERTICAL. The
+   * shared service name stays the general B2B one; a vertical whose
+   * buyers are consumers must translate it here so the page never lets
+   * "prospects" read as consumer leads (owner-directed 2026-11-12).
+   */
+  prospectsNote?: string;
+  /**
+   * Optional extra bullet for the focused Premium summary card: the
+   * plan's included prospects, translated for this vertical (see
+   * prospectsNote). Rendered only when present; the card adds the
+   * standing "*Up to 50/month — no specific count guaranteed" footnote.
+   */
+  premiumProspectsBullet?: string;
   /**
    * "Areas we serve" strip — a visible locality list grouped by
    * county, rendered near the bottom of the page when present.
@@ -185,6 +222,28 @@ export const REALTOR_VERTICAL: AgentVertical = {
   headline:
     "Realtors: Never Miss a Buyer or Seller Call Again — Even at a Showing",
   sub: "Aspen answers calls and website visitors 24/7, books the appointment, sends the summary.",
+  heroTagline: "You pay to be found. We make sure you're answered.",
+  heroTaglineSub:
+    "Your bench ad, your billboard, your Zillow Premier profile — they all end at a ringing phone or a website visit. Aspen is there for that moment, 24/7.",
+  attention: {
+    heading: "You already bought the attention",
+    tiles: [
+      {
+        title: "Your farming",
+        body: "Benches, bus sides, billboards, mailers — your name out in the neighborhoods you farm, working even when you're not there to answer it.",
+      },
+      {
+        title: "Your placement",
+        body: "Zillow, Realtor.com, Google, Facebook — paying to sit at the top of the list at the exact moment a buyer or seller goes looking.",
+      },
+      {
+        title: "Your answer",
+        body: "Every call and click those dollars produce, answered in seconds — nights, weekends, mid-showing. This is the part Aspen covers, 24/7.",
+      },
+    ],
+    socialStrip:
+      "Want the funnel fuller? Add social media management — we create, post, and reply for you, so there's more of the right attention for Aspen to answer.",
+  },
   pains: [
     {
       title: "You're at a showing — and the ready buyer hangs up",
@@ -304,6 +363,10 @@ export const REALTOR_VERTICAL: AgentVertical = {
     "Comments & Reviews, Answered",
     "Website Revamp or a Brand-New Site",
   ],
+  prospectsNote:
+    "What “prospects” means for a realtor: not buyers — there is no list of ready home buyers, and we won't pretend otherwise. The up to 50 prospects a month* included in your plan are referral partners: local mortgage brokers, insurance agents, home inspectors, stagers and contractors who can send you clients. Your buyers and sellers come from your own calls, website and portals — and Aspen captures and nurtures every one of them. *Up to 50/month — no specific count guaranteed.",
+  premiumProspectsBullet:
+    "Referral-partner prospects included — up to 50/month*: local mortgage brokers, insurance agents, home inspectors, stagers and contractors who can send you clients (not buyer leads — your buyers come from your own traffic, and Aspen captures every one)",
   demoExamples: {
     intro:
       "No typing needed — pick an example realtor website and watch the demo run on it live:",
@@ -521,7 +584,11 @@ export const REALTOR_VERTICAL: AgentVertical = {
   faq: [
     {
       q: "Do you only serve realtors?",
-      a: "No. AiHiddenLeads serves small and midsize businesses of many kinds. This page is built for realtors — the examples, the sample call, and the add-ons speak your language — on the same Premium plan every customer gets.",
+      a: "No. AiHiddenLeads serves small and midsize businesses of many kinds — and we cater to realtors: the examples, the sample call, and the add-ons speak your language — on the same Premium plan every customer gets.",
+    },
+    {
+      q: "Will you send me buyer leads?",
+      a: "No — and be wary of anyone who promises that. There is no list of ready home buyers to send. The prospects included in your plan — up to 50 a month* — are referral partners for a realtor: local mortgage brokers, insurance agents, home inspectors, stagers and contractors who can send you clients. Your buyers and sellers come from your own traffic — your calls, your website, the portals, your sphere. What Aspen does is make sure you never lose them: she answers every call and website inquiry in seconds, qualifies the buyer or seller, books the showing or consultation, and follows up — turning your own traffic into captured, nurtured leads instead of missed calls. *Up to 50/month — no specific count guaranteed.",
     },
     {
       q: "What does Aspen actually do on a call?",

@@ -115,6 +115,21 @@ describe('the realtor conversation layer — answers mapped to help', () => {
     expect(REALTOR_CONVERSATION_LAYER).toContain('$499');
   });
 
+  it('the prospects question: referral partners for a realtor — never buyer leads (owner-directed 2026-11-12)', () => {
+    expect(REALTOR_CONVERSATION_LAYER).toContain('THE PROSPECTS QUESTION');
+    expect(REALTOR_CONVERSATION_LAYER).toContain('REFERRAL-PARTNER prospects');
+    expect(REALTOR_CONVERSATION_LAYER).toContain('mortgage brokers, insurance agents, home inspectors, stagers, contractors');
+    expect(REALTOR_CONVERSATION_LAYER).toContain('AiHiddenLeads has no list of home buyers');
+    expect(REALTOR_CONVERSATION_LAYER).toContain('never present the plan\'s prospects as buyers');
+    expect(REALTOR_CONVERSATION_LAYER).toContain('will you send me buyers?');
+    expect(REALTOR_CONVERSATION_LAYER).toContain('no specific count is guaranteed');
+    // Buyers come from the agent's own traffic; Aspen captures + nurtures it.
+    expect(REALTOR_CONVERSATION_LAYER).toContain('captured and nurtured into booked appointments');
+    expect(REALTOR_CONVERSATION_LAYER).toContain('answer every call and website inquiry in seconds, 24/7');
+    // The plan-table sentence in the answer mapping defers to this translation.
+    expect(REALTOR_CONVERSATION_LAYER).toContain('answer from the plan table as usual');
+  });
+
   it('cold portal leads map to speed-to-lead follow-up', () => {
     expect(REALTOR_CONVERSATION_LAYER).toContain('speed-to-lead follow-up');
     expect(REALTOR_CONVERSATION_LAYER).toContain('first agent to answer wins the client');

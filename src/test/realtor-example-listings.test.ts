@@ -271,10 +271,10 @@ describe("realtor layer — listings first and examples pitch (Batch 2, greeting
     expect(ownSiteAt).toBeGreaterThan(-1);
   });
 
-  it("leaves the owner-approved greeting rotation byte-identical", () => {
-    expect(REALTOR_GREETING_VARIANTS).toHaveLength(3);
+  it("pins the greeting rotation's opening (cater-to revision, owner-directed 2026-11-12)", () => {
+    expect(REALTOR_GREETING_VARIANTS).toHaveLength(4);
     expect(REALTOR_GREETING_VARIANTS[0]).toMatch(
-      /^Hi, I'm Aspen — and this page was built for realtors\./,
+      /^Hi, I'm Aspen — and at AiHiddenLeads, we cater to realtors\./,
     );
   });
 });

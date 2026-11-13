@@ -858,4 +858,110 @@ describe("realtor landing page — shared template + pricing rules", () => {
     expect(templateSource).not.toContain("TestimonialSection");
     expect(templateSource.toLowerCase()).not.toMatch(/we only serve realtors/);
   });
+
+  it("cater-to framing, not page-centric (owner-directed 2026-11-12)", () => {
+    const only = REALTOR_VERTICAL.faq.find(
+      (f) => f.q === "Do you only serve realtors?",
+    );
+    expect(only?.a).toContain("we cater to realtors");
+    expect(only?.a).not.toContain("This page is");
+  });
+
+  it("prospects truth for realtors: referral partners, never buyer leads (owner-directed 2026-11-12)", () => {
+    const buyers = REALTOR_VERTICAL.faq.find(
+      (f) => f.q === "Will you send me buyer leads?",
+    );
+    expect(buyers).toBeDefined();
+    expect(buyers?.a).toMatch(/^No /);
+    expect(buyers?.a).toContain("no list of ready home buyers");
+    expect(buyers?.a).toContain("referral partners");
+    expect(buyers?.a).toContain("mortgage brokers, insurance agents, home inspectors, stagers and contractors");
+    expect(buyers?.a).toContain("captured, nurtured leads");
+    expect(buyers?.a).toContain("no specific count guaranteed");
+    // Services checklist keeps the shared B2B service name; the vertical
+    // note + the Premium bullet translate it for realtors, gated in the
+    // template on the data fields.
+    expect(REALTOR_VERTICAL.prospectsNote).toContain("not buyers");
+    expect(REALTOR_VERTICAL.prospectsNote).toContain("referral partners");
+    expect(REALTOR_VERTICAL.prospectsNote).toContain("no specific count guaranteed");
+    expect(REALTOR_VERTICAL.premiumProspectsBullet).toContain("Referral-partner prospects included");
+    expect(REALTOR_VERTICAL.premiumProspectsBullet).toContain("not buyer leads");
+    expect(templateSource).toContain("vertical.prospectsNote");
+    expect(templateSource).toContain("vertical.premiumProspectsBullet");
+    expect(templateSource).toContain("*Up to 50/month — no specific count guaranteed.");
+  });
+});
+
+describe("realtor landing page — spend-hook package (owner-approved verbatim 2026-11-12)", () => {
+  it("hero tagline + subline are the exact approved lines, rendered under the hero sub", () => {
+    expect(REALTOR_VERTICAL.heroTagline).toBe(
+      "You pay to be found. We make sure you're answered.",
+    );
+    expect(REALTOR_VERTICAL.heroTaglineSub).toBe(
+      "Your bench ad, your billboard, your Zillow Premier profile — they all end at a ringing phone or a website visit. Aspen is there for that moment, 24/7.",
+    );
+    expect(templateSource).toContain("data-agent-hero-tagline");
+    expect(templateSource).toContain("vertical.heroTagline");
+    expect(templateSource).toContain("vertical.heroTaglineSub");
+    // Placement: under the hero headline/sub, before the demo CTA row.
+    const taglineAt = templateSource.indexOf("data-agent-hero-tagline");
+    expect(taglineAt).toBeGreaterThan(templateSource.indexOf("vertical.sub"));
+    expect(taglineAt).toBeLessThan(
+      templateSource.indexOf("Try it free on your own website"),
+    );
+  });
+
+  it("attention section: heading + the three approved tiles, in order", () => {
+    const attention = REALTOR_VERTICAL.attention;
+    expect(attention).toBeDefined();
+    expect(attention?.heading).toBe("You already bought the attention");
+    expect(attention?.tiles.map((t) => t.title)).toEqual([
+      "Your farming",
+      "Your placement",
+      "Your answer",
+    ]);
+    const tiles = (attention?.tiles ?? [])
+      .map((t) => `${t.title} ${t.body}`)
+      .join("\n");
+    // (a) farming channels
+    expect(tiles).toMatch(/Benches, bus sides, billboards, mailers/);
+    // (b) placement channels + paying for the top of the list
+    expect(tiles).toMatch(/Zillow, Realtor\.com, Google, Facebook/);
+    expect(tiles).toMatch(/top of the list/);
+    // (c) the answer: seconds, nights, weekends, mid-showing
+    expect(tiles).toMatch(/answered in seconds/);
+    expect(tiles).toMatch(/nights, weekends, mid-showing/);
+    expect(templateSource).toContain("data-agent-attention");
+    expect(templateSource).toContain("vertical.attention.heading");
+    expect(templateSource).toContain("vertical.attention.tiles.map");
+  });
+
+  it("attention section sits between the examples grid and the stats band", () => {
+    const gridAt = templateSource.indexOf("data-agent-example-grid");
+    const attentionAt = templateSource.indexOf("data-agent-attention");
+    const statBarAt = templateSource.indexOf("Stat bar — the verified headline figures");
+    expect(gridAt).toBeGreaterThan(-1);
+    expect(attentionAt).toBeGreaterThan(gridAt);
+    expect(statBarAt).toBeGreaterThan(attentionAt);
+  });
+
+  it("the sting is the verified 48% stat, rendered from the stats data with its source", () => {
+    expect(templateSource).toContain("attentionStat");
+    expect(templateSource).toContain('stat.value === "48%"');
+    expect(templateSource).toContain("attentionStat.label");
+    expect(templateSource).toContain("attentionStat.source");
+    const sting = REALTOR_VERTICAL.stats.find((s) => s.value === "48%");
+    expect(sting?.label).toBe("Of buyer inquiries never get a response at all");
+    expect(sting?.source).toBe("WAV Group");
+  });
+
+  it("social strip is the approved line, framed as an available add-on only", () => {
+    expect(REALTOR_VERTICAL.attention?.socialStrip).toBe(
+      "Want the funnel fuller? Add social media management — we create, post, and reply for you, so there's more of the right attention for Aspen to answer.",
+    );
+    expect(templateSource).toContain("vertical.attention.socialStrip");
+    expect(templateSource).toContain(
+      "Social media management is an available add-on",
+    );
+  });
 });

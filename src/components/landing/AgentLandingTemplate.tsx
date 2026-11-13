@@ -274,6 +274,9 @@ const HeroSlideshow = ({
 
 const painIcons = [PhoneMissed, MoonStar, Clock];
 const controlIcons = [Phone, PhoneForwarded, Flame, CalendarCheck];
+/** Attention-section tiles: farming (local presence), placement
+ *  (top of the list), the answer (Aspen picks up). */
+const attentionIcons = [MapPin, Sparkles, PhoneCall];
 
 /** Hero benefit bullets — big, friendly icons, shared by every vertical. */
 const heroBenefits = [
@@ -356,6 +359,14 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
   const handleExampleSelect = (event: ChangeEvent<HTMLSelectElement>) => {
     runExampleDemo(event.target.value);
   };
+
+  // The attention section's sting is the vertical's verified
+  // never-answered figure, rendered from its stats entry (value,
+  // label and source exactly as approved) — never a second copy of
+  // the number that could drift from the evidence section.
+  const attentionStat = vertical.attention
+    ? vertical.stats.find((stat) => stat.value === "48%")
+    : undefined;
 
   return (
     <div className="landing-page min-h-screen bg-background overflow-x-hidden">
@@ -463,6 +474,29 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
               >
                 {vertical.sub}
               </motion.p>
+
+              {/* Spend-hook tagline (owner-approved verbatim
+                  2026-11-12) — directly under the hero headline/sub,
+                  data-driven so only verticals that carry it render
+                  it. */}
+              {vertical.heroTagline && (
+                <motion.div
+                  data-agent-hero-tagline
+                  initial={reduceMotion ? false : { opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: 0.25 }}
+                  className="max-w-xl mx-auto lg:mx-0 mb-6"
+                >
+                  <p className="text-xl sm:text-2xl font-bold leading-snug text-foreground">
+                    {vertical.heroTagline}
+                  </p>
+                  {vertical.heroTaglineSub && (
+                    <p className="mt-2 text-sm sm:text-base text-muted-foreground leading-relaxed">
+                      {vertical.heroTaglineSub}
+                    </p>
+                  )}
+                </motion.div>
+              )}
 
               <motion.div
                 initial={reduceMotion ? false : { opacity: 0, y: 20 }}
@@ -717,6 +751,83 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
               simulation — Aspen answers as that site's receptionist,
               listings first.
             </p>
+          </div>
+        </section>
+      )}
+
+      {/* You already bought the attention (owner-approved
+          2026-11-12) — between the examples grid and the stats band:
+          the agent's spend (farming + placement) ends at a ringing
+          phone or a website visit, and Aspen is the answer for that
+          moment. The sting is the verified 48% stat, rendered from
+          the vertical's stats data with its approved wording/source.
+          The social strip presents social media management as an
+          available add-on only — no invented results. */}
+      {vertical.attention && (
+        <section
+          data-agent-attention
+          className="py-14 sm:py-20 bg-secondary/20 border-b border-border"
+        >
+          <div className="container mx-auto px-5 sm:px-6">
+            <div className="text-center mb-10 sm:mb-14">
+              <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+                {vertical.attention.heading}
+              </h2>
+              <p className="text-muted-foreground text-base sm:text-lg max-w-2xl mx-auto">
+                The attention is already paid for. What happens in the
+                seconds after it lands is what decides whether it pays
+                off.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto">
+              {vertical.attention.tiles.map((tile, i) => {
+                const Icon = attentionIcons[i] || PhoneCall;
+                return (
+                  <motion.div
+                    key={tile.title}
+                    initial={reduceMotion ? false : { opacity: 0, y: 30 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: i * 0.1 }}
+                    className="rounded-2xl border border-border bg-card p-6 sm:p-8"
+                  >
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className="w-12 h-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                        <Icon className="w-6 h-6 text-primary" />
+                      </div>
+                      <h3 className="text-lg font-semibold leading-snug">
+                        {tile.title}
+                      </h3>
+                    </div>
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                      {tile.body}
+                    </p>
+                  </motion.div>
+                );
+              })}
+            </div>
+            {attentionStat && (
+              <div className="mt-10 max-w-3xl mx-auto text-center">
+                <p className="text-4xl sm:text-5xl font-extrabold text-primary">
+                  {attentionStat.value}
+                </p>
+                <p className="mt-2 text-base sm:text-lg text-foreground leading-snug">
+                  {attentionStat.label}
+                </p>
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  Source: {attentionStat.source}
+                </p>
+              </div>
+            )}
+            <div className="mt-10 max-w-3xl mx-auto rounded-2xl border border-primary/20 bg-primary/5 p-6 sm:p-8 text-center">
+              <p className="text-base sm:text-lg font-medium text-foreground leading-relaxed">
+                {vertical.attention.socialStrip}
+              </p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Social media management is an available add-on — ask
+                Aspen about it.
+              </p>
+            </div>
           </div>
         </section>
       )}
@@ -1087,6 +1198,11 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
                   </li>
                 )}
               </ul>
+              {vertical.prospectsNote && (
+                <p className="mt-8 text-center text-sm text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+                  {vertical.prospectsNote}
+                </p>
+              )}
               <p className="mt-8 text-center text-sm text-muted-foreground">
                 Aspen answering is the $99/mo start; the rest are available
                 as add-ons or quoted scope when you want to grow.
@@ -1127,7 +1243,20 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
                   <span className="text-muted-foreground">{line}</span>
                 </li>
               ))}
+              {vertical.premiumProspectsBullet && (
+                <li className="flex items-start gap-2.5 text-sm">
+                  <Check className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                  <span className="text-muted-foreground">
+                    {vertical.premiumProspectsBullet}
+                  </span>
+                </li>
+              )}
             </ul>
+            {vertical.premiumProspectsBullet && (
+              <p className="text-left max-w-md mx-auto text-xs text-muted-foreground -mt-5 mb-8">
+                *Up to 50/month — no specific count guaranteed.
+              </p>
+            )}
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Button
                 onClick={() => navigate("/checkout?plan=essentials")}
