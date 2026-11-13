@@ -20,6 +20,10 @@ const EXT: Record<string, string> = { 'audio/mpeg': 'mp3', 'audio/mp3': 'mp3', '
 const body = z.discriminatedUnion('action', [
   z.object({ action: z.literal('get'), agentId: z.string().uuid() }),
   z.object({ action: z.literal('create'), agentId: z.string().uuid(), name: z.string().min(1).max(80), audioBase64: z.string().min(100).max(14_000_000), mimeType: z.enum(AUDIO_MIME) }),
+  // Admin-only direct management: attach an existing ElevenLabs voice by ID
+  // (e.g. cloned outside the panel) or detach the stored clone entirely.
+  z.object({ action: z.literal('setId'), agentId: z.string().uuid(), voiceId: z.string().min(8).max(120), name: z.string().min(1).max(80).optional() }),
+  z.object({ action: z.literal('remove'), agentId: z.string().uuid() }),
 ]);
 
 type CloneState = { id: string; name: string; status: string } | null;
@@ -71,6 +75,17 @@ Deno.serve(async (req) => {
 
     if (b.action === 'get') {
       return json({ unlocked: await purchased(), admin, clonedVoice: await readState() });
+    }
+
+    if (b.action === 'setId' || b.action === 'remove') {
+      if (!admin) return json({ error: 'Administrator access required' }, 403);
+      if (b.action === 'setId') {
+        const name = b.name || 'Cloned voice';
+        await writeState({ id: b.voiceId, name, status: 'ready' });
+        return json({ clonedVoice: { id: b.voiceId, name, status: 'ready' } });
+      }
+      await writeState({ id: null, name: '', status: 'none' });
+      return json({ clonedVoice: null });
     }
 
     // action === 'create'

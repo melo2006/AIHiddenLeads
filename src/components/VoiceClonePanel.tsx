@@ -26,6 +26,8 @@ interface Props {
   /** Controlled picker selection: true when "Your voice (cloned)" is the chosen voice. */
   selected?: boolean;
   onSelectChange?: (selected: boolean) => void;
+  /** Admin (on-behalf) mode: shows the stored ElevenLabs voice ID with paste-to-attach and remove controls. */
+  adminMode?: boolean;
 }
 
 type Sample = { blob: Blob; url: string; durationSeconds: number | null };
@@ -36,9 +38,13 @@ type Sample = { blob: Blob; url: string; durationSeconds: number | null };
  * the stored clone in the voice picker. Part of the $50 custom add-on
  * (photo avatar + voice clone together).
  */
-export default function VoiceClonePanel({ agentId, selected = false, onSelectChange }: Props) {
+export default function VoiceClonePanel({ agentId, selected = false, onSelectChange, adminMode = false }: Props) {
   const [loading, setLoading] = useState(Boolean(agentId));
   const [unlocked, setUnlocked] = useState<boolean | null>(null);
+  const [serverAdmin, setServerAdmin] = useState(false);
+  const [idInput, setIdInput] = useState("");
+  const [idName, setIdName] = useState("");
+  const [idBusy, setIdBusy] = useState(false);
   const [clone, setClone] = useState<ClonedVoice | null>(null);
   const [replacing, setReplacing] = useState(false);
   const [voiceName, setVoiceName] = useState("My voice");
@@ -61,6 +67,7 @@ export default function VoiceClonePanel({ agentId, selected = false, onSelectCha
       .then((d) => {
         if (!live) return;
         setUnlocked(Boolean(d.unlocked));
+        setServerAdmin(Boolean(d.admin));
         setClone(d.clonedVoice && d.clonedVoice.id ? d.clonedVoice as ClonedVoice : null);
         if (d.clonedVoice?.name) setVoiceName(String(d.clonedVoice.name));
       })
@@ -149,6 +156,32 @@ export default function VoiceClonePanel({ agentId, selected = false, onSelectCha
     } finally { setCreating(false); }
   }
 
+  const isAdmin = adminMode || serverAdmin;
+
+  async function attachId() {
+    if (!agentId || !idInput.trim()) return;
+    setIdBusy(true); setProblem("");
+    try {
+      const d = await call({ action: "setId", agentId, voiceId: idInput.trim(), ...(idName.trim() ? { name: idName.trim() } : {}) });
+      setClone(d.clonedVoice as ClonedVoice);
+      setIdInput("");
+      toast.success("Cloned voice ID attached");
+    } catch (e) { setProblem(e instanceof Error ? e.message : "Could not attach that voice ID"); }
+    finally { setIdBusy(false); }
+  }
+
+  async function removeClone() {
+    if (!agentId) return;
+    setIdBusy(true); setProblem("");
+    try {
+      await call({ action: "remove", agentId });
+      setClone(null);
+      onSelectChange?.(false);
+      toast.success("Cloned voice removed");
+    } catch (e) { setProblem(e instanceof Error ? e.message : "Could not remove the cloned voice"); }
+    finally { setIdBusy(false); }
+  }
+
   const showCreator = unlocked && (!clone || clone.status !== "ready" || replacing);
 
   return (
@@ -185,6 +218,22 @@ export default function VoiceClonePanel({ agentId, selected = false, onSelectCha
       )}
       {clone?.status === "ready" && !replacing && (
         <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setReplacing(true)}><RotateCcw className="mr-1 h-3.5 w-3.5" />Record a new clone</Button>
+      )}
+
+      {isAdmin && agentId && !loading && (
+        <div className="space-y-2 rounded-lg border border-border p-2">
+          <p className="text-xs font-semibold">Admin · cloned voice ID</p>
+          {isAdmin && <p className="text-[11px] text-muted-foreground">Admin mode: no add-on gate — creating or attaching a clone here is done on the client's behalf.</p>}
+          {clone?.id
+            ? <p className="break-all text-[11px] text-muted-foreground">ElevenLabs voice ID: <span className="font-mono">{clone.id}</span> · status: {clone.status}</p>
+            : <p className="text-[11px] text-muted-foreground">No cloned voice stored for this agent yet.</p>}
+          <div className="flex flex-wrap gap-2">
+            <Input aria-label="ElevenLabs voice ID" className="h-8 min-w-40 flex-1 text-xs" placeholder="Paste ElevenLabs voice ID" value={idInput} onChange={(e) => setIdInput(e.target.value)} />
+            <Input aria-label="Cloned voice name" className="h-8 w-32 text-xs" placeholder="Name" value={idName} onChange={(e) => setIdName(e.target.value)} />
+            <Button size="sm" className="h-8 text-xs" disabled={idBusy || !idInput.trim()} onClick={() => void attachId()}>Attach ID</Button>
+            {clone && <Button size="sm" variant="ghost" className="h-8 text-xs text-destructive" disabled={idBusy} onClick={() => void removeClone()}>Remove clone</Button>}
+          </div>
+        </div>
       )}
 
       {showCreator && (

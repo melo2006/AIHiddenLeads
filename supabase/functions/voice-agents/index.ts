@@ -22,8 +22,8 @@ async function suggestGreeting(req:Request,input:{businessName:string;industry?:
 }
 
 const themeSchema=z.object({primary:z.string().regex(/^#[0-9a-f]{6}$/i),background:z.string().regex(/^#[0-9a-f]{6}$/i),foreground:z.string().regex(/^#[0-9a-f]{6}$/i),font:z.enum(THEME_FONTS)});
-const configSchema = z.object({ subNiche:z.string().max(160).optional(), businessNotes:z.string().max(6000).optional(), knowledgeGuidance:z.string().max(12000).optional(), assistantRestrictions:z.string().max(4000).optional(), previewScreenshot:z.string().max(2000).optional(), industry:z.string().max(80).optional(), launcherLabel:z.string().max(40).optional(), launcherCorner:z.enum(['bottom-left','bottom-right']).optional(), websiteUrl:z.string().max(2000).refine(v=>!v || isPublicUrl(v),'Use a public website URL').default(''), theme:z.preprocess(v=>v&&typeof v==='object'?{...DEFAULT_WIDGET_THEME,...(v as Record<string,unknown>)}:v,themeSchema).default(DEFAULT_WIDGET_THEME), suggestedTheme:themeSchema.nullable().optional(), name:z.string().min(1).max(80), businessName:z.string().min(1).max(160), voice:z.enum(VOICES as [string,...string[]]), clonedVoiceSelected:z.boolean().default(false), avatarPath:z.string().max(500).default(''), greeting:z.string().min(1).max(1500), systemPrompt:z.string().min(1).max(12000), simulationGreeting:z.string().min(1).max(1500).default(SIMULATION_GREETING), simulationPrompt:z.string().min(1).max(12000).default(SIMULATION_PROMPT), knowledge:z.string().max(60000).default(''), crawlDepth:z.union([z.literal(1),z.literal(2)]).default(1), recordTranscript:z.boolean().default(false), transferPhone:z.string().regex(/^$|^\+[1-9]\d{7,14}$/,'Use an international phone number, starting with +').default(''), transferManagerName:z.string().max(80).default(''), videoAvatar:z.unknown().optional().transform(v=>v===undefined?undefined:normalizeVideoAvatar(v)) });
-const requestSchema = z.object({ action:z.enum(['suggestKnowledge','suggestIndustry','suggestGreeting','list','usage','pricing','create','save','publish','source','refresh','removeSource','member','rollback','share','unshare']), agentId:z.string().uuid().optional(), mode:z.enum(['website','generic']).default('website'), subNiche:z.string().max(160).optional(), businessNotes:z.string().max(6000).optional(), industry:z.string().max(80).optional(), tone:z.string().max(40).optional(), slug:z.string().min(3).max(80).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(), sourceId:z.string().uuid().optional(), config:configSchema.optional(), businessName:z.string().min(1).max(160).optional(), userEmail:z.string().email().optional(), kind:z.enum(['url','document']).optional(), label:z.string().min(1).max(255).optional(), url:z.string().max(2000).optional(), storagePath:z.string().max(500).optional(), pricing:z.object({model:z.literal('gemini-3.8-live'),inputAudioPerMinute:z.number().finite().min(0).max(100),outputAudioPerMinute:z.number().finite().min(0).max(100),source:z.string().url().max(2000)}).optional() });
+const configSchema = z.object({ subNiche:z.string().max(160).optional(), businessNotes:z.string().max(6000).optional(), knowledgeGuidance:z.string().max(12000).optional(), assistantRestrictions:z.string().max(4000).optional(), previewScreenshot:z.string().max(2000).optional(), industry:z.string().max(80).optional(), launcherLabel:z.string().max(40).optional(), launcherCorner:z.enum(['bottom-left','bottom-right']).optional(), websiteUrl:z.string().max(2000).refine(v=>!v || isPublicUrl(v),'Use a public website URL').default(''), theme:z.preprocess(v=>v&&typeof v==='object'?{...DEFAULT_WIDGET_THEME,...(v as Record<string,unknown>)}:v,themeSchema).default(DEFAULT_WIDGET_THEME), suggestedTheme:themeSchema.nullable().optional(), name:z.string().min(1).max(80), businessName:z.string().min(1).max(160), voice:z.enum(VOICES as [string,...string[]]), clonedVoiceSelected:z.boolean().default(false), avatarPath:z.string().max(500).default(''), greeting:z.string().min(1).max(1500), systemPrompt:z.string().min(1).max(12000), simulationGreeting:z.string().min(1).max(1500).default(SIMULATION_GREETING), simulationPrompt:z.string().min(1).max(12000).default(SIMULATION_PROMPT), knowledge:z.string().max(60000).default(''), crawlDepth:z.union([z.literal(1),z.literal(2)]).default(1), recordTranscript:z.boolean().default(false), transferPhone:z.string().regex(/^$|^\+[1-9]\d{7,14}$/,'Use an international phone number, starting with +').default(''), transferManagerName:z.string().max(80).default(''), defaultLanguage:z.enum(['en','es','pt-BR']).default('en'), ringCount:z.number().int().min(2).max(5).optional(), bookingRules:z.string().max(4000).default(''), videoAvatar:z.unknown().optional().transform(v=>v===undefined?undefined:normalizeVideoAvatar(v)) });
+const requestSchema = z.object({ action:z.enum(['suggestKnowledge','suggestIndustry','suggestGreeting','list','usage','pricing','create','save','publish','source','refresh','removeSource','member','rollback','share','unshare','duplicate','usageSummary']), agentId:z.string().uuid().optional(), mode:z.enum(['website','generic']).default('website'), subNiche:z.string().max(160).optional(), businessNotes:z.string().max(6000).optional(), industry:z.string().max(80).optional(), tone:z.string().max(40).optional(), slug:z.string().min(3).max(80).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(), sourceId:z.string().uuid().optional(), config:configSchema.optional(), businessName:z.string().min(1).max(160).optional(), userEmail:z.string().email().optional(), kind:z.enum(['url','document']).optional(), label:z.string().min(1).max(255).optional(), url:z.string().max(2000).optional(), storagePath:z.string().max(500).optional(), pricing:z.object({model:z.literal('gemini-3.8-live'),inputAudioPerMinute:z.number().finite().min(0).max(100),outputAudioPerMinute:z.number().finite().min(0).max(100),source:z.string().url().max(2000)}).optional() });
 const json = (data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
 Deno.serve(async req=>{
   if(req.method==='OPTIONS') return new Response('ok',{headers:corsHeaders});
@@ -122,6 +122,34 @@ Deno.serve(async req=>{
       if(!client) return json({error:'This client needs an existing sign-in account before access can be granted.'},400);
       const {error}=await db.from('voice_memberships').upsert({organization_id:agent.organization_id,user_id:client.id,role:'editor'},{onConflict:'organization_id,user_id'}); if(error) throw error;
       return json({success:true});
+    }
+    if(body.action==='duplicate') {
+      // Admin-only: copy this agent's DRAFT config + learned sources into a
+      // fresh workspace as a starting template for another client. Published
+      // snapshots, version history and memberships are NOT copied — the copy
+      // starts unpublished and access is granted separately via 'member'.
+      if(!admin) return json({error:'Administrator access required'},403);
+      const sourceDraft=(agent.draft || {}) as Record<string,unknown>;
+      const businessName=(body.businessName || `${String(sourceDraft.businessName || 'Business')} (copy)`).slice(0,160);
+      const {data:org,error}=await db.from('voice_organizations').insert({name:businessName}).select().single(); if(error) throw error;
+      const {data:copy,error:err}=await db.from('voice_agents').insert({organization_id:org.id,draft:{...sourceDraft,businessName}}).select().single(); if(err) throw err;
+      const {data:sources}=await db.from('voice_agent_sources').select('kind,label,url,storage_path,content,status,last_error,refreshed_at').eq('agent_id',agent.id);
+      if(sources?.length) { const {error:serr}=await db.from('voice_agent_sources').insert(sources.map(s=>({...s,agent_id:copy.id}))); if(serr) throw serr; }
+      return json({agent:copy});
+    }
+    if(body.action==='usageSummary') {
+      // Admin-only per-client usage roll-up from the usage-reporting ledger
+      // (public.usage_events, keyed by organization). Degrades to
+      // available:false when the ledger is absent so the panel never breaks.
+      if(!admin) return json({error:'Administrator access required'},403);
+      try {
+        const {data,error}=await db.from('usage_events').select('service,quantity_minutes,quantity_count,occurred_at').eq('organization_id',agent.organization_id).order('occurred_at',{ascending:false}).limit(10000);
+        if(error) throw error;
+        const byService:Record<string,{events:number;minutes:number;count:number}>={};
+        let lastAt='';
+        for(const e of data || []) { const key=String(e.service || 'other'); const s=(byService[key] ||= {events:0,minutes:0,count:0}); s.events++; s.minutes+=Number(e.quantity_minutes || 0); s.count+=Number(e.quantity_count || 0); if(String(e.occurred_at || '')>lastAt) lastAt=String(e.occurred_at); }
+        return json({available:true,byService,events:(data || []).length,lastAt:lastAt || null});
+      } catch { return json({available:false,byService:{},events:0,lastAt:null}); }
     }
     if(body.action==='save') {
       if(!body.config) return json({error:'Settings required'},400);

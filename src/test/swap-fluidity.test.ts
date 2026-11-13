@@ -184,7 +184,11 @@ describe('Alex voice — Puck, and the wizard catalogue is NOT Alex', () => {
     // wizardModel's VOICES is the setup wizard's picker for the
     // CUSTOMER's own assistant — changing Alex's bound voice must not
     // remove Charon (or anything else) from what customers can pick.
-    expect(WIZARD_VOICES.map(v => v.id)).toEqual(['Kore', 'Aoede', 'Leda', 'Puck', 'Charon', 'Zephyr']);
+    // Expanded 2026-11-13 (Ron's direction): the picker now offers the
+    // full 30-voice Gemini Live catalog; the original six must remain.
+    const ids = WIZARD_VOICES.map(v => v.id);
+    expect(ids).toHaveLength(30);
+    for (const id of ['Kore', 'Aoede', 'Leda', 'Puck', 'Charon', 'Zephyr']) expect(ids).toContain(id);
   });
 });
 

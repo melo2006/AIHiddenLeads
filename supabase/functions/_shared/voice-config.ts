@@ -1,4 +1,4 @@
-export const VOICES = ['Kore','Aoede','Leda','Callirrhoe','Despina','Zephyr','Puck','Charon','Fenrir','Orus','Achernar','Algenib'];
+export const VOICES = ['Zephyr','Puck','Charon','Kore','Fenrir','Leda','Orus','Aoede','Callirrhoe','Autonoe','Enceladus','Iapetus','Umbriel','Algieba','Despina','Erinome','Algenib','Rasalgethi','Laomedeia','Achernar','Alnilam','Schedar','Gacrux','Pulcherrima','Achird','Zubenelgenubi','Vindemiatrix','Sadachbia','Sadaltager','Sulafat'];
 export const DEMO_NOT_TOUCHED_REASSURANCE = 'Before we start: this is a mock-up layered over a copy of your site — we haven\'t touched your website or your server.';
 // ---------------------------------------------------------------------------
 // DEMO-SITE OPENING (owner revision, 2026-11-09 evening — supersedes the

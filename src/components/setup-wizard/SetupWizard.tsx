@@ -24,6 +24,7 @@ import { GUARDRAILS_MARK, REVIEWED_KNOWLEDGE_MARK, replaceSection } from "../../
 import {
   EMPTY, INDUSTRIES, SPECIALTIES, industryName, LABELS, askLabel, isAskLabel, labelOptions, STEPS, VOICES, faqKnowledge, nameFromUrl, renderGreeting, stepReady, type WizardState,
 } from "./wizardModel";
+import { VOICE_LANGUAGE_SETS, liveVoiceById, type AgentLanguage } from "@/lib/voiceCatalog";
 
 const ICONS = [Building2, BookOpen, Mic, UserRound, Palette, Rocket];
 type Source = { id: string; label: string; kind: string; url?: string; status: string; last_error?: string; content?: string };
@@ -94,6 +95,8 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
   }, [step]);
   useEffect(() => { setSuggestedIndustry(''); setKnowledgeProposal(''); }, [selectedId]);
   const set = (patch: Partial<WizardState>) => setS((p) => ({ ...p, ...patch }));
+  /** Picking a voice also pairs it with a default language (Live voices are language-agnostic). */
+  const pickVoice = (id: string, language: AgentLanguage) => { set({ voice: id, defaultLanguage: language, clonedVoiceSelected: false }); setVoiceReady(false); };
 
   async function load(id = selectedId) {
     const generation = ++loadGeneration.current;
@@ -116,7 +119,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
         customIndustry: INDUSTRIES.includes(String(d.industry || "")) ? "" : String(d.industry || ""), subNiche: String(d.subNiche || ""), businessNotes: String(d.businessNotes || ""), knowledgeGuidance: String(d.knowledgeGuidance || ""), assistantRestrictions: String(d.assistantRestrictions || ""),
         links: (a.voice_agent_sources || []).filter((x: { kind: string }) => x.kind === "url").map((x: { url?: string; label: string }) => x.url || x.label),
         files: (a.voice_agent_sources || []).filter((x: { kind: string }) => x.kind === "document").map((x: { label: string }) => x.label),
-        faqs, name: String(d.name || "Aspen"), greeting: String(d.greeting || EMPTY.greeting), voice: String(d.voice || "Kore"), clonedVoiceSelected: Boolean(d.clonedVoiceSelected),
+        faqs, name: String(d.name || "Aspen"), greeting: String(d.greeting || EMPTY.greeting), voice: String(d.voice || "Kore"), defaultLanguage: (["es", "pt-BR"].includes(String(d.defaultLanguage)) ? String(d.defaultLanguage) : "en") as AgentLanguage, clonedVoiceSelected: Boolean(d.clonedVoiceSelected),
         color: d.theme?.primary || EMPTY.color, label: (() => { const l = String(d.launcherLabel || ""); return !l || isAskLabel(l) ? askLabel(String(d.name || "Aspen")) : l; })(),
         corner: d.launcherCorner === "bottom-left" ? "bottom-left" : "bottom-right", videoAvatar: normalizeVideoAvatar(d.videoAvatar),
       });
@@ -133,7 +136,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
     const faq = faqKnowledge(s.faqs);
     const config = {
       ...draft, websiteUrl: s.websiteUrl ? (/^https?:\/\//i.test(s.websiteUrl) ? s.websiteUrl : `https://${s.websiteUrl}`) : "", businessName: s.businessName || "My business", industry: industryName(s), subNiche: s.subNiche || "", businessNotes: s.businessNotes || "", knowledgeGuidance: s.knowledgeGuidance || "", assistantRestrictions: s.assistantRestrictions || "", systemPrompt: replaceSection(String(draft.systemPrompt || ""), GUARDRAILS_MARK, s.assistantRestrictions || ""), name: s.name || "Aspen",
-      greeting: s.greeting, voice: s.voice, clonedVoiceSelected: Boolean(s.clonedVoiceSelected), theme: { background: "#101216", foreground: "#F4F6F8", font: "system", ...(draft.theme || {}), primary: s.color }, launcherLabel: s.label, launcherCorner: s.corner, videoAvatar: normalizeVideoAvatar(s.videoAvatar),
+      greeting: s.greeting, voice: s.voice, defaultLanguage: s.defaultLanguage || "en", clonedVoiceSelected: Boolean(s.clonedVoiceSelected), theme: { background: "#101216", foreground: "#F4F6F8", font: "system", ...(draft.theme || {}), primary: s.color }, launcherLabel: s.label, launcherCorner: s.corner, videoAvatar: normalizeVideoAvatar(s.videoAvatar),
       knowledge: faq ? `${base}\n\n${FAQ_MARK}\n${faq}`.trim() : base,
     };
     try { await request({ action: "save", agentId: selectedId, config }); setDraft(config); return true; }
@@ -390,17 +393,32 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
                 </div>
               </div>
               <div className="space-y-3">
-                <p className="flex items-center gap-1.5 text-sm font-semibold">Pick a voice<Help>Each voice is the real Gemini voice your callers will hear.</Help></p>
+                <p className="flex items-center gap-1.5 text-sm font-semibold">Pick a voice<Help>Each voice is the real Gemini voice your callers will hear. The same voice can speak English, Spanish or Portuguese — the language sets below simply pair the voice with that default language.</Help></p>
+                <p className="text-xs font-medium text-muted-foreground">English</p>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   {VOICES.map((v) => (
-                    <button key={v.id} type="button" onClick={() => { set({ voice: v.id, clonedVoiceSelected: false }); setVoiceReady(false); }}
-                      className={`rounded-xl border-2 p-3 text-left transition ${s.voice === v.id && !s.clonedVoiceSelected ? "border-primary bg-primary/10" : "border-border hover:border-primary/50"}`}>
-                      <Mic className={`mb-1 h-4 w-4 ${s.voice === v.id && !s.clonedVoiceSelected ? "text-primary" : "text-muted-foreground"}`} />
+                    <button key={v.id} type="button" onClick={() => pickVoice(v.id, "en")}
+                      className={`rounded-xl border-2 p-3 text-left transition ${s.voice === v.id && (s.defaultLanguage || "en") === "en" && !s.clonedVoiceSelected ? "border-primary bg-primary/10" : "border-border hover:border-primary/50"}`}>
+                      <Mic className={`mb-1 h-4 w-4 ${s.voice === v.id && (s.defaultLanguage || "en") === "en" && !s.clonedVoiceSelected ? "text-primary" : "text-muted-foreground"}`} />
                       <p className="text-sm font-semibold">{v.label}</p>
                       <p className="text-[11px] text-muted-foreground">{v.vibe}</p>
                     </button>
                   ))}
                 </div>
+                {VOICE_LANGUAGE_SETS.map((setDef) => (
+                  <div key={setDef.language} className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground">{setDef.label} <span className="font-normal">· {setDef.note}</span></p>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                      {[...setDef.female, ...setDef.male].map((id) => { const v = liveVoiceById(id); if (!v) return null; const active = s.voice === id && s.defaultLanguage === setDef.language && !s.clonedVoiceSelected; return (
+                        <button key={id} type="button" onClick={() => pickVoice(id, setDef.language)}
+                          className={`rounded-xl border-2 p-3 text-left transition ${active ? "border-primary bg-primary/10" : "border-border hover:border-primary/50"}`}>
+                          <Mic className={`mb-1 h-4 w-4 ${active ? "text-primary" : "text-muted-foreground"}`} />
+                          <p className="text-sm font-semibold">{v.id}</p>
+                          <p className="text-[11px] text-muted-foreground">{v.style} · {v.gender}</p>
+                        </button> ); })}
+                    </div>
+                  </div>
+                ))}
                 {realVoice && (voiceReady ? <div className="rounded-lg border border-border p-2"><GeminiConversation key={`${selectedId}-${s.voice}-${s.greeting}`} previewOnly autoStart previewAudioContext={previewAudioRef.current} draft agentId={selectedId} name={s.name} previewVoice={s.voice} compact /></div> : <Button variant="outline" className="w-full" disabled={busy} onClick={() => void prepareVoice()}>{busy ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}{busy ? 'Saving & preparing voice…' : `Hear my greeting · ${s.voice}`}</Button>)}
 
               </div>
