@@ -166,6 +166,24 @@ export const REALTOR_EXAMPLE_PACKS: RealtorExamplePack[] = [
     ],
   },
   {
+    slug: "julie-melrose",
+    url: "https://www.juliemelrose.com/",
+    agentName: "Julie Melrose",
+    city: "Fort Lauderdale",
+    listings: [
+      { address: "4270 NW 40th Street #211", area: "Lauderdale Lakes", type: "condo", beds: 2, baths: 2, sqft: 1150, price: 180000, descriptor: "the Garnet Condo unit on NW 40th Street in Lauderdale Lakes", tagline: "A 2 bed, 2 bath in the Garnet Condo 55+ community — new AC, tiled patio, hurricane shutters.", source: "site" },
+      { address: "410 Lakeview Drive #103", area: "Bonaventure, Weston", type: "condo", beds: 2, baths: 2, waterView: true, sqft: 1256, price: 349000, descriptor: "the Lakeview Drive condo in Weston", tagline: "Canal views from the screened patio in Weston's Bonaventure community.", source: "site" },
+      { address: "1431 SW 27th Court", area: "Edgewood, Fort Lauderdale", type: "house", beds: 3, baths: 2, sqft: 1084, price: 430000, descriptor: "the Edgewood house on SW 27th Court, on the double lot", tagline: "A 3 bed, 2 bath on a rare 9,474 square foot double lot — no HOA, minutes to Las Olas.", source: "site" },
+      { address: "8226 NW 8th Place Unit #6", area: "Plantation", type: "townhouse", beds: 4, baths: 2.5, garage: 1, pool: true, sqft: 2080, price: 290000, descriptor: "the Jacaranda townhouse on NW 8th Place in Plantation", tagline: "A corner-unit 4 bed, 2.5 bath in Townhouses at Jacaranda — two pools, tennis, clubhouse.", source: "site" },
+      { address: "4712 NW 41st Avenue", area: "Tamarac Lakes, Lauderdale Lakes", type: "house", beds: 2, waterView: true, price: 349900, descriptor: "the waterfront house on NW 41st Avenue in Tamarac Lakes", tagline: "Turnkey and updated on the water in the 55+ Tamarac Lakes community.", source: "site" },
+      { address: "4508 NW 43rd Terrace", area: "Tamarac", type: "house", beds: 2, baths: 1, garage: 1, sqft: 806, price: 245000, descriptor: "the Tamarac house on NW 43rd Terrace", tagline: "Priced below market in a quiet Tamarac 55+ community — a downsizer or investor play.", source: "site" },
+      { address: "Hawaiian Gardens Phase 1 #302", area: "Lauderdale Lakes", type: "condo", beds: 2, baths: 2, pool: true, waterView: true, sqft: 944, price: 149000, descriptor: "the Hawaiian Gardens condo in Lauderdale Lakes", tagline: "Fully furnished and turnkey in the 55+ Hawaiian Gardens — lake views from the enclosed patio.", source: "site" },
+      { address: "2916 NE 37th Street", area: "Coral Ridge, Fort Lauderdale", type: "house", beds: 3, baths: 2, garage: 2, pool: true, waterView: false, price: 875000, descriptor: "the Coral Ridge house on NE 37th Street", tagline: "Pool living a short ride from the beach in Coral Ridge.", source: "sample" },
+      { address: "815 Middle River Drive", area: "Wilton Manors", type: "house", beds: 3, baths: 2, garage: 2, pool: true, waterView: true, price: 1195000, descriptor: "the Wilton Manors house on Middle River Drive", tagline: "On the Middle River with dockage — the Five Points lifestyle.", source: "sample" },
+      { address: "2100 S Ocean Boulevard #405", area: "Lauderdale Beach, Fort Lauderdale", type: "condo", beds: 2, baths: 2, pool: true, waterView: true, price: 649000, descriptor: "the Lauderdale Beach condo on South Ocean Boulevard", tagline: "Direct ocean views in Lauderdale Beach — 2 bed, 2 bath.", source: "sample" },
+    ],
+  },
+  {
     slug: "logan-walter",
     url: "https://loganwalter.com/",
     agentName: "Logan Walter",
@@ -292,7 +310,7 @@ export function normalizeExampleSiteUrl(raw: unknown): string {
 }
 
 /** The example pack for a simulated site's URL, or null when the site
- * is not one of the 13 known examples. */
+ * is not one of the 14 known examples. */
 export function examplePackForSiteUrl(siteUrl: unknown): RealtorExamplePack | null {
   const key = normalizeExampleSiteUrl(siteUrl);
   if (!key) return null;

@@ -57,6 +57,7 @@ import realtorBeachPhoto from "@/assets/realtor-hero-fll-beach.jpg";
 import realtorDallasPhoto from "@/assets/realtor-hero-dallas.jpg";
 import exampleThumbAureliaPerez from "@/assets/realtor-example-aurelia-perez.webp";
 import exampleThumbAnnChamberlain from "@/assets/realtor-example-ann-chamberlain.webp";
+import exampleThumbJulieMelrose from "@/assets/realtor-example-julie-melrose.webp";
 import exampleThumbAshleyCusack from "@/assets/realtor-example-ashley-cusack.webp";
 import exampleThumbMauricioBarba from "@/assets/realtor-example-mauricio-barba.webp";
 import exampleThumbMichaelMartinez from "@/assets/realtor-example-michael-martinez.webp";
@@ -77,6 +78,7 @@ import type { AgentVertical } from "@/data/agentVerticals";
 const EXAMPLE_THUMBNAILS: Record<string, string> = {
   "aurelia-perez": exampleThumbAureliaPerez,
   "ann-chamberlain": exampleThumbAnnChamberlain,
+  "julie-melrose": exampleThumbJulieMelrose,
   "ashley-cusack": exampleThumbAshleyCusack,
   "mauricio-barba": exampleThumbMauricioBarba,
   "michael-martinez": exampleThumbMichaelMartinez,

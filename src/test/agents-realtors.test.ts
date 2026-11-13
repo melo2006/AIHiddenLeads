@@ -314,7 +314,7 @@ describe("realtor landing page — v2 polish batch (2026-11-11)", () => {
 });
 
 describe("realtor landing page — one-click example demos (2026-11-12)", () => {
-  it("realtors data carries thirteen example sites in eight area groups", () => {
+  it("realtors data carries fourteen example sites in eight area groups", () => {
     const examples = REALTOR_VERTICAL.demoExamples;
     expect(examples).toBeDefined();
     expect(examples?.intro).toBe(
@@ -341,6 +341,7 @@ describe("realtor landing page — one-click example demos (2026-11-12)", () => 
     ).toEqual([
       "Aurelia Perez — Fort Lauderdale|https://www.aureliaperez.com/",
       "Ann Chamberlain — Fort Lauderdale|https://www.annchamberlain.com/",
+      "Julie Melrose — Fort Lauderdale|https://www.juliemelrose.com/",
       "Ashley Cusack — Coral Gables|https://ashleycusack.com/",
       "Mauricio J. Barba — Coral Gables|https://miamisignaturehomes.com/",
       "Michael Martinez — Coral Gables|https://michaelmartinezrealtor.com/",

@@ -252,7 +252,7 @@ Deno.serve(async req=>{
     // EXAMPLE LISTINGS STAMP (Batch 2, 2026-11-12): a session that the
     // client marked as a one-click EXAMPLE sample (the /agents/realtors
     // examples grid/dropdown sends sample=1 through /demo to /demo-site)
-    // AND whose simulated business is one of the 13 known example sites
+    // AND whose simulated business is one of the 14 known example sites
     // — matched here against the site URL stored on the lead/prospect
     // row THIS function fetched, never a client-supplied URL, the same
     // trust pattern as the invite stamp — additionally carries that

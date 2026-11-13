@@ -28,6 +28,7 @@ export interface RealtorExamplePinnedLead {
 export const REALTOR_EXAMPLE_PINNED_LEADS: RealtorExamplePinnedLead[] = [
   { slug: "aurelia-perez", agent: "Aurelia Perez", domain: "aureliaperez.com", url: "https://www.aureliaperez.com/", leadId: "850f3d17-85af-49e9-869b-aa6aa4ab540e" },
   { slug: "ann-chamberlain", agent: "Ann Chamberlain", domain: "annchamberlain.com", url: "https://www.annchamberlain.com/", leadId: "1b68b94a-45fa-446c-9395-7f182cb60abd" },
+  { slug: "julie-melrose", agent: "Julie Melrose", domain: "juliemelrose.com", url: "https://www.juliemelrose.com/", leadId: "3680c03f-9241-4912-a4b7-d8390b16bf04" },
   { slug: "ashley-cusack", agent: "Ashley Cusack", domain: "ashleycusack.com", url: "https://ashleycusack.com/", leadId: "ec4f737f-6796-4542-95cc-d48082fad658" },
   { slug: "mauricio-barba", agent: "Mauricio J. Barba", domain: "miamisignaturehomes.com", url: "https://miamisignaturehomes.com/", leadId: "05bd17d7-56cc-40e5-96c2-48362d0d7d2b" },
   { slug: "michael-martinez", agent: "Michael Martinez", domain: "michaelmartinezrealtor.com", url: "https://michaelmartinezrealtor.com/", leadId: "10e46ba2-677d-4783-bcb2-1ddbe82e9fd3" },

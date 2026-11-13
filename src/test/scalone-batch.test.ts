@@ -379,8 +379,8 @@ describe('Item 6 — swap-gap hardening (F1: the forced-execute run)', () => {
 });
 
 describe('Item 7 + drive-by — examples count and greeting-variant assembly', () => {
-  it('13 example packs remain and Scalone is not among them', () => {
-    expect(REALTOR_EXAMPLE_PACKS).toHaveLength(13);
+  it('14 example packs stand (Julie Melrose restored the count) and Scalone is not among them', () => {
+    expect(REALTOR_EXAMPLE_PACKS).toHaveLength(14);
     expect(REALTOR_EXAMPLE_PACKS.map((p) => p.slug)).not.toContain('alexa-scalone');
     expect(examplePackBySlug('alexa-scalone')).toBeNull();
   });

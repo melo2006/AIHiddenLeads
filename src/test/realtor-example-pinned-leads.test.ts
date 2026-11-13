@@ -18,13 +18,13 @@ const allOptions = (REALTOR_VERTICAL.demoExamples?.groups ?? []).flatMap(
 );
 
 describe("realtor example pinned leads", () => {
-  it("pins exactly one lead per current example (13)", () => {
-    expect(REALTOR_EXAMPLE_PINNED_LEADS).toHaveLength(13);
-    expect(allOptions).toHaveLength(13);
+  it("pins exactly one lead per current example (14)", () => {
+    expect(REALTOR_EXAMPLE_PINNED_LEADS).toHaveLength(14);
+    expect(allOptions).toHaveLength(14);
     const slugs = REALTOR_EXAMPLE_PINNED_LEADS.map((entry) => entry.slug);
-    expect(new Set(slugs).size).toBe(13);
+    expect(new Set(slugs).size).toBe(14);
     const leadIds = REALTOR_EXAMPLE_PINNED_LEADS.map((entry) => entry.leadId);
-    expect(new Set(leadIds).size).toBe(13);
+    expect(new Set(leadIds).size).toBe(14);
     for (const leadId of leadIds) expect(leadId).toMatch(UUID_RE);
   });
 

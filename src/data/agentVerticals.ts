@@ -388,6 +388,12 @@ export const REALTOR_VERTICAL: AgentVertical = {
             url: "https://www.annchamberlain.com/",
             slug: "ann-chamberlain",
           },
+          {
+            agent: "Julie Melrose",
+            city: "Fort Lauderdale",
+            url: "https://www.juliemelrose.com/",
+            slug: "julie-melrose",
+          },
         ],
       },
       {
