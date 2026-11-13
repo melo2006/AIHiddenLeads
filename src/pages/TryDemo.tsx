@@ -85,6 +85,34 @@ const TryDemo = () => {
     if (urlParam) setUrl((current) => current || urlParam.replace(/^https?:\/\//i, ""));
   }, [searchParams]);
 
+  // One-click sample launch: a landing-page example supplies both the
+  // website and the generic visitor identity, so there is no intake to
+  // collect. Forward to the same /demo-site path DemoSite uses for its
+  // sample escape hatch; its callerName param is already read there and
+  // threaded into the voice session as visitorName.
+  // A sample link may also carry a PINNED leadId (the /agents/realtors
+  // examples enter through pre-scanned pinned leads so the stored
+  // knowledge is reused instead of a fresh ~2-minute scan): forward it
+  // untouched so /demo-site loads that lead and skips the scan. Sample
+  // mode itself is unchanged — /demo-site still receives sample=1 and
+  // the same callerName either way.
+  useEffect(() => {
+    if (searchParams.get("sample") !== "1") return;
+    const sampleUrl = searchParams.get("url");
+    const sampleCallerName = searchParams.get("callerName");
+    if (!sampleUrl || !sampleCallerName) return;
+
+    const params = new URLSearchParams({
+      url: sampleUrl,
+      callerName: sampleCallerName,
+      sample: "1",
+      lang: i18n.resolvedLanguage || i18n.language || "en",
+    });
+    const pinnedLeadId = searchParams.get("leadId");
+    if (pinnedLeadId) params.set("leadId", pinnedLeadId);
+    navigate(`/demo-site?${params.toString()}`, { replace: true });
+  }, [i18n, navigate, searchParams]);
+
   // "Continue my demo" — a saved, unfinished verified demo can be resumed.
   useEffect(() => {
     setResume(loadDemoResume());

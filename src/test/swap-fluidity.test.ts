@@ -184,7 +184,11 @@ describe('Alex voice — Puck, and the wizard catalogue is NOT Alex', () => {
     // wizardModel's VOICES is the setup wizard's picker for the
     // CUSTOMER's own assistant — changing Alex's bound voice must not
     // remove Charon (or anything else) from what customers can pick.
-    expect(WIZARD_VOICES.map(v => v.id)).toEqual(['Kore', 'Aoede', 'Leda', 'Puck', 'Charon', 'Zephyr']);
+    // Expanded 2026-11-13 (Ron's direction): the picker now offers the
+    // full 30-voice Gemini Live catalog; the original six must remain.
+    const ids = WIZARD_VOICES.map(v => v.id);
+    expect(ids).toHaveLength(30);
+    for (const id of ['Kore', 'Aoede', 'Leda', 'Puck', 'Charon', 'Zephyr']) expect(ids).toContain(id);
   });
 });
 
@@ -198,11 +202,14 @@ describe('Sara language mirror + role guard (prompt pins)', () => {
     expect(SIMULATION_RECEPTIONIST_SEGMENT).toContain("you start in this session's starting language");
   });
 
-  test('role guard: AiHiddenLeads topics get one in-role deflection and route back to Aspen at the step-out', () => {
-    expect(SIMULATION_RECEPTIONIST_SEGMENT).toContain('QUESTIONS ABOUT AI HIDDEN LEADS ITSELF ARE NOT YOURS TO SELL');
+  test('role guard: AiHiddenLeads topics are not Sara\'s to sell — she brings Aspen back LIVE (Scalone batch Item 2, supersedes the step-out deflection)', () => {
+    expect(SIMULATION_RECEPTIONIST_SEGMENT).toContain('QUESTIONS ABOUT AI HIDDEN LEADS ITSELF — NOT YOURS TO SELL; BRING ASPEN BACK, LIVE');
     expect(SIMULATION_RECEPTIONIST_SEGMENT).toContain('never push scheduling a sales meeting');
-    expect(SIMULATION_RECEPTIONIST_SEGMENT).toContain('Aspen from AI Hidden Leads can walk you through all of that when we step out');
+    expect(SIMULATION_RECEPTIONIST_SEGMENT).toContain('say ONE short line containing the words "bring Aspen back"');
+    expect(SIMULATION_RECEPTIONIST_SEGMENT).toContain('never describe it as a transfer you cannot complete');
     expect(SIMULATION_RECEPTIONIST_SEGMENT).toContain("you are {businessName}'s receptionist — never AI Hidden Leads staff");
+    // The old park-it-for-the-step-out deflection is gone.
+    expect(SIMULATION_RECEPTIONIST_SEGMENT).not.toContain('can walk you through all of that when we step out');
   });
 
   test('the in-role transfer/booking honesty line is untouched (it governs the BUSINESS roleplay only)', () => {

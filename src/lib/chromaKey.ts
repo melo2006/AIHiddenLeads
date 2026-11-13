@@ -6,6 +6,27 @@
 /** Key-green distance thresholds in normalised CbCr space; shared by the shader and the JS reference. */
 export const CHROMA_LOW = 0.12;
 export const CHROMA_HIGH = 0.22;
+/**
+ * Sara-scoped key profile (2026-11-13 — Ron's Andriot screenshots:
+ * pale "white shadow" fringing around Sara's eyelashes in her live
+ * stream, not seen on Aspen). The keying pipeline is SHARED — one
+ * shader, one threshold pair, and the simli-avatar function enables
+ * keying per session (trinity2 token + key-green backdrop), not per
+ * persona — so the difference is Sara's SOURCE frames: her face render
+ * carries a soft shadow/halo on the green near fine detail (lashes,
+ * blonde hair edges), and those pixels sit in the semi-transparent
+ * band between LOW and HIGH, so they composite as a pale fringe over
+ * the page. This profile shifts the band up by 0.04: pixels that close
+ * to the key colour (the halo) go fully transparent, while subject
+ * pixels well clear of the key colour are untouched. It is a
+ * conservative erosion, NOT a cure — if the halo is baked into the
+ * Simli face asset, the durable fix is a cleaner Sara face render on
+ * the Simli side; this only stops the worst of it showing. Aspen and
+ * Alex keep the default profile byte-for-byte.
+ */
+export const SARA_CHROMA_KEY_PROFILE = { low: 0.16, high: 0.26 } as const;
+/** Optional per-call key thresholds (CbCr distance band). */
+export interface ChromaKeyProfile { low: number; high: number; }
 /** Simli may pad the frame with pure black outside the backdrop; treat near-black padding as transparent too. */
 export const BLACK_LOW = 0.02;
 export const BLACK_HIGH = 0.06;
@@ -16,10 +37,12 @@ const [KCB, KCR] = cbcr(0, 1, 0);
 
 const smooth = (e0: number, e1: number, x: number) => { const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return t * t * (3 - 2 * t); };
 
-/** Alpha (0 transparent … 1 opaque) for one pixel with channels in 0..1. */
-export function chromaAlpha(r: number, g: number, b: number): number {
+/** Alpha (0 transparent … 1 opaque) for one pixel with channels in 0..1.
+ *  `low`/`high` override the key band (see SARA_CHROMA_KEY_PROFILE);
+ *  omitted, the shared defaults apply exactly as before. */
+export function chromaAlpha(r: number, g: number, b: number, low: number = CHROMA_LOW, high: number = CHROMA_HIGH): number {
   const [cb, cr] = cbcr(r, g, b);
-  return smooth(CHROMA_LOW, CHROMA_HIGH, Math.hypot(cb - KCB, cr - KCR)) * smooth(BLACK_LOW, BLACK_HIGH, Math.max(r, g, b));
+  return smooth(low, high, Math.hypot(cb - KCB, cr - KCR)) * smooth(BLACK_LOW, BLACK_HIGH, Math.max(r, g, b));
 }
 
 /** Removes green spill from hair and shoulder edges. */
@@ -28,10 +51,11 @@ export function despill(r: number, g: number, b: number): number {
 }
 
 const VERT = `attribute vec2 p;varying vec2 uv;void main(){uv=vec2((p.x+1.)/2.,(1.-p.y)/2.);gl_Position=vec4(p,0.,1.);}`;
-const FRAG = `precision mediump float;varying vec2 uv;uniform sampler2D t;
+const fragSource = (low: number, high: number) => `precision mediump float;varying vec2 uv;uniform sampler2D t;
 vec2 cc(vec3 c){return vec2(-0.168736*c.r-0.331264*c.g+0.5*c.b,0.5*c.r-0.418688*c.g-0.081312*c.b);}
-void main(){vec4 c=texture2D(t,uv);float d=distance(cc(c.rgb),cc(vec3(0.,1.,0.)));float a=smoothstep(${CHROMA_LOW.toFixed(3)},${CHROMA_HIGH.toFixed(3)},d);float mx=max(c.r,max(c.g,c.b));a*=smoothstep(${BLACK_LOW.toFixed(3)},${BLACK_HIGH.toFixed(3)},mx);
+void main(){vec4 c=texture2D(t,uv);float d=distance(cc(c.rgb),cc(vec3(0.,1.,0.)));float a=smoothstep(${low.toFixed(3)},${high.toFixed(3)},d);float mx=max(c.r,max(c.g,c.b));a*=smoothstep(${BLACK_LOW.toFixed(3)},${BLACK_HIGH.toFixed(3)},mx);
 c.g=min(c.g,max(c.r,c.b));gl_FragColor=vec4(c.rgb*a,a);}`;
+const FRAG = fragSource(CHROMA_LOW, CHROMA_HIGH);
 
 /** Starts drawing the keyed video into the canvas; returns a stop function. Returns null when WebGL is unavailable. */
 /** Bounding box (fractions 0..1) of opaque pixels in an RGBA buffer; null when nothing is opaque. */
@@ -49,14 +73,14 @@ export function centeringShift(b: { x0: number; x1: number }): number {
   return 0.5 - (b.x0 + b.x1) / 2;
 }
 
-export function startChromaKey(video: HTMLVideoElement, canvas: HTMLCanvasElement): (() => void) | null {
+export function startChromaKey(video: HTMLVideoElement, canvas: HTMLCanvasElement, profile?: ChromaKeyProfile): (() => void) | null {
   // Retain the last composited pixels when rendering stops; otherwise WebGL clears its buffer.
   const gl = canvas.getContext('webgl', { premultipliedAlpha: true, alpha: true, antialias: false, preserveDrawingBuffer: true });
   if (!gl) return null;
   const shader = (type: number, src: string) => { const s = gl.createShader(type)!; gl.shaderSource(s, src); gl.compileShader(s); return s; };
   const prog = gl.createProgram()!;
   gl.attachShader(prog, shader(gl.VERTEX_SHADER, VERT));
-  gl.attachShader(prog, shader(gl.FRAGMENT_SHADER, FRAG));
+  gl.attachShader(prog, shader(gl.FRAGMENT_SHADER, profile ? fragSource(profile.low, profile.high) : FRAG));
   gl.linkProgram(prog);
   if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return null;
   gl.useProgram(prog);

@@ -1,4 +1,5 @@
 import { DEFAULT_VIDEO_AVATAR, type VideoAvatar } from "../../../supabase/functions/_shared/video-avatar";
+import { GEMINI_LIVE_VOICES, type AgentLanguage } from "@/lib/voiceCatalog";
 export type Faq = { q: string; a: string };
 export type Corner = "bottom-right" | "bottom-left";
 
@@ -17,6 +18,10 @@ export type WizardState = {
   name: string;
   greeting: string;
   voice: string;
+  /** Agent default language; the picked Live voice speaks it (Live voices are language-agnostic). */
+  defaultLanguage?: AgentLanguage;
+  /** True when the picker choice is the client's own cloned voice (the Gemini `voice` stays as the live-session fallback). */
+  clonedVoiceSelected?: boolean;
   color: string;
   label: string;
   corner: Corner;
@@ -28,14 +33,13 @@ export const INDUSTRIES = [
   "Restaurant", "Salon & spa", "Auto services", "Insurance", "Financial services", "Commercial cleaning", "B2B / industrial", "Other",
 ];
 
-export const VOICES = [
-  { id: "Kore", label: "Kore", vibe: "Warm, confident" },
-  { id: "Aoede", label: "Aoede", vibe: "Bright, friendly" },
-  { id: "Leda", label: "Leda", vibe: "Calm, youthful" },
-  { id: "Puck", label: "Puck", vibe: "Upbeat, male" },
-  { id: "Charon", label: "Charon", vibe: "Deep, steady" },
-  { id: "Zephyr", label: "Zephyr", vibe: "Light, clear" },
-];
+/** All 30 Gemini Live voices (Google's fixed set), from the shared catalog. */
+export const VOICES = GEMINI_LIVE_VOICES.map((v) => ({
+  id: v.id,
+  label: v.id,
+  vibe: `${v.style} · ${v.gender}`,
+  gender: v.gender,
+}));
 
 export const SPECIALTIES: Record<string, string[]> = {
   HVAC: ['Commercial refrigeration', 'Industrial ventilation', 'Heat pumps', 'Maintenance contracts'],
@@ -79,7 +83,7 @@ export const SAMPLES: Record<string, WizardState> = {
 export const EMPTY: WizardState = {
   websiteUrl: "", businessName: "", industry: "", links: [], files: [], faqs: [], name: "Aspen",
   greeting: "{timeGreeting}! I'm {agentName} with {businessName}. How can I help you today?",
-  voice: "Kore", color: "#10b981", label: "Ask Aspen", corner: "bottom-right", videoAvatar: DEFAULT_VIDEO_AVATAR,
+  voice: "Kore", defaultLanguage: "en", clonedVoiceSelected: false, color: "#10b981", label: "Ask Aspen", corner: "bottom-right", videoAvatar: DEFAULT_VIDEO_AVATAR,
 };
 
 /** Fill greeting placeholders for previews. */

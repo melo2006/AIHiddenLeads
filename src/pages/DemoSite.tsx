@@ -250,6 +250,7 @@ const DemoSite = () => {
   // email server-side, so there is no code gate — Aspen runs the invite
   // host phase (greeting + explanation + continue) before the simulation.
   const inviteRequested = searchParams.get("invite") === "1";
+  const sampleRequested = searchParams.get("sample") === "1";
   // Invite arrivals carry the lead this tab belongs to: persist it next to
   // the campaign visit so this demo's milestones attribute to the invited
   // lead in the outreach report. Only invite arrivals do this — ordinary
@@ -1151,6 +1152,7 @@ const DemoSite = () => {
           onAssistantReady={() => setAssistantReady(true)}
           verification={gatePhase === "waiting" ? "pending" : gatePhase === "verified" ? "verified" : undefined}
           invite={inviteRequested}
+          sample={sampleRequested}
           onUserTranscript={gateRequested ? handleGateTranscript : undefined}
           gateWaiting={gateWaiting}
         />}

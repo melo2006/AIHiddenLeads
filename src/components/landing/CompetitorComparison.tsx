@@ -11,7 +11,7 @@ const ROWS: { label: string; cells: Cell[] }[] = [
   { label: "Included usage · different billing units", cells: ["400 website voice minutes", "100 unique customers", "75 calls", "50 receptionist minutes"] },
   { label: "Primary way to engage", cells: ["Website voice + chat", "AI telephone answering", "AI telephone answering", "Human telephone answering"] },
   { label: "Website chat", cells: ["Included", "Not verified", "Not verified for AI Pro", "Separate service / bundle"] },
-  { label: "Live talking video on your website", cells: ["Optional +$79/mo · 400 video minutes", "Not verified", "Not verified", "Not verified"] },
+  { label: "Live talking video on your website", cells: ["Optional +$79/mo (first month free) · 400 video minutes", "Not verified", "Not verified", "Not verified"] },
   { label: "Fresh B2B prospects", cells: ["50/month included", "Not listed in Starter", "Not listed in AI Pro", "Not listed in Call Ruby 50"] },
   { label: "Calendar booking", cells: ["Our sales calendar live; customer connection rollout", "Available", "Available", "Available"] },
   { label: "Conversation records", cells: ["Private browser transcripts, AI summaries & audio segments", "Check selected plan", "Recordings, transcripts & summaries", "Receptionist messages"] },

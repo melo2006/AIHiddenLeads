@@ -43,6 +43,7 @@ const ProspectsView = () => {
     ...DEFAULT_FILTERS,
     temperature: searchParams.get("temp") || "all",
     status: searchParams.get("status") || "all",
+    campaign: searchParams.get("campaign") ? [searchParams.get("campaign") as string] : [],
   });
   const [appliedFilters, setAppliedFilters] = useState<Filters>(draftFilters);
 
@@ -52,11 +53,13 @@ const ProspectsView = () => {
   useEffect(() => {
     const temp = searchParams.get("temp");
     const status = searchParams.get("status");
-    if (temp || status) {
+    const campaign = searchParams.get("campaign");
+    if (temp || status || campaign) {
       const updated = {
         ...draftFilters,
         temperature: temp || "all",
         status: status || "all",
+        campaign: campaign ? [campaign] : draftFilters.campaign,
       };
       setDraftFilters(updated);
       setAppliedFilters(updated);
@@ -66,7 +69,7 @@ const ProspectsView = () => {
 
   const { search, isSearching, searchResults } = useProspectSearch();
   const { prospects, isLoading, refetch } = useProspects(appliedFilters);
-  const { niches, cities, states } = useFilterOptions();
+  const { niches, campaigns, cities, states } = useFilterOptions();
   const prospectAnalysis = useProspectAnalysis();
 
   const handleApplyFilters = () => {
@@ -226,6 +229,7 @@ const ProspectsView = () => {
               onChange={setDraftFilters}
               onApply={handleApplyFilters}
               niches={niches}
+              campaigns={campaigns}
               cities={cities}
               states={states}
             />

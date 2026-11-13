@@ -10,6 +10,10 @@ interface StripeEmbeddedCheckoutProps {
   returnUrl?: string;
   onUnavailable?: () => void;
   customAvatar?: boolean;
+  /** Plan checkout only: start the video avatar's free first month. */
+  videoAvatar?: boolean;
+  /** Minute-pack purchases only: the org the pack minutes belong to. */
+  organizationId?: string;
 }
 
 export function StripeEmbeddedCheckout({
@@ -20,10 +24,12 @@ export function StripeEmbeddedCheckout({
   returnUrl,
   onUnavailable,
   customAvatar,
+  videoAvatar,
+  organizationId,
 }: StripeEmbeddedCheckoutProps) {
   const fetchClientSecret = async (): Promise<string> => {
     const { data, error } = await supabase.functions.invoke("create-checkout", {
-      body: { priceId, quantity, customerEmail, userId, returnUrl, customAvatar, environment: getStripeEnvironment() },
+      body: { priceId, quantity, customerEmail, userId, returnUrl, customAvatar, videoAvatar, organizationId, environment: getStripeEnvironment() },
     });
     if (error || !data?.clientSecret) {
       onUnavailable?.();

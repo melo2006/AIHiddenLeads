@@ -7,6 +7,7 @@ import {
   UploadCloud, Link2, FileText, Check, Phone, UserRound,
 } from "lucide-react";
 import AvatarSettings from "@/components/AvatarSettings";
+import VoiceClonePanel from "@/components/VoiceClonePanel";
 import { normalizeVideoAvatar } from "../../../supabase/functions/_shared/video-avatar";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import GeminiConversation from "@/components/GeminiConversation";
 import AgentInstallationGuide from "@/components/AgentInstallationGuide";
+import PhoneSetupPanel from "./PhoneSetupPanel";
+import { EMPTY_PHONE_SETUP, type PhoneSetupState } from "../../../supabase/functions/_shared/onboarding";
 import SitePreview from "./SitePreview";
 import ShareDemoLink from "./ShareDemoLink";
 import { rankAuditExamples } from "@/lib/rankAuditExamples";
@@ -23,6 +26,7 @@ import { GUARDRAILS_MARK, REVIEWED_KNOWLEDGE_MARK, replaceSection } from "../../
 import {
   EMPTY, INDUSTRIES, SPECIALTIES, industryName, LABELS, askLabel, isAskLabel, labelOptions, STEPS, VOICES, faqKnowledge, nameFromUrl, renderGreeting, stepReady, type WizardState,
 } from "./wizardModel";
+import { VOICE_LANGUAGE_SETS, liveVoiceById, type AgentLanguage } from "@/lib/voiceCatalog";
 
 const ICONS = [Building2, BookOpen, Mic, UserRound, Palette, Rocket];
 type Source = { id: string; label: string; kind: string; url?: string; status: string; last_error?: string; content?: string };
@@ -71,6 +75,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
   const [linkInput, setLinkInput] = useState("");
   const [drag, setDrag] = useState(false);
   const [published, setPublished] = useState(false);
+  const [phoneSetup, setPhoneSetup] = useState<PhoneSetupState>(EMPTY_PHONE_SETUP);
   const [calling, setCalling] = useState(false);
   const [loading, setLoading] = useState(true);
   const [suggestedIndustry, setSuggestedIndustry] = useState("");
@@ -93,6 +98,8 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
   }, [step]);
   useEffect(() => { setSuggestedIndustry(''); setKnowledgeProposal(''); }, [selectedId]);
   const set = (patch: Partial<WizardState>) => setS((p) => ({ ...p, ...patch }));
+  /** Picking a voice also pairs it with a default language (Live voices are language-agnostic). */
+  const pickVoice = (id: string, language: AgentLanguage) => { set({ voice: id, defaultLanguage: language, clonedVoiceSelected: false }); setVoiceReady(false); };
 
   async function load(id = selectedId) {
     const generation = ++loadGeneration.current;
@@ -115,11 +122,12 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
         customIndustry: INDUSTRIES.includes(String(d.industry || "")) ? "" : String(d.industry || ""), subNiche: String(d.subNiche || ""), businessNotes: String(d.businessNotes || ""), knowledgeGuidance: String(d.knowledgeGuidance || ""), assistantRestrictions: String(d.assistantRestrictions || ""),
         links: (a.voice_agent_sources || []).filter((x: { kind: string }) => x.kind === "url").map((x: { url?: string; label: string }) => x.url || x.label),
         files: (a.voice_agent_sources || []).filter((x: { kind: string }) => x.kind === "document").map((x: { label: string }) => x.label),
-        faqs, name: String(d.name || "Aspen"), greeting: String(d.greeting || EMPTY.greeting), voice: String(d.voice || "Kore"),
+        faqs, name: String(d.name || "Aspen"), greeting: String(d.greeting || EMPTY.greeting), voice: String(d.voice || "Kore"), defaultLanguage: (["es", "pt-BR"].includes(String(d.defaultLanguage)) ? String(d.defaultLanguage) : "en") as AgentLanguage, clonedVoiceSelected: Boolean(d.clonedVoiceSelected),
         color: d.theme?.primary || EMPTY.color, label: (() => { const l = String(d.launcherLabel || ""); return !l || isAskLabel(l) ? askLabel(String(d.name || "Aspen")) : l; })(),
         corner: d.launcherCorner === "bottom-left" ? "bottom-left" : "bottom-right", videoAvatar: normalizeVideoAvatar(d.videoAvatar),
       });
       setPublished(Boolean(a.published));
+      setPhoneSetup((d.phoneSetup as PhoneSetupState) || EMPTY_PHONE_SETUP);
     } finally { if (generation === loadGeneration.current) setLoading(false); }
   }
   useEffect(() => {
@@ -132,7 +140,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
     const faq = faqKnowledge(s.faqs);
     const config = {
       ...draft, websiteUrl: s.websiteUrl ? (/^https?:\/\//i.test(s.websiteUrl) ? s.websiteUrl : `https://${s.websiteUrl}`) : "", businessName: s.businessName || "My business", industry: industryName(s), subNiche: s.subNiche || "", businessNotes: s.businessNotes || "", knowledgeGuidance: s.knowledgeGuidance || "", assistantRestrictions: s.assistantRestrictions || "", systemPrompt: replaceSection(String(draft.systemPrompt || ""), GUARDRAILS_MARK, s.assistantRestrictions || ""), name: s.name || "Aspen",
-      greeting: s.greeting, voice: s.voice, theme: { background: "#101216", foreground: "#F4F6F8", font: "system", ...(draft.theme || {}), primary: s.color }, launcherLabel: s.label, launcherCorner: s.corner, videoAvatar: normalizeVideoAvatar(s.videoAvatar),
+      greeting: s.greeting, voice: s.voice, defaultLanguage: s.defaultLanguage || "en", clonedVoiceSelected: Boolean(s.clonedVoiceSelected), phoneSetup, theme: { background: "#101216", foreground: "#F4F6F8", font: "system", ...(draft.theme || {}), primary: s.color }, launcherLabel: s.label, launcherCorner: s.corner, videoAvatar: normalizeVideoAvatar(s.videoAvatar),
       knowledge: faq ? `${base}\n\n${FAQ_MARK}\n${faq}`.trim() : base,
     };
     try { await request({ action: "save", agentId: selectedId, config }); setDraft(config); return true; }
@@ -389,19 +397,37 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
                 </div>
               </div>
               <div className="space-y-3">
-                <p className="flex items-center gap-1.5 text-sm font-semibold">Pick a voice<Help>Each voice is the real Gemini voice your callers will hear.</Help></p>
+                <p className="flex items-center gap-1.5 text-sm font-semibold">Pick a voice<Help>Each voice is the real Gemini voice your callers will hear. The same voice can speak English, Spanish or Portuguese — the language sets below simply pair the voice with that default language.</Help></p>
+                <p className="text-xs font-medium text-muted-foreground">English</p>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   {VOICES.map((v) => (
-                    <button key={v.id} type="button" onClick={() => { set({ voice: v.id }); setVoiceReady(false); }}
-                      className={`rounded-xl border-2 p-3 text-left transition ${s.voice === v.id ? "border-primary bg-primary/10" : "border-border hover:border-primary/50"}`}>
-                      <Mic className={`mb-1 h-4 w-4 ${s.voice === v.id ? "text-primary" : "text-muted-foreground"}`} />
+                    <button key={v.id} type="button" onClick={() => pickVoice(v.id, "en")}
+                      className={`rounded-xl border-2 p-3 text-left transition ${s.voice === v.id && (s.defaultLanguage || "en") === "en" && !s.clonedVoiceSelected ? "border-primary bg-primary/10" : "border-border hover:border-primary/50"}`}>
+                      <Mic className={`mb-1 h-4 w-4 ${s.voice === v.id && (s.defaultLanguage || "en") === "en" && !s.clonedVoiceSelected ? "text-primary" : "text-muted-foreground"}`} />
                       <p className="text-sm font-semibold">{v.label}</p>
                       <p className="text-[11px] text-muted-foreground">{v.vibe}</p>
                     </button>
                   ))}
                 </div>
+                {VOICE_LANGUAGE_SETS.map((setDef) => (
+                  <div key={setDef.language} className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground">{setDef.label} <span className="font-normal">· {setDef.note}</span></p>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                      {[...setDef.female, ...setDef.male].map((id) => { const v = liveVoiceById(id); if (!v) return null; const active = s.voice === id && s.defaultLanguage === setDef.language && !s.clonedVoiceSelected; return (
+                        <button key={id} type="button" onClick={() => pickVoice(id, setDef.language)}
+                          className={`rounded-xl border-2 p-3 text-left transition ${active ? "border-primary bg-primary/10" : "border-border hover:border-primary/50"}`}>
+                          <Mic className={`mb-1 h-4 w-4 ${active ? "text-primary" : "text-muted-foreground"}`} />
+                          <p className="text-sm font-semibold">{v.id}</p>
+                          <p className="text-[11px] text-muted-foreground">{v.style} · {v.gender}</p>
+                        </button> ); })}
+                    </div>
+                  </div>
+                ))}
                 {realVoice && (voiceReady ? <div className="rounded-lg border border-border p-2"><GeminiConversation key={`${selectedId}-${s.voice}-${s.greeting}`} previewOnly autoStart previewAudioContext={previewAudioRef.current} draft agentId={selectedId} name={s.name} previewVoice={s.voice} compact /></div> : <Button variant="outline" className="w-full" disabled={busy} onClick={() => void prepareVoice()}>{busy ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}{busy ? 'Saving & preparing voice…' : `Hear my greeting · ${s.voice}`}</Button>)}
 
+              </div>
+              <div className="md:col-span-2">
+                <VoiceClonePanel agentId={selectedId} selected={Boolean(s.clonedVoiceSelected)} onSelectChange={(cloned) => { set({ clonedVoiceSelected: cloned }); if (cloned) setVoiceReady(false); }} />
               </div>
             </div>
           )}
@@ -409,7 +435,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
           {step === 3 && (
             <div className="space-y-4">
               <StepHead title="Give your assistant a face" hint="Optional: a live video face that speaks with your chosen voice." help="Voice only works everywhere. A video face lip-syncs the same Gemini voice and uses extra video minutes." />
-              <AvatarSettings value={normalizeVideoAvatar(s.videoAvatar)} onChange={(videoAvatar) => set({ videoAvatar })} agentId={selectedId} beforePreview={save} voice={s.voice} onVoiceChange={voice => { set({ voice }); setVoiceReady(false); }} name={s.name} />
+              <AvatarSettings value={normalizeVideoAvatar(s.videoAvatar)} onChange={(videoAvatar) => set({ videoAvatar })} agentId={selectedId} beforePreview={save} voice={s.voice} onVoiceChange={voice => { set({ voice, clonedVoiceSelected: false }); setVoiceReady(false); }} name={s.name} clonedVoiceSelected={Boolean(s.clonedVoiceSelected)} onClonedVoiceSelectedChange={(cloned) => { set({ clonedVoiceSelected: cloned }); if (cloned) setVoiceReady(false); }} />
             </div>
           )}
 
@@ -441,6 +467,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
             <div className="grid gap-6 md:grid-cols-2">
               <div className="space-y-4">
                 <StepHead title={published ? "You're live!" : "Try it, then go live"} hint={published ? "Add it to your website with the steps below." : "Make a test call, then publish."} help="Test calls use your saved draft. Publishing makes it available to your website visitors." />
+                <PhoneSetupPanel agentId={selectedId} value={phoneSetup} onSaved={setPhoneSetup} />
                 {realVoice ? (
                   calling ? <div className="rounded-xl border border-border p-2"><GeminiConversation key={`call-${selectedId}`} draft agentId={selectedId} name={s.name} previewVoice={s.voice} compact videoAvatar={normalizeVideoAvatar(s.videoAvatar)} /></div>
                     : <Button size="lg" variant="outline" className="w-full" disabled={busy || sources.some(x => x.status !== "ready")} onClick={() => void prepareVoice(true)}><Phone className="mr-2 h-5 w-5" />Try a test call</Button>

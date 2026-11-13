@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,6 +25,7 @@ import aspenPortrait from "@/assets/aspen-video-frame-final.webp";
 import type { DemoLeadData } from "@/components/landing/demo-results/demoResultsUtils";
 import {
   DEMO_CONSENT_DISCLOSURE,
+  DEMO_SMS_CONSENT_LABEL,
   DEMO_TEST_TOGGLE,
   SMS_VERIFICATION_ENABLED,
   requestDemoCode,
@@ -34,8 +36,11 @@ import { trackCampaignEvent } from "@/lib/campaignTracking";
 /**
  * Demo-mode intake: the chat-widget-style form that replaces the heavy /demo
  * page form (Verified Demo Gate, phase 1). Aspen's portrait heads the card;
- * the fields are name / email / phone / website URL, the consent disclosure
- * sits directly at the action, and submitting creates the lead, sends the
+ * the fields are name / email / phone / website URL, an OPTIONAL unchecked
+ * SMS-consent checkbox sits above the action (Telnyx TFV fix — ticking it
+ * is the only way a website demo lead consents to texts; the choice is
+ * recorded on the lead via set_demo_lead_sms_consent), the consent
+ * disclosure sits directly at the action, and submitting creates the lead, sends the
  * 4-digit verification code (email — the live channel) and hands the parent
  * everything it needs to navigate into the gated demo. Advanced teaching
  * options (extra page, crawl depth, documents) stay available collapsed —
@@ -113,6 +118,10 @@ export default function DemoIntakePanel({ url, onUrlChange, auditBusinessName, o
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  // OPTIONAL SMS consent (Telnyx TFV fix): unchecked by default, never
+  // required — submission proceeds identically either way; the value is
+  // recorded on the lead after creation (see handleSubmit).
+  const [smsConsent, setSmsConsent] = useState(false);
   const [channel, setChannel] = useState<"email" | "sms">("email");
   // TEST-ONLY toggle (DEMO_TEST_TOGGLE): default OFF so testers can walk the
   // flow with no code step; ON runs the real verification gate.
@@ -189,6 +198,20 @@ export default function DemoIntakePanel({ url, onUrlChange, auditBusinessName, o
       });
       if (error) throw error;
       if (!leadId) throw new Error("Demo lead was not created");
+
+      // Record the SMS checkbox choice on the lead (leads.sms_consent —
+      // the follow-up pack column). Best-effort like the uploads attach
+      // below: a failed write must never block the demo.
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped RPC (same cast as create_demo_lead above)
+        const { error: consentError } = await (supabase as any).rpc("set_demo_lead_sms_consent", {
+          _lead_id: leadId,
+          _sms_consent: smsConsent,
+        });
+        if (consentError) console.error("Could not record SMS consent:", consentError);
+      } catch (consentErr) {
+        console.error("Could not record SMS consent:", consentErr);
+      }
 
       let filePaths: string[] = [];
       if (files.length > 0) {
@@ -478,6 +501,24 @@ export default function DemoIntakePanel({ url, onUrlChange, auditBusinessName, o
         </div>
       )}
 
+      {/* OPTIONAL SMS consent (Telnyx TFV fix): a real checkbox, unchecked
+          by default — the demo starts and completes identically whether or
+          not it is ticked. Ticking it is the only website path that grants
+          SMS consent; the choice is recorded on the lead at submit. */}
+      <div className="flex items-start gap-2.5 px-1 text-left">
+        <Checkbox
+          id="demo-sms-consent"
+          checked={smsConsent}
+          onCheckedChange={(value) => setSmsConsent(value === true)}
+          disabled={isSubmitting}
+          aria-label="Optional: text me my demo link and results by SMS"
+          className="mt-0.5"
+        />
+        <label htmlFor="demo-sms-consent" className="cursor-pointer text-[11px] leading-snug text-muted-foreground">
+          {DEMO_SMS_CONSENT_LABEL}
+        </label>
+      </div>
+
       <Button
         type="submit"
         size="lg"
@@ -487,7 +528,7 @@ export default function DemoIntakePanel({ url, onUrlChange, auditBusinessName, o
         {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : "Show me my talking website"}
       </Button>
 
-      {/* Consent disclosure — directly at the action, no separate checkbox */}
+      {/* Consent disclosure — directly at the action; texts are governed by the optional checkbox above, never by continuing */}
       <p className="flex items-start gap-1.5 px-1 text-left text-[10px] leading-relaxed text-muted-foreground">
         <ShieldCheck className="mt-0.5 h-3 w-3 shrink-0 text-primary" />
         <span>{DEMO_CONSENT_DISCLOSURE}</span>

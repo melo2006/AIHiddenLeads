@@ -18,8 +18,54 @@ export interface AgentVertical {
   route: string;
   /** Short job label used in the hero badge, e.g. "Built for realtors". */
   builtFor: string;
+  /**
+   * Optional slogan line for the hero badge pill; when present it
+   * replaces builtFor in the pill (builtFor stays the short label).
+   */
+  badgeLine?: string;
+  /**
+   * Optional hero slideshow — a full-bleed photo band at the top of
+   * the hero. Each slide pairs a panoramic photo with the slogan
+   * overlaid on it; photo + slogan crossfade together. `key` selects
+   * the image in the template's slide map, so a vertical only ever
+   * shows its own photos; omit the field and no band renders (and the
+   * badge pill shows instead). `focusClass` carries the Tailwind
+   * object-position classes that keep each photo's subject in frame
+   * under the portrait-mobile and landscape-desktop crops.
+   */
+  heroSlides?: {
+    key: string;
+    alt: string;
+    caption: string;
+    slogan: string;
+    focusClass: string;
+  }[];
+  /** Attribution line for heroSlides (source + licence), tiny print. */
+  heroSlidesCredit?: string;
   headline: string;
   sub: string;
+  /**
+   * Optional spend-hook tagline rendered directly under the hero
+   * headline/sub (owner-approved verbatim 2026-11-12): the agent
+   * already pays to be found; the tagline names the moment Aspen
+   * covers. heroTaglineSub is its supporting line.
+   */
+  heroTagline?: string;
+  heroTaglineSub?: string;
+  /**
+   * Optional "You already bought the attention" section, rendered
+   * between the examples grid and the stats band when present: three
+   * tiles (the agent's farming, their placement, Aspen as the
+   * answer), the verified never-answered stat as the sting (rendered
+   * from this vertical's stats — no separate figure lives here), and
+   * a social strip presenting social media management as an
+   * available add-on, no invented results.
+   */
+  attention?: {
+    heading: string;
+    tiles: { title: string; body: string }[];
+    socialStrip: string;
+  };
   pains: { title: string; body: string }[];
   sampleCall: {
     buyerTitle: string;
@@ -31,10 +77,73 @@ export interface AgentVertical {
   controlSteps: { title: string; body: string }[];
   /** What the agent sees in their dashboard for every lead. */
   dashboardPoints: string[];
-  /** Verified evidence figures — only the owner-supplied verified set. */
-  stats: { value: string; label: string; source: string }[];
+  /** Verified evidence figures — only the owner-supplied verified set.
+   *  `value`/`label` are the canonical figure + wording (evidence
+   *  section, sources). Optional barValue/barLabel override ONLY how
+   *  the entry renders in the big hero stat bar. */
+  stats: {
+    value: string;
+    label: string;
+    source: string;
+    barValue?: string;
+    barLabel?: string;
+  }[];
   /** "Sound familiar?" buyer scenario (generalized, no names). */
   scenario: string;
+  /** One-line follow-up rendered under the scenario card. */
+  scenarioPunchline: string;
+  /**
+   * The full AiHiddenLeads services list (same names as the homepage
+   * hero list), rendered as a balanced checklist when present.
+   */
+  services?: string[];
+  /**
+   * Optional plain-language note rendered under the services checklist:
+   * what the plan's included "prospects" mean FOR THIS VERTICAL. The
+   * shared service name stays the general B2B one; a vertical whose
+   * buyers are consumers must translate it here so the page never lets
+   * "prospects" read as consumer leads (owner-directed 2026-11-12).
+   */
+  prospectsNote?: string;
+  /**
+   * Optional extra bullet for the focused Premium summary card: the
+   * plan's included prospects, translated for this vertical (see
+   * prospectsNote). Rendered only when present; the card adds the
+   * standing "*Up to 50/month — no specific count guaranteed" footnote.
+   */
+  premiumProspectsBullet?: string;
+  /**
+   * "Areas we serve" strip — a visible locality list grouped by
+   * county, rendered near the bottom of the page when present.
+   * Honest, visible copy only: the real service area in real text —
+   * no hidden text, no zip-code lists.
+   */
+  serviceAreas?: {
+    heading: string;
+    framing: string;
+    /** Small label above the county groups — the home base, framed
+     *  as local proof, never as the limit of service. */
+    homeTurfLabel: string;
+    counties: { county: string; cities: string[] }[];
+  };
+  /**
+   * One-click example demos for the hero form — real agents' public
+   * websites, grouped by area. Picking one launches the live demo on
+   * that site immediately (no typing) under a generic visitor name.
+   * Only verticals that carry this field render the dropdown.
+   */
+  demoExamples?: {
+    /** Label/intro line rendered above the select. */
+    intro: string;
+    /** Disabled placeholder option. */
+    placeholder: string;
+    /** Generic visitor name a sample session is authorized with. */
+    visitorName: string;
+    groups: {
+      area: string;
+      options: { agent: string; city: string; url: string; slug: string }[];
+    }[];
+  };
   /** Worked money-math example — labelled an example, not a promise. */
   moneyMath: { lines: string[]; punchline: string; source: string };
   /** Calendar section: bookings on the agent's own connected calendar. */
@@ -48,9 +157,93 @@ export const REALTOR_VERTICAL: AgentVertical = {
   slug: "realtors",
   route: "/agents/realtors",
   builtFor: "Built for realtors",
+  badgeLine:
+    "Buyers and sellers won't wait · The first agent to answer wins the client · Aspen answers in seconds, 24/7",
+  heroSlides: [
+    {
+      key: "sold",
+      alt: "A real estate agent handing the keys to a smiling couple in front of their new Florida home, a red SOLD sign in the front yard",
+      caption: "The closing moment",
+      slogan: "The first agent to answer wins the client.",
+      focusClass: "object-[42%_30%] sm:object-[45%_32%]",
+    },
+    {
+      key: "condo",
+      alt: "A realtor holding up the keys with two happy condo buyers in front of a modern condo tower",
+      caption: "Condo buyers, answered",
+      slogan: "Buyers and sellers won't wait.",
+      focusClass: "object-[50%_35%]",
+    },
+    {
+      key: "keys",
+      alt: "A real estate agent shaking hands with a couple holding their new keys at the front door of their townhouse",
+      caption: "At the front door",
+      slogan: "Never miss a showing, a closing, or a call.",
+      focusClass: "object-[50%_30%]",
+    },
+    {
+      key: "house",
+      alt: "A real estate agent handing the keys to a couple in the driveway of their new home, a SOLD sign with the agent's photo and a QR code in the front yard",
+      caption: "The SOLD sign goes up",
+      slogan: "Your next closing starts with one answered call.",
+      focusClass: "object-[40%_35%] sm:object-[42%_35%]",
+    },
+    {
+      key: "couple",
+      alt: "An older couple receiving the keys to their brick townhouse from their realtor",
+      caption: "Every generation of buyer",
+      slogan: "Every buyer. Every seller. Answered.",
+      focusClass: "object-[35%_30%] sm:object-[38%_32%]",
+    },
+    {
+      key: "aerial",
+      alt: "Aerial view of Fort Lauderdale — the Intracoastal Waterway, the Las Olas finger canals, the 17th Street Causeway, and the beachfront condo strip",
+      caption: "Fort Lauderdale from above",
+      slogan: "Aspen answers in seconds, 24/7.",
+      focusClass: "object-[50%_45%]",
+    },
+    {
+      key: "beach",
+      alt: "Fort Lauderdale Beach — white sand and turquoise ocean along the beachfront condo and hotel strip, including the curved W Fort Lauderdale towers",
+      caption: "Fort Lauderdale Beach",
+      slogan: "Voicemail? Your buyer just called the next agent on the list.",
+      focusClass: "object-[50%_55%]",
+    },
+    {
+      key: "dallas",
+      alt: "Downtown Dallas skyline panorama — glass towers over Klyde Warren Park and the Arts District",
+      caption: "Downtown Dallas",
+      slogan: "Serving realtors nationwide — coast to coast.",
+      focusClass: "object-[50%_40%]",
+    },
+  ],
+  heroSlidesCredit:
+    "Real photographs via Wikimedia Commons: Fort Lauderdale aerial by Yanjipy, CC BY-SA 4.0 · Downtown Dallas skyline by Gattacal, CC BY-SA 4.0. All other hero imagery created for or provided to AiHiddenLeads.",
   headline:
     "Realtors: Never Miss a Buyer or Seller Call Again — Even at a Showing",
   sub: "Aspen answers calls and website visitors 24/7, books the appointment, sends the summary.",
+  heroTagline: "You pay to be found. We make sure you're answered.",
+  heroTaglineSub:
+    "Your bench ad, your billboard, your Zillow Premier profile — they all end at a ringing phone or a website visit. Aspen is there for that moment, 24/7.",
+  attention: {
+    heading: "You already bought the attention",
+    tiles: [
+      {
+        title: "Your farming",
+        body: "Benches, bus sides, billboards, mailers — your name out in the neighborhoods you farm, working even when you're not there to answer it.",
+      },
+      {
+        title: "Your placement",
+        body: "Zillow, Realtor.com, Google, Facebook — paying to sit at the top of the list at the exact moment a buyer or seller goes looking.",
+      },
+      {
+        title: "Your answer",
+        body: "Every call and click those dollars produce, answered in seconds — nights, weekends, mid-showing. This is the part Aspen covers, 24/7.",
+      },
+    ],
+    socialStrip:
+      "Want the funnel fuller? Add social media management — we create, post, and reply for you, so there's more of the right attention for Aspen to answer.",
+  },
   pains: [
     {
       title: "You're at a showing — and the ready buyer hangs up",
@@ -58,7 +251,7 @@ export const REALTOR_VERTICAL: AgentVertical = {
     },
     {
       title: "Inquiries arrive at night — and wait hours",
-      body: "Website and portal inquiries arrive nights and weekends, when buyers and sellers are actually looking. Left waiting for hours, that inquiry goes cold — or gets answered first by another agent.",
+      body: "Website and portal inquiries arrive nights and weekends, when buyers and sellers are actually looking. Left waiting for hours, that inquiry goes cold — or gets answered first by another agent at another brokerage.",
     },
     {
       title: "You pay for ads — then answer every call yourself",
@@ -110,6 +303,11 @@ export const REALTOR_VERTICAL: AgentVertical = {
       label:
         "Average agent response time to a new inquiry — over 15 hours",
       source: "WAV Group Agent Responsiveness Study, via Inman",
+      // Ron (2026-11-11): "917 min" is too number-heavy as the big stat —
+      // the bar leads with the human version; the exact figure stays in
+      // the subline and in the evidence/sources section.
+      barValue: "15+ hours",
+      barLabel: "Average agent response time to a new inquiry (917 minutes)",
     },
     {
       value: "48%",
@@ -126,6 +324,12 @@ export const REALTOR_VERTICAL: AgentVertical = {
       label:
         "More likely to qualify a lead when you respond in 5 minutes instead of 30 minutes",
       source: "MIT / InsideSales Lead Response Management Study",
+      // Ron (2026-11-11): bare "21x" is not self-explanatory up front —
+      // the bar carries "more likely" in the big line, so big line +
+      // subline read as one sentence with no duplication.
+      barValue: "21x more likely",
+      barLabel:
+        "To qualify a lead when you respond in 5 minutes instead of 30 minutes",
     },
     {
       value: "33%",
@@ -147,10 +351,197 @@ export const REALTOR_VERTICAL: AgentVertical = {
   ],
   scenario:
     "You drive past a home and call the number on the sign. No answer. You don't leave a voicemail — you call the next agent. When the first agent calls back 2 days later, you've already forgotten which house it was.",
+  scenarioPunchline:
+    "That is what your buyers do, too. Answer now — or lose them to the next brokerage.",
+  services: [
+    "Live Video Receptionist on Your Website",
+    "AI Phone Receptionist — No Website Needed",
+    "Fresh B2B Prospects, Delivered Weekly",
+    "Google Maps & AI Search Visibility",
+    "Reviews & Reputation Management",
+    "Social Media, Handled",
+    "Comments & Reviews, Answered",
+    "Website Revamp or a Brand-New Site",
+  ],
+  prospectsNote:
+    "What “prospects” means for a realtor: not buyers — there is no list of ready home buyers, and we won't pretend otherwise. The up to 50 prospects a month* included in your plan are referral partners: local mortgage brokers, insurance agents, home inspectors, stagers and contractors who can send you clients. Your buyers and sellers come from your own calls, website and portals — and Aspen captures and nurtures every one of them. *Up to 50/month — no specific count guaranteed.",
+  premiumProspectsBullet:
+    "Referral-partner prospects included — up to 50/month*: local mortgage brokers, insurance agents, home inspectors, stagers and contractors who can send you clients (not buyer leads — your buyers come from your own traffic, and Aspen captures every one)",
+  demoExamples: {
+    intro:
+      "No typing needed — pick an example realtor website and watch the demo run on it live:",
+    placeholder: "Pick an example realtor website…",
+    visitorName: "John Doe",
+    groups: [
+      {
+        area: "Broward County, FL",
+        options: [
+          {
+            agent: "Aurelia Perez",
+            city: "Fort Lauderdale",
+            url: "https://www.aureliaperez.com/",
+            slug: "aurelia-perez",
+          },
+          {
+            agent: "Ann Chamberlain",
+            city: "Fort Lauderdale",
+            url: "https://www.annchamberlain.com/",
+            slug: "ann-chamberlain",
+          },
+        ],
+      },
+      {
+        area: "Miami-Dade County, FL",
+        options: [
+          {
+            agent: "Ashley Cusack",
+            city: "Coral Gables",
+            url: "https://ashleycusack.com/",
+            slug: "ashley-cusack",
+          },
+          {
+            agent: "Mauricio J. Barba",
+            city: "Coral Gables",
+            url: "https://miamisignaturehomes.com/",
+            slug: "mauricio-barba",
+          },
+          {
+            agent: "Michael Martinez",
+            city: "Coral Gables",
+            url: "https://michaelmartinezrealtor.com/",
+            slug: "michael-martinez",
+          },
+        ],
+      },
+      {
+        area: "Palm Beach County, FL",
+        options: [
+          {
+            agent: "Jean-Luc Andriot",
+            city: "Boca Raton",
+            url: "https://jeanlucandriot.com/",
+            slug: "jean-luc-andriot",
+          },
+          {
+            agent: "Paul Saperstein",
+            city: "Delray Beach",
+            url: "https://paulsapersteinhomes.com/",
+            slug: "paul-saperstein",
+          },
+        ],
+      },
+      {
+        area: "Dallas, TX",
+        options: [
+          {
+            agent: "Baldemar De Leon",
+            city: "Dallas",
+            url: "https://www.baldemardeleon.com/",
+            slug: "baldemar-deleon",
+          },
+          {
+            agent: "Logan Walter",
+            city: "Dallas",
+            url: "https://loganwalter.com/",
+            slug: "logan-walter",
+          },
+        ],
+      },
+      {
+        area: "Los Angeles, CA",
+        options: [
+          {
+            agent: "Ray Miramontes",
+            city: "Long Beach",
+            url: "https://mira-realestate.com/",
+            slug: "ray-miramontes",
+          },
+        ],
+      },
+      {
+        area: "San Francisco, CA",
+        options: [
+          {
+            agent: "Danielle Lazier",
+            city: "San Francisco",
+            url: "https://daniellelazier.com/",
+            slug: "danielle-lazier",
+          },
+        ],
+      },
+      {
+        area: "New York, NY",
+        options: [
+          {
+            agent: "Richard Steinberg Team",
+            city: "New York",
+            url: "https://www.therichardsteinbergteam.com/",
+            slug: "richard-steinberg",
+          },
+        ],
+      },
+      {
+        area: "Salt Lake City, UT",
+        options: [
+          {
+            agent: "Gian Sexsmith",
+            city: "Salt Lake City",
+            url: "https://sexsmithrealty.com/",
+            slug: "gian-sexsmith",
+          },
+        ],
+      },
+    ],
+  },
+  serviceAreas: {
+    heading: "Serving realtors nationwide",
+    framing:
+      "Aspen answers wherever your buyers and sellers call from. Our home base is South Florida — our agents' markets are everywhere. Coast to coast: if the phone rings, she picks up.",
+    homeTurfLabel: "Home turf — South Florida",
+    counties: [
+      {
+        county: "Broward County",
+        cities: [
+          "Fort Lauderdale",
+          "Pompano Beach",
+          "Coral Springs",
+          "Plantation",
+          "Weston",
+          "Davie",
+          "Hollywood",
+          "Deerfield Beach",
+          "Lauderdale-by-the-Sea",
+        ],
+      },
+      {
+        county: "Miami-Dade County",
+        cities: [
+          "Miami",
+          "Coral Gables",
+          "Aventura",
+          "Miami Beach",
+          "Doral",
+          "Hialeah",
+          "Homestead",
+        ],
+      },
+      {
+        county: "Palm Beach County",
+        cities: [
+          "Boca Raton",
+          "Delray Beach",
+          "West Palm Beach",
+          "Boynton Beach",
+          "Jupiter",
+          "Palm Beach Gardens",
+        ],
+      },
+    ],
+  },
   moneyMath: {
     lines: [
       "Average total commission in 2025: about 5.44%. One agent's side, at about 2.5%, is about $10,000 on a $400,000 home — and about $25,000 on a $1,000,000 home or condo.",
-      "Miss just 1 closing a month at the $400,000 level and that is about $120,000 a year walking to the next agent.",
+      "Miss just 1 closing a month at the $400,000 level and that is about $120,000 a year walking to the next agent — or straight to the brokerage down the street.",
     ],
     punchline: "Aspen is $99/mo.",
     source: "Commission example: Redfin / Clever data, 2025",
@@ -187,7 +578,11 @@ export const REALTOR_VERTICAL: AgentVertical = {
   faq: [
     {
       q: "Do you only serve realtors?",
-      a: "No. AiHiddenLeads serves small and midsize businesses of many kinds. This page is built for realtors — the examples, the sample call, and the add-ons speak your language — on the same Premium plan every customer gets.",
+      a: "No. AiHiddenLeads serves small and midsize businesses of many kinds — and we cater to realtors: the examples, the sample call, and the add-ons speak your language — on the same Premium plan every customer gets.",
+    },
+    {
+      q: "Will you send me buyer leads?",
+      a: "No — and be wary of anyone who promises that. There is no list of ready home buyers to send. The prospects included in your plan — up to 50 a month* — are referral partners for a realtor: local mortgage brokers, insurance agents, home inspectors, stagers and contractors who can send you clients. Your buyers and sellers come from your own traffic — your calls, your website, the portals, your sphere. What Aspen does is make sure you never lose them: she answers every call and website inquiry in seconds, qualifies the buyer or seller, books the showing or consultation, and follows up — turning your own traffic into captured, nurtured leads instead of missed calls. *Up to 50/month — no specific count guaranteed.",
     },
     {
       q: "What does Aspen actually do on a call?",
@@ -195,7 +590,7 @@ export const REALTOR_VERTICAL: AgentVertical = {
     },
     {
       q: "How much does an AI receptionist for real estate agents cost?",
-      a: "Premium is $99/mo with 400 minutes included. The live video avatar — Aspen with a real, lip-synced video face on your website — is an optional add-on at $79/mo. You choose it or skip it; the $99 plan works on its own.",
+      a: "Premium is $99/mo with 400 minutes included. The live video avatar — Aspen with a real, lip-synced video face on your website — is an optional add-on at $79/mo, and its first month is free. You choose it or skip it; the $99 plan works on its own.",
     },
     {
       q: "Can I see it on my own website first?",

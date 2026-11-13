@@ -1,0 +1,49 @@
+-- Pinned realtor demo-example leads — weekly refresh wiring
+-- (pinned-example-leads build, 2026-11-13).
+--
+-- This migration intentionally contains NO DDL: the pinned leads are
+-- ordinary leads rows (created through the public create_demo_lead RPC)
+-- and the refresh itself is the refresh-example-leads edge function.
+-- What remains is the schedule, and — exactly like the followup-sweep
+-- wiring in 20261111090000_followup_pack.sql — it is a DEPLOY STEP to
+-- run separately in the dashboard SQL editor, because it needs the
+-- EXAMPLE_REFRESH_SECRET value to exist first:
+--
+--   1. Set the edge-function secret EXAMPLE_REFRESH_SECRET to a fresh
+--      random value (Supabase dashboard → Edge Functions → Secrets).
+--   2. Run the statement below with <EXAMPLE_REFRESH_SECRET> replaced
+--      by that same value.
+--
+-- One weekly job (Sundays 08:00 UTC ≈ 3:00 AM US Eastern) fires one
+-- pg_net request per pinned example; each request refreshes exactly
+-- one lead in place via scan-website, so no single function
+-- invocation has to outlive a scan.
+--
+--   SELECT cron.schedule(
+--     'refresh-example-leads-weekly',
+--     '0 8 * * 0',
+--     $$ SELECT net.http_post(
+--          url := 'https://mrtvqttecdfgphgxeygj.supabase.co/functions/v1/refresh-example-leads',
+--          headers := jsonb_build_object(
+--            'Content-Type', 'application/json',
+--            'x-example-refresh-secret', '<EXAMPLE_REFRESH_SECRET>'),
+--          body := jsonb_build_object('slug', slug)
+--        )
+--        FROM (VALUES
+--          ('aurelia-perez'),
+--          ('ann-chamberlain'),
+--          ('ashley-cusack'),
+--          ('mauricio-barba'),
+--          ('michael-martinez'),
+--          ('jean-luc-andriot'),
+--          ('paul-saperstein'),
+--          ('baldemar-deleon'),
+--          ('logan-walter'),
+--          ('ray-miramontes'),
+--          ('danielle-lazier'),
+--          ('richard-steinberg'),
+--          ('gian-sexsmith')
+--        ) AS t(slug); $$
+--   );
+--
+-- To stop the schedule: SELECT cron.unschedule('refresh-example-leads-weekly');

@@ -1,5 +1,5 @@
 export type VisitEvent = { visit_id: string; event: string; path: string; created_at: string };
-export const PUBLIC_PATHS = ['/', '/demo', '/demo-site', '/checkout', '/checkout/return', '/book'] as const;
+export const PUBLIC_PATHS = ['/', '/demo', '/demo-site', '/checkout', '/checkout/return', '/book', '/agents/realtors'] as const;
 export const PUBLIC_SECTIONS = ['services', 'pricing', 'map-visibility', 'demo-form', 'how-it-works', 'faq', 'addons'] as const;
 export function validMilestone(event: string, path: string) {
   if (event === 'section_view') return PUBLIC_SECTIONS.some(section => path === `/#${section}`);
@@ -10,7 +10,7 @@ export function reportTime(iso: string | null | undefined, zone = 'America/New_Y
   try { return new Intl.DateTimeFormat('en-US', { timeZone: zone, dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso)); }
   catch { return null; }
 }
-const PATH_LABELS: Record<string, string> = { '/': 'Main website', '/demo': 'Demo form', '/demo-site': 'Business demo', '/book': 'Booking', '/checkout': 'Checkout', '/checkout/return': 'Checkout return', '/#services': 'Services', '/#pricing': 'Prices', '/#map-visibility': 'Maps overview', '/#demo-form': 'Website demo section', '/#how-it-works': 'How it works', '/#faq': 'FAQ', '/#addons': 'Add-ons' };
+const PATH_LABELS: Record<string, string> = { '/': 'Main website', '/demo': 'Demo form', '/demo-site': 'Business demo', '/book': 'Booking', '/checkout': 'Checkout', '/checkout/return': 'Checkout return', '/agents/realtors': 'Realtors page', '/#services': 'Services', '/#pricing': 'Prices', '/#map-visibility': 'Maps overview', '/#demo-form': 'Website demo section', '/#how-it-works': 'How it works', '/#faq': 'FAQ', '/#addons': 'Add-ons' };
 export function visitJourney(events: VisitEvent[], visitId?: string | null, endAt?: string | null) {
   if (!visitId) return 'Not linked to a website visit';
   const end = endAt && Number.isFinite(Date.parse(endAt)) ? Date.parse(endAt) : Infinity;

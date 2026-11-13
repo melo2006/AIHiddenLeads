@@ -23,14 +23,19 @@ describe('widget viewport fit — rendered shell structure', () => {
     expect(region?.className).toContain('overflow-y-auto');
     expect(region?.className).toContain('overscroll-contain');
 
-    // Portrait and toggle are NOT inside the scroll region — they cannot be
-    // scrolled or squeezed off the top.
+    // Portrait, window-controls row and toggle are NOT inside the scroll
+    // region — they cannot be scrolled or squeezed off the top.
     const portrait = screen.getByAltText('Aspen');
     const toggle = screen.getByRole('group', { name: 'Conversation mode' });
+    const controls = screen.getByRole('group', { name: 'Window controls' });
     expect(region?.contains(portrait)).toBe(false);
     expect(region?.contains(toggle)).toBe(false);
-    // DOM order: portrait → toggle → region (toggle below her chest, as ruled).
-    expect(portrait.compareDocumentPosition(toggle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(region?.contains(controls)).toBe(false);
+    // DOM order: portrait → window controls → toggle → region (the
+    // controls row is in flow inside the panel since the 2026-11-12
+    // panel layout fix — no overlay on the portrait).
+    expect(portrait.compareDocumentPosition(controls) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(controls.compareDocumentPosition(toggle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(toggle.compareDocumentPosition(region as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 

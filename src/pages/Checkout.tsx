@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import CustomerSignIn from '@/components/CustomerSignIn';
 import CustomerPageLayout from '@/components/CustomerPageLayout';
 import type { User } from '@supabase/supabase-js';
+import { formatSetupWaiverEnd } from '@/lib/setupWaiver';
 
 const planDetails: Record<string, { name: string; price: string; features: string[]; priceId: string }> = {
   essentials: {
@@ -61,7 +62,8 @@ const disclaimers = [
   "Included minutes cover browser voice conversations on your website. Phone-line services (warm transfer to your phone, SMS notifications, appointment reminders) are optional add-ons billed separately — carrier usage is passed through at cost.",
   "Lead generation results vary by industry, location, and market conditions. We deliver qualified B2B prospect records; we do not guarantee appointments or revenue outcomes.",
   "You may cancel your subscription at any time. No long-term contracts required.",
-  "Setup fee is waived during the current promotion — 50% off every plan for the first 3 months, ends this month; after that it is a one-time charge for initial configuration, widget installation, and onboarding.",
+  "Setup fee is waived through {date}; after that it is a one-time charge for initial configuration, widget installation, and onboarding.",
+  "The video avatar add-on is free for your first month, then $79/mo from month 2 only if you keep it. If you do not keep it, it switches off automatically at the end of the free month and you are never charged for it. One free avatar month per business. During the free month there are no overage charges: if you use up the included video minutes (they match your plan's voice minutes), the avatar pauses to voice-only until the next month.",
   "Usage is visible in your dashboard at all times before any billing.",
 ];
 
@@ -69,12 +71,14 @@ export default function Checkout() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const planKey = searchParams.get("plan") || "essentials";
-  const addonOnly = searchParams.get("addon") === "custom-avatar";
-  const plan = addonOnly ? { name: "Custom Avatar From Your Photo", price: "$50 one-time", priceId: "custom_avatar_once", features: ["A live video avatar built from your own photo", "Unlocks photo upload in your setup", "Building can take several minutes up to about 24 hours", "Library avatars remain free"] } : (planDetails[planKey] || planDetails.essentials);
+  const addonParam = searchParams.get("addon");
+  const addonOnly = addonParam === "custom-avatar" || addonParam === "video-avatar";
+  const plan = addonParam === "custom-avatar" ? { name: "Custom Avatar From Your Photo", price: "$50 one-time", priceId: "custom_avatar_once", features: ["A live video avatar built from your own photo", "Unlocks photo upload in your setup", "Building can take several minutes up to about 24 hours", "Library avatars remain free"] } : addonParam === "video-avatar" ? { name: "Live Video Avatar — First Month Free", price: "$79/mo after your free month", priceId: "video_avatar_monthly", features: ["A live, lip-synced video avatar on your website", "First month free — then $79/mo only if you keep it", "Switches off automatically at the end of the free month if you don't keep it — no charge", "Included video minutes match your plan's voice minutes", "One free avatar month per business"] } : (planDetails[planKey] || planDetails.essentials);
   const [paymentFailed, setPaymentFailed] = useState(false);
   const [paymentNotice,setPaymentNotice]=useState('');
   const [priceReady, setPriceReady] = useState(false);
   const [customAvatar, setCustomAvatar] = useState(false);
+  const [videoAvatar, setVideoAvatar] = useState(false);
   const [user,setUser]=useState<User|null>(null);
   useEffect(()=>{void supabase.auth.getUser().then(({data})=>setUser(data.user));const {data:{subscription}}=supabase.auth.onAuthStateChange((_event,session)=>setUser(session?.user||null));return()=>subscription.unsubscribe();},[]);
   const paymentsAvailable = Boolean(import.meta.env.VITE_PAYMENTS_CLIENT_TOKEN);
@@ -100,7 +104,7 @@ export default function Checkout() {
             <div>
               <h1 className="text-2xl font-bold text-foreground">{plan.name}</h1>
               <p className="text-3xl font-extrabold text-primary mt-2">{plan.price}</p>
-              <p className="text-sm text-muted-foreground mt-1">50% OFF — ENDS THIS MONTH: 50% off for the first 3 months, setup fee waived</p>
+              <p className="text-sm text-muted-foreground mt-1">Setup fee waived through {formatSetupWaiverEnd("en-US")} · Video avatar free for your first month</p>
             </div>
 
             <div className="rounded-xl border border-border bg-card p-5">
@@ -136,7 +140,7 @@ export default function Checkout() {
               <ul className="space-y-2">
                 {disclaimers.map((d, i) => (
                   <li key={i} className="text-xs text-muted-foreground leading-relaxed">
-                    {i + 1}. {d}
+                    {i + 1}. {d.replace("{date}", formatSetupWaiverEnd("en-US"))}
                   </li>
                 ))}
               </ul>
@@ -148,12 +152,17 @@ export default function Checkout() {
             <h2 className="text-lg font-semibold text-foreground">Complete Your Order</h2>
             {!addonOnly && <label className="flex items-start gap-3 rounded-xl border border-border bg-card p-4 cursor-pointer">
               <input type="checkbox" className="mt-1 h-4 w-4 accent-primary" checked={customAvatar} onChange={e => setCustomAvatar(e.target.checked)} />
-              <span className="text-sm"><span className="font-semibold text-foreground">Add a custom avatar from your own photo: +$50 one-time</span><span className="block text-xs text-muted-foreground mt-1">Optional. Choosing a face from our avatar library is free. A custom face can take from several minutes up to about 24 hours to build. The video avatar add-on is $79/mo on Premium, $180/mo on Professional and $250/mo on Platinum.</span></span>
+              <span className="text-sm"><span className="font-semibold text-foreground">Add a custom avatar from your own photo: +$50 one-time</span><span className="block text-xs text-muted-foreground mt-1">Optional. Choosing a face from our avatar library is free. A custom face can take from several minutes up to about 24 hours to build. The video avatar add-on is $79/mo on every plan — and its first month is free.</span></span>
+            </label>}
+            {!addonOnly && <label className="flex items-start gap-3 rounded-xl border border-border bg-card p-4 cursor-pointer">
+              <input type="checkbox" className="mt-1 h-4 w-4 accent-primary" checked={videoAvatar} onChange={e => setVideoAvatar(e.target.checked)} />
+              <span className="text-sm"><span className="font-semibold text-foreground">Add the live video avatar: FREE for your first month</span><span className="block text-xs text-muted-foreground mt-1">Then $79/mo from month 2 — only if you keep it. If you don't keep it, the avatar switches off automatically at the end of the free month and you are never charged for it. One free avatar month per business. During the free month there are no overage charges: if you use up the included video minutes (they match your plan's voice minutes), the avatar pauses to voice-only until the next month. We'll remind you before the free month ends.</span></span>
             </label>}
             <div className="rounded-xl border border-border bg-card p-1 min-h-[400px]">
               {!user ? <CustomerSignIn /> : paymentsAvailable && !paymentFailed && !priceReady ? <p role="status" className="p-5 text-sm text-muted-foreground">Checking checkout availability…</p> : paymentsAvailable && !paymentFailed && priceReady ? <StripeEmbeddedCheckout
-                key={`${user.id}-${plan.priceId}-${customAvatar}`}
+                key={`${user.id}-${plan.priceId}-${customAvatar}-${videoAvatar}`}
                 customAvatar={addonOnly ? undefined : customAvatar}
+                videoAvatar={addonOnly ? undefined : videoAvatar}
                 priceId={plan.priceId}
                 returnUrl={`${window.location.origin}/checkout/return?session_id={CHECKOUT_SESSION_ID}`}
                 onUnavailable={() => setPaymentFailed(true)}

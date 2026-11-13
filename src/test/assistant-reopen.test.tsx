@@ -6,9 +6,12 @@ import AspenDemoWidget from '@/components/landing/demo-results/AspenDemoWidget';
 
 const calls = vi.hoisted(() => ({ start: vi.fn(), stop: vi.fn() }));
 vi.mock('@/lib/voicePreload', () => ({ preloadVoiceIdentity: async () => ({ name: 'Aspen', businessName: 'Test' }) }));
-vi.mock('@/components/GeminiConversation', () => ({ default: function Conversation() {
+vi.mock('@/components/GeminiConversation', () => ({ default: function Conversation({ windowControls }: { windowControls?: React.ReactNode }) {
   useEffect(() => { calls.start(); return () => { calls.stop(); }; }, []);
-  return null;
+  // The real conversation renders the shell's window-controls row inside
+  // its panel via this slot (2026-11-12 panel layout fix) — the mock
+  // honors the same contract so the Minimize/End buttons exist.
+  return <>{windowControls}</>;
 } }));
 vi.mock('@/components/landing/demo-results/DraggableFloating', () => ({ default: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 vi.mock('@/components/AspenSalesActions', () => ({ default: () => null }));

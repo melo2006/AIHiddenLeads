@@ -153,18 +153,16 @@
     }
   },
   "pricing": {
-    "badge": "50% OFF — TERMINA ESTE MÊS: Taxa de Setup GRÁTIS",
+    "badge": "Avatar de vídeo GRÁTIS no seu primeiro mês · Setup grátis",
     "title": "Preço",
     "titleAccent": "Honesto e Transparente",
     "sub": "Sem taxas escondidas. Sem contrato de 12 meses. Cancela quando quiser.",
     "perMo": "/mês",
-    "launchPrice": "Preço de lançamento",
     "setup": "Setup:",
     "free": "GRÁTIS",
-    "setupPromo": "(grátis durante a promoção)",
+    "setupPromo": "(grátis até {{date}})",
     "webMinutes": "minutos de voz no site/mês",
     "perMinSuffix": "/min equivalente",
-    "promoMinutes": "Promoção: {{n}} min incluídos GRÁTIS nos seus primeiros 3 meses",
     "mostPopular": "Mais Popular",
     "essentials": {
       "name": "Premium",
@@ -316,7 +314,7 @@
     "heroHeadline": "Seu site, respondendo — em menos de 2 minutos.",
     "heroTagline": "Conheça a Aspen: um avatar de vídeo ao vivo com voz e chat reais que recebe seus visitantes, responde perguntas e captura leads no seu próprio site.",
     "aspenBubble": "Oi, eu sou a Aspen. Coloque-me no seu site — digite sua URL abaixo e veja-me ganhar vida nele.",
-    "priceStrip": "Fique com ela por $99/mês — 50% de desconto nos primeiros 3 meses (regular $199). Inclui 400 minutos de voz + até 50 prospects B2B por mês.",
+    "priceStrip": "Fique com ela por $99/mês — o preço permanente, sem desconto introdutório. Inclui 400 minutos de voz + até 50 prospects B2B por mês, e o avatar de vídeo ao vivo é grátis no seu primeiro mês.",
     "askAspen": "Pergunte à Aspen sobre esta demo",
     "benefitsTitle": "Por que empresas adicionam a Aspen",
     "perkVoicemail": "85% de quem cai na caixa postal não liga de volta — a maioria apenas passa para o próximo nome da lista. A Aspen atende em segundos, então seus clientes nunca chegam à caixa postal.",
@@ -440,29 +438,41 @@
       }
     },
     "benefits": {
+      "videoAvatar": {
+        "headline": "Não É Só Uma Voz — Um Rosto no Seu Site",
+        "body": "Aspen é um avatar de vídeo ao vivo: sua porta-voz de IA. Ela recebe os visitantes cara a cara no seu site e explica o que você oferece."
+      },
       "missCall": {
         "headline": "Nunca Mais Perca Uma Ligação",
         "body": "Sua recepcionista de IA atende 24/7 — noites, fins de semana e feriados — para transformar cada ligação em oportunidade."
+      },
+      "yourListings": {
+        "headline": "Ela Vende Primeiro os Seus Anúncios",
+        "body": "Aspen aprende o seu negócio a partir do seu próprio site e começa pelos seus próprios anúncios e serviços — nunca um roteiro genérico."
+      },
+      "warmTransfer": {
+        "headline": "Transferência ao Vivo — Você Mantém o Controle",
+        "body": "Quando uma ligação precisa de uma pessoa, Aspen transfere ao vivo para você com um resumo da conversa — você mantém o controle de cada ligação."
       },
       "appointments": {
         "headline": "Agendamentos Instantâneos",
         "body": "A IA agenda, remarca e faz follow-up automaticamente. Chega de ficar tentando falar por telefone."
       },
-      "moreLeads": {
-        "headline": "Capture 2–5x Mais Leads",
-        "body": "Muitos negócios perdem 40% das ligações. Com a IA atendendo tudo, 1–2 leads extras por mês já podem pagar o sistema."
+      "followUp": {
+        "headline": "Acompanhamento Depois da Ligação",
+        "body": "Com a permissão de quem ligou, Aspen envia mensagens de texto e e-mails de acompanhamento após a ligação — resumos, links de agendamento e lembretes — para nenhum lead esfriar."
       },
-      "liveFast": {
-        "headline": "No Ar em 1–2 Dias",
-        "body": "O setup é rápido e simples. Seu agente de IA é treinado no seu negócio e fica pronto para atender em até 48 horas."
+      "wizardSetup": {
+        "headline": "Comece Você Mesmo em Cerca de 15 Minutos",
+        "body": "Você não precisa de equipe técnica. O assistente de configuração orienta você passo a passo: adicione seu site, suas perguntas frequentes e sua voz, e você já está no caminho."
       },
-      "warmTransfer": {
-        "headline": "Transferência Ao Vivo Para Você",
-        "body": "Quando um lead quente está na linha, a IA transfere ao vivo para você ou sua equipe com um resumo completo."
+      "pricing": {
+        "headline": "Planos a Partir de $99 por Mês",
+        "body": "O Premium custa $99 por mês com 400 minutos de voz incluídos. O avatar de vídeo é um adicional opcional — só se você quiser."
       },
-      "chatAi": {
-        "headline": "Chat de IA no Seu Site",
-        "body": "Visitantes recebem respostas instantâneas sobre serviços, preços e disponibilidade — convertendo curiosos em agendamentos."
+      "callSummary": {
+        "headline": "Cada Ligação, Resumida Para Você",
+        "body": "Cada ligação chega ao seu painel como um resumo curto com a transcrição completa, para você sempre saber o que seus clientes pediram."
       }
     }
   },
@@ -561,11 +571,11 @@
       },
       {
         "q": "Quanto custa uma recepcionista de IA por mês?",
-        "a": "O Premium custa $99/mês nos primeiros 3 meses (50% de desconto sobre o preço regular de $199; a oferta termina este mês), com 400 minutos de voz, chat no site e até 50 prospects B2B por mês incluídos (nenhuma quantidade específica é garantida). O Professional custa $199/mês nos primeiros 3 meses (regular $399) com 1.200 minutos e até 100 prospects. A taxa de instalação de $199 é isenta, e o avatar de vídeo ao vivo da Aspen é um adicional opcional de $79/mês, se você quiser."
+        "a": "O Premium custa $99/mês — o preço permanente — com 400 minutos de voz, chat no site e até 50 prospects B2B por mês incluídos (nenhuma quantidade específica é garantida). O Professional custa $199/mês com 1.200 minutos e até 100 prospects, e o Platinum custa $349/mês com 2.500 minutos e até 200 prospects. A taxa de instalação de $199 está isenta atualmente, e o avatar de vídeo ao vivo da Aspen é um adicional opcional de $79/mês em qualquer plano — o primeiro mês é grátis."
       },
       {
         "q": "Existe uma recepcionista de IA com avatar de vídeo?",
-        "a": "Sim. A Aspen, a recepcionista de IA da AiHiddenLeads, pode aparecer no seu site como um avatar de vídeo ao vivo, com sincronização labial — a sua porta-voz de IA — enquanto conversa com os visitantes por voz e chat. O avatar é um adicional opcional de $79/mês no Premium; a recepcionista de voz funciona sozinha se você pular essa opção. Você pode vê-la em ação na demonstração gratuita ao vivo no seu próprio site."
+        "a": "Sim. A Aspen, a recepcionista de IA da AiHiddenLeads, pode aparecer no seu site como um avatar de vídeo ao vivo, com sincronização labial — a sua porta-voz de IA — enquanto conversa com os visitantes por voz e chat. O avatar é um adicional opcional de $79/mês em qualquer plano — e o primeiro mês é grátis; a recepcionista de voz funciona sozinha se você pular essa opção. Você pode vê-la em ação na demonstração gratuita ao vivo no seu próprio site."
       },
       {
         "q": "Uma recepcionista de IA atende ligações 24/7 e agenda compromissos?",
@@ -671,6 +681,7 @@
     "speakerOnShort": "Ativar o som do alto-falante",
     "silenceSpeaker": "Silenciar o alto-falante",
     "speakerOutput": "Saída de áudio",
+    "speakerVolume": "Volume do alto-falante",
     "speakerOutputChoose": "Escolha onde a voz dela toca",
     "speakerLoudspeaker": "Alto-falante",
     "speakerEarpiece": "Fone do telefone",
@@ -691,6 +702,11 @@
     "noiseLight": "Filtragem mínima — ambiente silencioso",
     "noiseBalanced": "Filtragem equilibrada — uso diário",
     "noiseStrong": "Filtragem forte — ambiente barulhento",
+    "micEnvironment": "Ambiente do microfone",
+    "envQuiet": "Silencioso",
+    "envNormal": "Normal",
+    "envNoisy": "Barulhento",
+    "envAuto": "Auto",
     "micSensitivity": "Sensibilidade do microfone",
     "microphone": "Microfone",
     "systemDefaultMic": "Microfone padrão do sistema",

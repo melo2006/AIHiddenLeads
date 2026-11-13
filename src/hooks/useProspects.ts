@@ -30,6 +30,9 @@ const buildProspectsQuery = (filters: Filters) => {
   if (filters.niche.length > 0) {
     query = query.in("niche", filters.niche);
   }
+  if (filters.campaign.length > 0) {
+    query = query.in("campaign_id", filters.campaign);
+  }
   if (filters.city.length > 0) {
     query = query.in("city", filters.city);
   }
@@ -67,7 +70,7 @@ const fetchAllProspects = async (filters: Filters) => {
   return prospects;
 };
 
-const fetchDistinctFilterValues = async (column: "niche" | "city" | "state") => {
+const fetchDistinctFilterValues = async (column: "niche" | "campaign_id" | "city" | "state") => {
   const values = new Set<string>();
   let from = 0;
 
@@ -109,14 +112,16 @@ export const useFilterOptions = () => {
   const { data } = useQuery({
     queryKey: ["filter-options"],
     queryFn: async () => {
-      const [nicheRes, cityRes, stateRes] = await Promise.all([
+      const [nicheRes, campaignRes, cityRes, stateRes] = await Promise.all([
         fetchDistinctFilterValues("niche"),
+        fetchDistinctFilterValues("campaign_id"),
         fetchDistinctFilterValues("city"),
         fetchDistinctFilterValues("state"),
       ]);
 
       return {
         niches: nicheRes,
+        campaigns: campaignRes,
         cities: cityRes,
         states: stateRes,
       };
@@ -124,5 +129,5 @@ export const useFilterOptions = () => {
     staleTime: 30000, // refresh every 30s so new scrapes show up
   });
 
-  return { niches: data?.niches || [], cities: data?.cities || [], states: data?.states || [] };
+  return { niches: data?.niches || [], campaigns: data?.campaigns || [], cities: data?.cities || [], states: data?.states || [] };
 };

@@ -197,7 +197,7 @@ Then cover these key points naturally:
 5. "Everything gets tracked in a smart CRM dashboard."
 6. "We don't just help you stop missing leads — we actively generate NEW leads for your business."
 
-Pricing: "Our plans normally start at two ninety-nine a month, but right now we have a special launch promotion: just one forty-nine a month for your first three months. Setup fee is only ninety-nine dollars — we usually have you up and running in two to three days."
+Pricing: "Our plans are ninety-nine dollars a month for Premium, one ninety-nine for Professional and three forty-nine for Platinum — those are the permanent prices, with no introductory discount. The live video avatar add-on is seventy-nine dollars a month on any plan, and your first month of the avatar is free. Setup is currently waived — we usually have you up and running in two to three days."
 
 Qualify: "Is this something you'd be interested in exploring? I'd love to connect you with {{owner_name}}, the founder."
 

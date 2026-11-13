@@ -1,18 +1,30 @@
-import { useState, type FormEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import {
   ArrowRight,
   CalendarCheck,
   Check,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   Flame,
   LayoutDashboard,
+  MapPin,
   MoonStar,
+  Pause,
   Phone,
   PhoneCall,
   PhoneForwarded,
   PhoneMissed,
+  Play,
   Sparkles,
   Video,
 } from "lucide-react";
@@ -26,11 +38,249 @@ import PricingSection from "@/components/landing/PricingSection";
 import TeamSection from "@/components/landing/TeamSection";
 import GeminiAgentWidget from "@/components/GeminiAgentWidget";
 import AssistantErrorBoundary from "@/components/AssistantErrorBoundary";
+import {
+  LOCAL_DISPLAY,
+  REALTOR_LINE_DISPLAY,
+  TOLL_FREE_DISPLAY,
+} from "@/lib/phoneDisplay";
+import { pinnedLeadIdForExampleUrl } from "@/data/realtorExamplePinnedLeads";
 import aspenPortrait from "@/assets/aspen-idle-wave.gif";
+// Final hero photos — the 8-slide set Ron approved in chat
+// (2026-11-11), sourced from ~/workspace/hero-approved/.
+import realtorSoldPhoto from "@/assets/realtor-hero-sold.jpg";
+import realtorCondoPhoto from "@/assets/realtor-hero-condo.jpg";
+import realtorKeysPhoto from "@/assets/realtor-hero-keys.jpg";
+import realtorHousePhoto from "@/assets/realtor-hero-house-qr.jpg";
+import realtorCouplePhoto from "@/assets/realtor-hero-couple.jpg";
+import realtorAerialPhoto from "@/assets/realtor-hero-fll-aerial.jpg";
+import realtorBeachPhoto from "@/assets/realtor-hero-fll-beach.jpg";
+import realtorDallasPhoto from "@/assets/realtor-hero-dallas.jpg";
+import exampleThumbAureliaPerez from "@/assets/realtor-example-aurelia-perez.webp";
+import exampleThumbAnnChamberlain from "@/assets/realtor-example-ann-chamberlain.webp";
+import exampleThumbAshleyCusack from "@/assets/realtor-example-ashley-cusack.webp";
+import exampleThumbMauricioBarba from "@/assets/realtor-example-mauricio-barba.webp";
+import exampleThumbMichaelMartinez from "@/assets/realtor-example-michael-martinez.webp";
+import exampleThumbJeanLucAndriot from "@/assets/realtor-example-jean-luc-andriot.webp";
+import exampleThumbPaulSaperstein from "@/assets/realtor-example-paul-saperstein.webp";
+import exampleThumbBaldemarDeLeon from "@/assets/realtor-example-baldemar-deleon.webp";
+import exampleThumbLoganWalter from "@/assets/realtor-example-logan-walter.webp";
+import exampleThumbRayMiramontes from "@/assets/realtor-example-ray-miramontes.webp";
+import exampleThumbDanielleLazier from "@/assets/realtor-example-danielle-lazier.webp";
+import exampleThumbRichardSteinberg from "@/assets/realtor-example-richard-steinberg.webp";
+import exampleThumbGianSexsmith from "@/assets/realtor-example-gian-sexsmith.webp";
 import type { AgentVertical } from "@/data/agentVerticals";
+
+// Example-grid thumbnails (Batch 2, 2026-11-12): one per demo example,
+// keyed by the option's slug in the vertical data. Each image is a real
+// capture of that agent's own website with Aspen open on it (see
+// batch2-build-report-2026-11-12.md for how they were produced).
+const EXAMPLE_THUMBNAILS: Record<string, string> = {
+  "aurelia-perez": exampleThumbAureliaPerez,
+  "ann-chamberlain": exampleThumbAnnChamberlain,
+  "ashley-cusack": exampleThumbAshleyCusack,
+  "mauricio-barba": exampleThumbMauricioBarba,
+  "michael-martinez": exampleThumbMichaelMartinez,
+  "jean-luc-andriot": exampleThumbJeanLucAndriot,
+  "paul-saperstein": exampleThumbPaulSaperstein,
+  "baldemar-deleon": exampleThumbBaldemarDeLeon,
+  "logan-walter": exampleThumbLoganWalter,
+  "ray-miramontes": exampleThumbRayMiramontes,
+  "danielle-lazier": exampleThumbDanielleLazier,
+  "richard-steinberg": exampleThumbRichardSteinberg,
+  "gian-sexsmith": exampleThumbGianSexsmith,
+};
+
+/**
+ * Hero slideshow images, keyed by the `key` each vertical's heroSlides
+ * data carries — a vertical only ever shows its own photos, and a
+ * vertical with no heroSlides renders no slideshow at all.
+ */
+const heroSlideImages: Record<string, string> = {
+  sold: realtorSoldPhoto,
+  condo: realtorCondoPhoto,
+  keys: realtorKeysPhoto,
+  house: realtorHousePhoto,
+  couple: realtorCouplePhoto,
+  aerial: realtorAerialPhoto,
+  beach: realtorBeachPhoto,
+  dallas: realtorDallasPhoto,
+};
+
+/** How long each hero slide stays up before crossfading to the next. */
+const HERO_SLIDE_ROTATE_MS = 5600;
+
+/** Horizontal swipe distance (px) that counts as a slide change. */
+const HERO_SWIPE_MIN_PX = 40;
+
+/**
+ * Full-bleed hero slideshow — a panoramic photo fills the band as the
+ * background (object-cover, per-slide focal classes), a dark gradient
+ * scrim keeps the overlaid slogan legible, and photo + slogan crossfade
+ * together as pairs. Controls: dot indicators jump to a slide, prev/next
+ * chevron buttons step through, a pause/play toggle stops or resumes
+ * the rotation, and a touch swipe moves between slides. Taking manual
+ * control (dot, arrow, swipe) pauses auto-rotation until play is
+ * pressed; hovering or focusing the band pauses it only while the
+ * pointer/focus stays. A visitor who prefers reduced motion gets
+ * slide 1, static — no rotation — with every control still usable.
+ */
+const HeroSlideshow = ({
+  slides,
+  credit,
+}: {
+  slides: NonNullable<AgentVertical["heroSlides"]>;
+  credit?: string;
+}) => {
+  const reduceMotion = useReducedMotion();
+  const [active, setActive] = useState(0);
+  // Transient pause while the pointer hovers or focus is inside.
+  const [hoverPaused, setHoverPaused] = useState(false);
+  // Sticky pause: the pause/play toggle, or any manual navigation.
+  const [userPaused, setUserPaused] = useState(false);
+  const touchStartX = useRef<number | null>(null);
+
+  const goTo = (index: number) => {
+    setActive(((index % slides.length) + slides.length) % slides.length);
+    setUserPaused(true);
+  };
+  const goPrev = () => goTo(active - 1);
+  const goNext = () => goTo(active + 1);
+
+  useEffect(() => {
+    if (reduceMotion || hoverPaused || userPaused || slides.length < 2)
+      return;
+    const id = window.setInterval(() => {
+      setActive((current) => (current + 1) % slides.length);
+    }, HERO_SLIDE_ROTATE_MS);
+    return () => window.clearInterval(id);
+  }, [reduceMotion, hoverPaused, userPaused, slides.length]);
+
+  const controlButtonClass =
+    "flex h-11 w-11 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm transition hover:bg-black/65 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2";
+
+  return (
+    <div>
+      <div
+        data-agent-hero-slides
+        role="region"
+        aria-roledescription="carousel"
+        aria-label="Real estate scenes — South Florida and nationwide"
+        className="relative h-[250px] overflow-hidden rounded-2xl border border-primary/25 shadow-2xl shadow-primary/10 sm:h-[350px] lg:h-[430px]"
+        onMouseEnter={() => setHoverPaused(true)}
+        onMouseLeave={() => setHoverPaused(false)}
+        onFocus={() => setHoverPaused(true)}
+        onBlur={() => setHoverPaused(false)}
+        onPointerDown={() => setHoverPaused(true)}
+        onPointerUp={() => setHoverPaused(false)}
+        onTouchStart={(event) => {
+          touchStartX.current = event.touches[0]?.clientX ?? null;
+        }}
+        onTouchEnd={(event) => {
+          const startX = touchStartX.current;
+          touchStartX.current = null;
+          if (startX === null) return;
+          const endX = event.changedTouches[0]?.clientX;
+          if (endX === undefined) return;
+          const deltaX = endX - startX;
+          if (Math.abs(deltaX) < HERO_SWIPE_MIN_PX) return;
+          if (deltaX < 0) goNext();
+          else goPrev();
+        }}
+      >
+        {slides.map((slide, i) => {
+          const src = heroSlideImages[slide.key];
+          if (!src) return null;
+          const isActive = i === active;
+          return (
+            <div
+              key={slide.key}
+              aria-hidden={!isActive}
+              className={`absolute inset-0 transition-opacity duration-1000 ${
+                isActive ? "opacity-100" : "pointer-events-none opacity-0"
+              }`}
+            >
+              <img
+                src={src}
+                alt={isActive ? slide.alt : ""}
+                loading={i === 0 ? "eager" : "lazy"}
+                draggable={false}
+                className={`h-full w-full object-cover ${slide.focusClass}`}
+              />
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background/90 via-background/25 to-transparent"
+              />
+              <div className="absolute inset-x-0 bottom-0 px-14 pt-6 pb-12 sm:px-[4.5rem] sm:pt-10 sm:pb-14">
+                <p className="max-w-2xl text-2xl font-bold leading-tight text-white drop-shadow-md sm:text-5xl">
+                  {slide.slogan}
+                </p>
+                <p className="mt-2 text-xs font-semibold uppercase tracking-wider text-white/80">
+                  {slide.caption}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+        <button
+          type="button"
+          onClick={goPrev}
+          aria-label="Previous slide"
+          className={`${controlButtonClass} absolute left-3 top-1/2 z-10 -translate-y-1/2`}
+        >
+          <ChevronLeft className="h-6 w-6" aria-hidden />
+        </button>
+        <button
+          type="button"
+          onClick={goNext}
+          aria-label="Next slide"
+          className={`${controlButtonClass} absolute right-3 top-1/2 z-10 -translate-y-1/2`}
+        >
+          <ChevronRight className="h-6 w-6" aria-hidden />
+        </button>
+        <button
+          type="button"
+          onClick={() => setUserPaused((value) => !value)}
+          aria-label={userPaused ? "Play slideshow" : "Pause slideshow"}
+          aria-pressed={userPaused}
+          className={`${controlButtonClass} absolute right-4 top-4 z-10`}
+        >
+          {userPaused ? (
+            <Play className="h-5 w-5" aria-hidden />
+          ) : (
+            <Pause className="h-5 w-5" aria-hidden />
+          )}
+        </button>
+        <div className="absolute bottom-4 right-5 z-10 flex gap-2 sm:right-8">
+          {slides.map((slide, i) => (
+            <button
+              key={slide.key}
+              type="button"
+              onClick={() => goTo(i)}
+              aria-label={`Show slide ${i + 1}: ${slide.caption}`}
+              aria-current={i === active}
+              className={`h-2.5 rounded-full transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
+                i === active
+                  ? "w-7 bg-primary"
+                  : "w-2.5 bg-white/50 hover:bg-white/80"
+              }`}
+            />
+          ))}
+        </div>
+      </div>
+      {credit && (
+        <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+          {credit}
+        </p>
+      )}
+    </div>
+  );
+};
 
 const painIcons = [PhoneMissed, MoonStar, Clock];
 const controlIcons = [Phone, PhoneForwarded, Flame, CalendarCheck];
+/** Attention-section tiles: farming (local presence), placement
+ *  (top of the list), the answer (Aspen picks up). */
+const attentionIcons = [MapPin, Sparkles, PhoneCall];
 
 /** Hero benefit bullets — big, friendly icons, shared by every vertical. */
 const heroBenefits = [
@@ -98,35 +348,89 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
     );
   };
 
+  // One-click example demos — picking an example launches the demo on
+  // that site immediately, through the same /demo handoff as a typed
+  // URL, marked as a sample launch (sample=1) and carrying the generic
+  // visitor name the data entry supplies (callerName — the param the
+  // demo flow already threads into the session's visitorName).
+  // Examples with a PINNED demo lead (pre-scanned once, refreshed
+  // weekly — src/data/realtorExamplePinnedLeads.ts) also carry leadId:
+  // /demo-site then loads the stored scan and opens without the
+  // ~2-minute rebuild every visitor used to wait through. The URL
+  // stays in the link — /demo's sample forwarder requires it, and the
+  // demo loading state keys off it. An example without a pinned lead
+  // falls back to the original URL-only launch (fresh scan), so a new
+  // example can ship before its pinned lead exists.
+  const runExampleDemo = (exampleUrl: string) => {
+    if (!exampleUrl || !vertical.demoExamples) return;
+    const visitorName = encodeURIComponent(vertical.demoExamples.visitorName);
+    const pinnedLeadId = pinnedLeadIdForExampleUrl(exampleUrl);
+    navigate(
+      pinnedLeadId
+        ? `/demo?leadId=${pinnedLeadId}&url=${encodeURIComponent(exampleUrl)}&sample=1&callerName=${visitorName}`
+        : `/demo?url=${encodeURIComponent(exampleUrl)}&sample=1&callerName=${visitorName}`,
+    );
+  };
+
+  const handleExampleSelect = (event: ChangeEvent<HTMLSelectElement>) => {
+    runExampleDemo(event.target.value);
+  };
+
+  // The attention section's sting is the vertical's verified
+  // never-answered figure, rendered from its stats entry (value,
+  // label and source exactly as approved) — never a second copy of
+  // the number that could drift from the evidence section.
+  const attentionStat = vertical.attention
+    ? vertical.stats.find((stat) => stat.value === "48%")
+    : undefined;
+
   return (
     <div className="landing-page min-h-screen bg-background overflow-x-hidden">
-      {/* Slim top contact bar — agent pages only, above the navbar. Both
-          numbers ring Aspen on the Telnyx bridge, live right now. The bar
-          is fixed at h-10, so the shared navbar is offset below it via
-          the wrapper (the navbar component itself is untouched). */}
+      {/* Slim top contact bar — agent pages only, above the navbar. The
+          numbers ring Aspen on the Telnyx bridge, live right now, shown
+          as digits + vanity tag (full dual forms live in the shared
+          footer and, for realtors, the contact strip above it); the
+          realtor line (786 · AI-4ALL) joins the bar on the realtors
+          vertical only. The bar is fixed at h-10, so the shared navbar
+          is offset below it via the wrapper (the navbar component
+          itself is untouched). */}
       <div
         data-agent-contact-bar
         className="fixed top-0 inset-x-0 z-[100] h-10 bg-primary text-primary-foreground"
       >
-        <div className="container mx-auto flex h-full items-center justify-center gap-3 px-3 sm:gap-4">
+        <div className="container mx-auto flex h-full items-center justify-center gap-1.5 px-2 sm:gap-4 sm:px-3">
           <a
             href="tel:+18778624949"
-            className="inline-flex items-center gap-1.5 whitespace-nowrap text-[11px] font-semibold hover:underline sm:text-xs"
+            className="inline-flex items-center gap-1.5 whitespace-nowrap text-[10px] font-semibold hover:underline min-[400px]:text-[11px] sm:text-xs"
           >
-            <Phone className="h-3.5 w-3.5 shrink-0" />
-            1-877-862-4949 (toll-free)
+            <Phone className="hidden h-3.5 w-3.5 shrink-0 sm:block" />
+            1-877-862-4949 · AIWIZ
           </a>
-          <span aria-hidden className="text-primary-foreground/50">
+          <span aria-hidden className="hidden text-primary-foreground/50 sm:inline">
             ·
           </span>
           <a
             href="tel:+17723624949"
-            className="inline-flex items-center gap-1.5 whitespace-nowrap text-[11px] font-semibold hover:underline sm:text-xs"
+            className="inline-flex items-center gap-1.5 whitespace-nowrap text-[10px] font-semibold hover:underline min-[400px]:text-[11px] sm:text-xs"
           >
-            <Phone className="h-3.5 w-3.5 shrink-0" />
-            (772) 362-4949 (local)
+            <Phone className="hidden h-3.5 w-3.5 shrink-0 sm:block" />
+            1-772-362-4949 · AIWIZ
           </a>
-          <span className="hidden items-center gap-2 text-[11px] font-medium sm:inline-flex sm:text-xs">
+          {vertical.slug === "realtors" && (
+            <>
+              <span aria-hidden className="hidden text-primary-foreground/50 sm:inline">
+                ·
+              </span>
+              <a
+                href="tel:+17862449688"
+                className="inline-flex items-center gap-1.5 whitespace-nowrap text-[10px] font-semibold hover:underline min-[400px]:text-[11px] sm:text-xs"
+              >
+                <Phone className="hidden h-3.5 w-3.5 shrink-0 sm:block" />
+                786-244-9688 · AI-4ALL
+              </a>
+            </>
+          )}
+          <span className="hidden items-center gap-2 text-[11px] font-medium md:inline-flex sm:text-xs">
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-foreground opacity-75" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-primary-foreground" />
@@ -140,25 +444,52 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
         <LandingNavbar />
       </div>
 
-      {/* Hero — vertical headline + sub, shared Aspen portrait + demo CTA */}
-      <section className="relative overflow-hidden pt-6 sm:pt-8 pb-8 sm:pb-10">
+      {/* Hero — vertical headline + sub, shared Aspen portrait + demo CTA.
+          Batch 1 (2026-11-12): the wide empty black band Ron saw above the
+          hero. The two fixed bars are NOT the waste — the h-10 spacer above
+          exactly matches the fixed contact bar and LandingNavbar's own
+          spacer exactly matches the fixed navbar (offset top-10), so both
+          spacers stay or content slides under a bar. The reducible empty
+          space was this section's top padding plus the mt-10/sm:mt-12 gap
+          under the slideshow; both shrink to a small breathing room here
+          and below, lifting every vertical's hero (slides or not). */}
+      <section className="relative overflow-hidden pt-1 sm:pt-2 pb-8 sm:pb-10">
         <div className="container mx-auto px-5 sm:px-6 relative z-10">
-          <div className="flex flex-col lg:flex-row items-center gap-8 lg:gap-10">
+          {/* Hero slideshow — full-bleed photo band at the very top of
+              the hero, data-driven: only renders when the vertical
+              carries heroSlides. The H1, demo form and everything else
+              stay below it on the solid background. */}
+          {vertical.heroSlides && vertical.heroSlides.length > 0 && (
+            <HeroSlideshow
+              slides={vertical.heroSlides}
+              credit={vertical.heroSlidesCredit}
+            />
+          )}
+          <div
+            className={`flex flex-col lg:flex-row items-center gap-8 lg:gap-10 ${
+              vertical.heroSlides?.length ? "mt-4 sm:mt-6" : ""
+            }`}
+          >
             <div className="min-w-0 w-full flex-1 text-center lg:text-left">
-              <motion.div
-                initial={reduceMotion ? false : { opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
-                className="inline-flex items-center gap-2 px-3 py-2 sm:px-4 rounded-full border border-primary/20 bg-primary/5 mb-4 sm:mb-5"
-              >
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
-                </span>
-                <span className="text-xs sm:text-base font-medium text-primary">
-                  {vertical.builtFor}
-                </span>
-              </motion.div>
+              {/* Badge pill — suppressed on slideshow verticals: the
+                  pill's phrases live on as slide slogans there, so
+                  showing both would duplicate them. */}
+              {!vertical.heroSlides?.length && (
+                <motion.div
+                  initial={reduceMotion ? false : { opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5 }}
+                  className="inline-flex items-center gap-2 px-3 py-2 sm:px-4 rounded-full border border-primary/20 bg-primary/5 mb-4 sm:mb-5"
+                >
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
+                  </span>
+                  <span className="text-xs sm:text-base font-medium text-primary">
+                    {vertical.badgeLine ?? vertical.builtFor}
+                  </span>
+                </motion.div>
+              )}
 
               <motion.h1
                 initial={reduceMotion ? false : { opacity: 0, y: 20 }}
@@ -177,6 +508,29 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
               >
                 {vertical.sub}
               </motion.p>
+
+              {/* Spend-hook tagline (owner-approved verbatim
+                  2026-11-12) — directly under the hero headline/sub,
+                  data-driven so only verticals that carry it render
+                  it. */}
+              {vertical.heroTagline && (
+                <motion.div
+                  data-agent-hero-tagline
+                  initial={reduceMotion ? false : { opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: 0.25 }}
+                  className="max-w-xl mx-auto lg:mx-0 mb-6"
+                >
+                  <p className="text-xl sm:text-2xl font-bold leading-snug text-foreground">
+                    {vertical.heroTagline}
+                  </p>
+                  {vertical.heroTaglineSub && (
+                    <p className="mt-2 text-sm sm:text-base text-muted-foreground leading-relaxed">
+                      {vertical.heroTaglineSub}
+                    </p>
+                  )}
+                </motion.div>
+              )}
 
               <motion.div
                 initial={reduceMotion ? false : { opacity: 0, y: 20 }}
@@ -265,6 +619,38 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
                   <p className="text-xs text-muted-foreground text-center">
                     Free demo. No signup, no card.
                   </p>
+                  {vertical.demoExamples && (
+                    <div
+                      data-agent-demo-examples
+                      className="border-t border-border pt-3"
+                    >
+                      <label
+                        htmlFor="agent-hero-example"
+                        className="block text-sm font-semibold text-foreground mb-1.5"
+                      >
+                        {vertical.demoExamples.intro}
+                      </label>
+                      <select
+                        id="agent-hero-example"
+                        defaultValue=""
+                        onChange={handleExampleSelect}
+                        className="h-12 w-full min-w-0 rounded-md border border-input bg-background px-3 text-base text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      >
+                        <option value="" disabled>
+                          {vertical.demoExamples.placeholder}
+                        </option>
+                        {vertical.demoExamples.groups.map((group) => (
+                          <optgroup key={group.area} label={group.area}>
+                            {group.options.map((option) => (
+                              <option key={option.url} value={option.url}>
+                                {option.agent} — {option.city}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
               </motion.form>
 
@@ -328,8 +714,157 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
               </p>
             </motion.div>
           </div>
+
         </div>
       </section>
+
+      {/* Examples grid (Batch 2, 2026-11-12) — directly below the hero
+          demo form: what Aspen looks like answering on real agents'
+          websites. Honest framing: these are example simulations, NOT
+          customers. The frame shows two rows at a time; the rest scroll
+          INSIDE the frame so the page never grows a 14-card strip.
+          Clicking a card runs the live demo on that site immediately —
+          the same /demo sample handoff as the hero dropdown. */}
+      {vertical.demoExamples && (
+        <section
+          data-agent-example-grid
+          className="border-b border-primary/20 bg-background py-12 sm:py-16"
+        >
+          <div className="container mx-auto px-5 sm:px-6">
+            <div className="max-w-3xl mx-auto text-center mb-8">
+              <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+                What your website could look like
+              </h2>
+              <p className="text-muted-foreground text-base sm:text-lg">
+                These are example simulations — real agents' websites, not
+                our customers — each with Aspen answering on it. Click any
+                one and the demo starts live on that site. On your site,
+                she leads with your listings first.
+              </p>
+            </div>
+            <div className="max-w-5xl mx-auto rounded-2xl border border-border bg-card p-3 sm:p-4">
+              <div
+                data-agent-example-grid-scroll
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[572px] sm:max-h-[500px] lg:max-h-[528px] overflow-y-auto pr-1"
+              >
+                {vertical.demoExamples.groups
+                  .flatMap((group) => group.options)
+                  .map((option) => (
+                    <button
+                      key={option.url}
+                      type="button"
+                      onClick={() => runExampleDemo(option.url)}
+                      aria-label={`Run the live demo on ${option.agent}'s website`}
+                      className="group block w-full text-left rounded-xl border border-border bg-background overflow-hidden shadow-sm transition-colors hover:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    >
+                      <img
+                        src={EXAMPLE_THUMBNAILS[option.slug]}
+                        alt={`${option.agent}'s website with Aspen answering on it`}
+                        loading="lazy"
+                        className="aspect-[16/10] w-full object-cover object-top"
+                      />
+                      <span className="flex items-center justify-between gap-2 px-3 py-2.5">
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-semibold text-foreground">
+                            {option.agent}
+                          </span>
+                          <span className="block text-xs text-muted-foreground">
+                            {option.city}
+                          </span>
+                        </span>
+                        <span className="shrink-0 text-xs font-semibold text-primary">
+                          Run the demo
+                        </span>
+                      </span>
+                    </button>
+                  ))}
+              </div>
+            </div>
+            <p className="mt-4 text-center text-xs text-muted-foreground">
+              Scroll inside the frame to see all 14 examples. Each demo is a
+              simulation — Aspen answers as that site's receptionist,
+              listings first.
+            </p>
+          </div>
+        </section>
+      )}
+
+      {/* You already bought the attention (owner-approved
+          2026-11-12) — between the examples grid and the stats band:
+          the agent's spend (farming + placement) ends at a ringing
+          phone or a website visit, and Aspen is the answer for that
+          moment. The sting is the verified 48% stat, rendered from
+          the vertical's stats data with its approved wording/source.
+          The social strip presents social media management as an
+          available add-on only — no invented results. */}
+      {vertical.attention && (
+        <section
+          data-agent-attention
+          className="py-14 sm:py-20 bg-secondary/20 border-b border-border"
+        >
+          <div className="container mx-auto px-5 sm:px-6">
+            <div className="text-center mb-10 sm:mb-14">
+              <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+                {vertical.attention.heading}
+              </h2>
+              <p className="text-muted-foreground text-base sm:text-lg max-w-2xl mx-auto">
+                The attention is already paid for. What happens in the
+                seconds after it lands is what decides whether it pays
+                off.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto">
+              {vertical.attention.tiles.map((tile, i) => {
+                const Icon = attentionIcons[i] || PhoneCall;
+                return (
+                  <motion.div
+                    key={tile.title}
+                    initial={reduceMotion ? false : { opacity: 0, y: 30 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: i * 0.1 }}
+                    className="rounded-2xl border border-border bg-card p-6 sm:p-8"
+                  >
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className="w-12 h-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                        <Icon className="w-6 h-6 text-primary" />
+                      </div>
+                      <h3 className="text-lg font-semibold leading-snug">
+                        {tile.title}
+                      </h3>
+                    </div>
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                      {tile.body}
+                    </p>
+                  </motion.div>
+                );
+              })}
+            </div>
+            {attentionStat && (
+              <div className="mt-10 max-w-3xl mx-auto text-center">
+                <p className="text-4xl sm:text-5xl font-extrabold text-primary">
+                  {attentionStat.value}
+                </p>
+                <p className="mt-2 text-base sm:text-lg text-foreground leading-snug">
+                  {attentionStat.label}
+                </p>
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  Source: {attentionStat.source}
+                </p>
+              </div>
+            )}
+            <div className="mt-10 max-w-3xl mx-auto rounded-2xl border border-primary/20 bg-primary/5 p-6 sm:p-8 text-center">
+              <p className="text-base sm:text-lg font-medium text-foreground leading-relaxed">
+                {vertical.attention.socialStrip}
+              </p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Social media management is an available add-on — ask
+                Aspen about it.
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Stat bar — the verified headline figures */}
       <section className="border-y border-primary/20 bg-primary/5 py-8">
@@ -338,10 +873,10 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
             {vertical.stats.slice(0, 4).map((stat) => (
               <div key={stat.value}>
                 <p className="text-3xl sm:text-4xl font-extrabold text-primary">
-                  {stat.value}
+                  {stat.barValue ?? stat.value}
                 </p>
                 <p className="mt-1 text-xs sm:text-sm text-muted-foreground leading-snug">
-                  {stat.label}
+                  {stat.barLabel ?? stat.label}
                 </p>
               </div>
             ))}
@@ -378,10 +913,14 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
                   transition={{ delay: i * 0.1 }}
                   className="rounded-2xl border border-border bg-card p-6 sm:p-8"
                 >
-                  <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mb-4">
-                    <Icon className="w-7 h-7 text-primary" />
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="w-12 h-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                      <Icon className="w-6 h-6 text-primary" />
+                    </div>
+                    <h3 className="text-lg font-semibold leading-snug">
+                      {pain.title}
+                    </h3>
                   </div>
-                  <h3 className="text-lg font-semibold mb-2">{pain.title}</h3>
                   <p className="text-sm text-muted-foreground leading-relaxed">
                     {pain.body}
                   </p>
@@ -428,12 +967,14 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
             </div>
 
             <div className="rounded-2xl border border-primary/20 bg-primary/5 p-6 sm:p-8 flex flex-col">
-              <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center mb-4">
-                <CalendarCheck className="w-5 h-5 text-primary" />
+              <div className="flex items-center gap-4 mb-3">
+                <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                  <CalendarCheck className="w-5 h-5 text-primary" />
+                </div>
+                <h3 className="text-xl font-semibold leading-snug">
+                  {vertical.sampleCall.sellerTitle}
+                </h3>
               </div>
-              <h3 className="text-xl font-semibold mb-3">
-                {vertical.sampleCall.sellerTitle}
-              </h3>
               <p className="text-sm text-muted-foreground leading-relaxed flex-1">
                 {vertical.sampleCall.sellerBody}
               </p>
@@ -476,15 +1017,19 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
                   transition={{ delay: i * 0.1 }}
                   className="relative rounded-2xl border border-border bg-card p-6"
                 >
-                  <div className="relative mb-4">
-                    <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
-                      <Icon className="w-8 h-8 text-primary" />
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="relative shrink-0">
+                      <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+                        <Icon className="w-8 h-8 text-primary" />
+                      </div>
+                      <span className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-secondary border border-border flex items-center justify-center text-xs font-bold text-foreground">
+                        {i + 1}
+                      </span>
                     </div>
-                    <span className="absolute -top-2 left-14 w-6 h-6 rounded-full bg-secondary border border-border flex items-center justify-center text-xs font-bold text-foreground">
-                      {i + 1}
-                    </span>
+                    <h3 className="text-base font-semibold leading-snug">
+                      {step.title}
+                    </h3>
                   </div>
-                  <h3 className="text-base font-semibold mb-2">{step.title}</h3>
                   <p className="text-sm text-muted-foreground leading-relaxed">
                     {step.body}
                   </p>
@@ -594,8 +1139,7 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
                 {vertical.scenario}
               </p>
               <p className="mt-3 text-sm font-medium text-foreground">
-                That is what your buyers do, too — to the agent who doesn't
-                answer.
+                {vertical.scenarioPunchline}
               </p>
             </div>
           </Reveal>
@@ -643,6 +1187,65 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
       {/* Meet the team — same component as the homepage, verbatim */}
       <TeamSection />
 
+      {/* The full services list — same names as the homepage hero list,
+          balanced checklist. Data-driven per vertical. */}
+      {vertical.services && vertical.services.length > 0 && (
+        <section className="py-14 sm:py-20 bg-secondary/20 border-y border-border">
+          <div className="container mx-auto px-5 sm:px-6">
+            <Reveal className="max-w-4xl mx-auto">
+              <div className="text-center mb-10">
+                <Badge variant="outline" className="mb-4 border-primary/30 text-primary">
+                  The full toolkit
+                </Badge>
+                <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+                  More than call answering
+                </h2>
+                <p className="text-muted-foreground text-base sm:text-lg max-w-2xl mx-auto">
+                  Aspen answering your calls and your website is where it
+                  starts. Behind her is the full AiHiddenLeads toolkit — the
+                  same services every customer can grow into.
+                </p>
+              </div>
+              <ul
+                data-agent-services
+                className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4 max-w-3xl mx-auto"
+              >
+                {vertical.services.map((service) => (
+                  <li key={service} className="flex items-center gap-3">
+                    <span className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                      <Check className="w-5 h-5 text-primary" />
+                    </span>
+                    <span className="text-sm sm:text-base font-medium text-foreground leading-snug">
+                      {service}
+                    </span>
+                  </li>
+                ))}
+                {vertical.slug === "realtors" && (
+                  <li className="flex items-center gap-3">
+                    <span className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                      <Check className="w-5 h-5 text-primary" />
+                    </span>
+                    <span className="text-sm sm:text-base font-medium text-foreground leading-snug">
+                      Your listings first — Aspen leads with your active
+                      listings on every call and visit
+                    </span>
+                  </li>
+                )}
+              </ul>
+              {vertical.prospectsNote && (
+                <p className="mt-8 text-center text-sm text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+                  {vertical.prospectsNote}
+                </p>
+              )}
+              <p className="mt-8 text-center text-sm text-muted-foreground">
+                Aspen answering is the $99/mo start; the rest are available
+                as add-ons or quoted scope when you want to grow.
+              </p>
+            </Reveal>
+          </div>
+        </section>
+      )}
+
       {/* Focused Premium summary for this vertical (full shared pricing below) */}
       <section className="py-14 sm:py-20">
         <div className="container mx-auto px-5 sm:px-6">
@@ -667,14 +1270,27 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
               {[
                 "AI voice receptionist for calls and website visitors, 24/7",
                 "Appointment booking with instant call summaries",
-                "Optional live video avatar add-on — $79/mo, only if you want Aspen's live video face on your website",
+                "Optional live video avatar add-on — first month free, then $79/mo if you keep it, only if you want Aspen's live video face on your website",
               ].map((line) => (
                 <li key={line} className="flex items-start gap-2.5 text-sm">
                   <Check className="w-4 h-4 text-primary mt-0.5 shrink-0" />
                   <span className="text-muted-foreground">{line}</span>
                 </li>
               ))}
+              {vertical.premiumProspectsBullet && (
+                <li className="flex items-start gap-2.5 text-sm">
+                  <Check className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                  <span className="text-muted-foreground">
+                    {vertical.premiumProspectsBullet}
+                  </span>
+                </li>
+              )}
             </ul>
+            {vertical.premiumProspectsBullet && (
+              <p className="text-left max-w-md mx-auto text-xs text-muted-foreground -mt-5 mb-8">
+                *Up to 50/month — no specific count guaranteed.
+              </p>
+            )}
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Button
                 onClick={() => navigate("/checkout?plan=essentials")}
@@ -740,6 +1356,59 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
         </div>
       </section>
 
+      {/* Areas we serve — visible locality strip near the bottom of
+          the page, data-driven per vertical; renders only when the
+          vertical carries serviceAreas. Plain visible text: the
+          cities grouped by county, as pills under each county. */}
+      {vertical.serviceAreas && (
+        <section className="py-14 sm:py-20 border-t border-border">
+          <div className="container mx-auto px-5 sm:px-6">
+            <Reveal className="max-w-5xl mx-auto">
+              <div className="text-center mb-10">
+                <Badge
+                  variant="outline"
+                  className="mb-4 border-primary/30 text-primary"
+                >
+                  Areas we serve
+                </Badge>
+                <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+                  {vertical.serviceAreas.heading}
+                </h2>
+                <p className="text-muted-foreground text-base sm:text-lg max-w-2xl mx-auto">
+                  {vertical.serviceAreas.framing}
+                </p>
+              </div>
+              <p className="mb-6 text-center text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                {vertical.serviceAreas.homeTurfLabel}
+              </p>
+              <div
+                data-agent-service-areas
+                className="grid grid-cols-1 sm:grid-cols-3 gap-8"
+              >
+                {vertical.serviceAreas.counties.map((group) => (
+                  <div key={group.county}>
+                    <h3 className="flex items-center gap-2 text-base font-semibold mb-3">
+                      <MapPin className="w-4 h-4 text-primary shrink-0" />
+                      {group.county}
+                    </h3>
+                    <ul className="flex flex-wrap gap-2">
+                      {group.cities.map((city) => (
+                        <li
+                          key={city}
+                          className="rounded-full border border-border bg-card px-3 py-1 text-sm text-muted-foreground"
+                        >
+                          {city}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </Reveal>
+          </div>
+        </section>
+      )}
+
       {/* Vertical FAQ */}
       <section className="py-14 sm:py-20 bg-secondary/20 border-t border-border">
         <div className="container mx-auto px-5 sm:px-6 max-w-3xl">
@@ -772,6 +1441,31 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
           </div>
         </div>
       </section>
+
+      {vertical.slug === "realtors" && (
+        <section data-agent-contact-strip className="border-t border-border py-6">
+          <div className="container mx-auto flex flex-wrap items-center justify-center gap-x-6 gap-y-2 px-4 text-sm">
+            <a
+              href={TOLL_FREE_DISPLAY.href}
+              className="font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              {TOLL_FREE_DISPLAY.digits} · {TOLL_FREE_DISPLAY.vanity} (toll-free)
+            </a>
+            <a
+              href={LOCAL_DISPLAY.href}
+              className="font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              {LOCAL_DISPLAY.digits} · {LOCAL_DISPLAY.vanity} (local)
+            </a>
+            <a
+              href={REALTOR_LINE_DISPLAY.href}
+              className="font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              {REALTOR_LINE_DISPLAY.digits} · {REALTOR_LINE_DISPLAY.vanity} (realtor line)
+            </a>
+          </div>
+        </section>
+      )}
 
       <Footer />
       <AssistantErrorBoundary>

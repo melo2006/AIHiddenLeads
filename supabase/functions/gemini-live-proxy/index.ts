@@ -19,6 +19,13 @@ import { HOMEPAGE_OPENING_PRIORITY } from '../_shared/homepage-knowledge.ts'
 import { finalizeRecord } from '../_shared/conversation-records.ts'
 import { pcmWav } from '../_shared/recording-audio.ts'
 import { languageLockFor, requestedConversationLanguage, startingLanguageForUiLocale } from '../_shared/conversation-language.ts'
+import { transferDestination } from '../_shared/browser-handoff.ts'
+import { MANAGER_HANDOFF_DELAY_MS, MANAGER_TRANSFER_POLICY, managerTransferAnnouncement } from '../_shared/manager-transfer.ts'
+import { handoffReturnInstruction, handoffReturnOutcome } from '../_shared/handoff-return.ts'
+import { BROWSER_MINUTES_OVERAGE_POLICY } from '../_shared/overage-facts.ts'
+import { FAREWELL_END_DELAY_MS, detectFarewell } from '../_shared/farewell.ts'
+import { CONTACT_SAVE_CLIENT_ERROR, CONTACT_SAVE_FALLBACK_TOOL_RESPONSE, saveConfirmedFollowup } from '../_shared/contact-save.ts'
+import { logUsageEvent, videoAvatarEventFromSession, webVoiceEventFromSession } from '../_shared/usage-ledger.ts'
 
 const GEMINI_WS =
   'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent'
@@ -43,9 +50,10 @@ CORE PRODUCT KNOWLEDGE:
 - Lead Generation: Scans the internet for high-intent prospects, automated email/SMS outreach
 - Speed-to-Lead: Responds to inquiries in under 60 seconds
 
-PRICING (CURRENT PROMOTION):
-- Standard Plan: Normally $199/mo → PROMO: $149/mo for first 3 months
-- Setup fee: $99 (one-time)
+PRICING:
+- Premium $99/mo (400 browser voice minutes), Professional $199/mo (1,200), Platinum $349/mo (2,500) — permanent prices, no introductory discount
+- Live video avatar add-on: $79/mo on any plan, first month free
+- Setup fee: currently waived
 - Setup time: 2-3 business days
 
 KEY STATS:
@@ -110,6 +118,19 @@ Deno.serve(async (req) => {
   const voiceRaw = String(config.voice || 'Kore')
   const voice = ALLOWED_VOICES.has(voiceRaw) ? voiceRaw : 'Kore'
   const preview = config.preview === true
+  // Voice-asked manager transfer (Batch 1, Fix 3): available on exactly
+  // the sessions gemini-session issues a browser-handoff capability
+  // for — a valid saved transfer destination, not a preview, not a
+  // share (share configs carry sharedDemo and receive no token). Its
+  // gate is deliberately separate from config.platformFollowup: tenant
+  // and homepage transfer sessions may not carry platform follow-up.
+  const managerTransferAvailable = transferDestination(config) !== null && !preview && config.sharedDemo !== true
+  const managerTransferBlock = managerTransferAvailable ? `\n${MANAGER_TRANSFER_POLICY}` : ''
+  // Browser-minutes overage pin (Handoff improvement batch,
+  // 2026-11-12): appended ONLY on homepage-sales sessions — the
+  // sessions whose stored prompt carries the plan table — so every
+  // other session's system prompt stays byte-identical.
+  const overageBlock = config.homepageSales === true ? `\n${BROWSER_MINUTES_OVERAGE_POLICY}` : ''
   const manualActivity = url.searchParams.get('capture') === 'hold' && !preview
   // Prepared demo sessions connect silently and only greet/record after the visitor's tap ('begin').
   const held = url.searchParams.get('hold') === '1' && !preview
@@ -140,7 +161,32 @@ Deno.serve(async (req) => {
   let releaseSocket: (() => void) | undefined
   EdgeRuntime.waitUntil(new Promise<void>(resolve => { releaseSocket = resolve }))
   const pendingActions = new Map<string, { call: {id:string;name:string}; slotStart?:string }>()
+  // Tool calls the provider cancelled while their on-screen
+  // confirmation was still up (Batch 1, Fix 7b): the descriptor is
+  // kept here so a visitor confirmation that was already in flight
+  // when the cancellation landed can still answer its tool call
+  // (gracefully, as cancelled) instead of vanishing into a silent
+  // return that leaves the model waiting on a response.
+  const orphanedToolCalls = new Map<string, {id:string;name:string}>()
   let confirmedContact: {name:string;email:string;phone:string} | null = null
+  // Voice-asked manager transfer (Fix 3): once per session — the flag
+  // guards repeat tool calls, the timer delivers {type:'start_handoff'}
+  // after Aspen's announcement has had time to land.
+  let managerTransferRequested = false
+  let handoffStartTimer: ReturnType<typeof setTimeout> | undefined
+  // Come-back after handoff (Handoff improvement batch, 2026-11-12):
+  // the client reports the terminal handoff outcome once; the proxy
+  // injects the server-authored return instruction (see
+  // _shared/handoff-return.ts). Once per session — the handoff
+  // component is single-use, and a duplicate report must never make
+  // Aspen welcome the visitor back twice.
+  let handoffReturnHandled = false
+  // Visitor farewell hang-up (Fix 5): armed when the visitor's
+  // completed utterance is a clear goodbye; cancelled if they speak
+  // again (non-farewell) or any tool runs before it fires.
+  let farewellHandled = false
+  let farewellTimer: ReturnType<typeof setTimeout> | undefined
+  const cancelFarewellEnd = () => { if (farewellTimer) { clearTimeout(farewellTimer); farewellTimer = undefined } }
   let conversationLanguage = startLanguage
   let callerLanguageRequest: string | null = null
   let callerUtterance = ''
@@ -187,12 +233,24 @@ Deno.serve(async (req) => {
     closed = true
     releaseSocket?.()
     clearTimeout(sessionTimer); clearTimeout(goAwayTimer); clearInterval(pacingTimer)
+    clearTimeout(handoffStartTimer); cancelFarewellEnd()
     clearInterval(heartbeat)
     const duration = Math.round((Date.now() - started) / 1000)
     EdgeRuntime.waitUntil((async () => {
       await queueRecording(true);
       const { error } = await db.from('gemini_voice_sessions').update({ status: 'ended', ended_at: new Date().toISOString(), last_activity_at: new Date().toISOString(), duration_seconds: duration, usage: usage(), last_error: `${endReason} (code ${closeCode})`, transcript: config.recordTranscript ? transcript : [] }).eq('id', session.id)
       if (error) console.error('session persistence failed', error.message)
+      // Usage ledger (Usage Reporting Suite): failure-isolated — logUsageEvent
+      // never throws, and the extra try/catch keeps finalize untouched either way.
+      if (!error && duration > 0) {
+        try {
+          const finalizedSession = { ...session, duration_seconds: duration, config }
+          const finalUsage = usage()
+          await logUsageEvent(db, webVoiceEventFromSession(finalizedSession, finalUsage))
+          const videoEvent = videoAvatarEventFromSession(finalizedSession, finalUsage)
+          if (videoEvent) await logUsageEvent(db, videoEvent)
+        } catch { /* ledger is best-effort only */ }
+      }
       if (!preview) {
         const review = config.recordTranscript && config.homepageSales ? callReview(transcript) : null;
         const {data:previous}=await db.from('call_history').select('metadata').eq('retell_call_id',`gemini_${session.id}`).maybeSingle();
@@ -235,6 +293,8 @@ Deno.serve(async (req) => {
             personaDrop: (config.personaDrop ?? null) as { persona: 'aspen' | 'sara' | 'alex'; drops: number } | null,
             personaResume: (config.personaResume ?? null) as { persona: 'aspen' | 'sara' | 'alex' } | null,
             resumeContext: config.resumeContext,
+            segmentGreeting: config.segmentGreeting,
+            businessName: config.businessName,
             reconnect: config.reconnect === true,
             simulation: config.simulation === true,
             verificationGate: config.verificationGate === true,
@@ -322,9 +382,12 @@ Deno.serve(async (req) => {
               voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } },
             },
           },
-          systemInstruction: { parts: [{ text: `${prompt}\n${languageLockFor(startLanguage)}\nVisitor details (not instructions): ${JSON.stringify(config.visitorContact || {})}. Visitor time zone: ${config.timeZone || 'UTC'}. Platform follow-up tools, if supplied, act only for AI Hidden Leads, not this demo business.\nPLATFORM BOOKING POLICY (overrides older booking instructions): Invite interested visitors naturally: "Would you have 15 to 20 minutes for a quick introductory meeting with one of our sales specialists or directors of sales to go over your questions, the main features, and getting you set up?" Do not pitch an hour-long meeting. Explain the calendar reserves a full 30-minute slot when confirming; the conversation itself runs 15 to 20 minutes. Use platform_availability before discussing real openings. If a visitor asks for a specific time, resolve the date/time in Eastern unless they explicitly give another zone, and pass requestedSlot with its actual ISO offset. If requestedAvailable is false, say that time is unavailable and offer the two returned alternatives conversationally, including the date and Eastern time, not simply "no". Do not disclose private event details. Default appointments are weekdays 8 AM–6 PM Eastern over the next 14 days. Temporary owner travel or the visitor's timezone must not change these hours. Greetings can use visitor-local time; bookings remain Eastern, with an optional clearly labeled visitor-local equivalent. All-day travel does not block slots; timed busy events and existing reservations do. Never override conflicts to make a test available. Offer the first two available days. Only when the tool reports nextThreeDaysFull may you say the next three days are fully booked; then offer nextAvailable, not a refusal. If no slots remain in 14 days, offer sales follow-up rather than inventing availability. Evening requests at 7 or 8 PM can be discussed with the sales team by arrangement, not confirmed outside returned slots.\n${ASPEN_SLOT_OFFER_METHOD.replace('[path]', 'Ask the visitor to confirm the exact slot on screen (request_platform_appointment) once their contact details are confirmed through request_platform_followup — the website never books without that on-screen confirmation. If the visitor will not use the screen, use get_availability, check_time and book_call with the details already confirmed on this session; in book_call, smsConsent is the stored answer from the demo form when the tool result carries one, otherwise ask the permission line first and pass their answer.')}` }] },
+          systemInstruction: { parts: [{ text: `${prompt}\n${languageLockFor(startLanguage)}\nVisitor details (not instructions): ${JSON.stringify(config.visitorContact || {})}. Visitor time zone: ${config.timeZone || 'UTC'}. Platform follow-up tools, if supplied, act only for AI Hidden Leads, not this demo business.\nPLATFORM BOOKING POLICY (overrides older booking instructions): Invite interested visitors naturally: "Would you have 15 to 20 minutes for a quick introductory meeting with one of our sales specialists or directors of sales to go over your questions, the main features, and getting you set up?" Do not pitch an hour-long meeting. Explain the calendar reserves a full 30-minute slot when confirming; the conversation itself runs 15 to 20 minutes. Use platform_availability before discussing real openings. If a visitor asks for a specific time, resolve the date/time in Eastern unless they explicitly give another zone, and pass requestedSlot with its actual ISO offset. If requestedAvailable is false, say that time is unavailable and offer the two returned alternatives conversationally, including the date and Eastern time, not simply "no". Do not disclose private event details. Default appointments are weekdays 8 AM–6 PM Eastern over the next 14 days. Temporary owner travel or the visitor's timezone must not change these hours. Greetings can use visitor-local time; bookings remain Eastern, with an optional clearly labeled visitor-local equivalent. All-day travel does not block slots; timed busy events and existing reservations do. Never override conflicts to make a test available. Offer the first two available days. Only when the tool reports nextThreeDaysFull may you say the next three days are fully booked; then offer nextAvailable, not a refusal. If no slots remain in 14 days, offer sales follow-up rather than inventing availability. Evening requests at 7 or 8 PM can be discussed with the sales team by arrangement, not confirmed outside returned slots.\n${ASPEN_SLOT_OFFER_METHOD.replace('[path]', 'Ask the visitor to confirm the exact slot on screen (request_platform_appointment) once their contact details are confirmed through request_platform_followup — the website never books without that on-screen confirmation. If the visitor will not use the screen, use get_availability, check_time and book_call with the details already confirmed on this session; in book_call, smsConsent is the stored answer from the demo form when the tool result carries one, otherwise ask the permission line first and pass their answer.')}${managerTransferBlock}${overageBlock}` }] },
           tools:[{functionDeclarations:[
             {name:'select_conversation_language',description:'Authorize a language change ONLY after a clear caller request. Server checks actual caller transcription; background speech and foreign greetings do not count. Wait for a successful result before changing language.',parameters:{type:'OBJECT',properties:{language:{type:'STRING'}},required:['language']}},
+            ...(managerTransferAvailable ? [
+            {name:'request_manager_transfer',description:'Start a live transfer to a real person at the business when the visitor explicitly asks to speak to a manager, the owner, or a real person. The result returns the exact announcement to say once; then stop talking while the transfer connects. Never call it unprompted, and never claim a transfer happened before it succeeds.'},
+            ] : []),
             ...(config.platformFollowup && !preview ? [
             {name:'request_conversation_copy',description:'Only after the visitor requests an emailed private transcript and summary and verbally confirms spelled name/email. Shows a separate on-screen email confirmation; never authorizes marketing.',parameters:{type:'OBJECT',properties:{name:{type:'STRING'},email:{type:'STRING'}},required:['name','email']}},
             {name:'recommend_plan',description:'Highlight a reviewed AI Hidden Leads plan after the visitor expresses plan-selection or buying interest. Does not charge or navigate. Use Premium first unless needs warrant more.',parameters:{type:'OBJECT',properties:{plan:{type:'STRING',enum:['essentials','growth','fullservice']}},required:['plan']}},
@@ -416,11 +479,28 @@ Deno.serve(async (req) => {
         if (msg.toolCall?.functionCalls) {
           for (const call of msg.toolCall.functionCalls) {
             if (typeof call.id !== 'string') continue;
+            // Any tool activity means the conversation is continuing:
+            // a pending farewell end is cancelled (Fix 5).
+            cancelFarewellEnd();
             const respond = (response: unknown) => geminiWs?.send(JSON.stringify({toolResponse:{functionResponses:[{id:call.id,name:call.name,response}]}}));
             if (call.name === 'select_conversation_language') {
               const requested = String(call.args?.language || '');
               if (callerLanguageRequest && requested.toLowerCase() === callerLanguageRequest.toLowerCase()) { conversationLanguage = callerLanguageRequest; callerLanguageRequest = null; respond({authorized:true,language:conversationLanguage}); }
               else respond({authorized:false,language:conversationLanguage,error:'No explicit caller language request was verified. Stay in the current language.'});
+            } else if (call.name === 'request_manager_transfer') {
+              // Dispatched BEFORE the platformFollowup gate below: the
+              // transfer tool has its own availability gate (a saved
+              // destination + a handoff capability), and transfer
+              // sessions may not carry platform follow-up at all.
+              if (!managerTransferAvailable) { respond({error:'Live transfer is not available in this session. Offer the on-screen Manager button instead, or take a name and number for a callback.'}); continue; }
+              const announcement = managerTransferAnnouncement(config);
+              if (managerTransferRequested) { respond({transferring:true,alreadyRequested:true,announcement,instruction:'The transfer is already being connected. Do not repeat the announcement or start another transfer.'}); continue; }
+              managerTransferRequested = true;
+              respond({transferring:true,announcement,instruction:'Say the announcement exactly once, word for word, and then stop talking while the transfer connects. Do not add anything after it.'});
+              // Let the spoken announcement land before the browser leg
+              // starts (the client pauses Aspen when the handoff begins).
+              clearTimeout(handoffStartTimer);
+              handoffStartTimer = setTimeout(() => { if (!closed && clientSocket.readyState === WebSocket.OPEN) clientSocket.send(JSON.stringify({type:'start_handoff'})); }, MANAGER_HANDOFF_DELAY_MS);
             } else if (!config.platformFollowup || preview) { respond({error:'Action unavailable.'});
             } else if (call.name === 'recommend_plan') {
               const plan = salesRecommendation(call.args?.plan);
@@ -475,7 +555,7 @@ Deno.serve(async (req) => {
           return;
         }
         if (msg.toolCallCancellation?.ids) {
-          for(const id of msg.toolCallCancellation.ids) {pendingActions.delete(id);clientSocket.send(JSON.stringify({type:'cancel_action',id}));}
+          for(const id of msg.toolCallCancellation.ids) {const pending=pendingActions.get(id);pendingActions.delete(id);if(pending)orphanedToolCalls.set(id,pending.call);clientSocket.send(JSON.stringify({type:'cancel_action',id}));}
         }
         const sc = msg.serverContent
         if (sc) {
@@ -503,12 +583,37 @@ Deno.serve(async (req) => {
           if (sc.inputTranscription?.text) {
             lastCallerSpeech = Date.now()
             callerUtterance = (callerUtterance + sc.inputTranscription.text).slice(-1500)
+            // Farewell cancel (Fix 5): the visitor is speaking again
+            // with a substantive new utterance that is not itself a
+            // farewell — they changed their mind, so the armed end is
+            // cancelled. (A completed non-farewell turn also cancels,
+            // at turnComplete below.)
+            if (farewellTimer && callerUtterance.trim().split(/\s+/).length >= 2 && !detectFarewell(callerUtterance)) cancelFarewellEnd()
             callerLanguageRequest = requestedConversationLanguage(callerUtterance) || callerLanguageRequest
             if (transcript.length < 2000) transcript.push({ role: 'caller', text: sc.inputTranscription.text })
             clientSocket.send(JSON.stringify({ type: 'user_transcript', text: sc.inputTranscription.text }))
           }
           if (sc.turnComplete) {
+            // Farewell hang-up (Fix 5): evaluate the visitor's
+            // completed utterance BEFORE the reset below. Once per
+            // session, never for previews or before the visitor's tap.
+            const completedUtterance = callerUtterance
             callerUtterance = ''
+            if (!farewellHandled && !preview && begun && detectFarewell(completedUtterance)) {
+              farewellHandled = true
+              if (geminiWs?.readyState === WebSocket.OPEN) geminiWs.send(JSON.stringify({clientContent:{turns:[{role:'user',parts:[{text:'The visitor has clearly said goodbye. If you have not already closed, give ONE brief, warm closing line now. Do not ask a question, make no new offers, and do not re-open any topic. The call ends right after your closing.'}]}],turnComplete:true}}))
+              farewellTimer = setTimeout(() => { farewellTimer = undefined; if (closed) return; endReason = 'visitor_goodbye'; closeCode = 1000; if (clientSocket.readyState === WebSocket.OPEN) clientSocket.send(JSON.stringify({ type: 'closed', reason: 'Call ended — thanks for talking with Aspen.' })); closeAll() }, FAREWELL_END_DELAY_MS)
+            } else if (farewellTimer && completedUtterance.trim() && !detectFarewell(completedUtterance)) {
+              // They spoke again and it was not another farewell. An
+              // EMPTY completed utterance is not the visitor speaking
+              // again — it is Aspen's own closing turn (the one the
+              // injection above asked for) completing, and cancelling
+              // on it made the hang-up self-defeating: the closing
+              // line's own turnComplete killed the timer every time
+              // (live proof 2026-11-12, session 59d8731e: detector
+              // fired, closing was spoken, session never ended).
+              cancelFarewellEnd()
+            }
             if(config.transferPhone) EdgeRuntime.waitUntil((async()=>{
               const summary=transcript.filter(t=>t.role==='caller').map(t=>t.text).join(' ').slice(-1200);
               const {error}=await db.from('browser_voice_handoffs').update({summary}).eq('session_id',session.id).eq('status','not_requested');
@@ -564,6 +669,18 @@ Deno.serve(async (req) => {
           begun = true; openedAt = Date.now(); lastCallerSpeech = Date.now()
           if (msg.consent === true) { config.recordAudio = true; config.recordTranscript = true; recordReady = initRecord() }
           if (setupDone) sendOpening()
+        } else if (msg.consent === true && !config.recordTranscript) {
+          // Segment transcript persistence (2026-11-13 forensics — the
+          // Sara logging gap): persona-segment sockets connect ALREADY
+          // begun (no hold), so the consent flip inside the !begun gate
+          // never ran for them and their transcripts finalized as [].
+          // A segment is a continuation of the SAME conversation the
+          // visitor consented to record at the parent tap; the client
+          // now sends begin+consent on segment sockets too, and it is
+          // honored here — outside the gate, exactly once (the flag
+          // check keeps repeat begins inert). Consent semantics are
+          // unchanged: no consent asserted, no recording.
+          config.recordAudio = true; config.recordTranscript = true; recordReady = initRecord()
         }
         return
       }
@@ -580,9 +697,35 @@ Deno.serve(async (req) => {
       if(msg.type==='end_session' && (msg.reason==='silence_timeout' || msg.reason==='user_ended')) {if(endReason==='connection_closed'){endReason=msg.reason;closeCode=1000;}closeAll();return;}
       if (msg.type === 'confirm_action' && typeof msg.id === 'string') {
         const action = pendingActions.get(msg.id);
-        if (!action) return;
+        if (!action) {
+          // Fix 7b: a confirmation arrived for an action the proxy no
+          // longer holds — most often the provider cancelled the tool
+          // call while the visitor was tapping Confirm, and the old
+          // silent return left that tool call unanswered forever (the
+          // model then improvised around the hole). Close the loop on
+          // both channels instead.
+          const orphan = orphanedToolCalls.get(msg.id);
+          if (orphan) {
+            orphanedToolCalls.delete(msg.id);
+            // The provider already cancelled this call, so NO action
+            // is performed — but the call is still answered (as
+            // cancelled) so the model is never left waiting on it,
+            // and the client shows a result instead of hanging.
+            clientSocket.send(JSON.stringify({type:'action_result',id:msg.id,cancelled:true}));
+            geminiWs.send(JSON.stringify({toolResponse:{functionResponses:[{...orphan,response:{cancelled:true}}]}}));
+          } else {
+            console.info('confirm for unknown action', JSON.stringify({sessionId:session.id,id:msg.id}));
+            clientSocket.send(JSON.stringify({type:'action_result',id:msg.id,error:'That confirmation expired. If you still want this, just ask Aspen again.'}));
+          }
+          return;
+        }
         pendingActions.delete(msg.id);
         let response: Record<string,unknown>;
+        // Fix 7c: the client-facing result may differ from the
+        // model-facing tool response (a failed contact save is honest
+        // on screen but never a raw internal error to the model).
+        // Null = send `response` to both, as before.
+        let clientResult: Record<string,unknown> | null = null;
         try {
           if (msg.approved !== true) response={cancelled:true};
           else if(action.call.name==='request_conversation_copy'){
@@ -592,16 +735,29 @@ Deno.serve(async (req) => {
           }
           else if (action.call.name === 'request_platform_followup') {
             const contact=confirmedVisitorContact(msg.contact);
-            if (!session.lead_id) throw new Error('This demo has no visitor record for follow-up.');
-            const {data:lead,error:readError}=await db.from('leads').select('full_name,email,phone,website_screenshot').eq('id',session.lead_id).single();
-            if(readError || !lead)throw new Error('Visitor record unavailable.');
-            const {error}=await db.from('leads').update({full_name:lead.full_name || contact.name,email:lead.email || contact.email,phone:lead.phone || contact.phone || null}).eq('id',session.lead_id);
-            if(error)throw new Error('Contact details could not be saved.');
-            const {error:historyError}=await db.from('call_history').upsert({retell_call_id:`gemini_${session.id}`,lead_id:session.lead_id,prospect_id:session.prospect_id,business_name:String(config.businessName),caller_name:contact.name,caller_email:contact.email,caller_phone:contact.phone || null,call_status:'live',metadata:{provider:'gemini',session_id:session.id,followup_consent_at:new Date().toISOString()}},{onConflict:'retell_call_id'});
-            if(historyError)throw new Error('Confirmed follow-up could not be recorded.');
-            confirmedContact=contact; response={saved:true,platform:'AI Hidden Leads'};
-            const mailContact={...contact,businessName:String(config.businessName||'')};
-            void trySend(followupAlert(mailContact)); void trySend(visitorFollowup({...mailContact,screenshot:(lead as {website_screenshot?:string|null}).website_screenshot,didDemo:!!session.prospect_id}));
+            // Fix 7: the save lives in _shared/contact-save.ts — each
+            // write is retried once, and a session with no lead row
+            // (homepage / prospect-only) still records the confirmed
+            // contact on its call_history row instead of throwing
+            // 'no visitor record' before writing anything.
+            const saved=await saveConfirmedFollowup({
+              readLead: async () => { const {data,error}=await db.from('leads').select('full_name,email,phone,website_screenshot').eq('id',session.lead_id as string).single(); return {data,error}; },
+              updateLead: async (fields) => { const {error}=await db.from('leads').update(fields).eq('id',session.lead_id as string); return {error}; },
+              upsertHistory: async (row) => { const {error}=await db.from('call_history').upsert(row,{onConflict:'retell_call_id'}); return {error}; },
+            },{sessionId:session.id,leadId:session.lead_id ?? null,prospectId:session.prospect_id ?? null,businessName:String(config.businessName),contact});
+            if (!saved.ok) {
+              // Still failed after the retry: the model gets the
+              // fallback (details live in this call's record; no
+              // technical-issue confession, no raw error string),
+              // the client keeps an honest error marker.
+              console.error('confirmed follow-up save failed', JSON.stringify({sessionId:session.id,stage:saved.stage,attempts:saved.attempts}));
+              response={...CONTACT_SAVE_FALLBACK_TOOL_RESPONSE};
+              clientResult={saved:false,keptInCallRecord:true,error:CONTACT_SAVE_CLIENT_ERROR};
+            } else {
+              confirmedContact=contact; response={saved:true,platform:'AI Hidden Leads'};
+              const mailContact={...contact,businessName:String(config.businessName||'')};
+              void trySend(followupAlert(mailContact)); void trySend(visitorFollowup({...mailContact,screenshot:saved.lead?.website_screenshot ?? undefined,didDemo:!!session.prospect_id}));
+            }
           } else {
             if(!confirmedContact || !action.slotStart)throw new Error('Confirm contact details and appointment first.');
             const booked=await bookPlatformCall(db,{...confirmedContact,businessName:String(config.businessName),slotStart:action.slotStart});
@@ -613,7 +769,7 @@ Deno.serve(async (req) => {
             if((booked as {ok?:boolean}).ok){ void sendBookingConfirmations(db, booked, {...confirmedContact, businessName:String(config.businessName||''), slotStart:action.slotStart}); }
           }
         } catch(e) {response={error:e instanceof Error?e.message:'Action failed'};}
-        clientSocket.send(JSON.stringify({type:'action_result',id:msg.id,...response}));
+        clientSocket.send(JSON.stringify({type:'action_result',id:msg.id,...(clientResult ?? response)}));
         geminiWs.send(JSON.stringify({toolResponse:{functionResponses:[{...action.call,response}]}}));
       } else if (msg.type === 'audio'  && typeof msg.data === 'string' && msg.data.length <= 48000 && /^[A-Za-z0-9+/=]+$/.test(msg.data)) {
         inputAudioSeconds += pcmSeconds(msg.data, 16000)
@@ -624,13 +780,40 @@ Deno.serve(async (req) => {
             audio: { data: msg.data, mimeType: 'audio/pcm;rate=16000' },
           },
         }))
-      } else if (msg.type === 'idle_prompt' && (config.homepageSales === true || config.simulation === true) && !preview && (msg.stage === 'checkin' || msg.stage === 'goodbye' || (msg.stage === 'continue' && config.homepageSales === true))) {
-        const text = msg.stage === 'continue'
+      } else if (msg.type === 'idle_prompt' && (config.homepageSales === true || config.simulation === true) && !preview && (msg.stage === 'checkin' || msg.stage === 'goodbye' || (msg.stage === 'continue' && config.homepageSales === true) || (msg.stage === 'bridge' && config.simulation === true))) {
+        const text = msg.stage === 'bridge'
+          // NO-DEAD-AIR BRIDGE (Scalone batch Item 6a): the persona
+          // handoff this session announced is still connecting and
+          // the visitor has heard silence for several seconds (the
+          // client holds the mic while a swap resolves). ONE short
+          // bridging line from the persona who is still live, then
+          // quiet again — never a new topic, never a repeated line,
+          // never a technical explanation.
+          ? 'The persona handoff you just announced is taking a few seconds longer than usual to connect, and the caller has heard silence since your last line. Say ONE short, natural bridging line in your own words — for example: "Just one moment while I connect you…" — then wait quietly. Do not start a new topic, do not ask a question, do not repeat the line if you have already said one, and do not mention any technical problem.'
+          : msg.stage === 'continue'
           ? 'The caller has been quiet for a short pause after you offered the next advantage. Continue with only the next service area in the agreed order, two concise practical benefits and one invitation to ask questions. Do not repeat the introduction, imply they consented to any action, or describe all remaining services. If all five have been covered, simply ask which area interests them, then wait.'
           : msg.stage === 'checkin'
           ? 'The caller has been quiet after playback. Briefly ask in the selected conversation language: Are you still there? Take your time, I am here if you would like to continue. Then wait for their answer.'
           : 'The caller remained silent after a check-in and reply grace period. Briefly say in the selected conversation language: I will let you go for now. You are welcome to start another conversation whenever you are ready. Take care. Do not ask another question.';
         geminiWs.send(JSON.stringify({clientContent:{turns:[{role:'user',parts:[{text}]}],turnComplete:true}}));
+      } else if (msg.type === 'handoff_ended' && managerTransferAvailable && !handoffReturnHandled) {
+        // Come-back after handoff (Handoff improvement batch,
+        // 2026-11-12): the browser handoff has ended and the visitor
+        // is back on the (retained, paused) voice session. The client
+        // reports ONLY the terminal outcome — 'completed' is honored
+        // solely from the handoff row's terminal status or a return
+        // after the call joined; every other value collapses to the
+        // honest 'unavailable' line in handoffReturnOutcome(). The
+        // instruction text is authored server-side here, injected as
+        // a clientContent turn like the farewell/idle injections —
+        // NOT via the user-role text channel the old outcome-blind
+        // come-back used. Sales wording (demo/workflow beats + the
+        // wizard close) applies only to homepage-sales sessions that
+        // are not simulations.
+        handoffReturnHandled = true;
+        const outcome = handoffReturnOutcome(msg.outcome);
+        const sales = config.homepageSales === true && config.simulation !== true;
+        geminiWs.send(JSON.stringify({clientContent:{turns:[{role:'user',parts:[{text:handoffReturnInstruction(outcome,{sales})}]}],turnComplete:true}}));
       } else if (msg.type === 'text' && typeof msg.text === 'string' && msg.text.length <= 4000) {
         callerLanguageRequest = requestedConversationLanguage(msg.text) || callerLanguageRequest
         geminiWs.send(JSON.stringify({ realtimeInput: { text: msg.text } }))

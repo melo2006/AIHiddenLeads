@@ -7,7 +7,8 @@ import { SimliClient, LogLevel } from "simli-client";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { pcm24kTo16k, type VideoAvatar } from "../../supabase/functions/_shared/video-avatar";
-import { startChromaKey } from "@/lib/chromaKey";
+import { startChromaKey, SARA_CHROMA_KEY_PROFILE } from "@/lib/chromaKey";
+import { clampPlaybackVolume } from "@/lib/playbackVolume";
 import { applySinkIdToElement } from "@/lib/speakerOutput";
 
 export interface SimliAvatarHandle {
@@ -63,11 +64,19 @@ export interface SimliAvatarHandle {
    *  the cut-over MUST abort on false while the outgoing persona's
    *  socket is still open (paired-audio guard, 2026-11-10); resolving
    *  true means a live stream was actually activated. */
-  cutoverAudioSync?: (sync: { muted: boolean; deviceId: string | null }) => Promise<boolean>;
+  cutoverAudioSync?: (sync: { muted: boolean; deviceId: string | null; volume?: number }) => Promise<boolean>;
   /** Gemini's 24 kHz PCM16 chunk, base64. */
   sendPcm24k: (base64: string) => boolean;
   clear: () => void;
   setPlaybackMuted: (muted: boolean) => void;
+  /** In-panel speaker volume (2026-11-13): the visitor's chosen level
+   *  (0..1, default 1) for THIS instance's audio element. Applied at
+   *  once and remembered, so every later unmute (start, activate,
+   *  cut-over) restores the chosen level instead of unity — the paired
+   *  Simli stream's element volume is the one lever the web platform
+   *  guarantees for it (see lib/playbackVolume.ts). Mute still wins:
+   *  while muted the element stays at 0 whatever the level is. */
+  setPlaybackVolume?: (volume: number) => void;
   /** Speaker-output selection: retarget this element's audible stream via
    *  HTMLMediaElement.setSinkId ("" = platform default). Resolves true only
    *  when the platform actually applied it; the choice is remembered and
@@ -258,6 +267,16 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
   const frameKeeperRef = useRef(true);
   const activatedRef = useRef(false);
   const playbackMutedRef = useRef(false);
+  // In-panel speaker volume for this instance (0..1, default unity);
+  // owned by GeminiConversation, pushed via setPlaybackVolume and the
+  // cut-over sync. Every unmute applies THIS level, never a hardcoded 1.
+  const playbackVolumeRef = useRef(1);
+  const applyPlaybackLevel = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.muted = playbackMutedRef.current;
+    audio.volume = playbackMutedRef.current ? 0 : playbackVolumeRef.current;
+  };
   // Speaker-output selection (session-scoped, owned by GeminiConversation):
   // undefined = no preference stated; a string ("" = platform default) is
   // applied to the audio element now and again when the stream (re)starts.
@@ -399,14 +418,16 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
           check();
         })]);
         // Cut the green backdrop out so she floats over the page like her static photo.
-        if (chromaKey && canvasRef.current) { const stopFn = startChromaKey(videoRef.current, canvasRef.current); if (stopFn) { keyStopRef.current = stopFn; setKeyed(true); } }
+        // Sara's stream keys with her own profile (pale halo/fringing on her
+        // source frames — see SARA_CHROMA_KEY_PROFILE); everyone else defaults.
+        if (chromaKey && canvasRef.current) { const stopFn = startChromaKey(videoRef.current, canvasRef.current, persona === 'sara' ? SARA_CHROMA_KEY_PROFILE : undefined); if (stopFn) { keyStopRef.current = stopFn; setKeyed(true); } }
         // Draw the first keyed frame before enabling the paired audio output.
         await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
         if (lifecycle !== lifecycleRef.current) return false;
         // Prepared before any tap: keep the face live but silent until activate().
         if (options?.silent && !activatedRef.current) { startupRejectRef.current = null; setLive(true); setState("live"); return true; }
         if (audioRef.current) {
-          audioRef.current.muted = playbackMutedRef.current; audioRef.current.volume = playbackMutedRef.current ? 0 : 1;
+          applyPlaybackLevel();
           await applyDesiredSink();
           try { await audioRef.current.play(); }
           catch (playError) {
@@ -471,7 +492,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
       const audio = audioRef.current, video = videoRef.current;
       if (!audio || !video) return false;
       if (!liveRef.current || !audio.srcObject) { unlockMediaElements(video, audio); return false; }
-      audio.muted = playbackMutedRef.current; audio.volume = playbackMutedRef.current ? 0 : 1;
+      applyPlaybackLevel();
       await applyDesiredSink();
       try { await audio.play(); }
       catch (playError) { if (playError instanceof Error && playError.name === 'NotAllowedError') throw new Error(SOUND_BLOCKED); throw playError; }
@@ -493,15 +514,17 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
       frameKeeperRef.current = false;
       stop();
     },
-    setPlaybackMuted: (muted) => { playbackMutedRef.current = muted; if (audioRef.current) { audioRef.current.muted = muted; audioRef.current.volume = muted ? 0 : 1; } },
-    cutoverAudioSync: async ({ muted, deviceId }) => {
+    setPlaybackMuted: (muted) => { playbackMutedRef.current = muted; applyPlaybackLevel(); },
+    setPlaybackVolume: (volume) => { playbackVolumeRef.current = clampPlaybackVolume(volume); applyPlaybackLevel(); },
+    cutoverAudioSync: async ({ muted, deviceId, volume }) => {
       // Order is the contract: mute-sync first (activate() applies
       // playbackMutedRef to the element), speaker routing next (so the
       // stream lands on the visitor's chosen output), activate() last
       // (the only unmute door for a silently pre-staged instance — a
       // start() re-call would early-return on the live client).
       playbackMutedRef.current = muted;
-      if (audioRef.current) { audioRef.current.muted = muted; audioRef.current.volume = muted ? 0 : 1; }
+      if (typeof volume === 'number') playbackVolumeRef.current = clampPlaybackVolume(volume);
+      applyPlaybackLevel();
       if (deviceId) { desiredSinkIdRef.current = deviceId; await applyDesiredSink(); }
       activatedRef.current = true;
       const audio = audioRef.current, video = videoRef.current;
@@ -512,7 +535,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
       // Report not-live honestly — the caller aborts the cut-over
       // BEFORE the outgoing socket closes.
       if (!liveRef.current || !audio.srcObject) { unlockMediaElements(video, audio); return false; }
-      audio.muted = playbackMutedRef.current; audio.volume = playbackMutedRef.current ? 0 : 1;
+      applyPlaybackLevel();
       await applyDesiredSink();
       try { await audio.play(); }
       catch (playError) { if (playError instanceof Error && playError.name === 'NotAllowedError') throw new Error(SOUND_BLOCKED); throw playError; }

@@ -14,9 +14,10 @@ CORE PRODUCT KNOWLEDGE:
 - Lead Generation: Scans the internet for high-intent prospects, automated email/SMS outreach
 - Speed-to-Lead: Responds to inquiries in under 60 seconds
 
-PRICING (CURRENT PROMOTION):
-- Standard Plan: Normally $199/mo → PROMO: $149/mo for first 3 months
-- Setup fee: $99 (one-time)
+PRICING:
+- Premium $99/mo (400 browser voice minutes), Professional $199/mo (1,200), Platinum $349/mo (2,500) — permanent prices, no introductory discount
+- Live video avatar add-on: $79/mo on any plan, first month free
+- Setup fee: currently waived
 - Setup time: 2-3 business days
 
 KEY STATS:
