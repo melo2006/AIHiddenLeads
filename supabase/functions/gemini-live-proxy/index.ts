@@ -669,6 +669,18 @@ Deno.serve(async (req) => {
           begun = true; openedAt = Date.now(); lastCallerSpeech = Date.now()
           if (msg.consent === true) { config.recordAudio = true; config.recordTranscript = true; recordReady = initRecord() }
           if (setupDone) sendOpening()
+        } else if (msg.consent === true && !config.recordTranscript) {
+          // Segment transcript persistence (2026-11-13 forensics — the
+          // Sara logging gap): persona-segment sockets connect ALREADY
+          // begun (no hold), so the consent flip inside the !begun gate
+          // never ran for them and their transcripts finalized as [].
+          // A segment is a continuation of the SAME conversation the
+          // visitor consented to record at the parent tap; the client
+          // now sends begin+consent on segment sockets too, and it is
+          // honored here — outside the gate, exactly once (the flag
+          // check keeps repeat begins inert). Consent semantics are
+          // unchanged: no consent asserted, no recording.
+          config.recordAudio = true; config.recordTranscript = true; recordReady = initRecord()
         }
         return
       }

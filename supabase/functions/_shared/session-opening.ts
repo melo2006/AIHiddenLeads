@@ -149,7 +149,18 @@ const scriptedLine = (value: unknown) => typeof value === 'string' ? value.trim(
 /** Branch 2 — the planned-boundary opening. First-person framing for the
  *  INCOMING persona; the conversation is already in progress. */
 export function swapOpeningInstruction(swap: { to: PersonaId; boundary: PersonaBoundary }, recap: unknown, facts?: { segmentGreeting?: unknown; businessName?: unknown }): string {
-  const base = `A planned persona handoff just happened inside this one ongoing demo — the visitor has NOT left and nothing went wrong. Do not greet the visit, do not apologize, do not ask whether to continue, and never say "you're back". Treat the recap below as established fact and never re-ask for anything in it.`;
+  // Forensics alignment (2026-11-13 — Ron's Andriot session rows): the
+  // generic base's "Do not greet the visit" contradicted the doorway
+  // beat's REQUIRED in-role greeting inside the same instruction — one
+  // live run obeyed the ban (pitch-first, no greeting), the next obeyed
+  // the beat (improvised greeting). For the doorway-to-Sara entry the
+  // base therefore carries NO greeting ban: the only greeting in play
+  // is her scripted in-role one, and the ban's real targets (apologies,
+  // "you're back", continue-checks) are unchanged. Every other swap
+  // keeps the original base byte-for-byte.
+  const base = swap.boundary === 'doorway' && swap.to === 'sara'
+    ? `A planned persona handoff just happened inside this one ongoing demo — the visitor has NOT left and nothing went wrong. Do not apologize, do not ask whether to continue, and never say "you're back". Treat the recap below as established fact and never re-ask for anything in it. Your in-role greeting below is NOT a re-greeting of the visit: the host's greeting was the host's — yours, as the business's receptionist, is scripted, required, and comes first.`
+    : `A planned persona handoff just happened inside this one ongoing demo — the visitor has NOT left and nothing went wrong. Do not greet the visit, do not apologize, do not ask whether to continue, and never say "you're back". Treat the recap below as established fact and never re-ask for anything in it.`;
   // Team intro family (demo page): same no-apology / no-re-greet law; the
   // first beat is the incoming persona's cameo or bridge beat (design
   // §4.3 swap-opening beats).

@@ -25,6 +25,21 @@
 //    so her pale eyelash/halo fringing is a source-frame difference;
 //    her key band is shifted up 0.04 (halo pixels go transparent),
 //    every other persona keeps the default band byte-for-byte.
+//
+// Forensics fold-in (dashboard pull on Ron's 05:50–05:55 UTC rows):
+//  F1 — the PROVEN Bug 2 root cause: the segment's config.opening was
+//    the raw unsubstituted Aspen sales template (placeholders, 78%
+//    stat, "meet Sara" ending), and the recap head + swap-opening base
+//    both said "do not greet", contradicting the required greeting.
+//    The rendered segment line is now stamped AS config.opening, and
+//    both greeting bans are aligned away for simulation entries.
+//  Item 7 — segment transcripts persisted NOTHING (Sara's 239-second
+//    row: transcript []): the client now asserts the parent tap's
+//    consent on segment sockets and the proxy honors it outside the
+//    !begun gate, so finalize writes segment turns like a parent's.
+//  Item 8 — the swap recap's flat 2400-char slice cut Aspen's closing
+//    turn mid-sentence; truncation now drops oldest turns whole and
+//    only ever shortens a lone oversized turn at a sentence boundary.
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -40,7 +55,7 @@ import {
   REALTOR_EXAMPLE_PACKS, REALTOR_EXAMPLE_SIMULATION_SCRIPT, buildExampleListingsLayer,
 } from '../../supabase/functions/_shared/realtor-example-listings';
 import { clampPlaybackVolume, effectivePlaybackLevel, loadPlaybackVolume, savePlaybackVolume } from '@/lib/playbackVolume';
-import { cutoverAudioSync } from '@/lib/personaSwap';
+import { buildSwapRecap, cutoverAudioSync } from '@/lib/personaSwap';
 import { CHROMA_HIGH, CHROMA_LOW, SARA_CHROMA_KEY_PROFILE, chromaAlpha } from '@/lib/chromaKey';
 
 const read = (rel: string) => fs.readFileSync(path.join(__dirname, '..', '..', rel), 'utf8');
@@ -52,7 +67,7 @@ const simli = read('src/components/SimliAvatar.tsx');
 
 /** A recap in the shape the swap machine builds: it CONTAINS the host's
  *  full opening — pitch and 78% statistic included — as history. */
-const RECAP = `Persona handoff inside one ongoing demo (the visitor has not left; do not greet the visit).
+const RECAP = `Persona handoff inside one ongoing demo (the visitor has not left; the host's greeting was the host's — open in your own role).
 Business being demonstrated: Jean-Luc Andriot Realty.
 The visitor is John.
 Host (Aspen from AI Hidden Leads) said: "Good morning, John. I am Aspen from AI Hidden Leads — welcome, and thanks for trying the demo I built for Jean-Luc Andriot Realty. It matters because in a 2025 survey, 78% of 1,000 U.S. consumers said they had abandoned a business after an unanswered call. Now, meet Sara — she'll walk you through your site, playing your own receptionist. Can I transfer you to Sara now?"
@@ -96,6 +111,10 @@ describe('Bug 2 — Sara segment entry greeting is deterministic', () => {
     expect(directive).toContain('NEVER skipped on this planned handoff');
     expect(directive).not.toContain('78%');
     expect(directive).not.toContain('did you know');
+    // Forensics alignment: the base no longer bans greeting — that ban
+    // contradicted the scripted greeting inside the same instruction.
+    expect(directive).not.toContain('Do not greet the visit');
+    expect(directive).toContain('scripted, required, and comes first');
   });
 
   it('without a stamped line, the doorway fallback still leads with the greeting and bans the pitch echo', () => {
@@ -283,5 +302,98 @@ describe('Bug 6 — Sara chroma-key profile', () => {
 
   it('only Sara\'s stream keys with the shifted profile', () => {
     expect(simli).toContain("persona === 'sara' ? SARA_CHROMA_KEY_PROFILE : undefined");
+  });
+});
+
+describe('Forensics 1 — the segment opening CONFIG is her own in-role line (proven Bug 2 root cause)', () => {
+  it('the parent sales template the segment used to inherit is raw: placeholders, stat, meet-Sara', () => {
+    const rawParent = DEMO_SITE_GREETING_VARIANTS.find(v => v.includes('78%')) ?? DEMO_SITE_GREETING_VARIANTS[0];
+    expect(rawParent).toContain('{timeGreeting}');
+    expect(rawParent).toContain('meet Sara');
+  });
+
+  it('what gemini-session stamps AS the segment opening is fully substituted and in role', () => {
+    // Mirror the segment stamp: the rendered greeting becomes
+    // config.opening (config.segmentGreeting) for swap and resume alike.
+    const built = personaSegmentPrompt('sara', 'doorway', 'Jean-Luc Andriot Realty', SIMULATION_PROMPT);
+    const opening = renderOpeningTemplate(built.greeting, { businessName: 'Jean-Luc Andriot Realty', name: 'Aspen' }, 9, '');
+    expect(opening).not.toContain('{');
+    expect(opening).not.toContain('78%');
+    expect(opening).not.toContain('meet Sara');
+    expect(opening).not.toContain('AI Hidden Leads');
+    expect(opening).toContain('Jean-Luc Andriot Realty');
+    expect(opening).toContain('thanks for calling');
+    expect(opening).toContain('How can I help you?');
+    // Generic demos too (Ron's second run stamped businessName
+    // "Business"): the segment opening is right without a named pack.
+    const generic = renderOpeningTemplate(built.greeting, { businessName: 'Business', name: 'Aspen' }, 9, '');
+    expect(generic).toBe("Good morning, Business — I'm Sara, thanks for calling. How can I help you?");
+  });
+
+  it('gemini-session assigns the rendered segment line to config.opening (never the sales template)', () => {
+    expect(sessionSource).toContain('config.opening=config.segmentGreeting');
+    // The parent render stays segment-guarded; the segment render is separate.
+    expect(sessionSource).toContain('if(!segmentParentId && (b.leadId || b.prospectId))');
+  });
+});
+
+describe('Item 7 — segment sessions persist their transcripts (the Sara logging gap)', () => {
+  it('the client asserts the parent tap consent on segment sockets at ready', () => {
+    const segmentFn = conversation.slice(conversation.indexOf('const connectSegmentSocket'), conversation.indexOf('connectSegmentSocketRef.current = connectSegmentSocket'));
+    expect(segmentFn).toContain("JSON.stringify({ type: 'begin', consent: consentReadyRef.current })");
+    // …and it rides the ready case, before going live.
+    const readyAt = segmentFn.indexOf('case "ready"');
+    const beginAt = segmentFn.indexOf("type: 'begin'");
+    const goLiveAt = segmentFn.indexOf('goLiveSegment();');
+    expect(readyAt).toBeGreaterThanOrEqual(0);
+    expect(beginAt).toBeGreaterThan(readyAt);
+    expect(goLiveAt).toBeGreaterThan(beginAt);
+  });
+
+  it('the proxy honors begin consent for already-begun (segment) sockets', () => {
+    expect(proxySource).toContain('} else if (msg.consent === true && !config.recordTranscript) {');
+  });
+
+  it('finalize writes the accumulated turns whenever the recording flag is set', () => {
+    expect(proxySource).toContain('transcript: config.recordTranscript ? transcript : []');
+    expect(proxySource).toContain("transcript:config.recordTranscript?transcript.map(t=>`${t.role}: ${t.text}`).join('\\n'):null");
+  });
+});
+
+describe('Item 8 — swap recap truncates at turn boundaries, never mid-sentence', () => {
+  const closing = 'Understood. Let me know if you would like me to elaborate on anything, or whenever you are ready to proceed.';
+  const filler = (n: number) => `This is a long explanatory turn number ${n} about the business, its services, its history, its service area and its offers, padded with enough ordinary words to consume recap budget quickly. It also covers background the visitor asked about earlier in the conversation, in ordinary detail.`;
+
+  it('drops oldest turns whole; the newest turn survives verbatim', () => {
+    const turns = [
+      ...Array.from({ length: 7 }, (_, i) => ({ role: 'assistant' as const, text: filler(i + 1) })),
+      { role: 'user' as const, text: 'Okay.' },
+      { role: 'assistant' as const, text: closing },
+    ];
+    const recap = buildSwapRecap(turns, { visitorName: 'John', businessName: 'Jean-Luc Andriot Realty', facts: [] }, 'sara');
+    expect(recap.length).toBeLessThanOrEqual(2400);
+    // Aspen's closing turn — the one the old slice severed at
+    // "Let me know if" — arrives COMPLETE.
+    expect(recap).toContain(`Assistant: ${closing}`);
+    expect(recap).not.toContain('Let me know if\n');
+    // Every body line is a whole turn from the input.
+    const bodyLines = recap.split('\n').slice(2);
+    const whole = new Set(turns.map(t => `${t.role === 'user' ? 'Visitor' : 'Assistant'}: ${t.text}`));
+    for (const line of bodyLines) expect(whole.has(line)).toBe(true);
+  });
+
+  it('the recap head no longer bans the incoming persona greeting', () => {
+    const recap = buildSwapRecap([{ role: 'user', text: 'Hi' }], { businessName: 'Business', facts: [] }, 'sara');
+    expect(recap).not.toContain('do not greet the visit');
+    expect(recap).toContain('open in your own role');
+  });
+
+  it('a single oversized turn is shortened only at a sentence boundary, marked', () => {
+    const huge = `Assistant-grade monologue. ${'Another full sentence follows here. '.repeat(90)}`;
+    const recap = buildSwapRecap([{ role: 'assistant', text: huge }], { businessName: 'Business', facts: [] }, 'sara');
+    expect(recap.length).toBeLessThanOrEqual(2400);
+    expect(recap.endsWith('…')).toBe(true);
+    // The visible cut lands right after a sentence end.
+    expect(recap).toMatch(/\.…$/);
   });
 });

@@ -407,8 +407,23 @@ Deno.serve(async req=>{
   if(segmentParentId && segMeta?.persona==='sara' && segMeta?.boundary==='doorway' && String(config.businessName || '').trim()) {
     if(config.personaSwap) {
       config.segmentGreeting=renderOpeningTemplate(String(config.greeting || ''),config,greetingHour,greetingName);
+      // ROOT-CAUSE FIX (2026-11-13 forensics — the proven Bug 2 cause):
+      // the segment's config.opening otherwise stays the RAW,
+      // UNSUBSTITUTED Aspen sales template openingFor rotated from the
+      // inherited greetings array — placeholders intact, 78% statistic,
+      // ending "Now, meet Sara…" — because the parent render above is
+      // guarded !segmentParentId. A segment's opening config is its
+      // OWN in-role line, never the parent's sales template: stamp the
+      // rendered segment greeting AS the opening.
+      config.opening=config.segmentGreeting;
     } else if(config.personaResume) {
       config.segmentGreeting=renderOpeningTemplate(`Welcome back — this is Sara, {businessName}'s receptionist. Let's pick up right where we left off.`,config,greetingHour,greetingName);
+      config.opening=config.segmentGreeting;
+    } else if(config.personaDrop) {
+      // Drop recovery serves no opening (apology + continuation), but
+      // the stored opening config gets the same hygiene: her rendered
+      // in-role greeting, never the raw parent sales template.
+      config.opening=renderOpeningTemplate(String(config.greeting || ''),config,greetingHour,greetingName);
     }
   }
   const token=crypto.randomUUID()+crypto.randomUUID();

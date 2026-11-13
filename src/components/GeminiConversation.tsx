@@ -2211,6 +2211,15 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           window.clearTimeout(readyTimeout);
           if (ctx) recordSwapDiag({ event: 'connect-ready', boundary: ctx.boundary, persona: ctx.persona, attempt: ctx.attempt });
           assistantTurnsRef.current = 0;
+          // Segment transcript persistence (2026-11-13 forensics — the
+          // Sara logging gap): segment sessions inherited the parent's
+          // STORED recordTranscript flag (false for prewarm-consumed
+          // parents) and never sent 'begin', so the proxy's consent flip
+          // never ran and every segment transcript finalized as []. A
+          // segment is the same conversation the visitor consented to
+          // record at the parent tap — assert that same consent here;
+          // the proxy honors it for already-begun segment sockets.
+          try { ws.send(JSON.stringify({ type: 'begin', consent: consentReadyRef.current })); } catch { /* socket racing closed — nothing records, as before */ }
           goLiveSegment();
           break;
         case "start_handoff":
