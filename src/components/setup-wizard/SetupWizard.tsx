@@ -7,6 +7,7 @@ import {
   UploadCloud, Link2, FileText, Check, Phone, UserRound,
 } from "lucide-react";
 import AvatarSettings from "@/components/AvatarSettings";
+import VoiceClonePanel from "@/components/VoiceClonePanel";
 import { normalizeVideoAvatar } from "../../../supabase/functions/_shared/video-avatar";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -115,7 +116,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
         customIndustry: INDUSTRIES.includes(String(d.industry || "")) ? "" : String(d.industry || ""), subNiche: String(d.subNiche || ""), businessNotes: String(d.businessNotes || ""), knowledgeGuidance: String(d.knowledgeGuidance || ""), assistantRestrictions: String(d.assistantRestrictions || ""),
         links: (a.voice_agent_sources || []).filter((x: { kind: string }) => x.kind === "url").map((x: { url?: string; label: string }) => x.url || x.label),
         files: (a.voice_agent_sources || []).filter((x: { kind: string }) => x.kind === "document").map((x: { label: string }) => x.label),
-        faqs, name: String(d.name || "Aspen"), greeting: String(d.greeting || EMPTY.greeting), voice: String(d.voice || "Kore"),
+        faqs, name: String(d.name || "Aspen"), greeting: String(d.greeting || EMPTY.greeting), voice: String(d.voice || "Kore"), clonedVoiceSelected: Boolean(d.clonedVoiceSelected),
         color: d.theme?.primary || EMPTY.color, label: (() => { const l = String(d.launcherLabel || ""); return !l || isAskLabel(l) ? askLabel(String(d.name || "Aspen")) : l; })(),
         corner: d.launcherCorner === "bottom-left" ? "bottom-left" : "bottom-right", videoAvatar: normalizeVideoAvatar(d.videoAvatar),
       });
@@ -132,7 +133,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
     const faq = faqKnowledge(s.faqs);
     const config = {
       ...draft, websiteUrl: s.websiteUrl ? (/^https?:\/\//i.test(s.websiteUrl) ? s.websiteUrl : `https://${s.websiteUrl}`) : "", businessName: s.businessName || "My business", industry: industryName(s), subNiche: s.subNiche || "", businessNotes: s.businessNotes || "", knowledgeGuidance: s.knowledgeGuidance || "", assistantRestrictions: s.assistantRestrictions || "", systemPrompt: replaceSection(String(draft.systemPrompt || ""), GUARDRAILS_MARK, s.assistantRestrictions || ""), name: s.name || "Aspen",
-      greeting: s.greeting, voice: s.voice, theme: { background: "#101216", foreground: "#F4F6F8", font: "system", ...(draft.theme || {}), primary: s.color }, launcherLabel: s.label, launcherCorner: s.corner, videoAvatar: normalizeVideoAvatar(s.videoAvatar),
+      greeting: s.greeting, voice: s.voice, clonedVoiceSelected: Boolean(s.clonedVoiceSelected), theme: { background: "#101216", foreground: "#F4F6F8", font: "system", ...(draft.theme || {}), primary: s.color }, launcherLabel: s.label, launcherCorner: s.corner, videoAvatar: normalizeVideoAvatar(s.videoAvatar),
       knowledge: faq ? `${base}\n\n${FAQ_MARK}\n${faq}`.trim() : base,
     };
     try { await request({ action: "save", agentId: selectedId, config }); setDraft(config); return true; }
@@ -392,9 +393,9 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
                 <p className="flex items-center gap-1.5 text-sm font-semibold">Pick a voice<Help>Each voice is the real Gemini voice your callers will hear.</Help></p>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   {VOICES.map((v) => (
-                    <button key={v.id} type="button" onClick={() => { set({ voice: v.id }); setVoiceReady(false); }}
-                      className={`rounded-xl border-2 p-3 text-left transition ${s.voice === v.id ? "border-primary bg-primary/10" : "border-border hover:border-primary/50"}`}>
-                      <Mic className={`mb-1 h-4 w-4 ${s.voice === v.id ? "text-primary" : "text-muted-foreground"}`} />
+                    <button key={v.id} type="button" onClick={() => { set({ voice: v.id, clonedVoiceSelected: false }); setVoiceReady(false); }}
+                      className={`rounded-xl border-2 p-3 text-left transition ${s.voice === v.id && !s.clonedVoiceSelected ? "border-primary bg-primary/10" : "border-border hover:border-primary/50"}`}>
+                      <Mic className={`mb-1 h-4 w-4 ${s.voice === v.id && !s.clonedVoiceSelected ? "text-primary" : "text-muted-foreground"}`} />
                       <p className="text-sm font-semibold">{v.label}</p>
                       <p className="text-[11px] text-muted-foreground">{v.vibe}</p>
                     </button>
@@ -403,13 +404,16 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
                 {realVoice && (voiceReady ? <div className="rounded-lg border border-border p-2"><GeminiConversation key={`${selectedId}-${s.voice}-${s.greeting}`} previewOnly autoStart previewAudioContext={previewAudioRef.current} draft agentId={selectedId} name={s.name} previewVoice={s.voice} compact /></div> : <Button variant="outline" className="w-full" disabled={busy} onClick={() => void prepareVoice()}>{busy ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}{busy ? 'Saving & preparing voice…' : `Hear my greeting · ${s.voice}`}</Button>)}
 
               </div>
+              <div className="md:col-span-2">
+                <VoiceClonePanel agentId={selectedId} selected={Boolean(s.clonedVoiceSelected)} onSelectChange={(cloned) => { set({ clonedVoiceSelected: cloned }); if (cloned) setVoiceReady(false); }} />
+              </div>
             </div>
           )}
 
           {step === 3 && (
             <div className="space-y-4">
               <StepHead title="Give your assistant a face" hint="Optional: a live video face that speaks with your chosen voice." help="Voice only works everywhere. A video face lip-syncs the same Gemini voice and uses extra video minutes." />
-              <AvatarSettings value={normalizeVideoAvatar(s.videoAvatar)} onChange={(videoAvatar) => set({ videoAvatar })} agentId={selectedId} beforePreview={save} voice={s.voice} onVoiceChange={voice => { set({ voice }); setVoiceReady(false); }} name={s.name} />
+              <AvatarSettings value={normalizeVideoAvatar(s.videoAvatar)} onChange={(videoAvatar) => set({ videoAvatar })} agentId={selectedId} beforePreview={save} voice={s.voice} onVoiceChange={voice => { set({ voice, clonedVoiceSelected: false }); setVoiceReady(false); }} name={s.name} clonedVoiceSelected={Boolean(s.clonedVoiceSelected)} onClonedVoiceSelectedChange={(cloned) => { set({ clonedVoiceSelected: cloned }); if (cloned) setVoiceReady(false); }} />
             </div>
           )}
 

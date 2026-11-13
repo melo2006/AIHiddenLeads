@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import SimliAvatar, { type SimliAvatarHandle } from "@/components/SimliAvatar";
+import VoiceClonePanel from "@/components/VoiceClonePanel";
 import AvatarDevicePreview from "@/components/AvatarDevicePreview";
 import GeminiConversation from "@/components/GeminiConversation";
 import { VOICES } from "@/components/setup-wizard/wizardModel";
@@ -43,10 +44,13 @@ interface Props {
   voice?: string;
   onVoiceChange?: (voice: string) => void;
   name?: string;
+  /** Picker state for the client's own cloned voice (VoiceClonePanel). */
+  clonedVoiceSelected?: boolean;
+  onClonedVoiceSelectedChange?: (selected: boolean) => void;
 }
 
 /** Shared video-face picker for the setup wizard and the admin Video Avatars page. */
-export default function AvatarSettings({ value, onChange, agentId, beforePreview, faces = [], adminPreview = false, voice = "Kore", onVoiceChange, name = "Aspen" }: Props) {
+export default function AvatarSettings({ value, onChange, agentId, beforePreview, faces = [], adminPreview = false, voice = "Kore", onVoiceChange, name = "Aspen", clonedVoiceSelected = false, onClonedVoiceSelectedChange }: Props) {
   const set = (patch: Partial<VideoAvatar>) => onChange({ ...value, ...patch });
   const [uploading, setUploading] = useState(false);
   const [pending, setPending] = useState<{ faceId: string; status: string } | null>(null);
@@ -76,9 +80,12 @@ export default function AvatarSettings({ value, onChange, agentId, beforePreview
     return () => window.clearInterval(timer);
   }, [pending?.faceId, pending?.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function upload(file?: File) {
+  async function upload(file?: File, internal = false) {
     if (!file) return;
-    if (!/^image\/(png|jpeg|webp)$/.test(file.type)) { toast.error("Use a PNG, JPG or WebP photo"); return; }
+    // Simli's create flow rejects WebP (verified live 2026-11-13): customer
+    // photos must be PNG or JPG. Only the built-in Aspen asset path (admin)
+    // may still send its WebP portrait.
+    if (internal ? !/^image\/(png|jpeg|webp)$/.test(file.type) : !/^image\/(png|jpeg)$/.test(file.type)) { toast.error(internal ? "Use a PNG, JPG or WebP photo" : "Use a PNG or JPG photo — Simli can't build a face from a WebP."); return; }
     if (file.size > 10 * 1024 * 1024) { toast.error("Maximum 10 MB"); return; }
     setUploading(true);
     try {
@@ -105,7 +112,7 @@ export default function AvatarSettings({ value, onChange, agentId, beforePreview
     try {
       const response = await fetch(aspenCutout);
       if (!response.ok) throw new Error('Aspen photo could not load');
-      await upload(new File([await response.blob()], 'Aspen transparent.webp', { type: 'image/webp' }));
+      await upload(new File([await response.blob()], 'Aspen transparent.webp', { type: 'image/webp' }), true);
     } catch (e) { toast.error(e instanceof Error ? e.message : 'Aspen photo could not load'); }
   }
 
@@ -150,7 +157,7 @@ export default function AvatarSettings({ value, onChange, agentId, beforePreview
 
           <div className="space-y-2 rounded-xl border-2 border-dashed border-border p-3">
             <p className="flex items-center gap-2 text-sm font-semibold"><UploadCloud className="h-4 w-4 text-primary" />Or create a face from a photo</p>
-            <p className="text-[11px] text-muted-foreground">Library faces above are free. A custom face from your own photo is a <strong>$50 one-time add-on</strong>.</p>
+            <p className="text-[11px] text-muted-foreground">Library faces above are free. A custom face from your own photo — together with your own cloned voice — is a <strong>$50 one-time add-on</strong>.</p>
             <div className="flex items-start gap-3">
               <figure className="shrink-0 text-center"><img src={goodPhotoExample} alt="Good example: front-facing, mouth closed, plain background" loading="lazy" width={816} height={816} className="h-20 w-20 rounded-md border-2 border-primary object-cover" /><figcaption className="mt-1 text-[10px] font-semibold text-primary">Good example</figcaption></figure>
               <p className="text-[11px] text-muted-foreground"><span className="font-semibold text-foreground">Avoid:</span> side angles, selfies held at arm's length, big toothy smiles, sunglasses or hats, group photos, busy backgrounds, dark or blurry pictures.</p>
@@ -163,9 +170,9 @@ export default function AvatarSettings({ value, onChange, agentId, beforePreview
               <li>Plain background. A transparent photo does not guarantee a transparent live video.</li>
               <li>Building the face can take several minutes up to about 24 hours. Your current face stays live until it is ready.</li>
             </ul>
-            {!photoUnlocked && <p role="status" className="rounded-md border border-border bg-muted p-2 text-[11px] text-muted-foreground">Locked: add the $50 custom avatar option at checkout to unlock photo upload, or contact support at info@aihiddenleads.com. <a className="font-semibold text-primary underline" href="/checkout?addon=custom-avatar">Buy custom avatar ($50)</a></p>}
+            {!photoUnlocked && <p role="status" className="rounded-md border border-border bg-muted p-2 text-[11px] text-muted-foreground">Locked: add the $50 custom avatar + voice option at checkout to unlock photo upload and voice cloning, or contact support at info@aihiddenleads.com. <a className="font-semibold text-primary underline" href="/checkout?addon=custom-avatar">Buy custom avatar + voice ($50)</a></p>}
             <Input aria-label="Face name" placeholder="Face name, e.g. Lucy" maxLength={60} value={faceName} onChange={(e) => setFaceName(e.target.value)} />
-            <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => void upload(e.target.files?.[0])} />
+            <input ref={fileRef} type="file" accept="image/png,image/jpeg" className="hidden" onChange={(e) => void upload(e.target.files?.[0])} />
             <Button variant="outline" className="w-full" disabled={uploading || !photoUnlocked} onClick={() => fileRef.current?.click()}>{uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UploadCloud className="mr-2 h-4 w-4" />}{uploading ? "Sending photo…" : "Upload photo"}</Button>
             {adminPreview && <div className="flex items-center gap-3"><img src={aspenCutout} width={64} height={64} alt="Transparent Aspen portrait" className="h-16 w-16 object-contain" /><Button variant="outline" disabled={uploading} className="h-auto whitespace-normal text-xs" onClick={() => setConfirmAspen(true)}>Create face from Aspen photo</Button></div>}
             {pending && <p role="status" className="text-xs text-primary">New face: {pending.status === "completed" ? "ready and selected" : pending.status === "failed" ? "failed" : `building (${pending.status}) — you can keep going; it's selected when ready`}</p>}
@@ -184,7 +191,8 @@ export default function AvatarSettings({ value, onChange, agentId, beforePreview
             <div className="flex flex-wrap gap-2">{AVATAR_SHAPES.map((sh) => <Button key={sh} size="sm" variant={value.shape === sh ? "default" : "outline"} onClick={() => set({ shape: sh })} className="text-xs">{SHAPE_LABEL[sh]}</Button>)}</div>
           </div>
         </>}
-        {onVoiceChange && <div className="space-y-2"><p className="text-sm font-medium">Gemini Live voice</p><div className="grid grid-cols-2 gap-2">{VOICES.map(v => <Button key={v.id} variant={voice === v.id ? 'default' : 'outline'} className="h-auto flex-col items-start whitespace-normal p-3" onClick={() => onVoiceChange(v.id)} aria-pressed={voice === v.id}><span>{v.label}</span><span className="text-[11px]">{v.vibe}</span></Button>)}</div></div>}
+        {onVoiceChange && <div className="space-y-2"><p className="text-sm font-medium">Gemini Live voice</p><div className="grid grid-cols-2 gap-2">{VOICES.map(v => <Button key={v.id} variant={voice === v.id && !clonedVoiceSelected ? 'default' : 'outline'} className="h-auto flex-col items-start whitespace-normal p-3" onClick={() => onVoiceChange(v.id)} aria-pressed={voice === v.id && !clonedVoiceSelected}><span>{v.label}</span><span className="text-[11px]">{v.vibe}</span></Button>)}</div></div>}
+        <VoiceClonePanel agentId={agentId} selected={clonedVoiceSelected} onSelectChange={onClonedVoiceSelectedChange} />
       </div>
 
       <div className="min-w-0 space-y-3">

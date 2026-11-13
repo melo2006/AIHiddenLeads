@@ -17,6 +17,8 @@ export type WizardState = {
   name: string;
   greeting: string;
   voice: string;
+  /** True when the picker choice is the client's own cloned voice (the Gemini `voice` stays as the live-session fallback). */
+  clonedVoiceSelected?: boolean;
   color: string;
   label: string;
   corner: Corner;
@@ -79,7 +81,7 @@ export const SAMPLES: Record<string, WizardState> = {
 export const EMPTY: WizardState = {
   websiteUrl: "", businessName: "", industry: "", links: [], files: [], faqs: [], name: "Aspen",
   greeting: "{timeGreeting}! I'm {agentName} with {businessName}. How can I help you today?",
-  voice: "Kore", color: "#10b981", label: "Ask Aspen", corner: "bottom-right", videoAvatar: DEFAULT_VIDEO_AVATAR,
+  voice: "Kore", clonedVoiceSelected: false, color: "#10b981", label: "Ask Aspen", corner: "bottom-right", videoAvatar: DEFAULT_VIDEO_AVATAR,
 };
 
 /** Fill greeting placeholders for previews. */

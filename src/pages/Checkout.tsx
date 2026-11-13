@@ -70,7 +70,7 @@ export default function Checkout() {
   const navigate = useNavigate();
   const planKey = searchParams.get("plan") || "essentials";
   const addonOnly = searchParams.get("addon") === "custom-avatar";
-  const plan = addonOnly ? { name: "Custom Avatar From Your Photo", price: "$50 one-time", priceId: "custom_avatar_once", features: ["A live video avatar built from your own photo", "Unlocks photo upload in your setup", "Building can take several minutes up to about 24 hours", "Library avatars remain free"] } : (planDetails[planKey] || planDetails.essentials);
+  const plan = addonOnly ? { name: "Custom Avatar + Your Own Voice", price: "$50 one-time", priceId: "custom_avatar_once", features: ["A live video avatar built from your own photo", "Your own cloned voice from a short recording", "Unlocks photo upload and voice cloning in your setup", "Building the face can take several minutes up to about 24 hours", "Library avatars and voices remain free"] } : (planDetails[planKey] || planDetails.essentials);
   const [paymentFailed, setPaymentFailed] = useState(false);
   const [paymentNotice,setPaymentNotice]=useState('');
   const [priceReady, setPriceReady] = useState(false);
@@ -148,7 +148,7 @@ export default function Checkout() {
             <h2 className="text-lg font-semibold text-foreground">Complete Your Order</h2>
             {!addonOnly && <label className="flex items-start gap-3 rounded-xl border border-border bg-card p-4 cursor-pointer">
               <input type="checkbox" className="mt-1 h-4 w-4 accent-primary" checked={customAvatar} onChange={e => setCustomAvatar(e.target.checked)} />
-              <span className="text-sm"><span className="font-semibold text-foreground">Add a custom avatar from your own photo: +$50 one-time</span><span className="block text-xs text-muted-foreground mt-1">Optional. Choosing a face from our avatar library is free. A custom face can take from several minutes up to about 24 hours to build. The video avatar add-on is $79/mo on Premium, $180/mo on Professional and $250/mo on Platinum.</span></span>
+              <span className="text-sm"><span className="font-semibold text-foreground">Add a custom avatar from your own photo + your own cloned voice: +$50 one-time</span><span className="block text-xs text-muted-foreground mt-1">Optional. Choosing a face and a voice from our library is free. A custom face can take from several minutes up to about 24 hours to build; the voice clone is made from a short recording in your setup. The video avatar add-on is $79/mo on Premium, $180/mo on Professional and $250/mo on Platinum.</span></span>
             </label>}
             <div className="rounded-xl border border-border bg-card p-1 min-h-[400px]">
               {!user ? <CustomerSignIn /> : paymentsAvailable && !paymentFailed && !priceReady ? <p role="status" className="p-5 text-sm text-muted-foreground">Checking checkout availability…</p> : paymentsAvailable && !paymentFailed && priceReady ? <StripeEmbeddedCheckout
