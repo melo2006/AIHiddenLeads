@@ -160,7 +160,7 @@
     "perMo": "/mes",
     "setup": "Setup:",
     "free": "GRATIS",
-    "setupPromo": "(gratis durante la promoción)",
+    "setupPromo": "(gratis hasta el {{date}})",
     "webMinutes": "minutos de voz web/mes",
     "perMinSuffix": "/min equivalente",
     "mostPopular": "Más Popular",

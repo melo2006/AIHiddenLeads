@@ -51,7 +51,7 @@ export default function Help() {
           <h1 className="flex items-center gap-2 text-2xl font-bold"><LifeBuoy className="h-6 w-6 text-primary" /> Help &amp; support</h1>
           <p className="text-sm text-muted-foreground">
             Forwarding guides for your phone carrier, answers about setup, and a human when you need one:
-            call <a className="font-medium text-primary underline" href="tel:+18778624949">(877) 862-4949</a> or email{" "}
+            call <a className="font-medium text-primary underline" href="tel:+18778624949">1-877-862-4949 · 1-877-86-AIWIZ</a> or email{" "}
             <a className="font-medium text-primary underline" href="mailto:info@aihiddenleads.com">info@aihiddenleads.com</a>.
             Inside the <Link className="font-medium text-primary underline" to="/setup">setup wizard</Link>, Alex — our setup guide — can walk you through any of this live.
           </p>

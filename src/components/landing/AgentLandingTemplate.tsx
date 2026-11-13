@@ -38,6 +38,11 @@ import PricingSection from "@/components/landing/PricingSection";
 import TeamSection from "@/components/landing/TeamSection";
 import GeminiAgentWidget from "@/components/GeminiAgentWidget";
 import AssistantErrorBoundary from "@/components/AssistantErrorBoundary";
+import {
+  LOCAL_DISPLAY,
+  REALTOR_LINE_DISPLAY,
+  TOLL_FREE_DISPLAY,
+} from "@/lib/phoneDisplay";
 import aspenPortrait from "@/assets/aspen-idle-wave.gif";
 // Final hero photos — the 8-slide set Ron approved in chat
 // (2026-11-11), sourced from ~/workspace/hero-approved/.
@@ -368,33 +373,51 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
 
   return (
     <div className="landing-page min-h-screen bg-background overflow-x-hidden">
-      {/* Slim top contact bar — agent pages only, above the navbar. Both
-          numbers ring Aspen on the Telnyx bridge, live right now. The bar
-          is fixed at h-10, so the shared navbar is offset below it via
-          the wrapper (the navbar component itself is untouched). */}
+      {/* Slim top contact bar — agent pages only, above the navbar. The
+          numbers ring Aspen on the Telnyx bridge, live right now, shown
+          as digits + vanity tag (full dual forms live in the shared
+          footer and, for realtors, the contact strip above it); the
+          realtor line (786 · AI-4ALL) joins the bar on the realtors
+          vertical only. The bar is fixed at h-10, so the shared navbar
+          is offset below it via the wrapper (the navbar component
+          itself is untouched). */}
       <div
         data-agent-contact-bar
         className="fixed top-0 inset-x-0 z-[100] h-10 bg-primary text-primary-foreground"
       >
-        <div className="container mx-auto flex h-full items-center justify-center gap-3 px-3 sm:gap-4">
+        <div className="container mx-auto flex h-full items-center justify-center gap-1.5 px-2 sm:gap-4 sm:px-3">
           <a
             href="tel:+18778624949"
-            className="inline-flex items-center gap-1.5 whitespace-nowrap text-[11px] font-semibold hover:underline sm:text-xs"
+            className="inline-flex items-center gap-1.5 whitespace-nowrap text-[10px] font-semibold hover:underline min-[400px]:text-[11px] sm:text-xs"
           >
-            <Phone className="h-3.5 w-3.5 shrink-0" />
-            1-877-862-4949 (toll-free)
+            <Phone className="hidden h-3.5 w-3.5 shrink-0 sm:block" />
+            1-877-862-4949 · AIWIZ
           </a>
-          <span aria-hidden className="text-primary-foreground/50">
+          <span aria-hidden className="hidden text-primary-foreground/50 sm:inline">
             ·
           </span>
           <a
             href="tel:+17723624949"
-            className="inline-flex items-center gap-1.5 whitespace-nowrap text-[11px] font-semibold hover:underline sm:text-xs"
+            className="inline-flex items-center gap-1.5 whitespace-nowrap text-[10px] font-semibold hover:underline min-[400px]:text-[11px] sm:text-xs"
           >
-            <Phone className="h-3.5 w-3.5 shrink-0" />
-            (772) 362-4949 (local)
+            <Phone className="hidden h-3.5 w-3.5 shrink-0 sm:block" />
+            1-772-362-4949 · AIWIZ
           </a>
-          <span className="hidden items-center gap-2 text-[11px] font-medium sm:inline-flex sm:text-xs">
+          {vertical.slug === "realtors" && (
+            <>
+              <span aria-hidden className="hidden text-primary-foreground/50 sm:inline">
+                ·
+              </span>
+              <a
+                href="tel:+17862449688"
+                className="inline-flex items-center gap-1.5 whitespace-nowrap text-[10px] font-semibold hover:underline min-[400px]:text-[11px] sm:text-xs"
+              >
+                <Phone className="hidden h-3.5 w-3.5 shrink-0 sm:block" />
+                786-244-9688 · AI-4ALL
+              </a>
+            </>
+          )}
+          <span className="hidden items-center gap-2 text-[11px] font-medium md:inline-flex sm:text-xs">
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-foreground opacity-75" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-primary-foreground" />
@@ -1405,6 +1428,31 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
           </div>
         </div>
       </section>
+
+      {vertical.slug === "realtors" && (
+        <section data-agent-contact-strip className="border-t border-border py-6">
+          <div className="container mx-auto flex flex-wrap items-center justify-center gap-x-6 gap-y-2 px-4 text-sm">
+            <a
+              href={TOLL_FREE_DISPLAY.href}
+              className="font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              {TOLL_FREE_DISPLAY.digits} · {TOLL_FREE_DISPLAY.vanity} (toll-free)
+            </a>
+            <a
+              href={LOCAL_DISPLAY.href}
+              className="font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              {LOCAL_DISPLAY.digits} · {LOCAL_DISPLAY.vanity} (local)
+            </a>
+            <a
+              href={REALTOR_LINE_DISPLAY.href}
+              className="font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              {REALTOR_LINE_DISPLAY.digits} · {REALTOR_LINE_DISPLAY.vanity} (realtor line)
+            </a>
+          </div>
+        </section>
+      )}
 
       <Footer />
       <AssistantErrorBoundary>

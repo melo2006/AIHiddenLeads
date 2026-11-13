@@ -5,6 +5,7 @@ import { Trans, useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
+import { formatSetupWaiverEnd } from "@/lib/setupWaiver";
 
 const tiers = [
   {
@@ -252,7 +253,9 @@ const PricingSection = ({ recommendedPlan }: { recommendedPlan?: string } = {}) 
                   <p className="text-xs text-muted-foreground mt-2">
                     {t("pricing.setup")} <span className="line-through">${tier.originalSetup}</span>{" "}
                     <span className="text-primary font-semibold">{t("pricing.free")}</span>{" "}
-                    <span className="text-muted-foreground">{t("pricing.setupPromo")}</span>
+                    <span className="text-muted-foreground">
+                      {t("pricing.setupPromo", { date: formatSetupWaiverEnd(lang) })}
+                    </span>
                   </p>
                 </div>
 

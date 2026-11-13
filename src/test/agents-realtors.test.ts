@@ -243,12 +243,18 @@ describe("realtor landing page — calendar, evidence, money math (additions 2)"
 });
 
 describe("realtor landing page — v2 polish batch (2026-11-11)", () => {
-  it("slim top contact bar carries both Aspen bridge numbers as tel: links, above the navbar", () => {
+  it("slim top contact bar carries the Aspen bridge numbers as tel: links with vanity tags, above the navbar", () => {
     expect(templateSource).toContain("data-agent-contact-bar");
     expect(templateSource).toContain('href="tel:+18778624949"');
-    expect(templateSource).toContain("1-877-862-4949 (toll-free)");
+    expect(templateSource).toContain("1-877-862-4949 · AIWIZ");
     expect(templateSource).toContain('href="tel:+17723624949"');
-    expect(templateSource).toContain("(772) 362-4949 (local)");
+    expect(templateSource).toContain("1-772-362-4949 · AIWIZ");
+    // The realtor line joins the bar on the realtors vertical only, and
+    // the full dual displays land in the realtors-only contact strip.
+    expect(templateSource).toContain('href="tel:+17862449688"');
+    expect(templateSource).toContain("786-244-9688 · AI-4ALL");
+    expect(templateSource).toContain("data-agent-contact-strip");
+    expect(templateSource).toContain("(realtor line)");
     expect(templateSource).toContain("Aspen answers live right now");
     // Bar renders before the shared navbar, which stays below it.
     expect(templateSource.indexOf("data-agent-contact-bar")).toBeLessThan(

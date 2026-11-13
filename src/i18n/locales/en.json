@@ -160,7 +160,7 @@
     "perMo": "/mo",
     "setup": "Setup:",
     "free": "FREE",
-    "setupPromo": "(waived during the promotion)",
+    "setupPromo": "(waived through {{date}})",
     "webMinutes": "browser voice minutes/mo",
     "perMinSuffix": "/min equivalent",
     "mostPopular": "Most Popular",
@@ -557,7 +557,7 @@
       },
       {
         "q": "How much does an AI receptionist cost per month?",
-        "a": "Premium is $99/mo — the permanent price — with 400 voice minutes, website chat, and up to 50 B2B prospects per month included (no specific count is guaranteed). Professional is $199/mo with 1,200 minutes and up to 100 prospects, and Platinum is $349/mo with 2,500 minutes and up to 200 prospects. The $199 setup fee is currently waived, and Aspen's live video avatar is an optional add-on at $79/mo on any plan — its first month is free."
+        "a": "Premium is $99/mo — the permanent price — with 400 voice minutes, website chat, and up to 50 B2B prospects per month included (no specific count is guaranteed). Professional is $199/mo with 1,200 minutes and up to 100 prospects, and Platinum is $349/mo with 2,500 minutes and up to 200 prospects. The $199 setup fee is waived through the end of the month, and Aspen's live video avatar is an optional add-on at $79/mo on any plan — its first month is free."
       },
       {
         "q": "Is there an AI receptionist with a video avatar?",

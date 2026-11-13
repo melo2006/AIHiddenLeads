@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { LOCAL_DISPLAY, TOLL_FREE_DISPLAY } from "@/lib/phoneDisplay";
 
 const Footer = () => {
   const { t } = useTranslation();
@@ -22,6 +23,20 @@ const Footer = () => {
                 {t("footer.terms")}
               </Link>
             </div>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
+            <a
+              href={TOLL_FREE_DISPLAY.href}
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {TOLL_FREE_DISPLAY.digits} · {TOLL_FREE_DISPLAY.vanity}
+            </a>
+            <a
+              href={LOCAL_DISPLAY.href}
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {LOCAL_DISPLAY.digits} · {LOCAL_DISPLAY.vanity}
+            </a>
           </div>
           <div className="text-center">
             <p className="text-xs text-muted-foreground max-w-2xl mx-auto leading-relaxed">

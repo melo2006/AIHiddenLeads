@@ -65,10 +65,16 @@ describe("the live offers are stated where Ron decided they belong", () => {
     expect(pt.pricing.badge).toContain("GRÁTIS");
   });
 
-  it("the setup-fee waiver survives as its own line, with no discount attached", () => {
-    expect(checkout).toContain("Setup fee is waived during the current promotion");
-    expect(checkout).toContain("Setup fee waived during the current promotion");
-    expect(en.pricing.setupPromo).toContain("during the promotion");
+  it("the setup-fee waiver survives as its own line, dated to the current month's last day", () => {
+    // Ron's decision (2026-11-13): the waiver is dated and auto-rolling —
+    // "waived through {last day of the current month}", computed at render
+    // via @/lib/setupWaiver, never the undated "current promotion" wording.
+    expect(checkout).toContain("Setup fee is waived through {date}");
+    expect(checkout).toContain('Setup fee waived through {formatSetupWaiverEnd("en-US")}');
+    expect(checkout).not.toContain("current promotion");
+    expect(en.pricing.setupPromo).toContain("waived through {{date}}");
+    expect(pricingSection).toContain("formatSetupWaiverEnd(lang)");
+    expect(pricingSection).not.toContain("current promotion");
   });
 
   it("Checkout.tsx states the avatar free-month terms plainly", () => {
