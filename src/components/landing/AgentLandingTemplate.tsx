@@ -1120,7 +1120,7 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
               {[
                 "AI voice receptionist for calls and website visitors, 24/7",
                 "Appointment booking with instant call summaries",
-                "Optional live video avatar add-on — $79/mo, only if you want Aspen's live video face on your website",
+                "Optional live video avatar add-on — first month free, then $79/mo if you keep it, only if you want Aspen's live video face on your website",
               ].map((line) => (
                 <li key={line} className="flex items-start gap-2.5 text-sm">
                   <Check className="w-4 h-4 text-primary mt-0.5 shrink-0" />

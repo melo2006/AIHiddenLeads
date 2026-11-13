@@ -529,7 +529,7 @@ export const REALTOR_VERTICAL: AgentVertical = {
     },
     {
       q: "How much does an AI receptionist for real estate agents cost?",
-      a: "Premium is $99/mo with 400 minutes included. The live video avatar — Aspen with a real, lip-synced video face on your website — is an optional add-on at $79/mo. You choose it or skip it; the $99 plan works on its own.",
+      a: "Premium is $99/mo with 400 minutes included. The live video avatar — Aspen with a real, lip-synced video face on your website — is an optional add-on at $79/mo, and its first month is free. You choose it or skip it; the $99 plan works on its own.",
     },
     {
       q: "Can I see it on my own website first?",

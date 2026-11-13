@@ -244,6 +244,17 @@ export const onboardingDay1Nudge = (c: { name: string; email: string }): Mail =>
     + button(`${SITE}/setup`, 'Finish my phone setup')
     + p('Prefer a human walkthrough? Reply to this email or call us at (877) 862-4949.') }),
 });
+export const avatarTrialReminder = (c: { name: string; email: string; trialEnd: string }): Mail => ({
+  to: c.email,
+  subject: 'Your free video avatar month ends in 5 days',
+  text: `Hi ${first(c.name)},\n\nA quick heads-up: your free month of Aspen's live video avatar ends in 5 days (${c.trialEnd}).\n\nIf you would like to keep the video avatar, it is $79/month from then on — one click in your dashboard, and nothing else changes:\n${SITE}/account\n\nIf you do nothing, the avatar switches off automatically when the free month ends and you will not be charged for it. Aspen keeps answering as a voice assistant either way.\n\nQuestions? Reply to this email or call us at (877) 862-4949.\n\nAI Hidden Leads`,
+  html: layout({ preheader: 'Keep the video avatar for $79/month, or it switches off automatically', title: `Your free avatar month ends in 5 days, ${first(c.name)}`, body:
+    p(`Your free month of Aspen's <strong>live video avatar</strong> ends in 5 days (${esc(c.trialEnd)}).`)
+    + p('Want to keep her face on your website? It is <strong>$79/month</strong> from then on — one click, and nothing else changes:')
+    + button(`${SITE}/account`, 'Keep the video avatar — $79/mo')
+    + p('If you do nothing, the avatar <strong>switches off automatically</strong> when the free month ends and you will not be charged for it. Aspen keeps answering as a voice assistant either way.')
+    + p('Questions? Reply to this email or call us at (877) 862-4949.') }),
+});
 export const conversationCopy = (c: {name:string;email:string;url:string}): Mail => ({
   to:c.email, subject:'Your Aspen conversation · private transcript and summary',
   text:`Hi ${first(c.name)},\n\nHere is the private conversation copy you requested: ${c.url}\nThe link expires in seven days. Keep it private; anyone with it can read your transcript and AI summary. AI summaries may contain errors.\n\nThis request does not subscribe you to marketing.\n\nAI Hidden Leads`,

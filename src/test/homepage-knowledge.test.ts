@@ -4,13 +4,13 @@ import { HOMEPAGE_PLANS, HOMEPAGE_ADDONS, HOMEPAGE_KNOWLEDGE, HOMEPAGE_SALES_PRO
 import { businessDemoConfig } from '../../supabase/functions/_shared/voice-config';
 
 test('Premium has the approved price, minutes and leads', () => {
-  expect(HOMEPAGE_PLANS.find(p => p.name === 'Premium')).toEqual({name:'Premium',monthlyUsd:99,setupUsd:99,browserVoiceMinutes:400,normalMinutes:200,perMinEquivUsd:0.25,leadsPerMonth:50});
+  expect(HOMEPAGE_PLANS.find(p => p.name === 'Premium')).toEqual({name:'Premium',monthlyUsd:99,setupUsd:99,browserVoiceMinutes:400,perMinEquivUsd:0.25,leadsPerMonth:50});
 });
 test('Professional has the approved price, minutes and leads', () => {
-  expect(HOMEPAGE_PLANS.find(p => p.name === 'Professional')).toEqual({name:'Professional',monthlyUsd:199,setupUsd:199,browserVoiceMinutes:1200,normalMinutes:600,perMinEquivUsd:0.17,leadsPerMonth:100});
+  expect(HOMEPAGE_PLANS.find(p => p.name === 'Professional')).toEqual({name:'Professional',monthlyUsd:199,setupUsd:199,browserVoiceMinutes:1200,perMinEquivUsd:0.17,leadsPerMonth:100});
 });
 test('Platinum has the approved price, minutes and leads', () => {
-  expect(HOMEPAGE_PLANS.find(p => p.name === 'Platinum')).toEqual({name:'Platinum',monthlyUsd:349,setupUsd:349,browserVoiceMinutes:2500,normalMinutes:1250,perMinEquivUsd:0.14,leadsPerMonth:200});
+  expect(HOMEPAGE_PLANS.find(p => p.name === 'Platinum')).toEqual({name:'Platinum',monthlyUsd:349,setupUsd:349,browserVoiceMinutes:2500,perMinEquivUsd:0.14,leadsPerMonth:200});
 });
 test('Connected Bundle costs $79 monthly', () => expect(HOMEPAGE_ADDONS.find(a => a.name.startsWith('Connected Bundle'))).toMatchObject({usd:79,cadence:'monthly'}));
 test('Warm Transfer add-on costs $49 monthly', () => expect(HOMEPAGE_ADDONS.find(a => a.name.startsWith('Warm Transfer'))).toMatchObject({usd:49,cadence:'monthly'}));
@@ -20,18 +20,30 @@ test('Website Modernization costs $99 one time for up to 5 pages', () => expect(
 test('SEO audit is free', () => expect(HOMEPAGE_ADDONS.find(a => a.name === 'SEO Audit')?.usd).toBe(0));
 test('GEO costs $249 monthly', () => expect(HOMEPAGE_ADDONS.find(a => a.name === 'AI Search Optimization / GEO')).toMatchObject({usd:249,cadence:'monthly'}));
 test('Maps Boost costs $149 monthly', () => expect(HOMEPAGE_ADDONS.find(a => a.name === 'Google Maps Boost')).toMatchObject({usd:149,cadence:'monthly'}));
-// The pre-2026-11-08 version of this test pinned the RETIRED launch promo
-// ('DOUBLED' minutes + a hard 'November 30' end date). The knowledge text was
-// corrected on purpose (evergreen 50%-off-first-3-months promo, setup waived,
-// never a calendar date); the pin was stale, so it is replaced with pins of
-// the current approved facts.
-test('knowledge quotes the evergreen promo and 400 Premium minutes, never a calendar promo date', () => {
+// Pricing pins track Ron's decisions, not the other way round. History:
+// the pre-2026-11-08 pin held the retired launch promo ('DOUBLED' minutes
+// + a hard 'November 30' end); the 2026-11-09 pin held the evergreen
+// 50%-off-first-3-months promo. On 2026-11-12 Ron made $99/$199/$349 the
+// PERMANENT prices and killed the intro story outright (it was never
+// implemented in checkout); the live offer is the avatar's free first
+// month. These pins hold the decided facts.
+test('knowledge quotes permanent prices and 400 Premium minutes, never the intro story', () => {
   expect(HOMEPAGE_KNOWLEDGE).toContain('400 browser voice minutes');
-  expect(HOMEPAGE_KNOWLEDGE).toContain('50% off every plan for the first 3 months');
-  expect(HOMEPAGE_KNOWLEDGE).toContain('ending this month');
+  expect(HOMEPAGE_KNOWLEDGE).toContain('permanent');
+  expect(HOMEPAGE_KNOWLEDGE).toContain('no introductory discount');
+  expect(HOMEPAGE_KNOWLEDGE).not.toContain('50% off');
   expect(HOMEPAGE_KNOWLEDGE).not.toContain('DOUBLED');
   expect(HOMEPAGE_KNOWLEDGE).not.toContain('November 30');
   expect(HOMEPAGE_KNOWLEDGE).not.toContain('$99 plus $79');
+  expect(HOMEPAGE_KNOWLEDGE).not.toContain('$180');
+  expect(HOMEPAGE_KNOWLEDGE).not.toContain('$250/month on Platinum');
+});
+test('knowledge states the avatar add-on exactly as decided: $79 flat, first month free', () => {
+  expect(HOMEPAGE_SALES_PROMPT).toContain('$79/month flat on every plan');
+  expect(HOMEPAGE_SALES_PROMPT).toContain('first month of the avatar is FREE');
+  expect(HOMEPAGE_SALES_PROMPT).toContain('switches off automatically');
+  expect(HOMEPAGE_SALES_PROMPT).toContain('pauses to voice-only');
+  expect(HOMEPAGE_SALES_PROMPT).not.toContain('$180/month on Professional');
 });
 test('knowledge carries the minutes rollover rule', () => {
   expect(HOMEPAGE_SALES_PROMPT).toContain('roll over month to month while the subscription stays active');

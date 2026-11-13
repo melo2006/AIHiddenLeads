@@ -33,12 +33,14 @@ test("services section title, intro and closing line carry the approved v2 copy"
   expect(en.description).toContain("Get answered. Get found. Get chosen.");
   expect(en.description).toContain("growth partner");
   expect(en.servicesClosing).toContain("$99/mo");
-  expect(en.servicesClosing).toContain("50% off your first 3 months");
+  expect(en.servicesClosing).toContain("the permanent price");
+  expect(en.servicesClosing).toContain("free for your first month");
+  expect(en.servicesClosing).not.toContain("50% off");
   expect(en.servicesClosing).toContain("no more hidden leads");
   for (const copy of [es, pt]) {
     expect(copy.title.length).toBeGreaterThan(10);
     expect(copy.servicesClosing).toContain("99");
-    expect(copy.servicesClosing).toContain("50%");
+    expect(copy.servicesClosing).not.toContain("50%");
   }
 });
 

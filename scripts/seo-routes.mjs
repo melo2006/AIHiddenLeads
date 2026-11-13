@@ -49,11 +49,11 @@ export const SEO_ROUTES = [
       },
       {
         q: "How much does an AI receptionist cost per month?",
-        a: "Premium is $99/mo for the first 3 months (50% off the regular $199; the offer ends this month), with 400 voice minutes, website chat, and up to 50 B2B prospects per month included (no specific count is guaranteed). Professional is $199/mo for the first 3 months (regular $399) with 1,200 minutes and up to 100 prospects. The $199 setup fee is waived, and Aspen's live video avatar is an optional add-on at $79/mo if you want it.",
+        a: "Premium is $99/mo — the permanent price — with 400 voice minutes, website chat, and up to 50 B2B prospects per month included (no specific count is guaranteed). Professional is $199/mo with 1,200 minutes and up to 100 prospects, and Platinum is $349/mo with 2,500 minutes and up to 200 prospects. The $199 setup fee is currently waived, and Aspen's live video avatar is an optional add-on at $79/mo on any plan — its first month is free.",
       },
       {
         q: "Is there an AI receptionist with a video avatar?",
-        a: "Yes. Aspen, the AiHiddenLeads AI receptionist, can appear on your website as a live, lip-synced video avatar — your AI spokesperson — while she talks with visitors by voice and chat. The avatar is an optional add-on at $79/mo on Premium; the voice receptionist works on its own if you skip it. You can watch her work in the free live demo on your own website.",
+        a: "Yes. Aspen, the AiHiddenLeads AI receptionist, can appear on your website as a live, lip-synced video avatar — your AI spokesperson — while she talks with visitors by voice and chat. The avatar is an optional add-on at $79/mo on any plan — and its first month is free; the voice receptionist works on its own if you skip it. You can watch her work in the free live demo on your own website.",
       },
       {
         q: "Does an AI receptionist answer calls 24/7 and book appointments?",
@@ -128,7 +128,7 @@ export const SEO_ROUTES = [
     faq: [
       {
         q: "How much does an AI receptionist for real estate agents cost?",
-        a: "Premium is $99/mo with 400 minutes included. The live video avatar — Aspen with a real, lip-synced video face on your website — is an optional add-on at $79/mo. You choose it or skip it; the $99 plan works on its own.",
+        a: "Premium is $99/mo with 400 minutes included. The live video avatar — Aspen with a real, lip-synced video face on your website — is an optional add-on at $79/mo, and its first month is free. You choose it or skip it; the $99 plan works on its own.",
       },
       {
         q: "What happens when I'm at a showing?",

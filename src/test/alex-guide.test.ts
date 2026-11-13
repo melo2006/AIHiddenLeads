@@ -118,7 +118,9 @@ describe('Alex greeting and prompt content', () => {
     expect(ALEX_SYSTEM_PROMPT).toContain('Premium $99/month');
     expect(ALEX_SYSTEM_PROMPT).toContain('Professional $199/month');
     expect(ALEX_SYSTEM_PROMPT).toContain('Platinum $349/month');
-    expect(ALEX_SYSTEM_PROMPT).toContain('50% off for the first 3 months');
+    expect(ALEX_SYSTEM_PROMPT).toContain('permanent prices, no introductory discount');
+    expect(ALEX_SYSTEM_PROMPT).toContain('first month free');
+    expect(ALEX_SYSTEM_PROMPT).not.toContain('50% off');
     expect(ALEX_SYSTEM_PROMPT).toContain('custom photo avatar is $50 one-time');
     expect(ALEX_SYSTEM_PROMPT).toContain('Never ask for a password');
     expect(ALEX_SYSTEM_PROMPT).toContain('You cannot transfer this call');
