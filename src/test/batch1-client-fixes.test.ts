@@ -70,9 +70,9 @@ describe("Batch 1 — mic environment control: capture-loop wiring", () => {
   });
 });
 
-describe("Batch 1 — mic environment control: compact panel surface", () => {
+describe("Batch 1 — mic environment control: settings-dialog surface (moved off the panel's permanent rows, Scalone batch Item 8a)", () => {
   const meterStart = conversation.indexOf('data-testid="ambient-level-label"');
-  const meterRow = conversation.slice(conversation.lastIndexOf('phase === "live"', meterStart), meterStart + 1600);
+  const meterRow = conversation.slice(meterStart - 400, meterStart + 1600);
 
   it("the meter label is the SMOOTHED ambient state, not the raw instantaneous micLevel", () => {
     expect(meterStart).toBeGreaterThan(-1);
@@ -80,6 +80,20 @@ describe("Batch 1 — mic environment control: compact panel surface", () => {
     expect(meterRow).toContain('ambientLevel === "noisy" ? t("voice.envNoisy")');
     // The old raw-value label is gone from the compact meter row.
     expect(conversation).not.toContain('<span>{micLevel > 3 ? t("voice.sound") : t("voice.quiet")}</span>');
+  });
+
+  it("the control lives INSIDE the settings dialog — the panel keeps no permanent environment row", () => {
+    const dialogStart = conversation.indexOf('{showSettings && (');
+    expect(dialogStart).toBeGreaterThan(-1);
+    expect(meterStart).toBeGreaterThan(dialogStart);
+    // Exactly one ambient label in the file: the panel row is gone,
+    // the dialog section is the only surface.
+    expect(conversation.match(/data-testid="ambient-level-label"/g)).toHaveLength(1);
+    // The panel body between the transport slot and the dialog
+    // carries no environment controls anymore.
+    const panelBody = conversation.slice(conversation.indexOf('{!wideLandscape && transportControls}'), dialogStart);
+    expect(panelBody).not.toContain('ambient-level-label');
+    expect(panelBody).not.toContain('data-noise-filter');
   });
 
   it("a 3-way segmented Quiet / Normal / Noisy control sits beside the meter, wired to the same state", () => {

@@ -40,24 +40,6 @@ export interface RealtorExamplePack {
 
 export const REALTOR_EXAMPLE_PACKS: RealtorExamplePack[] = [
   {
-    slug: "alexa-scalone",
-    url: "https://alexascalone.com/",
-    agentName: "Alexa Scalone",
-    city: "Delray Beach",
-    listings: [
-      { address: "1050 Casuarina Road", area: "Delray Beach", type: "house", beds: 4, baths: 4, garage: 2, pool: true, waterView: true, price: 2875000, descriptor: "the Casuarina Road house", tagline: "Intracoastal-side living east of the bridge in Delray.", source: "sample" },
-      { address: "231 George Bush Boulevard", area: "Delray Beach", type: "house", beds: 3, baths: 2, garage: 2, pool: true, waterView: false, price: 1395000, descriptor: "the George Bush Boulevard house", tagline: "Walk to Atlantic Avenue from this 3 bed pool home.", source: "sample" },
-      { address: "800 E Atlantic Avenue #5", area: "Downtown Delray Beach", type: "condo", beds: 2, baths: 2, pool: true, waterView: false, price: 649000, descriptor: "the Atlantic Avenue condo", tagline: "On the Ave \u2014 restaurants and the beach at your door.", source: "sample" },
-      { address: "1620 S Ocean Boulevard #12F", area: "Delray Beach", type: "condo", beds: 2, baths: 2, pool: true, waterView: true, price: 985000, descriptor: "the oceanfront condo on South Ocean Boulevard", tagline: "Direct ocean views in Delray's beachfront row.", source: "sample" },
-      { address: "725 NE Spanish Trail", area: "Boca Raton", type: "house", beds: 4, baths: 3, garage: 2, pool: true, waterView: false, price: 1750000, descriptor: "the Spanish Trail house in Boca", tagline: "East Boca pool home near Mizner Park.", source: "sample" },
-      { address: "3475 S Ocean Boulevard #217", area: "Highland Beach", type: "condo", beds: 2, baths: 2, pool: true, waterView: true, price: 725000, descriptor: "the Highland Beach condo", tagline: "Quiet beachfront living in Highland Beach.", source: "sample" },
-      { address: "1105 Lake Shore Drive", area: "Lake Ida, Delray Beach", type: "house", beds: 3, baths: 3, garage: 2, pool: true, waterView: true, price: 1595000, descriptor: "the Lake Ida house", tagline: "Lakefront with your own dock on Lake Ida.", source: "sample" },
-      { address: "5020 Manor Forest Trail", area: "Boynton Beach", type: "house", beds: 4, baths: 3, garage: 2, pool: false, waterView: false, price: 785000, descriptor: "the Boynton Beach house on Manor Forest Trail", tagline: "Family-sized 4 bed in a gated Boynton community.", source: "sample" },
-      { address: "2600 N Ocean Boulevard #4", area: "Boca Raton", type: "condo", beds: 3, baths: 3, pool: true, waterView: true, price: 2150000, descriptor: "the Boca oceanfront condo on North Ocean Boulevard", tagline: "Three beds on the sand in Boca Raton.", source: "sample" },
-      { address: "918 Ferne Lane", area: "Delray Beach", type: "townhouse", beds: 3, baths: 3, garage: 1, pool: false, waterView: false, price: 875000, descriptor: "the Ferne Lane townhouse", tagline: "Low-maintenance townhouse living minutes from downtown Delray.", source: "sample" },
-    ],
-  },
-  {
     slug: "ann-chamberlain",
     url: "https://www.annchamberlain.com/",
     agentName: "Ann Chamberlain",
@@ -310,7 +292,7 @@ export function normalizeExampleSiteUrl(raw: unknown): string {
 }
 
 /** The example pack for a simulated site's URL, or null when the site
- * is not one of the 14 known examples. */
+ * is not one of the 13 known examples. */
 export function examplePackForSiteUrl(siteUrl: unknown): RealtorExamplePack | null {
   const key = normalizeExampleSiteUrl(siteUrl);
   if (!key) return null;

@@ -766,8 +766,17 @@ Deno.serve(async (req) => {
             audio: { data: msg.data, mimeType: 'audio/pcm;rate=16000' },
           },
         }))
-      } else if (msg.type === 'idle_prompt' && (config.homepageSales === true || config.simulation === true) && !preview && (msg.stage === 'checkin' || msg.stage === 'goodbye' || (msg.stage === 'continue' && config.homepageSales === true))) {
-        const text = msg.stage === 'continue'
+      } else if (msg.type === 'idle_prompt' && (config.homepageSales === true || config.simulation === true) && !preview && (msg.stage === 'checkin' || msg.stage === 'goodbye' || (msg.stage === 'continue' && config.homepageSales === true) || (msg.stage === 'bridge' && config.simulation === true))) {
+        const text = msg.stage === 'bridge'
+          // NO-DEAD-AIR BRIDGE (Scalone batch Item 6a): the persona
+          // handoff this session announced is still connecting and
+          // the visitor has heard silence for several seconds (the
+          // client holds the mic while a swap resolves). ONE short
+          // bridging line from the persona who is still live, then
+          // quiet again — never a new topic, never a repeated line,
+          // never a technical explanation.
+          ? 'The persona handoff you just announced is taking a few seconds longer than usual to connect, and the caller has heard silence since your last line. Say ONE short, natural bridging line in your own words — for example: "Just one moment while I connect you…" — then wait quietly. Do not start a new topic, do not ask a question, do not repeat the line if you have already said one, and do not mention any technical problem.'
+          : msg.stage === 'continue'
           ? 'The caller has been quiet for a short pause after you offered the next advantage. Continue with only the next service area in the agreed order, two concise practical benefits and one invitation to ask questions. Do not repeat the introduction, imply they consented to any action, or describe all remaining services. If all five have been covered, simply ask which area interests them, then wait.'
           : msg.stage === 'checkin'
           ? 'The caller has been quiet after playback. Briefly ask in the selected conversation language: Are you still there? Take your time, I am here if you would like to continue. Then wait for their answer.'

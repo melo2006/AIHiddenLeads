@@ -54,7 +54,6 @@ import exampleThumbAnnChamberlain from "@/assets/realtor-example-ann-chamberlain
 import exampleThumbAshleyCusack from "@/assets/realtor-example-ashley-cusack.webp";
 import exampleThumbMauricioBarba from "@/assets/realtor-example-mauricio-barba.webp";
 import exampleThumbMichaelMartinez from "@/assets/realtor-example-michael-martinez.webp";
-import exampleThumbAlexaScalone from "@/assets/realtor-example-alexa-scalone.webp";
 import exampleThumbJeanLucAndriot from "@/assets/realtor-example-jean-luc-andriot.webp";
 import exampleThumbPaulSaperstein from "@/assets/realtor-example-paul-saperstein.webp";
 import exampleThumbBaldemarDeLeon from "@/assets/realtor-example-baldemar-deleon.webp";
@@ -75,7 +74,6 @@ const EXAMPLE_THUMBNAILS: Record<string, string> = {
   "ashley-cusack": exampleThumbAshleyCusack,
   "mauricio-barba": exampleThumbMauricioBarba,
   "michael-martinez": exampleThumbMichaelMartinez,
-  "alexa-scalone": exampleThumbAlexaScalone,
   "jean-luc-andriot": exampleThumbJeanLucAndriot,
   "paul-saperstein": exampleThumbPaulSaperstein,
   "baldemar-deleon": exampleThumbBaldemarDeLeon,

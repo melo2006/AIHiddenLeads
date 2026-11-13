@@ -417,12 +417,6 @@ export const REALTOR_VERTICAL: AgentVertical = {
         area: "Palm Beach County, FL",
         options: [
           {
-            agent: "Alexa Scalone",
-            city: "Delray Beach",
-            url: "https://alexascalone.com/",
-            slug: "alexa-scalone",
-          },
-          {
             agent: "Jean-Luc Andriot",
             city: "Boca Raton",
             url: "https://jeanlucandriot.com/",

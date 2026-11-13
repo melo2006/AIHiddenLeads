@@ -1,7 +1,7 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { z } from 'npm:zod@3';
-import { DEFAULT_AGENT, VOICES, openingFor, businessDemoConfig, businessDemoConfigSwapParent, SIMULATION_GREETING_LEGACY_SLIM } from '../_shared/voice-config.ts';
+import { DEFAULT_AGENT, VOICES, openingFor, businessDemoConfig, businessDemoConfigSwapParent, SIMULATION_GREETING_LEGACY_SLIM, hourInTimeZone, sanitizeVisitorName, segmentTimeZone } from '../_shared/voice-config.ts';
 import { DEFAULT_LIVE_MODEL, officialLivePricing } from '../_shared/live-models.ts';
 import { voiceQuotaClass, voiceLimitResponse } from '../_shared/voice-session-limit.ts';
 import { transferDestination } from '../_shared/browser-handoff.ts';
@@ -13,10 +13,10 @@ import { alexGuideConfig, alexDemoGuestConfig } from '../_shared/alex-guide.ts';
 import { avatarSwapEnabled, teamIntroEnabled, personaFor, personaSegmentPrompt } from '../_shared/personas.ts';
 import { TEAM_INTRO_TEACHING, isIntroBoundary, teamIntroGreetingFor } from '../_shared/team-intro.ts';
 import { realtorLandingApplies, stampRealtorLanding } from '../_shared/homepage-knowledge.ts';
-import { examplePackForSiteUrl, stampExampleListings } from '../_shared/realtor-example-listings.ts';
+import { buildExampleListingsLayer, examplePackBySlug, examplePackForSiteUrl, stampExampleListings } from '../_shared/realtor-example-listings.ts';
 import { PUBLIC_PATHS } from '../_shared/report-context.ts';
 import { normalizeUiLocale, startingLanguageForUiLocale } from '../_shared/conversation-language.ts';
-const personaSegmentSchema=z.object({persona:z.enum(['aspen','sara','alex']),boundary:z.enum(['doorway','stepout','meet-alex','return','intro-sara','intro-return-1','intro-alex','intro-return-2']),parentSessionId:z.string().uuid(),swapRecap:z.string().max(2400),drops:z.number().int().min(0).max(99).default(0),dropRecovery:z.boolean().default(false),manualResume:z.boolean().default(false),swap:z.boolean().default(false),teamIntroSeen:z.boolean().default(false)});
+const personaSegmentSchema=z.object({persona:z.enum(['aspen','sara','alex']),boundary:z.enum(['doorway','stepout','meet-alex','return','summon-aspen','intro-sara','intro-return-1','intro-alex','intro-return-2']),parentSessionId:z.string().uuid(),swapRecap:z.string().max(2400),drops:z.number().int().min(0).max(99).default(0),dropRecovery:z.boolean().default(false),manualResume:z.boolean().default(false),swap:z.boolean().default(false),teamIntroSeen:z.boolean().default(false)});
 // SWAP DIAG (voice-first batch, 2026-11-10): the client posts a doorway
 // attempt's RESOLUTION (gate-abort, fallback, forced-execute,
 // voice-first cut-over, face takeover, watchdog action…) against the
@@ -26,7 +26,7 @@ const personaSegmentSchema=z.object({persona:z.enum(['aspen','sara','alex']),bou
 // existed only in the page (a 100-entry ring buffer that died with
 // it) or as prose inside a successor's resumeContext — the final
 // attempt of a boundary left no server record at all (retest #4).
-const swapDiagSchema=z.object({sessionId:z.string().uuid(),event:z.enum(['gate-abort','fallback','retry-scheduled','token-stale','stage-watchdog','forced-execute','cutover','voice-first-cutover','face-takeover']),boundary:z.enum(['doorway','stepout','meet-alex','return','intro-sara','intro-return-1','intro-alex','intro-return-2']),persona:z.enum(['aspen','sara','alex']).optional(),attempt:z.number().int().min(0).max(99).optional(),reason:z.string().max(200).optional(),faceState:z.string().max(100).optional(),at:z.number().optional()});
+const swapDiagSchema=z.object({sessionId:z.string().uuid(),event:z.enum(['gate-abort','fallback','retry-scheduled','token-stale','stage-watchdog','forced-execute','cutover','voice-first-cutover','face-takeover']),boundary:z.enum(['doorway','stepout','meet-alex','return','summon-aspen','intro-sara','intro-return-1','intro-alex','intro-return-2']),persona:z.enum(['aspen','sara','alex']).optional(),attempt:z.number().int().min(0).max(99).optional(),reason:z.string().max(200).optional(),faceState:z.string().max(100).optional(),at:z.number().optional()});
 const SWAP_DIAG_FAILURE_EVENTS: ReadonlySet<string> = new Set(['gate-abort','fallback','token-stale']);
 const schema=z.object({ visitorKey:z.string().min(16).max(100), model:z.string().max(100).optional(), agentId:z.string().uuid().optional(), leadId:z.string().uuid().optional(), prospectId:z.string().uuid().optional(), draft:z.boolean().default(false), preview:z.boolean().default(false), voice:z.enum(VOICES as [string,...string[]]).optional(), hour:z.number().int().min(0).max(23).optional(), visitorName:z.string().max(100).default(''), timeZone:z.string().max(100).default('UTC'), locale:z.string().max(10).optional(), campaign:z.object({visitId:z.string().uuid(),source:z.string().max(100),campaign:z.string().max(100),entryPath:z.enum(PUBLIC_PATHS).optional()}).nullable().optional(), consent:z.boolean().default(false), verification:z.enum(['pending','verified']).optional(), invite:z.boolean().optional(), sample:z.boolean().optional(), guide:z.enum(['alex']).optional(), share:z.string().max(100).optional(), resumeContext:z.string().max(1600).optional(), reconnect:z.boolean().default(false), prewarm:z.boolean().default(false), personaSegment:personaSegmentSchema.optional(), swapDiag:swapDiagSchema.optional() });
 const json=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
@@ -138,7 +138,18 @@ Deno.serve(async req=>{
     // from a stamped explainer session of the SAME visitor (verified
     // above by row id + visitor hash — never from the request body
     // alone; see the lookup right after the segment branch).
-    const built=personaSegmentPrompt(b.personaSegment.persona,b.personaSegment.boundary,businessName,String(parent.systemPrompt || ''),b.personaSegment.persona==='alex'?alexDemoGuestConfig(businessName):undefined,parent.teamIntroSeen===true);
+    // EXAMPLE LISTINGS → SARA (Scalone batch Item 1 — forensics F4):
+    // a sample parent's stamped exampleListings marker names the pack
+    // (server-stored at the parent's own authorization — never a
+    // client-supplied value in this request). Rebuild the layer from
+    // it and hand it to the SARA build only: her segment prompt is
+    // built fresh in personas.ts and otherwise discards the layer the
+    // parent stamp appended to Aspen's prompt, which is exactly how
+    // the listings demos broke on the Sara leg. Aspen/Alex builds
+    // never receive it; a parent without the marker passes nothing
+    // and its segment builds stay byte-identical.
+    const examplePack=b.personaSegment.persona==='sara'?examplePackBySlug((parent.exampleListings as {slug?:unknown}|undefined)?.slug):null;
+    const built=personaSegmentPrompt(b.personaSegment.persona,b.personaSegment.boundary,businessName,String(parent.systemPrompt || ''),b.personaSegment.persona==='alex'?alexDemoGuestConfig(businessName):undefined,parent.teamIntroSeen===true,undefined,examplePack?{layer:buildExampleListingsLayer(examplePack)}:undefined);
     config={
       ...parent,
       name:persona.displayName,
@@ -241,7 +252,7 @@ Deno.serve(async req=>{
     // EXAMPLE LISTINGS STAMP (Batch 2, 2026-11-12): a session that the
     // client marked as a one-click EXAMPLE sample (the /agents/realtors
     // examples grid/dropdown sends sample=1 through /demo to /demo-site)
-    // AND whose simulated business is one of the 14 known example sites
+    // AND whose simulated business is one of the 13 known example sites
     // — matched here against the site URL stored on the lead/prospect
     // row THIS function fetched, never a client-supplied URL, the same
     // trust pattern as the invite stamp — additionally carries that
@@ -338,7 +349,25 @@ Deno.serve(async req=>{
   // sessions never pass through this function, so they never carry a
   // locale and keep the English start.
   const uiLocale = b.personaSegment ? null : normalizeUiLocale(b.locale);
-  config={...config,timeZone:b.timeZone,...(uiLocale ? {uiLocale, startLanguage: startingLanguageForUiLocale(uiLocale)} : {}),quotaClass:segmentParentId?'persona_segment':b.share?'visitor':voiceQuotaClass(role?.role==='admin',b.preview),model:requestedModel || DEFAULT_LIVE_MODEL,opening:openingFor(config,b.hour,b.visitorName || String((config.visitorContact as Record<string,unknown>|undefined)?.name || '')),preview:b.preview,resumeContext:b.preview?undefined:(segmentParentId?String(config.resumeContext || ''):b.resumeContext),reconnect:segmentParentId?false:!b.preview&&b.reconnect,campaign:b.campaign || (segmentParentId?(config.campaign ?? null):null),recordTranscript:segmentParentId?config.recordTranscript===true:!b.preview && transcriptAllowed(false,false,b.consent),recordAudio:segmentParentId?config.recordAudio===true:!b.preview && b.consent};
+  // GREETING CLOCK + NAME + SEGMENT TIMEZONE (Scalone batch,
+  // 2026-11-12 — forensics F7/F6 + row-pull addendum): the opening's
+  // time-of-day derives from the session's configured timezone —
+  // never the authorizing browser's local clock hour. The
+  // client-supplied hour survives only as the fallback for a
+  // missing/invalid zone. The spoken name is sanitized: placeholder
+  // sentinels ("CRM Prospect" — the literal name /demo creates its
+  // lead with) are NO name, so the greeting stays generic. PERSONA
+  // SEGMENTS inherit the PARENT session's configured timezone
+  // (segmentTimeZone): segment requests carry no zone of their own,
+  // and the old unconditional b.timeZone stamp dropped every segment
+  // to the 'UTC' schema default — the proxy then told Sara's model
+  // "Visitor time zone: UTC" and she said "Good morning" at 19:32
+  // EST (00:32 UTC). The segment's greeting hour derives from the
+  // propagated zone the same way.
+  const effectiveTimeZone=segmentParentId?segmentTimeZone((parentRowRef as {config?:Record<string,unknown>}|undefined)?.config,b.timeZone):b.timeZone;
+  const greetingHour=hourInTimeZone(new Date(),effectiveTimeZone) ?? b.hour;
+  const greetingName=sanitizeVisitorName(b.visitorName || String((config.visitorContact as Record<string,unknown>|undefined)?.name || ''));
+  config={...config,timeZone:effectiveTimeZone,...(uiLocale ? {uiLocale, startLanguage: startingLanguageForUiLocale(uiLocale)} : {}),quotaClass:segmentParentId?'persona_segment':b.share?'visitor':voiceQuotaClass(role?.role==='admin',b.preview),model:requestedModel || DEFAULT_LIVE_MODEL,opening:openingFor(config,greetingHour,greetingName),preview:b.preview,resumeContext:b.preview?undefined:(segmentParentId?String(config.resumeContext || ''):b.resumeContext),reconnect:segmentParentId?false:!b.preview&&b.reconnect,campaign:b.campaign || (segmentParentId?(config.campaign ?? null):null),recordTranscript:segmentParentId?config.recordTranscript===true:!b.preview && transcriptAllowed(false,false,b.consent),recordAudio:segmentParentId?config.recordAudio===true:!b.preview && b.consent};
   const token=crypto.randomUUID()+crypto.randomUUID();
   const visitor=await hash(`${b.visitorKey}|${req.headers.get('x-forwarded-for')?.split(',')[0] || ''}`);
   const {data:id,error}=await db.rpc('authorize_gemini_session',{_visitor:visitor,_token:await hash(token),_config:config,_agent:agentId,_org:orgId,_lead:segmentParentId?(parentRowRef?.lead_id ?? null):b.leadId || null,_prospect:segmentParentId?(parentRowRef?.prospect_id ?? null):b.prospectId || null});

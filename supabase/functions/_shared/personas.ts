@@ -45,7 +45,7 @@ export type PersonaId = 'aspen' | 'sara' | 'alex';
  *  families are disjoint and phase-gated against their own parent class
  *  (gemini-session refuses cross-family requests). */
 export type PersonaBoundary =
-  | 'doorway' | 'stepout' | 'meet-alex' | 'return'
+  | 'doorway' | 'stepout' | 'meet-alex' | 'return' | 'summon-aspen'
   | IntroBoundary;
 export type { IntroBoundary };
 
@@ -175,6 +175,22 @@ export interface PersonaSegmentBuild {
   greeting: string;
 }
 
+/** Example-listings segment options (Scalone batch, 2026-11-12 —
+ *  forensics F4): the example-listings layer the parent authorization
+ *  stamps onto the ASPEN parent's prompt never reached Sara — her
+ *  segment prompt is built fresh here and the parent prompt is not
+ *  part of it, so the listings demos were broken on the Sara leg
+ *  since the persona swap shipped. gemini-session rebuilds the layer
+ *  from the parent's stamped exampleListings marker and passes it in
+ *  for the SARA build ONLY; Aspen's builds never receive it (she
+ *  introduces the demo — she does not roleplay the business). Absent
+ *  for every non-sample session, whose segment builds stay
+ *  byte-identical. */
+export interface ExampleListingsSegmentOptions {
+  /** buildExampleListingsLayer(pack) output for the parent's pack. */
+  layer: string;
+}
+
 /** Team-intro segment build options (the intro family's parent is the
  *  homepage explainer, not a business demo). */
 export interface TeamIntroSegmentOptions {
@@ -204,6 +220,7 @@ export function personaSegmentPrompt(
   alexGuest?: { systemPrompt: string; greeting: string },
   teamIntroSeen?: boolean,
   teamIntro?: TeamIntroSegmentOptions,
+  exampleListings?: ExampleListingsSegmentOptions,
 ): PersonaSegmentBuild {
   const binding = PERSONAS[persona];
   // TEAM INTRO FAMILY (design §4.3 P3–P5): segments of a homepage parent.
@@ -236,7 +253,13 @@ export function personaSegmentPrompt(
   }
   if (persona === 'sara') {
     return {
-      systemPrompt: `${BUSINESS_ASSISTANT_PREAMBLE(businessName)}\n${bindSegmentNames(SIMULATION_RECEPTIONIST_SEGMENT, binding)}`,
+      // Example sessions only: the listings layer rides AFTER the
+      // receptionist segment — the same position stampExampleListings
+      // appends it at on the legacy whole-demo composition — so Sara
+      // carries the agent's listings (own listings first) and the
+      // approved simulation script into the roleplay. Non-sample
+      // builds pass no layer and stay byte-identical.
+      systemPrompt: `${BUSINESS_ASSISTANT_PREAMBLE(businessName)}\n${bindSegmentNames(SIMULATION_RECEPTIONIST_SEGMENT, binding)}${exampleListings?.layer ? `\n${exampleListings.layer}` : ''}`,
       // The in-role greeting is beat 4 of the segment itself; the swap
       // opening instructs her to run beats 4–6, so no separate greeting
       // line is delivered — this field carries the bound beat-4 template

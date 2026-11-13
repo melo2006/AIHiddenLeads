@@ -308,7 +308,7 @@ describe("realtor landing page — v2 polish batch (2026-11-11)", () => {
 });
 
 describe("realtor landing page — one-click example demos (2026-11-12)", () => {
-  it("realtors data carries fourteen example sites in eight area groups", () => {
+  it("realtors data carries thirteen example sites in eight area groups", () => {
     const examples = REALTOR_VERTICAL.demoExamples;
     expect(examples).toBeDefined();
     expect(examples?.intro).toBe(
@@ -338,7 +338,6 @@ describe("realtor landing page — one-click example demos (2026-11-12)", () => 
       "Ashley Cusack — Coral Gables|https://ashleycusack.com/",
       "Mauricio J. Barba — Coral Gables|https://miamisignaturehomes.com/",
       "Michael Martinez — Coral Gables|https://michaelmartinezrealtor.com/",
-      "Alexa Scalone — Delray Beach|https://alexascalone.com/",
       "Jean-Luc Andriot — Boca Raton|https://jeanlucandriot.com/",
       "Paul Saperstein — Delray Beach|https://paulsapersteinhomes.com/",
       "Baldemar De Leon — Dallas|https://www.baldemardeleon.com/",

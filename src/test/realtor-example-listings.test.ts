@@ -44,8 +44,8 @@ describe("realtor example listings packs (Batch 2)", () => {
     const options = REALTOR_VERTICAL.demoExamples!.groups.flatMap(
       (g) => g.options,
     );
-    expect(options).toHaveLength(14);
-    expect(CLIENT_PACKS).toHaveLength(14);
+    expect(options).toHaveLength(13);
+    expect(CLIENT_PACKS).toHaveLength(13);
     expect(
       CLIENT_PACKS.map((p) => normalizeExampleSiteUrl(p.url)).sort(),
     ).toEqual(
