@@ -34,7 +34,7 @@ import { BOUNDARY_TARGET, boundedSettle, boundaryForAssistantLine, buildSwapReca
 import { PERSONAS, SARA_FACE_ID } from '../../supabase/functions/_shared/personas';
 import { ALEX_FACE_ID } from '../../supabase/functions/_shared/alex-guide';
 import type { VideoAvatar } from '../../supabase/functions/_shared/video-avatar';
-import { PersonPortrait } from '@/components/FloatingPersonFrame';
+import { PersonPortrait, PersonaNameLabel } from '@/components/FloatingPersonFrame';
 import { assistantOutput, nextVoiceChunkStart, pairedAudioShouldDegrade, PAIRED_CAPTION_DELAY_SEC } from '@/lib/avatarAudioTransition';
 import { PlaybackCaptions, type PlaybackCaption as Caption } from '@/lib/playbackCaptions';
 import { displayNumbers } from '@/lib/displayNumbers';
@@ -3204,7 +3204,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const transferPill = phase === 'live' && handoffToken ? <BrowserVoiceHandoff pill token={handoffToken} onActive={onHandoffActive} onEnded={onHandoffEnded} microphone={microphone} startSignal={handoffStartSignal}/> : null;
 
   if (!previewOnly && !consentReady && !prewarm) return <div className="space-y-3 p-3 text-foreground">
-    {faceFirst && <PersonPortrait name={name} avatarUrl={avatarUrl} />}
+    {faceFirst && <PersonPortrait name={name} avatarUrl={avatarUrl} nameLabel />}
     {windowControls}
     {belowAvatar}
     <div className="space-y-3 rounded-md bg-card p-3">
@@ -3232,6 +3232,15 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // Compact mode: minimal floating-widget layout for phones — status line,
   // two-line scrolling transcript, and a single row of icon buttons.
   const shownPhase: Phase = swapTransition ? phase : faceWaiting && phase === 'live' ? 'connecting' : phase;
+  // Persona name badge (Ron, 2026-11-13): the lower-third label over
+  // the livebox reads the SAME config that selects the face + voice —
+  // the persona registry while a persona segment is live (activePersona
+  // flips at the swap cut-over, the moment the incoming persona takes
+  // the conversation, so the badge follows the visible speaker), the
+  // Alex registry entry for the guide session, and the session's agent
+  // identity name otherwise (a tenant agent's own name on their own
+  // widget; "Aspen" on platform surfaces).
+  const personaLabelName = guide === 'alex' ? PERSONAS.alex.displayName : activePersona !== 'aspen' ? PERSONAS[activePersona].displayName : name;
   const activeVideoAvatar: VideoAvatar | undefined = activePersona === 'sara' && videoAvatar
     ? { ...videoAvatar, faceId: SARA_FACE_ID }
     : activePersona === 'alex' && videoAvatar
@@ -3504,7 +3513,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   if (compact) {
     return (
       <div className={faceFirst ? "flex h-full min-h-0 flex-1 flex-col px-2 pb-2 pt-0 text-foreground" : "space-y-2 p-2 text-foreground"}>
-        {faceFirst ? <div className="aspen-person-livebox relative z-0 mx-auto shrink-0 overflow-hidden"><div className={`h-full w-full ${faceLive ? 'invisible' : ''}`}><PersonPortrait name={name} avatarUrl={avatarUrl} animated={false} /></div>{avatarView}{stagedAvatarView}</div> : <>{avatarView}{stagedAvatarView}</>}
+        {faceFirst ? <div className="aspen-person-livebox relative z-0 mx-auto shrink-0 overflow-hidden"><div className={`h-full w-full ${faceLive ? 'invisible' : ''}`}><PersonPortrait name={name} avatarUrl={avatarUrl} animated={false} /></div>{avatarView}{stagedAvatarView}<PersonaNameLabel name={personaLabelName} /></div> : <>{avatarView}{stagedAvatarView}</>}
         {!faceFirst && windowControls}
         {!faceFirst && toggleManagerRow}
         <div className={faceFirst ? 'aspen-voice-panel relative z-10 flex min-h-0 flex-1 flex-col space-y-2 rounded-lg border border-primary/40 bg-card p-2 shadow-lg ring-1 ring-foreground/10' : 'space-y-2'}>
