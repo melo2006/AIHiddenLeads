@@ -9,6 +9,11 @@ import AssistantErrorBoundary from '@/components/AssistantErrorBoundary';
 import AspenSalesActions from '@/components/AspenSalesActions';
 import { matchingAspenVideo } from '@/lib/aspenFace';
 import { PersonPortrait } from '@/components/FloatingPersonFrame';
+import { PERSONAS, FRANK_FACE_ID } from '../../../../supabase/functions/_shared/personas';
+import { presenterForExampleLeadId } from '@/data/realtorExamplePinnedLeads';
+import { SIMLI_FACE_CATALOG } from '@/lib/simliFaceCatalog';
+
+const frankPortrait = SIMLI_FACE_CATALOG.find(f => f.id === FRANK_FACE_ID)?.image;
 
 type Props = React.ComponentProps<typeof ChatWidget> & {
   voiceRequested?: boolean;
@@ -47,6 +52,15 @@ function AspenDemoWidgetContent({ voiceRequested = false, onClosed, onAssistantR
   const minimize = () => { setOpen(false); setMinimized(true); onClosed(); };
   const close = () => { minimize(); setHasOpened(false); setPrewarm(false); setShellState(null); };
   const mounted = hasOpened || (prewarm && identityLoaded);
+  // Example presenter (Frank batch, 2026-11-13): a sample session on
+  // a pinned example lead with a presenter is fronted by him from the
+  // very first frame — the launcher bubble, the frame name and the
+  // conversation's still portrait carry the presenter, not Aspen.
+  // Derived synchronously from the leadId (server authorizes the
+  // session + face against its own map copy regardless).
+  const presenter = sample ? presenterForExampleLeadId(chatProps.leadId) : null;
+  const presenterName = presenter ? PERSONAS[presenter].displayName : undefined;
+  const presenterPortrait = presenter === 'frank' ? frankPortrait : undefined;
   // Stage 3 (minimized while talking): the frame's slim bar drives the live
   // Gemini session through its shell command surface.
   const stage3: Stage3Controls | undefined = mode === 'voice' && shellState && (shellState.live || shellState.suspended) ? {
@@ -62,7 +76,7 @@ function AspenDemoWidgetContent({ voiceRequested = false, onClosed, onAssistantR
     onReplay: () => shellControlsRef.current?.replay(),
   } : undefined;
   return <DraggableFloating initialX={12} initialY={window.innerHeight - 90} anchorRight anchorBottom resetKey={expanded ? 'open' : 'closed'} dragHandlePlacement={expanded ? 'chest' : minimized ? 'top' : 'below'}>
-    <FloatingPersonFrame open={expanded} minimized={minimized} mode={mode} onOpen={() => { setHasOpened(true); setMinimized(false); setOpen(true); }} onMinimize={minimize} onClose={close} onMode={next => { setMode(next); if (next === 'chat') setChatVisited(true); }} keepRendered={prewarm} stage3={stage3} inviteArrival={!!invite}>
+    <FloatingPersonFrame name={presenterName} avatarUrl={presenterPortrait} open={expanded} minimized={minimized} mode={mode} onOpen={() => { setHasOpened(true); setMinimized(false); setOpen(true); }} onMinimize={minimize} onClose={close} onMode={next => { setMode(next); if (next === 'chat') setChatVisited(true); }} keepRendered={prewarm} stage3={stage3} inviteArrival={!!invite}>
       {mounted && mode === 'voice' && <>
         {gateWaiting && <div className="aspen-panel flex flex-col items-center gap-2 px-4 py-3 text-center" role="status">
           <div className="h-20 w-20 overflow-hidden rounded-full border border-primary/50">
@@ -72,7 +86,7 @@ function AspenDemoWidgetContent({ voiceRequested = false, onClosed, onAssistantR
           <p className="text-[11px] leading-snug text-muted-foreground">She is still here — say the 4 digits out loud or type them in the card.</p>
         </div>}
         <div className={gateWaiting ? 'hidden' : 'flex min-h-0 flex-1 flex-col'} aria-hidden={gateWaiting || undefined}>
-          <GeminiConversation compact faceFirst avatarInline autoStart={expanded} consentOnOpen={expanded} prewarm={prewarm} onPrewarmed={() => onAssistantReady?.()} leadId={chatProps.leadId} prospectId={chatProps.prospectId} visitorName={chatProps.callerName} onRecommendedPlan={setRecommendedPlan} videoAvatar={matchingAspenVideo(videoAvatar)} verification={verification} invite={invite} sample={sample} onUserTranscript={onUserTranscript} shellControlsRef={shellControlsRef} onShellState={setShellState} belowAvatar={<AspenModeToggle mode={mode} onMode={next => { setMode(next); if (next === 'chat') setChatVisited(true); }} />} windowControls={<AspenWindowControls onMinimize={minimize} onClose={close} />} />
+          <GeminiConversation compact faceFirst avatarInline autoStart={expanded} consentOnOpen={expanded} prewarm={prewarm} onPrewarmed={() => onAssistantReady?.()} leadId={chatProps.leadId} prospectId={chatProps.prospectId} name={presenterName} avatarUrl={presenterPortrait} visitorName={chatProps.callerName} onRecommendedPlan={setRecommendedPlan} videoAvatar={matchingAspenVideo(videoAvatar)} verification={verification} invite={invite} sample={sample} onUserTranscript={onUserTranscript} shellControlsRef={shellControlsRef} onShellState={setShellState} belowAvatar={<AspenModeToggle mode={mode} onMode={next => { setMode(next); if (next === 'chat') setChatVisited(true); }} />} windowControls={<AspenWindowControls onMinimize={minimize} onClose={close} />} />
         </div>
       </>}
       {chatVisited && <div className={mode === 'chat' ? 'aspen-panel min-h-80 overflow-hidden rounded-lg border border-border bg-card' : 'hidden'}><div className="aspen-chat-content"><ChatWidget {...chatProps} embedded active={expanded && mode === 'chat'} /></div></div>}

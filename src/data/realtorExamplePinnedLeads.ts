@@ -42,6 +42,36 @@ export const REALTOR_EXAMPLE_PINNED_LEADS: RealtorExamplePinnedLead[] = [
   { slug: "gian-sexsmith", agent: "Gian Sexsmith", domain: "sexsmithrealty.com", url: "https://sexsmithrealty.com/", leadId: "335785bd-c994-4d13-9a6d-4d38d84fc11e" },
 ];
 
+/**
+ * Example presenters (Frank batch, 2026-11-13) — CLIENT COPY of the
+ * server-known map in supabase/functions/_shared/
+ * realtor-example-pinned-leads.ts (keep in sync; the pinned-leads
+ * test pins both). Examples NOT listed here run the standard
+ * Aspen→Sara flow. A listed example is fronted SOLO by the named
+ * presenter persona: the Senior Owner ("Frank") fronts the three
+ * MALE agents' examples. The client reads this only to render the
+ * right face/name from the first frame (the face token and the
+ * session itself are authorized server-side against the server's
+ * own copy — this copy earns nothing on its own).
+ */
+export const REALTOR_EXAMPLE_PRESENTERS: Partial<Record<string, "aspen" | "sara" | "alex" | "frank">> = {
+  "michael-martinez": "frank",
+  "richard-steinberg": "frank",
+  "paul-saperstein": "frank",
+};
+
+const presenterByLeadId = new Map(
+  REALTOR_EXAMPLE_PINNED_LEADS.filter((entry) => REALTOR_EXAMPLE_PRESENTERS[entry.slug])
+    .map((entry) => [entry.leadId, REALTOR_EXAMPLE_PRESENTERS[entry.slug]!]),
+);
+
+/** The solo presenter persona for a pinned example leadId, or null
+ *  when the example runs the standard Aspen→Sara flow. */
+export function presenterForExampleLeadId(leadId: string | undefined | null): "aspen" | "sara" | "alex" | "frank" | null {
+  if (!leadId) return null;
+  return presenterByLeadId.get(leadId) ?? null;
+}
+
 const hostOf = (raw: string): string | null => {
   try {
     return new URL(raw).hostname.replace(/^www\./, "").toLowerCase();

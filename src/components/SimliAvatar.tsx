@@ -83,7 +83,7 @@ export interface SimliAvatarHandle {
    *  re-applied at start()/activate() once the stream exists. */
   setOutputDevice?: (deviceId: string) => Promise<boolean>;
 }
-export interface SimliAvatarProps { avatar: VideoAvatar; agentId?: string; shareToken?: string; draft?: boolean; faceOverride?: string; inline?: boolean; unboxed?: boolean; onLiveChange?: (live: boolean) => void; /** Platform guide ('alex'): request the guide's fixed library face token instead of a tenant agent's face. */ guide?: "alex"; /** Persona pre-stage (avatar swap): start behind the live face — token request carries the persona selector + parent-session proof, and the element starts muted/hidden. */ persona?: "aspen" | "sara" | "alex"; personaParentSessionId?: string; personaVisitorKey?: string; /** Pre-stage mode: mounted and live but not shown (opacity 0, no pointer events) until the cut-over reveals it. */ concealed?: boolean; /** Stacking layer inside the shared live box during a swap: the revealing/active face sits above the retiring frozen frame. */ layer?: number; }
+export interface SimliAvatarProps { avatar: VideoAvatar; agentId?: string; shareToken?: string; draft?: boolean; faceOverride?: string; inline?: boolean; unboxed?: boolean; onLiveChange?: (live: boolean) => void; /** Platform guide ('alex'): request the guide's fixed library face token instead of a tenant agent's face. */ guide?: "alex"; /** Persona pre-stage (avatar swap): start behind the live face — token request carries the persona selector + parent-session proof, and the element starts muted/hidden. */ persona?: "aspen" | "sara" | "alex" | "frank"; personaParentSessionId?: string; personaVisitorKey?: string; /** Example presenter (Frank batch): the main face of a solo-presenter demo — token request carries the persona + the PINNED example leadId instead of a parent session (the face starts concurrently with the parent authorization); simli-avatar authorizes it against its server-known presenter map. */ personaLeadId?: string; /** Pre-stage mode: mounted and live but not shown (opacity 0, no pointer events) until the cut-over reveals it. */ concealed?: boolean; /** Stacking layer inside the shared live box during a swap: the revealing/active face sits above the retiring frozen frame. */ layer?: number; }
 
 const POSITION: Record<VideoAvatar["position"], string> = {
   "bottom-right": "bottom-28 right-3", "bottom-left": "bottom-28 left-3", "top-right": "top-20 right-3", "top-left": "top-20 left-3",
@@ -224,7 +224,7 @@ export async function sessionToken(body: Record<string, unknown>, cancel?: Abort
 }
 
 /** Owns one Simli session: the face lip-syncs Gemini's audio; Gemini remains the only conversation brain. */
-const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, agentId, shareToken, draft, faceOverride, inline = false, unboxed = false, onLiveChange, guide, persona, personaParentSessionId, personaVisitorKey, concealed = false, layer }, ref) => {
+const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, agentId, shareToken, draft, faceOverride, inline = false, unboxed = false, onLiveChange, guide, persona, personaParentSessionId, personaVisitorKey, personaLeadId, concealed = false, layer }, ref) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -367,7 +367,9 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
         startupRejectRef.current = error => rejectStartup?.(error);
         const tokenAbort = new AbortController(); tokenAbortRef.current = tokenAbort;
         const tokenBody = persona
-          ? { persona, parentSessionId: personaParentSessionId, visitorKey: personaVisitorKey }
+          ? personaLeadId
+            ? { persona, leadId: personaLeadId }
+            : { persona, parentSessionId: personaParentSessionId, visitorKey: personaVisitorKey }
           : { agentId, shareToken, draft, faceId: faceOverride, guide };
         const { token, chromaKey } = attemptIndex === 0
           ? await sessionToken(tokenBody, tokenAbort.signal)

@@ -35,7 +35,11 @@ describe('A — gemini-session greeting gating (source pins)', () => {
   const src = read('supabase/functions/gemini-session/index.ts');
 
   test('the business-demo fallback keys on swapEnabled, not teamIntroOn', () => {
-    expect(src).toContain("if(!swapEnabled && b.verification!=='pending') {");
+    // Frank batch (2026-11-13): presenter parents take the slim
+    // fallback too — their rotation variants would promise a Sara
+    // introduction no swap will keep. Non-presenter semantics are
+    // unchanged: the key is still swapEnabled, never teamIntroOn.
+    expect(src).toContain("if((!swapEnabled || presenter) && b.verification!=='pending') {");
     expect(src).not.toContain("if(!teamIntroOn && b.verification!=='pending')");
     // The fallback body is unchanged: rotation cleared, legacy slim served.
     expect(src).toContain("config.greeting=(b.invite===true && leadInviteArrivedAt) ? DEMO_INVITE_GREETING_LEGACY_SLIM : SIMULATION_GREETING_LEGACY_SLIM;");
@@ -48,7 +52,10 @@ describe('A — gemini-session greeting gating (source pins)', () => {
   });
 
   test('personaSwapEnabled is still stamped on swapEnabled alone', () => {
-    expect(src).toContain('if(!b.personaSegment && swapEnabled && (b.leadId || b.prospectId) && !b.draft && !b.preview) config.personaSwapEnabled=true;');
+    // Frank batch (2026-11-13): the one documented exception — a
+    // presenter-stamped parent (config.demoPresenter) never arms the
+    // swap, because the presenter fronts the whole demo solo.
+    expect(src).toContain('if(!b.personaSegment && swapEnabled && (b.leadId || b.prospectId) && !b.draft && !b.preview && !config.demoPresenter) config.personaSwapEnabled=true;');
   });
 
   test('the verification-pending (code gate) path is untouched', () => {

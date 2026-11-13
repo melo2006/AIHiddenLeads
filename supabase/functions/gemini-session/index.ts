@@ -10,7 +10,8 @@ import { workspaceAccess } from '../_shared/customer-payments.ts';
 import { resolveDemoShare } from '../_shared/demo-share.ts';
 import { DEMO_INVITE_GREETING, DEMO_INVITE_GREETING_LEGACY_SLIM, DEMO_INVITE_GREETING_VARIANTS, DEMO_INVITE_OPENING, DEMO_INVITE_OPENING_SWAP, DEMO_VERIFICATION_ACT1, DEMO_VERIFICATION_GREETING } from '../_shared/demo-sales.ts';
 import { alexGuideConfig, alexDemoGuestConfig } from '../_shared/alex-guide.ts';
-import { avatarSwapEnabled, teamIntroEnabled, personaFor, personaSegmentPrompt } from '../_shared/personas.ts';
+import { avatarSwapEnabled, teamIntroEnabled, personaFor, personaSegmentPrompt, presenterSimulationPrompt } from '../_shared/personas.ts';
+import { examplePresenterForSlug } from '../_shared/realtor-example-pinned-leads.ts';
 import { TEAM_INTRO_TEACHING, isIntroBoundary, teamIntroGreetingFor } from '../_shared/team-intro.ts';
 import { realtorLandingApplies, stampRealtorLanding } from '../_shared/homepage-knowledge.ts';
 import { buildExampleListingsLayer, examplePackBySlug, examplePackForSiteUrl, stampExampleListings } from '../_shared/realtor-example-listings.ts';
@@ -209,6 +210,20 @@ Deno.serve(async req=>{
     else { const {data:p}=await db.from('prospects').select('business_name,business_data,ai_analysis,website_url').eq('id',b.prospectId).maybeSingle(); if(!p) return json({error:'Demo business not found'},404); knowledge=JSON.stringify(p.business_data || {}); businessName=p.business_name; siteUrl=p.website_url || ''; if(knowledge.length<20) return json({error:'Prepare this prospect website demo before starting a call.'},409); }
     const {data:aspen}=await db.from('voice_agents').select('published').eq('slug','aspen-homepage').maybeSingle();
     const published=aspen?.published as Record<string,unknown>|undefined;
+    // EXAMPLE PRESENTER (Frank batch, 2026-11-13): a marked sample
+    // whose stored site URL matches an example WITH a presenter in
+    // the server-known map (realtor-example-pinned-leads.ts) is
+    // fronted SOLO by that persona — the presenter greets AND runs
+    // the simulation in one session, so the parent is composed from
+    // the LEGACY whole-demo config bound to the presenter (name,
+    // voice, presenter-rewritten prompt) instead of the swap-parent
+    // host composition, and the swap stamp below is withheld: no
+    // Sara segment ever arms on a presenter demo. The flag alone
+    // earns nothing and a URL match alone earns nothing — both, plus
+    // the map entry, exactly like the listings stamp's trust pattern.
+    const examplePack=b.sample===true?examplePackForSiteUrl(siteUrl):null;
+    const presenterId=examplePack?examplePresenterForSlug(examplePack.slug):null;
+    const presenter=presenterId?personaFor(presenterId):null;
     // SWAP-PARENT COMPOSITION (handover fix, 2026-11-10): a
     // swap-enabled demo parent is composed HOST-ONLY — its prompt
     // excludes the simulation host entry beats and the receptionist
@@ -221,7 +236,8 @@ Deno.serve(async req=>{
     // identical to before. The verification branch composes from
     // whichever base applies — Act 1's own text is unchanged either
     // way, and its session still ends at the code gate.
-    config={...(swapEnabled ? businessDemoConfigSwapParent(businessName,knowledge,published) : businessDemoConfig(businessName,knowledge,published)), visitorContact, platformFollowup:true};
+    config={...(presenter ? businessDemoConfig(businessName,knowledge,{...(published ?? {}),name:presenter.displayName,voice:presenter.voiceName,simulationPrompt:presenterSimulationPrompt(presenter)}) : swapEnabled ? businessDemoConfigSwapParent(businessName,knowledge,published) : businessDemoConfig(businessName,knowledge,published)), visitorContact, platformFollowup:true};
+    if(presenter) config.demoPresenter=presenter.id;
     if(b.verification==='pending') { config.greeting=DEMO_VERIFICATION_GREETING; config.greetings=[]; config.systemPrompt=`${DEMO_VERIFICATION_ACT1}\n\n${String(config.systemPrompt)}`; config.verificationGate=true; }
     // Invite arrivals (cold-email personal link): the host phase replaces
     // the code gate. Honored ONLY when the demo-invite resolve stamped the
@@ -245,7 +261,11 @@ Deno.serve(async req=>{
     // never touched here: the code gate owns that opening in both
     // worlds (and its greetings array was already cleared above so
     // openingFor cannot serve a pitch variant into Act 1).
-    if(!swapEnabled && b.verification!=='pending') {
+    if((!swapEnabled || presenter) && b.verification!=='pending') {
+      // Presenter parents take the slim opening too (even with the
+      // swap family globally on): the rotation variants end in the
+      // Sara introduction, a promise only the swap family can keep —
+      // a presenter demo has no Sara to introduce.
       config.greetings=[];
       config.greeting=(b.invite===true && leadInviteArrivedAt) ? DEMO_INVITE_GREETING_LEGACY_SLIM : SIMULATION_GREETING_LEGACY_SLIM;
     }
@@ -261,7 +281,7 @@ Deno.serve(async req=>{
     // agent's own listings first. The flag alone earns nothing, a URL
     // match alone earns nothing, and every non-sample simulation stays
     // byte-identical.
-    if(b.sample===true) { const pack=examplePackForSiteUrl(siteUrl); if(pack) stampExampleListings(config, pack); }
+    if(examplePack) stampExampleListings(config, examplePack);
   } else {
     let query=db.from('voice_agents').select('*'); query=b.agentId?query.eq('id',b.agentId):query.eq('slug','aspen-homepage');
     const {data:agent}=await query.maybeSingle(); if(!agent?.published) return json({error:'Voice agent is not published yet'},409);
@@ -339,7 +359,7 @@ Deno.serve(async req=>{
   // so the client starts the swap state machine only when the server says
   // so. Segment configs already carry personaSwapEnabled:true from their
   // branch; every other session shape is untouched when the flag is off.
-  if(!b.personaSegment && swapEnabled && (b.leadId || b.prospectId) && !b.draft && !b.preview) config.personaSwapEnabled=true;
+  if(!b.personaSegment && swapEnabled && (b.leadId || b.prospectId) && !b.draft && !b.preview && !config.demoPresenter) config.personaSwapEnabled=true;
   // Website UI locale → authorized starting language (Ron, 2026-11-09).
   // The client sends ONLY the visitor's explicit site-language selection;
   // it is validated here against the supported set (en / es / pt-BR) and

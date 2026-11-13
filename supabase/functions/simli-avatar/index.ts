@@ -8,12 +8,13 @@ import { tenantAvatarGate } from '../_shared/avatar-entitlement.ts';
 import { normalizeVideoAvatar, validFaceId } from '../_shared/video-avatar.ts';
 import { ALEX_FACE_ID } from '../_shared/alex-guide.ts';
 import { PERSONAS, type PersonaId } from '../_shared/personas.ts';
+import { examplePresenterForLeadId } from '../_shared/realtor-example-pinned-leads.ts';
 
 const SIMLI = 'https://api.simli.ai';
 const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 async function sha256Hex(value: string) { return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)))).map(b => b.toString(16).padStart(2, '0')).join(''); }
 const body = z.discriminatedUnion('action', [
-  z.object({ action: z.literal('session'), agentId: z.string().max(80).optional(), shareToken: z.string().max(80).optional(), draft: z.boolean().optional(), faceId: z.string().max(80).optional(), guide: z.enum(['alex']).optional(), persona: z.enum(['aspen', 'sara', 'alex']).optional(), parentSessionId: z.string().uuid().optional(), visitorKey: z.string().min(16).max(100).optional() }),
+  z.object({ action: z.literal('session'), agentId: z.string().max(80).optional(), shareToken: z.string().max(80).optional(), draft: z.boolean().optional(), faceId: z.string().max(80).optional(), guide: z.enum(['alex']).optional(), persona: z.enum(['aspen', 'sara', 'alex', 'frank']).optional(), parentSessionId: z.string().uuid().optional(), visitorKey: z.string().min(16).max(100).optional(), leadId: z.string().uuid().optional() }),
   z.object({ action: z.literal('faces') }),
   z.object({ action: z.literal('createFace'), agentId: z.string().uuid().optional(), name: z.string().min(1).max(60), imageBase64: z.string().min(100).max(14_000_000), mimeType: z.enum(['image/png', 'image/jpeg', 'image/webp']) }),
   z.object({ action: z.literal('avatarCredit'), agentId: z.string().uuid() }),
@@ -66,6 +67,19 @@ Deno.serve(async (req) => {
         // no registry face: hers resolves from the parent session's own
         // published snapshot (videoAvatar in the parent config, else the
         // homepage agent's published snapshot).
+        // EXAMPLE PRESENTER exception (Frank batch, 2026-11-13): a
+        // presenter demo has NO persona segment and its main face must
+        // start concurrently with the parent authorization — before a
+        // parent session id exists. Its authorization is the
+        // server-known presenter map itself: the request names a
+        // PINNED example leadId and the persona the map assigns to it;
+        // anything else is refused. The face still comes only from
+        // the registry — the client names a persona, never a face.
+        if (b.leadId && !b.parentSessionId) {
+          const binding = PERSONAS[b.persona as PersonaId];
+          if (examplePresenterForLeadId(b.leadId) !== b.persona || !binding.faceId) return json({ error: 'Persona avatar is not available for this demo' }, 403);
+          faceId = binding.faceId;
+        } else {
         if (!b.parentSessionId || !b.visitorKey) return json({ error: 'A parent demo session is required for a persona avatar' }, 403);
         const visitorHash = await sha256Hex(`${b.visitorKey}|${req.headers.get('x-forwarded-for')?.split(',')[0] || ''}`);
         const { data: parentRow } = await db.from('gemini_voice_sessions').select('config').eq('id', b.parentSessionId).eq('visitor_hash', visitorHash).maybeSingle();
@@ -86,6 +100,7 @@ Deno.serve(async (req) => {
             if (!home?.published || !v.enabled) return json({ error: 'Video avatar is not enabled' }, 404);
             faceId = v.faceId;
           }
+        }
         }
       } else if (b.shareToken) {
         const a = await resolveDemoShare(db, b.shareToken);

@@ -189,17 +189,25 @@ describe("example listings stamp — predicate and layer", () => {
 describe("example listings wiring — source pins", () => {
   it("gemini-session accepts the sample flag and stamps only on flag + server-side URL match", () => {
     expect(geminiSessionSource).toContain("sample:z.boolean().optional()");
+    // Frank batch (2026-11-13): the pack is resolved ONCE, up front —
+    // the presenter decision reads the same flag + server-side URL
+    // match — and stamped from that single resolution. The trust
+    // semantics are unchanged: flag alone earns nothing, URL match
+    // alone earns nothing.
     expect(
-      occurrences(geminiSessionSource, "stampExampleListings(config, pack);"),
+      occurrences(geminiSessionSource, "stampExampleListings(config, examplePack);"),
     ).toBe(1);
     expect(geminiSessionSource).toContain(
-      "if(b.sample===true) { const pack=examplePackForSiteUrl(siteUrl); if(pack) stampExampleListings(config, pack); }",
+      "const examplePack=b.sample===true?examplePackForSiteUrl(siteUrl):null;",
+    );
+    expect(geminiSessionSource).toContain(
+      "if(examplePack) stampExampleListings(config, examplePack);",
     );
     expect(geminiSessionSource).toContain("siteUrl=lead.website_url || ''");
     // The stamp sits inside the simulation branch: after the simulation
     // config is composed and before the homepage branch opens.
     const stampAt = geminiSessionSource.indexOf(
-      "stampExampleListings(config, pack);",
+      "stampExampleListings(config, examplePack);",
     );
     const composedAt = geminiSessionSource.indexOf("businessDemoConfig(");
     const homepageStampAt = geminiSessionSource.indexOf(
