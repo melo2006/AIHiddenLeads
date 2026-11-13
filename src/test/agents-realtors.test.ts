@@ -378,15 +378,27 @@ describe("realtor landing page — one-click example demos (2026-11-12)", () => 
   });
 
   it("selecting an example uses the /demo handoff with the sample flag and generic visitor name", () => {
+    // Pinned examples (pre-scanned leads, refreshed weekly) enter via
+    // leadId so /demo-site reuses the stored scan; the URL, sample flag
+    // and generic visitor name ride along exactly as before. An example
+    // without a pinned lead keeps the original URL-only launch.
+    expect(templateSource).toContain("pinnedLeadIdForExampleUrl(exampleUrl)");
     expect(templateSource).toContain(
-      "`/demo?url=${encodeURIComponent(exampleUrl)}&sample=1&callerName=${encodeURIComponent(vertical.demoExamples.visitorName)}`",
+      "`/demo?leadId=${pinnedLeadId}&url=${encodeURIComponent(exampleUrl)}&sample=1&callerName=${visitorName}`",
+    );
+    expect(templateSource).toContain(
+      "`/demo?url=${encodeURIComponent(exampleUrl)}&sample=1&callerName=${visitorName}`",
     );
     // /demo forwards a marked sample straight to /demo-site, where the
-    // callerName param is the existing channel into visitorName.
+    // callerName param is the existing channel into visitorName — and
+    // the forwarder must carry a pinned leadId through untouched, or
+    // /demo-site would fall back to a fresh scan.
     expect(tryDemoSource).toContain('searchParams.get("sample") !== "1"');
     expect(tryDemoSource).toContain('searchParams.get("callerName")');
     expect(tryDemoSource).toContain("callerName: sampleCallerName");
     expect(tryDemoSource).toContain('sample: "1"');
+    expect(tryDemoSource).toContain('searchParams.get("leadId")');
+    expect(tryDemoSource).toContain('params.set("leadId", pinnedLeadId)');
     expect(tryDemoSource).toContain(
       "navigate(`/demo-site?${params.toString()}`, { replace: true })",
     );
