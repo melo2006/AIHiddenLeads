@@ -4,9 +4,32 @@ import { Button } from '@/components/ui/button';
 import aspenPortrait from '@/assets/aspen-video-frame-final.webp';
 import aspenIdleBeckon from '@/assets/aspen-idle-wave.gif';
 
-export function PersonPortrait({ name = 'Aspen', avatarUrl, animated = true }: { name?: string; avatarUrl?: string; animated?: boolean }) {
+/** Persona name badge (Ron, 2026-11-13): a lower-third style pill at
+ * the bottom of the portrait/video area, so visitors know and remember
+ * who they are talking to — the panel showed Aspen's / Sara's / Alex's
+ * face but never their name. Purely presentational: pointer-events-none
+ * and NOT a control (the 2026-11-12 rule stands — no control overlaps
+ * her). Callers pass the display name from the same identity/persona
+ * config that selects the face and voice (the widget's displayName,
+ * which follows persona swaps; PERSONAS[activePersona] inside the
+ * conversation), never a hardcoded string. Only the first name shows,
+ * matching the shell's existing "Talk to {firstName}" convention.
+ * Rendered only inside a positioned (relative) portrait container and
+ * only while the panel is open — never on the Stage 1 bubble or the
+ * Stage 3 minimized bar. */
+export function PersonaNameLabel({ name }: { name: string }) {
+  const label = name?.trim().split(/\s+/)[0];
+  if (!label) return null;
+  return <span data-testid="persona-name-label" aria-hidden="true" className="pointer-events-none absolute bottom-1.5 left-1/2 z-20 -translate-x-1/2">
+    <span className="block whitespace-nowrap rounded-full bg-black/55 px-2.5 py-0.5 text-[11px] font-semibold leading-tight tracking-wide text-white shadow-sm backdrop-blur-sm">{label}</span>
+  </span>;
+}
+
+export function PersonPortrait({ name = 'Aspen', avatarUrl, animated = true, nameLabel = false }: { name?: string; avatarUrl?: string; animated?: boolean; /** Overlay the PersonaNameLabel at the portrait's bottom edge (chat mode + the consent screen). The livebox does NOT pass this: its label is driven by the conversation's active persona and rendered at livebox level, over portrait and live video alike. */ nameLabel?: boolean }) {
   const src = avatarUrl || (animated ? aspenIdleBeckon : aspenPortrait);
-  return <img src={src} alt={name} width={512} height={512} decoding="async" draggable={false} className={`aspen-person-portrait mx-auto object-cover object-top ${animated ? 'aspen-portrait-idle' : ''}`} />;
+  const img = <img src={src} alt={name} width={512} height={512} decoding="async" draggable={false} className={`aspen-person-portrait mx-auto object-cover object-top ${animated ? 'aspen-portrait-idle' : ''}`} />;
+  if (!nameLabel) return img;
+  return <span className="relative block shrink-0">{img}<PersonaNameLabel name={name} /></span>;
 }
 
 /** Live-call controls for Stage 3 (minimized while talking), wired by the
@@ -104,7 +127,7 @@ export default function FloatingPersonFrame({ name = 'Aspen', avatarUrl, open, m
   const bubblePhoto = avatarUrl === undefined ? aspenIdleBeckon : avatarUrl;
   const stage = open ? 2 : minimized ? (stage3 ? 3 : 0) : 1;
   return <section aria-label={`${name} floating assistant`} className={`aspen-person-shell relative ${open ? 'aspen-person-expanded' : 'aspen-person-collapsed'} ${stage === 1 ? 'aspen-person-stage1 items-center' : ''} ${stage === 3 ? 'aspen-person-stage3' : ''} ${stage === 0 ? '!w-24 items-center' : ''}`}>
-    {open && mode === 'chat' && <PersonPortrait name={name} avatarUrl={avatarUrl} />}
+    {open && mode === 'chat' && <PersonPortrait name={name} avatarUrl={avatarUrl} nameLabel />}
     {open && mode === 'chat' && <AspenWindowControls onMinimize={onMinimize} onClose={onClose} />}
     {open && mode === 'chat' && <AspenModeToggle mode={mode} onMode={onMode} />}
     {stage === 1 && <Button variant="ghost" onClick={onOpen} title={inviteArrival ? `Hear ${firstName || 'Aspen'}` : talkLabel} aria-label={inviteArrival ? `Hear ${firstName || 'Aspen'} — tap to hear your demo` : talkLabel} className="flex h-auto flex-col items-center gap-1.5 p-0 hover:bg-transparent">
