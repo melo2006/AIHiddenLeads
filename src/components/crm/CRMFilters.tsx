@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import { Save, FolderOpen, Trash2, X, Search } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import MultiSelectFilter, { type SelectOption } from "@/components/crm/filters/MultiSelectFilter";
+import { campaignOptionLabel } from "@/lib/campaignIds";
 
 export interface Filters {
   temperature: string;
@@ -11,6 +12,7 @@ export interface Filters {
   previewType: string[];
   phoneType: string[];
   niche: string[];
+  campaign: string[];
   city: string[];
   state: string[];
   hasEmail: string[];
@@ -21,11 +23,12 @@ export interface Filters {
 interface LegacyFilters
   extends Omit<
     Partial<Filters>,
-    "previewType" | "phoneType" | "niche" | "city" | "state" | "hasEmail" | "smsCapable"
+    "previewType" | "phoneType" | "niche" | "campaign" | "city" | "state" | "hasEmail" | "smsCapable"
   > {
   previewType?: string | string[];
   phoneType?: string | string[];
   niche?: string | string[];
+  campaign?: string | string[];
   city?: string | string[];
   state?: string | string[];
   hasEmail?: string | string[];
@@ -52,6 +55,7 @@ export const DEFAULT_FILTERS: Filters = {
   previewType: [],
   phoneType: [],
   niche: [],
+  campaign: [],
   city: [],
   state: [],
   hasEmail: [],
@@ -70,6 +74,7 @@ export const normalizeFilters = (filters?: LegacyFilters | null): Filters => {
     previewType: normalizeMultiValue(source.previewType),
     phoneType: normalizeMultiValue(source.phoneType),
     niche: normalizeMultiValue(source.niche),
+    campaign: normalizeMultiValue(source.campaign),
     city: normalizeMultiValue(source.city),
     state: normalizeMultiValue(source.state),
     hasEmail: normalizeMultiValue(source.hasEmail),
@@ -130,6 +135,7 @@ interface Props {
   onChange: (f: Filters) => void;
   onApply: () => void;
   niches?: string[];
+  campaigns?: string[];
   cities?: string[];
   states?: string[];
 }
@@ -139,6 +145,7 @@ const CRMFilters = ({
   onChange,
   onApply,
   niches = [],
+  campaigns = [],
   cities = [],
   states = [],
 }: Props) => {
@@ -181,12 +188,13 @@ const CRMFilters = ({
       previewType: PREVIEW_OPTIONS.length,
       phoneType: PHONE_TYPE_OPTIONS.length,
       niche: niches.length,
+      campaign: campaigns.length,
       city: cities.length,
       state: states.length,
       hasEmail: EMAIL_OPTIONS.length,
       smsCapable: SMS_OPTIONS.length,
     }),
-    [cities.length, niches.length, states.length],
+    [campaigns.length, cities.length, niches.length, states.length],
   );
 
   const activeCount = Object.entries(filters).filter(([k, v]) => {
@@ -258,6 +266,7 @@ const CRMFilters = ({
       {/* All filters in a dense grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2 items-end">
         <MultiSelectFilter label="Niche" options={toSelectOptions(niches)} selected={filters.niche} onChange={(v) => update("niche", v)} placeholder="All Niches" />
+        <MultiSelectFilter label="Campaign" options={campaigns.map((value) => ({ value, label: campaignOptionLabel(value) }))} selected={filters.campaign} onChange={(v) => update("campaign", v)} placeholder="All Campaigns" />
         <MultiSelectFilter label="City" options={toSelectOptions(cities)} selected={filters.city} onChange={(v) => update("city", v)} placeholder="All Cities" />
         <MultiSelectFilter label="State" options={toSelectOptions(states)} selected={filters.state} onChange={(v) => update("state", v)} placeholder="All States" />
         <MultiSelectFilter label="Phone Type" options={PHONE_TYPE_OPTIONS} selected={filters.phoneType} onChange={(v) => update("phoneType", v)} placeholder="All Types" />
