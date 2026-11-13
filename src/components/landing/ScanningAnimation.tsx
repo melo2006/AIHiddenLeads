@@ -11,10 +11,14 @@ import {
   Sparkles,
   Search,
   CalendarCheck,
-  TrendingUp,
   Clock,
-  ShieldCheck,
   Headphones,
+  Video,
+  ListChecks,
+  MailCheck,
+  Wand2,
+  Tag,
+  FileText,
 } from "lucide-react";
 
 const scanSteps = [
@@ -47,28 +51,40 @@ const scanSteps = [
 /** Rotating benefit/sales messages shown while waiting */
 const benefitMessages = [
   {
+    icon: Video,
+    key: "videoAvatar",
+  },
+  {
     icon: Clock,
     key: "missCall",
   },
   {
-    icon: CalendarCheck,
-    key: "appointments",
-  },
-  {
-    icon: TrendingUp,
-    key: "moreLeads",
-  },
-  {
-    icon: ShieldCheck,
-    key: "liveFast",
+    icon: ListChecks,
+    key: "yourListings",
   },
   {
     icon: Headphones,
     key: "warmTransfer",
   },
   {
-    icon: MessageSquare,
-    key: "chatAi",
+    icon: CalendarCheck,
+    key: "appointments",
+  },
+  {
+    icon: MailCheck,
+    key: "followUp",
+  },
+  {
+    icon: Wand2,
+    key: "wizardSetup",
+  },
+  {
+    icon: Tag,
+    key: "pricing",
+  },
+  {
+    icon: FileText,
+    key: "callSummary",
   },
 ];
 
