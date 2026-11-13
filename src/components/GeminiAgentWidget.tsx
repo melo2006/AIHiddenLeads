@@ -8,7 +8,7 @@ import FloatingPersonFrame, { AspenModeToggle, AspenWindowControls, type Stage3C
 import { matchingAspenVideo } from '@/lib/aspenFace';
 import { SIMLI_FACE_CATALOG } from '@/lib/simliFaceCatalog';
 import { ALEX_FACE_ID } from '../../supabase/functions/_shared/alex-guide';
-import { SARA_FACE_ID } from '../../supabase/functions/_shared/personas';
+import { FRANK_FACE_ID, SARA_FACE_ID } from '../../supabase/functions/_shared/personas';
 import type { PersonaId } from '@/lib/personaSwap';
 
 import { themeVariables, type WidgetTheme } from '../../supabase/functions/_shared/widget-theme';
@@ -18,6 +18,7 @@ interface Props { agentId?: string; leadId?: string; prospectId?: string; busine
 export const ALEX_GUIDE_LABEL = 'Alex — Support Specialist';
 const alexPortrait = SIMLI_FACE_CATALOG.find(f => f.id === ALEX_FACE_ID)?.image;
 const saraPortrait = SIMLI_FACE_CATALOG.find(f => f.id === SARA_FACE_ID)?.image;
+const frankPortrait = SIMLI_FACE_CATALOG.find(f => f.id === FRANK_FACE_ID)?.image;
 const alexVideoAvatar: VideoAvatar = { enabled: true, provider: 'simli', faceId: ALEX_FACE_ID, position: 'bottom-right', size: 200, shape: 'circle' };
 export default function GeminiAgentWidget({ agentId, leadId, prospectId, businessName, callerName, onClose, floating = false, autoStart = false, guide }: Props) {
  const isGuide = guide === 'alex';
@@ -46,7 +47,7 @@ export default function GeminiAgentWidget({ agentId, leadId, prospectId, busines
  const [activePersona,setActivePersona]=useState<{id:PersonaId;name:string;avatarUrl?:string}|null>(null);
  const handlePersonaChange=(p:{id:PersonaId;displayName:string})=>{
    if(p.id==='aspen'){setActivePersona(null);return;}
-   const avatarUrl = p.id==='sara' ? saraPortrait : p.id==='alex' ? alexPortrait : undefined;
+   const avatarUrl = p.id==='sara' ? saraPortrait : p.id==='alex' ? alexPortrait : p.id==='frank' ? frankPortrait : undefined;
    setActivePersona({id:p.id,name:p.displayName,avatarUrl});
  };
  const displayName = activePersona?.name ?? identity.name;

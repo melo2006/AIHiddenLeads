@@ -14,6 +14,8 @@
  * (the 14th, julie-melrose, was added later the same day when the
  * grid went back to 14 examples after Scalone's removal).
  */
+import type { PersonaId } from './personas.ts';
+
 export interface RealtorExamplePinnedLead {
   slug: string;
   domain: string;
@@ -37,3 +39,34 @@ export const REALTOR_EXAMPLE_PINNED_LEADS: RealtorExamplePinnedLead[] = [
   { slug: "richard-steinberg", domain: "therichardsteinbergteam.com", url: "https://www.therichardsteinbergteam.com/", leadId: "51353057-8b1d-4e89-828b-ae12287efb3c" },
   { slug: "gian-sexsmith", domain: "sexsmithrealty.com", url: "https://sexsmithrealty.com/", leadId: "335785bd-c994-4d13-9a6d-4d38d84fc11e" },
 ];
+
+/**
+ * Example presenters (Frank batch, 2026-11-13): examples NOT listed
+ * here run the standard Aspen→Sara flow. A listed example is fronted
+ * SOLO by the named presenter persona (see personas.ts
+ * presenterSimulationPrompt): the Senior Owner ("Frank") fronts the
+ * three MALE agents' examples. This map is the server-known source of
+ * truth — gemini-session stamps the presenter onto the demo parent
+ * only when the request is a marked sample whose lead's stored site
+ * URL matches the example (the same trust pattern as the listings
+ * stamp), and simli-avatar authorizes the presenter's face token
+ * against this map by pinned leadId. A client claim alone earns
+ * nothing. Keep in sync with the client copy in
+ * src/data/realtorExamplePinnedLeads.ts.
+ */
+export const REALTOR_EXAMPLE_PRESENTERS: Partial<Record<string, PersonaId>> = {
+  "michael-martinez": "frank",
+  "richard-steinberg": "frank",
+  "paul-saperstein": "frank",
+};
+
+export function examplePresenterForSlug(slug: string | undefined | null): PersonaId | null {
+  if (!slug) return null;
+  return REALTOR_EXAMPLE_PRESENTERS[slug] ?? null;
+}
+
+export function examplePresenterForLeadId(leadId: string | undefined | null): PersonaId | null {
+  if (!leadId) return null;
+  const entry = REALTOR_EXAMPLE_PINNED_LEADS.find((lead) => lead.leadId === leadId);
+  return entry ? examplePresenterForSlug(entry.slug) : null;
+}

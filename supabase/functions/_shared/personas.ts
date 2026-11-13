@@ -35,11 +35,12 @@ import {
 import {
   SIMULATION_CLOSE_SEGMENT,
   SIMULATION_HOST_SEGMENT,
+  SIMULATION_PROMPT,
   SIMULATION_RECEPTIONIST_SEGMENT,
   VOICES,
 } from './voice-config.ts';
 
-export type PersonaId = 'aspen' | 'sara' | 'alex';
+export type PersonaId = 'aspen' | 'sara' | 'alex' | 'frank';
 /** All segment boundaries: the Stage 1 simulation family plus the team
  *  intro family (design: team-intro-design-2026-11-09.md §4.1). The two
  *  families are disjoint and phase-gated against their own parent class
@@ -76,6 +77,16 @@ export const SARA_FACE_ID = 'f735e62c-dce7-4c0b-8e85-1c7e21774c45';
 /** Aspen's catalogue portrait key (her custom snapshot face). */
 export const ASPEN_PORTRAIT_FACE_ID = 'ed8fedd9-6c86-4dc5-bb3a-017c06146efc';
 
+/** Frank's voice. ONE named constant: Charon — the mature, deep,
+ *  informative male in the Gemini Live set; the age-appropriate match
+ *  for the Senior Owner face (Sara=Leda, Alex=Puck, Aspen=Kore). A
+ *  future change is a one-line edit here and nowhere else. */
+export const FRANK_VOICE = 'Charon';
+/** The custom Trinity-2 "Senior Owner" face, created 2026-11-13
+ *  (Simli auto-name "Convincing Cougar" — never shown to customers;
+ *  the customer-facing name is the binding's displayName below). */
+export const FRANK_FACE_ID = 'b3f85f7f-57ea-4f24-b1f6-a57229b4fae1';
+
 export const PERSONAS: Record<PersonaId, PersonaBinding> = {
   aspen: {
     id: 'aspen',
@@ -101,6 +112,22 @@ export const PERSONAS: Record<PersonaId, PersonaBinding> = {
     portraitFaceId: ALEX_FACE_ID,
     role: 'guide',
   },
+  frank: {
+    // EXAMPLE PRESENTER (Frank batch, 2026-11-13): unlike the swap
+    // personas, Frank never enters through a persona segment — he
+    // FRONTS a whole example demo in one session (presenter greeting
+    // + in-role simulation), composed by gemini-session from the
+    // legacy whole-demo prompt bound to this binding. His displayName
+    // here is the ONE config place for his customer-facing name
+    // ("Frank" — approved by Ron 2026-11-13; the client reads the
+    // same shared registry for the badge).
+    id: 'frank',
+    displayName: 'Frank',
+    voiceName: FRANK_VOICE,
+    faceId: FRANK_FACE_ID,
+    portraitFaceId: FRANK_FACE_ID,
+    role: 'receptionist',
+  },
 };
 
 export function personaFor(id: PersonaId): PersonaBinding {
@@ -108,7 +135,7 @@ export function personaFor(id: PersonaId): PersonaBinding {
 }
 
 export function isPersonaId(value: unknown): value is PersonaId {
-  return value === 'aspen' || value === 'sara' || value === 'alex';
+  return value === 'aspen' || value === 'sara' || value === 'alex' || value === 'frank';
 }
 
 /** Integrity guard used by tests: every bound voice must be a real Gemini
@@ -294,4 +321,55 @@ export function personaSegmentPrompt(
     systemPrompt: `${BUSINESS_ASSISTANT_PREAMBLE(businessName)}\n${bindSegmentNames(SIMULATION_CLOSE_SEGMENT, binding)}${teamIntroSeen ? `\n${TEAM_INTRO_CALLBACK_CLOSE}` : ''}`,
     greeting: '',
   };
+}
+
+// ---------------------------------------------------------------------------
+// WHOLE-DEMO PRESENTER PROMPT (Frank batch, 2026-11-13): a presenter
+// persona (Frank) fronts an example demo SOLO — he is the host who
+// greets AND the receptionist who runs the simulation, in ONE session
+// on the legacy whole-demo composition (SIMULATION_PROMPT). The shared
+// prompt text carries two-persona assumptions that would put wrong
+// words in his mouth, so the presenter build rewrites exactly those
+// beats and NOTHING else ({agentName} still resolves to the presenter
+// via the session config name, the legacy way):
+//   1. The host doorway beat ("ask for Sara = transfer to Sara") —
+//      there is no second persona in this session and inventing a
+//      transfer would break the demo's honesty line; the solo beat
+//      names the colleagues, declines the handoff honestly, and
+//      carries on hosting.
+//   2. The honesty-note attribution ("belongs to Sara") — the note is
+//      the presenter's own, as the one standing on the mock-up.
+//   3. The close's step-out line ("This is Aspen again" / "hand you
+//      back to Aspen") — the presenter steps out as himself.
+//   4. The close's follow-up seat ("Answer follow-ups as Aspen") —
+//      the presenter answers as himself.
+// Every rewrite is a verbatim-needle replacement against the shared
+// constants; the unit tests pin each needle against the real
+// SIMULATION_PROMPT, so a future prompt edit that moves a needle
+// fails tests instead of silently shipping Sara/Aspen lines to a
+// Frank session.
+// ---------------------------------------------------------------------------
+export function presenterSimulationPrompt(binding: PersonaBinding): string {
+  const name = binding.displayName;
+  return SIMULATION_PROMPT
+    .replace(
+      'IF THE VISITOR ASKS FOR SARA BY NAME DURING THIS HOST PHASE: that ask IS the doorway — a request for a named person is a transfer, always. Never answer AS Sara, never speak her lines, and never roleplay the business yourself in her place. Move straight to the handoff: announce the simulation briefly and end with "Can I transfer you to Sara now?", then wait for their answer.',
+      `IF THE VISITOR ASKS FOR ASPEN OR SARA BY NAME DURING THIS HOST PHASE: they are your colleagues at AI Hidden Leads, and in THIS demonstration you are the host and the receptionist in one — there is no second person to bring in. Say so warmly and briefly, in your own words — for example: "Aspen and Sara are on my team — for this demonstration you've got me, and I'll look after you myself." Then carry on hosting exactly as scripted: never answer AS Aspen or Sara, and never claim a transfer to them is happening or has happened.`,
+    )
+    .replace(
+      'the spoken disclaimer belongs to Sara, the one standing on the mock-up',
+      'the spoken disclaimer belongs to you, the one standing on the mock-up',
+    )
+    .replace(
+      'so do not wait for her version, soften it, or refer back to it.',
+      'so do not soften it or refer back to an earlier version of it.',
+    )
+    .replace(
+      `"Okay — I am stepping out of simulation mode now. This is Aspen from AI Hidden Leads again." When the receptionist is the one speaking this line, she says it in her own voice instead — "Okay — I'm stepping out of simulation mode now, and I'll hand you back to Aspen" — the step-out beat belongs to whoever is live; do not wait for Aspen to announce it.`,
+      `"Okay — I am stepping out of simulation mode now. This is ${name} from AI Hidden Leads again." You hosted this demo and played the receptionist yourself, so the step-out is yours to announce — there is nobody to hand the visitor back to.`,
+    )
+    .replace(
+      'Answer follow-ups as Aspen from AI Hidden Leads under the sales policy.',
+      `Answer follow-ups as ${name} from AI Hidden Leads under the sales policy.`,
+    );
 }

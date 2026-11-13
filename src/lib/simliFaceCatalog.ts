@@ -1,5 +1,6 @@
 // Verified Simli preset catalog: https://docs.simli.com/api-reference/preset-faces
 import aspen from '@/assets/aspen-video-frame-final.webp';
+import frankFace from '@/assets/simli/b3f85f7f-57ea-4f24-b1f6-a57229b4fae1.webp';
 import face0 from '@/assets/simli/bf13113a-355a-4d97-8b90-4edccd1da7b2.webp';
 import face1 from '@/assets/simli/f735e62c-dce7-4c0b-8e85-1c7e21774c45.webp';
 import face2 from '@/assets/simli/084479bf-de7c-4df0-8d9c-5484193ecd27.webp';
@@ -31,6 +32,7 @@ import face27 from '@/assets/simli/fb78d7f5-37ad-4b04-9789-8712dcaa791d.webp';
 export interface AvatarFace { id: string; name: string; image?: string; category?: string; generation?: boolean; }
 export const SIMLI_FACE_CATALOG: AvatarFace[] = [
   { id: 'ed8fedd9-6c86-4dc5-bb3a-017c06146efc', name: 'Aspen · closed smile', image: aspen, category: 'Your face', generation: true },
+  { id: "b3f85f7f-57ea-4f24-b1f6-a57229b4fae1", name: "Frank · Senior Owner", category: "Your face", image: frankFace, generation: true },
   { id: "bf13113a-355a-4d97-8b90-4edccd1da7b2", name: "Anna", category: "Standard", image: face0 },
   { id: "f735e62c-dce7-4c0b-8e85-1c7e21774c45", name: "Sara", category: "Standard", image: face1 },
   { id: "084479bf-de7c-4df0-8d9c-5484193ecd27", name: "Mei", category: "Standard", image: face2 },

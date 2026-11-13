@@ -32,6 +32,7 @@ import { salesPlans, type SalesPlan } from '@/lib/salesActions';
 import SimliAvatar, { SOUND_BLOCKED, isVideoStartFailure, type SimliAvatarHandle } from '@/components/SimliAvatar';
 import { BOUNDARY_TARGET, boundedSettle, boundaryForAssistantLine, buildSwapRecap, chainIsMidSegment, chainStashTarget, cutoverAudioSync, cutoverMode, cutoverReady, dequeueSwapExecution, dropApologyVariant, enqueueSwapExecution, faceLivenessOnLive, faceLivenessOnNotLive, faceLivenessOnStartSettled, gateWaitContinues, INITIAL_SWAP_STATE, introYieldOnVisitorLine, micAudioPasses, noteAlexIntent, noteAspenIntent, noteDoorwayEngagement, noteSegmentFailure, otherFaceSlot, pendingExecutionBoundary, pendingRetryBoundary, PHASE_AFTER_BOUNDARY, PHASE_ENTRY, PRESTAGE_START_TIMEOUT_MS, prestageWatchDecision, reconnectTarget, recordSwapDiag, retryArmStamp, segmentAttemptsFor, segmentConnectRetryAllowed, segmentTokenStale, SEGMENT_TOKEN_TTL_MS, swapBridgeDue, swapDiagPersistPayload, swapFallbackLine, swapWatchdogAction, SWAP_CROSSFADE_MS, SWAP_GATE_POLL_MS, SWAP_GATE_WAIT_MS, swapRecapFacts, SWAP_DIAG_PERSIST_EVENTS, visitorSignalsStepOut, type ChainStash, type FaceSlot, type PersonaBoundary, type PersonaId, type StagedFaceLiveness, type SwapDiagEntry, type SwapPhase, type SwapState } from '@/lib/personaSwap';
 import { PERSONAS, SARA_FACE_ID } from '../../supabase/functions/_shared/personas';
+import { presenterForExampleLeadId } from '@/data/realtorExamplePinnedLeads';
 import { ALEX_FACE_ID } from '../../supabase/functions/_shared/alex-guide';
 import type { VideoAvatar } from '../../supabase/functions/_shared/video-avatar';
 import { PersonPortrait, PersonaNameLabel } from '@/components/FloatingPersonFrame';
@@ -166,6 +167,17 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const onPrewarmedRef = useRef(onPrewarmed); onPrewarmedRef.current = onPrewarmed;
   const onUserTranscriptRef = useRef(onUserTranscript); onUserTranscriptRef.current = onUserTranscript;
   const onPersonaChangeRef = useRef(onPersonaChange); onPersonaChangeRef.current = onPersonaChange;
+  // EXAMPLE PRESENTER (Frank batch, 2026-11-13): a one-click example
+  // session (sample) on a PINNED example lead with a presenter in the
+  // map is fronted SOLO by that persona — no Aspen host, no Sara
+  // segment, no swap. Derived from props at mount so the presenter's
+  // face/name render from the first frame; the session and the face
+  // token are authorized server-side against the server's own copy
+  // of the map (gemini-session stamps the parent config;
+  // simli-avatar checks the leadId), so this derivation only steers
+  // rendering — it earns nothing by itself. Null for every other
+  // session, which keeps all existing paths byte-identical.
+  const presenterPersona: PersonaId | null = sample ? presenterForExampleLeadId(leadId) : null;
   // ------------------------------------------------------------------
   // AVATAR SWAP state machine (Stage 1). Everything below is inert
   // unless the server enables the flow: swapEnabledRef is set ONLY from
@@ -1726,6 +1738,15 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         setActivePersona('aspen');
         visitChainStash.delete(agentId || "homepage");
       }
+      // Example presenter (Frank batch): this parent is a
+      // solo-presenter demo — the server withheld the swap stamp, so
+      // no cut-over will ever report the presenter to the shell.
+      // Report him once, at authorization, so the shell's name +
+      // portrait follow the presenter from the first frame.
+      // Reconnects re-authorize and re-fire: idempotent by design.
+      if (!preview && presenterPersona && leadId) {
+        onPersonaChangeRef.current?.({ id: presenterPersona, displayName: PERSONAS[presenterPersona].displayName });
+      }
       homepageWalkthroughRef.current = authorized.homepageSales === true;
       idleRef.current = { enabled: (authorized.idleChecks === true || authorized.homepageSales === true) && !preview, stage: 'waiting', quietSince: Date.now(), generating: true, requestedAt: 0 };
       setHandoffToken(authorized.handoffToken || null);
@@ -3240,7 +3261,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // Alex registry entry for the guide session, and the session's agent
   // identity name otherwise (a tenant agent's own name on their own
   // widget; "Aspen" on platform surfaces).
-  const personaLabelName = guide === 'alex' ? PERSONAS.alex.displayName : activePersona !== 'aspen' ? PERSONAS[activePersona].displayName : name;
+  const personaLabelName = guide === 'alex' ? PERSONAS.alex.displayName : activePersona !== 'aspen' ? PERSONAS[activePersona].displayName : presenterPersona ? PERSONAS[presenterPersona].displayName : name;
+  // Status-line speaker name: identical to today's registry read
+  // except on a presenter session, whose only speaker is the
+  // presenter even though the swap machine's persona stays 'aspen'.
+  const speakerName = presenterPersona && activePersona === 'aspen' ? PERSONAS[presenterPersona].displayName : PERSONAS[activePersona].displayName;
   const activeVideoAvatar: VideoAvatar | undefined = activePersona === 'sara' && videoAvatar
     ? { ...videoAvatar, faceId: SARA_FACE_ID }
     : activePersona === 'alex' && videoAvatar
@@ -3317,7 +3342,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const mainFaceLayer = mainFace ? (mainFace.revealed ? (fadingSlot === 'main' ? 1 : 2) : 0) : undefined;
   const avatarView = videoAvatar?.enabled && !previewOnly ? (mainFace
     ? <SimliAvatar ref={mainSlotRef} inline={avatarInline || faceFirst} unboxed={faceFirst} avatar={{ ...videoAvatar, faceId: mainFace.persona === 'sara' ? SARA_FACE_ID : mainFace.persona === 'alex' ? ALEX_FACE_ID : videoAvatar.faceId }} persona={mainFace.persona} personaParentSessionId={parentSessionIdRef.current || undefined} personaVisitorKey={visitorKeyRef.current || undefined} concealed={!mainFace.revealed} layer={mainFaceLayer} onLiveChange={live => handleFaceLiveChange('main', live, mainFace)} />
-    : <SimliAvatar ref={mainSlotRef} inline={avatarInline || faceFirst} unboxed={faceFirst} avatar={activeVideoAvatar ?? videoAvatar} agentId={agentId} shareToken={shareToken} draft={draft} guide={guide} onLiveChange={live => handleFaceLiveChange('main', live, null)} />) : null;
+    : <SimliAvatar ref={mainSlotRef} inline={avatarInline || faceFirst} unboxed={faceFirst} avatar={presenterPersona ? { ...videoAvatar, faceId: PERSONAS[presenterPersona].faceId ?? videoAvatar.faceId } : (activeVideoAvatar ?? videoAvatar)} agentId={agentId} shareToken={shareToken} draft={draft} guide={guide} persona={presenterPersona ?? undefined} personaLeadId={presenterPersona ? leadId : undefined} onLiveChange={live => handleFaceLiveChange('main', live, null)} />) : null;
   // SECOND face slot: the incoming persona's instance — mounted
   // concealed while a boundary is armed (live but hidden and muted),
   // revealed by the cut-over's crossfade, and kept mounted as the
@@ -3527,7 +3552,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           <p className="min-w-0 flex-1 break-words text-xs leading-snug text-foreground" role="status">
             {shownPhase === "live" && (
               <span className="font-semibold text-foreground">
-                {swapConnecting ? `Connecting ${PERSONAS[swapConnecting].displayName}…` : handoffActive ? t("voice.managerHandoff") : paused ? t("voice.paused") : replaying ? t("voice.replayingSavedAudio") : muted ? t("voice.micMuted") : aspenSpeaking ? t("voice.speaking", { name: PERSONAS[activePersona].displayName }) : captureMode === "hold" && !held ? t("voice.holdToTalk") : t("voice.listening")}
+                {swapConnecting ? `Connecting ${PERSONAS[swapConnecting].displayName}…` : handoffActive ? t("voice.managerHandoff") : paused ? t("voice.paused") : replaying ? t("voice.replayingSavedAudio") : muted ? t("voice.micMuted") : aspenSpeaking ? t("voice.speaking", { name: speakerName }) : captureMode === "hold" && !held ? t("voice.holdToTalk") : t("voice.listening")}
               </span>
             )}
             {shownPhase !== "live" && (shownPhase === "idle" ? t("voice.readyToTalk") : faceWaiting ? t("voice.connecting") : status)}
@@ -3800,7 +3825,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             <p className="text-xs text-muted-foreground">
               {phase === "live" && (
                 <span className="font-semibold text-foreground">
-                  {swapConnecting ? `Connecting ${PERSONAS[swapConnecting].displayName}…` : paused ? t("voice.pausedResume") : replaying ? t("voice.replayingMicPaused") : muted ? t("voice.micMuted") : aspenSpeaking ? t("voice.isSpeaking", { name: PERSONAS[activePersona].displayName }) : captureMode === "hold" && !held ? t("voice.micPaused") : t("voice.listening")}
+                  {swapConnecting ? `Connecting ${PERSONAS[swapConnecting].displayName}…` : paused ? t("voice.pausedResume") : replaying ? t("voice.replayingMicPaused") : muted ? t("voice.micMuted") : aspenSpeaking ? t("voice.isSpeaking", { name: speakerName }) : captureMode === "hold" && !held ? t("voice.micPaused") : t("voice.listening")}
                   {" — "}
                 </span>
               )}

@@ -363,8 +363,14 @@ describe('swap-audio fix batch (2026-11-09 evening) — defects 1, 2, 4', () => 
   });
 
   test('defect 2: both speaking labels render the ACTIVE persona, never the static name prop', () => {
-    expect(convo).toContain('t("voice.speaking", { name: PERSONAS[activePersona].displayName })');
-    expect(convo).toContain('t("voice.isSpeaking", { name: PERSONAS[activePersona].displayName })');
+    // Frank batch (2026-11-13): the labels read speakerName — the
+    // registry-driven speaker name, which is PERSONAS[activePersona]
+    // in every session except a solo-presenter demo (where the swap
+    // machine's persona stays 'aspen' but the only speaker is the
+    // presenter). Still never the static name prop.
+    expect(convo).toContain('const speakerName = presenterPersona && activePersona === \'aspen\' ? PERSONAS[presenterPersona].displayName : PERSONAS[activePersona].displayName;');
+    expect(convo).toContain('t("voice.speaking", { name: speakerName })');
+    expect(convo).toContain('t("voice.isSpeaking", { name: speakerName })');
     expect(convo).not.toContain('t("voice.speaking", { name })');
     expect(convo).not.toContain('t("voice.isSpeaking", { name })');
     // The name prop still serves the strings that mean the tenant agent.
