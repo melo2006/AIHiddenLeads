@@ -8,6 +8,7 @@ import { isCapturedCopyPreview } from "../lib/demoStartup";
 
 const read = (rel: string) => readFileSync(new URL(rel, import.meta.url), "utf8");
 const scanSource = read("../../supabase/functions/scan-website/index.ts");
+const firecrawlShotSource = read("../../supabase/functions/_shared/firecrawl-screenshot.ts");
 const sessionSource = read("../../supabase/functions/gemini-session/index.ts");
 const proxySource = read("../../supabase/functions/gemini-live-proxy/index.ts");
 const demoSiteSource = read("../pages/DemoSite.tsx");
@@ -42,10 +43,21 @@ describe("full-page capture (scan-website)", () => {
     expect(scanSource).toContain("height: fullPageHeightPx, scale: 1");
   });
 
-  it("Firecrawl fallback asks for a full-page screenshot at desktop size", () => {
-    expect(scanSource).toContain(
-      "screenshotOptions: { fullPage: true, viewport: { width: 1920, height: 1080 } }",
+  it("Firecrawl fallback asks for a full-page screenshot at desktop size (v2 format object)", () => {
+    // v1's `screenshotOptions` key is rejected by Firecrawl now (400,
+    // 2026-11-13); v2 carries the options inside the screenshot format
+    // object, built by the shared client the fallback calls.
+    expect(firecrawlShotSource).toContain(
+      "{ type: 'screenshot', fullPage: true, viewport: { width: 1920, height: 1080 } }",
     );
+    expect(firecrawlShotSource).toContain("https://api.firecrawl.dev/v2");
+    expect(scanSource).toContain("fetchFirecrawlScreenshot(url, apiKey)");
+    expect(scanSource).not.toContain("screenshotOptions");
+  });
+
+  it("scan-website persists screenshot provenance best-effort (separate update)", () => {
+    expect(scanSource).toContain("screenshot_provider: screenshotProvider");
+    expect(scanSource).toContain("column may not be applied yet");
   });
 
   it("oversized captures are JPEG-capped via the browser, never kept as expiring URLs", () => {

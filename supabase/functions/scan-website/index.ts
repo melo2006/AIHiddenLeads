@@ -5,6 +5,7 @@ const corsHeaders = {
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { learningLinks } from '../_shared/website-learning.ts';
+import { fetchFirecrawlScreenshot, markFirecrawlRequest } from '../_shared/firecrawl-screenshot.ts';
 
 const FIRECRAWL_BASE = 'https://api.firecrawl.dev/v1';
 const GOOGLE_AI_BASE = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
@@ -686,6 +687,9 @@ async function firecrawlRequest(path: string, apiKey: string, body: Record<strin
       console.log(`Firecrawl retry ${attempt} for ${path} (simplified)`);
     }
 
+    // Stamp the shared Firecrawl pacing clock so the v2 screenshot leg can
+    // hold off briefly instead of bursting into a free-tier 429.
+    markFirecrawlRequest();
     const response = await fetch(`${FIRECRAWL_BASE}${path}`, {
       method: 'POST',
       headers: {
@@ -730,19 +734,11 @@ async function scrapeMarkdownPage(url: string, apiKey: string) {
 
 async function scrapeScreenshotFallback(url: string, apiKey: string) {
   try {
-    const response = await firecrawlRequest('/scrape', apiKey, {
-      url,
-      formats: ['screenshot'],
-      // JS-driven heroes can take well over 3s to paint (greatgulf.com's
-      // needed ~10s+; captured at 3s it was a solid background-color frame).
-      // Match the settle budget spirit of the Browserless path (14s).
-      waitFor: 10000,
-      timeout: 40000,
-      // Fallback parity with the Browserless desktop capture: full page,
-      // not one viewport. Firecrawl has no height cap — the size bound is
-      // enforced at re-host time by JPEG-capping (capScreenshotBytes).
-      screenshotOptions: { fullPage: true, viewport: { width: 1920, height: 1080 } },
-    }, 0);
+    // v2 /scrape via the shared client: the v1 endpoint rejects the old
+    // v1-style screenshot options key (400, live logs 2026-11-13). The
+    // shared call carries the pacing + bounded 429 retry; the returned
+    // Firecrawl URL still expires in 24h, so the caller re-hosts it.
+    const response = await fetchFirecrawlScreenshot(url, apiKey);
 
     const data = unwrapFirecrawlPayload(response);
     const screenshotUrl = typeof data?.screenshot === 'string' && data.screenshot ? data.screenshot : null;
@@ -1698,6 +1694,19 @@ Deno.serve(async (req) => {
       console.warn('Could not save preview data early:', previewUpdate.error);
     }
 
+    // Best-effort screenshot provenance, in its OWN update on purpose: the
+    // screenshot_provider column lands via migration
+    // 20261113170000_leads_screenshot_provider, which may not be applied
+    // yet — a missing column must never break the scan, it just logs.
+    // (Before this column, a generated placeholder was indistinguishable
+    // from a real capture in the row itself.)
+    const providerPreviewWrite = await supabase.from('leads').update({
+      screenshot_provider: screenshotProvider,
+    }).eq('id', leadId);
+    if (providerPreviewWrite.error) {
+      console.warn('Could not save screenshot provider (column may not be applied yet):', providerPreviewWrite.error.message);
+    }
+
     // === PHASE 2: Sub-pages (skip if running out of time) ===
     // Learn directly linked menu/product pages; depth 2 adds links discovered on those pages.
     let successfulPages: { url: string; title: string; summary: string; markdown: string }[] = [];
@@ -1911,6 +1920,15 @@ Deno.serve(async (req) => {
         JSON.stringify({ success: false, error: 'Failed to save scan results' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
+    }
+
+    // Same best-effort provenance write as the preview save (see above) —
+    // separate update, warn-only, safe before the migration lands.
+    const providerFinalWrite = await supabase.from('leads').update({
+      screenshot_provider: screenshotProvider,
+    }).eq('id', leadId);
+    if (providerFinalWrite.error) {
+      console.warn('Could not save screenshot provider on final write (column may not be applied yet):', providerFinalWrite.error.message);
     }
 
     console.log('Scan completed for lead:', leadId, '— content length:', initialContent.length);
