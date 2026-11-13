@@ -293,6 +293,8 @@ Deno.serve(async (req) => {
             personaDrop: (config.personaDrop ?? null) as { persona: 'aspen' | 'sara' | 'alex'; drops: number } | null,
             personaResume: (config.personaResume ?? null) as { persona: 'aspen' | 'sara' | 'alex' } | null,
             resumeContext: config.resumeContext,
+            segmentGreeting: config.segmentGreeting,
+            businessName: config.businessName,
             reconnect: config.reconnect === true,
             simulation: config.simulation === true,
             verificationGate: config.verificationGate === true,

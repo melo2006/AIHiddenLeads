@@ -174,16 +174,25 @@ export interface CutoverAudioSync {
    *  instance's desired sink starts unset, so routing must be re-applied
    *  or a swap silently reverts to the platform default. */
   deviceId: string | null;
+  /** The session's in-panel speaker volume (0..1) — the incoming
+   *  instance starts at unity, so the visitor's chosen level must ride
+   *  the sync or a swap silently restores full volume (2026-11-13). */
+  volume: number;
 }
 export function cutoverAudioSync(input: {
   speakerMuted: boolean;
   paused: boolean;
   replaying: boolean;
   selectedDeviceId: string | null;
+  /** In-panel speaker volume; omitted keeps the pre-volume behaviour (unity). */
+  speakerVolume?: number;
 }): CutoverAudioSync {
   return {
     muted: input.speakerMuted || input.paused || input.replaying,
     deviceId: input.selectedDeviceId,
+    volume: typeof input.speakerVolume === 'number' && Number.isFinite(input.speakerVolume)
+      ? Math.min(1, Math.max(0, input.speakerVolume))
+      : 1,
   };
 }
 

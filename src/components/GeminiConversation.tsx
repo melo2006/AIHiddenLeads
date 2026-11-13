@@ -42,6 +42,7 @@ import PlaybackCaption from '@/components/PlaybackCaption';
 import { voiceSessionHeaders } from '@/lib/voiceSessionAuth';
 import { shouldShowMicHint } from '@/lib/micAudibility';
 import { createMediaSink, mediaPlaybackNode, type MediaSink } from '@/lib/mediaSink';
+import { clampPlaybackVolume, effectivePlaybackLevel, loadPlaybackVolume, savePlaybackVolume } from '@/lib/playbackVolume';
 import { applySinkIdToElement, audioContextSetSinkIdSupported, buildSpeakerMenuOptions, listSpeakerOutputs, pickDefaultSpeakerOutput, type SpeakerMenuOption, type SpeakerOutputDevice } from '@/lib/speakerOutput';
 
 const MICROPHONE_DENIED = "Microphone permission was denied — allow it in your browser and try again.";
@@ -392,6 +393,14 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const [speakerMuted, setSpeakerMuted] = useState(false);
   const speakerMutedRef = useRef(false);
   const speakerGainRef = useRef<GainNode | null>(null);
+  // In-panel speaker volume (2026-11-13): the visitor's level for BOTH
+  // playback paths — the local speaker gain below and every Simli face
+  // instance's element volume. Hardware volume keys cannot be trusted
+  // to reach the paired stream on Android (see lib/playbackVolume.ts),
+  // so this slider is the guaranteed control. Default unity = the
+  // historical behaviour; the mute toggle still overrides it.
+  const [playbackVolume, setPlaybackVolume] = useState<number>(() => loadPlaybackVolume());
+  const playbackVolumeRef = useRef(playbackVolume);
   // Speaker-output selection (2026-11-09, owner's earpiece complaint):
   // where her audible voice plays — a real device via setSinkId when the
   // platform exposes one, otherwise the platform route. SESSION-SCOPED
@@ -1126,7 +1135,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         if (slot === 'second') setSecondFace(face => (face && face.boundary === target.personaSegment?.boundary ? { ...face, revealed: true } : face));
         else setMainFace(face => (face && face.boundary === target.personaSegment?.boundary ? { ...face, revealed: true } : face));
         setFaceLive(true);
-        const sync = cutoverAudioSync({ speakerMuted: speakerMutedRef.current, paused: captureRef.current.paused, replaying: captureRef.current.replaying, selectedDeviceId: selectedOutputIdRef.current });
+        const sync = cutoverAudioSync({ speakerMuted: speakerMutedRef.current, paused: captureRef.current.paused, replaying: captureRef.current.replaying, selectedDeviceId: selectedOutputIdRef.current, speakerVolume: playbackVolumeRef.current });
         try { await handle.cutoverAudioSync?.(sync); }
         catch (e) { if (e instanceof Error && e.message === SOUND_BLOCKED) setAudioNeedsTap(true); }
       } else {
@@ -1243,7 +1252,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     }
     if (!pairedVideo) {
       const spkGain = ctx.createGain();
-      spkGain.gain.value = speakerMutedRef.current ? 0 : 1;
+      spkGain.gain.value = effectivePlaybackLevel(speakerMutedRef.current, playbackVolumeRef.current);
       speakerGainRef.current = spkGain;
       source.connect(spkGain);
       // Media-routed output (see lib/mediaSink.ts): through the audio
@@ -1321,12 +1330,29 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     }
   }, [pauseCapture, clearPlayback]);
 
+  // In-panel speaker volume: apply the visitor's level to every audible
+  // sink this session owns — the local speaker gain (voice-only/replay
+  // path) and each Simli face instance's element (paired path), active,
+  // pre-staged and main slot alike, so a persona who takes over mid-call
+  // speaks at the chosen level too. The cut-over sync also carries the
+  // level for instances that (re)start later.
+  const applyPlaybackVolume = useCallback((volume: number) => {
+    const level = clampPlaybackVolume(volume);
+    playbackVolumeRef.current = level;
+    setPlaybackVolume(level);
+    savePlaybackVolume(level);
+    if (speakerGainRef.current) speakerGainRef.current.gain.value = effectivePlaybackLevel(speakerMutedRef.current, level);
+    avatarRef.current?.setPlaybackVolume?.(level);
+    stagedAvatarRef.current?.setPlaybackVolume?.(level);
+    mainSlotRef.current?.setPlaybackVolume?.(level);
+  }, []);
+
   // Silence speaker: mute all voice audio while keeping live captions and conversation running.
   const toggleSpeakerMute = useCallback(() => {
     const next = !speakerMutedRef.current;
     speakerMutedRef.current = next;
     setSpeakerMuted(next);
-    if (speakerGainRef.current) speakerGainRef.current.gain.value = next ? 0 : 1;
+    if (speakerGainRef.current) speakerGainRef.current.gain.value = effectivePlaybackLevel(next, playbackVolumeRef.current);
     avatarRef.current?.setPlaybackMuted(next || captureRef.current.paused || captureRef.current.replaying);
     if (next) setCaptions(true);
   }, []);
@@ -2411,7 +2437,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     if (!handle) return;
     faceTakeoverBusyRef.current = true;
     try {
-      const sync = cutoverAudioSync({ speakerMuted: speakerMutedRef.current, paused: captureRef.current.paused, replaying: captureRef.current.replaying, selectedDeviceId: selectedOutputIdRef.current });
+      const sync = cutoverAudioSync({ speakerMuted: speakerMutedRef.current, paused: captureRef.current.paused, replaying: captureRef.current.replaying, selectedDeviceId: selectedOutputIdRef.current, speakerVolume: playbackVolumeRef.current });
       let faceLive = true;
       if (handle.cutoverAudioSync) {
         try { faceLive = (await handle.cutoverAudioSync(sync)) !== false; }
@@ -2610,7 +2636,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         // before the first paired chunk is routed.
         let voiceFirstReason = staged.faceFailed ? 'face-failed' : 'face-not-ready';
         if (mode === 'face-first') {
-          const sync = cutoverAudioSync({ speakerMuted: speakerMutedRef.current, paused: captureRef.current.paused, replaying: captureRef.current.replaying, selectedDeviceId: selectedOutputIdRef.current });
+          const sync = cutoverAudioSync({ speakerMuted: speakerMutedRef.current, paused: captureRef.current.paused, replaying: captureRef.current.replaying, selectedDeviceId: selectedOutputIdRef.current, speakerVolume: playbackVolumeRef.current });
           // Paired-audio guard (2026-11-10): the sync REPORTS liveness
           // (false = dead client / no audio stream). Handles that
           // predate the signal resolve undefined and keep the legacy
@@ -3603,6 +3629,19 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
               <span>Mic level</span>
               <meter min="0" max="100" value={micLevel} aria-label="Microphone level" className="h-2 w-24" />
               <span>{micLevel > 3 ? "Sound — your voice is registering" : "Quiet — speak and watch this move"}</span>
+            </div>
+            {/* Speaker volume (2026-11-13): the guaranteed in-panel level
+                for BOTH playback paths — on Android the hardware keys
+                can miss the paired stream entirely (see
+                lib/playbackVolume.ts). Lives with the other voice
+                settings inside this dialog, per the panel layout rules
+                (no new control over the portrait). */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label htmlFor="aspen-speaker-volume" className="text-[11px] font-semibold text-muted-foreground">{t("voice.speakerVolume")}</label>
+                <span className="text-[11px] text-muted-foreground">{Math.round(playbackVolume * 100)}%</span>
+              </div>
+              <input id="aspen-speaker-volume" type="range" min={0} max={100} step={1} value={Math.round(playbackVolume * 100)} onChange={(e) => applyPlaybackVolume(Number(e.target.value) / 100)} aria-label={t("voice.speakerVolume")} className="w-full accent-primary" />
             </div>
             {draft && (
               <Button variant="outline" size="sm" className="h-8 text-xs" disabled={phase !== "idle"} onClick={() => void startConversation(true)} aria-label={t("voice.previewVoice")} title={t("voice.previewVoice")}>

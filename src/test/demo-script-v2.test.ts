@@ -44,7 +44,12 @@ test('C1b: the entry sequence runs the beats in order (incl. Sara\'s honesty not
   expect(SIMULATION_PROMPT).toContain('about 2 minutes of learning');
   expect(SIMULATION_PROMPT).toContain('keeps perfecting and expanding my knowledge base');
   expect(SIMULATION_PROMPT).toContain('a slow count of 3 in silence');
-  expect(SIMULATION_PROMPT).toContain('Never open the role with "how can I help you."');
+  // Bug 2 (2026-11-13, Ron's Andriot retest) supersedes the old
+  // "never open the role with how can I help you" law: the in-role
+  // greeting now CLOSES with the question — a bare opening with it,
+  // detached from the greeting, is still banned.
+  expect(SIMULATION_PROMPT).toContain('thanks for calling. How can I help you?');
+  expect(SIMULATION_PROMPT).toContain('never a bare opening on its own');
   expect(SIMULATION_PROMPT).toContain('30 to 45 second overview');
   expect(SIMULATION_PROMPT).toContain('skip this ask entirely if the visitor\'s name is already known');
   expect(SIMULATION_PROMPT).toContain('Is there anything specific you would like to find out about {businessName}?');

@@ -321,10 +321,12 @@ describe('swap-audio fix batch (2026-11-09 evening) — defects 1, 2, 4', () => 
   const simli = read('src/components/SimliAvatar.tsx');
 
   test('defect 1: the cut-over audio sync is mute-sync, routing, activate — in that order', () => {
+    // Bug 1 (2026-11-13): the sync also carries the in-panel speaker
+    // volume — unity when the caller states no level.
     expect(cutoverAudioSync({ speakerMuted: false, paused: false, replaying: false, selectedDeviceId: null }))
-      .toEqual({ muted: false, deviceId: null });
+      .toEqual({ muted: false, deviceId: null, volume: 1 });
     expect(cutoverAudioSync({ speakerMuted: true, paused: false, replaying: false, selectedDeviceId: 'spk-1' }))
-      .toEqual({ muted: true, deviceId: 'spk-1' });
+      .toEqual({ muted: true, deviceId: 'spk-1', volume: 1 });
     // A muted outgoing state yields a muted incoming activation: pause
     // and replay states mute exactly like the speaker toggle does.
     expect(cutoverAudioSync({ speakerMuted: false, paused: true, replaying: false, selectedDeviceId: null }).muted).toBe(true);
@@ -339,7 +341,7 @@ describe('swap-audio fix batch (2026-11-09 evening) — defects 1, 2, 4', () => 
     expect(syncAt).toBeGreaterThan(repoint);
     expect(socketAt).toBeGreaterThan(syncAt);
     // The sync payload is the session's CURRENT effective state.
-    expect(convo).toContain('cutoverAudioSync({ speakerMuted: speakerMutedRef.current, paused: captureRef.current.paused, replaying: captureRef.current.replaying, selectedDeviceId: selectedOutputIdRef.current })');
+    expect(convo).toContain('cutoverAudioSync({ speakerMuted: speakerMutedRef.current, paused: captureRef.current.paused, replaying: captureRef.current.replaying, selectedDeviceId: selectedOutputIdRef.current, speakerVolume: playbackVolumeRef.current })');
     // A sound block surfaces the tap affordance instead of failing the swap.
     expect(convo).toContain("e.message === SOUND_BLOCKED) setAudioNeedsTap(true)");
     // The trap stays shut: no start() re-call inside the cut-over body.
@@ -357,7 +359,7 @@ describe('swap-audio fix batch (2026-11-09 evening) — defects 1, 2, 4', () => 
     expect(sinkAt).toBeGreaterThan(muteAt);
     expect(playAt).toBeGreaterThan(sinkAt);
     expect(body).toContain("throw new Error(SOUND_BLOCKED)");
-    expect(simli).toContain('cutoverAudioSync?: (sync: { muted: boolean; deviceId: string | null }) => Promise<boolean>');
+    expect(simli).toContain('cutoverAudioSync?: (sync: { muted: boolean; deviceId: string | null; volume?: number }) => Promise<boolean>');
   });
 
   test('defect 2: both speaking labels render the ACTIVE persona, never the static name prop', () => {

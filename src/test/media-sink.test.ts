@@ -16,6 +16,16 @@ const conversation = read("../components/GeminiConversation.tsx");
  * output keeps the destination fallback so a blocked element can never
  * silence a call. No app-side gain override exists on this path: the
  * only gain is the speaker-mute toggle (0 / unity).
+ *
+ * UPDATE (2026-11-13, Ron's Andriot phone test — owner-directed change
+ * of the 2026-11-09 rule): the hardware keys ALSO missed the paired
+ * Simli stream (a WebRTC element whose stream class page code cannot
+ * choose), so an in-panel speaker volume now exists. On THIS local path
+ * it lands on the same per-chunk gain: effectivePlaybackLevel(muted,
+ * volume) — unity by default (the historical behaviour), 0 whenever
+ * the speaker-mute toggle is on (mute still wins). GeminiConversation
+ * itself still never assigns an element's .volume; the paired path's
+ * element volume is owned by SimliAvatar.
  */
 describe("media sink", () => {
   it("is unavailable (destination fallback) when the context cannot create a stream destination", () => {
@@ -76,9 +86,9 @@ describe("conversation wiring", () => {
     expect(conversation).toContain("mediaOutputNode(playCtx)");
   });
 
-  it("applies no app-side volume override on the local path (speaker toggle is 0 / unity only)", () => {
+  it("applies the in-panel speaker volume on the local path (mute wins; element volume stays out of this file)", () => {
     expect(conversation).not.toMatch(/\.volume\s*=/);
-    expect(conversation).toContain("spkGain.gain.value = speakerMutedRef.current ? 0 : 1");
+    expect(conversation).toContain("spkGain.gain.value = effectivePlaybackLevel(speakerMutedRef.current, playbackVolumeRef.current)");
   });
 
   it("surfaces the can't-hear-you hint with a settings shortcut, and the hold-to-talk chip", () => {
