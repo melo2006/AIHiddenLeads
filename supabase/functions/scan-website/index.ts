@@ -6,6 +6,7 @@ const corsHeaders = {
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { learningLinks } from '../_shared/website-learning.ts';
 import { fetchFirecrawlScreenshot, markFirecrawlRequest } from '../_shared/firecrawl-screenshot.ts';
+import { rehostScreenshotUrlWith } from '../_shared/screenshot-rehost.ts';
 
 const FIRECRAWL_BASE = 'https://api.firecrawl.dev/v1';
 const GOOGLE_AI_BASE = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
@@ -761,12 +762,12 @@ async function scrapeScreenshotFallback(url: string, apiKey: string) {
 const REHOST_MAX_BYTES = 8 * 1024 * 1024;
 
 /**
- * Maximum bytes for a screenshot we will store. This ONE bound applies
- * everywhere a capture is persisted — the Browserless storage upload AND
- * the Firecrawl re-host — so an oversized capture can never take the
- * "keep the original URL" dead-link shortcut (Firecrawl signed URLs
- * expire; a stored one 403s in the demo — verified 2026-11-09). Captures
- * above the bound are JPEG-capped down to it instead.
+ * Preferred maximum bytes for a stored screenshot. Captures above this
+ * target are JPEG-capped when conversion works, because smaller objects
+ * load faster and cost less to serve. The target is NOT a permanence gate:
+ * if conversion is unavailable or fails, the downloaded original bytes are
+ * still stored (subject to the re-host download ceiling) rather than left
+ * on a Firecrawl signed URL that expires and later 403s in the demo.
  */
 export const SCREENSHOT_MAX_BYTES = REHOST_MAX_BYTES;
 
@@ -942,23 +943,18 @@ export async function isLikelyBlankScreenshot(
   }
 }
 
+// Hard sanity ceiling on the re-host DOWNLOAD only: past ~32 MB the bytes
+// are not worth hauling into the function. Between the preferred storage
+// bound and this ceiling, the capture is downloaded and JPEG-capped — or,
+// if capping fails, stored as the original bytes (see the shared helper).
+const REHOST_DOWNLOAD_CEILING = 32 * 1024 * 1024;
+
 /**
- * Re-host a Firecrawl screenshot URL into our own public `email-assets`
- * bucket and return the public bucket URL.
- *
- * Why: Firecrawl hands back a signed storage URL that expires — leads saved
- * with it later render a dead screenshot (verified 2026-11-09: the stored
- * URL for a live demo returned HTTP 403, leaving the demo blank when the
- * site also blocked iframe embedding). Downloading the bytes at scan time,
- * while the signed URL is still fresh, makes the stored link permanent.
- *
- * Failure policy: download/upload failures return the original Firecrawl
- * URL — re-hosting must never fail or block the scan. SIZE is no longer a
- * keep-original case: an oversized capture is JPEG-capped down to the
- * storage bound first (full-page shots make >8MB normal); only a capture
- * that survives oversized even after capping — or a download so large the
- * declared length alone exceeds a hard sanity ceiling — keeps the
- * original URL, because storing SOME picture beats storing none.
+ * Adapt the dependency-injected re-host helper to this function's Supabase
+ * storage bucket. The helper owns the permanence policy: conversion is
+ * attempted for oversized captures, but a failed/still-oversized conversion
+ * uploads the downloaded original bytes instead of keeping Firecrawl's
+ * expiring signed URL. Only download/upload failures keep the provider URL.
  */
 async function rehostScreenshotUrl(
   screenshotUrl: string,
@@ -968,77 +964,32 @@ async function rehostScreenshotUrl(
   suffix = 'desktop',
   browserlessApiKey?: string | null,
 ): Promise<string> {
-  try {
-    // Already ours (public bucket) or an inline image — nothing to re-host.
-    if (
-      screenshotUrl.startsWith('data:') ||
-      screenshotUrl.includes('/storage/v1/object/public/')
-    ) {
-      return screenshotUrl;
-    }
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Hard sanity ceiling on the DOWNLOAD only: past ~32 MB the bytes are
-    // not worth hauling into the function (a JPEG cap could not rescue the
-    // memory/time budget anyway). Between the storage bound and this
-    // ceiling, the capture is downloaded and JPEG-capped below.
-    const REHOST_DOWNLOAD_CEILING = 32 * 1024 * 1024;
-    const response = await fetch(screenshotUrl, { signal: AbortSignal.timeout(30000) });
-    if (!response.ok) {
-      console.warn(`[Rehost] Screenshot download failed (${response.status}), keeping original URL`);
-      return screenshotUrl;
-    }
+  return rehostScreenshotUrlWith(screenshotUrl, {
+    capBytes: (buffer) => capScreenshotBytesWith(buffer, browserlessApiKey ?? null),
+    preferredMaxBytes: REHOST_MAX_BYTES,
+    downloadCeiling: REHOST_DOWNLOAD_CEILING,
+    upload: async ({ bytes, contentType, extension }) => {
+      const filePath = `demo-screenshots/${leadId}-${suffix}.${extension}`;
+      const { error: uploadError } = await supabase.storage
+        .from('email-assets')
+        .upload(filePath, bytes, {
+          contentType,
+          upsert: true,
+        });
 
-    const declaredLength = Number(response.headers.get('content-length') || 0);
-    if (declaredLength > REHOST_DOWNLOAD_CEILING) {
-      console.warn(`[Rehost] Screenshot declared length ${declaredLength} beyond download ceiling, keeping original URL`);
-      return screenshotUrl;
-    }
-
-    let buffer = await response.arrayBuffer();
-    if (buffer.byteLength === 0) {
-      console.warn('[Rehost] Screenshot download was empty, keeping original URL');
-      return screenshotUrl;
-    }
-
-    let contentType = (response.headers.get('content-type') || 'image/png').split(';')[0].trim().toLowerCase();
-    if (buffer.byteLength > REHOST_MAX_BYTES) {
-      const capped = await capScreenshotBytesWith(buffer, browserlessApiKey ?? null);
-      if (capped.wasConverted) {
-        console.log(`[Rehost] Screenshot JPEG-capped ${buffer.byteLength} → ${capped.bytes.byteLength} bytes`);
-        buffer = capped.bytes;
-        contentType = capped.type;
-      } else if (buffer.byteLength > REHOST_MAX_BYTES) {
-        console.warn(`[Rehost] Screenshot still oversized (${buffer.byteLength} bytes) after capping attempt, keeping original URL`);
-        return screenshotUrl;
+      if (uploadError) {
+        console.error('[Rehost] Screenshot upload error, keeping original URL:', uploadError);
+        return null;
       }
-    }
 
-    const extension = contentType === 'image/jpeg' ? 'jpg' : contentType === 'image/webp' ? 'webp' : 'png';
-    const filePath = `demo-screenshots/${leadId}-${suffix}.${extension}`;
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    const { error: uploadError } = await supabase.storage
-      .from('email-assets')
-      .upload(filePath, buffer, {
-        contentType: contentType.startsWith('image/') ? contentType : 'image/png',
-        upsert: true,
-      });
-
-    if (uploadError) {
-      console.error('[Rehost] Screenshot upload error, keeping original URL:', uploadError);
-      return screenshotUrl;
-    }
-
-    const { data: publicUrlData } = supabase.storage
-      .from('email-assets')
-      .getPublicUrl(filePath);
-
-    console.log('[Rehost] Screenshot re-hosted:', publicUrlData.publicUrl);
-    return publicUrlData.publicUrl;
-  } catch (err) {
-    console.error('[Rehost] Screenshot re-host failed, keeping original URL:', err);
-    return screenshotUrl;
-  }
+      const { data: publicUrlData } = supabase.storage
+        .from('email-assets')
+        .getPublicUrl(filePath);
+      return publicUrlData.publicUrl;
+    },
+  });
 }
 
 const escapeSvgText = (value: string) =>
