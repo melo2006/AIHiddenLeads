@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import OutreachDialog from "./OutreachDialog";
 import CampaignSequenceEditor from "./CampaignSequenceEditor";
+import { campaignIdFromTargetFilters } from "@/lib/campaignIds";
 import type { Prospect } from "@/hooks/useProspectSearch";
 
 const CampaignDetailView = () => {
@@ -44,6 +45,13 @@ const CampaignDetailView = () => {
     queryFn: async () => {
       const filters = (campaign?.target_filters as any) || {};
       let query = supabase.from("prospects").select("*");
+
+      // A campaign bound to a prospect campaign_id slug (e.g. the Realtors
+      // regional campaigns) lists exactly those prospects, not a niche match.
+      const boundCampaignId = campaignIdFromTargetFilters(filters);
+      if (boundCampaignId) {
+        query = query.eq("campaign_id", boundCampaignId);
+      }
 
       if (filters.temperature && filters.temperature !== "all") {
         query = query.eq("lead_temperature", filters.temperature);
