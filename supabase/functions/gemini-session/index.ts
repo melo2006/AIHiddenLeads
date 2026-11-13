@@ -1,7 +1,7 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { z } from 'npm:zod@3';
-import { DEFAULT_AGENT, VOICES, openingFor, businessDemoConfig, businessDemoConfigSwapParent, SIMULATION_GREETING_LEGACY_SLIM, hourInTimeZone, sanitizeVisitorName, segmentTimeZone } from '../_shared/voice-config.ts';
+import { DEFAULT_AGENT, VOICES, openingFor, renderOpeningTemplate, businessDemoConfig, businessDemoConfigSwapParent, SIMULATION_GREETING_LEGACY_SLIM, hourInTimeZone, sanitizeVisitorName, segmentTimeZone } from '../_shared/voice-config.ts';
 import { DEFAULT_LIVE_MODEL, officialLivePricing } from '../_shared/live-models.ts';
 import { voiceQuotaClass, voiceLimitResponse } from '../_shared/voice-session-limit.ts';
 import { transferDestination } from '../_shared/browser-handoff.ts';
@@ -205,7 +205,7 @@ Deno.serve(async req=>{
   } else if(b.leadId || b.prospectId) {
     if(b.leadId && b.prospectId) { const {data:p}=await db.from('prospects').select('website_url').eq('id',b.prospectId).maybeSingle(); const {data:l}=await db.from('leads').select('website_url').eq('id',b.leadId).maybeSingle(); if(!p || !l || p.website_url!==l.website_url) return json({error:'Prospect and demo website do not match'},400); }
     let knowledge='', businessName=''; let visitorContact: Record<string,unknown> = {}; let leadInviteArrivedAt: unknown = null; let siteUrl='';
-    if(b.leadId) { const {data:lead}=await db.from('leads').select('business_name,website_url,website_content,scan_status,full_name,email,phone,invite_arrived_at').eq('id',b.leadId).maybeSingle(); if(!lead || !lead.website_content || !['completed','enriched','scanning'].includes(lead.scan_status) || lead.website_content.length<200) return json({error:'This business demo has not finished learning its website. Please wait for the scan.'},409); knowledge=lead.website_content; businessName=lead.business_name; siteUrl=lead.website_url || ''; visitorContact={name:lead.full_name,email:lead.email || '',phone:lead.phone || ''}; leadInviteArrivedAt=lead.invite_arrived_at; }
+    if(b.leadId) { const {data:lead}=await db.from('leads').select('business_name,website_url,website_content,scan_status,full_name,email,phone,invite_arrived_at').eq('id',b.leadId).maybeSingle(); if(!lead || !lead.website_content || !['completed','enriched','scanning'].includes(lead.scan_status) || lead.website_content.length<200) return json({error:'This business demo has not finished learning its website. Please wait for the scan.'},409); knowledge=lead.website_content; businessName=lead.business_name; siteUrl=lead.website_url || ''; visitorContact={name:sanitizeVisitorName(lead.full_name),email:lead.email || '',phone:lead.phone || ''}; leadInviteArrivedAt=lead.invite_arrived_at; }
     else { const {data:p}=await db.from('prospects').select('business_name,business_data,ai_analysis,website_url').eq('id',b.prospectId).maybeSingle(); if(!p) return json({error:'Demo business not found'},404); knowledge=JSON.stringify(p.business_data || {}); businessName=p.business_name; siteUrl=p.website_url || ''; if(knowledge.length<20) return json({error:'Prepare this prospect website demo before starting a call.'},409); }
     const {data:aspen}=await db.from('voice_agents').select('published').eq('slug','aspen-homepage').maybeSingle();
     const published=aspen?.published as Record<string,unknown>|undefined;
@@ -368,6 +368,27 @@ Deno.serve(async req=>{
   const greetingHour=hourInTimeZone(new Date(),effectiveTimeZone) ?? b.hour;
   const greetingName=sanitizeVisitorName(b.visitorName || String((config.visitorContact as Record<string,unknown>|undefined)?.name || ''));
   config={...config,timeZone:effectiveTimeZone,...(uiLocale ? {uiLocale, startLanguage: startingLanguageForUiLocale(uiLocale)} : {}),quotaClass:segmentParentId?'persona_segment':b.share?'visitor':voiceQuotaClass(role?.role==='admin',b.preview),model:requestedModel || DEFAULT_LIVE_MODEL,opening:openingFor(config,greetingHour,greetingName),preview:b.preview,resumeContext:b.preview?undefined:(segmentParentId?String(config.resumeContext || ''):b.resumeContext),reconnect:segmentParentId?false:!b.preview&&b.reconnect,campaign:b.campaign || (segmentParentId?(config.campaign ?? null):null),recordTranscript:segmentParentId?config.recordTranscript===true:!b.preview && transcriptAllowed(false,false,b.consent),recordAudio:segmentParentId?config.recordAudio===true:!b.preview && b.consent};
+  // DEMO-SITE OPENING RENDER (2026-11-12 late — live retest of the
+  // Scalone batch, session 96d54121): openingFor returned the picked
+  // demo rotation variant VERBATIM, and the demo-site variants are
+  // TEMPLATES ({timeGreeting} / {visitorFirstName} / {agentName} /
+  // {businessName}, invite variants also {nameConfirm}). The stored
+  // opening was the bare template and the model improvised the
+  // substitution at speak time — from the raw visitorContact in its
+  // prompt ("Good morning, CRM Prospect" at 21:30 America/New_York),
+  // bypassing the sanitized greetingName and the timezone-derived
+  // greetingHour computed above. Render the picked opening NOW, with
+  // those same two values, for DEMO PARENTS ONLY (lead/prospect
+  // branch, non-segment): the stored opening is the fully rendered
+  // text the proxy serves verbatim. Homepage, realtor-landing,
+  // segment, share, draft and preview openings keep the exact shapes
+  // openingFor has always produced (their variants are
+  // placeholder-free prose or pinned raw); the verification and
+  // legacy-slim demo shapes pass through greeting() already rendered,
+  // so for them this render is a no-op.
+  if(!segmentParentId && (b.leadId || b.prospectId)) {
+    config.opening=renderOpeningTemplate(config.opening,config,greetingHour,greetingName);
+  }
   const token=crypto.randomUUID()+crypto.randomUUID();
   const visitor=await hash(`${b.visitorKey}|${req.headers.get('x-forwarded-for')?.split(',')[0] || ''}`);
   const {data:id,error}=await db.rpc('authorize_gemini_session',{_visitor:visitor,_token:await hash(token),_config:config,_agent:agentId,_org:orgId,_lead:segmentParentId?(parentRowRef?.lead_id ?? null):b.leadId || null,_prospect:segmentParentId?(parentRowRef?.prospect_id ?? null):b.prospectId || null});

@@ -230,11 +230,47 @@ export function voicePreviewInstruction(opening?: unknown) {
   const text = typeof opening === 'string' && opening.trim() ? opening : 'Hi, I am Aspen. How can I help you today?';
   return `For a voice preview, say exactly this in English and nothing else: ${JSON.stringify(text)}`;
 }
+/** The template variables every greeting/opening substitution uses.
+ *  ONE builder, shared by greeting() and renderOpeningTemplate(), so
+ *  the two substitution paths can never drift apart. `name` must
+ *  already be sanitized by the caller (see sanitizeVisitorName). */
+function greetingVars(config: Record<string, unknown>, hour: number | undefined, name: string): Record<string, string> {
+  return { timeGreeting: timeGreeting(hour), agentName: String(config.name || 'Aspen'), businessName: String(config.businessName || ''), visitorName: name, visitorFirstName: name.trim().split(/\s+/)[0] || 'welcome', nameQuestion: name ? `It is nice to speak with you, ${name}. How can I help?` : 'What is your name?', nameConfirm: name ? `And just to check, is your name ${name.trim().split(/\s+/)[0]}?` : 'And by the way, what is your name?' };
+}
+function substituteGreetingVars(text: string, vars: Record<string, string>): string {
+  return text.replace(/\{(\w+)\}/g, (match, key) => vars[key] ?? match);
+}
 export function greeting(config: Record<string, unknown>, hour?: number, name = '') {
   // Placeholder sentinels ("CRM Prospect" & kin) are NO name (F6).
   name = sanitizeVisitorName(name);
-  const vars: Record<string,string> = { timeGreeting: timeGreeting(hour), agentName: String(config.name || 'Aspen'), businessName: String(config.businessName || ''), visitorName: name, visitorFirstName: name.trim().split(/\s+/)[0] || 'welcome', nameQuestion: name ? `It is nice to speak with you, ${name}. How can I help?` : 'What is your name?', nameConfirm: name ? `And just to check, is your name ${name.trim().split(/\s+/)[0]}?` : 'And by the way, what is your name?' };
-  return String(config.greeting || DEFAULT_AGENT.greeting).replace(/\{(\w+)\}/g, (match,key) => vars[key] ?? match);
+  return substituteGreetingVars(String(config.greeting || DEFAULT_AGENT.greeting), greetingVars(config, hour, name));
+}
+// DEMO-SITE OPENING RENDER (2026-11-12 late — live retest of the
+// Scalone batch, session 96d54121): openingFor() returns a picked
+// rotation variant VERBATIM — by design, since the homepage and
+// realtor rotations are placeholder-free prose (or pinned raw). The
+// DEMO-SITE variants are different: they are TEMPLATES whose heads
+// carry {timeGreeting} / {visitorFirstName} / {agentName} /
+// {businessName} (and the invite variants {nameConfirm}). Served raw,
+// the stored config.opening was the bare template (944 chars on the
+// proof row) and the MODEL improvised the substitution at speak time
+// from whatever context it could see — the raw, unsanitized
+// visitorContact in its system prompt ("CRM Prospect", the literal
+// name /demo creates its lead with) and its own UTC sense of the hour
+// ("Good morning" at 21:30 America/New_York). Both Scalone hygiene
+// rules (F6 name, F7 clock) were therefore bypassed on exactly this
+// path even though gemini-session computed the correct sanitized
+// name and timezone hour: openingFor's variant branch never used
+// them for the template heads. gemini-session now renders the picked
+// demo-parent opening through THIS function — the same vars greeting()
+// uses — so the stored opening is the fully rendered text, spoken
+// verbatim. Scoped by the caller to demo parents (leadId/prospectId,
+// non-segment): homepage, realtor, segment and preview openings keep
+// their pinned shapes untouched.
+export function renderOpeningTemplate(text: unknown, config: Record<string, unknown>, hour?: number, name = ''): string {
+  // Placeholder sentinels ("CRM Prospect" & kin) are NO name (F6).
+  name = sanitizeVisitorName(name);
+  return substituteGreetingVars(String(text ?? ''), greetingVars(config, hour, name));
 }
 export function openingFor(config: Record<string, unknown>, hour?: number, name = '') {
   // Placeholder sentinels ("CRM Prospect" & kin) are NO name (F6):
