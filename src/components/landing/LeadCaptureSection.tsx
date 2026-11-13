@@ -14,11 +14,14 @@ import {
   FileText,
   Link2,
   Building2,
+  ShieldCheck,
 } from "lucide-react";
 import { z } from "zod";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { DEMO_CONSENT_DISCLOSURE, DEMO_SMS_CONSENT_LABEL } from "@/lib/demoVerification";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import type { NicheData } from "@/data/nicheData";
@@ -112,6 +115,10 @@ const LeadCaptureSection = ({ selectedNiche }: LeadCaptureSectionProps) => {
   const navigate = useNavigate();
   const [viewState, setViewState] = useState<ViewState>("form");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // OPTIONAL SMS consent (Telnyx TFV alignment, Publish #41 Pick 2): a real
+  // checkbox, unchecked by default, mirrored exactly from the /demo intake —
+  // the demo builds identically whether or not it is ticked.
+  const [smsConsent, setSmsConsent] = useState(false);
   const [scanData, setScanData] = useState<DemoLeadData | null>(null);
   const [files, setFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -220,6 +227,20 @@ const LeadCaptureSection = ({ selectedNiche }: LeadCaptureSectionProps) => {
 
       if (error) throw error;
       if (!leadId) throw new Error("Demo lead was not created");
+
+      // Record the SMS checkbox choice on the lead (leads.sms_consent) via
+      // the same demo-consent path as the /demo intake
+      // (set_demo_lead_sms_consent). Best-effort like the uploads attach
+      // below: a failed write must never block the demo.
+      try {
+        const { error: consentError } = await (supabase as any).rpc("set_demo_lead_sms_consent", {
+          _lead_id: leadId,
+          _sms_consent: smsConsent,
+        });
+        if (consentError) console.error("Could not record SMS consent:", consentError);
+      } catch (consentErr) {
+        console.error("Could not record SMS consent:", consentErr);
+      }
 
       let filePaths: string[] = [];
       if (files.length > 0) {
@@ -501,6 +522,26 @@ const LeadCaptureSection = ({ selectedNiche }: LeadCaptureSectionProps) => {
               )}
             </div>
 
+            {/* OPTIONAL SMS consent (Publish #41 Pick 2): mirrored exactly
+                from the /demo intake (Publish #40) — a real checkbox,
+                unchecked by default; the demo builds identically whether
+                or not it is ticked. Ticking it is the only homepage path
+                that grants SMS consent; the choice is recorded on the
+                lead at submit. */}
+            <div className="flex items-start gap-2.5 px-1 text-left mb-4">
+              <Checkbox
+                id="lead-sms-consent"
+                checked={smsConsent}
+                onCheckedChange={(value) => setSmsConsent(value === true)}
+                disabled={isSubmitting}
+                aria-label="Optional: text me my demo link and results by SMS"
+                className="mt-0.5"
+              />
+              <label htmlFor="lead-sms-consent" className="cursor-pointer text-[11px] leading-snug text-muted-foreground">
+                {DEMO_SMS_CONSENT_LABEL}
+              </label>
+            </div>
+
             <Button
               type="submit"
               size="lg"
@@ -519,6 +560,13 @@ const LeadCaptureSection = ({ selectedNiche }: LeadCaptureSectionProps) => {
                 </>
               )}
             </Button>
+            {/* Consent disclosure — directly at the action, same
+                construction as the /demo intake; texts are governed by
+                the optional checkbox above, never by continuing */}
+            <p className="flex items-start gap-1.5 px-1 text-left text-[10px] leading-relaxed text-muted-foreground mt-3">
+              <ShieldCheck className="mt-0.5 h-3 w-3 shrink-0 text-primary" />
+              <span>{DEMO_CONSENT_DISCLOSURE}</span>
+            </p>
             <p className="text-xs text-muted-foreground text-center mt-2">
               {t("leadForm.requiredNote")}
             </p>
