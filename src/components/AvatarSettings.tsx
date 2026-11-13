@@ -93,7 +93,7 @@ export default function AvatarSettings({ value, onChange, agentId, beforePreview
       let bin = ""; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
       const d = await call({ action: "createFace", agentId, name: (faceName || file.name.replace(/\.\w+$/, "")).slice(0, 60), imageBase64: btoa(bin), mimeType: file.type });
       setPending({ faceId: d.faceId, status: "pending" });
-      toast.success("Photo accepted. Simli is building your face; it may take several hours.");
+      toast.success("Photo accepted. Simli is building your face — usually a few hours, up to 24. We'll flag it here when it's ready.");
     } catch (e) { toast.error(e instanceof Error ? e.message : "Upload failed"); }
     finally { setUploading(false); if (fileRef.current) fileRef.current.value = ""; }
   }
@@ -168,12 +168,13 @@ export default function AvatarSettings({ value, onChange, agentId, beforePreview
               <li>Natural, relaxed expression with mouth closed: no big smile, no teeth showing.</li>
               <li>Even, soft light; no sunglasses, hats, hands or hair covering the face.</li>
               <li>Plain background. A transparent photo does not guarantee a transparent live video.</li>
-              <li>Building the face can take several minutes up to about 24 hours. Your current face stays live until it is ready.</li>
+              <li>Building the face usually takes a few hours; please allow up to 24 hours. Your current face stays live until it is ready.</li>
             </ul>
             {!photoUnlocked && <p role="status" className="rounded-md border border-border bg-muted p-2 text-[11px] text-muted-foreground">Locked: add the $50 custom avatar + voice option at checkout to unlock photo upload and voice cloning, or contact support at info@aihiddenleads.com. <a className="font-semibold text-primary underline" href="/checkout?addon=custom-avatar">Buy custom avatar + voice ($50)</a></p>}
             <Input aria-label="Face name" placeholder="Face name, e.g. Lucy" maxLength={60} value={faceName} onChange={(e) => setFaceName(e.target.value)} />
             <input ref={fileRef} type="file" accept="image/png,image/jpeg" className="hidden" onChange={(e) => void upload(e.target.files?.[0])} />
             <Button variant="outline" className="w-full" disabled={uploading || !photoUnlocked} onClick={() => fileRef.current?.click()}>{uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UploadCloud className="mr-2 h-4 w-4" />}{uploading ? "Sending photo…" : "Upload photo"}</Button>
+            <p className="text-[11px] leading-relaxed text-muted-foreground">Your avatar is generated for you — usually ready within a few hours, but please allow up to 24 hours. We flag it right here the moment it is ready, so check back on this page; your current face stays live until then.</p>
             {adminPreview && <div className="flex items-center gap-3"><img src={aspenCutout} width={64} height={64} alt="Transparent Aspen portrait" className="h-16 w-16 object-contain" /><Button variant="outline" disabled={uploading} className="h-auto whitespace-normal text-xs" onClick={() => setConfirmAspen(true)}>Create face from Aspen photo</Button></div>}
             {pending && <p role="status" className="text-xs text-primary">New face: {pending.status === "completed" ? "ready and selected" : pending.status === "failed" ? "failed" : `building (${pending.status}) — you can keep going; it's selected when ready`}</p>}
           </div>
@@ -201,7 +202,7 @@ export default function AvatarSettings({ value, onChange, agentId, beforePreview
         {agentId && <><Button className="w-full" disabled={preparing} onClick={() => void testConversation()}>{preparing ? <Loader2 className="animate-spin"/> : testing ? <Square/> : <Mic/>}{preparing ? 'Saving your choices…' : testing ? 'Close test' : `Test ${name} · ${voice}`}</Button>{testing && <GeminiConversation draft agentId={agentId} compact name={name} previewVoice={voice} videoAvatar={value} avatarInline />}</>}
         <p className="text-[11px] text-muted-foreground">Test usage counts toward voice and video limits. Video plan pricing is not finalized.</p>
       </div>
-      <Dialog open={confirmAspen} onOpenChange={setConfirmAspen}><DialogContent className="bg-card"><DialogTitle>Create Aspen in Simli?</DialogTitle><DialogDescription>This sends the optimized portrait to Simli and uses one avatar generation. Your current live face stays unchanged until the new face is ready and you explicitly apply it.</DialogDescription><Button disabled={uploading} onClick={() => void createAspenFace()}><UploadCloud />Create Aspen face</Button></DialogContent></Dialog>
+      <Dialog open={confirmAspen} onOpenChange={setConfirmAspen}><DialogContent className="bg-card"><DialogTitle>Create Aspen in Simli?</DialogTitle><DialogDescription>This sends the optimized portrait to Simli and uses one avatar generation. Your current live face stays unchanged until the new face is ready and you explicitly apply it. Generation usually takes a few hours — please allow up to 24 hours.</DialogDescription><Button disabled={uploading} onClick={() => void createAspenFace()}><UploadCloud />Create Aspen face</Button></DialogContent></Dialog>
     </div>
   );
 }

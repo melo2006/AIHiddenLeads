@@ -438,29 +438,41 @@
       }
     },
     "benefits": {
+      "videoAvatar": {
+        "headline": "No Solo Una Voz — Un Rostro en Tu Sitio Web",
+        "body": "Aspen es un avatar de video en vivo: tu portavoz de IA. Saluda a tus visitantes cara a cara en tu sitio web y les explica lo que ofreces."
+      },
       "missCall": {
         "headline": "Nunca Más Pierdas Una Llamada",
         "body": "Tu recepcionista de IA responde 24/7 — noches, fines de semana y feriados — para convertir cada llamada en oportunidad."
+      },
+      "yourListings": {
+        "headline": "Ella Promociona Primero Tus Propiedades",
+        "body": "Aspen aprende tu negocio desde tu propio sitio web y empieza por tus propios anuncios y servicios — nunca un guion genérico."
+      },
+      "warmTransfer": {
+        "headline": "Transferencia en Vivo — Tú Mantienes el Control",
+        "body": "Cuando una llamada necesita a una persona, Aspen la transfiere contigo en vivo con un resumen de la conversación — tú mantienes el control de cada llamada."
       },
       "appointments": {
         "headline": "Citas Instantáneas",
         "body": "La IA agenda, reprograma y da seguimiento automáticamente. Se acabó perseguir clientes por teléfono."
       },
-      "moreLeads": {
-        "headline": "Captura 2–5x Más Leads",
-        "body": "Muchos negocios pierden 40% de llamadas. Con la IA respondiendo todo, 1–2 leads extra al mes pueden pagar el sistema."
+      "followUp": {
+        "headline": "Seguimiento Después de la Llamada",
+        "body": "Con el permiso de quien llama, Aspen envía mensajes de texto y correos de seguimiento después de la llamada — resúmenes, enlaces de reserva y recordatorios — para que ningún lead se enfríe."
       },
-      "liveFast": {
-        "headline": "En Vivo en 1–2 Días",
-        "body": "El setup es rápido y sencillo. Tu agente de IA se entrena en tu negocio y queda listo para responder en hasta 48 horas."
+      "wizardSetup": {
+        "headline": "Empieza Tú Mismo en Unos 15 Minutos",
+        "body": "No necesitas un equipo técnico. El asistente de configuración te guía paso a paso: agrega tu sitio web, tus preguntas frecuentes y tu voz, y ya estás en camino."
       },
-      "warmTransfer": {
-        "headline": "Transferencia En Vivo Para Ti",
-        "body": "Cuando un lead caliente está en línea, la IA lo transfiere en vivo a ti o a tu equipo con resumen completo."
+      "pricing": {
+        "headline": "Planes Desde $99 al Mes",
+        "body": "Premium cuesta $99 al mes con 400 minutos de voz incluidos. El avatar de video es un complemento opcional — solo si lo quieres."
       },
-      "chatAi": {
-        "headline": "Chat de IA en Tu Sitio",
-        "body": "Los visitantes reciben respuestas instantáneas sobre servicios, precios y disponibilidad — convirtiendo curiosos en citas."
+      "callSummary": {
+        "headline": "Cada Llamada, Resumida Para Ti",
+        "body": "Cada llamada llega a tu panel como un resumen corto con la transcripción completa, para que siempre sepas qué pidieron tus clientes."
       }
     }
   },

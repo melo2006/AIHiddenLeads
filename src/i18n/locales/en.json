@@ -435,29 +435,41 @@
       }
     },
     "benefits": {
+      "videoAvatar": {
+        "headline": "Not Just a Voice — a Face on Your Website",
+        "body": "Aspen is a live streaming video avatar — your AI spokesperson. She greets visitors face-to-face on your website and talks them through what you offer."
+      },
       "missCall": {
         "headline": "Never Miss Another Call",
         "body": "Your AI receptionist answers 24/7 — nights, weekends, and holidays — so every caller becomes a potential customer."
+      },
+      "yourListings": {
+        "headline": "She Sells Your Listings First",
+        "body": "Aspen learns your business from your own website and leads with your own listings and services — never a generic script."
+      },
+      "warmTransfer": {
+        "headline": "Warm Transfer — You Stay in Control",
+        "body": "When a caller needs a person, Aspen transfers them to you live with a summary of the conversation — you stay in control of every call."
       },
       "appointments": {
         "headline": "Instant Appointments",
         "body": "AI books, reschedules, and follows up automatically. No more phone tag — your calendar fills itself."
       },
-      "moreLeads": {
-        "headline": "Capture 2–5x More Leads",
-        "body": "Most businesses miss 40% of calls. With AI answering every one, just 1–2 extra leads per month pays for itself."
+      "followUp": {
+        "headline": "Follow-Ups After the Call",
+        "body": "With the caller's permission, Aspen follows up by text and email after the call — recaps, booking links, and reminders — so no lead goes cold."
       },
-      "liveFast": {
-        "headline": "Live in 1–2 Days",
-        "body": "Setup is fast and painless. Your custom AI agent is trained on your business and ready to take calls within 48 hours."
+      "wizardSetup": {
+        "headline": "Start Yourself in About 15 Minutes",
+        "body": "No tech team needed. The setup wizard walks you through it step by step — add your website, your FAQs, and your voice, and you're on your way."
       },
-      "warmTransfer": {
-        "headline": "Warm Transfer to You",
-        "body": "When a hot lead is on the line, AI transfers them live to you or your team with a full summary — no context lost."
+      "pricing": {
+        "headline": "Plans From $99 a Month",
+        "body": "Premium is $99 a month with 400 voice minutes included. The video avatar is an optional add-on — only if you want it."
       },
-      "chatAi": {
-        "headline": "Chat AI on Your Website",
-        "body": "Visitors get instant answers about services, pricing, and availability — converting browsers into booked appointments."
+      "callSummary": {
+        "headline": "Every Call, Summarized for You",
+        "body": "Every call lands on your dashboard as a short summary with the full transcript, so you always know what your callers asked for."
       }
     }
   },
