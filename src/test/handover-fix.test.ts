@@ -228,7 +228,8 @@ describe('5 — swap vs non-swap prompt composition', () => {
     expect(DEMO_INVITE_OPENING_SWAP).not.toContain('Entering the simulation');
     expect(DEMO_INVITE_OPENING_SWAP).not.toContain('stepping into simulation mode; please act like a visitor');
     expect(DEMO_INVITE_OPENING_SWAP).toContain('The handover to Sara');
-    expect(DEMO_INVITE_OPENING_SWAP).toContain('that is where your host script ENDS');
+    // Bug 3 (2026-11-13): the script now ends at the transfer QUESTION.
+    expect(DEMO_INVITE_OPENING_SWAP).toContain('that question is where your host script ENDS');
     expect(DEMO_INVITE_OPENING_SWAP).toContain('never roleplay the business');
     // The kept beats survive: the greeting's {nameConfirm} story, the
     // Alex line, follow-up contact, and the shared head/tail.
@@ -246,8 +247,10 @@ describe('6 — Sara overview conditioning (defense in depth)', () => {
   const opening = swapOpeningInstruction({ to: 'sara', boundary: 'doorway' }, 'Assistant: overview already delivered here');
   test('her opening conditions beats 4–6 on the recap — already delivered means skip to the open question', () => {
     expect(opening).toContain('CONDITIONED on the recap below');
-    expect(opening).toContain('ALREADY delivered earlier in this same visit');
-    expect(opening).toContain('do NOT deliver any of it again');
+    // Bug 2 (2026-11-13): the conditioning now keys on SARA's own prior
+    // delivery (the host's greeting in the recap is not hers).
+    expect(opening).toContain('already delivered the business overview or your open question earlier in this same visit');
+    expect(opening).toContain('do NOT deliver either again');
     expect(opening).toContain('skip straight to engaging the visitor with the open question');
     // And the plain path still offers the full overview when it was not delivered.
     expect(opening).toContain('Otherwise give the 30 to 45 second business overview');

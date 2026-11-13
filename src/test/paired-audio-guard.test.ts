@@ -184,7 +184,8 @@ describe('3 — cut-over on a dead incoming face: DEMOTED to voice-first (source
     const activate = simli.slice(simli.indexOf('activate: async'), simli.indexOf('stop,', simli.indexOf('activate: async')));
     expect(activate).toContain('if (!liveRef.current || !audio.srcObject) { unlockMediaElements(video, audio); return false; }');
     expect(activate).toContain('return true;');
-    expect(simli).toContain('cutoverAudioSync?: (sync: { muted: boolean; deviceId: string | null }) => Promise<boolean>;');
+    // Bug 1 (2026-11-13): the sync now also carries the in-panel volume.
+    expect(simli).toContain('cutoverAudioSync?: (sync: { muted: boolean; deviceId: string | null; volume?: number }) => Promise<boolean>;');
     expect(simli).toContain('activate: () => Promise<boolean | void>;');
   });
 

@@ -260,11 +260,16 @@ export function personaSegmentPrompt(
       // approved simulation script into the roleplay. Non-sample
       // builds pass no layer and stay byte-identical.
       systemPrompt: `${BUSINESS_ASSISTANT_PREAMBLE(businessName)}\n${bindSegmentNames(SIMULATION_RECEPTIONIST_SEGMENT, binding)}${exampleListings?.layer ? `\n${exampleListings.layer}` : ''}`,
-      // The in-role greeting is beat 4 of the segment itself; the swap
-      // opening instructs her to run beats 4–6, so no separate greeting
-      // line is delivered — this field carries the bound beat-4 template
-      // for reference/logging only.
-      greeting: `"Good morning, {businessName}, I'm ${binding.displayName} — thanks for calling."`,
+      // DETERMINISTIC FIRST LINE (2026-11-13 — Ron's Andriot retest:
+      // Sara's segment entry greeting was model-improvised from beat 4
+      // and intermittently SKIPPED — one run opened with the host's 78%
+      // pitch statistic instead). This template is no longer reference
+      // material: gemini-session renders it server-side (time greeting
+      // from the segment's effective timezone, via renderOpeningTemplate
+      // — the demo-parent hygiene pattern) into config.segmentGreeting,
+      // and the proxy's doorway swap opening serves that rendered line
+      // as her scripted first utterance, verbatim, before anything else.
+      greeting: `{timeGreeting}, {businessName} — I'm ${binding.displayName}, thanks for calling. How can I help you?`,
     };
   }
   if (persona === 'alex') {

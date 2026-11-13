@@ -389,6 +389,43 @@ Deno.serve(async req=>{
   if(!segmentParentId && (b.leadId || b.prospectId)) {
     config.opening=renderOpeningTemplate(config.opening,config,greetingHour,greetingName);
   }
+  // SEGMENT FIRST-LINE RENDER (2026-11-13 — Ron's Andriot retest): the
+  // same hygiene pattern, applied to Sara's SEGMENT entry. Her in-role
+  // greeting was model-improvised from beat 4 of the segment prompt and
+  // intermittently skipped entirely — one live run opened with the
+  // host's 78% pitch statistic instead of any greeting. Render her
+  // first line HERE, server-side: for a planned doorway swap, the
+  // beat-4 greeting template from the segment build (config.greeting),
+  // rendered with the segment's effective-timezone hour; for a manual
+  // resume inside her segment, a scripted in-role welcome-back line.
+  // The proxy's swap/resume openings serve config.segmentGreeting
+  // verbatim as her first utterance. Drop recoveries keep the
+  // no-re-greeting law (apology + continuation, no stamp). A segment
+  // whose business name is unknown gets no stamp — the proxy's prose
+  // fallback covers it.
+  const segMeta=config.personaSegment as {persona?:unknown;boundary?:unknown}|undefined;
+  if(segmentParentId && segMeta?.persona==='sara' && segMeta?.boundary==='doorway' && String(config.businessName || '').trim()) {
+    if(config.personaSwap) {
+      config.segmentGreeting=renderOpeningTemplate(String(config.greeting || ''),config,greetingHour,greetingName);
+      // ROOT-CAUSE FIX (2026-11-13 forensics — the proven Bug 2 cause):
+      // the segment's config.opening otherwise stays the RAW,
+      // UNSUBSTITUTED Aspen sales template openingFor rotated from the
+      // inherited greetings array — placeholders intact, 78% statistic,
+      // ending "Now, meet Sara…" — because the parent render above is
+      // guarded !segmentParentId. A segment's opening config is its
+      // OWN in-role line, never the parent's sales template: stamp the
+      // rendered segment greeting AS the opening.
+      config.opening=config.segmentGreeting;
+    } else if(config.personaResume) {
+      config.segmentGreeting=renderOpeningTemplate(`Welcome back — this is Sara, {businessName}'s receptionist. Let's pick up right where we left off.`,config,greetingHour,greetingName);
+      config.opening=config.segmentGreeting;
+    } else if(config.personaDrop) {
+      // Drop recovery serves no opening (apology + continuation), but
+      // the stored opening config gets the same hygiene: her rendered
+      // in-role greeting, never the raw parent sales template.
+      config.opening=renderOpeningTemplate(String(config.greeting || ''),config,greetingHour,greetingName);
+    }
+  }
   const token=crypto.randomUUID()+crypto.randomUUID();
   const visitor=await hash(`${b.visitorKey}|${req.headers.get('x-forwarded-for')?.split(',')[0] || ''}`);
   const {data:id,error}=await db.rpc('authorize_gemini_session',{_visitor:visitor,_token:await hash(token),_config:config,_agent:agentId,_org:orgId,_lead:segmentParentId?(parentRowRef?.lead_id ?? null):b.leadId || null,_prospect:segmentParentId?(parentRowRef?.prospect_id ?? null):b.prospectId || null});
