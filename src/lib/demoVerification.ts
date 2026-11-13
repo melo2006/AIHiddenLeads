@@ -12,10 +12,19 @@ import { supabase } from '@/integrations/supabase/client';
  * without a network or a browser session.
  */
 
-export const DEMO_CONSENT_DISCLOSURE_VERSION = 'demo-consent-v1';
+export const DEMO_CONSENT_DISCLOSURE_VERSION = 'demo-consent-v2';
 
 export const DEMO_CONSENT_DISCLOSURE =
-  'By continuing, you agree AI Hidden Leads may contact you about your demo and our services by text, call and email. Consent is not a condition of purchase. Message and data rates may apply. Reply STOP to end texts.';
+  'By continuing, you agree AI Hidden Leads may contact you about your demo and our services by call and email. We only text you if you tick the SMS box above. Consent is not a condition of purchase. Message and data rates may apply. Reply STOP to end texts.';
+
+/**
+ * Label for the OPTIONAL SMS consent checkbox on the demo intake (Telnyx
+ * TFV fix, 2026-11-13): unchecked by default, never required — the demo
+ * starts and completes identically either way. Ticking it is the only
+ * action that records SMS consent for a website demo lead.
+ */
+export const DEMO_SMS_CONSENT_LABEL =
+  'Text me my demo link and my results — and follow-ups about AiHiddenLeads — by SMS. Optional; the demo works either way. Msg & data rates may apply; reply STOP to end.';
 
 /** Phase 1 is email-only; SMS codes arrive when a Telnyx messaging lane is approved. Mirrors the server flag. */
 export const SMS_VERIFICATION_ENABLED = false;

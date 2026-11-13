@@ -7,6 +7,8 @@ import { DEFAULT_LIVE_MODEL, LIVE_MODELS, officialLivePricing } from '../_shared
 import { validPricing } from '../_shared/voice-usage.ts';
 import { websiteTheme, THEME_FONTS, DEFAULT_WIDGET_THEME } from '../_shared/widget-theme.ts';
 import { workspaceAccess } from '../_shared/customer-payments.ts';
+import { applyPhoneSignals, statusAfterSave, type PhoneSetupState } from '../_shared/onboarding.ts';
+import { CARRIER_GUIDES } from '../_shared/carrier-guides.ts';
 import { createResponsesCall } from './responses.ts';
 import { sha256 } from '../_shared/demo-share.ts';
 import { knowledgeInstructions } from '../_shared/wizard-knowledge.ts';
@@ -22,8 +24,10 @@ async function suggestGreeting(req:Request,input:{businessName:string;industry?:
 }
 
 const themeSchema=z.object({primary:z.string().regex(/^#[0-9a-f]{6}$/i),background:z.string().regex(/^#[0-9a-f]{6}$/i),foreground:z.string().regex(/^#[0-9a-f]{6}$/i),font:z.enum(THEME_FONTS)});
-const configSchema = z.object({ subNiche:z.string().max(160).optional(), businessNotes:z.string().max(6000).optional(), knowledgeGuidance:z.string().max(12000).optional(), assistantRestrictions:z.string().max(4000).optional(), previewScreenshot:z.string().max(2000).optional(), industry:z.string().max(80).optional(), launcherLabel:z.string().max(40).optional(), launcherCorner:z.enum(['bottom-left','bottom-right']).optional(), websiteUrl:z.string().max(2000).refine(v=>!v || isPublicUrl(v),'Use a public website URL').default(''), theme:z.preprocess(v=>v&&typeof v==='object'?{...DEFAULT_WIDGET_THEME,...(v as Record<string,unknown>)}:v,themeSchema).default(DEFAULT_WIDGET_THEME), suggestedTheme:themeSchema.nullable().optional(), name:z.string().min(1).max(80), businessName:z.string().min(1).max(160), voice:z.enum(VOICES as [string,...string[]]), clonedVoiceSelected:z.boolean().default(false), avatarPath:z.string().max(500).default(''), greeting:z.string().min(1).max(1500), systemPrompt:z.string().min(1).max(12000), simulationGreeting:z.string().min(1).max(1500).default(SIMULATION_GREETING), simulationPrompt:z.string().min(1).max(12000).default(SIMULATION_PROMPT), knowledge:z.string().max(60000).default(''), crawlDepth:z.union([z.literal(1),z.literal(2)]).default(1), recordTranscript:z.boolean().default(false), transferPhone:z.string().regex(/^$|^\+[1-9]\d{7,14}$/,'Use an international phone number, starting with +').default(''), transferManagerName:z.string().max(80).default(''), defaultLanguage:z.enum(['en','es','pt-BR']).default('en'), ringCount:z.number().int().min(2).max(5).optional(), bookingRules:z.string().max(4000).default(''), videoAvatar:z.unknown().optional().transform(v=>v===undefined?undefined:normalizeVideoAvatar(v)) });
-const requestSchema = z.object({ action:z.enum(['suggestKnowledge','suggestIndustry','suggestGreeting','list','usage','pricing','create','save','publish','source','refresh','removeSource','member','rollback','share','unshare','duplicate','usageSummary']), agentId:z.string().uuid().optional(), mode:z.enum(['website','generic']).default('website'), subNiche:z.string().max(160).optional(), businessNotes:z.string().max(6000).optional(), industry:z.string().max(80).optional(), tone:z.string().max(40).optional(), slug:z.string().min(3).max(80).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(), sourceId:z.string().uuid().optional(), config:configSchema.optional(), businessName:z.string().min(1).max(160).optional(), userEmail:z.string().email().optional(), kind:z.enum(['url','document']).optional(), label:z.string().min(1).max(255).optional(), url:z.string().max(2000).optional(), storagePath:z.string().max(500).optional(), pricing:z.object({model:z.literal('gemini-3.8-live'),inputAudioPerMinute:z.number().finite().min(0).max(100),outputAudioPerMinute:z.number().finite().min(0).max(100),source:z.string().url().max(2000)}).optional() });
+const phoneSetupInputSchema = z.object({ route:z.enum(['forward','port','new']), businessNumber:z.string().max(32).optional(), transferNumber:z.string().max(32).optional(), carrierId:z.string().max(40).refine(v=>CARRIER_GUIDES.some(g=>g.id===v), 'Unknown carrier').optional(), rings:z.union([z.literal(2),z.literal(3),z.literal(4),z.literal(5)]).optional(), areaCode:z.string().regex(/^\d{0,3}$/).optional() });
+const phoneSetupStateSchema = phoneSetupInputSchema.partial({route:true}).extend({ route:z.enum(['forward','port','new']).optional(), aspenNumber:z.string().max(32).optional(), status:z.enum(['not_started','awaiting_number','waiting_first_call','port_requested','new_number_requested','live_detected','live_confirmed']).default('not_started'), savedAt:z.string().max(40).optional(), testCallConfirmedAt:z.string().max(40).optional(), firstCallDetectedAt:z.string().max(40).optional() });
+const configSchema = z.object({ phoneSetup:phoneSetupStateSchema.optional(), onboarding:z.object({ testCallConfirmedAt:z.string().max(40).optional() }).optional(), subNiche:z.string().max(160).optional(), businessNotes:z.string().max(6000).optional(), knowledgeGuidance:z.string().max(12000).optional(), assistantRestrictions:z.string().max(4000).optional(), previewScreenshot:z.string().max(2000).optional(), industry:z.string().max(80).optional(), launcherLabel:z.string().max(40).optional(), launcherCorner:z.enum(['bottom-left','bottom-right']).optional(), websiteUrl:z.string().max(2000).refine(v=>!v || isPublicUrl(v),'Use a public website URL').default(''), theme:z.preprocess(v=>v&&typeof v==='object'?{...DEFAULT_WIDGET_THEME,...(v as Record<string,unknown>)}:v,themeSchema).default(DEFAULT_WIDGET_THEME), suggestedTheme:themeSchema.nullable().optional(), name:z.string().min(1).max(80), businessName:z.string().min(1).max(160), voice:z.enum(VOICES as [string,...string[]]), clonedVoiceSelected:z.boolean().default(false), avatarPath:z.string().max(500).default(''), greeting:z.string().min(1).max(1500), systemPrompt:z.string().min(1).max(12000), simulationGreeting:z.string().min(1).max(1500).default(SIMULATION_GREETING), simulationPrompt:z.string().min(1).max(12000).default(SIMULATION_PROMPT), knowledge:z.string().max(60000).default(''), crawlDepth:z.union([z.literal(1),z.literal(2)]).default(1), recordTranscript:z.boolean().default(false), transferPhone:z.string().regex(/^$|^\\+[1-9]\\d{7,14}$/,'Use an international phone number, starting with +').default(''), transferManagerName:z.string().max(80).default(''), defaultLanguage:z.enum(['en','es','pt-BR']).default('en'), ringCount:z.number().int().min(2).max(5).optional(), bookingRules:z.string().max(4000).default(''), videoAvatar:z.unknown().optional().transform(v=>v===undefined?undefined:normalizeVideoAvatar(v)) });
+const requestSchema = z.object({ action:z.enum(['suggestKnowledge','suggestIndustry','suggestGreeting','list','usage','pricing','create','save','publish','source','refresh','removeSource','member','rollback','share','unshare','onboarding','phoneSetup','duplicate','usageSummary']), phoneSetup:phoneSetupInputSchema.optional(), confirmTestCall:z.enum(['phone','agent']).optional(), agentId:z.string().uuid().optional(), mode:z.enum(['website','generic']).default('website'), subNiche:z.string().max(160).optional(), businessNotes:z.string().max(6000).optional(), industry:z.string().max(80).optional(), tone:z.string().max(40).optional(), slug:z.string().min(3).max(80).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(), sourceId:z.string().uuid().optional(), config:configSchema.optional(), businessName:z.string().min(1).max(160).optional(), userEmail:z.string().email().optional(), kind:z.enum(['url','document']).optional(), label:z.string().min(1).max(255).optional(), url:z.string().max(2000).optional(), storagePath:z.string().max(500).optional(), pricing:z.object({model:z.literal('gemini-3.8-live'),inputAudioPerMinute:z.number().finite().min(0).max(100),outputAudioPerMinute:z.number().finite().min(0).max(100),source:z.string().url().max(2000)}).optional() });
 const json = (data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
 Deno.serve(async req=>{
   if(req.method==='OPTIONS') return new Response('ok',{headers:corsHeaders});
@@ -150,6 +154,64 @@ Deno.serve(async req=>{
         for(const e of data || []) { const key=String(e.service || 'other'); const s=(byService[key] ||= {events:0,minutes:0,count:0}); s.events++; s.minutes+=Number(e.quantity_minutes || 0); s.count+=Number(e.quantity_count || 0); if(String(e.occurred_at || '')>lastAt) lastAt=String(e.occurred_at); }
         return json({available:true,byService,events:(data || []).length,lastAt:lastAt || null});
       } catch { return json({available:false,byService:{},events:0,lastAt:null}); }
+    }
+    if(body.action==='phoneSetup') {
+      // Onboarding batch (2026-11-12): persist the client's phone-number
+      // choices in the agent draft AND mirror the operational state into
+      // telephony_clients (service role; the table itself is admin-RLS).
+      // The server — never the client — computes the status: it depends on
+      // whether a dedicated Aspen number is already assigned on the
+      // telephony row.
+      if(!body.phoneSetup) return json({error:'Phone setup details required'},400);
+      const input=body.phoneSetup;
+      if((input.route==='forward'||input.route==='port') && !input.businessNumber) return json({error:'Your business number is required for this route'},400);
+      const {data:tc}=await db.from('telephony_clients').select('id,voice_number,active').eq('agent_id',agent.id).maybeSingle();
+      const aspenNumber=tc?.voice_number || undefined;
+      const draft=(agent.draft || {}) as Record<string,unknown>;
+      const phoneSetup:PhoneSetupState={ route:input.route, businessNumber:input.businessNumber || undefined, transferNumber:input.transferNumber || input.businessNumber || undefined, carrierId:input.carrierId, rings:input.rings, areaCode:input.areaCode || undefined, aspenNumber, status:statusAfterSave(input.route,aspenNumber), savedAt:new Date().toISOString() };
+      const notes=`Onboarding wizard phone step · route=${input.route}${input.carrierId?` · carrier=${input.carrierId}`:''}${input.rings?` · rings=${input.rings}`:''}${input.businessNumber?` · business number=${input.businessNumber}`:''}${input.areaCode?` · area code=${input.areaCode}`:''}`;
+      const row={ organization_id:agent.organization_id, agent_id:agent.id, client_name:String(draft.businessName || 'Customer'), transfer_phone:phoneSetup.transferNumber || null, notes };
+      const {error:tcErr}=tc?.id ? await db.from('telephony_clients').update(row).eq('id',tc.id) : await db.from('telephony_clients').insert(row);
+      if(tcErr) throw tcErr;
+      const {error}=await db.from('voice_agents').update({draft:{...draft,phoneSetup},updated_at:new Date().toISOString()}).eq('id',agent.id); if(error) throw error;
+      return json({phoneSetup});
+    }
+    if(body.action==='onboarding') {
+      // First-steps checklist state, derived from real records server-side:
+      // learned sources, saved FAQs/guidance, session history, telephony
+      // state. Manual confirmations (test call, forwarded test call) are
+      // accepted only as explicit flags on this action and stamped here.
+      const draft=(agent.draft || {}) as Record<string,unknown>;
+      let phoneSetup=(draft.phoneSetup || {status:'not_started'}) as PhoneSetupState;
+      const onboardingFlags=(draft.onboarding || {}) as { testCallConfirmedAt?: string };
+      if(body.confirmTestCall==='phone' && phoneSetup.status==='waiting_first_call') {
+        phoneSetup={...phoneSetup,status:'live_confirmed',testCallConfirmedAt:new Date().toISOString()};
+        const {error}=await db.from('voice_agents').update({draft:{...draft,phoneSetup},updated_at:new Date().toISOString()}).eq('id',agent.id); if(error) throw error;
+      }
+      if(body.confirmTestCall==='agent' && !onboardingFlags.testCallConfirmedAt) {
+        onboardingFlags.testCallConfirmedAt=new Date().toISOString();
+        const {error}=await db.from('voice_agents').update({draft:{...draft,onboarding:onboardingFlags},updated_at:new Date().toISOString()}).eq('id',agent.id); if(error) throw error;
+      }
+      const {data:tc}=await db.from('telephony_clients').select('id,voice_number,active').eq('agent_id',agent.id).maybeSingle();
+      if(tc?.voice_number && !phoneSetup.aspenNumber) phoneSetup={...phoneSetup,aspenNumber:tc.voice_number};
+      // First-forwarded-call detection: an inbound telephony_calls row for
+      // this client after the phone step was saved. Attribution exists only
+      // when the client has a telephony row (their dedicated Aspen number)
+      // — otherwise the client's test-call confirmation is the signal.
+      if(tc?.id && phoneSetup.route==='forward' && phoneSetup.savedAt && (phoneSetup.status==='waiting_first_call'||phoneSetup.status==='live_confirmed')) {
+        const {data:call}=await db.from('telephony_calls').select('started_at').eq('client_id',tc.id).gte('started_at',phoneSetup.savedAt).order('started_at',{ascending:true}).limit(1).maybeSingle();
+        if(call?.started_at) {
+          const next=applyPhoneSignals(phoneSetup,{firstCallAt:call.started_at,testCallConfirmedAt:phoneSetup.testCallConfirmedAt});
+          if(next.status!==phoneSetup.status) { phoneSetup=next; const {error}=await db.from('voice_agents').update({draft:{...draft,phoneSetup},updated_at:new Date().toISOString()}).eq('id',agent.id); if(error) throw error; }
+        }
+      }
+      const {data:sources}=await db.from('voice_agent_sources').select('status').eq('agent_id',agent.id);
+      const knowledge=String(draft.knowledge || '');
+      const taught=Boolean((sources || []).some(s=>s.status==='ready') || String(draft.knowledgeGuidance || '').trim() || knowledge.includes('--- Wizard FAQs ---'));
+      const {data:session}=await db.from('gemini_voice_sessions').select('id').eq('agent_id',agent.id).limit(1).maybeSingle();
+      const published=Boolean(agent.published);
+      const testCallDone=Boolean(session) || Boolean(onboardingFlags.testCallConfirmedAt) || published;
+      return json({ phoneSetup, taught, testCallDone, published, workspaceReady:true });
     }
     if(body.action==='save') {
       if(!body.config) return json({error:'Settings required'},400);

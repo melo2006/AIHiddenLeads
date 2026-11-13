@@ -29,10 +29,11 @@ const barButton = 'flex h-9 w-9 shrink-0 items-center justify-center rounded-ful
 
 const segmentClass = (active: boolean) => `flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${active ? 'bg-primary text-primary-foreground shadow-sm' : 'bg-transparent text-foreground hover:bg-muted'}`;
 
-/** Voice/Type segmented toggle. Rendered BELOW her chest — in chat mode the
- * frame places it between the portrait and the chat box; in voice mode the
- * widget passes it into GeminiConversation (belowAvatar), which renders it
- * between the live face and the voice/captions panel. Never above her. */
+/** Voice/Type segmented toggle. Rendered INSIDE the panel, never over the
+ * portrait — in chat mode the frame places it under the window-controls
+ * row, between the portrait and the chat box; in voice mode the widget
+ * passes it into GeminiConversation (belowAvatar), which renders it in
+ * the voice panel's toggle row, under the window-controls row. */
 export function AspenModeToggle({ mode, onMode }: { mode: 'voice' | 'chat'; onMode: (mode: 'voice' | 'chat') => void }) {
   // Ron's rule (2026-11-09, after his Z Fold screenshots): BOTH options stay
   // fully visible in BOTH states. The pill therefore carries its OWN opaque
@@ -45,16 +46,43 @@ export function AspenModeToggle({ mode, onMode }: { mode: 'voice' | 'chat'; onMo
   </div>;
 }
 
+/** Window controls — drag handle + dash (–) minimizes WITHOUT ending +
+ * X ENDS the conversation — as ONE in-flow row (the historical class name
+ * is kept: it began life as the "chest cluster").
+ * Panel layout fix (2026-11-12, Ron's circled /agents/realtors
+ * screenshot): the row used to be absolutely positioned across the
+ * portrait's bottom edge, slicing her torso — "half of her body
+ * disappears" behind the buttons. It now renders IN FLOW inside the
+ * panel, as the panel's first row below its top border, so the portrait
+ * ends cleanly at the panel's top edge and NO control overlaps her:
+ * in voice mode the widgets hand this row to GeminiConversation's
+ * `windowControls` slot (top of the voice panel card); in chat mode the
+ * frame renders it itself, between the portrait and the Voice/Type
+ * toggle. The drag button keeps [data-drag-handle]: DraggableFloating
+ * delegates dragging to its container, so the handle drags the whole
+ * widget from its in-panel home exactly as before. */
+export function AspenWindowControls({ onMinimize, onClose }: { onMinimize: () => void; onClose: () => void }) {
+  return <div className="aspen-person-chest-cluster" role="group" aria-label="Window controls">
+    <button type="button" data-drag-handle className="flex h-8 cursor-grab touch-none select-none items-center gap-1 rounded-full border border-primary/60 bg-background/90 px-2 text-primary shadow-sm backdrop-blur-sm transition-colors hover:bg-secondary active:cursor-grabbing" aria-label="Drag widget" title="Drag">
+      <GripVertical className="h-3.5 w-3.5" />
+      <span className="text-[8px] font-bold uppercase tracking-wider">Drag</span>
+    </button>
+    <Button size="icon" variant="secondary" className="h-8 w-8 border border-border bg-background/90 text-foreground" onClick={onMinimize} title="Minimize" aria-label="Minimize"><Minus className="h-4 w-4" /></Button>
+    <Button size="icon" variant="secondary" className="h-8 w-8 border border-primary/60 bg-background/90 text-foreground" onClick={onClose} title="End conversation" aria-label="End conversation"><X className="h-4 w-4" /></Button>
+  </div>;
+}
+
 /**
  * The three-stage Aspen shell (Ron, 2026-11-08):
  *  Stage 1 — idle bubble: one small round bubble (tight face/shoulders crop,
  *    so the waving hand and its baked-in shadow stay out of frame) and ONE
  *    label, "Tap to talk". No stacked bars, no recording notice here.
- *  Stage 2 — open chat: her portrait/live face on top, the segmented
- *    Voice/Type toggle BELOW her chest (between her and the chat thread /
- *    captions box), and ONE chest cluster at the portrait's bottom edge —
- *    drag handle + dash (–) minimizes WITHOUT ending + X ENDS the
- *    conversation. Nothing overlays her face. The recording disclosure
+ *  Stage 2 — open chat: her portrait/live face on top, ending cleanly at
+ *    the panel's top edge; INSIDE the panel, the window-controls row
+ *    (drag + minimize + end) sits first, with the segmented Voice/Type
+ *    toggle directly under it (between the controls and the chat thread /
+ *    captions box). Nothing overlays her — no control crosses the
+ *    portrait (2026-11-12 panel layout fix). The recording disclosure
  *    lives here as small print.
  *  Stage 3 — minimized while talking: her bubble head with a pulsing live
  *    ring + one slim bar (pause/resume, disconnect, mic, speaker, replay,
@@ -77,6 +105,7 @@ export default function FloatingPersonFrame({ name = 'Aspen', avatarUrl, open, m
   const stage = open ? 2 : minimized ? (stage3 ? 3 : 0) : 1;
   return <section aria-label={`${name} floating assistant`} className={`aspen-person-shell relative ${open ? 'aspen-person-expanded' : 'aspen-person-collapsed'} ${stage === 1 ? 'aspen-person-stage1 items-center' : ''} ${stage === 3 ? 'aspen-person-stage3' : ''} ${stage === 0 ? '!w-24 items-center' : ''}`}>
     {open && mode === 'chat' && <PersonPortrait name={name} avatarUrl={avatarUrl} />}
+    {open && mode === 'chat' && <AspenWindowControls onMinimize={onMinimize} onClose={onClose} />}
     {open && mode === 'chat' && <AspenModeToggle mode={mode} onMode={onMode} />}
     {stage === 1 && <Button variant="ghost" onClick={onOpen} title={inviteArrival ? `Hear ${firstName || 'Aspen'}` : talkLabel} aria-label={inviteArrival ? `Hear ${firstName || 'Aspen'} — tap to hear your demo` : talkLabel} className="flex h-auto flex-col items-center gap-1.5 p-0 hover:bg-transparent">
       <span className="relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border border-primary/60 bg-primary text-primary-foreground shadow-lg">
@@ -109,16 +138,6 @@ export default function FloatingPersonFrame({ name = 'Aspen', avatarUrl, open, m
       </div>
     </div>}
     <div className={open ? 'flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain' : keepRendered ? 'aspen-prewarm-offscreen' : 'hidden'} aria-hidden={!open || undefined}>{children}</div>
-    {open && <>
-      <div className="aspen-person-chest-cluster" role="group" aria-label="Window controls">
-        <button type="button" data-drag-handle className="flex h-8 cursor-grab touch-none select-none items-center gap-1 rounded-full border border-primary/60 bg-background/90 px-2 text-primary shadow-sm backdrop-blur-sm transition-colors hover:bg-secondary active:cursor-grabbing" aria-label="Drag widget" title="Drag">
-          <GripVertical className="h-3.5 w-3.5" />
-          <span className="text-[8px] font-bold uppercase tracking-wider">Drag</span>
-        </button>
-        <Button size="icon" variant="secondary" className="h-8 w-8 border border-border bg-background/90 text-foreground" onClick={onMinimize} title="Minimize" aria-label="Minimize"><Minus className="h-4 w-4" /></Button>
-        <Button size="icon" variant="secondary" className="h-8 w-8 border border-primary/60 bg-background/90 text-foreground" onClick={onClose} title="End conversation" aria-label="End conversation"><X className="h-4 w-4" /></Button>
-      </div>
-      <p className="shrink-0 text-center text-[10px] leading-tight text-muted-foreground">Calls are recorded</p>
-    </>}
+    {open && <p className="shrink-0 text-center text-[10px] leading-tight text-muted-foreground">Calls are recorded</p>}
   </section>;
 }

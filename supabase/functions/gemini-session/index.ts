@@ -1,7 +1,7 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { z } from 'npm:zod@3';
-import { DEFAULT_AGENT, VOICES, openingFor, businessDemoConfig, businessDemoConfigSwapParent, SIMULATION_GREETING_LEGACY_SLIM } from '../_shared/voice-config.ts';
+import { DEFAULT_AGENT, VOICES, openingFor, renderOpeningTemplate, businessDemoConfig, businessDemoConfigSwapParent, SIMULATION_GREETING_LEGACY_SLIM, hourInTimeZone, sanitizeVisitorName, segmentTimeZone } from '../_shared/voice-config.ts';
 import { DEFAULT_LIVE_MODEL, officialLivePricing } from '../_shared/live-models.ts';
 import { voiceQuotaClass, voiceLimitResponse } from '../_shared/voice-session-limit.ts';
 import { transferDestination } from '../_shared/browser-handoff.ts';
@@ -12,9 +12,11 @@ import { DEMO_INVITE_GREETING, DEMO_INVITE_GREETING_LEGACY_SLIM, DEMO_INVITE_GRE
 import { alexGuideConfig, alexDemoGuestConfig } from '../_shared/alex-guide.ts';
 import { avatarSwapEnabled, teamIntroEnabled, personaFor, personaSegmentPrompt } from '../_shared/personas.ts';
 import { TEAM_INTRO_TEACHING, isIntroBoundary, teamIntroGreetingFor } from '../_shared/team-intro.ts';
+import { realtorLandingApplies, stampRealtorLanding } from '../_shared/homepage-knowledge.ts';
+import { buildExampleListingsLayer, examplePackBySlug, examplePackForSiteUrl, stampExampleListings } from '../_shared/realtor-example-listings.ts';
 import { PUBLIC_PATHS } from '../_shared/report-context.ts';
 import { normalizeUiLocale, startingLanguageForUiLocale } from '../_shared/conversation-language.ts';
-const personaSegmentSchema=z.object({persona:z.enum(['aspen','sara','alex']),boundary:z.enum(['doorway','stepout','meet-alex','return','intro-sara','intro-return-1','intro-alex','intro-return-2']),parentSessionId:z.string().uuid(),swapRecap:z.string().max(2400),drops:z.number().int().min(0).max(99).default(0),dropRecovery:z.boolean().default(false),manualResume:z.boolean().default(false),swap:z.boolean().default(false),teamIntroSeen:z.boolean().default(false)});
+const personaSegmentSchema=z.object({persona:z.enum(['aspen','sara','alex']),boundary:z.enum(['doorway','stepout','meet-alex','return','summon-aspen','intro-sara','intro-return-1','intro-alex','intro-return-2']),parentSessionId:z.string().uuid(),swapRecap:z.string().max(2400),drops:z.number().int().min(0).max(99).default(0),dropRecovery:z.boolean().default(false),manualResume:z.boolean().default(false),swap:z.boolean().default(false),teamIntroSeen:z.boolean().default(false)});
 // SWAP DIAG (voice-first batch, 2026-11-10): the client posts a doorway
 // attempt's RESOLUTION (gate-abort, fallback, forced-execute,
 // voice-first cut-over, face takeover, watchdog action…) against the
@@ -24,9 +26,9 @@ const personaSegmentSchema=z.object({persona:z.enum(['aspen','sara','alex']),bou
 // existed only in the page (a 100-entry ring buffer that died with
 // it) or as prose inside a successor's resumeContext — the final
 // attempt of a boundary left no server record at all (retest #4).
-const swapDiagSchema=z.object({sessionId:z.string().uuid(),event:z.enum(['gate-abort','fallback','retry-scheduled','token-stale','stage-watchdog','forced-execute','cutover','voice-first-cutover','face-takeover']),boundary:z.enum(['doorway','stepout','meet-alex','return','intro-sara','intro-return-1','intro-alex','intro-return-2']),persona:z.enum(['aspen','sara','alex']).optional(),attempt:z.number().int().min(0).max(99).optional(),reason:z.string().max(200).optional(),faceState:z.string().max(100).optional(),at:z.number().optional()});
+const swapDiagSchema=z.object({sessionId:z.string().uuid(),event:z.enum(['gate-abort','fallback','retry-scheduled','token-stale','stage-watchdog','forced-execute','cutover','voice-first-cutover','face-takeover']),boundary:z.enum(['doorway','stepout','meet-alex','return','summon-aspen','intro-sara','intro-return-1','intro-alex','intro-return-2']),persona:z.enum(['aspen','sara','alex']).optional(),attempt:z.number().int().min(0).max(99).optional(),reason:z.string().max(200).optional(),faceState:z.string().max(100).optional(),at:z.number().optional()});
 const SWAP_DIAG_FAILURE_EVENTS: ReadonlySet<string> = new Set(['gate-abort','fallback','token-stale']);
-const schema=z.object({ visitorKey:z.string().min(16).max(100), model:z.string().max(100).optional(), agentId:z.string().uuid().optional(), leadId:z.string().uuid().optional(), prospectId:z.string().uuid().optional(), draft:z.boolean().default(false), preview:z.boolean().default(false), voice:z.enum(VOICES as [string,...string[]]).optional(), hour:z.number().int().min(0).max(23).optional(), visitorName:z.string().max(100).default(''), timeZone:z.string().max(100).default('UTC'), locale:z.string().max(10).optional(), campaign:z.object({visitId:z.string().uuid(),source:z.string().max(100),campaign:z.string().max(100),entryPath:z.enum(PUBLIC_PATHS).optional()}).nullable().optional(), consent:z.boolean().default(false), verification:z.enum(['pending','verified']).optional(), invite:z.boolean().optional(), guide:z.enum(['alex']).optional(), share:z.string().max(100).optional(), resumeContext:z.string().max(1600).optional(), reconnect:z.boolean().default(false), prewarm:z.boolean().default(false), personaSegment:personaSegmentSchema.optional(), swapDiag:swapDiagSchema.optional() });
+const schema=z.object({ visitorKey:z.string().min(16).max(100), model:z.string().max(100).optional(), agentId:z.string().uuid().optional(), leadId:z.string().uuid().optional(), prospectId:z.string().uuid().optional(), draft:z.boolean().default(false), preview:z.boolean().default(false), voice:z.enum(VOICES as [string,...string[]]).optional(), hour:z.number().int().min(0).max(23).optional(), visitorName:z.string().max(100).default(''), timeZone:z.string().max(100).default('UTC'), locale:z.string().max(10).optional(), campaign:z.object({visitId:z.string().uuid(),source:z.string().max(100),campaign:z.string().max(100),entryPath:z.enum(PUBLIC_PATHS).optional()}).nullable().optional(), consent:z.boolean().default(false), verification:z.enum(['pending','verified']).optional(), invite:z.boolean().optional(), sample:z.boolean().optional(), guide:z.enum(['alex']).optional(), share:z.string().max(100).optional(), resumeContext:z.string().max(1600).optional(), reconnect:z.boolean().default(false), prewarm:z.boolean().default(false), personaSegment:personaSegmentSchema.optional(), swapDiag:swapDiagSchema.optional() });
 const json=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
 export async function hash(value:string) { return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)))).map(b=>b.toString(16).padStart(2,'0')).join(''); }
 Deno.serve(async req=>{
@@ -136,7 +138,18 @@ Deno.serve(async req=>{
     // from a stamped explainer session of the SAME visitor (verified
     // above by row id + visitor hash — never from the request body
     // alone; see the lookup right after the segment branch).
-    const built=personaSegmentPrompt(b.personaSegment.persona,b.personaSegment.boundary,businessName,String(parent.systemPrompt || ''),b.personaSegment.persona==='alex'?alexDemoGuestConfig(businessName):undefined,parent.teamIntroSeen===true);
+    // EXAMPLE LISTINGS → SARA (Scalone batch Item 1 — forensics F4):
+    // a sample parent's stamped exampleListings marker names the pack
+    // (server-stored at the parent's own authorization — never a
+    // client-supplied value in this request). Rebuild the layer from
+    // it and hand it to the SARA build only: her segment prompt is
+    // built fresh in personas.ts and otherwise discards the layer the
+    // parent stamp appended to Aspen's prompt, which is exactly how
+    // the listings demos broke on the Sara leg. Aspen/Alex builds
+    // never receive it; a parent without the marker passes nothing
+    // and its segment builds stay byte-identical.
+    const examplePack=b.personaSegment.persona==='sara'?examplePackBySlug((parent.exampleListings as {slug?:unknown}|undefined)?.slug):null;
+    const built=personaSegmentPrompt(b.personaSegment.persona,b.personaSegment.boundary,businessName,String(parent.systemPrompt || ''),b.personaSegment.persona==='alex'?alexDemoGuestConfig(businessName):undefined,parent.teamIntroSeen===true,undefined,examplePack?{layer:buildExampleListingsLayer(examplePack)}:undefined);
     config={
       ...parent,
       name:persona.displayName,
@@ -191,9 +204,9 @@ Deno.serve(async req=>{
     if(b.voice) config.voice=b.voice;
   } else if(b.leadId || b.prospectId) {
     if(b.leadId && b.prospectId) { const {data:p}=await db.from('prospects').select('website_url').eq('id',b.prospectId).maybeSingle(); const {data:l}=await db.from('leads').select('website_url').eq('id',b.leadId).maybeSingle(); if(!p || !l || p.website_url!==l.website_url) return json({error:'Prospect and demo website do not match'},400); }
-    let knowledge='', businessName=''; let visitorContact: Record<string,unknown> = {}; let leadInviteArrivedAt: unknown = null;
-    if(b.leadId) { const {data:lead}=await db.from('leads').select('business_name,website_url,website_content,scan_status,full_name,email,phone,invite_arrived_at').eq('id',b.leadId).maybeSingle(); if(!lead || !lead.website_content || !['completed','enriched','scanning'].includes(lead.scan_status) || lead.website_content.length<200) return json({error:'This business demo has not finished learning its website. Please wait for the scan.'},409); knowledge=lead.website_content; businessName=lead.business_name; visitorContact={name:lead.full_name,email:lead.email || '',phone:lead.phone || ''}; leadInviteArrivedAt=lead.invite_arrived_at; }
-    else { const {data:p}=await db.from('prospects').select('business_name,business_data,ai_analysis').eq('id',b.prospectId).maybeSingle(); if(!p) return json({error:'Demo business not found'},404); knowledge=JSON.stringify(p.business_data || {}); businessName=p.business_name; if(knowledge.length<20) return json({error:'Prepare this prospect website demo before starting a call.'},409); }
+    let knowledge='', businessName=''; let visitorContact: Record<string,unknown> = {}; let leadInviteArrivedAt: unknown = null; let siteUrl='';
+    if(b.leadId) { const {data:lead}=await db.from('leads').select('business_name,website_url,website_content,scan_status,full_name,email,phone,invite_arrived_at').eq('id',b.leadId).maybeSingle(); if(!lead || !lead.website_content || !['completed','enriched','scanning'].includes(lead.scan_status) || lead.website_content.length<200) return json({error:'This business demo has not finished learning its website. Please wait for the scan.'},409); knowledge=lead.website_content; businessName=lead.business_name; siteUrl=lead.website_url || ''; visitorContact={name:sanitizeVisitorName(lead.full_name),email:lead.email || '',phone:lead.phone || ''}; leadInviteArrivedAt=lead.invite_arrived_at; }
+    else { const {data:p}=await db.from('prospects').select('business_name,business_data,ai_analysis,website_url').eq('id',b.prospectId).maybeSingle(); if(!p) return json({error:'Demo business not found'},404); knowledge=JSON.stringify(p.business_data || {}); businessName=p.business_name; siteUrl=p.website_url || ''; if(knowledge.length<20) return json({error:'Prepare this prospect website demo before starting a call.'},409); }
     const {data:aspen}=await db.from('voice_agents').select('published').eq('slug','aspen-homepage').maybeSingle();
     const published=aspen?.published as Record<string,unknown>|undefined;
     // SWAP-PARENT COMPOSITION (handover fix, 2026-11-10): a
@@ -236,6 +249,19 @@ Deno.serve(async req=>{
       config.greetings=[];
       config.greeting=(b.invite===true && leadInviteArrivedAt) ? DEMO_INVITE_GREETING_LEGACY_SLIM : SIMULATION_GREETING_LEGACY_SLIM;
     }
+    // EXAMPLE LISTINGS STAMP (Batch 2, 2026-11-12): a session that the
+    // client marked as a one-click EXAMPLE sample (the /agents/realtors
+    // examples grid/dropdown sends sample=1 through /demo to /demo-site)
+    // AND whose simulated business is one of the 13 known example sites
+    // — matched here against the site URL stored on the lead/prospect
+    // row THIS function fetched, never a client-supplied URL, the same
+    // trust pattern as the invite stamp — additionally carries that
+    // example's listings pack in its system prompt, so the simulated
+    // receptionist can answer "what listings do you have?" with the
+    // agent's own listings first. The flag alone earns nothing, a URL
+    // match alone earns nothing, and every non-sample simulation stays
+    // byte-identical.
+    if(b.sample===true) { const pack=examplePackForSiteUrl(siteUrl); if(pack) stampExampleListings(config, pack); }
   } else {
     let query=db.from('voice_agents').select('*'); query=b.agentId?query.eq('id',b.agentId):query.eq('slug','aspen-homepage');
     const {data:agent}=await query.maybeSingle(); if(!agent?.published) return json({error:'Voice agent is not published yet'},409);
@@ -257,6 +283,42 @@ Deno.serve(async req=>{
       config.systemPrompt=`${String(config.systemPrompt || '')}\n${TEAM_INTRO_TEACHING}`;
       config.greeting=teamIntroGreetingFor(String(config.greeting || ''));
       if(Array.isArray(config.greetings)) config.greetings=(config.greetings as unknown[]).map(g=>teamIntroGreetingFor(String(g || '')));
+    }
+    // REALTOR LANDING STAMP (owner-approved 2026-11-11; conversation
+    // layer + reachability fix 2026-11-11): a session that STARTS on
+    // /agents/realtors opens with the realtor greeting rotation
+    // (REALTOR_GREETING_VARIANTS) instead of the standard homepage
+    // greeting AND carries the realtor conversation layer
+    // (REALTOR_CONVERSATION_LAYER — talk their lingo, qualify on
+    // closings/listings/farm, map answers to the realtor-relevant
+    // help) appended to its system prompt — same trust pattern as the
+    // team-intro stamp above: server-derived from the campaign
+    // entryPath ('/agents/realtors' is a member of PUBLIC_PATHS), never
+    // from a client flag alone. The stored snapshot is never edited:
+    // sessions starting on any other page keep the standard opening and
+    // prompt byte-for-byte, and a session that starts elsewhere keeps
+    // its own opening even if the visitor later navigates to the
+    // realtor page (the opening is fixed at authorization, in the final
+    // assembly below). stampRealtorLanding REPLACES the rotation —
+    // greeting AND greetings — exactly like businessDemoConfig fills a
+    // demo config, so openingFor rotates the three realtor variants
+    // per session, and appends the layer (idempotently) to the prompt.
+    // REACHABILITY FIX (diagnosed 2026-11-11, owner's live test): the
+    // stamp previously ALSO required !b.agentId — and never fired in
+    // production. The public widget resolves the homepage agent's
+    // public identity (voice-agent-public returns the agent row id)
+    // and GeminiAgentWidget addresses the conversation by that id, so
+    // EVERY genuine widget session — homepage, /demo, /agents/realtors
+    // alike — arrives agentId-addressed, and the old condition silently
+    // excluded them all. Tenancy is decided by the RESOLVED slug, not
+    // by the absence of an id: an agentId naming a tenant agent
+    // resolves to that tenant's slug and never reaches this line, and
+    // drafts, previews, shares, guides and demo parents are separate
+    // branches above. So the decision is the slug + the entryPath,
+    // factored as realtorLandingApplies so the production request
+    // shape is regression-tested directly.
+    if(realtorLandingApplies(agent.slug, b.campaign)) {
+      stampRealtorLanding(config);
     }
   }
   const requestedModel = b.model;
@@ -287,7 +349,83 @@ Deno.serve(async req=>{
   // sessions never pass through this function, so they never carry a
   // locale and keep the English start.
   const uiLocale = b.personaSegment ? null : normalizeUiLocale(b.locale);
-  config={...config,timeZone:b.timeZone,...(uiLocale ? {uiLocale, startLanguage: startingLanguageForUiLocale(uiLocale)} : {}),quotaClass:segmentParentId?'persona_segment':b.share?'visitor':voiceQuotaClass(role?.role==='admin',b.preview),model:requestedModel || DEFAULT_LIVE_MODEL,opening:openingFor(config,b.hour,b.visitorName || String((config.visitorContact as Record<string,unknown>|undefined)?.name || '')),preview:b.preview,resumeContext:b.preview?undefined:(segmentParentId?String(config.resumeContext || ''):b.resumeContext),reconnect:segmentParentId?false:!b.preview&&b.reconnect,campaign:b.campaign || (segmentParentId?(config.campaign ?? null):null),recordTranscript:segmentParentId?config.recordTranscript===true:!b.preview && transcriptAllowed(false,false,b.consent),recordAudio:segmentParentId?config.recordAudio===true:!b.preview && b.consent};
+  // GREETING CLOCK + NAME + SEGMENT TIMEZONE (Scalone batch,
+  // 2026-11-12 — forensics F7/F6 + row-pull addendum): the opening's
+  // time-of-day derives from the session's configured timezone —
+  // never the authorizing browser's local clock hour. The
+  // client-supplied hour survives only as the fallback for a
+  // missing/invalid zone. The spoken name is sanitized: placeholder
+  // sentinels ("CRM Prospect" — the literal name /demo creates its
+  // lead with) are NO name, so the greeting stays generic. PERSONA
+  // SEGMENTS inherit the PARENT session's configured timezone
+  // (segmentTimeZone): segment requests carry no zone of their own,
+  // and the old unconditional b.timeZone stamp dropped every segment
+  // to the 'UTC' schema default — the proxy then told Sara's model
+  // "Visitor time zone: UTC" and she said "Good morning" at 19:32
+  // EST (00:32 UTC). The segment's greeting hour derives from the
+  // propagated zone the same way.
+  const effectiveTimeZone=segmentParentId?segmentTimeZone((parentRowRef as {config?:Record<string,unknown>}|undefined)?.config,b.timeZone):b.timeZone;
+  const greetingHour=hourInTimeZone(new Date(),effectiveTimeZone) ?? b.hour;
+  const greetingName=sanitizeVisitorName(b.visitorName || String((config.visitorContact as Record<string,unknown>|undefined)?.name || ''));
+  config={...config,timeZone:effectiveTimeZone,...(uiLocale ? {uiLocale, startLanguage: startingLanguageForUiLocale(uiLocale)} : {}),quotaClass:segmentParentId?'persona_segment':b.share?'visitor':voiceQuotaClass(role?.role==='admin',b.preview),model:requestedModel || DEFAULT_LIVE_MODEL,opening:openingFor(config,greetingHour,greetingName),preview:b.preview,resumeContext:b.preview?undefined:(segmentParentId?String(config.resumeContext || ''):b.resumeContext),reconnect:segmentParentId?false:!b.preview&&b.reconnect,campaign:b.campaign || (segmentParentId?(config.campaign ?? null):null),recordTranscript:segmentParentId?config.recordTranscript===true:!b.preview && transcriptAllowed(false,false,b.consent),recordAudio:segmentParentId?config.recordAudio===true:!b.preview && b.consent};
+  // DEMO-SITE OPENING RENDER (2026-11-12 late — live retest of the
+  // Scalone batch, session 96d54121): openingFor returned the picked
+  // demo rotation variant VERBATIM, and the demo-site variants are
+  // TEMPLATES ({timeGreeting} / {visitorFirstName} / {agentName} /
+  // {businessName}, invite variants also {nameConfirm}). The stored
+  // opening was the bare template and the model improvised the
+  // substitution at speak time — from the raw visitorContact in its
+  // prompt ("Good morning, CRM Prospect" at 21:30 America/New_York),
+  // bypassing the sanitized greetingName and the timezone-derived
+  // greetingHour computed above. Render the picked opening NOW, with
+  // those same two values, for DEMO PARENTS ONLY (lead/prospect
+  // branch, non-segment): the stored opening is the fully rendered
+  // text the proxy serves verbatim. Homepage, realtor-landing,
+  // segment, share, draft and preview openings keep the exact shapes
+  // openingFor has always produced (their variants are
+  // placeholder-free prose or pinned raw); the verification and
+  // legacy-slim demo shapes pass through greeting() already rendered,
+  // so for them this render is a no-op.
+  if(!segmentParentId && (b.leadId || b.prospectId)) {
+    config.opening=renderOpeningTemplate(config.opening,config,greetingHour,greetingName);
+  }
+  // SEGMENT FIRST-LINE RENDER (2026-11-13 — Ron's Andriot retest): the
+  // same hygiene pattern, applied to Sara's SEGMENT entry. Her in-role
+  // greeting was model-improvised from beat 4 of the segment prompt and
+  // intermittently skipped entirely — one live run opened with the
+  // host's 78% pitch statistic instead of any greeting. Render her
+  // first line HERE, server-side: for a planned doorway swap, the
+  // beat-4 greeting template from the segment build (config.greeting),
+  // rendered with the segment's effective-timezone hour; for a manual
+  // resume inside her segment, a scripted in-role welcome-back line.
+  // The proxy's swap/resume openings serve config.segmentGreeting
+  // verbatim as her first utterance. Drop recoveries keep the
+  // no-re-greeting law (apology + continuation, no stamp). A segment
+  // whose business name is unknown gets no stamp — the proxy's prose
+  // fallback covers it.
+  const segMeta=config.personaSegment as {persona?:unknown;boundary?:unknown}|undefined;
+  if(segmentParentId && segMeta?.persona==='sara' && segMeta?.boundary==='doorway' && String(config.businessName || '').trim()) {
+    if(config.personaSwap) {
+      config.segmentGreeting=renderOpeningTemplate(String(config.greeting || ''),config,greetingHour,greetingName);
+      // ROOT-CAUSE FIX (2026-11-13 forensics — the proven Bug 2 cause):
+      // the segment's config.opening otherwise stays the RAW,
+      // UNSUBSTITUTED Aspen sales template openingFor rotated from the
+      // inherited greetings array — placeholders intact, 78% statistic,
+      // ending "Now, meet Sara…" — because the parent render above is
+      // guarded !segmentParentId. A segment's opening config is its
+      // OWN in-role line, never the parent's sales template: stamp the
+      // rendered segment greeting AS the opening.
+      config.opening=config.segmentGreeting;
+    } else if(config.personaResume) {
+      config.segmentGreeting=renderOpeningTemplate(`Welcome back — this is Sara, {businessName}'s receptionist. Let's pick up right where we left off.`,config,greetingHour,greetingName);
+      config.opening=config.segmentGreeting;
+    } else if(config.personaDrop) {
+      // Drop recovery serves no opening (apology + continuation), but
+      // the stored opening config gets the same hygiene: her rendered
+      // in-role greeting, never the raw parent sales template.
+      config.opening=renderOpeningTemplate(String(config.greeting || ''),config,greetingHour,greetingName);
+    }
+  }
   const token=crypto.randomUUID()+crypto.randomUUID();
   const visitor=await hash(`${b.visitorKey}|${req.headers.get('x-forwarded-for')?.split(',')[0] || ''}`);
   const {data:id,error}=await db.rpc('authorize_gemini_session',{_visitor:visitor,_token:await hash(token),_config:config,_agent:agentId,_org:orgId,_lead:segmentParentId?(parentRowRef?.lead_id ?? null):b.leadId || null,_prospect:segmentParentId?(parentRowRef?.prospect_id ?? null):b.prospectId || null});

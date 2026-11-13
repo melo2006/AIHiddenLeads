@@ -10,6 +10,10 @@ on:
         description: 'Skip schema migrations (functions-only redeploy; schema already applied)'
         type: boolean
         default: false
+      diagnose_only:
+        description: 'READ-ONLY remote reconciliation (migration state + suite objects); skips ALL mutating steps'
+        type: boolean
+        default: false
 
 jobs:
   deploy:
@@ -31,14 +35,94 @@ jobs:
           SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
-      - name: Apply supabase/migrations (core 24 tables)
-        if: ${{ !inputs.skip_migrations }}
-        run: supabase db push
+      - name: READ-ONLY remote reconciliation (diagnose_only)
+        if: ${{ inputs.diagnose_only }}
+        # Every statement below is a SELECT. Nothing in this step writes to the
+        # remote project; it exists so migration state can be proven from the
+        # run log before any deploy step is allowed to touch production.
+        # HARDENED (2026-11-12, run 43326565091): every probe carries '|| true' —
+        # pre-deploy the suite tables do not exist yet, and one erroring probe
+        # must not black out the remaining reconciliation facts.
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+          PSQL="psql postgresql://postgres.$SUPABASE_PROJECT_ID@aws-0-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require -v ON_ERROR_STOP=0 -At"
+          export PGPASSWORD="$SUPABASE_DB_PASSWORD"
+          echo '=== core schema_migrations table present? ==='
+          $PSQL -c "SELECT coalesce(to_regclass('supabase_migrations.schema_migrations')::text, 'MISSING');" || true
+          echo '=== core migrations recorded remotely: count|min|max ==='
+          $PSQL -c "SELECT count(*) || '|' || coalesce(min(version), '') || '|' || coalesce(max(version), '') FROM supabase_migrations.schema_migrations;" || true
+          echo '=== core migration versions recorded remotely ==='
+          $PSQL -c "SELECT string_agg(version, ',' ORDER BY version) FROM supabase_migrations.schema_migrations;" || true
+          echo '=== recent core migration marker objects ==='
+          $PSQL -c "SELECT coalesce(to_regclass('public.demo_verification_codes')::text, 'MISSING');" || true
+          $PSQL -c "SELECT count(*) FROM information_schema.columns WHERE table_schema = 'public' AND column_name = 'phone_demo_enabled';" || true
+          echo '=== usage suite objects (drizzle 0020) ==='
+          $PSQL -c "SELECT coalesce(to_regclass('public.usage_events')::text, 'MISSING') || '|' || coalesce(to_regclass('public.usage_report_settings')::text, 'MISSING') || '|' || coalesce(to_regclass('public.minute_packs')::text, 'MISSING') || '|' || coalesce(to_regclass('public.minute_pack_purchases')::text, 'MISSING');" || true
+          echo '=== RLS flags on suite tables ==='
+          $PSQL -c "SELECT c.relname || '=' || c.relrowsecurity FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relname IN ('usage_events', 'usage_report_settings', 'minute_packs', 'minute_pack_purchases') ORDER BY 1;" || true
+          echo '=== usage_events rows by service (count|minutes) ==='
+          $PSQL -c "SELECT service || '|' || count(*) || '|' || round(coalesce(sum(minutes), 0)::numeric, 1) FROM public.usage_events GROUP BY service ORDER BY 1;" || true
+          echo '=== usage_report_settings row count (must be 0 pre-launch) ==='
+          $PSQL -c "SELECT count(*) FROM public.usage_report_settings;" || true
+          echo '=== minute_packs catalog rows ==='
+          $PSQL -c "SELECT count(*) FROM public.minute_packs;" || true
+          echo '=== pg_cron jobs (engine must stay unscheduled) ==='
+          $PSQL -c "SELECT coalesce(to_regclass('cron.job')::text, 'MISSING');" || true
+          $PSQL -c "SELECT jobname || '|' || schedule || '|' || active FROM cron.job ORDER BY 1;" || true
+          echo '=== duration/timestamp columns on source tables ==='
+          $PSQL -c "SELECT table_name || '.' || column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name IN ('gemini_voice_sessions', 'telephony_calls') AND (column_name ILIKE '%duration%' OR column_name ILIKE '%created%' OR column_name ILIKE '%started%') ORDER BY 1, 2;" || true
+          echo '=== November 2026 source baselines (count|with-duration|minutes) ==='
+          $PSQL -c "SELECT count(*) || '|' || count(*) FILTER (WHERE duration_seconds > 0) || '|' || round(coalesce(sum(duration_seconds), 0) / 60.0, 1) FROM public.gemini_voice_sessions WHERE created_at >= '2026-11-01' AND created_at < '2026-12-01';" || true
+          $PSQL -c "SELECT count(*) || '|' || count(*) FILTER (WHERE duration_seconds > 0) || '|' || round(coalesce(sum(duration_seconds), 0) / 60.0, 1) FROM public.telephony_calls WHERE created_at >= '2026-11-01' AND created_at < '2026-12-01';" || true
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+
+      - name: List deployed functions (diagnose_only)
+        if: ${{ inputs.diagnose_only }}
+        run: supabase functions list
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
 
+      - name: Apply supabase/migrations (core tree, guarded)
+        if: ${{ !inputs.skip_migrations && !inputs.diagnose_only }}
+        # GUARDED (2026-11-12): the bare 'supabase db push' this step used to run
+        # now targets a LOCAL stack under the current CLI (run 43318177716 died
+        # with ECONNREFUSED 127.0.0.1:54322), and the core tree is a one-shot,
+        # non-idempotent history — replaying unrecorded files against
+        # production is unsafe. So reconcile first: the push runs ONLY when
+        # every local core migration is already recorded in the remote
+        # schema_migrations (a verified no-op). Any unrecorded file downgrades
+        # this step to a loud warning, and the drizzle loop + functions deploy
+        # still proceed; core reconciliation then happens manually, on purpose.
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+          export PGPASSWORD="$SUPABASE_DB_PASSWORD"
+          PSQL="psql postgresql://postgres.$SUPABASE_PROJECT_ID@aws-0-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require -v ON_ERROR_STOP=1 -At"
+          ls supabase/migrations/*.sql | xargs -n1 basename | cut -d_ -f1 | LC_ALL=C sort -u > /tmp/local_versions.txt
+          HAS_TABLE=$($PSQL -c "SELECT coalesce(to_regclass('supabase_migrations.schema_migrations')::text, '');")
+          if [ -n "$HAS_TABLE" ]; then
+            $PSQL -c "SELECT version FROM supabase_migrations.schema_migrations ORDER BY 1;" | LC_ALL=C sort -u > /tmp/remote_versions.txt
+          else
+            echo 'Remote has no supabase_migrations.schema_migrations table.'
+            : > /tmp/remote_versions.txt
+          fi
+          echo "Core migrations: local=$(wc -l < /tmp/local_versions.txt) recorded-remotely=$(wc -l < /tmp/remote_versions.txt)"
+          MISSING=$(comm -23 /tmp/local_versions.txt /tmp/remote_versions.txt)
+          if [ -n "$MISSING" ]; then
+            echo "::warning title=Core push skipped - unrecorded core migrations::These supabase/migrations versions are NOT recorded in the remote schema_migrations, and the tree is not idempotent, so 'supabase db push' is NOT safe to run: $(echo $MISSING | tr '\n' ' ')"
+            echo 'Drizzle migrations and functions will still deploy. Reconcile the core tree manually before re-enabling this push.'
+          else
+            echo 'All local core migrations are recorded remotely - supabase db push --remote is a verified no-op.'
+            supabase db push --remote
+          fi
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+
       - name: Apply drizzle/migrations (voice/telephony tables) via psql
-        if: ${{ !inputs.skip_migrations }}
+        if: ${{ !inputs.skip_migrations && !inputs.diagnose_only }}
         # drizzle-kit exits silently (code 1, no error) in CI, so apply the plain-SQL
         # migration files directly with psql, which reports real Postgres errors.
         # ON_ERROR_STOP=1 halts on the first failing statement.
@@ -56,6 +140,7 @@ jobs:
           SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
 
       - name: Deploy all edge functions
+        if: ${{ !inputs.diagnose_only }}
         run: supabase functions deploy --yes
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}

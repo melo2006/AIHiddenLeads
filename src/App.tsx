@@ -31,6 +31,7 @@ const Plans = lazy(() => import("./pages/Plans.tsx"));
 const ServiceDetail = lazy(() => import("./pages/ServiceDetail.tsx"));
 const CustomerSetup = lazy(() => import('./pages/CustomerSetup.tsx'));
 const Realtors = lazy(() => import("./pages/Realtors.tsx"));
+const Help = lazy(() => import("./pages/Help.tsx"));
 const AgentEmbed = lazy(() => import('./pages/AgentEmbed.tsx'));
 const ConversationCopy = lazy(() => import('./pages/ConversationCopy.tsx'));
 
@@ -75,6 +76,7 @@ const App = () => {
             <Route path="/checkout" element={<Checkout />} />
             <Route path="/plans" element={<Plans />} />
             <Route path="/agents/realtors" element={<Realtors />} />
+            <Route path="/help" element={<Help />} />
             <Route path="/setup" element={<CustomerSetup />} />
             <Route path="/account" element={<CustomerSetup dashboard />} />
             <Route path="/embed/:id" element={<AgentEmbed />} />

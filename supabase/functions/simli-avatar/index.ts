@@ -4,6 +4,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { z } from 'npm:zod@3';
 import { resolveDemoShare } from '../_shared/demo-share.ts';
 import { workspaceAccess } from '../_shared/customer-payments.ts';
+import { tenantAvatarGate } from '../_shared/avatar-entitlement.ts';
 import { normalizeVideoAvatar, validFaceId } from '../_shared/video-avatar.ts';
 import { ALEX_FACE_ID } from '../_shared/alex-guide.ts';
 import { PERSONAS, type PersonaId } from '../_shared/personas.ts';
@@ -102,11 +103,21 @@ Deno.serve(async (req) => {
       } else {
         const id = b.agentId;
         if (id && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/i.test(id)) return json({ error: 'Invalid agent' }, 400);
-        const q = db.from('voice_agents').select('published');
+        const q = db.from('voice_agents').select('published, organization_id');
         const { data: a } = await (id ? q.eq(/^[0-9a-f-]{36}$/i.test(id) ? 'id' : 'slug', id) : q.eq('slug', 'aspen-homepage')).maybeSingle();
         const v = normalizeVideoAvatar((a?.published as Record<string, unknown> | null)?.videoAvatar);
         if (!a?.published || !v.enabled) return json({ error: 'Video avatar is not enabled' }, 404);
         faceId = v.faceId;
+        // Tenant entitlement (pricing cleanup, 2026-11-12): for a
+        // customer-tenant agent the paid add-on must be live — see
+        // _shared/avatar-entitlement.ts. Platform agents (no customer
+        // workspace) are never gated, and the gate fails open on any
+        // data problem. A refusal leaves the widget on its still photo:
+        // the voice-only experience, by design.
+        if (a.organization_id) {
+          const gate = await tenantAvatarGate(db, String(a.organization_id));
+          if (!gate.allowed) return json({ error: gate.code === 'avatar_trial_allowance_exhausted' ? 'The free avatar month has used its included video minutes — the assistant continues voice-only for the rest of the month.' : 'The live video avatar is not active for this business.', code: gate.code }, 403);
+        }
       }
       // Public sessions get a shorter idle window so an abandoned tab stops using avatar minutes.
       // A flat key-green backdrop lets the browser cut the person out so she floats like the static photo.

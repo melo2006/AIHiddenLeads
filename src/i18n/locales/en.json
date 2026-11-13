@@ -153,18 +153,16 @@
     }
   },
   "pricing": {
-    "badge": "50% OFF — ENDS THIS MONTH: Setup Fee Waived",
+    "badge": "Video avatar FREE for your first month · Setup fee waived",
     "title": "Choose your next",
     "titleAccent": "growth advantage.",
     "sub": "Premium $99 · Professional $199 · Platinum $349 per month. Website voice allowances and optional video are separate from telephone usage.",
     "perMo": "/mo",
-    "launchPrice": "Launch price",
     "setup": "Setup:",
     "free": "FREE",
-    "setupPromo": "(waived during the promotion)",
+    "setupPromo": "(waived through {{date}})",
     "webMinutes": "browser voice minutes/mo",
     "perMinSuffix": "/min equivalent",
-    "promoMinutes": "Promotion: {{n}} min included FREE for your first 3 months",
     "mostPopular": "Most Popular",
     "essentials": {
       "name": "Premium",
@@ -313,7 +311,7 @@
     "heroHeadline": "Your website, talking back — in under 2 minutes.",
     "heroTagline": "Meet Aspen — a live video avatar with real voice and chat who greets your visitors, answers questions and captures leads on your own website.",
     "aspenBubble": "Hi, I'm Aspen. Put me on your website — enter your URL below and watch me come alive on it.",
-    "priceStrip": "Keep her for $99/mo — 50% off your first 3 months (regular $199). 400 voice minutes + up to 50 B2B prospects/month included.",
+    "priceStrip": "Keep her for $99/mo — the permanent price, no intro discount. 400 voice minutes + up to 50 B2B prospects/month included, and the live video avatar is free for your first month.",
     "askAspen": "Ask Aspen about this demo",
     "benefitsTitle": "Why businesses add Aspen",
     "perkVoicemail": "85% of callers who hit voicemail don't call back — most just move on to the next name on the list. Aspen answers in seconds, so your callers never reach voicemail at all.",
@@ -559,11 +557,11 @@
       },
       {
         "q": "How much does an AI receptionist cost per month?",
-        "a": "Premium is $99/mo for the first 3 months (50% off the regular $199; the offer ends this month), with 400 voice minutes, website chat, and up to 50 B2B prospects per month included (no specific count is guaranteed). Professional is $199/mo for the first 3 months (regular $399) with 1,200 minutes and up to 100 prospects. The $199 setup fee is waived, and Aspen's live video avatar is an optional add-on at $79/mo if you want it."
+        "a": "Premium is $99/mo — the permanent price — with 400 voice minutes, website chat, and up to 50 B2B prospects per month included (no specific count is guaranteed). Professional is $199/mo with 1,200 minutes and up to 100 prospects, and Platinum is $349/mo with 2,500 minutes and up to 200 prospects. The $199 setup fee is waived through the end of the month, and Aspen's live video avatar is an optional add-on at $79/mo on any plan — its first month is free."
       },
       {
         "q": "Is there an AI receptionist with a video avatar?",
-        "a": "Yes. Aspen, the AiHiddenLeads AI receptionist, can appear on your website as a live, lip-synced video avatar — your AI spokesperson — while she talks with visitors by voice and chat. The avatar is an optional add-on at $79/mo on Premium; the voice receptionist works on its own if you skip it. You can watch her work in the free live demo on your own website."
+        "a": "Yes. Aspen, the AiHiddenLeads AI receptionist, can appear on your website as a live, lip-synced video avatar — your AI spokesperson — while she talks with visitors by voice and chat. The avatar is an optional add-on at $79/mo on any plan — and its first month is free; the voice receptionist works on its own if you skip it. You can watch her work in the free live demo on your own website."
       },
       {
         "q": "Does an AI receptionist answer calls 24/7 and book appointments?",
@@ -583,7 +581,7 @@
       },
       {
         "q": "Does a natural AI voice include live video?",
-        "a": "All plans include natural two-way website voice with a still portrait and chat. Live, lip-synced video is optional: Premium +$79/month for 400 video minutes ($178 total), Professional +$180 for 1,200, or Platinum +$250 for 2,500."
+        "a": "All plans include natural two-way website voice with a still portrait and chat. Live, lip-synced video is an optional add-on at $79/month on every plan, with included video minutes matching your plan (Premium 400, Professional 1,200, Platinum 2,500) — and the first month of the avatar is free."
       },
       {
         "q": "Can it answer my business telephone number?",
@@ -697,6 +695,7 @@
     "speakerOnShort": "Turn speaker sound on",
     "silenceSpeaker": "Silence speaker",
     "speakerOutput": "Speaker output",
+    "speakerVolume": "Speaker volume",
     "speakerOutputChoose": "Choose where her voice plays",
     "speakerLoudspeaker": "Loudspeaker",
     "speakerEarpiece": "Phone earpiece",
@@ -717,6 +716,11 @@
     "noiseLight": "Minimum filtering — quiet room",
     "noiseBalanced": "Balanced filtering — everyday",
     "noiseStrong": "Strong filtering — noisy room",
+    "micEnvironment": "Microphone environment",
+    "envQuiet": "Quiet",
+    "envNormal": "Normal",
+    "envNoisy": "Noisy",
+    "envAuto": "Auto",
     "micSensitivity": "Microphone sensitivity",
     "microphone": "Microphone",
     "systemDefaultMic": "System default microphone",

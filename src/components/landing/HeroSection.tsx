@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Phone, Search, Star, Users, Video, Calendar, ArrowRight } from "lucide-react";
+import { Phone, Search, Star, Users, Video, Calendar, ArrowRight, MessageSquare } from "lucide-react";
 import { homepageSalesCopy } from "@/data/homepageSalesCopy";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,9 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
   const copy = homepageSalesCopy(i18n.language);
-  const icons = [Phone, Users, Search, Star, Video];
+  // One icon per hero service, in list order; positions past the array
+  // fall back to Phone (the same fallback social/website used before).
+  const icons = [Phone, Users, Search, Star, Video, Phone, MessageSquare, Phone];
   // Pause the rotating headline while the visitor hovers it or uses the CTAs.
   const [rotationPaused, setRotationPaused] = useState(false);
   const pauseRotation = () => setRotationPaused(true);

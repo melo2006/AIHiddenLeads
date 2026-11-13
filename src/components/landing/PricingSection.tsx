@@ -5,14 +5,13 @@ import { Trans, useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
+import { formatSetupWaiverEnd } from "@/lib/setupWaiver";
 
 const tiers = [
   {
     key: "essentials",
     price: 99,
     priceBRL: 499,
-    originalPrice: 199,
-    originalPriceBRL: 999,
     setupFee: 99,
     setupFeeBRL: 499,
     originalSetup: 99,
@@ -22,7 +21,6 @@ const tiers = [
     checkoutPlan: "essentials",
     featureCount: 10,
     minutes: 400,
-    normalMinutes: 200,
     perMin: "0.25",
     leads: 50,
   },
@@ -30,8 +28,6 @@ const tiers = [
     key: "growth",
     price: 199,
     priceBRL: 999,
-    originalPrice: 399,
-    originalPriceBRL: 1999,
     setupFee: 199,
     setupFeeBRL: 999,
     originalSetup: 199,
@@ -41,7 +37,6 @@ const tiers = [
     checkoutPlan: "growth",
     featureCount: 10,
     minutes: 1200,
-    normalMinutes: 600,
     perMin: "0.17",
     leads: 100,
   },
@@ -49,8 +44,6 @@ const tiers = [
     key: "full",
     price: 349,
     priceBRL: 1749,
-    originalPrice: 699,
-    originalPriceBRL: 3499,
     setupFee: null,
     setupFeeBRL: null,
     originalSetup: 349,
@@ -60,7 +53,6 @@ const tiers = [
     checkoutPlan: "fullservice",
     featureCount: 10,
     minutes: 2500,
-    normalMinutes: 1250,
     perMin: "0.14",
     leads: 200,
   },
@@ -73,7 +65,7 @@ const FEATURES: Record<string, Record<string, string[]>> = {
     essentials: [
       "State-of-the-art neural voice — natural, human-like speech, not robotic text-to-speech",
       "Real two-way conversation — visitors can interrupt and change topics",
-      "Optional live talking video avatar (add-on)",
+      "Optional live talking video avatar — first month free, then $79/mo (add-on)",
       "AI Chat Widget on your website",
       "SMS confirmations & reminders (coming soon — carrier fees separate)",
       "Website inquiry capture & appointment requests",
@@ -88,7 +80,7 @@ const FEATURES: Record<string, Record<string, string[]>> = {
     growth: [
       "Everything in Premium",
       "Live phone transfer + 1 free local number (activated after setup and testing); 5¢/min phone usage",
-      "Optional live talking video avatar — 1,200 minutes (add-on)",
+      "Optional live talking video avatar — 1,200 minutes, first month free, then $79/mo (add-on)",
       "SMS follow-up & reminders (coming soon)",
       "1,200 browser voice minutes/mo (≈ $0.17/min value)",
       "100 B2B prospects/month",
@@ -100,7 +92,7 @@ const FEATURES: Record<string, Record<string, string[]>> = {
     ],
     full: [
       "Everything in Professional",
-      "Optional live talking video avatar — 2,500 minutes (add-on)",
+      "Optional live talking video avatar — 2,500 minutes, first month free, then $79/mo (add-on)",
       "SMS follow-up & reminders (coming soon)",
       "2,500 browser voice minutes/mo (≈ $0.14/min value)",
       "200 B2B prospects/month",
@@ -246,10 +238,6 @@ const PricingSection = ({ recommendedPlan }: { recommendedPlan?: string } = {}) 
                         <span className="text-muted-foreground text-sm">{t("pricing.perMo")}</span>
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">(≈ ${tier.price} USD{t("pricing.perMo")})</p>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        <span className="line-through">R$ {tier.originalPriceBRL.toLocaleString("pt-BR")}{t("pricing.perMo")}</span>
-                        <span className="text-primary ml-2 font-medium">{t("pricing.launchPrice")}</span>
-                      </p>
                     </>
                   ) : (
                     <>
@@ -257,22 +245,17 @@ const PricingSection = ({ recommendedPlan }: { recommendedPlan?: string } = {}) 
                         <span className="text-4xl font-extrabold">${tier.price}</span>
                         <span className="text-muted-foreground text-sm">{t("pricing.perMo")}</span>
                       </div>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        <span className="line-through">${tier.originalPrice}{t("pricing.perMo")}</span>
-                        <span className="text-primary ml-2 font-medium">{t("pricing.launchPrice")}</span>
-                      </p>
                     </>
                   )}
                   <p className="text-xs text-primary font-medium mt-2">
                     {tier.minutes.toLocaleString()} {t("pricing.webMinutes")} (≈ ${tier.perMin}{t("pricing.perMinSuffix")})
                   </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {t("pricing.promoMinutes", { n: tier.normalMinutes.toLocaleString() })}
-                  </p>
                   <p className="text-xs text-muted-foreground mt-2">
                     {t("pricing.setup")} <span className="line-through">${tier.originalSetup}</span>{" "}
                     <span className="text-primary font-semibold">{t("pricing.free")}</span>{" "}
-                    <span className="text-muted-foreground">{t("pricing.setupPromo")}</span>
+                    <span className="text-muted-foreground">
+                      {t("pricing.setupPromo", { date: formatSetupWaiverEnd(lang) })}
+                    </span>
                   </p>
                 </div>
 
@@ -336,7 +319,7 @@ const PricingSection = ({ recommendedPlan }: { recommendedPlan?: string } = {}) 
           <div className="rounded-xl border border-border bg-card/50 p-5">
             <p className="text-sm text-center text-muted-foreground leading-relaxed">
               <span className="font-semibold text-foreground">Live video avatar add-on — matches your plan's minutes.</span>{" "}
-              Every plan includes natural voice with a still photo of your assistant. Add a live, lip-synced video face: <span className="text-primary font-medium">Premium +$79/mo</span> (400 video minutes, $178/mo total), <span className="text-primary font-medium">Professional +$180/mo</span> (1,200 minutes at 15¢/min), <span className="text-primary font-medium">Platinum +$250/mo</span> (2,500 minutes at 10¢/min). Pick any face from our avatar library <span className="text-primary font-medium">free</span>, or have a custom avatar built from your own photo — with your own cloned voice included — for a <span className="text-primary font-medium">$50 one-time fee</span>. Custom faces can take several minutes up to about 24 hours to build. Your free website demo uses our live video assistant so you can see the full experience. Every plan comes with a <span className="text-primary font-medium">14-day money-back guarantee</span>.
+              Every plan includes natural voice with a still photo of your assistant. Add a live, lip-synced video face for <span className="text-primary font-medium">+$79/mo on any plan</span> — and your <span className="text-primary font-medium">first month of the avatar is free</span>: from month 2 it is $79/mo only if you keep it, otherwise it switches off automatically and you are never charged. Included video minutes match your plan's voice minutes (Premium 400, Professional 1,200, Platinum 2,500). During the free month there are no overage charges — if the included video minutes run out, the avatar pauses to voice-only for the rest of that month; once you keep it, extra video minutes are 20¢/min. Pick any face from our avatar library <span className="text-primary font-medium">free</span>, or have a custom avatar built from your own photo for a <span className="text-primary font-medium">$50 one-time fee</span>. Custom faces can take several minutes up to about 24 hours to build. Your free website demo uses our live video assistant so you can see the full experience. Every plan comes with a <span className="text-primary font-medium">14-day money-back guarantee</span>.
             </p>
           </div>
         </motion.div>

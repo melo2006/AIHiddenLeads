@@ -8,6 +8,7 @@ vi.mock('@/integrations/supabase/client', () => ({
 import {
   DEMO_CONSENT_DISCLOSURE,
   DEMO_CONSENT_DISCLOSURE_VERSION,
+  DEMO_SMS_CONSENT_LABEL,
   DEMO_RESUME_STORAGE_KEY,
   DEMO_TEST_TOGGLE,
   clearDemoResume,
@@ -94,6 +95,19 @@ describe('consent disclosure', () => {
   test('disclosure mentions STOP and that consent is not a condition of purchase', () => {
     expect(DEMO_CONSENT_DISCLOSURE).toContain('STOP');
     expect(DEMO_CONSENT_DISCLOSURE).toContain('not a condition of purchase');
+  });
+
+  // Telnyx TFV fix (2026-11-13): continuing must no longer imply SMS
+  // consent — texts are governed solely by the optional checkbox.
+  test('disclosure does not grant text consent by continuing; texts need the checkbox', () => {
+    expect(DEMO_CONSENT_DISCLOSURE).not.toContain('by text, call and email');
+    expect(DEMO_CONSENT_DISCLOSURE).toContain('We only text you if you tick the SMS box above');
+  });
+
+  test('SMS checkbox label frames consent as optional and names the STOP path', () => {
+    expect(DEMO_SMS_CONSENT_LABEL).toContain('Optional');
+    expect(DEMO_SMS_CONSENT_LABEL).toContain('STOP');
+    expect(DEMO_SMS_CONSENT_LABEL).toContain('SMS');
   });
 });
 

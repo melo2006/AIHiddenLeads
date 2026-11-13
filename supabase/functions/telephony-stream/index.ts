@@ -9,7 +9,7 @@ import { LANGUAGE_POLICY } from '../_shared/voice-config.ts';
 import { PHONE_OPENING_PRIORITY } from '../_shared/homepage-knowledge.ts';
 import { phoneMaxSeconds, monthlyRate } from '../_shared/telephony-rules.ts';
 import { DEFAULT_LIVE_MODEL, officialLivePricing } from '../_shared/live-models.ts';
-import { PHONE_DEMO_DISCLOSURE_VERSION, PHONE_DEMO_HOST_POLICY, PHONE_DEMO_LINK, BOOKING_PAGE_LINK, buildDictatedKnowledge, sanitizeSpokenCode, spellBackForSpeech } from '../_shared/phone-demo.ts';
+import { PHONE_DEMO_DISCLOSURE_VERSION, PHONE_DEMO_HOST_POLICY, PHONE_DEMO_LINK, BOOKING_PAGE_LINK, PHONE_GREETING, buildDictatedKnowledge, sanitizeSpokenCode, spellBackForSpeech, transcriptShowsCapturedContact } from '../_shared/phone-demo.ts';
 import { buildRecapSmsBody, normalizePhoneE164, recapSmsDecision } from '../_shared/followup.ts';
 import { isSmsOptedOut, priorSmsAttempts, trySendFollowupSms } from '../_shared/twilio-sms.ts';
 import { resolvePhoneDemoRescue } from '../_shared/phone-rescue.ts';
@@ -17,12 +17,13 @@ import { platformAvailability } from '../_shared/platform-calendar.ts';
 import { generateSlots } from '../_shared/booking-slots.ts';
 import { checkTimeAvailability, parseDayPart, preferredDatesFor, resolveNamedTime, selectOfferSet } from '../_shared/booking-tools.ts';
 import { bookCallWithConfirmations } from '../_shared/booking-confirm.ts';
+import { logUsageEvent, phoneVoiceEventFromCall } from '../_shared/usage-ledger.ts';
 
 const json = (d: unknown, status = 200) => new Response(JSON.stringify(d), { status, headers: { 'Content-Type': 'application/json' } });
 const xml = (b: string) => new Response(`<?xml version="1.0" encoding="UTF-8"?><Response>${b}</Response>`, { headers: { 'Content-Type': 'text/xml' } });
 const E164 = /^\+[1-9]\d{7,14}$/;
 
-const PHONE_POLICY = `PHONE CALL RULES (override anything about websites, screens, buttons or demos-on-screen): You are answering a real telephone call. Speak in one or two short sentences, no lists, no URLs read character by character. One exception: the opening greeting is supplied in full when the call connects — deliver it completely, word for word, however long it is; the short-sentence rule applies to everything after the greeting. Use only the reference data for business facts; if unsure, offer to take a message or transfer. Collect name, reason and callback number when useful and read numbers back. When the caller asks for a person or something you cannot handle and a transfer is available, say you are connecting them, then call transfer_call.`;
+const PHONE_POLICY = `PHONE CALL RULES (override anything about websites, screens, buttons or demos-on-screen): You are answering a real telephone call. Speak in one or two short sentences, no lists, no URLs read character by character. One exception: the opening greeting is supplied in full when the call connects — deliver it completely, word for word, however long it is; the short-sentence rule applies to everything after the greeting. Use only the reference data for business facts; if unsure, offer to take a message or transfer. Collect name, reason and callback number when useful. UNIVERSAL NUMBER PROTOCOL (mandatory gate, every mode): any phone number a caller dictates — a callback number, a service or appointment number, any number at all — must be read back grouped digit-by-digit, followed by "Did I get that right?", and the conversation proceeds ONLY on the caller's confirmation; a correction restarts the read-back of that number, never the whole conversation. Never move on from a dictated number without this read-back gate. When the caller asks for a person or something you cannot handle and a transfer is available, say you are connecting them, then call transfer_call.`;
 
 // Language mirroring discipline (fix batch 2026-11-08, from
 // ~/workspace/language-lock-rule-2026-11-08.md, refined version). On the
@@ -192,6 +193,16 @@ Deno.serve(async (req) => {
           agentName: String(cfg.name || 'Aspen'),
           businessName: String(cfg.businessName || client.client_name || ''),
         };
+        // Phone greeting trim (phone-demo polish batch, 2026-11-12):
+        // this branch is ONLY the single fallback `greeting` — the
+        // shared snapshot greeting (~142 words) kept a phone caller
+        // from responding for close to a minute, so substitute the
+        // tightened PHONE_GREETING (~77 words, same approved
+        // elements) rendered with the same vars map. Assembly-time
+        // override only, mirroring the realtor-stamp pattern: the
+        // stored snapshot is never edited, and operator-set
+        // `greetings` variants above keep winning byte-verbatim.
+        opening = PHONE_GREETING;
         opening = opening.replace(/\{(\w+)\}/g, (m, k) => vars[k] ?? m);
       }
       const greeting = opening ? `(The phone call just connected. Deliver this ENTIRE greeting now, word for word, as one continuous opening. Do not shorten it, do not adapt it, do not paraphrase it, and do not stop or wait for an answer partway through — any question inside it is rhetorical. The greeting is your whole first turn; only after you have spoken all of it, stop and wait for the caller: "${opening.slice(0, 1400)}")` : '(The phone call just connected. Greet the caller briefly.)';
@@ -259,6 +270,14 @@ Deno.serve(async (req) => {
         email: fields.email ? spellBackForSpeech(fields.email) : null,
         mobile: fields.phone ? spellBackForSpeech(fields.phone) : null,
       };
+      // Phone-source visibility (phone-demo polish batch, 2026-11-12):
+      // the stored phone above still falls back to caller ID (booking
+      // and recap read lead.phone), but the save result now says WHERE
+      // the number came from so Aspen can be honest about it: a number
+      // the tool call supplied is 'dictated'; a number that only
+      // exists because fields.phone fell back to call.from_phone is
+      // 'caller_id'; no number at all is 'none'.
+      const phoneSource = mobile ? 'dictated' : fields.phone ? 'caller_id' : 'none';
       const existingId = typeof b.leadId === 'string' ? b.leadId : null;
       if (existingId) {
         // Correction pass (the caller fixed a spelling): update the same
@@ -266,12 +285,12 @@ Deno.serve(async (req) => {
         // answer MAY change on a later save (step 3 records it after the
         // first intake save), so it is patched in when the tool supplies it.
         const { error: upErr } = await db.from('leads').update(fields).eq('id', existingId);
-        if (upErr) return json({ error: 'save_failed' }, 500);
+        if (upErr) { console.error('telephony-stream: phone-demo-save update failed', upErr.message); return json({ error: 'save_failed' }, 500); }
         if (typeof d.smsConsent === 'boolean') {
           const { error: consentErr } = await db.from('leads').update({ sms_consent: d.smsConsent }).eq('id', existingId);
           if (consentErr) console.error('telephony-stream: sms_consent patch failed (migration pending?)', consentErr.message);
         }
-        return json({ ok: true, leadId: existingId, spellBack });
+        return json({ ok: true, leadId: existingId, spellBack, phoneSource });
       }
       const { data: lead, error: insErr } = await db.from('leads').insert({
         ...fields,
@@ -281,6 +300,7 @@ Deno.serve(async (req) => {
         ...(typeof d.smsConsent === 'boolean' ? { sms_consent: d.smsConsent } : {}),
       }).select('id').single();
       if (insErr || !lead) {
+        console.error('telephony-stream: phone-demo-save insert failed', insErr ? insErr.message : 'no lead row returned');
         // Pre-migration fallback: sms_consent does not exist yet — retry the
         // insert without it; consent treated as not-yet-recorded until the
         // follow-up pack migration lands (no text is sent on a guess).
@@ -291,11 +311,12 @@ Deno.serve(async (req) => {
             consent_disclosure_version: PHONE_DEMO_DISCLOSURE_VERSION,
             consent_captured_at: new Date().toISOString(),
           }).select('id').single();
-          if (!retry.error && retry.data) return json({ ok: true, leadId: retry.data.id, spellBack });
+          if (!retry.error && retry.data) return json({ ok: true, leadId: retry.data.id, spellBack, phoneSource });
+          console.error('telephony-stream: phone-demo-save sms_consent fallback retry failed', retry.error ? retry.error.message : 'no lead row returned');
         }
         return json({ error: 'save_failed' }, 500);
       }
-      return json({ ok: true, leadId: lead.id, spellBack });
+      return json({ ok: true, leadId: lead.id, spellBack, phoneSource });
     }
 
     if (b.action === 'phone-demo-code') {
@@ -500,6 +521,37 @@ Deno.serve(async (req) => {
       if (call.transferred && usageObj && reportObj && transferObj && transferObj.outcome === 'pending') {
         endProgress = { ...progress, ai_usage: { ...usageObj, call_report: { ...reportObj, transfer: { ...transferObj, outcome: 'connected' } } } };
       }
+      // End-of-call lead guarantee (phone-demo polish batch, 2026-11-12):
+      // the bridge's end report carries phoneDemo { leadId, recapCalled }
+      // for phone-demo calls (older reports may omit it — code
+      // defensively). A phone demo that captured contact details MUST
+      // have produced a lead row; when it did not, say so loudly in the
+      // stored ai_usage (phone_demo_audit) and in this response instead
+      // of letting the lead vanish silently (the A&R Towing call,
+      // 2026-11-12: name + mobile + email captured, no lead row).
+      let phoneDemoAudit: Record<string, unknown> | undefined;
+      const phoneDemoReport = (b as Record<string, unknown>).phoneDemo;
+      if (phoneDemoOn && phoneDemoReport && typeof phoneDemoReport === 'object') {
+        const reportLeadId = typeof (phoneDemoReport as Record<string, unknown>).leadId === 'string' && (phoneDemoReport as Record<string, unknown>).leadId
+          ? String((phoneDemoReport as Record<string, unknown>).leadId)
+          : null;
+        if (reportLeadId) {
+          const { data: leadRow } = await db.from('leads').select('id').eq('id', reportLeadId).maybeSingle();
+          if (leadRow) {
+            phoneDemoAudit = { lead_saved: true, lead_id: reportLeadId };
+          } else {
+            phoneDemoAudit = { lead_saved: false, marker: 'phone_demo_lead_missing', contact_evidence: true };
+            console.error('PHONE_DEMO_LEAD_MISSING', call.id);
+          }
+        } else if (transcriptShowsCapturedContact(transcript)) {
+          phoneDemoAudit = { lead_saved: false, marker: 'phone_demo_lead_missing', contact_evidence: true };
+          console.error('PHONE_DEMO_LEAD_MISSING', call.id);
+        } else {
+          phoneDemoAudit = { lead_saved: false, marker: 'no_contact_captured' };
+        }
+        const baseUsage = (endProgress.ai_usage && typeof endProgress.ai_usage === 'object' ? endProgress.ai_usage : {}) as Record<string, unknown>;
+        endProgress = { ...endProgress, ai_usage: { ...baseUsage, phone_demo_audit: phoneDemoAudit } };
+      }
       // Seconds/price are finalized by Twilio's status callback (telephony-voice?action=status).
       await db.from('telephony_calls').update(endProgress).eq('id', call.id);
       // Telnyx has no carrier status callback: when the bridge reports the
@@ -512,9 +564,11 @@ Deno.serve(async (req) => {
         if (fresh && fresh.status !== 'completed' && fresh.status !== 'transferred_done') {
           await db.from('telephony_calls').update({ status: fresh.status === 'transferred' ? 'transferred_done' : 'completed', seconds, ended_at: new Date().toISOString() }).eq('id', call.id);
           await db.from('telephony_usage').insert({ client_id: call.client_id, kind: 'voice', direction: 'inbound', seconds, segments: 0, provider_sid: call.call_sid, provider_cost_usd: null });
+          // Usage ledger (Usage Reporting Suite): failure-isolated, never throws.
+          try { await logUsageEvent(db, phoneVoiceEventFromCall({ ...call, seconds, ai_usage: aiUsage ?? call.ai_usage }, client)); } catch { /* ledger is best-effort only */ }
         }
       }
-      return json({ ok: true });
+      return json({ ok: true, ...(phoneDemoAudit ? { phone_demo_audit: phoneDemoAudit } : {}) });
     }
     return json({ error: 'Unknown action' }, 400);
   } catch (e) {

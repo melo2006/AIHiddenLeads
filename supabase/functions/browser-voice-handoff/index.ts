@@ -3,6 +3,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { z } from 'npm:zod@3';
 import twilio from 'npm:twilio@5';
 import { acceptsManager, escapeXml, ownerOutcome, sha256 } from '../_shared/browser-handoff.ts';
+import { HANDOFF_BRIEFING_BUCKET, handoffBriefingPath, managerBriefingText, synthesizeBriefingWav } from '../_shared/handoff-briefing-voice.ts';
 
 const json=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
 const xml=(body:string)=>new Response(`<?xml version="1.0" encoding="UTF-8"?><Response>${body}</Response>`,{headers:{...corsHeaders,'Content-Type':'text/xml'}});
@@ -53,7 +54,7 @@ Deno.serve(async req=>{
     if(!await advance(handoff.id,['not_requested'],'queued'))return xml('<Hangup/>');
     const {error}=await db.from('browser_voice_handoffs').update({browser_call_sid:params.CallSid}).eq('id',handoff.id);if(error)throw error;
     const conference=`browser-handoff-${handoff.id}`;
-    return xml(`<Say>Please stay here while I connect you with the manager.</Say><Dial><Conference startConferenceOnEnter="false" endConferenceOnExit="true" beep="false" statusCallback="${escapeXml(callback('conference',handoff.id))}" statusCallbackEvent="join leave end">${conference}</Conference></Dial>`);
+    return xml(`<Say>Please stay here — I'll stay on until you're connected with the manager, then I'll step away.</Say><Dial><Conference startConferenceOnEnter="false" endConferenceOnExit="true" beep="false" statusCallback="${escapeXml(callback('conference',handoff.id))}" statusCallbackEvent="join leave end">${conference}</Conference></Dial>`);
    }
    if(!id.success)return xml('<Hangup/>');
    const {data}=await db.from('browser_voice_handoffs').select('*').eq('id',id.data).maybeSingle();handoff=data;
@@ -61,6 +62,22 @@ Deno.serve(async req=>{
    if(action==='conference'){
     if(params.StatusCallbackEvent==='participant-join'&&params.CallSid===handoff.browser_call_sid){
      if(await advance(handoff.id,['queued'],'dialing_owner')){
+      // Aspen-voice briefing (Handoff improvement batch, 2026-11-12):
+      // the summary is frozen once the row left 'not_requested', so
+      // synthesize the manager-leg briefing in Aspen's own voice NOW
+      // — in parallel with the owner dial below, while the phone is
+      // still ringing — and store it at the deterministic path the
+      // owner action derives from the handoff id. Fire-and-forget:
+      // any failure simply leaves the owner action on its <Say>
+      // fallback.
+      EdgeRuntime.waitUntil((async()=>{
+       try{
+        const wav=await synthesizeBriefingWav(managerBriefingText(handoff),{apiKey:Deno.env.get('GOOGLE_API_KEY')||''});
+        if(!wav)return;
+        const {error:upErr}=await db.storage.from(HANDOFF_BRIEFING_BUCKET).upload(handoffBriefingPath(handoff.id),wav,{contentType:'audio/wav',upsert:true});
+        if(upErr)console.error('handoff briefing upload failed',upErr.message);
+       }catch(e){console.error('handoff briefing voice failed',e instanceof Error?e.message:'error');}
+      })());
       try{
        const owner=await api('/Calls.json',new URLSearchParams({To:handoff.target_phone,From:'+15612755757',Url:callback('owner',handoff.id),Method:'POST',StatusCallback:callback('owner-status',handoff.id),StatusCallbackMethod:'POST',StatusCallbackEvent:'initiated ringing answered completed',Timeout:'30'}));
        await db.from('browser_voice_handoffs').update({owner_call_sid:owner.sid}).eq('id',handoff.id);
@@ -82,8 +99,16 @@ Deno.serve(async req=>{
     if(handoff.owner_call_sid&&params.CallSid!==handoff.owner_call_sid)return xml('<Hangup/>');
     await db.from('browser_voice_handoffs').update({owner_call_sid:params.CallSid}).eq('id',handoff.id);
     await advance(handoff.id,['dialing_owner'],'awaiting_owner');
-    const briefing=`Hello ${handoff.manager_name}. A website visitor is waiting. This is an automated handoff. ${handoff.summary||'The visitor has requested to speak with your team.'} Press 1 to accept and connect. Press any other key to decline.`;
-    return xml(`<Gather input="dtmf" numDigits="1" timeout="15" actionOnEmptyResult="true" action="${escapeXml(callback('accept',handoff.id))}" method="POST"><Say>${escapeXml(briefing)}</Say></Gather><Hangup/>`);
+    const briefing=managerBriefingText(handoff);
+    // Aspen-voice briefing (Handoff improvement batch, 2026-11-12):
+    // if the synthesized briefing landed in storage during the ring,
+    // the manager hears Aspen's own voice inside the same press-1
+    // Gather; any miss (not generated, upload failed, signing
+    // failed) falls back to the Twilio <Say> briefing, unchanged.
+    let briefingAudio='';
+    try{const {data:signed}=await db.storage.from(HANDOFF_BRIEFING_BUCKET).createSignedUrl(handoffBriefingPath(handoff.id),600);if(signed?.signedUrl)briefingAudio=signed.signedUrl;}catch{/* <Say> fallback below */}
+    const gatherInner=briefingAudio?`<Play>${escapeXml(briefingAudio)}</Play>`:`<Say>${escapeXml(briefing)}</Say>`;
+    return xml(`<Gather input="dtmf" numDigits="1" timeout="15" actionOnEmptyResult="true" action="${escapeXml(callback('accept',handoff.id))}" method="POST">${gatherInner}</Gather><Hangup/>`);
    }
    if(action==='accept'){
     if(params.CallSid!==handoff.owner_call_sid||handoff.status!=='awaiting_owner')return xml('<Hangup/>');

@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Mic, MicOff, Volume2, VolumeX, FlaskConical, PhoneOff, Loader2, Play, Pause, Save, RotateCcw, RefreshCw, Settings2, ChevronsUpDown, Check, Speaker, Smartphone, Bluetooth } from "lucide-react";
+import { Mic, MicOff, Volume2, VolumeX, FlaskConical, PhoneOff, Loader2, Play, Pause, Save, RotateCcw, RefreshCw, Settings2, ChevronsUpDown, Check, Speaker, Smartphone, Bluetooth, Timer } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useTranslation } from "react-i18next";
 // This component renders in standalone harnesses (Voice Lab, embeds, tests)
@@ -19,17 +19,18 @@ import { useTranslation } from "react-i18next";
 import "@/i18n";
 import { explicitUiLocale } from "@/lib/uiLocale";
 import { FunctionsHttpError } from "@supabase/supabase-js";
-import { microphonePcm, shouldSendMicrophone, microphoneGate, microphoneAutoGain, initialCaptureMode, type NoiseFilter, type CaptureMode } from "@/lib/voiceLabAudio";
+import { microphonePcm, shouldSendMicrophone, microphoneGate, microphoneAutoGain, initialCaptureMode, ambientLevelForFloor, createAmbientGateState, pushAmbientRms, type AmbientGateState, type NoiseFilter, type CaptureMode } from "@/lib/voiceLabAudio";
 
 import VoiceActionConfirmation, { type VoiceAction } from "./VoiceActionConfirmation";
 import BrowserVoiceHandoff from "@/components/BrowserVoiceHandoff";
 import { voiceIdleAction, homepageWalkthroughDue, type VoiceIdleStage } from '@/lib/voiceIdle';
 import { voiceDisconnectMessage } from '@/lib/voiceDisconnect';
+import { voiceProxyWsUrl } from '@/lib/voiceProxy';
 import { classifyMicrophoneFailure, isEmbeddedContext } from "@/lib/embeddedContext";
 import {campaignVisit, trackCampaignEvent} from '@/lib/campaignTracking';
 import { salesPlans, type SalesPlan } from '@/lib/salesActions';
 import SimliAvatar, { SOUND_BLOCKED, isVideoStartFailure, type SimliAvatarHandle } from '@/components/SimliAvatar';
-import { BOUNDARY_TARGET, boundedSettle, boundaryForAssistantLine, buildSwapRecap, chainIsMidSegment, chainStashTarget, cutoverAudioSync, cutoverMode, cutoverReady, dequeueSwapExecution, dropApologyVariant, enqueueSwapExecution, faceLivenessOnLive, faceLivenessOnNotLive, faceLivenessOnStartSettled, gateWaitContinues, INITIAL_SWAP_STATE, introYieldOnVisitorLine, micAudioPasses, noteAlexIntent, noteDoorwayEngagement, noteSegmentFailure, otherFaceSlot, pendingExecutionBoundary, pendingRetryBoundary, PHASE_AFTER_BOUNDARY, PHASE_ENTRY, PRESTAGE_START_TIMEOUT_MS, prestageWatchDecision, reconnectTarget, recordSwapDiag, retryArmStamp, segmentAttemptsFor, segmentConnectRetryAllowed, segmentTokenStale, SEGMENT_TOKEN_TTL_MS, swapDiagPersistPayload, swapFallbackLine, swapWatchdogAction, SWAP_CROSSFADE_MS, SWAP_GATE_POLL_MS, SWAP_GATE_WAIT_MS, swapRecapFacts, SWAP_DIAG_PERSIST_EVENTS, visitorSignalsStepOut, type ChainStash, type FaceSlot, type PersonaBoundary, type PersonaId, type StagedFaceLiveness, type SwapDiagEntry, type SwapPhase, type SwapState } from '@/lib/personaSwap';
+import { BOUNDARY_TARGET, boundedSettle, boundaryForAssistantLine, buildSwapRecap, chainIsMidSegment, chainStashTarget, cutoverAudioSync, cutoverMode, cutoverReady, dequeueSwapExecution, dropApologyVariant, enqueueSwapExecution, faceLivenessOnLive, faceLivenessOnNotLive, faceLivenessOnStartSettled, gateWaitContinues, INITIAL_SWAP_STATE, introYieldOnVisitorLine, micAudioPasses, noteAlexIntent, noteAspenIntent, noteDoorwayEngagement, noteSegmentFailure, otherFaceSlot, pendingExecutionBoundary, pendingRetryBoundary, PHASE_AFTER_BOUNDARY, PHASE_ENTRY, PRESTAGE_START_TIMEOUT_MS, prestageWatchDecision, reconnectTarget, recordSwapDiag, retryArmStamp, segmentAttemptsFor, segmentConnectRetryAllowed, segmentTokenStale, SEGMENT_TOKEN_TTL_MS, swapBridgeDue, swapDiagPersistPayload, swapFallbackLine, swapWatchdogAction, SWAP_CROSSFADE_MS, SWAP_GATE_POLL_MS, SWAP_GATE_WAIT_MS, swapRecapFacts, SWAP_DIAG_PERSIST_EVENTS, visitorSignalsStepOut, type ChainStash, type FaceSlot, type PersonaBoundary, type PersonaId, type StagedFaceLiveness, type SwapDiagEntry, type SwapPhase, type SwapState } from '@/lib/personaSwap';
 import { PERSONAS, SARA_FACE_ID } from '../../supabase/functions/_shared/personas';
 import { ALEX_FACE_ID } from '../../supabase/functions/_shared/alex-guide';
 import type { VideoAvatar } from '../../supabase/functions/_shared/video-avatar';
@@ -41,6 +42,7 @@ import PlaybackCaption from '@/components/PlaybackCaption';
 import { voiceSessionHeaders } from '@/lib/voiceSessionAuth';
 import { shouldShowMicHint } from '@/lib/micAudibility';
 import { createMediaSink, mediaPlaybackNode, type MediaSink } from '@/lib/mediaSink';
+import { clampPlaybackVolume, effectivePlaybackLevel, loadPlaybackVolume, savePlaybackVolume } from '@/lib/playbackVolume';
 import { applySinkIdToElement, audioContextSetSinkIdSupported, buildSpeakerMenuOptions, listSpeakerOutputs, pickDefaultSpeakerOutput, type SpeakerMenuOption, type SpeakerOutputDevice } from '@/lib/speakerOutput';
 
 const MICROPHONE_DENIED = "Microphone permission was denied — allow it in your browser and try again.";
@@ -86,8 +88,9 @@ export function resumeRecap(turns: Turn[]) {
 }
 type Phase = "idle" | "connecting" | "live" | "preview";
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
-const WS_URL = SUPABASE_URL.replace(/^https/, "wss") + "/functions/v1/gemini-live-proxy";
+// The voice socket host is resolved AT EACH CONNECT by voiceProxyWsUrl()
+// (@/lib/voiceProxy): per-device ?voiceProxy override > VITE_VOICE_PROXY_WS_URL
+// build default > the historical Edge derivation (Part 2 server move).
 
 /** Calm guidance shown instead of the mic-denied error when the widget is framed by an
  * embedded preview: the parent frame withholds the microphone, so no prompt can ever
@@ -124,8 +127,8 @@ export interface GeminiShellState {
   replaying: boolean;
   speaking: boolean;
 }
-export interface GeminiConversationProps { agentId?: string; leadId?: string; prospectId?: string; draft?: boolean; compact?: boolean; name?: string; visitorName?: string; previewVoice?: string; autoStart?: boolean; previewOnly?: boolean; previewAudioContext?: AudioContext; testModel?: string; shareToken?: string; onRecommendedPlan?: (plan: SalesPlan) => void; videoAvatar?: VideoAvatar; avatarInline?: boolean; faceFirst?: boolean; avatarUrl?: string; /** The visitor tapped a launcher that already showed the recording notice; that tap is the agreement. */ consentOnOpen?: boolean; /** Open the paid live session silently before the tap so it starts instantly. */ prewarm?: boolean; onPrewarmed?: (ready: boolean) => void; /** Verified Demo Gate: 'pending' starts the session in the Act 1 host phase (verification before simulation); 'verified' or undefined keeps the standard session. */ verification?: "pending" | "verified"; /** Cold-email invite arrival: asks gemini-session for the invite host phase; honored server-side only when the lead's invite arrival was stamped by the demo-invite resolve. */ invite?: boolean; /** Platform guide: 'alex' starts the authenticated setup-guide session (Alex, support specialist) instead of a tenant agent; honored server-side only for signed-in users. */ guide?: "alex"; /** Fires with each finalized visitor transcript line (used by the demo gate to hear a spoken code). */ onUserTranscript?: (text: string) => void; /** Three-stage widget: the shell fills this ref with live-session commands for its Stage 3 bar. */ shellControlsRef?: { current: GeminiShellControls | null }; /** Three-stage widget: receives the live-session snapshot for the Stage 3 bar. */ onShellState?: (state: GeminiShellState) => void; /** Widget chrome rendered BELOW her face — between the portrait/livebox and the captions/chat panel (the Voice/Type toggle lives here, never above her). */ belowAvatar?: ReactNode; /** Avatar swap (Stage 1): fires when the ACTIVE persona changes at a boundary, so the shell identity (name + portrait) follows the speaker. Never fires when the server flag is off. */ onPersonaChange?: (persona: { id: PersonaId; displayName: string }) => void; }
-const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compact = false, name = "Aspen", visitorName = "", previewVoice, autoStart = false, previewOnly = false, previewAudioContext, testModel, shareToken, onRecommendedPlan, videoAvatar, avatarInline = false, faceFirst = false, avatarUrl, consentOnOpen = false, prewarm = false, onPrewarmed, verification, invite, guide, onUserTranscript, shellControlsRef, onShellState, belowAvatar, onPersonaChange }: GeminiConversationProps) => {
+export interface GeminiConversationProps { agentId?: string; leadId?: string; prospectId?: string; draft?: boolean; compact?: boolean; name?: string; visitorName?: string; previewVoice?: string; autoStart?: boolean; previewOnly?: boolean; previewAudioContext?: AudioContext; testModel?: string; shareToken?: string; onRecommendedPlan?: (plan: SalesPlan) => void; videoAvatar?: VideoAvatar; avatarInline?: boolean; faceFirst?: boolean; avatarUrl?: string; /** The visitor tapped a launcher that already showed the recording notice; that tap is the agreement. */ consentOnOpen?: boolean; /** Open the paid live session silently before the tap so it starts instantly. */ prewarm?: boolean; onPrewarmed?: (ready: boolean) => void; /** Verified Demo Gate: 'pending' starts the session in the Act 1 host phase (verification before simulation); 'verified' or undefined keeps the standard session. */ verification?: "pending" | "verified"; /** Cold-email invite arrival: asks gemini-session for the invite host phase; honored server-side only when the lead's invite arrival was stamped by the demo-invite resolve. */ invite?: boolean; /** One-click example sample (Batch 2): the /agents/realtors examples grid/dropdown marks the session sample=1; forwarded to gemini-session, which honors it only when the lead's stored site URL matches one of the 13 known example sites (that example's listings pack is then stamped into the simulation). */ sample?: boolean; /** Platform guide: 'alex' starts the authenticated setup-guide session (Alex, support specialist) instead of a tenant agent; honored server-side only for signed-in users. */ guide?: "alex"; /** Fires with each finalized visitor transcript line (used by the demo gate to hear a spoken code). */ onUserTranscript?: (text: string) => void; /** Three-stage widget: the shell fills this ref with live-session commands for its Stage 3 bar. */ shellControlsRef?: { current: GeminiShellControls | null }; /** Three-stage widget: receives the live-session snapshot for the Stage 3 bar. */ onShellState?: (state: GeminiShellState) => void; /** Widget chrome rendered INSIDE the panel, in the toggle row directly under the window-controls row (the Voice/Type toggle lives here, never over her). */ belowAvatar?: ReactNode; /** Window controls (drag/minimize/end) rendered as the FIRST row inside the panel, below its top border (2026-11-12 panel layout fix: no control overlaps the portrait; the shell hands its AspenWindowControls row here in voice mode). */ windowControls?: ReactNode; /** Avatar swap (Stage 1): fires when the ACTIVE persona changes at a boundary, so the shell identity (name + portrait) follows the speaker. Never fires when the server flag is off. */ onPersonaChange?: (persona: { id: PersonaId; displayName: string }) => void; }
+const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compact = false, name = "Aspen", visitorName = "", previewVoice, autoStart = false, previewOnly = false, previewAudioContext, testModel, shareToken, onRecommendedPlan, videoAvatar, avatarInline = false, faceFirst = false, avatarUrl, consentOnOpen = false, prewarm = false, onPrewarmed, verification, invite, sample, guide, onUserTranscript, shellControlsRef, onShellState, belowAvatar, windowControls, onPersonaChange }: GeminiConversationProps) => {
   const { t } = useTranslation();
   const transcriptAriaLabel = (role: "user" | "assistant") => role === "user" ? t("voice.callerTranscript") : t("voice.aspenTranscript");
   // On the gate's pending → verified flip, the next session is the demo's
@@ -267,6 +270,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const [swapNotice, setSwapNotice] = useState('');
   const swapFallbackCountRef = useRef(0);
   const swapArmAtRef = useRef<Partial<Record<PersonaBoundary, number>>>({});
+  /** NO-DEAD-AIR BRIDGE (Scalone batch Item 6a): the arm stamp a
+   *  bridging line was already requested for (0 = none yet) — one
+   *  bridge per arm, keyed by the stamp so a retry arm earns its own. */
+  const swapBridgeSentRef = useRef(0);
   const swapExecQueueRef = useRef<PersonaBoundary[]>([]);
   const swapExecForceRef = useRef<Partial<Record<PersonaBoundary, boolean>>>({});
   /** VOICE-FIRST BATCH (2026-11-10): the doorway's new bookkeeping.
@@ -308,8 +315,18 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const [videoFallback, setVideoFallback] = useState(false);
   useEffect(() => { const timer = window.setInterval(() => { if (liveRef.current && deadlineRef.current) setRemainingSeconds(Math.max(0, Math.ceil((deadlineRef.current-Date.now())/1000))); }, 1000); return () => window.clearInterval(timer); }, []);
   const [handoffToken, setHandoffToken] = useState<string | null>(null);
+  // Voice-asked transfer trigger (Batch 1, 2026-11-12): the voice proxy
+  // sends {type:'start_handoff'} a few seconds after Aspen announces a
+  // manager transfer; each message bumps this counter and
+  // BrowserVoiceHandoff auto-starts its dial when the value changes.
+  const [handoffStartSignal, setHandoffStartSignal] = useState(0);
   const [handoffActive, setHandoffActive] = useState(false);
   const handoffRef = useRef(false);
+  // Come-back after handoff (Handoff improvement batch, 2026-11-12):
+  // BrowserVoiceHandoff reports the terminal outcome (onEnded) just
+  // before onActive(false); it is kept in a ref so onHandoffActive
+  // can forward it to the proxy, which authors the return line.
+  const handoffOutcomeRef = useRef<'completed' | 'unavailable' | null>(null);
   const consent = consentReadyRef.current;
   const [voice, setVoice] = useState(() => {
     try { const saved = localStorage.getItem("gemini-aspen-voice"); return VOICES.some(v => v.id === saved) ? saved ?? "Kore" : "Kore"; } catch { return "Kore"; }
@@ -327,6 +344,40 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     try { const saved = localStorage.getItem("voice-noise-filter"); return saved === "light" || saved === "strong" ? saved : "balanced"; } catch { return "balanced"; }
   });
   const noiseFilterRef = useRef(noiseFilter);
+  // Mic environment auto-pick (Batch 1, 2026-11-12): the capture loops feed
+  // every frame's RMS into a rolling ambient tracker; while the visitor has
+  // NOT manually picked a filter this session, the tracker's hysteresis pick
+  // drives noiseFilter. The persisted localStorage value is only the
+  // starting point — it does NOT count as a manual pick, so auto may still
+  // adjust after connect. Any in-session pick (the in-panel Quiet/Normal/
+  // Noisy control or either settings-dialog Select) marks manual and stops
+  // auto-picking for the rest of the session; the pick itself still
+  // persists to localStorage via the effect below, exactly as before.
+  const [noiseFilterManual, setNoiseFilterManual] = useState(false);
+  const noiseFilterManualRef = useRef(false);
+  const ambientTrackerRef = useRef<AmbientGateState>(createAmbientGateState(noiseFilter));
+  const ambientCheckedAtRef = useRef(0);
+  const [ambientFloor, setAmbientFloor] = useState(0);
+  const chooseNoiseFilter = (value: NoiseFilter) => {
+    noiseFilterManualRef.current = true;
+    setNoiseFilterManual(true);
+    // Keep the tracker's hysteresis reference on the visitor's own pick.
+    ambientTrackerRef.current = { ...ambientTrackerRef.current, filter: value };
+    setNoiseFilter(value);
+  };
+  // Called by BOTH capture loops for every microphone frame. The window
+  // updates per frame; the floor state + auto-pick re-evaluate at most
+  // once every ~3s, so a passing speech burst never jerks the control.
+  const feedAmbientSample = (rms: number) => {
+    const next = pushAmbientRms(ambientTrackerRef.current, rms);
+    ambientTrackerRef.current = next;
+    const now = performance.now();
+    if (now - ambientCheckedAtRef.current < 3000) return;
+    ambientCheckedAtRef.current = now;
+    setAmbientFloor(next.floor);
+    if (!noiseFilterManualRef.current && next.filter !== noiseFilterRef.current) setNoiseFilter(next.filter);
+  };
+  const ambientLevel = ambientLevelForFloor(ambientFloor);
   useEffect(() => {
     const track = micStreamRef.current?.getAudioTracks()[0];
     if (track) void track.applyConstraints({autoGainControl: microphoneAutoGain(captureMode, noiseFilter)}).catch(() => { /* Browser may not support gain adjustment. */ });
@@ -342,6 +393,14 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const [speakerMuted, setSpeakerMuted] = useState(false);
   const speakerMutedRef = useRef(false);
   const speakerGainRef = useRef<GainNode | null>(null);
+  // In-panel speaker volume (2026-11-13): the visitor's level for BOTH
+  // playback paths — the local speaker gain below and every Simli face
+  // instance's element volume. Hardware volume keys cannot be trusted
+  // to reach the paired stream on Android (see lib/playbackVolume.ts),
+  // so this slider is the guaranteed control. Default unity = the
+  // historical behaviour; the mute toggle still overrides it.
+  const [playbackVolume, setPlaybackVolume] = useState<number>(() => loadPlaybackVolume());
+  const playbackVolumeRef = useRef(playbackVolume);
   // Speaker-output selection (2026-11-09, owner's earpiece complaint):
   // where her audible voice plays — a real device via setSinkId when the
   // platform exposes one, otherwise the platform route. SESSION-SCOPED
@@ -378,6 +437,20 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const signInAction = limitReached && error ? <a href={`/account?next=${encodeURIComponent(window.location.pathname + window.location.search)}`} className="inline-flex w-fit items-center rounded-md border border-primary px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/10">Sign in as administrator to keep testing</a> : null;
   const [endedByVisitor, setEndedByVisitor] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  // LAYOUT REFINEMENT (Scalone batch Item 8b): a wide landscape panel
+  // merges the Voice/Type toggle row and the transport row into ONE
+  // row (see landscapeControlRow). JS-driven rather than a CSS
+  // duplicate so exactly one instance of each control ever mounts;
+  // portrait (and anything narrower) keeps the stacked arrangement.
+  const [wideLandscape, setWideLandscape] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const query = window.matchMedia('(orientation: landscape) and (min-width: 640px)');
+    const update = () => setWideLandscape(query.matches);
+    update();
+    query.addEventListener?.('change', update);
+    return () => query.removeEventListener?.('change', update);
+  }, []);
   // "We can't hear you" hint (mic-path hardening, 2026-11-09 forensics:
   // sessions with ZERO user turns while the visitor believed he was
   // speaking). Driven by the pure helper in lib/micAudibility.ts.
@@ -731,8 +804,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     const target = (Object.entries(PHASE_ENTRY).find(([, v]) => v.boundary === boundary)?.[1]) as { boundary: PersonaBoundary; persona: PersonaId } | undefined;
     // intro-return-2 lands on the same host phase as intro-return-1
     // (an Aspen segment) but is not itself a PHASE_ENTRY value — it is
-    // entered from the intro-alex phase in place.
-    const persona = boundary === 'return' || boundary === 'intro-return-2' ? 'aspen' as PersonaId : target?.persona;
+    // entered from the intro-alex phase in place. summon-aspen is the
+    // same shape: an Aspen segment entered from the simulation phase,
+    // whose PHASE_ENTRY value is the step-out's.
+    const persona = boundary === 'return' || boundary === 'intro-return-2' || boundary === 'summon-aspen' ? 'aspen' as PersonaId : target?.persona;
     if (!persona) return;
     // A stage for THIS boundary is already in hand (a kept fresh stage
     // or an in-flight arm): never authorize over it. The ONE exception
@@ -1060,7 +1135,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         if (slot === 'second') setSecondFace(face => (face && face.boundary === target.personaSegment?.boundary ? { ...face, revealed: true } : face));
         else setMainFace(face => (face && face.boundary === target.personaSegment?.boundary ? { ...face, revealed: true } : face));
         setFaceLive(true);
-        const sync = cutoverAudioSync({ speakerMuted: speakerMutedRef.current, paused: captureRef.current.paused, replaying: captureRef.current.replaying, selectedDeviceId: selectedOutputIdRef.current });
+        const sync = cutoverAudioSync({ speakerMuted: speakerMutedRef.current, paused: captureRef.current.paused, replaying: captureRef.current.replaying, selectedDeviceId: selectedOutputIdRef.current, speakerVolume: playbackVolumeRef.current });
         try { await handle.cutoverAudioSync?.(sync); }
         catch (e) { if (e instanceof Error && e.message === SOUND_BLOCKED) setAudioNeedsTap(true); }
       } else {
@@ -1177,7 +1252,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     }
     if (!pairedVideo) {
       const spkGain = ctx.createGain();
-      spkGain.gain.value = speakerMutedRef.current ? 0 : 1;
+      spkGain.gain.value = effectivePlaybackLevel(speakerMutedRef.current, playbackVolumeRef.current);
       speakerGainRef.current = spkGain;
       source.connect(spkGain);
       // Media-routed output (see lib/mediaSink.ts): through the audio
@@ -1255,12 +1330,29 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     }
   }, [pauseCapture, clearPlayback]);
 
+  // In-panel speaker volume: apply the visitor's level to every audible
+  // sink this session owns — the local speaker gain (voice-only/replay
+  // path) and each Simli face instance's element (paired path), active,
+  // pre-staged and main slot alike, so a persona who takes over mid-call
+  // speaks at the chosen level too. The cut-over sync also carries the
+  // level for instances that (re)start later.
+  const applyPlaybackVolume = useCallback((volume: number) => {
+    const level = clampPlaybackVolume(volume);
+    playbackVolumeRef.current = level;
+    setPlaybackVolume(level);
+    savePlaybackVolume(level);
+    if (speakerGainRef.current) speakerGainRef.current.gain.value = effectivePlaybackLevel(speakerMutedRef.current, level);
+    avatarRef.current?.setPlaybackVolume?.(level);
+    stagedAvatarRef.current?.setPlaybackVolume?.(level);
+    mainSlotRef.current?.setPlaybackVolume?.(level);
+  }, []);
+
   // Silence speaker: mute all voice audio while keeping live captions and conversation running.
   const toggleSpeakerMute = useCallback(() => {
     const next = !speakerMutedRef.current;
     speakerMutedRef.current = next;
     setSpeakerMuted(next);
-    if (speakerGainRef.current) speakerGainRef.current.gain.value = next ? 0 : 1;
+    if (speakerGainRef.current) speakerGainRef.current.gain.value = effectivePlaybackLevel(next, playbackVolumeRef.current);
     avatarRef.current?.setPlaybackMuted(next || captureRef.current.paused || captureRef.current.replaying);
     if (next) setCaptions(true);
   }, []);
@@ -1545,7 +1637,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       const requestSession = (key: string) =>
         voiceSessionHeaders().then(headers => {
           if (generation !== generationRef.current) throw new Error('Demo start cancelled.');
-          return supabase.functions.invoke("gemini-session", { headers, body: { visitorKey: key, agentId, leadId, prospectId, draft, preview, voice: previewVoice || voice, model: testModel, campaign:campaignVisit(), hour: new Date().getHours(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, locale: explicitUiLocale(), visitorName, consent: !warm && consentReadyRef.current, prewarm: warm, share: shareToken, resumeContext, reconnect: reconnecting && !!resumeContext, verification, invite, guide } });
+          return supabase.functions.invoke("gemini-session", { headers, body: { visitorKey: key, agentId, leadId, prospectId, draft, preview, voice: previewVoice || voice, model: testModel, campaign:campaignVisit(), hour: new Date().getHours(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, locale: explicitUiLocale(), visitorName, consent: !warm && consentReadyRef.current, prewarm: warm, share: shareToken, resumeContext, reconnect: reconnecting && !!resumeContext, verification, invite, sample, guide } });
         });
       const [initialSession, stream, , , faceOutcome] = await Promise.all([
         requestSession(visitorKey),
@@ -1637,7 +1729,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       homepageWalkthroughRef.current = authorized.homepageSales === true;
       idleRef.current = { enabled: (authorized.idleChecks === true || authorized.homepageSales === true) && !preview, stage: 'waiting', quietSince: Date.now(), generating: true, requestedAt: 0 };
       setHandoffToken(authorized.handoffToken || null);
-      const ws = new WebSocket(`${WS_URL}?token=${encodeURIComponent(authorized.token)}&capture=${captureMode}${warm ? '&hold=1' : ''}`);
+      const ws = new WebSocket(`${voiceProxyWsUrl()}?token=${encodeURIComponent(authorized.token)}&capture=${captureMode}${warm ? '&hold=1' : ''}`);
       wsRef.current = ws;
 
       ws.onopen = () => !silentWarm() && setStatus(preview ? "Voice connected · generating your greeting…" : "Connecting…");
@@ -1680,6 +1772,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           if (!liveRef.current || handoffRef.current || ws.readyState !== WebSocket.OPEN) return;
           const input = e.inputBuffer.getChannelData(0);
           const rms = Math.sqrt(input.reduce((sum, x) => sum + x * x, 0) / input.length);
+          feedAmbientSample(rms);
           if (++frame % 4 === 0) {
             setMicLevel(Math.min(100, Math.round(rms * 500)));
           }
@@ -1740,6 +1833,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             goLive();
             break;
           }
+          case "start_handoff":
+            // Server contract (Batch 1): {type:'start_handoff'} sent a
+            // few seconds after Aspen announces the manager transfer.
+            // Bump the counter BrowserVoiceHandoff watches to auto-dial.
+            setHandoffStartSignal(value => value + 1);
+            break;
           case "recommended_plan": {
             const plan = salesPlans.find(value => value === msg.plan);
             if (plan) onRecommendedPlan?.(plan);
@@ -1807,6 +1906,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             if (swapEnabledRef.current && liveRef.current) {
               swapStateRef.current = noteAlexIntent(swapStateRef.current, userLineRef.current);
             }
+            // Visitor-armed summon-aspen (Scalone batch Item 2): the
+            // visitor naming Aspen or asking an AI Hidden Leads
+            // pricing/platform question while Sara is live sets
+            // pendingAspen — her next line hands back, anchor or not.
+            if (swapEnabledRef.current && liveRef.current) {
+              swapStateRef.current = noteAspenIntent(swapStateRef.current, userLineRef.current);
+            }
             // Structural doorway (2026-11-09 hardening): on a
             // business-demo chain, a visitor line arriving AFTER the
             // host's greeting turn completed means the simulation is
@@ -1870,6 +1976,15 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
                 // still yields meet-alex via boundaryForAssistantLine
                 // and the swap follows that line.
                 armSwapRef.current('meet-alex');
+              } else if (state.pendingAspen && state.phase === 'simulation' && !state.armed.includes('summon-aspen') && !state.done.includes('summon-aspen')) {
+                // Visitor-armed summon-aspen late arm (Scalone batch
+                // Item 2) — same pattern as meet-alex above: the
+                // visitor asked for Aspen / a platform question, but
+                // Sara's line completed without anything staged. Arm
+                // now; the flag STAYS set, so her NEXT line still
+                // yields 'summon-aspen' via boundaryForAssistantLine
+                // and the swap follows that line.
+                armSwapRef.current('summon-aspen');
               } else if (state.pendingDoorway && state.phase === 'host' && !state.armed.includes('doorway') && !state.done.includes('doorway')) {
                 // Structural doorway late arm — same pattern as
                 // meet-alex above: the visitor engaged after the
@@ -1985,7 +2100,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       if (generation === generationRef.current) startingRef.current = false;
       window.clearTimeout(startupTimeout);
     }
-  }, [voice, microphone, captureMode, refreshMicrophones, playPcmChunk, clearPlayback, flushLine, stopEverything, agentId, leadId, prospectId, draft, previewVoice, previewAudioContext, visitorName, consent, testModel, shareToken, onRecommendedPlan, videoAvatar, startFace, recoverFromProviderClosed]);
+  }, [voice, microphone, captureMode, refreshMicrophones, playPcmChunk, clearPlayback, flushLine, stopEverything, agentId, leadId, prospectId, draft, previewVoice, previewAudioContext, visitorName, consent, testModel, shareToken, sample, onRecommendedPlan, videoAvatar, startFace, recoverFromProviderClosed]);
 
   startConversationRef.current = startConversation;
   useEffect(() => stopEverything, [stopEverything]);
@@ -2025,7 +2140,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     setPartialAspen("");
     setTurns([...(visitMemory.get(agentId || "homepage") || [])]);
     sessionStartedAtRef.current = Date.now();
-    const ws = new WebSocket(`${WS_URL}?token=${encodeURIComponent(token)}&capture=${captureMode}`);
+    const ws = new WebSocket(`${voiceProxyWsUrl()}?token=${encodeURIComponent(token)}&capture=${captureMode}`);
     wsRef.current = ws;
     const goLiveSegment = () => {
       if (generation !== generationRef.current) return;
@@ -2047,6 +2162,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         if (!liveRef.current || handoffRef.current || ws.readyState !== WebSocket.OPEN) return;
         const input = e.inputBuffer.getChannelData(0);
         const rms = Math.sqrt(input.reduce((sum, x) => sum + x * x, 0) / input.length);
+        feedAmbientSample(rms);
         if (++frame % 4 === 0) setMicLevel(Math.min(100, Math.round(rms * 500)));
         const capture = captureRef.current;
         if (capture.paused) return;
@@ -2095,7 +2211,21 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           window.clearTimeout(readyTimeout);
           if (ctx) recordSwapDiag({ event: 'connect-ready', boundary: ctx.boundary, persona: ctx.persona, attempt: ctx.attempt });
           assistantTurnsRef.current = 0;
+          // Segment transcript persistence (2026-11-13 forensics — the
+          // Sara logging gap): segment sessions inherited the parent's
+          // STORED recordTranscript flag (false for prewarm-consumed
+          // parents) and never sent 'begin', so the proxy's consent flip
+          // never ran and every segment transcript finalized as []. A
+          // segment is the same conversation the visitor consented to
+          // record at the parent tap — assert that same consent here;
+          // the proxy honors it for already-begun segment sockets.
+          try { ws.send(JSON.stringify({ type: 'begin', consent: consentReadyRef.current })); } catch { /* socket racing closed — nothing records, as before */ }
           goLiveSegment();
+          break;
+        case "start_handoff":
+          // Same server contract as the main socket (Batch 1): bump the
+          // counter BrowserVoiceHandoff watches to auto-dial.
+          setHandoffStartSignal(value => value + 1);
           break;
         case "recommended_plan": {
           const plan = salesPlans.find(value => value === msg.plan);
@@ -2149,6 +2279,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           if (swapEnabledRef.current && liveRef.current) {
             swapStateRef.current = noteAlexIntent(swapStateRef.current, userLineRef.current);
           }
+          // Visitor-armed summon-aspen — same rule as the main socket.
+          if (swapEnabledRef.current && liveRef.current) {
+            swapStateRef.current = noteAspenIntent(swapStateRef.current, userLineRef.current);
+          }
           // Structural doorway — same rule as the main socket.
           if (swapEnabledRef.current && liveRef.current && swapChainClassRef.current === 'simulation') {
             swapStateRef.current = noteDoorwayEngagement(swapStateRef.current, assistantTurnsRef.current > 0);
@@ -2190,6 +2324,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
               // Visitor-armed meet-alex late arm — same rule as the main
               // socket: arm now, flag stays set for her next line.
               armSwapRef.current('meet-alex');
+            } else if (state.pendingAspen && state.phase === 'simulation' && !state.armed.includes('summon-aspen') && !state.done.includes('summon-aspen')) {
+              // Visitor-armed summon-aspen late arm — same rule as the
+              // main socket: arm now, flag stays set for her next line.
+              armSwapRef.current('summon-aspen');
             } else if (state.pendingDoorway && state.phase === 'host' && !state.armed.includes('doorway') && !state.done.includes('doorway')) {
               // Structural doorway late arm — same rule as the main socket.
               armSwapRef.current('doorway');
@@ -2308,7 +2446,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     if (!handle) return;
     faceTakeoverBusyRef.current = true;
     try {
-      const sync = cutoverAudioSync({ speakerMuted: speakerMutedRef.current, paused: captureRef.current.paused, replaying: captureRef.current.replaying, selectedDeviceId: selectedOutputIdRef.current });
+      const sync = cutoverAudioSync({ speakerMuted: speakerMutedRef.current, paused: captureRef.current.paused, replaying: captureRef.current.replaying, selectedDeviceId: selectedOutputIdRef.current, speakerVolume: playbackVolumeRef.current });
       let faceLive = true;
       if (handle.cutoverAudioSync) {
         try { faceLive = (await handle.cutoverAudioSync(sync)) !== false; }
@@ -2507,7 +2645,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         // before the first paired chunk is routed.
         let voiceFirstReason = staged.faceFailed ? 'face-failed' : 'face-not-ready';
         if (mode === 'face-first') {
-          const sync = cutoverAudioSync({ speakerMuted: speakerMutedRef.current, paused: captureRef.current.paused, replaying: captureRef.current.replaying, selectedDeviceId: selectedOutputIdRef.current });
+          const sync = cutoverAudioSync({ speakerMuted: speakerMutedRef.current, paused: captureRef.current.paused, replaying: captureRef.current.replaying, selectedDeviceId: selectedOutputIdRef.current, speakerVolume: playbackVolumeRef.current });
           // Paired-audio guard (2026-11-10): the sync REPORTS liveness
           // (false = dead client / no audio stream). Handles that
           // predate the signal resolve undefined and keep the legacy
@@ -2603,6 +2741,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         // fires on Aspen's first close line); meet-alex itself consumes
         // it, so it can never re-fire.
         pendingAlex: boundary === 'meet-alex' ? false : swapStateRef.current.pendingAlex,
+        // Visitor-armed Aspen intent is consumed by summon-aspen
+        // itself, so it can never re-fire; every other cut-over
+        // leaves it untouched (it is only ever set in simulation).
+        pendingAspen: boundary === 'summon-aspen' ? false : swapStateRef.current.pendingAspen,
         // Team intro latch: the show ran to completion — nothing in
         // this session re-arms any intro boundary (design §3.1).
         teamIntroDone: swapStateRef.current.teamIntroDone || boundary === 'intro-return-2',
@@ -2774,6 +2916,25 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   useEffect(() => {
     const timer = window.setInterval(() => {
       if (!liveRef.current || !swapEnabledRef.current) return;
+      // NO-DEAD-AIR BRIDGE (Scalone batch Item 6a — forensics F1):
+      // while a swap hold outlasts SWAP_BRIDGE_AFTER_MS with no turn
+      // in flight, ask the STILL-LIVE outgoing session to speak ONE
+      // bridging line (the proxy's idle_prompt 'bridge' stage) — the
+      // visitor hears a person, not silence, until the incoming
+      // segment lands or the watchdog's visible fallback engages.
+      // One line per arm, stamp-keyed (swapBridgeDue); the send goes
+      // to the outgoing persona's socket, which stays open until the
+      // cut-over's partial teardown.
+      const hold = swapHoldRef.current;
+      if (hold && wsRef.current?.readyState === WebSocket.OPEN) {
+        const armedAt = swapArmAtRef.current[hold.boundary] ?? 0;
+        if (swapBridgeDue({ holdBoundary: hold.boundary, armedAt, now: Date.now(), bridgeSentFor: swapBridgeSentRef.current, turnInFlight: idleRef.current.generating })) {
+          swapBridgeSentRef.current = armedAt;
+          idleRef.current.generating = true;
+          recordSwapDiag({ event: 'bridge', boundary: hold.boundary, persona: BOUNDARY_TARGET[hold.boundary], attempt: segmentAttemptsFor(swapStateRef.current, hold.boundary) + 1 });
+          wsRef.current.send(JSON.stringify({ type: 'idle_prompt', stage: 'bridge' }));
+        }
+      }
       if (!swapBusyRef.current && swapExecQueueRef.current.length) {
         const { next, rest } = dequeueSwapExecution(swapExecQueueRef.current);
         swapExecQueueRef.current = rest;
@@ -3012,6 +3173,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     else if (consentReadyRef.current || consentReady) { autoStartedRef.current = true; void startConversation(); }
   }, [compact, autoStart, previewOnly, startConversation, consentReady]);
 
+  const onHandoffEnded = (outcome: 'completed' | 'unavailable') => { handoffOutcomeRef.current = outcome; };
   const onHandoffActive = (active: boolean) => {
     handoffRef.current = active;
     setHandoffActive(active);
@@ -3022,14 +3184,28 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     } else {
       captureRef.current.paused = false; setPaused(false);
       void playCtxRef.current?.resume();
-      if (wsRef.current?.readyState === WebSocket.OPEN) wsRef.current.send(JSON.stringify({type:'text',text:'The human handoff has ended or was unavailable. Briefly welcome the caller back and continue helping in your business role. Do not claim a manager answered.'}));
+      // Come-back after handoff (Handoff improvement batch,
+      // 2026-11-12): report ONLY the terminal outcome; the proxy
+      // authors the return instruction server-side (welcome-back,
+      // what-did-you-arrange, and on sales sessions the demo /
+      // workflow beats + wizard close). This replaces the old
+      // outcome-blind client-authored text line, which claimed
+      // nothing and asked nothing the same way after every ending.
+      if (wsRef.current?.readyState === WebSocket.OPEN) wsRef.current.send(JSON.stringify({type:'handoff_ended',outcome:handoffOutcomeRef.current ?? 'unavailable'}));
+      handoffOutcomeRef.current = null;
     }
   };
   const confirmation = pendingAction ? <VoiceActionConfirmation key={pendingAction.id} action={pendingAction} onAnswer={(approved, contact) => { wsRef.current?.send(JSON.stringify({type:'confirm_action',id:pendingAction.id,approved,contact})); setPendingAction(null); }}/> : null;
-  const transferControl = phase === 'live' && handoffToken ? <BrowserVoiceHandoff token={handoffToken} onActive={onHandoffActive} microphone={microphone}/> : null;
+  const transferControl = phase === 'live' && handoffToken ? <BrowserVoiceHandoff token={handoffToken} onActive={onHandoffActive} onEnded={onHandoffEnded} microphone={microphone} startSignal={handoffStartSignal}/> : null;
+  // Compact panel (2026-11-11 rearrangement; Batch 1 move, 2026-11-12):
+  // the same handoff, same live + token gate, rendered as the compact
+  // Manager pill in the Voice/Type toggle row (right side) instead of the
+  // voice-controls row, where it wrapped onto its own row on phones.
+  const transferPill = phase === 'live' && handoffToken ? <BrowserVoiceHandoff pill token={handoffToken} onActive={onHandoffActive} onEnded={onHandoffEnded} microphone={microphone} startSignal={handoffStartSignal}/> : null;
 
   if (!previewOnly && !consentReady && !prewarm) return <div className="space-y-3 p-3 text-foreground">
     {faceFirst && <PersonPortrait name={name} avatarUrl={avatarUrl} />}
+    {windowControls}
     {belowAvatar}
     <div className="space-y-3 rounded-md bg-card p-3">
     <p className="text-sm font-semibold">{t("voice.consentTitle", { name })}</p>
@@ -3152,12 +3328,188 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // the visitor's live line and the history) shows whenever she is silent.
   const liveCaption = aspenSpeaking || partialAspen !== "" || (playbackCaption !== null && playbackCaption.word >= 0);
   const showPlaybackCaption = !!playbackCaption && (!partialUser || liveCaption) && (!faceFirst || captions);
+  // Panel layout fix (2026-11-12): the toggle/manager row moved INSIDE the
+  // voice panel, directly under the window-controls row — it used to sit
+  // between the livebox and the panel, crowding the portrait's bottom
+  // edge. One row element, two placements: inside the panel card in
+  // face-first mode; in the legacy non-face-first compact flow it keeps
+  // its spot under the avatar (there is no panel card there).
+  const toggleManagerRow = (belowAvatar || transferPill) ? (
+    <div data-testid="toggle-manager-row" className="flex shrink-0 items-start gap-1 py-1">
+      <div aria-hidden className="flex-1" />
+      <div className="flex shrink-0 justify-center">{belowAvatar}</div>
+      <div className="flex min-w-0 flex-1 flex-col items-end">{transferPill}</div>
+    </div>
+  ) : null;
+  const transportControls = (
+  <div className="voice-controls flex flex-wrap items-center justify-center gap-1 [&_button]:h-auto [&_button]:min-h-11 [&_button]:w-auto [&_button]:min-w-11 [&_button]:flex-col [&_button]:gap-1 [&_button]:px-1.5 [&_button]:py-1.5 [&_span]:text-[10px] [&_span]:leading-tight">
+    {phase === "idle" ? (
+      <Button size="icon" onClick={() => void startConversation()} title={t("voice.playToConnect", { name })} aria-label={t("voice.startConversation")}>
+        <Play className="h-4 w-4" />
+        <span>{t("voice.play")}</span>
+      </Button>
+    ) : (
+      <Button size="icon" variant="destructive" onClick={endByVisitor} title={t("voice.endConversation")} aria-label={t("voice.endConversation")}>
+        <PhoneOff className="h-4 w-4" />
+        <span>{t("voice.end")}</span>
+      </Button>
+    )}
+    {phase === "live" && captureMode !== "hold" && (
+      <Button
+        size="icon"
+        disabled={handoffActive}
+        variant={muted ? "destructive" : "outline"}
+        aria-pressed={muted}
+        title={muted ? t("voice.unmuteMic") : t("voice.muteMic")}
+        aria-label={muted ? t("voice.unmuteMic") : t("voice.muteMic")}
+        onClick={toggleMicMute}
+      >
+        {muted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+        <span>{muted ? t("voice.unmute") : t("voice.mute")}</span>
+      </Button>
+    )}
+    {phase === "live" && (
+      <Button
+        size="icon"
+        variant={paused ? "default" : "outline"}
+        aria-pressed={paused}
+        title={paused ? t("voice.resumeConversation") : t("voice.pauseConversation")}
+        aria-label={paused ? t("voice.resumeConversation") : t("voice.pauseConversation")}
+        disabled={handoffActive} onClick={togglePause}
+      >
+        {paused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
+        <span>{paused ? t("voice.resume") : t("voice.pause")}</span>
+      </Button>
+    )}
+    {phase === "live" && (
+      <div className="relative">
+        <Button
+          size="icon"
+          variant={speakerMuted ? "secondary" : "outline"}
+          aria-haspopup="menu"
+          aria-expanded={speakerMenuOpen}
+          title={t("voice.speakerOutputChoose")}
+          aria-label={t("voice.speakerOutput")}
+          onClick={() => { const opening = !speakerMenuOpen; setSpeakerMenuOpen(opening); if (opening) void refreshSpeakerOutputs(); }}
+        >
+          {speakerMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+          <span>{t("voice.sound")}</span>
+        </Button>
+        {speakerMenuOpen && (
+          <div role="menu" aria-label={t("voice.speakerOutput")} className="absolute bottom-full left-1/2 z-50 mb-1 w-56 max-w-[80vw] -translate-x-1/2 rounded-md border border-border bg-card p-1 text-left shadow-lg">
+            {buildSpeakerMenuOptions({ devices: speakerOutputs, canSelect: speakerCanSelect, selectedDeviceId: selectedOutputId, muted: speakerMuted }).map((option: SpeakerMenuOption) => {
+              if (option.kind === "mute") {
+                return (
+                  <div key={option.id}>
+                    <div className="my-1 border-t border-border" aria-hidden />
+                    <button type="button" role="menuitemradio" aria-checked={option.selected} aria-label={t("voice.speakerMute")} className="flex w-full items-center gap-2 rounded-sm px-2 py-2 text-xs font-medium hover:bg-muted" onClick={chooseSpeakerMute}>
+                      <span className="flex h-4 w-4 shrink-0 items-center justify-center">{option.selected && <Check className="h-3.5 w-3.5" />}</span>
+                      <VolumeX className="h-4 w-4 shrink-0" />
+                      <span>{t("voice.speakerMute")}</span>
+                    </button>
+                  </div>
+                );
+              }
+              const label = option.synthetic === "loudspeaker" ? t("voice.speakerLoudspeaker")
+                : option.synthetic === "earpiece" ? t("voice.speakerEarpiece")
+                : option.synthetic === "platform" ? t("voice.speakerPhoneDefault")
+                : option.synthetic === "bluetoothFallback" ? t("voice.speakerBluetooth")
+                : option.rawLabel ?? t("voice.speakerOutput");
+              const Icon = option.kind === "speaker" ? Speaker : option.kind === "earpiece" || option.kind === "platform" ? Smartphone : option.kind === "bluetooth" || option.kind === "headset" ? Bluetooth : Volume2;
+              const device = option.deviceId ? speakerOutputs.find(d => d.deviceId === option.deviceId) : undefined;
+              return (
+                <button key={option.id} type="button" role="menuitemradio" aria-checked={option.selected} aria-label={label} className="flex w-full items-center gap-2 rounded-sm px-2 py-2 text-xs font-medium hover:bg-muted" onClick={() => { if (device) void chooseSpeakerDevice(device); else choosePlatformOutput(); }}>
+                  <span className="flex h-4 w-4 shrink-0 items-center justify-center">{option.selected && <Check className="h-3.5 w-3.5" />}</span>
+                  <Icon className="h-4 w-4 shrink-0" />
+                  <span className="truncate">{label}</span>
+                </button>
+              );
+            })}
+            {!speakerCanSelect && <p className="px-2 pb-1 pt-1.5 text-[10px] leading-snug text-muted-foreground">{t("voice.speakerNoSelectNote")}</p>}
+            {speakerOutputNotice && <p role="status" className="px-2 pb-1 pt-1.5 text-[10px] leading-snug text-muted-foreground">{speakerOutputNotice}</p>}
+          </div>
+        )}
+      </div>
+    )}
+    <Button
+      size="icon"
+      variant="outline"
+      disabled={!hasReplay || paused || replaying || aspenSpeaking || phase === "connecting" || phase === "preview"}
+      onClick={() => void replayLastMessage()}
+      title={t("voice.replayLastTitle")}
+      aria-label={t("voice.replayLastMessage")}
+    >
+      <RotateCcw className="h-4 w-4" />
+      <span>{t("voice.replay")}</span>
+    </Button>
+    {replaying && (
+      <Button size="icon" variant="outline" onClick={clearPlayback} title={t("voice.stopReplayTitle")} aria-label={t("voice.stopReplayTitle")}>
+        <PhoneOff className="h-4 w-4" />
+        <span>{t("voice.stopReplay")}</span>
+      </Button>
+    )}
+    {phase === "live" && captureMode === "hold" && (
+      <Button
+        size="icon"
+        className="touch-none select-none"
+        variant={held ? "default" : "secondary"}
+        disabled={muted || paused || replaying || handoffActive}
+        aria-pressed={held}
+        title={held ? t("voice.holdListening") : t("voice.holdToTalk")}
+        aria-label={held ? t("voice.holdListening") : t("voice.holdToTalk")}
+        onContextMenu={(event) => event.preventDefault()}
+        onPointerDown={(event) => {
+          if (event.button !== 0 || captureRef.current.held) return;
+          event.currentTarget.setPointerCapture(event.pointerId);
+          clearPlayback();
+          captureRef.current.held = true;
+          setHeld(true);
+          wsRef.current?.send(JSON.stringify({ type: "activity_start" }));
+        }}
+        onPointerUp={endHold}
+        onPointerCancel={endHold}
+        onLostPointerCapture={endHold}
+      >
+        <Mic className="h-4 w-4" />
+        <span>{t("voice.hold")}</span>
+      </Button>
+    )}
+    <Button
+      size="icon"
+      variant="ghost"
+      onClick={() => setShowSettings((s) => !s)}
+      title={t("voice.voiceSettings")}
+      aria-label={t("voice.voiceSettings")}
+      aria-expanded={showSettings}
+    >
+      <Settings2 className="h-4 w-4" />
+      <span>{t("voice.settings")}</span>
+    </Button>
+  </div>
+  );
+  // LAYOUT REFINEMENT (Scalone batch Item 8b): in a wide landscape
+  // panel the Voice/Type toggle and the transport buttons share ONE
+  // row — the toggle at the left, the transport controls filling the
+  // middle, the Manager pill at the right (its toggle-row home,
+  // preserved). Rendered INSTEAD of the stacked pair (the portrait
+  // toggle row above + the transport slot below the captions), never
+  // alongside them, so exactly one instance of every control mounts.
+  const landscapeControlRow = (
+    <div data-testid="toggle-transport-row" className="flex shrink-0 flex-wrap items-center gap-1 py-1">
+      {belowAvatar && <div className="flex shrink-0 justify-center">{belowAvatar}</div>}
+      <div className="flex min-w-0 flex-1 justify-center">{transportControls}</div>
+      {transferPill && <div className="flex shrink-0 flex-col items-end">{transferPill}</div>}
+    </div>
+  );
   if (compact) {
     return (
       <div className={faceFirst ? "flex h-full min-h-0 flex-1 flex-col px-2 pb-2 pt-0 text-foreground" : "space-y-2 p-2 text-foreground"}>
         {faceFirst ? <div className="aspen-person-livebox relative z-0 mx-auto shrink-0 overflow-hidden"><div className={`h-full w-full ${faceLive ? 'invisible' : ''}`}><PersonPortrait name={name} avatarUrl={avatarUrl} animated={false} /></div>{avatarView}{stagedAvatarView}</div> : <>{avatarView}{stagedAvatarView}</>}
-        {belowAvatar && <div className="shrink-0 py-1">{belowAvatar}</div>}
+        {!faceFirst && windowControls}
+        {!faceFirst && toggleManagerRow}
         <div className={faceFirst ? 'aspen-voice-panel relative z-10 flex min-h-0 flex-1 flex-col space-y-2 rounded-lg border border-primary/40 bg-card p-2 shadow-lg ring-1 ring-foreground/10' : 'space-y-2'}>
+        {faceFirst && windowControls}
+        {faceFirst && (wideLandscape ? landscapeControlRow : toggleManagerRow)}
         <div className="flex items-center gap-1.5">
           {shownPhase === "connecting" && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" />}
           {shownPhase === "live" && !aspenSpeaking && <Mic className="h-3.5 w-3.5 shrink-0 animate-pulse text-primary" />}
@@ -3171,6 +3523,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             )}
             {shownPhase !== "live" && (shownPhase === "idle" ? t("voice.readyToTalk") : faceWaiting ? t("voice.connecting") : status)}
           </p>
+          {remainingSeconds !== null && <span data-testid="demo-timer-pill" title={`${t("voice.demoTimeRemaining")}: ${Math.floor(remainingSeconds/60)}:${String(remainingSeconds%60).padStart(2,'0')}`} aria-label={`${t("voice.demoTimeRemaining")}: ${Math.floor(remainingSeconds/60)}:${String(remainingSeconds%60).padStart(2,'0')}`} className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-background/95 px-2 py-0.5 text-[11px] leading-tight text-muted-foreground"><Timer className="h-3 w-3" />{Math.floor(remainingSeconds/60)}:{String(remainingSeconds%60).padStart(2,'0')}</span>}
           {faceFirst && <Button size="icon" variant="outline" className="ml-auto h-10 w-10 shrink-0 border-primary/60 bg-transparent text-primary hover:bg-primary/10 hover:text-primary" aria-label={captions ? t('voice.hideCaptions') : t('voice.showCaptions')} title={captions ? t('voice.hideCaptions') : t('voice.showCaptions')} aria-expanded={captions} onClick={() => setCaptions(v => !v)}><ChevronsUpDown className="h-4 w-4" /></Button>}
         </div>
         {phase === 'idle' && endedByVisitor && <p className="text-xs text-muted-foreground">{t("voice.pressPlayReconnect", { name })}</p>}
@@ -3201,163 +3554,16 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         {actionNotice && <p role="status" className="text-xs text-primary">{actionNotice}</p>}
         {swapNotice && <p role="status" className="text-xs text-primary">{swapNotice}</p>}
         {videoFallback && <p role="status" className="text-[11px] text-muted-foreground">{t("voice.videoFallback")}</p>}
-        {remainingSeconds !== null && (!faceFirst || captions) && <p className="text-[11px] text-muted-foreground">{t("voice.demoTimeRemaining")}: {Math.floor(remainingSeconds/60)}:{String(remainingSeconds%60).padStart(2,'0')}</p>}
-        {transferControl}
-        <div className="voice-controls flex flex-wrap items-center justify-center gap-1 [&_button]:h-auto [&_button]:min-h-11 [&_button]:w-auto [&_button]:min-w-11 [&_button]:flex-col [&_button]:gap-1 [&_button]:px-1.5 [&_button]:py-1.5 [&_span]:text-[10px] [&_span]:leading-tight">
-          {phase === "idle" ? (
-            <Button size="icon" onClick={() => void startConversation()} title={t("voice.playToConnect", { name })} aria-label={t("voice.startConversation")}>
-              <Play className="h-4 w-4" />
-              <span>{t("voice.play")}</span>
-            </Button>
-          ) : (
-            <Button size="icon" variant="destructive" onClick={endByVisitor} title={t("voice.endConversation")} aria-label={t("voice.endConversation")}>
-              <PhoneOff className="h-4 w-4" />
-              <span>{t("voice.end")}</span>
-            </Button>
-          )}
-          {phase === "live" && captureMode !== "hold" && (
-            <Button
-              size="icon"
-              disabled={handoffActive}
-              variant={muted ? "destructive" : "outline"}
-              aria-pressed={muted}
-              title={muted ? t("voice.unmuteMic") : t("voice.muteMic")}
-              aria-label={muted ? t("voice.unmuteMic") : t("voice.muteMic")}
-              onClick={toggleMicMute}
-            >
-              {muted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-              <span>{muted ? t("voice.unmute") : t("voice.mute")}</span>
-            </Button>
-          )}
-          {phase === "live" && (
-            <Button
-              size="icon"
-              variant={paused ? "default" : "outline"}
-              aria-pressed={paused}
-              title={paused ? t("voice.resumeConversation") : t("voice.pauseConversation")}
-              aria-label={paused ? t("voice.resumeConversation") : t("voice.pauseConversation")}
-              disabled={handoffActive} onClick={togglePause}
-            >
-              {paused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
-              <span>{paused ? t("voice.resume") : t("voice.pause")}</span>
-            </Button>
-          )}
-          {phase === "live" && (
-            <div className="relative">
-              <Button
-                size="icon"
-                variant={speakerMuted ? "secondary" : "outline"}
-                aria-haspopup="menu"
-                aria-expanded={speakerMenuOpen}
-                title={t("voice.speakerOutputChoose")}
-                aria-label={t("voice.speakerOutput")}
-                onClick={() => { const opening = !speakerMenuOpen; setSpeakerMenuOpen(opening); if (opening) void refreshSpeakerOutputs(); }}
-              >
-                {speakerMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-                <span>{t("voice.sound")}</span>
-              </Button>
-              {speakerMenuOpen && (
-                <div role="menu" aria-label={t("voice.speakerOutput")} className="absolute bottom-full left-1/2 z-50 mb-1 w-56 max-w-[80vw] -translate-x-1/2 rounded-md border border-border bg-card p-1 text-left shadow-lg">
-                  {buildSpeakerMenuOptions({ devices: speakerOutputs, canSelect: speakerCanSelect, selectedDeviceId: selectedOutputId, muted: speakerMuted }).map((option: SpeakerMenuOption) => {
-                    if (option.kind === "mute") {
-                      return (
-                        <div key={option.id}>
-                          <div className="my-1 border-t border-border" aria-hidden />
-                          <button type="button" role="menuitemradio" aria-checked={option.selected} aria-label={t("voice.speakerMute")} className="flex w-full items-center gap-2 rounded-sm px-2 py-2 text-xs font-medium hover:bg-muted" onClick={chooseSpeakerMute}>
-                            <span className="flex h-4 w-4 shrink-0 items-center justify-center">{option.selected && <Check className="h-3.5 w-3.5" />}</span>
-                            <VolumeX className="h-4 w-4 shrink-0" />
-                            <span>{t("voice.speakerMute")}</span>
-                          </button>
-                        </div>
-                      );
-                    }
-                    const label = option.synthetic === "loudspeaker" ? t("voice.speakerLoudspeaker")
-                      : option.synthetic === "earpiece" ? t("voice.speakerEarpiece")
-                      : option.synthetic === "platform" ? t("voice.speakerPhoneDefault")
-                      : option.synthetic === "bluetoothFallback" ? t("voice.speakerBluetooth")
-                      : option.rawLabel ?? t("voice.speakerOutput");
-                    const Icon = option.kind === "speaker" ? Speaker : option.kind === "earpiece" || option.kind === "platform" ? Smartphone : option.kind === "bluetooth" || option.kind === "headset" ? Bluetooth : Volume2;
-                    const device = option.deviceId ? speakerOutputs.find(d => d.deviceId === option.deviceId) : undefined;
-                    return (
-                      <button key={option.id} type="button" role="menuitemradio" aria-checked={option.selected} aria-label={label} className="flex w-full items-center gap-2 rounded-sm px-2 py-2 text-xs font-medium hover:bg-muted" onClick={() => { if (device) void chooseSpeakerDevice(device); else choosePlatformOutput(); }}>
-                        <span className="flex h-4 w-4 shrink-0 items-center justify-center">{option.selected && <Check className="h-3.5 w-3.5" />}</span>
-                        <Icon className="h-4 w-4 shrink-0" />
-                        <span className="truncate">{label}</span>
-                      </button>
-                    );
-                  })}
-                  {!speakerCanSelect && <p className="px-2 pb-1 pt-1.5 text-[10px] leading-snug text-muted-foreground">{t("voice.speakerNoSelectNote")}</p>}
-                  {speakerOutputNotice && <p role="status" className="px-2 pb-1 pt-1.5 text-[10px] leading-snug text-muted-foreground">{speakerOutputNotice}</p>}
-                </div>
-              )}
-            </div>
-          )}
-          <Button
-            size="icon"
-            variant="outline"
-            disabled={!hasReplay || paused || replaying || aspenSpeaking || phase === "connecting" || phase === "preview"}
-            onClick={() => void replayLastMessage()}
-            title={t("voice.replayLastTitle")}
-            aria-label={t("voice.replayLastMessage")}
-          >
-            <RotateCcw className="h-4 w-4" />
-            <span>{t("voice.replay")}</span>
-          </Button>
-          {replaying && (
-            <Button size="icon" variant="outline" onClick={clearPlayback} title={t("voice.stopReplayTitle")} aria-label={t("voice.stopReplayTitle")}>
-              <PhoneOff className="h-4 w-4" />
-              <span>{t("voice.stopReplay")}</span>
-            </Button>
-          )}
-          {phase === "live" && captureMode === "hold" && (
-            <Button
-              size="icon"
-              className="touch-none select-none"
-              variant={held ? "default" : "secondary"}
-              disabled={muted || paused || replaying || handoffActive}
-              aria-pressed={held}
-              title={held ? t("voice.holdListening") : t("voice.holdToTalk")}
-              aria-label={held ? t("voice.holdListening") : t("voice.holdToTalk")}
-              onContextMenu={(event) => event.preventDefault()}
-              onPointerDown={(event) => {
-                if (event.button !== 0 || captureRef.current.held) return;
-                event.currentTarget.setPointerCapture(event.pointerId);
-                clearPlayback();
-                captureRef.current.held = true;
-                setHeld(true);
-                wsRef.current?.send(JSON.stringify({ type: "activity_start" }));
-              }}
-              onPointerUp={endHold}
-              onPointerCancel={endHold}
-              onLostPointerCapture={endHold}
-            >
-              <Mic className="h-4 w-4" />
-              <span>{t("voice.hold")}</span>
-            </Button>
-          )}
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={() => setShowSettings((s) => !s)}
-            title={t("voice.voiceSettings")}
-            aria-label={t("voice.voiceSettings")}
-            aria-expanded={showSettings}
-          >
-            <Settings2 className="h-4 w-4" />
-            <span>{t("voice.settings")}</span>
-          </Button>
-        </div>
-
+        {!wideLandscape && transportControls}
         {phase === "live" && speakerOutputNotice && (
           <p role="status" className="text-[11px] text-muted-foreground">{speakerOutputNotice}</p>
         )}
-        {phase === "live" && (
-          <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-            <span>{t("voice.mic")}</span>
-            <meter min="0" max="100" value={micLevel} aria-label={t("voice.micLevel")} className="h-2 w-16" />
-            <span>{micLevel > 3 ? t("voice.sound") : t("voice.quiet")}</span>
-          </div>
-        )}
+        {/* LAYOUT REFINEMENT (Scalone batch Item 8a): the microphone-
+            environment controls (ambient readout + Quiet / Normal /
+            Noisy pills + Auto) no longer occupy a permanent panel
+            row — they live in the settings dialog below, next to the
+            noise-filtering select and the Mic level meter. The panel
+            keeps its freed height for captions (2–3 lines). */}
         {showMicHint && phase === "live" && (
           <div role="status" className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/60 p-2 text-[11px] text-foreground">
             <span>I can’t hear you — your microphone may be muted or set to the wrong one.</span>
@@ -3378,11 +3584,29 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
               <Button variant="outline" size="sm" onClick={stopEverything}><PhoneOff className="mr-1.5 h-3.5 w-3.5" />{t("voice.endCallToEdit")}</Button>
             </div>}
             <label className="block space-y-1 text-xs">{t("voice.noiseFiltering")}
-              <Select value={noiseFilter} onValueChange={value => setNoiseFilter(value as NoiseFilter)}>
+              <Select value={noiseFilter} onValueChange={value => chooseNoiseFilter(value as NoiseFilter)}>
                 <SelectTrigger aria-label={t("voice.micSensitivity")} className="h-auto min-h-9 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent><SelectItem value="light">{t("voice.noiseLight")}</SelectItem><SelectItem value="balanced">{t("voice.noiseBalanced")}</SelectItem><SelectItem value="strong">{t("voice.noiseStrong")}</SelectItem></SelectContent>
               </Select>
             </label>
+            {/* Mic environment (Scalone batch Item 8a — moved off the
+                panel's permanent rows into this settings dialog): the
+                live ambient readout and the same Quiet / Normal /
+                Noisy segmented control the panel row carried, wired
+                to the same chooseNoiseFilter state, Auto chip and all.
+                The Mic level meter sits further down in this dialog. */}
+            <div className="space-y-1.5">
+              <span className="text-[11px] font-semibold text-muted-foreground">{t("voice.micEnvironment")}</span>
+              <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                <span data-testid="ambient-level-label">{ambientLevel === "quiet" ? t("voice.envQuiet") : ambientLevel === "noisy" ? t("voice.envNoisy") : t("voice.envNormal")}</span>
+                <div className="ml-auto flex items-center gap-0.5" role="group" aria-label={t("voice.micEnvironment")}>
+                  {([["light", "envQuiet"], ["balanced", "envNormal"], ["strong", "envNoisy"]] as const).map(([value, labelKey]) => (
+                    <button key={value} type="button" aria-pressed={noiseFilter === value} data-noise-filter={value} onClick={() => chooseNoiseFilter(value)} className={`flex min-h-8 items-center rounded-full px-2 text-[11px] font-semibold transition-colors ${noiseFilter === value ? "bg-primary text-primary-foreground" : "bg-muted text-foreground hover:bg-muted/70"}`}>{t(`voice.${labelKey}`)}</button>
+                  ))}
+                  {!noiseFilterManual && <span data-testid="noise-auto-indicator" className="ml-1 rounded-full border border-primary/40 px-1.5 py-0.5 text-[10px] font-semibold text-primary">{t("voice.envAuto")}</span>}
+                </div>
+              </div>
+            </div>
             <div>
               <label className="text-[11px] font-semibold text-muted-foreground">{t("voice.microphone")}</label>
               <div className="mt-1 flex gap-2">
@@ -3414,6 +3638,19 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
               <span>Mic level</span>
               <meter min="0" max="100" value={micLevel} aria-label="Microphone level" className="h-2 w-24" />
               <span>{micLevel > 3 ? "Sound — your voice is registering" : "Quiet — speak and watch this move"}</span>
+            </div>
+            {/* Speaker volume (2026-11-13): the guaranteed in-panel level
+                for BOTH playback paths — on Android the hardware keys
+                can miss the paired stream entirely (see
+                lib/playbackVolume.ts). Lives with the other voice
+                settings inside this dialog, per the panel layout rules
+                (no new control over the portrait). */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label htmlFor="aspen-speaker-volume" className="text-[11px] font-semibold text-muted-foreground">{t("voice.speakerVolume")}</label>
+                <span className="text-[11px] text-muted-foreground">{Math.round(playbackVolume * 100)}%</span>
+              </div>
+              <input id="aspen-speaker-volume" type="range" min={0} max={100} step={1} value={Math.round(playbackVolume * 100)} onChange={(e) => applyPlaybackVolume(Number(e.target.value) / 100)} aria-label={t("voice.speakerVolume")} className="w-full accent-primary" />
             </div>
             {draft && (
               <Button variant="outline" size="sm" className="h-8 text-xs" disabled={phase !== "idle"} onClick={() => void startConversation(true)} aria-label={t("voice.previewVoice")} title={t("voice.previewVoice")}>
@@ -3481,7 +3718,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block space-y-1 text-xs">{t("voice.noiseFiltering")}
-              <Select value={noiseFilter} onValueChange={value => setNoiseFilter(value as NoiseFilter)}>
+              <Select value={noiseFilter} onValueChange={value => chooseNoiseFilter(value as NoiseFilter)}>
                 <SelectTrigger aria-label={t("voice.micSensitivity")}><SelectValue /></SelectTrigger>
                 <SelectContent><SelectItem value="light">{t("voice.noiseLight")}</SelectItem><SelectItem value="balanced">{t("voice.noiseBalanced")}</SelectItem><SelectItem value="strong">{t("voice.noiseStrong")}</SelectItem></SelectContent>
               </Select>

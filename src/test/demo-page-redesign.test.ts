@@ -88,7 +88,9 @@ describe("/demo landing redesign", () => {
 
   it("keeps the price strip evergreen (no calendar dates)", () => {
     expect(en.tryDemo.priceStrip).toContain("$99/mo");
-    expect(en.tryDemo.priceStrip).toContain("50% off your first 3 months (regular $199)");
+    expect(en.tryDemo.priceStrip).toContain("the permanent price, no intro discount");
+    expect(en.tryDemo.priceStrip).toContain("free for your first month");
+    expect(en.tryDemo.priceStrip).not.toContain("50% off");
     expect(en.tryDemo.priceStrip).not.toMatch(/november|december|january|20\d\d/i);
   });
 

@@ -18,8 +18,12 @@ interface DraggableFloatingProps {
   dragLabel?: string;
   resetKey?: string | number;  /** 'below': in-flow pill under the content. 'top': pill at the top of the
    * bubble (minimized stages). 'chest': no pill here — the child shell
-   * (FloatingPersonFrame) renders the [data-drag-handle] inside its chest
-   * control cluster, at the portrait's bottom edge. */
+   * renders the [data-drag-handle] inside its window-controls row at the
+   * top inside the open panel (the row began as the "chest" cluster;
+   * since the 2026-11-12 panel layout fix it sits in-flow inside the
+   * panel, never over the portrait). Drag delegation is by the
+   * [data-drag-handle] attribute anywhere in this container, so the
+   * handle's position does not matter to the drag behaviour. */
   dragHandlePlacement?: 'below' | 'chest' | 'top';
 }
 

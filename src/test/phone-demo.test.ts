@@ -5,10 +5,13 @@ import {
   PHONE_DEMO_DISCLOSURE_VERSION,
   PHONE_DEMO_HOST_POLICY,
   PHONE_DEMO_LINK,
+  PHONE_GREETING,
   buildDictatedKnowledge,
   sanitizeSpokenCode,
   spellBackForSpeech,
+  transcriptShowsCapturedContact,
 } from '../../supabase/functions/_shared/phone-demo';
+import { HOMEPAGE_GREETING } from '../../supabase/functions/_shared/homepage-knowledge';
 
 describe('spellBackForSpeech', () => {
   test('spells a dictated domain letter by letter with dot spoken', () => {
@@ -173,5 +176,177 @@ describe('telephony-stream phone-demo-save persists the forwarded smsConsent (so
   });
   test('no boolean supplied means no consent write (an un-asked permission never lands)', () => {
     expect(saveBlock).toContain("typeof d.smsConsent === 'boolean' ? { sms_consent: d.smsConsent } : {}");
+  });
+  test('save returns phoneSource: dictated mobile vs caller-ID fallback vs none (polish batch)', () => {
+    expect(saveBlock).toContain("const phoneSource = mobile ? 'dictated' : fields.phone ? 'caller_id' : 'none';");
+    expect(saveBlock).toContain('phoneSource');
+    // Every successful save shape carries it (update, insert, fallback retry).
+    expect(saveBlock.match(/phoneSource \}/g)?.length).toBeGreaterThanOrEqual(3);
+  });
+  test('every save failure path logs the real error loudly (polish batch)', () => {
+    expect(saveBlock).toContain("console.error('telephony-stream: phone-demo-save update failed', upErr.message)");
+    expect(saveBlock).toContain("console.error('telephony-stream: phone-demo-save insert failed'");
+    expect(saveBlock).toContain("console.error('telephony-stream: phone-demo-save sms_consent fallback retry failed'");
+  });
+});
+
+describe('PHONE_DEMO_HOST_POLICY polish batch (2026-11-12, A&R Towing call)', () => {
+  const step3 = PHONE_DEMO_HOST_POLICY.slice(
+    PHONE_DEMO_HOST_POLICY.indexOf('STEP 3'),
+    PHONE_DEMO_HOST_POLICY.indexOf('STEP 4'),
+  );
+  const step6 = PHONE_DEMO_HOST_POLICY.slice(
+    PHONE_DEMO_HOST_POLICY.indexOf('STEP 6'),
+    PHONE_DEMO_HOST_POLICY.indexOf('STEP 7'),
+  );
+  const step7 = PHONE_DEMO_HOST_POLICY.slice(
+    PHONE_DEMO_HOST_POLICY.indexOf('STEP 7'),
+    PHONE_DEMO_HOST_POLICY.indexOf('STEP 8'),
+  );
+
+  test('step 3 mobile gate is post-save and tied to spellBack.mobile', () => {
+    expect(step3).toContain('MANDATORY NUMBER-CAPTURE PROTOCOL WITH CONFIRMATION GATE');
+    expect(step3).toContain('call save_phone_demo_lead');
+    expect(step3).toContain('spellBack.mobile');
+    expect(step3).toContain('digit by digit');
+    expect(step3).toContain('"Did I get that right?"');
+    expect(step3).toContain('proceed ONLY on the caller\'s confirmation');
+    // The old pre-save improvised read-back ordering is gone: the
+    // deterministic post-save spell-back is the single mandated path.
+    expect(step3).toContain('post-save deterministic spell-back is the single mandated path');
+    expect(step3).toContain('never improvise a pre-save read-back');
+    // A correction restarts the read-back, never the whole flow.
+    expect(step3).toContain('A correction restarts the READ-BACK, never the whole flow');
+  });
+  test('step 3 email gets the same post-save confirmation gate', () => {
+    expect(step3).toContain('EMAIL — THE SAME POST-SAVE GATE');
+    expect(step3).toContain('spellBack.email');
+    expect(step3).toContain('word for word');
+  });
+  test('step 3 caller-ID honesty: phoneSource caller_id is spoken as the calling-from number', () => {
+    expect(step3).toContain('phoneSource');
+    expect(step3).toContain("'caller_id'");
+    expect(step3).toContain('CALLER-ID HONESTY');
+    expect(step3).toContain('the number you\'re calling from');
+    expect(step3).toContain('Never present a caller-ID number as if the caller dictated it');
+  });
+  test('captured-field discipline: never re-ask, confirm the assembled value once', () => {
+    expect(PHONE_DEMO_HOST_POLICY).toContain('CAPTURED-FIELD DISCIPLINE');
+    expect(PHONE_DEMO_HOST_POLICY).toContain('NEVER re-asked');
+    expect(PHONE_DEMO_HOST_POLICY).toContain('caller name, business name, trade, service area, services, mobile or email');
+    expect(PHONE_DEMO_HOST_POLICY).toContain('confirm the ASSEMBLED value in one short question');
+    expect(PHONE_DEMO_HOST_POLICY).toContain('I have that as A&R Towing — right?');
+    expect(PHONE_DEMO_HOST_POLICY).toContain('one confirmation, not a fresh question loop');
+    expect(PHONE_DEMO_HOST_POLICY).toContain('save the correction by calling save_phone_demo_lead again');
+    expect(PHONE_DEMO_HOST_POLICY).toContain('confirm the new assembled value once');
+    // STEP 1 references the discipline block.
+    const step1 = PHONE_DEMO_HOST_POLICY.slice(
+      PHONE_DEMO_HOST_POLICY.indexOf('STEP 1'),
+      PHONE_DEMO_HOST_POLICY.indexOf('STEP 2'),
+    );
+    expect(step1).toContain('CAPTURED-FIELD DISCIPLINE applies');
+  });
+  test('step 6 in-role universal number protocol', () => {
+    expect(step6).toContain('UNIVERSAL NUMBER PROTOCOL');
+    expect(step6).toContain('grouped digit-by-digit');
+    expect(step6).toContain('"Did I get that right?"');
+    expect(step6).toContain('proceeds ONLY on the caller\'s confirmation');
+  });
+  test('step 7 recap loop-breaker: exactly one full recap attempt', () => {
+    expect(step7).toContain('RECAP LOOP-BREAKER');
+    expect(step7).toContain('exactly ONE full recap attempt');
+    expect(step7).toContain('says they don\'t know');
+    expect(step7).toContain('ONE short summary line');
+    expect(step7).toContain('never repeat the recap');
+    expect(step7).toContain('never re-ask the same reaction question in near-identical wording');
+  });
+  test('acknowledge-before-tool throughout: a tool wait never starts from bare silence', () => {
+    expect(PHONE_DEMO_HOST_POLICY).toContain('ACKNOWLEDGE BEFORE EVERY TOOL');
+    expect(PHONE_DEMO_HOST_POLICY).toContain('BEFORE invoking any save, send or book tool');
+    expect(PHONE_DEMO_HOST_POLICY).toContain('"Got it —"');
+    expect(PHONE_DEMO_HOST_POLICY).toContain('never starts from bare silence');
+  });
+});
+
+describe('PHONE_GREETING (phone opening trim, polish batch)', () => {
+  const words = (s: string) => s.trim().split(/\s+/).length;
+  test('keeps every approved HOMEPAGE_GREETING element', () => {
+    expect(PHONE_GREETING).toContain('{timeGreeting}');
+    expect(PHONE_GREETING).toContain('thanks for calling {businessName}');
+    expect(PHONE_GREETING).toContain("I'm {agentName}");
+    // The 85% voicemail-never-call-back stat hook.
+    expect(PHONE_GREETING).toContain('85%');
+    expect(PHONE_GREETING).toContain("don't call back");
+    // Partner-not-vendor framing.
+    expect(PHONE_GREETING).toContain('partner for finding the leads you\'re already losing');
+    // Natural-voice line and the (shortened) live-video spokesperson line.
+    expect(PHONE_GREETING).toContain('natural voice');
+    expect(PHONE_GREETING).toContain('live video as your spokesperson');
+    // Ends with the name ask.
+    expect(PHONE_GREETING.trim().endsWith('May I have your name?')).toBe(true);
+  });
+  test('is ~75-85 words and shorter than HOMEPAGE_GREETING', () => {
+    expect(words(PHONE_GREETING)).toBeGreaterThanOrEqual(75);
+    expect(words(PHONE_GREETING)).toBeLessThanOrEqual(85);
+    expect(words(PHONE_GREETING)).toBeLessThan(words(HOMEPAGE_GREETING));
+  });
+});
+
+describe('transcriptShowsCapturedContact (end-of-call lead guarantee)', () => {
+  test('email hit — string and fragment-array forms', () => {
+    expect(transcriptShowsCapturedContact('my email is tonymiller1401@gmail.com')).toBe(true);
+    expect(transcriptShowsCapturedContact([
+      { role: 'caller', text: 'email me at a@b.co please' },
+    ])).toBe(true);
+  });
+  test('digit-run hit — grouped, separated and contiguous numbers', () => {
+    expect(transcriptShowsCapturedContact([{ role: 'caller', text: 'call me on 727 735 3542' }])).toBe(true);
+    expect(transcriptShowsCapturedContact('my number is 727-735-3542')).toBe(true);
+    expect(transcriptShowsCapturedContact('7277353542, repeat it to me')).toBe(true);
+    expect(transcriptShowsCapturedContact('reach us at 555 1234 any time')).toBe(true);
+  });
+  test('clean transcript miss — no email, no long digit run', () => {
+    expect(transcriptShowsCapturedContact([
+      { role: 'caller', text: 'Hi, I run a towing company in Broward County' },
+      { role: 'assistant', text: 'Great — what services do you offer?' },
+    ])).toBe(false);
+    // A partial 6-digit fragment alone is not captured-contact evidence.
+    expect(transcriptShowsCapturedContact('I only got 727735 so far')).toBe(false);
+    expect(transcriptShowsCapturedContact([])).toBe(false);
+    expect(transcriptShowsCapturedContact(undefined)).toBe(false);
+    expect(transcriptShowsCapturedContact(null)).toBe(false);
+  });
+});
+
+describe('telephony-stream polish batch wiring (source pins)', () => {
+  const stream = readFileSync(new URL('../../supabase/functions/telephony-stream/index.ts', import.meta.url), 'utf8');
+
+  test('PHONE_POLICY carries the mandatory universal number gate', () => {
+    expect(stream).toContain('UNIVERSAL NUMBER PROTOCOL (mandatory gate, every mode)');
+    expect(stream).toContain('grouped digit-by-digit');
+    expect(stream).toContain('"Did I get that right?"');
+  });
+  test('start action substitutes PHONE_GREETING on the fallback-greeting branch only', () => {
+    expect(stream).toContain('opening = PHONE_GREETING;');
+    expect(stream).toContain('PHONE_GREETING');
+    // The substitution sits inside the fallback (else-if) templating
+    // branch, after the greetings-variants pick.
+    const variantsIdx = stream.indexOf('variants[h % variants.length]');
+    const substituteIdx = stream.indexOf('opening = PHONE_GREETING;');
+    expect(variantsIdx).toBeGreaterThan(-1);
+    expect(substituteIdx).toBeGreaterThan(variantsIdx);
+  });
+  test('end action builds the phone-demo audit and merges it into ai_usage + the response', () => {
+    const endBlock = stream.slice(stream.indexOf("b.action === 'end'"));
+    expect(endBlock).toContain('phoneDemo');
+    expect(endBlock).toContain('transcriptShowsCapturedContact(transcript)');
+    expect(endBlock).toContain("{ lead_saved: true, lead_id: reportLeadId }");
+    expect(endBlock).toContain("marker: 'phone_demo_lead_missing'");
+    expect(endBlock).toContain("marker: 'no_contact_captured'");
+    expect(endBlock).toContain("console.error('PHONE_DEMO_LEAD_MISSING', call.id)");
+    expect(endBlock).toContain('phone_demo_audit: phoneDemoAudit');
+    expect(endBlock).toContain("{ ok: true, ...(phoneDemoAudit ? { phone_demo_audit: phoneDemoAudit } : {}) }");
+    // The existing transfer reconciliation stays intact ahead of the audit.
+    expect(endBlock).toContain("transferObj.outcome === 'pending'");
   });
 });

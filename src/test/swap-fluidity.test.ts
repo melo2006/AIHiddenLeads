@@ -202,11 +202,14 @@ describe('Sara language mirror + role guard (prompt pins)', () => {
     expect(SIMULATION_RECEPTIONIST_SEGMENT).toContain("you start in this session's starting language");
   });
 
-  test('role guard: AiHiddenLeads topics get one in-role deflection and route back to Aspen at the step-out', () => {
-    expect(SIMULATION_RECEPTIONIST_SEGMENT).toContain('QUESTIONS ABOUT AI HIDDEN LEADS ITSELF ARE NOT YOURS TO SELL');
+  test('role guard: AiHiddenLeads topics are not Sara\'s to sell — she brings Aspen back LIVE (Scalone batch Item 2, supersedes the step-out deflection)', () => {
+    expect(SIMULATION_RECEPTIONIST_SEGMENT).toContain('QUESTIONS ABOUT AI HIDDEN LEADS ITSELF — NOT YOURS TO SELL; BRING ASPEN BACK, LIVE');
     expect(SIMULATION_RECEPTIONIST_SEGMENT).toContain('never push scheduling a sales meeting');
-    expect(SIMULATION_RECEPTIONIST_SEGMENT).toContain('Aspen from AI Hidden Leads can walk you through all of that when we step out');
+    expect(SIMULATION_RECEPTIONIST_SEGMENT).toContain('say ONE short line containing the words "bring Aspen back"');
+    expect(SIMULATION_RECEPTIONIST_SEGMENT).toContain('never describe it as a transfer you cannot complete');
     expect(SIMULATION_RECEPTIONIST_SEGMENT).toContain("you are {businessName}'s receptionist — never AI Hidden Leads staff");
+    // The old park-it-for-the-step-out deflection is gone.
+    expect(SIMULATION_RECEPTIONIST_SEGMENT).not.toContain('can walk you through all of that when we step out');
   });
 
   test('the in-role transfer/booking honesty line is untouched (it governs the BUSINESS roleplay only)', () => {

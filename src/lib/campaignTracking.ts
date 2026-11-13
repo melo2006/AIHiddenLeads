@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-export const PUBLIC_CAMPAIGN_PATHS = ['/', '/demo', '/demo-site', '/checkout', '/checkout/return', '/book'] as const;
+export const PUBLIC_CAMPAIGN_PATHS = ['/', '/demo', '/demo-site', '/checkout', '/checkout/return', '/book', '/agents/realtors'] as const;
 export const PUBLIC_CAMPAIGN_SECTIONS = ['services', 'pricing', 'map-visibility', 'demo-form', 'how-it-works', 'faq', 'addons'] as const;
 export type CampaignEvent = 'page_view' | 'scan_started' | 'voice_started' | 'voice_ended' | 'section_view';
 const campaignLabel = (value: string) => value.replace(/[^\w .-]/g, '').slice(0, 100);
