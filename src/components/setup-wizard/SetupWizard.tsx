@@ -435,7 +435,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
           {step === 3 && (
             <div className="space-y-4">
               <StepHead title="Give your assistant a face" hint="Optional: a live video face that speaks with your chosen voice." help="Voice only works everywhere. A video face lip-syncs the same Gemini voice and uses extra video minutes." />
-              <AvatarSettings value={normalizeVideoAvatar(s.videoAvatar)} onChange={(videoAvatar) => set({ videoAvatar })} agentId={selectedId} beforePreview={save} voice={s.voice} onVoiceChange={voice => { set({ voice, clonedVoiceSelected: false }); setVoiceReady(false); }} name={s.name} clonedVoiceSelected={Boolean(s.clonedVoiceSelected)} onClonedVoiceSelectedChange={(cloned) => { set({ clonedVoiceSelected: cloned }); if (cloned) setVoiceReady(false); }} />
+              <AvatarSettings value={normalizeVideoAvatar(s.videoAvatar)} onChange={(videoAvatar) => set({ videoAvatar })} agentId={selectedId} beforePreview={save} voice={s.voice} onVoiceChange={voice => { set({ voice, clonedVoiceSelected: false }); setVoiceReady(false); }} name={s.name} onNameChange={(next) => set(isAskLabel(s.label) ? { name: next, label: askLabel(next) } : { name: next })} clonedVoiceSelected={Boolean(s.clonedVoiceSelected)} onClonedVoiceSelectedChange={(cloned) => { set({ clonedVoiceSelected: cloned }); if (cloned) setVoiceReady(false); }} />
             </div>
           )}
 
