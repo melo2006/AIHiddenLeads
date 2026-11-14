@@ -140,15 +140,22 @@ Deno.serve(async (req) => {
       // Keep Simli's own square canvas (768): a smaller canvas crops a window out of the avatar's frame,
       // which is what cut Aspen in half. Only the backdrop is swapped for the key green.
       const config = { faceId, handleSilence: true, maxSessionLength: publicSession ? 1800 : 3600, maxIdleTime: publicSession ? 60 : 300, ...(backgroundId ? { background_id: backgroundId } : {}) };
+      // Track whether the green backdrop is part of the ACCEPTED token
+      // request (2026-11-14): the 422 retry below drops background_id,
+      // and claiming chromaKey for that stream made the browser key
+      // against the face's own studio backdrop — the new personas
+      // (Frank / Latina / Black Professional Lady) then rendered with
+      // a solid background box instead of floating like Aspen.
+      let backgroundApplied = !!backgroundId;
       let res = await fetch(`${SIMLI}/compose/token`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-simli-api-key': apiKey }, body: JSON.stringify(config) });
       // Older (non Trinity-2) faces may reject the framing fields; retry with the face's own look.
-      if (!res.ok && backgroundId && res.status === 422) res = await fetch(`${SIMLI}/compose/token`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-simli-api-key': apiKey }, body: JSON.stringify({ faceId, handleSilence: true, maxSessionLength: config.maxSessionLength, maxIdleTime: config.maxIdleTime }) });
+      if (!res.ok && backgroundId && res.status === 422) { backgroundApplied = false; res = await fetch(`${SIMLI}/compose/token`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-simli-api-key': apiKey }, body: JSON.stringify({ faceId, handleSilence: true, maxSessionLength: config.maxSessionLength, maxIdleTime: config.maxIdleTime }) }); }
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.session_token) return json({ error: String(data.detail || 'Simli refused the avatar session') }, res.status === 400 ? 400 : 502);
       const warnings: string[] = Array.isArray(data.warnings) ? data.warnings.map(String) : [];
       if (warnings.length) console.warn('simli token warnings', warnings);
       const token = String(data.session_token);
-      const chromaKey = !!backgroundId && token.startsWith('trinity2') && !warnings.some(w => /background/i.test(w));
+      const chromaKey = backgroundApplied && token.startsWith('trinity2') && !warnings.some(w => /background/i.test(w));
       return json({ sessionToken: token, faceId, chromaKey });
     }
 

@@ -11,13 +11,15 @@ import { matchingAspenVideo } from '@/lib/aspenFace';
 import { PersonPortrait } from '@/components/FloatingPersonFrame';
 import { PERSONAS } from '../../../../supabase/functions/_shared/personas';
 import { presenterForExampleLeadId } from '@/data/realtorExamplePinnedLeads';
-import { SIMLI_FACE_CATALOG } from '@/lib/simliFaceCatalog';
+import { presenterPortraitImage } from '@/lib/simliFaceCatalog';
 
 /** A presenter's still portrait: the catalogue image keyed by the
  *  persona registry's own portraitFaceId (Frank batch pattern —
- *  covers every solo presenter, Frank and the ladies alike). */
+ *  covers every solo presenter, Frank and the ladies alike), via the
+ *  cutout-aware resolver so the new personas float on a transparent
+ *  background like Aspen instead of a solid studio-photo box. */
 const presenterPortraitFor = (presenter: keyof typeof PERSONAS): string | undefined =>
-  SIMLI_FACE_CATALOG.find(f => f.id === PERSONAS[presenter].portraitFaceId)?.image;
+  presenterPortraitImage(PERSONAS[presenter].portraitFaceId);
 
 type Props = React.ComponentProps<typeof ChatWidget> & {
   voiceRequested?: boolean;
@@ -80,7 +82,7 @@ function AspenDemoWidgetContent({ voiceRequested = false, onClosed, onAssistantR
     onReplay: () => shellControlsRef.current?.replay(),
   } : undefined;
   return <DraggableFloating initialX={12} initialY={window.innerHeight - 90} anchorRight anchorBottom resetKey={expanded ? 'open' : 'closed'} dragHandlePlacement={expanded ? 'chest' : minimized ? 'top' : 'below'}>
-    <FloatingPersonFrame name={presenterName} avatarUrl={presenterPortrait} open={expanded} minimized={minimized} mode={mode} onOpen={() => { setHasOpened(true); setMinimized(false); setOpen(true); }} onMinimize={minimize} onClose={close} onMode={next => { setMode(next); if (next === 'chat') setChatVisited(true); }} keepRendered={prewarm} stage3={stage3} inviteArrival={!!invite}>
+    <FloatingPersonFrame name={presenterName} avatarUrl={presenterPortrait} open={expanded} minimized={minimized} mode={mode} onOpen={() => { setHasOpened(true); setMinimized(false); setOpen(true); }} onMinimize={minimize} onClose={close} onMode={next => { setMode(next); if (next === 'chat') setChatVisited(true); }} keepRendered={prewarm} stage3={stage3} inviteArrival={!!invite} focus={shellState?.focus ?? false}>
       {mounted && mode === 'voice' && <>
         {gateWaiting && <div className="aspen-panel flex flex-col items-center gap-2 px-4 py-3 text-center" role="status">
           <div className="h-20 w-20 overflow-hidden rounded-full border border-primary/50">
@@ -93,7 +95,7 @@ function AspenDemoWidgetContent({ voiceRequested = false, onClosed, onAssistantR
           <GeminiConversation compact faceFirst avatarInline autoStart={expanded} consentOnOpen={expanded} prewarm={prewarm} onPrewarmed={() => onAssistantReady?.()} leadId={chatProps.leadId} prospectId={chatProps.prospectId} name={presenterName} avatarUrl={presenterPortrait} visitorName={chatProps.callerName} onRecommendedPlan={setRecommendedPlan} videoAvatar={matchingAspenVideo(videoAvatar)} verification={verification} invite={invite} sample={sample} onUserTranscript={onUserTranscript} shellControlsRef={shellControlsRef} onShellState={setShellState} belowAvatar={<AspenModeToggle mode={mode} onMode={next => { setMode(next); if (next === 'chat') setChatVisited(true); }} />} windowControls={<AspenWindowControls onMinimize={minimize} onClose={close} />} />
         </div>
       </>}
-      {chatVisited && <div className={mode === 'chat' ? 'aspen-panel min-h-80 overflow-hidden rounded-lg border border-border bg-card' : 'hidden'}><div className="aspen-chat-content"><ChatWidget {...chatProps} embedded active={expanded && mode === 'chat'} /></div></div>}
+      {chatVisited && <div className={mode === 'chat' ? 'aspen-panel min-h-80 overflow-hidden rounded-lg border border-border bg-card' : 'hidden'}><div className="aspen-chat-content"><ChatWidget {...chatProps} presenterName={presenterName} embedded active={expanded && mode === 'chat'} /></div></div>}
       <div className="aspen-sales-actions"><AspenSalesActions plan={recommendedPlan} /></div>
     </FloatingPersonFrame>
   </DraggableFloating>;

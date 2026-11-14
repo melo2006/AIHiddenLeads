@@ -102,7 +102,13 @@ describe('proxy wiring — detection at turnComplete, with cancel paths', () => 
   it('arms the end timer: visitor_goodbye, code 1000, the plain closed message', () => {
     expect(src).toContain('FAREWELL_END_DELAY_MS');
     expect(src).toContain("endReason = 'visitor_goodbye'; closeCode = 1000");
-    expect(src).toContain("clientSocket.send(JSON.stringify({ type: 'closed', reason: 'Call ended — thanks for talking with Aspen.' }))");
+    // Presenter-name fix (2026-11-14): the farewell thanks the
+    // session's OWN speaker — config.name carries the presenter's
+    // display name on solo-presenter demos and 'Aspen' elsewhere, so
+    // Aspen sessions render the identical sentence as before.
+    expect(src).toContain("const speakerDisplayName = String(config.name || 'Aspen')");
+    expect(src).toContain("clientSocket.send(JSON.stringify({ type: 'closed', reason: `Call ended — thanks for talking with ${speakerDisplayName}.` }))");
+    expect(src).not.toContain('thanks for talking with Aspen.');
   });
 
   it('cancels the armed end on new speech, on a non-farewell completed turn, on any tool call, and in closeAll', () => {

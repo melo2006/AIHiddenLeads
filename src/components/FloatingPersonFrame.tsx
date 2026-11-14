@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { MessageSquare, Mic, MicOff, X, Minus, AudioLines, Play, Pause, PhoneOff, RotateCcw, Volume2, VolumeX, Maximize2, GripVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import aspenPortrait from '@/assets/aspen-video-frame-final.webp';
@@ -17,9 +17,14 @@ import aspenIdleBeckon from '@/assets/aspen-idle-wave.gif';
  * Rendered only inside a positioned (relative) portrait container and
  * only while the panel is open — never on the Stage 1 bubble or the
  * Stage 3 minimized bar. */
-export function PersonaNameLabel({ name }: { name: string }) {
+export function PersonaNameLabel({ name, variant = 'overlay' }: { name: string; /** 'overlay' = the lower-third pill over the portrait (default, unchanged). 'dock' = the FOCUS VIEW bottom dock: same pill, larger, in flow next to the dock controls (2026-11-14). */ variant?: 'overlay' | 'dock' }) {
   const label = name?.trim().split(/\s+/)[0];
   if (!label) return null;
+  if (variant === 'dock') {
+    return <span data-testid="persona-name-label" aria-hidden="true" className="pointer-events-none shrink-0">
+      <span className="block whitespace-nowrap rounded-full bg-black/55 px-3.5 py-1 text-sm font-semibold leading-tight tracking-wide text-white shadow-sm backdrop-blur-sm">{label}</span>
+    </span>;
+  }
   return <span data-testid="persona-name-label" aria-hidden="true" className="pointer-events-none absolute bottom-1.5 left-1/2 z-20 -translate-x-1/2">
     <span className="block whitespace-nowrap rounded-full bg-black/55 px-2.5 py-0.5 text-[11px] font-semibold leading-tight tracking-wide text-white shadow-sm backdrop-blur-sm">{label}</span>
   </span>;
@@ -48,7 +53,57 @@ export interface Stage3Controls {
   onReplay: () => void;
 }
 
-const barButton = 'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-foreground transition-colors hover:bg-muted';
+const barButton = 'flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-full text-foreground transition-colors hover:bg-muted';
+
+/** Stage 3 LIVE face (2026-11-14): while a call is live, the minimized
+ * bar shows the presenter's REAL moving face — lips moving — not her
+ * still photo and never the waving-hand idle animation (that belongs
+ * to Stage 1, the not-yet-started state). The live media already lives
+ * inside this same shell (the conversation stays mounted while
+ * minimized): SimliAvatar marks its keyed canvas / raw video with
+ * [data-live-face-source], and this canvas mirrors the active one
+ * frame by frame, cover-cropped to the circle. The still photo stays
+ * underneath, so if no frame ever arrives (voice-only fallback) the
+ * mirror simply never paints and the photo shows, exactly as before.
+ * Sizing: the face circle is 66px — +18% over the old 56px (Ron's
+ * 15–20% band, 2026-11-14: just enough for mouth movement to read,
+ * not bigger); the bar buttons grow in proportion, 36px → 42px. */
+function Stage3LiveFace() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    let raf = 0;
+    let stopped = false;
+    const draw = () => {
+      if (stopped) return;
+      const canvas = canvasRef.current;
+      const shell = canvas?.closest('.aspen-person-shell');
+      if (canvas && shell) {
+        const candidates = Array.from(shell.querySelectorAll('[data-live-face-source]'));
+        // Prefer the keyed canvas (the transparent face); the raw
+        // video is the source only when keying is off (its canvas
+        // carries the 'hidden' class then).
+        const source = candidates.find((el) => el.tagName === 'CANVAS' && !el.classList.contains('hidden'))
+          ?? candidates.find((el) => el.tagName === 'VIDEO');
+        if (source) {
+          const sw = source instanceof HTMLVideoElement ? source.videoWidth : (source as HTMLCanvasElement).width;
+          const sh = source instanceof HTMLVideoElement ? source.videoHeight : (source as HTMLCanvasElement).height;
+          const ctx = canvas.getContext('2d');
+          if (ctx && sw > 0 && sh > 0) {
+            const size = canvas.width;
+            const scale = Math.max(size / sw, size / sh);
+            const dw = sw * scale;
+            const dh = sh * scale;
+            ctx.drawImage(source as CanvasImageSource, (size - dw) / 2, 0, dw, dh);
+          }
+        }
+      }
+      raf = requestAnimationFrame(draw);
+    };
+    raf = requestAnimationFrame(draw);
+    return () => { stopped = true; cancelAnimationFrame(raf); };
+  }, []);
+  return <canvas ref={canvasRef} width={132} height={132} data-testid="stage3-live-face" aria-hidden="true" className="absolute inset-0 h-full w-full" />;
+}
 
 const segmentClass = (active: boolean) => `flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${active ? 'bg-primary text-primary-foreground shadow-sm' : 'bg-transparent text-foreground hover:bg-muted'}`;
 
@@ -114,9 +169,9 @@ export function AspenWindowControls({ onMinimize, onClose }: { onMinimize: () =>
  * Drag lives on the shell (DraggableFloating); minimize preserves calls,
  * close unmounts them (AGENTS.md).
  */
-export default function FloatingPersonFrame({ name = 'Aspen', avatarUrl, open, minimized = false, mode, onOpen, onMinimize, onClose, onMode, keepRendered = false, stage3, inviteArrival = false, children }: {
+export default function FloatingPersonFrame({ name = 'Aspen', avatarUrl, open, minimized = false, mode, onOpen, onMinimize, onClose, onMode, keepRendered = false, stage3, inviteArrival = false, focus = false, children }: {
   name?: string; avatarUrl?: string; open: boolean; minimized?: boolean; mode: 'voice' | 'chat';
-  onOpen: () => void; onMinimize: () => void; onClose: () => void; onMode: (mode: 'voice' | 'chat') => void; keepRendered?: boolean; stage3?: Stage3Controls; /** Cold-email invite arrival: Stage 1 shows a play affordance + "Hear Aspen" instead of the generic label — the first tap is still the one gesture that unlocks audio and starts her invite greeting. */ inviteArrival?: boolean; children?: ReactNode;
+  onOpen: () => void; onMinimize: () => void; onClose: () => void; onMode: (mode: 'voice' | 'chat') => void; keepRendered?: boolean; stage3?: Stage3Controls; /** Cold-email invite arrival: Stage 1 shows a play affordance + "Hear Aspen" instead of the generic label — the first tap is still the one gesture that unlocks audio and starts her invite greeting. */ inviteArrival?: boolean; /** FOCUS VIEW (2026-11-14): the conversation reports captions-off; the shell widens (CSS .aspen-person-focus) so the presenter floats ~25% larger with no frame around her. */ focus?: boolean; children?: ReactNode;
 }) {
   const firstName = name?.trim().split(/\s+/)[0];
   const talkLabel = firstName ? `Talk to ${firstName}` : 'Talk to Me';
@@ -126,7 +181,7 @@ export default function FloatingPersonFrame({ name = 'Aspen', avatarUrl, open, m
   // photo ('') keeps the plain mic icon instead of borrowing Aspen's face.
   const bubblePhoto = avatarUrl === undefined ? aspenIdleBeckon : avatarUrl;
   const stage = open ? 2 : minimized ? (stage3 ? 3 : 0) : 1;
-  return <section aria-label={`${name} floating assistant`} className={`aspen-person-shell relative ${open ? 'aspen-person-expanded' : 'aspen-person-collapsed'} ${stage === 1 ? 'aspen-person-stage1 items-center' : ''} ${stage === 3 ? 'aspen-person-stage3' : ''} ${stage === 0 ? '!w-24 items-center' : ''}`}>
+  return <section aria-label={`${name} floating assistant`} className={`aspen-person-shell relative ${open ? 'aspen-person-expanded' : 'aspen-person-collapsed'} ${open && focus ? 'aspen-person-focus' : ''} ${stage === 1 ? 'aspen-person-stage1 items-center' : ''} ${stage === 3 ? 'aspen-person-stage3' : ''} ${stage === 0 ? '!w-24 items-center' : ''}`}>
     {open && mode === 'chat' && <PersonPortrait name={name} avatarUrl={avatarUrl} nameLabel />}
     {open && mode === 'chat' && <AspenWindowControls onMinimize={onMinimize} onClose={onClose} />}
     {open && mode === 'chat' && <AspenModeToggle mode={mode} onMode={onMode} />}
@@ -144,20 +199,21 @@ export default function FloatingPersonFrame({ name = 'Aspen', avatarUrl, open, m
       <span className="w-fit rounded-md bg-card/90 px-1.5 text-center text-[10px] font-medium leading-tight text-muted-foreground">{talkLabel}</span>
     </Button>}
     {stage === 3 && stage3 && <div className="flex items-center gap-2">
-      <button type="button" onClick={onOpen} title={`Open ${name}`} aria-label={`Open ${name}`} className="relative h-14 w-14 shrink-0 rounded-full">
-        <span className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border border-primary/60 bg-primary text-primary-foreground shadow-md">
+      <button type="button" onClick={onOpen} title={`Open ${name}`} aria-label={`Open ${name}`} className="relative h-[66px] w-[66px] shrink-0 rounded-full">
+        <span className="relative flex h-[66px] w-[66px] items-center justify-center overflow-hidden rounded-full border border-primary/60 bg-primary text-primary-foreground shadow-md">
           {bubblePhoto ? <img src={bubblePhoto} alt="" draggable={false} className="aspen-bubble-face h-full w-full" /> : <Mic className="h-6 w-6" />}
+          <Stage3LiveFace />
         </span>
         <span aria-hidden className={`aspen-live-ring ${stage3.suspended ? 'aspen-live-ring-paused' : ''}`} />
         <span className="sr-only" role="status">{stage3.suspended ? 'Call paused' : 'Call live'}</span>
       </button>
       <div className="flex items-center gap-0.5 rounded-full border border-border bg-card/95 px-1 py-1 shadow-md" role="group" aria-label="Call controls">
-        <button type="button" className={barButton} onClick={stage3.onToggleSuspend} title={stage3.suspended ? 'Resume conversation' : 'Pause conversation'} aria-label={stage3.suspended ? 'Resume conversation' : 'Pause conversation'} aria-pressed={stage3.suspended}>{stage3.suspended ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}</button>
-        <button type="button" className={`${barButton} text-destructive hover:bg-destructive/10`} onClick={stage3.onEnd} title="Disconnect" aria-label="Disconnect"><PhoneOff className="h-4 w-4" /></button>
-        <button type="button" className={barButton} onClick={stage3.onToggleMic} title={stage3.muted ? 'Unmute microphone' : 'Mute microphone'} aria-label={stage3.muted ? 'Unmute microphone' : 'Mute microphone'} aria-pressed={stage3.muted}>{stage3.muted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}</button>
-        <button type="button" className={barButton} onClick={stage3.onToggleSpeaker} title={stage3.speakerMuted ? 'Turn speaker sound on' : 'Silence speaker'} aria-label={stage3.speakerMuted ? 'Turn speaker sound on' : 'Silence speaker'} aria-pressed={stage3.speakerMuted}>{stage3.speakerMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}</button>
-        <button type="button" className={`${barButton} disabled:opacity-40`} onClick={stage3.onReplay} disabled={!stage3.hasReplay || stage3.replaying} title="Replay last message" aria-label="Replay last message"><RotateCcw className="h-4 w-4" /></button>
-        <button type="button" className={barButton} onClick={onOpen} title="Maximize" aria-label="Maximize"><Maximize2 className="h-4 w-4" /></button>
+        <button type="button" className={barButton} onClick={stage3.onToggleSuspend} title={stage3.suspended ? 'Resume conversation' : 'Pause conversation'} aria-label={stage3.suspended ? 'Resume conversation' : 'Pause conversation'} aria-pressed={stage3.suspended}>{stage3.suspended ? <Play className="h-[18px] w-[18px]" /> : <Pause className="h-[18px] w-[18px]" />}</button>
+        <button type="button" className={`${barButton} text-destructive hover:bg-destructive/10`} onClick={stage3.onEnd} title="Disconnect" aria-label="Disconnect"><PhoneOff className="h-[18px] w-[18px]" /></button>
+        <button type="button" className={barButton} onClick={stage3.onToggleMic} title={stage3.muted ? 'Unmute microphone' : 'Mute microphone'} aria-label={stage3.muted ? 'Unmute microphone' : 'Mute microphone'} aria-pressed={stage3.muted}>{stage3.muted ? <MicOff className="h-[18px] w-[18px]" /> : <Mic className="h-[18px] w-[18px]" />}</button>
+        <button type="button" className={barButton} onClick={stage3.onToggleSpeaker} title={stage3.speakerMuted ? 'Turn speaker sound on' : 'Silence speaker'} aria-label={stage3.speakerMuted ? 'Turn speaker sound on' : 'Silence speaker'} aria-pressed={stage3.speakerMuted}>{stage3.speakerMuted ? <VolumeX className="h-[18px] w-[18px]" /> : <Volume2 className="h-[18px] w-[18px]" />}</button>
+        <button type="button" className={`${barButton} disabled:opacity-40`} onClick={stage3.onReplay} disabled={!stage3.hasReplay || stage3.replaying} title="Replay last message" aria-label="Replay last message"><RotateCcw className="h-[18px] w-[18px]" /></button>
+        <button type="button" className={barButton} onClick={onOpen} title="Maximize" aria-label="Maximize"><Maximize2 className="h-[18px] w-[18px]" /></button>
       </div>
     </div>}
     <div className={open ? 'flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain' : keepRendered ? 'aspen-prewarm-offscreen' : 'hidden'} aria-hidden={!open || undefined}>{children}</div>

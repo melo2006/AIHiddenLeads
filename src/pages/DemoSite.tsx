@@ -222,9 +222,15 @@ const mergeLeadRecordIntoDemoData = (record: DemoLeadRecord, current: DemoLeadDa
   websiteUrl: record.website_url || current.websiteUrl,
   phone: record.phone || current.phone,
   niche: record.niche || current.niche,
-  screenshot: record.website_screenshot || current.screenshot || null,
-  screenshotTablet: record.screenshot_tablet || current.screenshotTablet || null,
-  screenshotMobile: record.screenshot_mobile || current.screenshotMobile || null,
+  // First captured screenshot WINS for the whole session (2026-11-14,
+  // Saperstein transient): when a later record merge swapped the base
+  // URL, the <img> reset its loaded state and repainted — a black site
+  // area plus the "BUILDING YOUR LIVE DEMO" curtain mid-demo. A rescan
+  // still fills any variant that has not arrived yet; it just never
+  // replaces one already on screen.
+  screenshot: current.screenshot || record.website_screenshot || null,
+  screenshotTablet: current.screenshotTablet || record.screenshot_tablet || null,
+  screenshotMobile: current.screenshotMobile || record.screenshot_mobile || null,
   title: record.website_title || current.title || "",
   description: record.website_description || current.description || "",
   websiteContent: record.website_content || current.websiteContent || "",
@@ -252,10 +258,19 @@ const DemoSite = () => {
   const [leadData, setLeadData] = useState<DemoLeadData | undefined>(
     latestLeadData ||
       (pinnedExampleSeed
-        ? buildSeedLeadData({
-            websiteUrl: pinnedExampleSeed.websiteUrl,
-            businessName: pinnedExampleSeed.businessName,
-          })
+        ? {
+            ...buildSeedLeadData({
+              websiteUrl: pinnedExampleSeed.websiteUrl,
+              businessName: pinnedExampleSeed.businessName,
+            }),
+            // The pinned leadId rides the seed from the FIRST frame
+            // (2026-11-14, Saperstein transient): without it the demo
+            // widget derives its presenter from a leadId that only
+            // arrives when the stored record merges, so the panel,
+            // bubble and consent card all open as Aspen and flip to
+            // the pinned presenter seconds later.
+            leadId: searchParams.get("leadId") ?? undefined,
+          }
         : undefined),
   );
   const [voiceOpen, setVoiceOpen] = useState(false);
@@ -362,9 +377,13 @@ const DemoSite = () => {
     },
     viewportWidth,
   );
+  // Cache key prefers the STABLE leadId over previewVersion
+  // (record.updated_at): every poll merge during a scan used to change
+  // the version, so the <img> src changed and the browser repainted
+  // the preview black while it reloaded (2026-11-14 transient fix).
   const screenshotSrc = withCacheKey(
     responsiveScreenshotSrc,
-    leadData?.previewVersion || leadData?.leadId || undefined,
+    leadData?.leadId || leadData?.previewVersion || undefined,
   );
 
   useEffect(() => {
@@ -936,7 +955,11 @@ const DemoSite = () => {
   // Keep the scanning overlay visible while the backend scan is in progress, regardless of
   // the iframe's onLoad (which fires for the initial blank document and would otherwise
   // dismiss the overlay too early, leaving a black screen).
-  const shouldHoldScanningState = isScanning;
+  // PINNED EXAMPLES are exempt (2026-11-14): their preview + presenter
+  // are pre-captured, so a background rescan of the record (e.g. the
+  // weekly example refresh landing mid-visit) must never re-raise the
+  // curtain or unmount the widget — both were the Saperstein flash.
+  const shouldHoldScanningState = isScanning && !isPinnedExample;
   const isPreviewLoading =
     shouldHoldScanningState ||
     isInlinePreviewLoading ||
@@ -1166,7 +1189,11 @@ const DemoSite = () => {
         )}
 
         {hasAnyPreview && <AspenDemoWidget
-          key={leadData.websiteUrl + (gateRequested ? `:${gatePhase}` : "")}
+          // Keyed on the NORMALIZED homepage URL, not the raw stored
+          // websiteUrl: a record merge that only changed the URL's
+          // spelling (trailing slash, tracking params) used to remount
+          // the whole widget and reset the live session (2026-11-14).
+          key={homepageUrl + (gateRequested ? `:${gatePhase}` : "")}
           businessName={siteName}
           businessNiche={leadData.niche || "general"}
           websiteUrl={homepageUrl}
@@ -1175,7 +1202,7 @@ const DemoSite = () => {
           callerName={knownCallerName}
           callerEmail={knownCallerEmail}
           callerPhone={knownCallerPhone}
-          leadId={leadData.leadId}
+          leadId={leadData.leadId || leadIdParam || undefined}
           prospectId={leadData.prospectId || prospectIdParam || undefined}
           voiceRequested={voiceOpen}
           onClosed={() => setVoiceOpen(false)}

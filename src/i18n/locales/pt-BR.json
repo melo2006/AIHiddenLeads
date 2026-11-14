@@ -738,13 +738,13 @@
     "playingVoice": "Reproduzindo {{voice}}",
     "voiceSelected": "{{voice}} selecionada",
     "preparingGreeting": "Preparando o áudio da saudação…",
-    "embeddedMicNotice": "Esta prévia incorporada não pode usar seu microfone. Abra a página completa para falar com a Aspen.",
+    "embeddedMicNotice": "Esta prévia incorporada não pode usar seu microfone. Abra a página completa para falar com {{name}}.",
     "audioTapNeeded": "Toque em reproduzir para ativar o som neste telefone. Seu login e seu limite de demonstração não mudam.",
-    "videoFallback": "O vídeo precisa de uma conexão mais rápida — você está falando com a Aspen por voz.",
+    "videoFallback": "O vídeo precisa de uma conexão mais rápida — você está falando com {{name}} por voz.",
     "replayAudioTitle": "Repetir o áudio salvo sem outra solicitação de IA"
   },
   "chat": {
-    "consentTitle": "Experimente o chat da Aspen",
+    "consentTitle": "Experimente o chat de {{name}}",
     "consentBody": "Este chat e seu resumo de IA são salvos de forma privada para nossa equipe revisar. Ao começar, você concorda. Uma cópia só é enviada se solicitada.",
     "consentStart": "Iniciar o chat e concordar",
     "title": "Converse com a Aspen",
@@ -753,10 +753,10 @@
     "minimize": "Minimizar o chat",
     "close": "Fechar o chat",
     "minimizedNote": "Chat minimizado. Expanda para ler a conversa completa.",
-    "placeholder": "Pergunte qualquer coisa à Aspen...",
-    "messageAria": "Mensagem para a Aspen",
-    "sendAria": "Enviar mensagem para a Aspen",
-    "messagesAria": "Mensagens do chat da Aspen",
+    "placeholder": "Pergunte qualquer coisa a {{name}}...",
+    "messageAria": "Mensagem para {{name}}",
+    "sendAria": "Enviar mensagem para {{name}}",
+    "messagesAria": "Mensagens do chat de {{name}}",
     "emailTranscript": "Enviar transcrição e resumo de IA por e-mail",
     "copyEmailPlaceholder": "Seu e-mail",
     "copyEmailAria": "E-mail para a cópia da conversa",
@@ -768,7 +768,7 @@
     "goodMorning": "Bom dia",
     "goodAfternoon": "Boa tarde",
     "goodEvening": "Boa noite",
-    "greetingBody": "Sou a Aspen, a assistente de IA da {{businessName}}. Esta é uma demonstração ao vivo de como o chat com IA e a voz com IA podem funcionar no seu site para responder perguntas, captar leads e agendar compromissos.\n\nToque em uma sugestão abaixo ou me pergunte qualquer coisa.",
+    "greetingBody": "Sou {{name}}, a inteligência artificial de {{businessName}}. Esta é uma demonstração ao vivo de como o chat com IA e a voz com IA podem funcionar no seu site para responder perguntas, captar leads e agendar compromissos.\n\nToque em uma sugestão abaixo ou me pergunte qualquer coisa.",
     "fallback": "Ótima pergunta. Posso ajudar com isso e também providenciar um retorno de ligação ou uma demonstração de 15 minutos com {{owner}}."
   }
 }

@@ -89,7 +89,7 @@ describe("caption panel — manager transfer is a compact pill in the Voice/Type
   });
 
   it("the pill is rendered in the toggle row, NOT in the voice-controls row (it wrapped onto its own row on phones there)", () => {
-    const rowStart = conversation.indexOf('className="voice-controls flex flex-wrap');
+    const rowStart = conversation.indexOf('className="voice-controls flex flex-nowrap');
     // Scalone batch Item 8: the transport row is now the extracted
     // transportControls element (defined just above the landscape row
     // that also embeds it) — slice only that definition.
@@ -120,7 +120,13 @@ describe("caption panel — manager transfer is a compact pill in the Voice/Type
   it("panel layout fix (2026-11-12): in face-first mode the window-controls row and the toggle row render INSIDE the voice panel, in that order, under the livebox", () => {
     const livebox = conversation.indexOf('className="aspen-person-livebox');
     const panel = conversation.indexOf("'aspen-voice-panel relative z-10");
-    const controls = conversation.indexOf("{faceFirst && windowControls}");
+    // Focus view (2026-11-14): the slot now renders the focus dock
+    // (which itself contains the window controls) when captions are
+    // off, and the plain window-controls row otherwise — same slot,
+    // same order inside the panel.
+    const controls = conversation.indexOf("{faceFirst && (focusView ? (");
+    expect(conversation).toContain('data-testid="aspen-focus-dock"');
+    expect(conversation.indexOf('data-testid="aspen-focus-dock"')).toBeLessThan(conversation.indexOf("{windowControls}", conversation.indexOf('data-testid="aspen-focus-dock"')));
     // Scalone batch Item 8b: the slot renders the combined
     // toggle+transport row in wide landscape, the toggle row otherwise.
     const toggleRow = conversation.indexOf("{faceFirst && (wideLandscape ? landscapeControlRow : toggleManagerRow)}");

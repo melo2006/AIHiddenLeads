@@ -162,7 +162,7 @@ describe("locale → voice (Ron, 2026-11-09)", () => {
     expect(conversation).toContain('t("voice.consentTitle"');
     expect(conversation).toContain('t("voice.consentBody")');
     expect(conversation).toContain('t("voice.readyToTalk")');
-    expect(chatWidget).toContain('t("chat.consentTitle")');
+    expect(chatWidget).toContain('t("chat.consentTitle", { name: presenterDisplayName })');
     expect(chatWidget).toContain('t("chat.greetingBody"');
     expect(chatWidget).toContain("locale: explicitUiLocale()");
     // The chat edge function validates + enforces the reply language too.

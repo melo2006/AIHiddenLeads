@@ -6,7 +6,7 @@ import ChatWidget from '@/components/landing/demo-results/ChatWidget';
 import AspenSalesActions from '@/components/AspenSalesActions';
 import FloatingPersonFrame, { AspenModeToggle, AspenWindowControls, type Stage3Controls } from '@/components/FloatingPersonFrame';
 import { matchingAspenVideo } from '@/lib/aspenFace';
-import { SIMLI_FACE_CATALOG } from '@/lib/simliFaceCatalog';
+import { SIMLI_FACE_CATALOG, presenterPortraitImage } from '@/lib/simliFaceCatalog';
 import { ALEX_FACE_ID } from '../../supabase/functions/_shared/alex-guide';
 import { BLACK_PROFESSIONAL_LADY_FACE_ID, FRANK_FACE_ID, LATINA_FACE_ID, SARA_FACE_ID } from '../../supabase/functions/_shared/personas';
 import type { PersonaId } from '@/lib/personaSwap';
@@ -18,9 +18,9 @@ interface Props { agentId?: string; leadId?: string; prospectId?: string; busine
 export const ALEX_GUIDE_LABEL = 'Alex — Support Specialist';
 const alexPortrait = SIMLI_FACE_CATALOG.find(f => f.id === ALEX_FACE_ID)?.image;
 const saraPortrait = SIMLI_FACE_CATALOG.find(f => f.id === SARA_FACE_ID)?.image;
-const frankPortrait = SIMLI_FACE_CATALOG.find(f => f.id === FRANK_FACE_ID)?.image;
-const latinaPortrait = SIMLI_FACE_CATALOG.find(f => f.id === LATINA_FACE_ID)?.image;
-const blackProfessionalLadyPortrait = SIMLI_FACE_CATALOG.find(f => f.id === BLACK_PROFESSIONAL_LADY_FACE_ID)?.image;
+const frankPortrait = presenterPortraitImage(FRANK_FACE_ID);
+const latinaPortrait = presenterPortraitImage(LATINA_FACE_ID);
+const blackProfessionalLadyPortrait = presenterPortraitImage(BLACK_PROFESSIONAL_LADY_FACE_ID);
 const alexVideoAvatar: VideoAvatar = { enabled: true, provider: 'simli', faceId: ALEX_FACE_ID, position: 'bottom-right', size: 200, shape: 'circle' };
 export default function GeminiAgentWidget({ agentId, leadId, prospectId, businessName, callerName, onClose, floating = false, autoStart = false, guide }: Props) {
  const isGuide = guide === 'alex';
@@ -76,7 +76,7 @@ export default function GeminiAgentWidget({ agentId, leadId, prospectId, busines
  const canPrewarm = prewarm && identityReady && !identity.videoAvatar?.enabled;
  const mounted = hasOpened || canPrewarm;
  const content=<>
-  <FloatingPersonFrame name={displayName} avatarUrl={displayFaceUrl} open={open} minimized={minimized} mode={mode} onOpen={openWidget} onMinimize={()=>{setOpen(false);setMinimized(true);}} onClose={closeAssistant} onMode={changeMode} keepRendered={canPrewarm} stage3={stage3}>
+  <FloatingPersonFrame name={displayName} avatarUrl={displayFaceUrl} open={open} minimized={minimized} mode={mode} onOpen={openWidget} onMinimize={()=>{setOpen(false);setMinimized(true);}} onClose={closeAssistant} onMode={changeMode} keepRendered={canPrewarm} stage3={stage3} focus={shellState?.focus ?? false}>
    {hasOpened && mode==='voice' && !identityReady && <div role="status" className="aspen-panel text-muted-foreground">Connecting…</div>}
    {mounted && mode==='voice' && identityReady && <GeminiConversation compact faceFirst avatarUrl={displayFaceUrl} autoStart={clickedOpen || autoStart} consentOnOpen={clickedOpen} prewarm={canPrewarm} agentId={isGuide ? undefined : identity.id || agentId} leadId={leadId} prospectId={prospectId} name={identity.name} visitorName={callerName} onRecommendedPlan={setRecommendedPlan} videoAvatar={isGuide ? identity.videoAvatar : agentId ? identity.videoAvatar : matchingAspenVideo(identity.videoAvatar)} guide={guide} avatarInline shellControlsRef={shellControlsRef} onShellState={setShellState} onPersonaChange={handlePersonaChange} belowAvatar={<AspenModeToggle mode={mode} onMode={changeMode} />} windowControls={<AspenWindowControls onMinimize={()=>{setOpen(false);setMinimized(true);}} onClose={closeAssistant} />} />}
    {chatVisited && <div className={mode==='chat'?'aspen-panel min-h-80 overflow-hidden rounded-lg border border-border bg-card':'hidden'}><div className="aspen-chat-content"><ChatWidget embedded active={open && mode==='chat'} businessName={businessName || identity.businessName} businessNiche="general" websiteUrl={window.location.origin} businessInfo="AI Hidden Leads provides AI voice and chat assistants, B2B lead generation and search growth services. Refer visitors to the current homepage for pricing and package details." callerName={callerName} leadId={leadId} prospectId={prospectId} /></div></div>}

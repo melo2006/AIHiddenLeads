@@ -201,6 +201,19 @@
      live and paused, clipped cleanly along the top border of the voice/chat box. */
   .aspen-person-livebox { position: relative; z-index: 0; width: 234px; height: 188px; flex-shrink: 0; overflow: hidden; }
   .aspen-person-shell .aspen-person-livebox .aspen-person-portrait { width: 100%; height: 100%; display: block; }
+  /* FOCUS VIEW (2026-11-14, Ron-approved mockup v2): captions off →
+     the shell widens ~24% (280 → 348px) and the livebox grows ~25%
+     (234×188 → 293×235), wider than the voice control bar, while she
+     keeps floating frameless — the livebox has no border or background
+     of its own, so the widening plus the panel's dock row (big name
+     badge + captions-back + window controls) are the whole change.
+     On compact phones the shell stays capped by the viewport rule
+     above and the livebox grows the same ~25% off its 187×150 base. */
+  .aspen-person-expanded.aspen-person-focus { width: 348px; }
+  .aspen-person-shell.aspen-person-focus .aspen-person-livebox { width: 293px; height: 235px; }
+  @media (max-width: 639px) {
+    .aspen-person-shell.aspen-person-focus .aspen-person-livebox { width: 234px; height: 188px; }
+  }
   @media (max-width: 639px) {
     .aspen-person-collapsed { width: 280px; }
     .aspen-person-portrait { width: 187px; height: 150px; }
@@ -212,6 +225,11 @@
     .aspen-person-shell .voice-controls button { min-width: 36px; min-height: 36px; padding: 8px; }
     .aspen-person-shell .aspen-sales-actions { display: none; }
   }
+  /* The six voice controls stay in ONE horizontal row at every panel
+     width (Ron, 2026-11-14): never a wrapped 2-column stack eating
+     vertical space — the buttons shrink instead (the transport row
+     itself is flex-nowrap; this is the belt for it). */
+  .aspen-person-shell .voice-controls { flex-wrap: nowrap; }
 
 /* Stage 2 window-controls row (historical class name — it began life as
    the "chest cluster"): ONE in-flow row — drag handle + minimize (dash)
@@ -237,6 +255,7 @@
   .aspen-person-portrait { height: 120px; }
   .aspen-person-expanded .aspen-person-portrait { height: 120px; }
   .aspen-person-livebox { height: 120px; }
+  .aspen-person-shell.aspen-person-focus .aspen-person-livebox { height: 150px; }
   .aspen-voice-panel { min-height: 0; }
 }
   .aspen-panel { position: relative; z-index: 10; display: flex; flex-direction: column; max-height: min(70dvh, var(--aspen-available-height, 70dvh)); }
@@ -255,6 +274,16 @@
   .rank-pin-label { background: transparent; border: 0; box-shadow: none; color: hsl(var(--foreground)); font-weight: 700; font-size: 11px; }
   .rank-pin-label::before { display: none; }
   .rank-street-map { background: hsl(var(--rank-map-paper)); }
+  /* Stacking trap for Leaflet (2026-11-14, demo layering fix): Leaflet
+     assigns its panes and controls z-indexes up to 1000 that compete
+     in the ROOT stacking context, so on a page that renders a map
+     below the floating assistant (the /demo-site geo-grid under the
+     demo), the map painted OVER the widget (--layer-floating: 60) —
+     the presenter bubble/panel rendered behind page content. Isolating
+     the map container traps those z-indexes inside the map's own
+     stacking context; Leaflet's internal layering is unchanged, and
+     the widget (60) and dialogs (70+) always win over page content. */
+  .leaflet-container { isolation: isolate; }
   .rank-map-pin { display: flex; width: 32px; height: 32px; align-items: center; justify-content: center; border: 3px solid; border-radius: 50%; background: hsl(var(--rank-map-paper)); color: hsl(var(--rank-map-ink)); font-size: 12px; font-weight: 800; box-shadow: 0 1px 4px hsl(var(--rank-map-ink) / .3); }
   .rank-map-pin.audit-rank-good { border-color: hsl(var(--rank-map-good)); }
   .rank-map-pin.audit-rank-warning { border-color: hsl(var(--rank-map-warning)); }

@@ -24,6 +24,12 @@ interface ChatWidgetProps {
   onClose?: () => void;
   embedded?: boolean;
   active?: boolean;
+  /** Solo-presenter demo (Frank / Latina / Black Professional Lady):
+   *  the typed chat introduces THIS presenter — its consent card,
+   *  opening greeting, composer placeholder and aria labels name her
+   *  or him instead of Aspen. Undefined on every Aspen surface, where
+   *  all strings render exactly as before. */
+  presenterName?: string;
 }
 
 interface Message {
@@ -47,7 +53,9 @@ const ChatWidget = ({
   onClose,
   embedded = false,
   active = true,
+  presenterName,
 }: ChatWidgetProps) => {
+  const presenterDisplayName = presenterName?.trim() || "Aspen";
   const { t } = useTranslation();
   const [messages, setMessages] = useState<Message[]>([]);
   const [recordingAgreed,setRecordingAgreed]=useState(false);
@@ -156,7 +164,7 @@ const ChatWidget = ({
     setMessages([
       {
         role: "assistant",
-        content: `${getGreeting()}${nameGreet}! 👋 ${t("chat.greetingBody", { businessName })}`,
+        content: `${getGreeting()}${nameGreet}! 👋 ${t("chat.greetingBody", { businessName, name: presenterDisplayName })}`,
       },
     ]);
   }, [businessName, callerName]);
@@ -283,7 +291,7 @@ RESPONSE LANGUAGE: The visitor selected ${uiLocaleLanguage(explicitUiLocale())} 
   const userHasMessaged = messages.some((m) => m.role === "user");
   const lastAssistantMessage = [...messages].reverse().find((m) => m.role === "assistant")?.content;
 
-  if(!recordingAgreed)return <div className="space-y-3 p-4 text-foreground"><p className="text-sm font-semibold">{t("chat.consentTitle")}</p><p className="text-xs text-muted-foreground">{t("chat.consentBody")}</p><Button onClick={()=>setRecordingAgreed(true)}>{t("chat.consentStart")}</Button></div>;
+  if(!recordingAgreed)return <div className="space-y-3 p-4 text-foreground"><p className="text-sm font-semibold">{t("chat.consentTitle", { name: presenterDisplayName })}</p><p className="text-xs text-muted-foreground">{t("chat.consentBody")}</p><Button onClick={()=>setRecordingAgreed(true)}>{t("chat.consentStart")}</Button></div>;
   return (
     <div className={embedded ? 'overflow-hidden bg-card' : 'rounded-2xl border border-accent/20 bg-card shadow-2xl overflow-hidden'}>
       {!embedded && <div className="flex items-center justify-between px-4 py-3 bg-accent/10 border-b border-accent/20">
@@ -330,7 +338,7 @@ RESPONSE LANGUAGE: The visitor selected ${uiLocaleLanguage(explicitUiLocale())} 
         </div>
       ) : (
       <>
-      <div aria-label={t("chat.messagesAria")} role="region" onScroll={event => { const panel = event.currentTarget; followLatest.current = panel.scrollHeight - panel.scrollTop - panel.clientHeight < 48; }} className={`${embedded ? 'min-h-0 flex-1 max-h-[35dvh]' : 'max-h-[22rem]'} overflow-y-auto overscroll-contain touch-pan-y p-3 space-y-2.5`}>
+      <div aria-label={t("chat.messagesAria", { name: presenterDisplayName })} role="region" onScroll={event => { const panel = event.currentTarget; followLatest.current = panel.scrollHeight - panel.scrollTop - panel.clientHeight < 48; }} className={`${embedded ? 'min-h-0 flex-1 max-h-[35dvh]' : 'max-h-[22rem]'} overflow-y-auto overscroll-contain touch-pan-y p-3 space-y-2.5`}>
         {messages.map((msg, i) => (
           <div key={i} className={`flex gap-2 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
             <div
@@ -390,10 +398,10 @@ RESPONSE LANGUAGE: The visitor selected ${uiLocaleLanguage(explicitUiLocale())} 
        <PromptInput onSubmit={() => { void handleSend(); }}>
         <PromptInputTextarea
           ref={inputRef}
-          aria-label={t("chat.messageAria")}
+          aria-label={t("chat.messageAria", { name: presenterDisplayName })}
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder={t("chat.placeholder")}
+          placeholder={t("chat.placeholder", { name: presenterDisplayName })}
           rows={2}
           className="h-14 min-h-14 max-h-20 flex-none w-full min-w-0 py-2 text-base"
           disabled={isBusy}
@@ -402,7 +410,7 @@ RESPONSE LANGUAGE: The visitor selected ${uiLocaleLanguage(explicitUiLocale())} 
         <PromptInputSubmit
           disabled={!input.trim() || isBusy}
           status={isThinking ? 'submitted' : isStreaming ? 'streaming' : 'ready'}
-          aria-label={t("chat.sendAria")}
+          aria-label={t("chat.sendAria", { name: presenterDisplayName })}
           className="h-9 w-9 shrink-0"
         />
         </PromptInputFooter>
