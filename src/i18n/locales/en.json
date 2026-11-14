@@ -443,6 +443,10 @@
         "headline": "Never Miss Another Call",
         "body": "Your AI receptionist answers 24/7 — nights, weekends, and holidays — so every caller becomes a potential customer."
       },
+      "prospects": {
+        "headline": "Fresh Prospects Every Month",
+        "body": "Premium includes up to 50 fresh B2B prospects a month, in weekly batches — counts vary by market, and no specific count is guaranteed."
+      },
       "yourListings": {
         "headline": "She Sells Your Listings First",
         "body": "Aspen learns your business from your own website and leads with your own listings and services — never a generic script."
@@ -465,7 +469,7 @@
       },
       "pricing": {
         "headline": "Plans From $99 a Month",
-        "body": "Premium is $99 a month with 400 voice minutes included. The video avatar is an optional add-on — only if you want it."
+        "body": "Premium is $99 a month with 400 voice minutes included. The video avatar is an optional add-on — free for your first month, then $79 a month only if you keep it."
       },
       "callSummary": {
         "headline": "Every Call, Summarized for You",

@@ -5,6 +5,8 @@ import {
   avatarLibraryPick,
   ASPEN_FACE_ID,
   FRANK_FACE_ID,
+  LATINA_FACE_ID,
+  BLACK_PROFESSIONAL_LADY_FACE_ID,
   EXECUTIVE_D_FACE_ID,
   SARA_FACE_ID,
   ALEX_FACE_ID,
@@ -12,13 +14,21 @@ import {
 import { SIMLI_FACE_CATALOG } from "./simliFaceCatalog";
 import { liveVoiceById } from "./voiceCatalog";
 
-const OWN_IDS = [ASPEN_FACE_ID, FRANK_FACE_ID, EXECUTIVE_D_FACE_ID, SARA_FACE_ID, ALEX_FACE_ID];
+const OWN_IDS = [
+  ASPEN_FACE_ID,
+  FRANK_FACE_ID,
+  LATINA_FACE_ID,
+  BLACK_PROFESSIONAL_LADY_FACE_ID,
+  EXECUTIVE_D_FACE_ID,
+  SARA_FACE_ID,
+  ALEX_FACE_ID,
+];
 
 describe("avatar library — data integrity", () => {
   it("orders Aspen, our customs, Sara and Alex first, in that order", () => {
-    expect(AVATAR_LIBRARY.slice(0, 5).map((e) => e.faceId)).toEqual(OWN_IDS);
-    expect(AVATAR_LIBRARY.slice(0, 5).every((e) => e.own)).toBe(true);
-    expect(AVATAR_LIBRARY.slice(5).every((e) => !e.own)).toBe(true);
+    expect(AVATAR_LIBRARY.slice(0, 7).map((e) => e.faceId)).toEqual(OWN_IDS);
+    expect(AVATAR_LIBRARY.slice(0, 7).every((e) => e.own)).toBe(true);
+    expect(AVATAR_LIBRARY.slice(7).every((e) => !e.own)).toBe(true);
   });
 
   it("has unique face ids and unique keys", () => {
@@ -46,9 +56,22 @@ describe("avatar library — data integrity", () => {
     expect(exec?.suggestedName).toBeUndefined();
   });
 
+  it("labels Latina and Black Professional Lady descriptively — working labels, no name pre-fill", () => {
+    const latina = avatarLibraryEntryByFaceId(LATINA_FACE_ID);
+    expect(latina?.label).toBe("Latina");
+    expect(latina?.nameSettled).toBe(false);
+    expect(latina?.suggestedName).toBeUndefined();
+    const lady = avatarLibraryEntryByFaceId(BLACK_PROFESSIONAL_LADY_FACE_ID);
+    expect(lady?.label).toBe("Black Professional Lady");
+    expect(lady?.nameSettled).toBe(false);
+    expect(lady?.suggestedName).toBeUndefined();
+  });
+
   it("pairs our models with real Gemini Live voices", () => {
     expect(avatarLibraryEntryByFaceId(ASPEN_FACE_ID)?.matchedVoice).toBe("Kore");
     expect(avatarLibraryEntryByFaceId(FRANK_FACE_ID)?.matchedVoice).toBe("Charon");
+    expect(avatarLibraryEntryByFaceId(LATINA_FACE_ID)?.matchedVoice).toBe("Sulafat");
+    expect(avatarLibraryEntryByFaceId(BLACK_PROFESSIONAL_LADY_FACE_ID)?.matchedVoice).toBe("Despina");
     expect(avatarLibraryEntryByFaceId(SARA_FACE_ID)?.matchedVoice).toBe("Leda");
     expect(avatarLibraryEntryByFaceId(ALEX_FACE_ID)?.matchedVoice).toBe("Puck");
     for (const e of AVATAR_LIBRARY) {
@@ -68,9 +91,10 @@ describe("avatar library — data integrity", () => {
   });
 
   it("does not include faces whose Simli generation has not completed", () => {
-    // Latina / Black Professional Lady / Middle-Aged Pro / Latino Techie are
-    // absent until their face ids exist; nothing beyond the catalog + our
-    // five may sneak in.
+    // Latina / Black Professional Lady landed once their face ids existed
+    // (they are catalog faces, listed as own models above). Middle-Aged
+    // Pro / Latino Techie stay absent until their face ids exist; nothing
+    // beyond the catalog + Executive D may sneak in.
     const known = new Set([...SIMLI_FACE_CATALOG.map((f) => f.id), EXECUTIVE_D_FACE_ID]);
     for (const e of AVATAR_LIBRARY) expect(known.has(e.faceId)).toBe(true);
   });
@@ -88,6 +112,13 @@ describe("avatar library — pick behavior (pure)", () => {
     expect(pick.faceId).toBe(EXECUTIVE_D_FACE_ID);
     expect(pick.voice).toBe(exec.matchedVoice);
     expect("suggestedName" in pick).toBe(false);
+  });
+
+  it("picking Latina or Black Professional Lady applies face + matched voice but NO name", () => {
+    const latina = avatarLibraryEntryByFaceId(LATINA_FACE_ID)!;
+    expect(avatarLibraryPick(latina)).toEqual({ faceId: LATINA_FACE_ID, voice: "Sulafat" });
+    const lady = avatarLibraryEntryByFaceId(BLACK_PROFESSIONAL_LADY_FACE_ID)!;
+    expect(avatarLibraryPick(lady)).toEqual({ faceId: BLACK_PROFESSIONAL_LADY_FACE_ID, voice: "Despina" });
   });
 
   it("picking a preset applies only the face — voice and name untouched", () => {

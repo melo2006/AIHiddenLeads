@@ -55,6 +55,8 @@ const catalogGeneration = (faceId: string): boolean | undefined => catalogById.g
 
 export const ASPEN_FACE_ID = "ed8fedd9-6c86-4dc5-bb3a-017c06146efc";
 export const FRANK_FACE_ID = "b3f85f7f-57ea-4f24-b1f6-a57229b4fae1";
+export const LATINA_FACE_ID = "e0d7b128-40a7-4d03-ac84-ef4c54b92450";
+export const BLACK_PROFESSIONAL_LADY_FACE_ID = "9344d4c1-6b69-43e7-a73f-ddc15d1a3f75";
 export const EXECUTIVE_D_FACE_ID = "9262002f-2b65-4335-8ebf-6092a5cfe01e";
 export const SARA_FACE_ID = "f735e62c-dce7-4c0b-8e85-1c7e21774c45";
 export const ALEX_FACE_ID = "a36d66df-a23d-4569-996b-d0e990019857";
@@ -93,6 +95,36 @@ const OWN_MODELS: AvatarLibraryEntry[] = [
     image: frankTile,
     category: "Your face",
     generation: catalogGeneration(FRANK_FACE_ID),
+    own: true,
+  },
+  {
+    key: "latina",
+    faceId: LATINA_FACE_ID,
+    // Working label only: this face's product name is not settled, so the
+    // tile presents the descriptive label and picking it pre-fills no name
+    // (same rule as Executive). The matched voice is the pairing her demo
+    // presenter shipped with (personas.ts LATINA_VOICE) — a proposal,
+    // flagged for Ron's ear-check 2026-11-13.
+    label: "Latina",
+    nameSettled: false,
+    matchedVoice: "Sulafat",
+    image: catalogImage(LATINA_FACE_ID),
+    category: "Your face",
+    generation: catalogGeneration(LATINA_FACE_ID),
+    own: true,
+  },
+  {
+    key: "black-professional-lady",
+    faceId: BLACK_PROFESSIONAL_LADY_FACE_ID,
+    // Working label only — see Latina above. Matched voice is her demo
+    // presenter pairing (personas.ts BLACK_PROFESSIONAL_LADY_VOICE),
+    // flagged for Ron's ear-check 2026-11-13.
+    label: "Black Professional Lady",
+    nameSettled: false,
+    matchedVoice: "Despina",
+    image: catalogImage(BLACK_PROFESSIONAL_LADY_FACE_ID),
+    category: "Your face",
+    generation: catalogGeneration(BLACK_PROFESSIONAL_LADY_FACE_ID),
     own: true,
   },
   {
