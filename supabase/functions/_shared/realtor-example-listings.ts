@@ -8,7 +8,7 @@
 // the Edge runtime copy; the client-side canonical copy lives in
 // src/data/realtorExampleListings.ts and a parity test
 // (src/test/realtor-example-listings.test.ts) keeps them in step.
-import { buildRealtorDiscoveryLayer } from './realtor-discovery.ts';
+import { buildRealtorDiscoveryLayer, buildVerbalCaptureConfirmation } from './realtor-discovery.ts';
 export type ExampleListingType = 'house' | 'condo' | 'townhouse' | 'land' | 'multi';
 
 export interface ExampleListing {
@@ -417,8 +417,22 @@ function formatListingLine(l: ExampleListing): string {
  * wording and the criteria read-back, and hands what happens next
  * to the discovery layer (the resumable arc; the list is the
  * capture). Only that one sentence differs; the script constant and
- * the standard layer stay byte-identical. */
-export function buildExampleListingsLayer(pack: RealtorExamplePack, opts?: { presenter?: boolean }): string {
+ * the standard layer stay byte-identical.
+ *
+ * VERBAL CAPTURE CONFIRMATION (verbal-capture-confirm, 2026-11-14,
+ * Ron-directed): the { verbalCapture: true } opt appends the verbal
+ * capture confirmation beat (buildVerbalCaptureConfirmation in
+ * realtor-discovery.ts — spell-back, what-happens-next, the spoken
+ * yes) after the shared layer, so a caller who dictates contact
+ * details BY VOICE — a phone caller never sees the on-screen
+ * confirmation card — gets the card's job done out loud. Presenter
+ * builds carry the same beat inside the discovery layer itself, so
+ * the opt never appends it twice. The opt is set by
+ * stampExampleListings for every parent simulation session
+ * (presenter and Aspen-fronted alike); direct callers — above all
+ * the Sara persona-segment rebuild in gemini-session/personas.ts —
+ * pass no opt, so segment prompts stay byte-identical. */
+export function buildExampleListingsLayer(pack: RealtorExamplePack, opts?: { presenter?: boolean; verbalCapture?: boolean }): string {
   const top = topExampleListings(pack, 3).map((l) => l.descriptor).join('; ');
   const lines = pack.listings.map(formatListingLine).join('\n');
   const rawScript = opts?.presenter
@@ -442,6 +456,16 @@ THE LISTINGS:
 ${lines}
 HOW THE LISTINGS CONVERSATION FLOWS (structure — keep it conversational, never question-heavy; where the approved script below gives an exact line, use that line): the greeting stays clean, with no listing dump up front. After the introduction, offer one soft prompt about listings, ask ONE preference question (condo, house, townhouse or high-rise — near the water? bedrooms?), then pitch the listings that match FEATURE-FIRST — type, beds and baths, size, neighbourhood and the standout feature — with the street address as a closing detail, never the headline and never a read-out list of addresses. Criteria often arrive piece by piece (area, then beds and baths, then budget): while the visitor is still giving them, only acknowledge and collect — never begin a "yes, we have…" answer before the criteria are complete, then answer once. If the visitor is searching by criteria and nothing on this list matches all of them, say plainly there is no current match for those criteria among ${pack.agentName}'s listings — never "that one is not among the listings" (they named no property) and never ask a searching visitor for an exact address — then capture the search: confirm the criteria back, offer that ${pack.agentName} will search and call them back, and take their name and best callback number if you do not already have them. If the visitor names one specific property that is NOT on this list, say plainly that it is not one of ${pack.agentName}'s own listings, and offer the two paths: ${pack.agentName} searches it and calls them back (take name and callback number; never demand the exact address from a buyer), or a transfer to ${pack.agentName} right now when it is urgent or they are at the property (in this simulation, narrate that transfer — see the script below). If the visitor is a seller or names an address they own and want sold, that is a seller lead: the address ask belongs only there — take the property address, their name and callback number. If the visitor picks one of the listings, move toward arranging a showing — day and time. As you arrange it, take the caller's name and best callback number so ${pack.agentName} can confirm — the name early if you do not have it yet, the number as the showing firms up, read back to confirm; a brush-off is accepted at once and never asked twice.
 ${script}Never invent listings, prices, beds, baths or features beyond this list and the site knowledge already in this session; if a detail is not here, say you will confirm it with ${pack.agentName}.`;
+  // VERBAL CAPTURE CONFIRMATION (2026-11-14): a standard build that
+  // carries the opt appends the verbal capture confirmation beat
+  // after the shared layer — this is how stamped Aspen-fronted
+  // example sessions (no discovery layer in their flow) confirm
+  // voice-dictated contact details out loud. Presenter builds skip
+  // the append: the discovery layer below carries the same beat
+  // inside step 2, so it lands exactly once either way.
+  const withVerbalCapture = opts?.verbalCapture && !opts?.presenter
+    ? `${layer}\n${buildVerbalCaptureConfirmation(pack.agentName)}`
+    : layer;
   // REALTOR DISCOVERY (presenter-realtor-discovery, 2026-11-14): a
   // presenter-fronted example also carries the discovery layer — the
   // warm opening, the buy-or-sell opener, the early capture with its
@@ -449,7 +473,7 @@ ${script}Never invent listings, prices, beds, baths or features beyond this list
   // (realtor-discovery.ts). Presenter builds only: Sara's segment
   // build never passes the flag, so the standard layer stays
   // byte-identical to before.
-  return opts?.presenter ? `${layer}\n${buildRealtorDiscoveryLayer(pack)}` : layer;
+  return opts?.presenter ? `${withVerbalCapture}\n${buildRealtorDiscoveryLayer(pack)}` : withVerbalCapture;
 }
 
 /** Applies the EXAMPLE LISTINGS STAMP to a simulation config (mutates
@@ -457,12 +481,20 @@ ${script}Never invent listings, prices, beds, baths or features beyond this list
  * appends the listings layer to the system prompt, idempotently.
  * gemini-session calls this ONLY for a session the client marked
  * sample=1 whose lead/prospect site URL (fetched server-side) matches
- * one of the 14 example packs. Every other session is untouched. */
+ * one of the 14 example packs. Every other session is untouched.
+ * The stamp always enables the verbal capture confirmation
+ * (verbalCapture: true): a stamped session is a parent simulation
+ * session — presenter-fronted or Aspen-fronted — and every one of
+ * them confirms voice-dictated contact details out loud (inside the
+ * discovery layer for presenter builds, appended after the shared
+ * layer for Aspen-fronted builds). The Sara segment rebuild does NOT
+ * go through this stamp — it calls buildExampleListingsLayer
+ * directly — so segment prompts are untouched by the beat. */
 export function stampExampleListings<T extends Record<string, unknown>>(config: T, pack: RealtorExamplePack, opts?: { presenter?: boolean }): T {
   config.exampleListings = { slug: pack.slug, agentName: pack.agentName, listings: pack.listings.length };
   const prompt = String(config.systemPrompt || '');
   if (!prompt.includes('EXAMPLE LISTINGS LAYER')) {
-    config.systemPrompt = `${prompt}\n${buildExampleListingsLayer(pack, opts)}`;
+    config.systemPrompt = `${prompt}\n${buildExampleListingsLayer(pack, { ...opts, verbalCapture: true })}`;
   }
   return config;
 }

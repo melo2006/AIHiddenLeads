@@ -3,12 +3,14 @@ import {
   REALTOR_DISCOVERY_GREETING_VARIANTS,
   REALTOR_DISCOVERY_OPENER,
   buildRealtorDiscoveryLayer,
+  buildVerbalCaptureConfirmation,
   renderRealtorDiscoveryGreeting,
 } from "../../supabase/functions/_shared/realtor-discovery";
 import {
   REALTOR_EXAMPLE_PACKS,
   buildExampleListingsLayer,
   examplePackBySlug,
+  stampExampleListings,
 } from "../../supabase/functions/_shared/realtor-example-listings";
 import { REALTOR_EXAMPLE_PRESENTERS } from "../../supabase/functions/_shared/realtor-example-pinned-leads";
 
@@ -336,6 +338,173 @@ describe("realtor discovery — wiring into the presenter listings layer", () =>
       const presenterLayer = buildExampleListingsLayer(pack, { presenter: true });
       expect(presenterLayer).toContain("REALTOR DISCOVERY LAYER");
       expect(presenterLayer).toContain(REALTOR_DISCOVERY_OPENER);
+    }
+  });
+});
+
+describe("realtor discovery — verbal capture confirmation (2026-11-14, Ron: a phone caller gets the card's job done out loud)", () => {
+  const beat = buildVerbalCaptureConfirmation("Michael Martinez");
+  const BEAT_MARKER = "DETAILS DICTATED BY VOICE ARE CONFIRMED OUT LOUD";
+
+  it("step 2 runs the beat explicitly — the old deferral to unnamed instructions is gone", () => {
+    expect(layer).toContain("run the VERBAL CAPTURE CONFIRMATION below on it");
+    expect(layer).toContain(
+      "bank it as captured only once they have confirmed it",
+    );
+    expect(layer).not.toContain(
+      "read it back the way your instructions direct",
+    );
+    // the beat itself sits inside the capture step: after the
+    // list-is-the-capture rule, before discovery opens
+    const beatAt = layer.indexOf(BEAT_MARKER);
+    expect(beatAt).toBeGreaterThan(layer.indexOf("THE LIST IS THE CAPTURE"));
+    expect(beatAt).toBeLessThan(layer.indexOf("3) DISCOVERY"));
+  });
+
+  it("the beat is ordered: spell-back → what-happens-next + spoken yes → graceful narrowing", () => {
+    const b1 = beat.indexOf("BEAT 1 — SPELL IT BACK");
+    const b2 = beat.indexOf("BEAT 2 — SAY WHAT HAPPENS NEXT");
+    const b3 = beat.indexOf("BEAT 3 — A NO OR A HESITATION");
+    for (const at of [b1, b2, b3]) {
+      expect(at).toBeGreaterThan(-1);
+    }
+    expect(b1).toBeLessThan(b2);
+    expect(b2).toBeLessThan(b3);
+  });
+
+  it("beat 1 — email spell-back mirrors the on-screen card: local part letter by letter, domain plainly", () => {
+    expect(beat).toContain('spell the part before the "at" letter by letter');
+    expect(beat).toContain("every digit named");
+    expect(beat).toContain("then say the domain plainly");
+    // the card's own shape, from Ron's screenshot: "…at gmail dot com"
+    expect(beat).toContain("…at gmail dot com");
+    expect(beat).toContain("Did I get that right?");
+    // a correction re-reads the corrected version and re-confirms;
+    // only the confirmed version is kept
+    expect(beat).toContain("say the WHOLE corrected address back");
+    expect(beat).toContain(
+      "a correction restarts the read-back of that address, never the whole conversation",
+    );
+    expect(beat).toContain("only the version they confirm is the one you keep");
+  });
+
+  it("beat 1 — a phone number is read back in digit groups under the same confirm/correct rule", () => {
+    expect(beat).toContain("read it back in digit groups");
+    expect(beat).toContain(
+      "the area code, then the next three digits, then the last four",
+    );
+    expect(beat).toContain("under the same correction rule");
+  });
+
+  it("beat 2 — what happens next is stated per channel, and only a spoken yes confirms", () => {
+    expect(beat).toContain("the matched-properties list to that email address");
+    expect(beat).toContain(
+      "the link to the list by text message to that mobile number",
+    );
+    // the seller channel: the agent's follow-up about their home
+    expect(beat).toContain(
+      "Michael Martinez's follow-up about their home, in the channel they gave",
+    );
+    // never invent a send that was not set up in the conversation
+    expect(beat).toContain("never a send that was not offered");
+    expect(beat).toContain("Is that okay?");
+    expect(beat).toContain("Only a spoken yes confirms the capture");
+    // silence is not consent
+    expect(beat).toContain(
+      "Silence, a vague sound or a change of subject is NOT a yes",
+    );
+  });
+
+  it("beat 3 — a no or hesitation narrows to email only / text only / neither; nothing unconsented is sent", () => {
+    expect(beat).toContain("email only, text only, or neither");
+    expect(beat).toContain("What they declined is never sent");
+    expect(beat).toContain(
+      "nothing is treated as consented that they did not say yes to",
+    );
+    // and the declined send is not raised again later in the call
+    expect(beat).toContain("that no is final for this call");
+    expect(beat).toContain("do not raise the send again later in the conversation");
+  });
+
+  it("no double confirmation: details the on-screen card already confirmed skip the verbal beats", () => {
+    expect(beat).toContain("NO DOUBLE CONFIRMATION");
+    expect(beat).toContain(
+      "already confirmed these same details on the on-screen confirmation card",
+    );
+    expect(beat).toContain("never make anyone confirm the same details twice");
+    expect(beat).toContain(
+      "run only for details that arrived by voice and were never confirmed on the card",
+    );
+  });
+
+  it("the close promise names only consented channels, and a declined send is never re-offered", () => {
+    expect(layer).toContain(
+      "The promise names only the channels they actually said yes to",
+    );
+    expect(layer).toContain(
+      "a channel they declined is never promised as if it were happening",
+    );
+    expect(layer).toContain(
+      "a caller who gave details but declined the send itself is NOT re-offered it",
+    );
+    expect(layer).toContain(
+      "details dictated at this re-offer go through the same verbal capture confirmation",
+    );
+  });
+
+  it("the composed presenter layer carries the beat exactly once", () => {
+    const pack = examplePackBySlug("michael-martinez")!;
+    const presenterLayer = buildExampleListingsLayer(pack, { presenter: true });
+    expect(occurrences(presenterLayer, BEAT_MARKER)).toBe(1);
+    // …and the production stamp path (presenter) also lands it once
+    const config: Record<string, unknown> = { systemPrompt: "BASE" };
+    stampExampleListings(config, pack, { presenter: true });
+    expect(occurrences(String(config.systemPrompt), BEAT_MARKER)).toBe(1);
+    expect(String(config.systemPrompt)).toContain("REALTOR DISCOVERY LAYER");
+  });
+
+  it("Aspen-fronted simulations get the beat through the stamp — without the discovery layer, and otherwise unchanged", () => {
+    const pack = examplePackBySlug("michael-martinez")!;
+    const config: Record<string, unknown> = { systemPrompt: "BASE" };
+    stampExampleListings(config, pack);
+    const stamped = String(config.systemPrompt);
+    expect(occurrences(stamped, BEAT_MARKER)).toBe(1);
+    expect(stamped).toContain("Is that okay?");
+    // the Aspen-fronted flow does NOT grow the presenter discovery layer
+    expect(stamped).not.toContain("REALTOR DISCOVERY LAYER");
+    // …and its approved standard capture shape stands untouched
+    expect(stamped).toContain(
+      "Michael Martinez will search for them and call them back",
+    );
+    expect(stamped).toContain(
+      "take their name and best callback number so the callback can actually happen",
+    );
+    // the stamp stays idempotent with the beat attached
+    stampExampleListings(config, pack);
+    expect(occurrences(String(config.systemPrompt), BEAT_MARKER)).toBe(1);
+  });
+
+  it("the Sara segment rebuild path stays byte-identical: no opt, no beat", () => {
+    const pack = examplePackBySlug("michael-martinez")!;
+    const plain = buildExampleListingsLayer(pack);
+    expect(plain).not.toContain(BEAT_MARKER);
+    expect(buildExampleListingsLayer(pack, { verbalCapture: false })).toBe(plain);
+    expect(buildExampleListingsLayer(pack, { presenter: false })).toBe(plain);
+    // the opt alone (the stamp's route, minus the stamp) appends it once
+    const opted = buildExampleListingsLayer(pack, { verbalCapture: true });
+    expect(occurrences(opted, BEAT_MARKER)).toBe(1);
+    expect(opted.startsWith(plain)).toBe(true);
+  });
+
+  it("every pack's beat names that pack's agent in the seller channel, with no placeholder left", () => {
+    for (const pack of REALTOR_EXAMPLE_PACKS) {
+      const own = buildVerbalCaptureConfirmation(pack.agentName);
+      expect(own).toContain(`${pack.agentName}'s follow-up about their home`);
+      expect(own).not.toContain("{agentName}");
+      const config: Record<string, unknown> = { systemPrompt: "BASE" };
+      stampExampleListings(config, pack);
+      expect(String(config.systemPrompt)).toContain(BEAT_MARKER);
+      expect(String(config.systemPrompt)).not.toContain("{agentName}");
     }
   });
 });
