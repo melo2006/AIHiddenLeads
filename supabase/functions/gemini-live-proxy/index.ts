@@ -23,7 +23,7 @@ import { transferDestination } from '../_shared/browser-handoff.ts'
 import { MANAGER_HANDOFF_DELAY_MS, MANAGER_TRANSFER_POLICY, managerTransferAnnouncement } from '../_shared/manager-transfer.ts'
 import { handoffReturnInstruction, handoffReturnOutcome } from '../_shared/handoff-return.ts'
 import { BROWSER_MINUTES_OVERAGE_POLICY } from '../_shared/overage-facts.ts'
-import { FAREWELL_END_DELAY_MS, detectFarewell, farewellSpeakerName } from '../_shared/farewell.ts'
+import { FAREWELL_END_DELAY_MS, detectFarewell, farewellSpeakerName, hasPresenterStamp } from '../_shared/farewell.ts'
 import { CONTACT_SAVE_CLIENT_ERROR, CONTACT_SAVE_FALLBACK_TOOL_RESPONSE, saveConfirmedFollowup } from '../_shared/contact-save.ts'
 import { logUsageEvent, videoAvatarEventFromSession, webVoiceEventFromSession } from '../_shared/usage-ledger.ts'
 
@@ -125,6 +125,13 @@ Deno.serve(async (req) => {
   // can never thank "Aspen" off a stale or missing name; platform
   // sessions carry 'Aspen' and stay byte-identical.
   const speakerDisplayName = farewellSpeakerName(config)
+  // Double-close gate scope (farewell-double-close fix, 2026-11-14):
+  // TRUE only for whole-demo presenter sessions (Frank / Monica /
+  // Black Professional Lady fronting a demo solo, stamped by
+  // gemini-session in config.demoPresenter). The post-farewell output
+  // gate below keys on this so Aspen-fronted and persona-segment
+  // sessions keep byte-identical proxy behavior.
+  const presenterFarewellSession = hasPresenterStamp(config)
   // Voice-asked manager transfer (Batch 1, Fix 3): available on exactly
   // the sessions gemini-session issues a browser-handoff capability
   // for — a valid saved transfer destination, not a preview, not a
@@ -194,6 +201,23 @@ Deno.serve(async (req) => {
   let farewellHandled = false
   let farewellTimer: ReturnType<typeof setTimeout> | undefined
   const cancelFarewellEnd = () => { if (farewellTimer) { clearTimeout(farewellTimer); farewellTimer = undefined } }
+  // DOUBLE-CLOSE GATE (farewell-double-close fix, 2026-11-14; live
+  // proof session b8e5bc63): Publish #51 removed the proxy's closing
+  // injection, yet a presenter session still spoke TWO closings —
+  // the model's warm thank-you, then a second flat "Thank you for
+  // calling {business}." The second line is a SECOND MODEL TURN
+  // elicited inside the armed 9-second window: the closing turn's
+  // own tool call (capture/booking paperwork riding the goodbye
+  // turn) resolves there, and nothing gated the follow-up turn's
+  // output. While a presenter session's farewell end is ARMED, the
+  // close is owned by the closing line already spoken: eliciting
+  // sends are stood down and any further assistant output is
+  // swallowed before it can reach the visitor, the transcript or
+  // the usage meter. The gate follows the TIMER, exactly like
+  // farewellOwnsClose: if the visitor speaks again and the end is
+  // cancelled, output flows again. Presenter sessions only — Aspen
+  // and segment sessions are untouched.
+  const farewellGateActive = () => presenterFarewellSession && farewellTimer !== undefined
   let conversationLanguage = startLanguage
   let callerLanguageRequest: string | null = null
   let callerUtterance = ''
@@ -323,7 +347,11 @@ Deno.serve(async (req) => {
       if (config.simulation === true) {
         if (demoPacingAction((Date.now() - openedAt) / 1000, wrapupSent) && geminiWs?.readyState === WebSocket.OPEN) {
           wrapupSent = true;
-          geminiWs.send(JSON.stringify({clientContent:{turns:[{role:'user',parts:[{text:'At the next natural pause after this five-minute checkpoint, briefly offer to keep trying the business simulation, answer implementation questions after clearly stepping out of roleplay, or use Book a quick call. Do not interrupt an answer, end an engaged conversation or assume sales consent.'}]}],turnComplete:true}}));
+          // DOUBLE-CLOSE GATE (2026-11-14): never elicit a new model
+          // turn inside a presenter session's armed farewell window —
+          // the checkpoint offer would land after the closing line
+          // and read as the presenter starting up again mid-goodbye.
+          if (!farewellGateActive()) geminiWs.send(JSON.stringify({clientContent:{turns:[{role:'user',parts:[{text:'At the next natural pause after this five-minute checkpoint, briefly offer to keep trying the business simulation, answer implementation questions after clearly stepping out of roleplay, or use Book a quick call. Do not interrupt an answer, end an engaged conversation or assume sales consent.'}]}],turnComplete:true}}));
         }
         return;
       }
@@ -488,7 +516,14 @@ Deno.serve(async (req) => {
             if (typeof call.id !== 'string') continue;
             // Any tool activity means the conversation is continuing:
             // a pending farewell end is cancelled (Fix 5).
-            cancelFarewellEnd();
+            // DOUBLE-CLOSE GATE exception (2026-11-14): on a presenter
+            // session whose farewell end is already ARMED, a tool call
+            // here is the closing turn's own bookkeeping, not the
+            // conversation continuing — cancelling would lift the end
+            // and let the tool-followup turn speak a second closing
+            // line. The end stands; the tool still resolves normally
+            // and its follow-up output is swallowed by the gate below.
+            if (!farewellGateActive()) cancelFarewellEnd();
             const respond = (response: unknown) => geminiWs?.send(JSON.stringify({toolResponse:{functionResponses:[{id:call.id,name:call.name,response}]}}));
             if (call.name === 'select_conversation_language') {
               const requested = String(call.args?.language || '');
@@ -571,7 +606,18 @@ Deno.serve(async (req) => {
             clientSocket.send(JSON.stringify({ type: 'interrupted' }))
             return
           }
-          if (sc.modelTurn?.parts) {
+          // DOUBLE-CLOSE GATE (2026-11-14): evaluated per message,
+          // AFTER the closing turn that armed the farewell has been
+          // fully forwarded (its parts precede its turnComplete in
+          // this same flow). While the gate is up, assistant output
+          // is swallowed whole — not forwarded to the client, not
+          // transcribed, not recorded, not metered — so no elicited
+          // follow-up turn can become a second spoken closing. The
+          // visitor's own transcription and the turnComplete
+          // bookkeeping below are NOT gated: a visitor who speaks
+          // again still cancels the end, and the gate lifts with it.
+          const gatePostFarewellOutput = farewellGateActive()
+          if (sc.modelTurn?.parts && !gatePostFarewellOutput) {
             for (const part of sc.modelTurn.parts) {
               if (part.inlineData?.data) {
                 outputAudioSeconds += pcmSeconds(part.inlineData.data, 24000)
@@ -583,7 +629,7 @@ Deno.serve(async (req) => {
               }
             }
           }
-          if (sc.outputTranscription?.text) {
+          if (sc.outputTranscription?.text && !gatePostFarewellOutput) {
             if (transcript.length < 2000) transcript.push({ role: 'assistant', text: sc.outputTranscription.text })
             clientSocket.send(JSON.stringify({ type: 'aspen_transcript', text: sc.outputTranscription.text }))
           }

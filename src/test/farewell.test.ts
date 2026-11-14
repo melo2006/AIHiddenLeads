@@ -15,7 +15,18 @@ import {
   FAREWELL_MAX_WORDS,
   detectFarewell,
   farewellSpeakerName,
+  hasPresenterStamp,
 } from '../../supabase/functions/_shared/farewell';
+import {
+  PRESENTER_SINGLE_CLOSE_RULE,
+  personaFor,
+  personaSegmentPrompt,
+  presenterSimulationPrompt,
+} from '../../supabase/functions/_shared/personas';
+import {
+  SIMULATION_PROMPT,
+  SIMULATION_PROMPT_SWAP_PARENT,
+} from '../../supabase/functions/_shared/voice-config';
 
 const read = (rel: string) => fs.readFileSync(path.join(__dirname, '..', '..', rel), 'utf8');
 const occurrences = (haystack: string, needle: string) => haystack.split(needle).length - 1;
@@ -198,5 +209,128 @@ describe('farewellSpeakerName — the banner thanks the session\'s own speaker',
   it('a non-presenter demoPresenter value never hijacks the name', () => {
     expect(farewellSpeakerName({ name: 'Aspen', demoPresenter: 'sara' })).toBe('Aspen');
     expect(farewellSpeakerName({ name: 'Sara', demoPresenter: 'bogus' })).toBe('Sara');
+  });
+});
+
+describe('hasPresenterStamp — the double-close gate scope', () => {
+  it('is true exactly for the three whole-demo presenter stamps', () => {
+    expect(hasPresenterStamp({ demoPresenter: 'frank' })).toBe(true);
+    expect(hasPresenterStamp({ demoPresenter: 'latina' })).toBe(true);
+    expect(hasPresenterStamp({ demoPresenter: 'black-professional-lady' })).toBe(true);
+  });
+
+  it('is false for Aspen, segments and unstamped sessions', () => {
+    expect(hasPresenterStamp({ demoPresenter: 'aspen' })).toBe(false);
+    expect(hasPresenterStamp({ demoPresenter: 'sara' })).toBe(false);
+    expect(hasPresenterStamp({ demoPresenter: 'alex' })).toBe(false);
+    expect(hasPresenterStamp({ demoPresenter: 'bogus' })).toBe(false);
+    expect(hasPresenterStamp({ demoPresenter: 42 })).toBe(false);
+    expect(hasPresenterStamp({})).toBe(false);
+    expect(hasPresenterStamp(null)).toBe(false);
+    expect(hasPresenterStamp(undefined)).toBe(false);
+  });
+
+  it('agrees with farewellSpeakerName on every stamp shape', () => {
+    // One predicate, two consumers: the banner name and the gate
+    // scope can never drift apart.
+    for (const stamp of ['frank', 'latina', 'black-professional-lady', 'aspen', 'sara', 'bogus']) {
+      const named = farewellSpeakerName({ name: 'ZZZ', demoPresenter: stamp });
+      expect(hasPresenterStamp({ demoPresenter: stamp })).toBe(named !== 'ZZZ');
+    }
+  });
+});
+
+describe('double-close gate — one closing line is spoken, presenter path', () => {
+  // Live proof (2026-11-14, session b8e5bc63, Publish #51 code): the
+  // visitor said "Okay, bye-bye" and the stored final turn was TWO
+  // closings — "Thank you so much for calling Michael Martinez
+  // Realtor. Have a great day!" + "Thank you for calling Michael
+  // Martinez Realtor." #51 had already removed the proxy's closing
+  // injection; the second line is a second model turn elicited
+  // inside the armed 9s window (the closing turn's own tool call
+  // resolving there) whose output nothing gated. The gate below
+  // makes the close single BY CONSTRUCTION on the presenter path.
+  const src = read('supabase/functions/gemini-live-proxy/index.ts');
+
+  it('scopes the gate to presenter-stamped sessions only', () => {
+    expect(src).toContain('const presenterFarewellSession = hasPresenterStamp(config)');
+    expect(src).toContain('const farewellGateActive = () => presenterFarewellSession && farewellTimer !== undefined');
+  });
+
+  it('swallows assistant audio/text after the farewell is armed (no second spoken closing)', () => {
+    expect(src).toContain('const gatePostFarewellOutput = farewellGateActive()');
+    expect(src).toContain('if (sc.modelTurn?.parts && !gatePostFarewellOutput) {');
+    // The gate is computed inside the serverContent flow, before the
+    // forwarding loops — and the closing turn itself is never gated,
+    // because its parts are forwarded before its turnComplete arms
+    // the end (farewellTimer is still undefined at that point).
+    const gateAt = src.indexOf('const gatePostFarewellOutput = farewellGateActive()');
+    expect(gateAt).toBeGreaterThan(src.indexOf('const sc = msg.serverContent'));
+    expect(src.indexOf('if (sc.modelTurn?.parts && !gatePostFarewellOutput) {')).toBeGreaterThan(gateAt);
+  });
+
+  it('keeps the swallowed turn out of the transcript and the usage meter too', () => {
+    expect(src).toContain('if (sc.outputTranscription?.text && !gatePostFarewellOutput) {');
+    // Metering + recording live inside the gated modelTurn block:
+    // the audio accounting line sits between the gate and the
+    // transcription branch, so a swallowed turn is never billed or
+    // recorded as if the visitor had heard it.
+    const gateAt = src.indexOf('if (sc.modelTurn?.parts && !gatePostFarewellOutput) {');
+    const meterAt = src.indexOf('outputAudioSeconds += pcmSeconds', gateAt);
+    const captureAt = src.indexOf("captureAudio('assistant'", gateAt);
+    const transcriptAt = src.indexOf('if (sc.outputTranscription?.text && !gatePostFarewellOutput) {', gateAt);
+    expect(meterAt).toBeGreaterThan(gateAt);
+    expect(captureAt).toBeGreaterThan(gateAt);
+    expect(transcriptAt).toBeGreaterThan(captureAt);
+  });
+
+  it('does not let a tool call lift an armed presenter farewell (the eliciting path)', () => {
+    expect(src).toContain('if (!farewellGateActive()) cancelFarewellEnd();');
+    // The tool response itself is still sent — only the cancel is
+    // stood down, so the provider session stays protocol-valid and
+    // the follow-up turn is generated into the gate, not the room.
+    expect(src).toContain('toolResponse:{functionResponses:');
+  });
+
+  it('never elicits a pacing turn inside the armed window', () => {
+    const pacingAt = src.indexOf('At the next natural pause after this five-minute checkpoint');
+    expect(pacingAt).toBeGreaterThan(-1);
+    expect(src.slice(Math.max(0, pacingAt - 400), pacingAt)).toContain('if (!farewellGateActive()) geminiWs.send');
+  });
+
+  it('leaves the visitor-driven cancels armed (speaking again still saves the call)', () => {
+    // Input transcription and the non-farewell turnComplete cancel
+    // are NOT gated: they are how a visitor who changed their mind
+    // lifts the end, and the output gate lifts with the timer.
+    expect(src).toContain('if (farewellTimer && callerUtterance.trim()');
+    expect(src).toContain('} else if (farewellTimer && completedUtterance.trim() && !detectFarewell(completedUtterance)) {');
+    const inputAt = src.indexOf('if (sc.inputTranscription?.text) {');
+    expect(src.slice(inputAt, inputAt + 900)).not.toContain('gatePostFarewellOutput');
+  });
+});
+
+describe('presenter prompt — one closing line, declared once', () => {
+  it('every presenter parent prompt carries the single-close rule', () => {
+    for (const id of ['frank', 'latina', 'black-professional-lady'] as const) {
+      const prompt = presenterSimulationPrompt(personaFor(id));
+      expect(prompt).toContain('ONE CLOSING LINE — TOTAL');
+      expect(prompt).toContain('never follow your closing line with a second thank-you');
+      expect(prompt.endsWith(PRESENTER_SINGLE_CLOSE_RULE)).toBe(true);
+    }
+  });
+
+  it('the rule names the stacking it bans: same turn and later turns', () => {
+    expect(PRESENTER_SINGLE_CLOSE_RULE).toContain('not in the same turn, and not in a later turn either');
+    expect(PRESENTER_SINGLE_CLOSE_RULE).toContain('do not close again: stay silent and let the session end');
+  });
+
+  it('Aspen-fronted prompts stay byte-identical: the rule is absent', () => {
+    expect(SIMULATION_PROMPT).not.toContain('ONE CLOSING LINE — TOTAL');
+    expect(SIMULATION_PROMPT_SWAP_PARENT).not.toContain('ONE CLOSING LINE — TOTAL');
+  });
+
+  it('persona segment prompts stay byte-identical: the rule is absent', () => {
+    expect(personaSegmentPrompt('sara', 'doorway', 'Martinez Realtors', SIMULATION_PROMPT).systemPrompt).not.toContain('ONE CLOSING LINE — TOTAL');
+    expect(personaSegmentPrompt('aspen', 'stepout', 'Martinez Realtors', SIMULATION_PROMPT).systemPrompt).not.toContain('ONE CLOSING LINE — TOTAL');
   });
 });
