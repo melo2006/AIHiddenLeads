@@ -63,3 +63,14 @@ export const shouldHoldLoadingOverlay = (
  * a black area.
  */
 export const SCREENSHOT_LOAD_TIMEOUT_MS = 12000;
+
+/**
+ * Same principle for the Browserbase live view: a session can be
+ * created successfully while its iframe then stalls forever (heavy
+ * third-party page, blocked frame). Without a budget, the demo's
+ * preview-loading state waited on that iframe indefinitely — the
+ * other half of the Publish #42 pinned-demo hang. After this budget
+ * the live view counts as failed and the demo settles on the stored
+ * screenshot or the scan-content preview.
+ */
+export const LIVE_VIEW_LOAD_TIMEOUT_MS = 15000;

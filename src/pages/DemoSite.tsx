@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, Phone, ExternalLink, ShieldAlert } from "lucide-react";
 import type { DemoLeadData } from "@/components/landing/demo-results/demoResultsUtils";
-import { getResponsiveScreenshotSrc, getSiteName, withCacheKey } from "@/components/landing/demo-results/demoResultsUtils";
+import { getImageSrc, getResponsiveScreenshotSrc, getSiteName, withCacheKey } from "@/components/landing/demo-results/demoResultsUtils";
 import AspenDemoWidget from "@/components/landing/demo-results/AspenDemoWidget";
 import WebsiteShowcase from "@/components/landing/demo-results/WebsiteShowcase";
 import GeoGridWidget from "@/components/landing/demo-results/GeoGridWidget";
@@ -16,7 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { preloadVoiceIdentity } from "@/lib/voicePreload";
 import { linkCampaignLead } from "@/lib/campaignTracking";
-import { isCapturedCopyPreview, shouldHoldLoadingOverlay, shouldStartRemotePreview, SCREENSHOT_LOAD_TIMEOUT_MS } from "@/lib/demoStartup";
+import { isCapturedCopyPreview, shouldHoldLoadingOverlay, shouldStartRemotePreview, SCREENSHOT_LOAD_TIMEOUT_MS, LIVE_VIEW_LOAD_TIMEOUT_MS } from "@/lib/demoStartup";
 import { pinnedExampleSeedForLeadId } from "@/lib/pinnedExampleSeed";
 import DemoVerificationGate from "@/components/landing/demo-results/DemoVerificationGate";
 import DemoReassuranceStrip from "@/components/landing/DemoReassuranceStrip";
@@ -181,7 +181,9 @@ const ScanFallbackPreview = ({ leadData, siteName, homepageUrl }: ScanFallbackPr
         </div>
       </div>
 
-      <WebsiteShowcase leadData={leadData} />
+      {/* No embedded Aspen assistant here: the demo's own widget (the
+          pinned presenter) is the page's one assistant (FAIL 3 fix). */}
+      <WebsiteShowcase leadData={leadData} hideEmbeddedAssistant />
     </div>
   </div>
 );
@@ -369,7 +371,16 @@ const DemoSite = () => {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  const responsiveScreenshotSrc = getResponsiveScreenshotSrc(
+  // Responsive-variant fallback (Publish #42 regression, 2026-11-14):
+  // a stored tablet/mobile variant can be an EMPTY object (the Frank
+  // pinned leads carry `…-tablet.undefined` URLs serving 200 text/plain
+  // with 0 bytes), so the variant the picker serves at ≤820px errors
+  // instantly while the desktop capture is perfectly good. When the
+  // picked variant fails, retry ONCE with the desktop screenshot — the
+  // canonical capture — before the screenshot counts as failed and the
+  // demo surrenders to the live view / scan-content paths.
+  const [brokenScreenshotSrc, setBrokenScreenshotSrc] = useState<string | null>(null);
+  const pickedScreenshotSrc = getResponsiveScreenshotSrc(
     {
       screenshot: leadData?.screenshot,
       screenshotTablet: leadData?.screenshotTablet,
@@ -377,6 +388,19 @@ const DemoSite = () => {
     },
     viewportWidth,
   );
+  const desktopScreenshotSrc = leadData?.screenshot ? getImageSrc(leadData.screenshot) : null;
+  const responsiveScreenshotSrc =
+    brokenScreenshotSrc !== null &&
+    brokenScreenshotSrc === pickedScreenshotSrc &&
+    desktopScreenshotSrc &&
+    desktopScreenshotSrc !== pickedScreenshotSrc
+      ? desktopScreenshotSrc
+      : pickedScreenshotSrc;
+  // True once the variant on screen IS the last resort (the desktop
+  // capture, or the only variant stored): only its failure may mark
+  // the screenshot failed — a lesser variant's failure just retries.
+  const isFinalScreenshotVariant =
+    !desktopScreenshotSrc || responsiveScreenshotSrc === desktopScreenshotSrc;
   // Cache key prefers the STABLE leadId over previewVersion
   // (record.updated_at): every poll merge during a scan used to change
   // the version, so the <img> src changed and the browser repainted
@@ -395,14 +419,20 @@ const DemoSite = () => {
   // connection) must not pin the loading curtain forever: after the
   // budget it counts as failed, which releases the Browserbase live
   // view and, failing that, the scan-content preview — never blackness.
+  // A NON-final variant that stalls only loses its turn: the desktop
+  // capture is tried next (see the variant fallback above).
   useEffect(() => {
     if (!responsiveScreenshotSrc || responsiveScreenshotSrc.startsWith("data:")) return;
     if (hasScreenshotLoaded || hasScreenshotFailed) return;
     const timer = window.setTimeout(() => {
-      setHasScreenshotFailed(true);
+      if (isFinalScreenshotVariant) {
+        setHasScreenshotFailed(true);
+      } else {
+        setBrokenScreenshotSrc(responsiveScreenshotSrc);
+      }
     }, SCREENSHOT_LOAD_TIMEOUT_MS);
     return () => window.clearTimeout(timer);
-  }, [responsiveScreenshotSrc, hasScreenshotLoaded, hasScreenshotFailed]);
+  }, [responsiveScreenshotSrc, hasScreenshotLoaded, hasScreenshotFailed, isFinalScreenshotVariant]);
 
   const returnTo = searchParams.get("returnTo");
   const leadIdParam = searchParams.get("leadId");
@@ -772,7 +802,30 @@ const DemoSite = () => {
     };
   }, [leadData?.websiteUrl]);
 
-  // When iframe is blocked, start a Browserbase live view session
+  // When iframe is blocked, start a Browserbase live view session.
+  //
+  // Publish #42 regression fix (2026-11-14): the previous shape set
+  // isLiveViewLoading(true) inside the effect while ALSO listing it in
+  // the effect's dependency array. The state flip re-ran the effect,
+  // its cleanup set `cancelled = true`, and the in-flight session
+  // result — an HTTP 200 answer, i.e. a success OR the quota body —
+  // was silently discarded; the finally then refused to clear the
+  // loading flag, so it wedged true forever and no retry could ever
+  // start. Blocked-site demos whose screenshot also failed (the Frank
+  // pinned demos at tablet/mobile widths, via their empty stored
+  // variants) hung at the 88% curtain indefinitely.
+  //
+  // The attempt is now guarded by a ref keyed on the homepage URL: an
+  // in-flight attempt is never cancelled by state flips or unrelated
+  // dep changes, a settled attempt is never duplicated, and a result
+  // is applied only while its site is still the current one
+  // (liveViewSiteRef, kept fresh by the effect below).
+  const liveViewInFlightRef = useRef<string | null>(null);
+  const liveViewSiteRef = useRef<string | null>(null);
+  useEffect(() => {
+    liveViewSiteRef.current = leadData?.websiteUrl ? getHomepageUrl(leadData.websiteUrl) : null;
+  }, [leadData?.websiteUrl]);
+
   useEffect(() => {
     if (!leadData?.websiteUrl) return;
 
@@ -783,13 +836,14 @@ const DemoSite = () => {
       iframeFailureMode !== "unreachable" &&
       (iframeBlocked || isMixedContentPreview(previewUrl, embedOrigin));
 
-    if (!shouldStartRemotePreview(requiresBrowserFallback, Boolean(screenshotSrc), hasScreenshotFailed) || liveViewUrl || isLiveViewLoading || liveViewFailed) return;
+    if (!shouldStartRemotePreview(requiresBrowserFallback, Boolean(screenshotSrc), hasScreenshotFailed) || liveViewUrl || liveViewFailed) return;
+    if (liveViewInFlightRef.current === homepageUrl) return;
 
-    let cancelled = false;
+    liveViewInFlightRef.current = homepageUrl;
+    setIsLiveViewLoading(true);
+    setLiveViewFailed(false);
 
     const startLiveView = async () => {
-      setIsLiveViewLoading(true);
-      setLiveViewFailed(false);
       try {
         const { data, error } = await withTimeout(
           supabase.functions.invoke("create-browser-session", {
@@ -800,7 +854,8 @@ const DemoSite = () => {
         );
 
         if (error) throw error;
-        if (cancelled) return;
+        // The visitor moved to a different site mid-flight: drop it.
+        if (liveViewSiteRef.current !== homepageUrl) return;
 
         if (data?.liveViewUrl && data?.navigated !== false) {
           setLiveViewUrl(data.liveViewUrl);
@@ -815,16 +870,34 @@ const DemoSite = () => {
         }
       } catch (err) {
         console.error("Failed to start Browserbase session:", err);
-        setLiveViewFailed(true);
+        if (liveViewSiteRef.current === homepageUrl) {
+          setLiveViewFailed(true);
+        }
         // Silently fail — screenshot fallback is already showing
       } finally {
-        if (!cancelled) setIsLiveViewLoading(false);
+        if (liveViewInFlightRef.current === homepageUrl) {
+          liveViewInFlightRef.current = null;
+        }
+        if (liveViewSiteRef.current === homepageUrl) {
+          setIsLiveViewLoading(false);
+        }
       }
     };
 
-    startLiveView();
-    return () => { cancelled = true; };
-  }, [hasScreenshotFailed, iframeBlocked, iframeFailureMode, isLiveViewLoading, leadData?.websiteUrl, liveViewFailed, liveViewUrl, resolvedIframeUrl, screenshotSrc]);
+    void startLiveView();
+  }, [hasScreenshotFailed, iframeBlocked, iframeFailureMode, leadData?.websiteUrl, liveViewFailed, liveViewUrl, resolvedIframeUrl, screenshotSrc]);
+
+  // A live view session that was created but whose iframe never loads
+  // (stalled Browserbase page, blocked third-party frame) must not
+  // hold the demo curtain either: after the budget it counts as
+  // failed, which settles the demo on the screenshot / scan content.
+  useEffect(() => {
+    if (!liveViewUrl || hasLiveViewLoaded || liveViewFailed) return;
+    const timer = window.setTimeout(() => {
+      setLiveViewFailed(true);
+    }, LIVE_VIEW_LOAD_TIMEOUT_MS);
+    return () => window.clearTimeout(timer);
+  }, [liveViewUrl, hasLiveViewLoaded, liveViewFailed]);
 
   useEffect(() => {
     setHasIframeLoaded(false);
@@ -964,10 +1037,26 @@ const DemoSite = () => {
   // weekly example refresh landing mid-visit) must never re-raise the
   // curtain or unmount the widget — both were the Saperstein flash.
   const shouldHoldScanningState = isScanning && !isPinnedExample;
+  // PINNED FALLBACK REVEAL (Publish #42 regression, 2026-11-14): a
+  // pinned example's stored scan content is a real preview the moment
+  // the record has merged — the demo must reveal on it rather than
+  // wait for the screenshot chain or the Browserbase live view. Both
+  // were able to stall indefinitely (empty stored screenshot variants;
+  // a live-view session whose result never landed), which held the
+  // 88% curtain forever on the Frank pinned demos while this very
+  // fallback sat rendered behind it.
+  const pinnedFallbackReady =
+    isPinnedExample &&
+    (requiresBrowserFallback || isWebsiteUnreachable) &&
+    Boolean(
+      (leadData.websiteContent && leadData.websiteContent.trim().length > 40) ||
+      (leadData.description && leadData.description.trim().length > 24) ||
+      (leadData.title && leadData.title.trim().length > 3),
+    );
   const isPreviewLoading =
     shouldHoldScanningState ||
     isInlinePreviewLoading ||
-    (requiresBrowserFallback && !liveViewFailed && !isStaticPreviewReady && !isLivePreviewReady);
+    (requiresBrowserFallback && !liveViewFailed && !isStaticPreviewReady && !isLivePreviewReady && !pinnedFallbackReady);
   const isPreviewAvailable =
     (!requiresBrowserFallback && !isWebsiteUnreachable && hasIframeLoaded) ||
     isLivePreviewReady ||
@@ -1083,7 +1172,15 @@ const DemoSite = () => {
                   }}
                   onError={() => {
                     setHasScreenshotLoaded(false);
-                    setHasScreenshotFailed(true);
+                    // A lesser responsive variant failing (e.g. an
+                    // empty stored tablet capture) retries with the
+                    // desktop screenshot; only the final variant's
+                    // failure marks the screenshot failed.
+                    if (isFinalScreenshotVariant) {
+                      setHasScreenshotFailed(true);
+                    } else if (responsiveScreenshotSrc) {
+                      setBrokenScreenshotSrc(responsiveScreenshotSrc);
+                    }
                   }}
                 />
               </div>
@@ -1097,6 +1194,7 @@ const DemoSite = () => {
                 title={`${siteName} website (live view)`}
                 allow="clipboard-read; clipboard-write"
                 onLoad={() => setHasLiveViewLoaded(true)}
+                onError={() => setLiveViewFailed(true)}
               />
             )}
           </div>

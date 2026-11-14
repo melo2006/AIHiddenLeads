@@ -16,11 +16,19 @@ import GeminiAgentWidget from "@/components/GeminiAgentWidget";
 interface WebsiteShowcaseProps {
   leadData: DemoLeadData;
   compact?: boolean;
+  /** Suppress the embedded platform (Aspen) assistant section. The
+   *  /demo-site scan-fallback sets this: that page always mounts its
+   *  own demo widget (the pinned example's presenter), and the
+   *  showcase's second, Aspen-identity widget — visible through the
+   *  loading curtain with its "Try a live demo with Aspen" card —
+   *  broke the presenter's first-paint identity (Publish #42
+   *  regression, FAIL 3). Other hosts keep the default. */
+  hideEmbeddedAssistant?: boolean;
 }
 
 const tint = (channels: string, alpha: number) => `hsl(${channels} / ${alpha})`;
 
-const WebsiteShowcase = ({ leadData, compact = false }: WebsiteShowcaseProps) => {
+const WebsiteShowcase = ({ leadData, compact = false, hideEmbeddedAssistant = false }: WebsiteShowcaseProps) => {
   const siteName = getSiteName(leadData.websiteUrl, leadData.title);
   const logoSrc = getImageSrc(leadData.logo);
   const screenshotSrc = getImageSrc(leadData.screenshot);
@@ -249,7 +257,7 @@ const WebsiteShowcase = ({ leadData, compact = false }: WebsiteShowcaseProps) =>
         </div>
       </section>
 
-      {!compact && (
+      {!compact && !hideEmbeddedAssistant && (
         <section className="grid gap-4 border-t p-4 sm:p-5 xl:grid-cols-[1.05fr_0.95fr] xl:p-6" style={chromeStyle}>
           <div className="rounded-[1.5rem] border p-5" style={softPrimaryStyle}>
             <p className="text-sm font-semibold uppercase tracking-[0.16em]" style={{ color: tint(textColor, 0.66) }}>
