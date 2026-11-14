@@ -5,7 +5,7 @@ import { AVATAR_LIBRARY } from "@/lib/avatarLibrary";
 // The gallery roster comes from the avatar library — the same source of
 // truth the setup wizard picks from, so the homepage can never drift from
 // the library again: our own models first, in library order (Aspen, Frank,
-// Latina, Black Professional Lady, Executive, Sara, Alex), then a curated
+// Monica, Black Professional Lady, Executive, Sara, Alex), then a curated
 // subset of the Simli standard faces, then the bring-your-own-photo tile.
 // (Lukas is Alex's face — it appears once, as Alex, in the own-models row.)
 const HOMEPAGE_STANDARD_FACE_IDS = [

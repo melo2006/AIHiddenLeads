@@ -162,8 +162,8 @@ How this appearance works:
  *  version he would announce bringing Aspen back and then yield to a
  *  presenter the visitor never heard named — or, naming the presenter
  *  on his own, say a line no anchor recognizes and never yield at
- *  all. `subject` is the sentence-initial label ("Latina", "Your
- *  host"), `base` the mid-sentence/possessive label ("Latina", "your
+ *  all. `subject` is the sentence-initial label ("Monica", "Your
+ *  host"), `base` the mid-sentence/possessive label ("Monica", "your
  *  host"), `example` the full taught hand-back line. */
 export function alexPresenterGuestPrompt(subject: string, base: string, example: string): string {
   return ALEX_DEMO_GUEST_PROMPT

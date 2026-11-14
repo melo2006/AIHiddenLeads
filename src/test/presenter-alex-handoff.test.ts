@@ -70,7 +70,7 @@ describe('presenter chain: the Alex handoff actually arms', () => {
   test("Alex's hand-back arms return on a presenter chain", () => {
     const guest = presenterState({ phase: 'alex-guest', persona: 'alex', done: ['meet-alex'] });
     // the exact example line his presenter-parent guest prompt teaches
-    expect(boundaryForAssistantLine('Let me bring Latina back for the plans side — she has all of that.', guest)).toBe('return');
+    expect(boundaryForAssistantLine('Let me bring Monica back for the plans side — she has all of that.', guest)).toBe('return');
     // Frank's chain, his line
     const frankGuest = presenterState({ phase: 'alex-guest', persona: 'alex', presenter: 'frank', done: ['meet-alex'] });
     expect(boundaryForAssistantLine('Let me bring Frank back for the plans side — he has all of that.', frankGuest)).toBe('return');
@@ -100,7 +100,7 @@ describe('presenter chain: her solo script can never arm a Sara/Aspen swap', () 
     // Her actual rewritten announcement (presenterSimulationPrompt's
     // close rewrite) — on the standard chain this text carries the
     // step-out anchors; on hers it is simply her own closing line.
-    expect(boundaryForAssistantLine('Okay — I am stepping out of simulation mode now. This is Latina from AI Hidden Leads again.', presenterState({ phase: 'close', done: ['meet-alex'] }))).toBeNull();
+    expect(boundaryForAssistantLine('Okay — I am stepping out of simulation mode now. This is Monica from AI Hidden Leads again.', presenterState({ phase: 'close', done: ['meet-alex'] }))).toBeNull();
   });
 
   test('a summon-Aspen anchor inside her script arms nothing', () => {
@@ -147,7 +147,7 @@ describe('boundary targets on a presenter chain', () => {
   test('the swap recap names the incoming presenter (and stays exact for Aspen)', () => {
     const turns = [{ role: 'assistant' as const, text: 'Welcome in.' }];
     const meta = { visitorName: 'Dana', businessName: 'Aurelia Perez Real Estate', facts: [] as string[] };
-    expect(buildSwapRecap(turns, meta, 'latina')).toContain('You are now Latina from AI Hidden Leads.');
+    expect(buildSwapRecap(turns, meta, 'latina')).toContain('You are now Monica from AI Hidden Leads.');
     expect(buildSwapRecap(turns, meta, 'aspen')).toContain('You are now Aspen from AI Hidden Leads.');
   });
 });
@@ -160,13 +160,13 @@ describe('presenter segment builds (server)', () => {
     expect(cfg.greeting).toBe('ALEX GREETING');
   });
 
-  test("Latina's return segment names LATINA re-entering — not Aspen", () => {
+  test("Monica's return segment names MONICA re-entering — not Aspen", () => {
     const cfg = personaSegmentPrompt('latina', 'return', 'Aurelia Perez Real Estate', 'PARENT PROMPT');
     expect(cfg.greeting).toBe('');
-    expect(cfg.systemPrompt).toContain('This is Latina from AI Hidden Leads again');
+    expect(cfg.systemPrompt).toContain('This is Monica from AI Hidden Leads again');
     expect(cfg.systemPrompt).not.toContain('This is Aspen from AI Hidden Leads again');
     // the close's follow-up seat is hers too, not Aspen's
-    expect(cfg.systemPrompt).toContain('Answer follow-ups as Latina from AI Hidden Leads');
+    expect(cfg.systemPrompt).toContain('Answer follow-ups as Monica from AI Hidden Leads');
     expect(cfg.systemPrompt).not.toContain('Answer follow-ups as Aspen from AI Hidden Leads');
     // and the MEET ALEX beat itself survives in her close material
     expect(cfg.systemPrompt).toContain('MEET ALEX');
@@ -189,11 +189,11 @@ describe("Alex's guest prompt names the presenter host on a presenter chain", ()
     expect(ALEX_DEMO_GUEST_PROMPT).toContain('the session returns to Aspen.');
   });
 
-  test("Latina's variant: he brings LATINA back and returns to her", () => {
+  test("Monica's variant: he brings MONICA back and returns to her", () => {
     const prompt = presenterAlexGuestPrompt('latina');
-    expect(prompt).toContain('Latina has just introduced you');
-    expect(prompt).toContain('Let me bring Latina back for the plans side — she has all of that.');
-    expect(prompt).toContain('the session returns to Latina.');
+    expect(prompt).toContain('Monica has just introduced you');
+    expect(prompt).toContain('Let me bring Monica back for the plans side — she has all of that.');
+    expect(prompt).toContain('the session returns to Monica.');
     expect(prompt).not.toContain('bring Aspen back');
   });
 
@@ -212,8 +212,8 @@ describe("Alex's guest prompt names the presenter host on a presenter chain", ()
 });
 
 describe('session-opening return beat names the returning persona', () => {
-  test('to=latina names Latina; to=aspen keeps the exact Aspen wording', () => {
-    expect(swapOpeningInstruction({ to: 'latina', boundary: 'return' }, 'RECAP')).toContain('You are Latina from AI Hidden Leads again');
+  test('to=latina names Monica; to=aspen keeps the exact Aspen wording', () => {
+    expect(swapOpeningInstruction({ to: 'latina', boundary: 'return' }, 'RECAP')).toContain('You are Monica from AI Hidden Leads again');
     expect(swapOpeningInstruction({ to: 'aspen', boundary: 'return' }, 'RECAP')).toContain('You are Aspen from AI Hidden Leads again');
   });
 

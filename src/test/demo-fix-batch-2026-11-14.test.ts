@@ -12,7 +12,7 @@ const read = (rel: string) => fs.readFileSync(path.join(__dirname, '..', '..', r
 const occurrences = (haystack: string, needle: string) => haystack.split(needle).length - 1;
 
 const FRANK = 'b3f85f7f-57ea-4f24-b1f6-a57229b4fae1';
-const LATINA = 'e0d7b128-40a7-4d03-ac84-ef4c54b92450';
+const MONICA_FACE = 'e0d7b128-40a7-4d03-ac84-ef4c54b92450';
 const BLACK_LADY = '9344d4c1-6b69-43e7-a73f-ddc15d1a3f75';
 const SARA = 'f735e62c-dce7-4c0b-8e85-1c7e21774c45';
 
@@ -28,8 +28,8 @@ describe('item 1 — layering: the widget always stacks above page content', () 
 });
 
 describe('item 2 — transparent backgrounds for the new personas', () => {
-  it('cutout assets exist for Frank, Latina and Black Professional Lady', () => {
-    for (const id of [FRANK, LATINA, BLACK_LADY]) {
+  it('cutout assets exist for Frank, Monica and Black Professional Lady', () => {
+    for (const id of [FRANK, MONICA_FACE, BLACK_LADY]) {
       expect(fs.existsSync(path.join(__dirname, '..', 'assets', 'simli', `${id}-cutout.webp`))).toBe(true);
       expect(PRESENTER_CUTOUTS[id]).toBeTruthy();
     }

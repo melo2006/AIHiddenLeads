@@ -20,7 +20,7 @@ describe("AvatarGallerySection", () => {
     expect(captions).toEqual([
       "Aspen",
       "Frank",
-      "Latina",
+      "Monica",
       "Black Professional Lady",
       "Executive",
       "Middle-Aged Pro",

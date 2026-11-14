@@ -120,7 +120,7 @@ Deno.serve(async (req) => {
   const preview = config.preview === true
   // Session-lifecycle copy names the session's OWN speaker (2026-11-14):
   // gemini-session stamps the presenter's display name into config.name
-  // on solo-presenter demos (Frank, Latina, Black Professional Lady),
+  // on solo-presenter demos (Frank, Monica, Black Professional Lady),
   // so the farewell below thanks the person the visitor actually talked
   // with; platform sessions carry 'Aspen' and stay byte-identical.
   const speakerDisplayName = String(config.name || 'Aspen')

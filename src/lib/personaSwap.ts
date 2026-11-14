@@ -27,7 +27,7 @@ export interface SwapState {
   phase: SwapPhase;
   persona: PersonaId;
   /** PRESENTER CHAIN (Alex handoff fix, 2026-11-14): set ONLY on a
-   *  whole-demo presenter chain (Frank / Latina / Black Professional
+   *  whole-demo presenter chain (Frank / Monica / Black Professional
    *  Lady fronting an example demo) — the presenter persona the chain
    *  belongs to. While set, boundaryForAssistantLine runs the
    *  presenter rule set INSTEAD of the standard one: the presenter
@@ -277,7 +277,7 @@ export const MEET_ALEX_STRONG_ANCHORS = [
  *  chain hands back to "your host". */
 export const PRESENTER_HAND_BACK_ANCHORS: Partial<Record<PersonaId, string[]>> = {
   frank: ['bring frank back'],
-  latina: ['bring latina back'],
+  latina: ['bring monica back'],
   'black-professional-lady': ['bring your host back', 'bring our host back'],
 };
 

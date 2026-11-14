@@ -22,7 +22,7 @@ import { MemoryRouter, Routes, Route } from "react-router-dom";
  *   only after the loading state has committed.
  *
  * FAIL 2: the in-demo presenter still must be the transparent cutout
- *   for Frank / Latina / Black Professional Lady (pinned here against
+ *   for Frank / Monica / Black Professional Lady (pinned here against
  *   the rendered widget, not source strings).
  *
  * FAIL 3: in the scan-fallback state the page ALSO mounted

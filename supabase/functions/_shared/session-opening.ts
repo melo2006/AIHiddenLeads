@@ -52,7 +52,7 @@ import { isIntroBoundary, type IntroBoundary } from './team-intro.ts';
 export type PersonaId = 'aspen' | 'sara' | 'alex' | 'frank' | 'latina' | 'black-professional-lady';
 const PERSONA_DISPLAY_NAMES: Record<PersonaId, string> = {
   aspen: 'Aspen', sara: 'Sara', alex: 'Alex',
-  frank: 'Frank', latina: 'Latina', 'black-professional-lady': 'Black Professional Lady',
+  frank: 'Frank', latina: 'Monica', 'black-professional-lady': 'Black Professional Lady',
 };
 /** The display name an opening addresses a persona by. */
 export function personaDisplayName(id: PersonaId): string {

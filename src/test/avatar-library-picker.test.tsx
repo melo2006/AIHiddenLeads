@@ -40,7 +40,7 @@ describe("AvatarLibraryGrid", () => {
     expect(labels).toEqual([
       "Choose face Aspen",
       "Choose face Frank",
-      "Choose face Latina",
+      "Choose face Monica",
       "Choose face Black Professional Lady",
       "Choose face Executive",
       "Choose face Middle-Aged Pro",
@@ -87,12 +87,12 @@ describe("AvatarSettings — library pick wiring", () => {
     expect(onNameChange).toHaveBeenCalledWith("Frank");
   });
 
-  it("picking Latina sets face + matched voice but never a name", () => {
+  it("picking Monica sets face + matched voice and pre-fills the name Monica", () => {
     const { onChange, onVoiceChange, onNameChange } = renderSettings();
-    fireEvent.click(screen.getByRole("button", { name: "Choose face Latina" }));
+    fireEvent.click(screen.getByRole("button", { name: "Choose face Monica" }));
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ faceId: LATINA_FACE_ID }));
     expect(onVoiceChange).toHaveBeenCalledWith("Sulafat");
-    expect(onNameChange).not.toHaveBeenCalled();
+    expect(onNameChange).toHaveBeenCalledWith("Monica");
   });
 
   it("picking Executive sets face + matched voice but never a name", () => {

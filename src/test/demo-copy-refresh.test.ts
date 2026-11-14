@@ -21,7 +21,7 @@ import pt from "../i18n/locales/pt-BR.json";
  * instantly, (3) captures name / need / callback number, (4) books
  * appointments preference-first, (5) warm transfer with a summary,
  * (6) up to 50 fresh B2B prospects with the honesty qualifier. No card
- * may name any presenter — the deck also shows during Frank, Latina
+ * may name any presenter — the deck also shows during Frank, Monica
  * and Black Professional Lady demos. The retired cards and claims must
  * never come back.
  *
@@ -63,8 +63,10 @@ const RETIRED_KEYS = [
 
 const FABRICATED = /2–5x|2-5x|40%|48 hours/i;
 
-/** No presenter may be named — the deck runs during every presenter's demo. */
-const PRESENTER_NAMES = /\b(Aspen|Frank|Latina|Sara|Alex)\b/;
+/** No presenter may be named — the deck runs during every presenter's demo.
+ *  (Monica is her settled name since 2026-11-14; her retired working
+ *  label "Latina" stays in the guard so it can never slip back in.) */
+const PRESENTER_NAMES = /\b(Aspen|Frank|Latina|Monica|Sara|Alex)\b/;
 
 describe("demo build-wait flashcard deck (scan.benefits)", () => {
   it("has exactly the 6 agreed cards, in selling order, in every locale", () => {

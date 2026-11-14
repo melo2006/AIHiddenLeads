@@ -4,11 +4,11 @@
 //  - the Frank registry binding (name lives in exactly one config
 //    place — PERSONAS.frank.displayName; voice Charon; the Senior
 //    Owner face created 2026-11-13) + registry integrity
-//  - the ladies' registry bindings (Latina: working-label name,
-//    Sulafat voice, the Latina Green Eyes face; Black Professional
+//  - the ladies' registry bindings (Monica: Ron-settled name,
+//    Sulafat voice, her green-eyes face; Black Professional
 //    Lady: descriptive working-label name, Despina voice, her face)
 //  - the presenter map: exactly the three male agents' examples map
-//    to Frank and two female agents' examples each map to Latina
+//    to Frank and two female agents' examples each map to Monica
 //    and the Black Professional Lady, keyed by slug AND by pinned
 //    leadId, in BOTH the server copy (_shared) and the client copy
 //    (src/data)
@@ -44,8 +44,8 @@ const FRANK_LEAD_IDS = [
   '51353057-8b1d-4e89-828b-ae12287efb3c', // richard-steinberg
   '8db3a00c-b24c-4c5c-a371-67db376c28ef', // paul-saperstein
 ];
-const LATINA_SLUGS = ['aurelia-perez', 'danielle-lazier'];
-const LATINA_LEAD_IDS = [
+const MONICA_SLUGS = ['aurelia-perez', 'danielle-lazier'];
+const MONICA_LEAD_IDS = [
   '850f3d17-85af-49e9-869b-aa6aa4ab540e', // aurelia-perez
   '7dc878df-5559-4d0a-bada-06d5aac62c48', // danielle-lazier
 ];
@@ -54,8 +54,8 @@ const BLACK_LADY_LEAD_IDS = [
   '1b68b94a-45fa-446c-9395-7f182cb60abd', // ann-chamberlain
   'ec4f737f-6796-4542-95cc-d48082fad658', // ashley-cusack
 ];
-const PRESENTER_SLUGS = [...FRANK_SLUGS, ...LATINA_SLUGS, ...BLACK_LADY_SLUGS];
-const PRESENTER_LEAD_IDS = [...FRANK_LEAD_IDS, ...LATINA_LEAD_IDS, ...BLACK_LADY_LEAD_IDS];
+const PRESENTER_SLUGS = [...FRANK_SLUGS, ...MONICA_SLUGS, ...BLACK_LADY_SLUGS];
+const PRESENTER_LEAD_IDS = [...FRANK_LEAD_IDS, ...MONICA_LEAD_IDS, ...BLACK_LADY_LEAD_IDS];
 
 describe('frank registry binding', () => {
   test('binds the approved name, the mature male voice and the Senior Owner face', () => {
@@ -75,9 +75,9 @@ describe('frank registry binding', () => {
 });
 
 describe('ladies registry bindings', () => {
-  test('latina binds the working-label name, the warm Sulafat voice and the Latina Green Eyes face', () => {
+  test('monica binds the settled name Monica, the warm Sulafat voice and her green-eyes face', () => {
     const latina = personaFor('latina');
-    expect(latina.displayName).toBe('Latina');
+    expect(latina.displayName).toBe('Monica');
     expect(latina.voiceName).toBe('Sulafat');
     expect(LATINA_VOICE).toBe('Sulafat');
     expect(latina.faceId).toBe('e0d7b128-40a7-4d03-ac84-ef4c54b92450');
@@ -106,7 +106,7 @@ describe('ladies registry bindings', () => {
 describe('example presenter map', () => {
   test('exactly the three male agents map to frank by slug; every other example stays Aspen→Sara', () => {
     for (const slug of FRANK_SLUGS) expect(examplePresenterForSlug(slug)).toBe('frank');
-    for (const slug of LATINA_SLUGS) expect(examplePresenterForSlug(slug)).toBe('latina');
+    for (const slug of MONICA_SLUGS) expect(examplePresenterForSlug(slug)).toBe('latina');
     for (const slug of BLACK_LADY_SLUGS) expect(examplePresenterForSlug(slug)).toBe('black-professional-lady');
     for (const entry of SERVER_PINNED_LEADS) {
       if (PRESENTER_SLUGS.includes(entry.slug)) continue;
@@ -119,7 +119,7 @@ describe('example presenter map', () => {
 
   test('the same three map to frank by pinned leadId (server copy)', () => {
     for (const leadId of FRANK_LEAD_IDS) expect(examplePresenterForLeadId(leadId)).toBe('frank');
-    for (const leadId of LATINA_LEAD_IDS) expect(examplePresenterForLeadId(leadId)).toBe('latina');
+    for (const leadId of MONICA_LEAD_IDS) expect(examplePresenterForLeadId(leadId)).toBe('latina');
     for (const leadId of BLACK_LADY_LEAD_IDS) expect(examplePresenterForLeadId(leadId)).toBe('black-professional-lady');
     for (const entry of SERVER_PINNED_LEADS) {
       if (PRESENTER_LEAD_IDS.includes(entry.leadId)) continue;
@@ -177,8 +177,8 @@ describe('presenter simulation prompt', () => {
 });
 
 describe('ladies presenter prompts', () => {
-  for (const [id, name] of [['latina', 'Latina'], ['black-professional-lady', 'Black Professional Lady']] as const) {
-    test(`${name} fronts solo: the rewrites carry her working-label name`, () => {
+  for (const [id, name] of [['latina', 'Monica'], ['black-professional-lady', 'Black Professional Lady']] as const) {
+    test(`${name} fronts solo: the rewrites carry her name`, () => {
       const prompt = presenterSimulationPrompt(personaFor(id));
       expect(prompt).not.toContain('Can I transfer you to Sara now?');
       expect(prompt).not.toContain('belongs to Sara');
