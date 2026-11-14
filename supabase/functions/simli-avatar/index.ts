@@ -144,7 +144,7 @@ Deno.serve(async (req) => {
       // request (2026-11-14): the 422 retry below drops background_id,
       // and claiming chromaKey for that stream made the browser key
       // against the face's own studio backdrop — the new personas
-      // (Frank / Latina / Black Professional Lady) then rendered with
+      // (Frank / Monica / Black Professional Lady) then rendered with
       // a solid background box instead of floating like Aspen.
       let backgroundApplied = !!backgroundId;
       let res = await fetch(`${SIMLI}/compose/token`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-simli-api-key': apiKey }, body: JSON.stringify(config) });

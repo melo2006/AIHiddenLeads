@@ -60,7 +60,7 @@ export const presenterPortraitImage = (faceId?: string | null): string | undefin
 export const SIMLI_FACE_CATALOG: AvatarFace[] = [
   { id: 'ed8fedd9-6c86-4dc5-bb3a-017c06146efc', name: 'Aspen · closed smile', image: aspen, category: 'Your face', generation: true },
   { id: "b3f85f7f-57ea-4f24-b1f6-a57229b4fae1", name: "Frank · Senior Owner", category: "Your face", image: frankFace, generation: true },
-  { id: "e0d7b128-40a7-4d03-ac84-ef4c54b92450", name: "Latina · Green Eyes", category: "Your face", image: latinaFace, generation: true },
+  { id: "e0d7b128-40a7-4d03-ac84-ef4c54b92450", name: "Monica · Green Eyes", category: "Your face", image: latinaFace, generation: true },
   { id: "9344d4c1-6b69-43e7-a73f-ddc15d1a3f75", name: "Black Professional Lady", category: "Your face", image: blackProfessionalLadyFace, generation: true },
   { id: "c0be182f-72a4-4be4-8c22-35d6db4c4a11", name: "Middle-Aged Pro", category: "Your face", image: middleAgedProFace, generation: true },
   { id: "bf13113a-355a-4d97-8b90-4edccd1da7b2", name: "Anna", category: "Standard", image: face0 },

@@ -49,7 +49,7 @@ export const REALTOR_EXAMPLE_PINNED_LEADS: RealtorExamplePinnedLead[] = [
  * test pins both). Examples NOT listed here run the standard
  * Aspen→Sara flow. A listed example is fronted SOLO by the named
  * presenter persona: the Senior Owner ("Frank") fronts the three
- * MALE agents' examples; Latina and the Black Professional Lady
+ * MALE agents' examples; Monica and the Black Professional Lady
  * front two FEMALE agents' examples each. The client reads this
  * only to render the right face/name from the first frame (the face
  * token and the session itself are authorized server-side against

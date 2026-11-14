@@ -47,7 +47,7 @@ const scanSteps = [
 
 /**
  * Rotating benefit/sales messages shown while waiting. Presenter-neutral
- * by design: these cards also appear during Frank / Latina / Black Lady
+ * by design: these cards also appear during Frank / Monica / Black Lady
  * demos, so no card names a presenter. Order is the agreed selling order
  * (2026-11-14): video spokesperson first, prospects last.
  */

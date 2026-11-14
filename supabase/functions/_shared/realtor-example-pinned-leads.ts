@@ -45,11 +45,13 @@ export const REALTOR_EXAMPLE_PINNED_LEADS: RealtorExamplePinnedLead[] = [
  * here run the standard Aspen→Sara flow. A listed example is fronted
  * SOLO by the named presenter persona (see personas.ts
  * presenterSimulationPrompt): the Senior Owner ("Frank") fronts the
- * three MALE agents' examples; Latina and the Black Professional
+ * three MALE agents' examples; Monica and the Black Professional
  * Lady front two FEMALE agents' examples each (Ladies batch,
- * 2026-11-13 — Ron approved the build the same night; their names
- * and voices in personas.ts are working labels / Muse's picks,
- * not Ron-settled). This map is the server-known source of
+ * 2026-11-13 — Ron approved the build the same night; Monica's
+ * name was settled by Ron 2026-11-14, the Black Professional
+ * Lady's name in personas.ts is still a working label, and both
+ * voices are Muse's picks, not Ron-settled). This map is the
+ * server-known source of
  * truth — gemini-session stamps the presenter onto the demo parent
  * only when the request is a marked sample whose lead's stored site
  * URL matches the example (the same trust pattern as the listings

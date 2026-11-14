@@ -24,7 +24,7 @@ interface ChatWidgetProps {
   onClose?: () => void;
   embedded?: boolean;
   active?: boolean;
-  /** Solo-presenter demo (Frank / Latina / Black Professional Lady):
+  /** Solo-presenter demo (Frank / Monica / Black Professional Lady):
    *  the typed chat introduces THIS presenter — its consent card,
    *  opening greeting, composer placeholder and aria labels name her
    *  or him instead of Aspen. Undefined on every Aspen surface, where

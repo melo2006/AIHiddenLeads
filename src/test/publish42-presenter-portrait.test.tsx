@@ -3,7 +3,7 @@ import { render, waitFor } from "@testing-library/react";
 
 /**
  * Publish #42 regression (FAIL 2): the in-demo presenter still must be
- * the transparent CUTOUT for Frank / Latina / Black Professional Lady.
+ * the transparent CUTOUT for Frank / Monica / Black Professional Lady.
  * The #42 batch pinned this with source strings only; this suite pins
  * the RENDERED widget: the floating frame's bubble portrait <img> for
  * each solo-presenter pinned demo resolves to that persona's
@@ -42,7 +42,7 @@ const bubbleImgSrc = (container: HTMLElement) => {
 };
 
 describe("FAIL 2 — rendered presenter stills are the transparent cutouts", () => {
-  it("Latina (Aurelia Perez demo) renders her cutout, in the bubble and the conversation", async () => {
+  it("Monica (Aurelia Perez demo) renders her cutout, in the bubble and the conversation", async () => {
     const { container } = render(
       <AspenDemoWidget {...baseProps} leadId="850f3d17-85af-49e9-869b-aa6aa4ab540e" />,
     );
@@ -51,7 +51,7 @@ describe("FAIL 2 — rendered presenter stills are the transparent cutouts", () 
     await waitFor(() => {
       const convo = container.querySelector('[data-testid="demo-conversation"]');
       expect(convo?.getAttribute("data-avatar") || "").toContain("e0d7b128-40a7-4d03-ac84-ef4c54b92450-cutout");
-      expect(convo?.getAttribute("data-name")).toBe("Latina");
+      expect(convo?.getAttribute("data-name")).toBe("Monica");
     });
   });
 

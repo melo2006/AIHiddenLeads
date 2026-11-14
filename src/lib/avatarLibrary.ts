@@ -101,13 +101,16 @@ const OWN_MODELS: AvatarLibraryEntry[] = [
   {
     key: "latina",
     faceId: LATINA_FACE_ID,
-    // Working label only: this face's product name is not settled, so the
-    // tile presents the descriptive label and picking it pre-fills no name
-    // (same rule as Executive). The matched voice is the pairing her demo
-    // presenter shipped with (personas.ts LATINA_VOICE) — a proposal,
-    // flagged for Ron's ear-check 2026-11-13.
-    label: "Latina",
-    nameSettled: false,
+    // Settled name: "Monica", settled by Ron 2026-11-14 (she shipped
+    // under the working label "Latina"), so the tile presents her name
+    // and picking it pre-fills it, like Aspen's and Frank's tiles. The
+    // matched voice is the pairing her demo presenter shipped with
+    // (personas.ts LATINA_VOICE) — a proposal, flagged for Ron's
+    // ear-check 2026-11-13. (The entry key stays "latina" — an
+    // internal identifier keyed to her persona id, never shown.)
+    label: "Monica",
+    suggestedName: "Monica",
+    nameSettled: true,
     matchedVoice: "Sulafat",
     image: catalogImage(LATINA_FACE_ID),
     category: "Your face",
@@ -117,7 +120,7 @@ const OWN_MODELS: AvatarLibraryEntry[] = [
   {
     key: "black-professional-lady",
     faceId: BLACK_PROFESSIONAL_LADY_FACE_ID,
-    // Working label only — see Latina above. Matched voice is her demo
+    // Working label only — unlike Monica above, no settled name yet. Matched voice is her demo
     // presenter pairing (personas.ts BLACK_PROFESSIONAL_LADY_VOICE),
     // flagged for Ron's ear-check 2026-11-13.
     label: "Black Professional Lady",
@@ -145,7 +148,8 @@ const OWN_MODELS: AvatarLibraryEntry[] = [
   {
     key: "middle-aged-pro",
     faceId: MIDDLE_AGED_PRO_FACE_ID,
-    // Working label only — see Latina above: no settled product name, so
+    // Working label only — no settled product name (the rule in the
+    // working-label entries above), so
     // picking this tile pre-fills no name. Matched voice "Rasalgethi"
     // (mature, gravelly male — distinct from Frank's Charon and the
     // Executive's Sadaltager) is Muse's pick, flagged for Ron's

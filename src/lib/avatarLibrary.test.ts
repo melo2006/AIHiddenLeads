@@ -45,9 +45,9 @@ describe("avatar library — data integrity", () => {
     expect(AVATAR_LIBRARY).toHaveLength(SIMLI_FACE_CATALOG.length + 1);
   });
 
-  it("carries settled names only for Aspen, Frank, Sara and Alex", () => {
+  it("carries settled names only for Aspen, Frank, Monica, Sara and Alex", () => {
     const settled = AVATAR_LIBRARY.filter((e) => e.nameSettled);
-    expect(settled.map((e) => e.suggestedName).sort()).toEqual(["Alex", "Aspen", "Frank", "Sara"]);
+    expect(settled.map((e) => e.suggestedName).sort()).toEqual(["Alex", "Aspen", "Frank", "Monica", "Sara"]);
     for (const e of settled) expect(e.suggestedName).toBe(e.label);
   });
 
@@ -58,11 +58,14 @@ describe("avatar library — data integrity", () => {
     expect(exec?.suggestedName).toBeUndefined();
   });
 
-  it("labels Latina and Black Professional Lady descriptively — working labels, no name pre-fill", () => {
-    const latina = avatarLibraryEntryByFaceId(LATINA_FACE_ID);
-    expect(latina?.label).toBe("Latina");
-    expect(latina?.nameSettled).toBe(false);
-    expect(latina?.suggestedName).toBeUndefined();
+  it("labels Monica with her settled name — picking her tile pre-fills it", () => {
+    const monica = avatarLibraryEntryByFaceId(LATINA_FACE_ID);
+    expect(monica?.label).toBe("Monica");
+    expect(monica?.nameSettled).toBe(true);
+    expect(monica?.suggestedName).toBe("Monica");
+  });
+
+  it("labels Black Professional Lady and Middle-Aged Pro descriptively — working labels, no name pre-fill", () => {
     const lady = avatarLibraryEntryByFaceId(BLACK_PROFESSIONAL_LADY_FACE_ID);
     expect(lady?.label).toBe("Black Professional Lady");
     expect(lady?.nameSettled).toBe(false);
@@ -98,10 +101,11 @@ describe("avatar library — data integrity", () => {
   });
 
   it("does not include faces whose Simli generation has not completed", () => {
-    // Latina / Black Professional Lady / Middle-Aged Pro landed once their
-    // face ids existed (they are catalog faces, listed as own models
-    // above). Latino Techie stays absent until its face id exists; nothing
-    // beyond the catalog + Executive D may sneak in.
+    // Monica's face, the Black Professional Lady and Middle-Aged Pro
+    // landed once their face ids existed (they are catalog faces,
+    // listed as own models above). Latino Techie stays absent until
+    // its face id exists; nothing beyond the catalog + Executive D
+    // may sneak in.
     const known = new Set([...SIMLI_FACE_CATALOG.map((f) => f.id), EXECUTIVE_D_FACE_ID]);
     for (const e of AVATAR_LIBRARY) expect(known.has(e.faceId)).toBe(true);
   });
@@ -121,9 +125,12 @@ describe("avatar library — pick behavior (pure)", () => {
     expect("suggestedName" in pick).toBe(false);
   });
 
-  it("picking Latina or Black Professional Lady applies face + matched voice but NO name", () => {
-    const latina = avatarLibraryEntryByFaceId(LATINA_FACE_ID)!;
-    expect(avatarLibraryPick(latina)).toEqual({ faceId: LATINA_FACE_ID, voice: "Sulafat" });
+  it("picking Monica applies her face, the Sulafat voice AND her settled name", () => {
+    const monica = avatarLibraryEntryByFaceId(LATINA_FACE_ID)!;
+    expect(avatarLibraryPick(monica)).toEqual({ faceId: LATINA_FACE_ID, voice: "Sulafat", suggestedName: "Monica" });
+  });
+
+  it("picking Black Professional Lady or Middle-Aged Pro applies face + matched voice but NO name", () => {
     const lady = avatarLibraryEntryByFaceId(BLACK_PROFESSIONAL_LADY_FACE_ID)!;
     expect(avatarLibraryPick(lady)).toEqual({ faceId: BLACK_PROFESSIONAL_LADY_FACE_ID, voice: "Despina" });
     const pro = avatarLibraryEntryByFaceId(MIDDLE_AGED_PRO_FACE_ID)!;

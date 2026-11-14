@@ -87,17 +87,18 @@ export const FRANK_VOICE = 'Charon';
  *  the customer-facing name is the binding's displayName below). */
 export const FRANK_FACE_ID = 'b3f85f7f-57ea-4f24-b1f6-a57229b4fae1';
 
-/** Latina's voice. ONE named constant: Sulafat — the warm female in
+/** Monica's voice. ONE named constant: Sulafat — the warm female in
  *  the Gemini Live set (Google's own descriptor for it is "Warm");
- *  the warmest read available for the Latina face, against Sara=Leda
+ *  the warmest read available for Monica's face, against Sara=Leda
  *  and Aspen=Kore. ⚠️ MUSE'S PICK (2026-11-13), not Ron-settled —
- *  the Gemini Live library carries no accent-specific Latina voice,
+ *  the Gemini Live library carries no accent-specific voice for her,
  *  so warmth is what was optimized for; a future change is a one-line
  *  edit here and nowhere else. */
 export const LATINA_VOICE = 'Sulafat';
-/** The custom Trinity-2 "Latina Green Eyes" face, created 2026-11-13
- *  (Simli auto-name "Radical Spider" — never shown to customers; the
- *  customer-facing name is the binding's displayName below). */
+/** Monica's custom Trinity-2 face, created 2026-11-13 under the
+ *  creation label "Latina Green Eyes" (Simli auto-name "Radical
+ *  Spider" — neither is shown to customers; the customer-facing
+ *  name is the binding's displayName below). */
 export const LATINA_FACE_ID = 'e0d7b128-40a7-4d03-ac84-ef4c54b92450';
 
 /** Black Professional Lady's voice. ONE named constant: Despina —
@@ -157,12 +158,14 @@ export const PERSONAS: Record<PersonaId, PersonaBinding> = {
     // EXAMPLE PRESENTER (Ladies batch, 2026-11-13): same whole-demo
     // presenter shape as Frank — she FRONTS her mapped examples in
     // one session, composed by gemini-session from the legacy
-    // whole-demo prompt bound to this binding. ⚠️ Her displayName
-    // here is a WORKING LABEL ("Latina"), not a Ron-settled name —
-    // the name lives in exactly this one config place, so settling
-    // it later is a one-line change, same as her voice pick above.
+    // whole-demo prompt bound to this binding. Her displayName here
+    // is her SETTLED name — "Monica", settled by Ron 2026-11-14
+    // (she shipped under the working label "Latina"); the name
+    // lives in exactly this one config place, same as her voice
+    // pick above. (Her persona id stays 'latina' — it is a stored
+    // wire key, not a shown name.)
     id: 'latina',
-    displayName: 'Latina',
+    displayName: 'Monica',
     voiceName: LATINA_VOICE,
     faceId: LATINA_FACE_ID,
     portraitFaceId: LATINA_FACE_ID,
@@ -170,7 +173,7 @@ export const PERSONAS: Record<PersonaId, PersonaBinding> = {
   },
   'black-professional-lady': {
     // EXAMPLE PRESENTER (Ladies batch, 2026-11-13): same whole-demo
-    // presenter shape as Frank and Latina. ⚠️ Her displayName here
+    // presenter shape as Frank and Monica. ⚠️ Her displayName here
     // is the DESCRIPTIVE WORKING LABEL ("Black Professional Lady"),
     // not a Ron-settled name — one config place, one-line change
     // when he settles it, same as her voice pick above.
