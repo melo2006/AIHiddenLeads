@@ -17,6 +17,14 @@ export interface DemoLeadData {
   title?: string;
   description?: string;
   websiteContent?: string;
+  /**
+   * The scan-time consent verdict (Publish #49 follow-up): the capture
+   * pipeline witnessed a cookie/privacy banner on this site, so the
+   * demo's live presentation routes through the dismissal-covered live
+   * view. Undefined = never recorded (pre-flag scans, or a capture
+   * that could not witness the page) — the live probe decides.
+   */
+  consentBannerSeen?: boolean;
   colors?: DemoBrandColors;
   logo?: string;
   secondaryUrls?: string[];

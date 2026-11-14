@@ -13,6 +13,8 @@
 // This module is dependency-injected (fetcher / sleep / clock) so vitest can
 // pin the body shape and the 429 behaviour without network or Deno.
 
+import { CONSENT_REPORT_READBACK_SCRIPT } from "./consent-scan-probe.ts";
+
 export const FIRECRAWL_V2_BASE = 'https://api.firecrawl.dev/v2';
 
 /**
@@ -41,12 +43,19 @@ export function buildFirecrawlScreenshotBody(
  * _shared/cookie-consent-dismissal.ts). The dismissal script installs an
  * in-page observer, so the trailing wait gives late banners time to appear
  * and be refused; Firecrawl captures the formats after actions complete.
+ *
+ * The final action reads the dismissal's live report back so the scan
+ * can RECORD whether a banner was present (see
+ * _shared/consent-scan-probe.ts, Publish #49 follow-up): it lands in
+ * the response's actions.javascriptReturns when the tier returns
+ * action values, and is silently absent when it does not.
  */
 export function buildCookieConsentDismissalActions(script: string): Array<Record<string, unknown>> {
   return [
     { type: 'wait', milliseconds: 1200 },
     { type: 'executeJavascript', script },
     { type: 'wait', milliseconds: 2500 },
+    { type: 'executeJavascript', script: CONSENT_REPORT_READBACK_SCRIPT },
   ];
 }
 

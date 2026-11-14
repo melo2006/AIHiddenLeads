@@ -7,6 +7,12 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { learningLinks } from '../_shared/website-learning.ts';
 import { fetchFirecrawlScreenshot, markFirecrawlRequest } from '../_shared/firecrawl-screenshot.ts';
 import { buildCookieConsentDismissalScript } from '../_shared/cookie-consent-dismissal.ts';
+import {
+  consentScanFlagsFromReport,
+  extractConsentReportFromFirecrawlPayload,
+  probeConsentBannerViaBrowserless,
+  type ConsentBannerScanFlags,
+} from '../_shared/consent-scan-probe.ts';
 import { rehostScreenshotUrlWith } from '../_shared/screenshot-rehost.ts';
 import { REALTOR_EXAMPLE_PINNED_LEADS } from '../_shared/realtor-example-pinned-leads.ts';
 import { B2B_EXAMPLE_PINNED_LEADS } from '../_shared/b2b-example-pinned-leads.ts';
@@ -753,6 +759,14 @@ async function scrapeScreenshotFallback(url: string, apiKey: string) {
       consentDismissalScript: buildCookieConsentDismissalScript({ observeMs: 3000 }),
     });
 
+    // Consent RECORDING (Publish #49 follow-up): the dismissal actions
+    // end with a read-back of the script's live report, which Firecrawl
+    // returns in actions.javascriptReturns when the tier supports it.
+    // Extracted from the RAW payload (the unwrap below drops actions);
+    // absent on tiers that discard action values — the Browserless
+    // probe remains the primary recorder.
+    const consentReport = extractConsentReportFromFirecrawlPayload(response);
+
     const data = unwrapFirecrawlPayload(response);
     const screenshotUrl = typeof data?.screenshot === 'string' && data.screenshot ? data.screenshot : null;
     if (!screenshotUrl) return null;
@@ -764,7 +778,7 @@ async function scrapeScreenshotFallback(url: string, apiKey: string) {
     // the same no-screenshot path as a failed scrape.
     if (await isLikelyBlankScreenshot(screenshotUrl)) return null;
 
-    return screenshotUrl;
+    return { screenshotUrl, consentReport };
   } catch (error) {
     console.warn('Fallback screenshot scrape failed:', error);
     return null;
@@ -1576,6 +1590,19 @@ Deno.serve(async (req) => {
       ? browserlessMultiScreenshot(formattedUrl, browserlessKey, leadId, supabaseUrl, supabaseServiceKey)
       : Promise.resolve({ desktop: null, tablet: null, mobile: null });
 
+    // Consent-banner RECORDING probe (Publish #49 follow-up): runs in
+    // parallel with the captures, off the critical path. The capture
+    // pipeline is where banner detection belongs — the Browserless /
+    // Firecrawl browsers reach pages that bot-wall the plain fetches
+    // check-iframe-embed relies on (Martinez: probe verdict
+    // "unreachable", banner undetected, raw iframe shipped it). The
+    // probe's dismissal evaluation witnesses whether a banner was
+    // present; its flags are persisted just before the final save
+    // (see below). Never rejects: failures resolve null = unrecorded.
+    const consentProbePromise: Promise<ConsentBannerScanFlags | null> = browserlessKey
+      ? probeConsentBannerViaBrowserless(formattedUrl, browserlessKey).catch(() => null)
+      : Promise.resolve(null);
+
     // Firecrawl scrape — Browserless handles screenshots, so avoid extra screenshot work here.
     let homepageResponse: any = {};
     const firecrawlFormats = ['markdown', 'branding', 'links', 'summary'];
@@ -1636,9 +1663,10 @@ Deno.serve(async (req) => {
     // Await Browserless multi-viewport screenshots and recover with Firecrawl fallback if needed.
     const browserlessResults = await browserlessPromise;
     const browserlessScreenshotResult = browserlessResults.desktop;
-    let firecrawlScreenshotResult = !browserlessScreenshotResult
+    const firecrawlFallback = !browserlessScreenshotResult
       ? await scrapeScreenshotFallback(formattedUrl, firecrawlKey)
       : null;
+    let firecrawlScreenshotResult = firecrawlFallback?.screenshotUrl ?? null;
 
     // Re-host the Firecrawl screenshot into our own public bucket before it
     // is stored on the lead — the signed Firecrawl URL expires and would
@@ -1888,6 +1916,35 @@ Deno.serve(async (req) => {
     const existingLeadEmail = cleanText(existingLead?.email);
 
     console.log('Extracted contact info — phones:', extractedPhones, 'emails:', extractedEmails);
+
+    // Consent-banner flags (Publish #49 follow-up): the dedicated
+    // Browserless probe is the primary witness; the Firecrawl fallback's
+    // read-back report covers scans where Browserless could not probe
+    // but Firecrawl captured. Written in their OWN best-effort update
+    // (the screenshot_provider pattern) and deliberately BEFORE the
+    // final save below: that save flips scan_status to a terminal
+    // value, which stops the demo's record polling — the flag must
+    // already be on the row when the terminal record is pulled, so a
+    // new visitor's same-visit scan routes the covered live view the
+    // moment the scan completes. A missing column (migration
+    // 20261114120000_leads_consent_banner_flags not yet applied) only
+    // logs; the scan proceeds exactly as before.
+    const consentFlags = (await consentProbePromise) ??
+      consentScanFlagsFromReport(firecrawlFallback?.consentReport);
+    if (consentFlags) {
+      console.log(
+        'Consent banner at scan time — seen:', consentFlags.seen,
+        '| dismissed:', consentFlags.dismissed,
+        '| clicked:', consentFlags.clicked,
+      );
+      const consentWrite = await supabase.from('leads').update({
+        consent_banner_seen: consentFlags.seen,
+        consent_banner_dismissed: consentFlags.dismissed,
+      }).eq('id', leadId);
+      if (consentWrite.error) {
+        console.warn('Could not save consent banner flags (columns may not be applied yet):', consentWrite.error.message);
+      }
+    }
 
     // Save initial results immediately so the demo can load
     const updateResult = await supabase.from('leads').update({

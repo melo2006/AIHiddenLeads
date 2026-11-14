@@ -97,6 +97,44 @@ export const shouldUseConsentCoveredRoute = (
 ) => consentDetected && !requiresBrowserFallback && !isWebsiteUnreachable;
 
 /**
+ * CONSENT ROUTE PRECEDENCE (Publish #49 follow-up, 2026-11-14).
+ *
+ * #49's probe-based detection failed live on the exact site it was
+ * built for: martinezrealtorsfl.com bot-walls the datacenter egress
+ * check-iframe-embed fetches from, so the probe answered
+ * `unreachable`, detection never ran (it only ran on embeddable
+ * verdicts), and the visitor's browser — which CAN load the site —
+ * got the raw iframe with the banner. A live probe from infrastructure
+ * the target site blocks can never be the primary witness.
+ *
+ * The primary witness is now the SCAN: scan-website's capture browsers
+ * (Browserless/Firecrawl) render the real page and the #48 dismissal
+ * script reports whether a banner was present; the verdict is stored
+ * on the lead (`consent_banner_seen`) and DemoSite reads it from the
+ * same record it already fetches. A stored TRUE outranks the probe
+ * ENTIRELY — including an `unreachable` probe verdict, which only
+ * ever meant "our datacenter couldn't fetch it", and including the
+ * blocked verdict, whose fallback chain reaches the same covered
+ * view anyway. If the covered view itself fails, the existing
+ * last-resort chain (raw iframe where presentable, else the
+ * banner-free stored screenshot) still applies.
+ *
+ * With no stored TRUE, routing is exactly #49's: the probe's
+ * fingerprint verdict decides, with its fallback/unreachable carve-
+ * outs. A stored FALSE (scan witnessed no banner) keeps the fast raw
+ * iframe path for embeddable sites — Aurelia-class sites never pay
+ * for a Browserbase session.
+ */
+export const resolveConsentCoveredRoute = (
+  scanConsentBannerSeen: boolean,
+  probeConsentDetected: boolean,
+  requiresBrowserFallback: boolean,
+  isWebsiteUnreachable: boolean,
+) =>
+  scanConsentBannerSeen ||
+  shouldUseConsentCoveredRoute(probeConsentDetected, requiresBrowserFallback, isWebsiteUnreachable);
+
+/**
  * Whether to start the Browserbase live view at all. The blocked /
  * mixed-content fallback keeps its screenshot cost rule
  * (shouldStartRemotePreview). The consent-covered route starts the
