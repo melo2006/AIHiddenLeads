@@ -16,7 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { preloadVoiceIdentity } from "@/lib/voicePreload";
 import { linkCampaignLead } from "@/lib/campaignTracking";
-import { isCapturedCopyPreview, shouldHoldLoadingOverlay, shouldStartRemotePreview, SCREENSHOT_LOAD_TIMEOUT_MS, LIVE_VIEW_LOAD_TIMEOUT_MS, PINNED_REVEAL_DEADLINE_MS } from "@/lib/demoStartup";
+import { isCapturedCopyPreview, shouldHoldLoadingOverlay, shouldStartRemotePreview, shouldWaitForFreshLeadData, SCREENSHOT_LOAD_TIMEOUT_MS, LIVE_VIEW_LOAD_TIMEOUT_MS, PINNED_REVEAL_DEADLINE_MS } from "@/lib/demoStartup";
 import { pinnedExampleSeedForLeadId } from "@/lib/pinnedExampleSeed";
 import DemoVerificationGate from "@/components/landing/demo-results/DemoVerificationGate";
 import DemoReassuranceStrip from "@/components/landing/DemoReassuranceStrip";
@@ -1005,8 +1005,17 @@ const DemoSite = () => {
   const requestedDemoUrl = searchParams.get("url");
   const requestedDemoHomepage = requestedDemoUrl ? getHomepageUrl(requestedDemoUrl) : null;
   const currentLeadHomepage = leadData?.websiteUrl ? getHomepageUrl(leadData.websiteUrl) : null;
-  const isWaitingForFreshLeadData = Boolean(
-    requestedDemoHomepage && !latestLeadData && currentLeadHomepage && currentLeadHomepage !== requestedDemoHomepage,
+  // Pinned examples are exempt from this wait (see shouldWaitForFreshLeadData
+  // in demoStartup.ts): their record is keyed by the pinned leadId, so a
+  // homepage mismatch is an entry-link alias/vanity host vs the record's
+  // canonical host, never the wrong site — and this early return renders
+  // ABOVE the pinned reveal machinery, so holding here would hang a pinned
+  // demo forever.
+  const isWaitingForFreshLeadData = shouldWaitForFreshLeadData(
+    requestedDemoHomepage,
+    currentLeadHomepage,
+    Boolean(latestLeadData),
+    isPinnedExample,
   );
 
   if (isWaitingForFreshLeadData) {

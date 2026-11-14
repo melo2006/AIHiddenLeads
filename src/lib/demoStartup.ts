@@ -1,4 +1,47 @@
 export const pendingScanProgress = (elapsedMs: number) => Math.min(88, 88 * (1 - Math.exp(-Math.max(0, elapsedMs) / 65000)));
+
+/**
+ * Whether DemoSite holds the full-screen loading state because the
+ * lead data on screen belongs to a DIFFERENT homepage than the one
+ * the visitor asked for. The guard exists for ordinary fresh demos:
+ * cached or merged data for site A must never be presented as the
+ * demo for site B, so the page waits until data for the requested
+ * homepage arrives.
+ *
+ * PINNED EXAMPLES ARE EXEMPT (Publish #44 regression round 3
+ * follow-up, 2026-11-14). A pinned demo is identified by its leadId,
+ * and the stored record IS that example's site by construction, so a
+ * homepage mismatch can never mean "wrong site" for it — it means
+ * the entry link and the record name the site by different hosts.
+ * That is a real, permanent state for the Frank examples: their
+ * records store the pinned map's canonical domains (the businesses'
+ * primary domains, michaelmartinezrealtor.com /
+ * paulsapersteinhomes.com — the records must stay canonical because
+ * gemini-session's example-pack lookup keys off the stored URL's
+ * canonical host), while hand-shared entry links carry the agents'
+ * vanity domains (martinezrealtorsfl.com / sapersteinrealty.com).
+ * Homepage equality can never hold across those links, and holding
+ * the loader on the mismatch is fatal, not cautious: the gate
+ * early-returns ABOVE the pinned reveal machinery (stored-content
+ * reveal + the 15s deadline), so the curtain never lifted — both
+ * Frank demos sat at the 88% asymptote for every visitor arriving
+ * on a vanity-domain link, while canonical (grid) links revealed.
+ * For a pinned leadId the merged record is sufficient regardless of
+ * homepage equality, in any URL form.
+ */
+export const shouldWaitForFreshLeadData = (
+  requestedHomepage: string | null,
+  currentHomepage: string | null,
+  hasRouterLeadData: boolean,
+  isPinnedExample: boolean,
+) =>
+  Boolean(
+    requestedHomepage &&
+      !hasRouterLeadData &&
+      currentHomepage &&
+      currentHomepage !== requestedHomepage &&
+      !isPinnedExample,
+  );
 /**
  * Decide whether to start the Browserbase live view for a demo whose iframe
  * embed is blocked.
