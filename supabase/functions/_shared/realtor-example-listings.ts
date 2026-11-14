@@ -8,6 +8,7 @@
 // the Edge runtime copy; the client-side canonical copy lives in
 // src/data/realtorExampleListings.ts and a parity test
 // (src/test/realtor-example-listings.test.ts) keeps them in step.
+import { buildRealtorDiscoveryLayer } from './realtor-discovery.ts';
 export type ExampleListingType = 'house' | 'condo' | 'townhouse' | 'land' | 'multi';
 
 export interface ExampleListing {
@@ -383,7 +384,14 @@ function formatListingLine(l: ExampleListing): string {
  * the visitor has the presenter; never impersonate, never promise
  * the handoff), mirroring presenterSimulationPrompt's named-person
  * rewrite. Only that one paragraph differs; every other byte of the
- * layer is shared, and Sara's segment build never passes the flag. */
+ * layer is shared, and Sara's segment build never passes the flag.
+ *
+ * PRESENTER DISCOVERY (presenter-realtor-discovery, 2026-11-14): the
+ * presenter variant additionally APPENDS the realtor discovery layer
+ * (realtor-discovery.ts — warm opening, buy-or-sell opener, early
+ * capture, branching discovery, recap-and-promise close) after the
+ * shared text, so all three presenters inherit the same realtor
+ * conversation. The standard layer is untouched by it. */
 export function buildExampleListingsLayer(pack: RealtorExamplePack, opts?: { presenter?: boolean }): string {
   const top = topExampleListings(pack, 3).map((l) => l.descriptor).join('; ');
   const lines = pack.listings.map(formatListingLine).join('\n');
@@ -394,12 +402,20 @@ export function buildExampleListingsLayer(pack: RealtorExamplePack, opts?: { pre
     )
     : REALTOR_EXAMPLE_SIMULATION_SCRIPT;
   const script = rawScript.replace(/\{agentName\}/g, pack.agentName);
-  return `EXAMPLE LISTINGS LAYER — THIS SIMULATION RUNS ON ${pack.agentName.toUpperCase()}'S OWN WEBSITE: this session is a one-click example simulation from our realtors page, so you are answering as the receptionist for ${pack.agentName} in ${pack.city}, on their own website, and the visitor is most likely the agent (or a colleague) testing how you would sound on their site. The listings below are ${pack.agentName}'s own active listings for this simulation. Treat them as YOUR listings: when the visitor asks what is for sale, what listings you have, or about homes in an area, answer concretely from this list — beds, baths, features and prices — and lead with the agent's own listings first, pitched FEATURE-FIRST the way the script below directs (the descriptors in this list carry the facts; the street address is a closing detail, never the headline).
+  const layer = `EXAMPLE LISTINGS LAYER — THIS SIMULATION RUNS ON ${pack.agentName.toUpperCase()}'S OWN WEBSITE: this session is a one-click example simulation from our realtors page, so you are answering as the receptionist for ${pack.agentName} in ${pack.city}, on their own website, and the visitor is most likely the agent (or a colleague) testing how you would sound on their site. The listings below are ${pack.agentName}'s own active listings for this simulation. Treat them as YOUR listings: when the visitor asks what is for sale, what listings you have, or about homes in an area, answer concretely from this list — beds, baths, features and prices — and lead with the agent's own listings first, pitched FEATURE-FIRST the way the script below directs (the descriptors in this list carry the facts; the street address is a closing detail, never the headline).
 NAME THESE FIRST: ${top}.
 THE LISTINGS:
 ${lines}
 HOW THE LISTINGS CONVERSATION FLOWS (structure — keep it conversational, never question-heavy; where the approved script below gives an exact line, use that line): the greeting stays clean, with no listing dump up front. After the introduction, offer one soft prompt about listings, ask ONE preference question (condo, house, townhouse or high-rise — near the water? bedrooms?), then pitch the listings that match FEATURE-FIRST — type, beds and baths, size, neighbourhood and the standout feature — with the street address as a closing detail, never the headline and never a read-out list of addresses. If the visitor asks about a property that is NOT on this list, say plainly that it is not one of ${pack.agentName}'s own listings, and offer the two paths: take the exact address and arrange a search with a callback, or a transfer to ${pack.agentName} right now when it is urgent or they are at the property (in this simulation, narrate that transfer — see the script below). If the visitor picks one of the listings, move toward arranging a showing — day and time. As you arrange it, take the caller's name and best callback number so ${pack.agentName} can confirm — the name early if you do not have it yet, the number as the showing firms up, read back to confirm; a brush-off is accepted at once and never asked twice.
 ${script}Never invent listings, prices, beds, baths or features beyond this list and the site knowledge already in this session; if a detail is not here, say you will confirm it with ${pack.agentName}.`;
+  // REALTOR DISCOVERY (presenter-realtor-discovery, 2026-11-14): a
+  // presenter-fronted example also carries the discovery layer — the
+  // warm opening, the buy-or-sell opener, the early capture with its
+  // reason, the branching discovery and the recap-and-promise close
+  // (realtor-discovery.ts). Presenter builds only: Sara's segment
+  // build never passes the flag, so the standard layer stays
+  // byte-identical to before.
+  return opts?.presenter ? `${layer}\n${buildRealtorDiscoveryLayer(pack)}` : layer;
 }
 
 /** Applies the EXAMPLE LISTINGS STAMP to a simulation config (mutates
