@@ -11,6 +11,15 @@ import { REALTOR_EXAMPLE_PINNED_LEADS } from '../_shared/realtor-example-pinned-
 // overwrites website_content / screenshots / brand fields), so the
 // stored knowledge tracks the agent's live site.
 //
+// website_url is the ONE field a refresh must never move: a pinned
+// lead's stored URL stays at the pinned map's value (the business's
+// canonical domain) forever — the demo loader keys the pinned reveal
+// off it and gemini-session's example-pack lookup matches its
+// canonical host. scan-website now skips the website_url write for
+// pinned leads, and this function additionally re-asserts the pinned
+// map value after every scan it triggers, so the stored URL cannot
+// drift from the map even if another write path appears.
+//
 // Invocation shape: POST { slug } or { leadId } refreshes ONE pinned
 // lead (a single scan can take ~1-2 minutes, so the schedule fires
 // one call per lead). POST {} refreshes every pinned lead
@@ -74,7 +83,19 @@ Deno.serve(async (req) => {
         }),
       });
       await res.text().catch(() => '');
-      refreshed.push({ slug: target.slug, leadId: target.leadId, ok: res.ok, httpStatus: res.status });
+      // PINNED URL PRESERVATION (2026-11-14): whatever the scan wrote,
+      // the pinned lead's stored website_url ends this refresh at the
+      // pinned map's value (target.url) — it never drifts. A failure
+      // is reported, not hidden.
+      let websiteUrlPreserved: boolean | null = null;
+      {
+        const { error: restoreError } = await db
+          .from('leads')
+          .update({ website_url: target.url })
+          .eq('id', target.leadId);
+        websiteUrlPreserved = !restoreError;
+      }
+      refreshed.push({ slug: target.slug, leadId: target.leadId, ok: res.ok, httpStatus: res.status, websiteUrlPreserved });
     } catch (e) {
       refreshed.push({ slug: target.slug, leadId: target.leadId, ok: false, reason: `scan_invoke_failed: ${String(e).slice(0, 200)}` });
     }
