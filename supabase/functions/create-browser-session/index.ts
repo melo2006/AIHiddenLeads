@@ -1,3 +1,5 @@
+import { buildCookieConsentDismissalScript } from "../_shared/cookie-consent-dismissal.ts";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -110,19 +112,23 @@ Deno.serve(async (req) => {
 
 async function navigateViaCDP(connectUrl: string, targetUrl: string): Promise<boolean> {
   return new Promise((resolve) => {
+    let loadFired = false;
     const timeout = setTimeout(() => {
-      cleanup(false);
-    }, 9000);
+      cleanup(loadFired);
+    }, 20000);
 
     let msgId = 0;
     let resolved = false;
     let pageSessionId: string | null = null;
     let navigateRequestId: number | null = null;
+    const evaluateRequestIds = new Set<number>();
+    const dismissalTimers: ReturnType<typeof setTimeout>[] = [];
 
     const cleanup = (result: boolean, ws?: WebSocket) => {
       if (resolved) return;
       resolved = true;
       clearTimeout(timeout);
+      for (const t of dismissalTimers) clearTimeout(t);
       try {
         ws?.close();
       } catch {
@@ -194,9 +200,46 @@ async function navigateViaCDP(connectUrl: string, targetUrl: string): Promise<bo
             }
           }
 
+          // Response to a consent-dismissal Runtime.evaluate
+          if (typeof data.id === "number" && evaluateRequestIds.has(data.id)) {
+            evaluateRequestIds.delete(data.id);
+            const value = data.result?.result?.value;
+            if (value) {
+              console.log("Cookie consent dismissal:", JSON.stringify(value));
+            } else if (data.result?.exceptionDetails) {
+              console.warn("Cookie consent dismissal evaluate failed:", JSON.stringify(data.result.exceptionDetails).slice(0, 300));
+            }
+          }
+
           if (data.method === "Page.loadEventFired" && data.sessionId === pageSessionId) {
             console.log("Page load event fired");
-            cleanup(true, ws);
+            loadFired = true;
+            // Dismiss the site's cookie-consent banner inside the remote
+            // browser before the live view reaches the visitor — demo
+            // surfaces must not sit behind a privacy banner. The shared
+            // script prefers Reject/Decline and only falls back to Accept
+            // when no refusal exists; it also keeps watching in-page for
+            // late banners. Dismissal problems never fail the session.
+            const sid = pageSessionId;
+            if (!sid) {
+              cleanup(true, ws);
+            } else {
+              try {
+                send(ws, "Runtime.enable", undefined, sid);
+                const expression = buildCookieConsentDismissalScript({ observeMs: 5000 });
+                const evaluateNow = () => {
+                  if (resolved) return;
+                  const id = send(ws, "Runtime.evaluate", { expression, returnByValue: true }, sid);
+                  evaluateRequestIds.add(id);
+                };
+                evaluateNow();
+                dismissalTimers.push(setTimeout(evaluateNow, 1500));
+                dismissalTimers.push(setTimeout(evaluateNow, 3500));
+                dismissalTimers.push(setTimeout(() => cleanup(true, ws), 5200));
+              } catch {
+                cleanup(true, ws);
+              }
+            }
           }
 
           if (data.method === "Inspector.targetCrashed") {
