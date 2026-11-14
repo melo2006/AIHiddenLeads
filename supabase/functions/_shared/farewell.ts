@@ -57,6 +57,22 @@ const PRESENTER_PERSONA_IDS: ReadonlySet<string> = new Set([
  * stamp, so the speaker who was live at the goodbye is thanked.
  * Platform sessions carry 'Aspen' and stay byte-identical.
  */
+/**
+ * True when the session config carries a whole-demo presenter stamp
+ * (config.demoPresenter ∈ the presenter ids) — the same stamp
+ * farewellSpeakerName resolves the banner name from. The proxy's
+ * double-close gate (farewell-double-close fix, 2026-11-14) keys on
+ * this predicate so its post-farewell output suppression applies to
+ * exactly the presenter-fronted sessions the defect was proven on,
+ * and to no Aspen-fronted or persona-segment session.
+ */
+export function hasPresenterStamp(
+  config: { demoPresenter?: unknown } | null | undefined,
+): boolean {
+  const presenter = typeof config?.demoPresenter === 'string' ? config.demoPresenter : '';
+  return PRESENTER_PERSONA_IDS.has(presenter);
+}
+
 export function farewellSpeakerName(
   config: { name?: unknown; demoPresenter?: unknown } | null | undefined,
 ): string {
