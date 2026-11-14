@@ -3289,7 +3289,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const transferPill = phase === 'live' && handoffToken ? <BrowserVoiceHandoff pill token={handoffToken} onActive={onHandoffActive} onEnded={onHandoffEnded} microphone={microphone} startSignal={handoffStartSignal}/> : null;
 
   if (!previewOnly && !consentReady && !prewarm) return <div className="space-y-3 p-3 text-foreground">
-    {faceFirst && <PersonPortrait name={name} avatarUrl={avatarUrl} nameLabel />}
+    {faceFirst && <PersonPortrait name={name} avatarUrl={avatarUrl} nameLabel flat />}
     {windowControls}
     {belowAvatar}
     <div className="space-y-3 rounded-md bg-card p-3">
@@ -3631,7 +3631,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   if (compact) {
     return (
       <div className={faceFirst ? "flex h-full min-h-0 flex-1 flex-col px-2 pb-2 pt-0 text-foreground" : "space-y-2 p-2 text-foreground"}>
-        {faceFirst ? <div className="aspen-person-livebox relative z-0 mx-auto shrink-0 overflow-hidden"><div className={`h-full w-full ${faceLive ? 'invisible' : ''}`}><PersonPortrait name={name} avatarUrl={avatarUrl} animated={false} /></div>{avatarView}{stagedAvatarView}{!focusView && <PersonaNameLabel name={personaLabelName} />}</div> : <>{avatarView}{stagedAvatarView}</>}
+        {faceFirst ? <div className="aspen-person-livebox relative z-0 mx-auto shrink-0 overflow-hidden"><div className={`h-full w-full ${faceLive ? 'invisible' : ''}`}><PersonPortrait name={name} avatarUrl={avatarUrl} animated={false} flat={focusView} /></div>{avatarView}{stagedAvatarView}{!focusView && <PersonaNameLabel name={personaLabelName} />}</div> : <>{avatarView}{stagedAvatarView}</>}
         {!faceFirst && windowControls}
         {!faceFirst && toggleManagerRow}
         <div className={faceFirst ? 'aspen-voice-panel relative z-10 flex min-h-0 flex-1 flex-col space-y-1.5 rounded-lg border border-primary/40 bg-card p-2 shadow-lg ring-1 ring-foreground/10' : 'space-y-2'}>

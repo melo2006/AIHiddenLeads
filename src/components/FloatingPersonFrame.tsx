@@ -34,9 +34,9 @@ export function PersonaNameLabel({ name, variant = 'overlay' }: { name: string; 
   </span>;
 }
 
-export function PersonPortrait({ name = 'Aspen', avatarUrl, animated = true, nameLabel = false }: { name?: string; avatarUrl?: string; animated?: boolean; /** Overlay the PersonaNameLabel at the portrait's bottom edge (chat mode + the consent screen). The livebox does NOT pass this: its label is driven by the conversation's active persona and rendered at livebox level, over portrait and live video alike. */ nameLabel?: boolean }) {
+export function PersonPortrait({ name = 'Aspen', avatarUrl, animated = true, nameLabel = false, flat = false }: { name?: string; avatarUrl?: string; animated?: boolean; /** Overlay the PersonaNameLabel at the portrait's bottom edge (chat mode + the consent screen). The livebox does NOT pass this: its label is driven by the conversation's active persona and rendered at livebox level, over portrait and live video alike. */ nameLabel?: boolean; /** TRUE transparency (2026-11-14): suppress the portrait backdrop gradient. The gradient is the LIVEBOX still's designed in-frame backdrop (2026-11-11 black-frame fix); every surface where the portrait floats undocked — chat mode above its dock, the voice consent card, the focus view — passes flat so no rectangular backdrop paints over the page. */ flat?: boolean }) {
   const src = avatarUrl || (animated ? aspenIdleBeckon : aspenPortrait);
-  const img = <img src={src} alt={name} width={512} height={512} decoding="async" draggable={false} className={`aspen-person-portrait mx-auto object-cover object-top ${animated ? 'aspen-portrait-idle' : ''}`} />;
+  const img = <img src={src} alt={name} width={512} height={512} decoding="async" draggable={false} className={`aspen-person-portrait mx-auto object-cover object-top ${animated ? 'aspen-portrait-idle' : ''}${flat ? ' aspen-person-portrait-flat' : ''}`} />;
   if (!nameLabel) return img;
   return <span className="relative block shrink-0">{img}<PersonaNameLabel name={name} /></span>;
 }
@@ -205,9 +205,20 @@ export default function FloatingPersonFrame({ name = 'Aspen', avatarUrl, open, m
   const bubblePhoto = avatarUrl === undefined ? aspenIdleBeckon : avatarUrl;
   const stage = open ? 2 : minimized ? (stage3 ? 3 : 0) : 1;
   return <section aria-label={`${name} floating assistant`} className={`aspen-person-shell relative ${open ? 'aspen-person-expanded' : 'aspen-person-collapsed'} ${open && focus ? 'aspen-person-focus' : ''} ${stage === 1 ? 'aspen-person-stage1 items-center' : ''} ${stage === 3 ? 'aspen-person-stage3' : ''} ${stage === 0 ? '!w-24 items-center' : ''}`}>
-    {open && mode === 'chat' && <PersonPortrait name={name} avatarUrl={avatarUrl} nameLabel />}
-    {open && mode === 'chat' && <AspenWindowControls onMinimize={onMinimize} onClose={onClose} />}
-    {open && mode === 'chat' && <AspenModeToggle mode={mode} onMode={onMode} />}
+    {open && mode === 'chat' && <PersonPortrait name={name} avatarUrl={avatarUrl} nameLabel flat />}
+    {/* CHAT DOCK (2026-11-14, Ron's phone test): in chat mode the window
+        controls, the Voice/Type toggle and the chat surface used to be
+        three bare siblings floating over the page under a portrait whose
+        backdrop gradient painted a pasted rectangle — "he floats around
+        and there's transparent there, he's not sitting on the base".
+        They now share ONE dock card styled exactly like the voice panel
+        card, and the portrait (flat = truly transparent) ends at the
+        dock's top border, the Publish #38 rule, same as voice mode. */}
+    {open && mode === 'chat' && <div data-testid="aspen-chat-dock" className="aspen-chat-dock relative z-10 flex min-h-0 flex-1 flex-col gap-1 rounded-lg border border-primary/40 bg-card p-2 shadow-lg ring-1 ring-foreground/10">
+      <AspenWindowControls onMinimize={onMinimize} onClose={onClose} />
+      <AspenModeToggle mode={mode} onMode={onMode} />
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">{children}</div>
+    </div>}
     {stage === 1 && <Button variant="ghost" onClick={onOpen} title={inviteArrival ? `Hear ${firstName || 'Aspen'}` : talkLabel} aria-label={inviteArrival ? `Hear ${firstName || 'Aspen'} — tap to hear your demo` : talkLabel} className="flex h-auto flex-col items-center gap-1.5 p-0 hover:bg-transparent">
       <span className="relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border border-primary/60 bg-primary text-primary-foreground shadow-lg">
         {bubblePhoto ? <img src={bubblePhoto} alt="" draggable={false} className="aspen-bubble-face h-full w-full" /> : <Mic className="h-8 w-8" />}
@@ -239,7 +250,7 @@ export default function FloatingPersonFrame({ name = 'Aspen', avatarUrl, open, m
         <button type="button" className={barButton} onClick={onOpen} title="Maximize" aria-label="Maximize"><Maximize2 className="h-[18px] w-[18px]" /></button>
       </div>
     </div>}
-    <div className={open ? 'flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain' : keepRendered ? 'aspen-prewarm-offscreen' : 'hidden'} aria-hidden={!open || undefined}>{children}</div>
+    {!(open && mode === 'chat') && <div className={open ? 'flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain' : keepRendered ? 'aspen-prewarm-offscreen' : 'hidden'} aria-hidden={!open || undefined}>{children}</div>}
     {open && <p className="shrink-0 text-center text-[10px] leading-tight text-muted-foreground">Calls are recorded</p>}
   </section>;
 }
