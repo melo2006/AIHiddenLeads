@@ -440,43 +440,27 @@
     "benefits": {
       "videoAvatar": {
         "headline": "Não É Só Uma Voz — Um Rosto no Seu Site",
-        "body": "Aspen é um avatar de vídeo ao vivo: sua porta-voz de IA. Ela recebe os visitantes cara a cara no seu site e explica o que você oferece."
+        "body": "Conheça sua porta-voz de IA: um avatar de vídeo ao vivo que recebe os visitantes cara a cara no seu site e explica o que você oferece."
       },
       "missCall": {
         "headline": "Nunca Mais Perca Uma Ligação",
-        "body": "Sua recepcionista de IA atende 24/7 — noites, fins de semana e feriados — para transformar cada ligação em oportunidade."
+        "body": "Sua recepcionista de IA atende cada ligação na hora, 24/7 — noites, fins de semana e feriados — para você nunca perder um lead."
+      },
+      "leadCapture": {
+        "headline": "Cada Lead, Capturado",
+        "body": "Cada conversa captura o nome de quem ligou, o que a pessoa precisa e o melhor número para retorno, pronto para o seu acompanhamento."
+      },
+      "appointments": {
+        "headline": "Agendamentos Instantâneos",
+        "body": "A reserva começa pela preferência de quem liga — primeiro o horário preferido — e é confirmada na hora. Chega de ficar tentando falar por telefone."
+      },
+      "warmTransfer": {
+        "headline": "Transferência ao Vivo — Você Mantém o Controle",
+        "body": "Quando uma ligação precisa de uma pessoa, ela é transferida ao vivo para você com um resumo da conversa — você mantém o controle de cada ligação."
       },
       "prospects": {
         "headline": "Prospectos Novos Todo Mês",
         "body": "O Premium inclui até 50 prospectos B2B novos por mês, em lotes semanais — a quantidade varia conforme o mercado e nenhum número específico é garantido."
-      },
-      "yourListings": {
-        "headline": "Ela Vende Primeiro os Seus Anúncios",
-        "body": "Aspen aprende o seu negócio a partir do seu próprio site e começa pelos seus próprios anúncios e serviços — nunca um roteiro genérico."
-      },
-      "warmTransfer": {
-        "headline": "Transferência ao Vivo — Você Mantém o Controle",
-        "body": "Quando uma ligação precisa de uma pessoa, Aspen transfere ao vivo para você com um resumo da conversa — você mantém o controle de cada ligação."
-      },
-      "appointments": {
-        "headline": "Agendamentos Instantâneos",
-        "body": "A IA agenda, remarca e faz follow-up automaticamente. Chega de ficar tentando falar por telefone."
-      },
-      "followUp": {
-        "headline": "Acompanhamento Depois da Ligação",
-        "body": "Com a permissão de quem ligou, Aspen envia mensagens de texto e e-mails de acompanhamento após a ligação — resumos, links de agendamento e lembretes — para nenhum lead esfriar."
-      },
-      "wizardSetup": {
-        "headline": "Comece Você Mesmo em Cerca de 15 Minutos",
-        "body": "Você não precisa de equipe técnica. O assistente de configuração orienta você passo a passo: adicione seu site, suas perguntas frequentes e sua voz, e você já está no caminho."
-      },
-      "pricing": {
-        "headline": "Planos a Partir de $99 por Mês",
-        "body": "O Premium custa $99 por mês com 400 minutos de voz incluídos. O avatar de vídeo é um adicional opcional — grátis no primeiro mês, depois $79 por mês só se você mantiver."
-      },
-      "callSummary": {
-        "headline": "Cada Ligação, Resumida Para Você",
-        "body": "Cada ligação chega ao seu painel como um resumo curto com a transcrição completa, para você sempre saber o que seus clientes pediram."
       }
     }
   },
