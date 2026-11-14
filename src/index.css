@@ -191,6 +191,15 @@
      backdrop (theme tones) instead of whatever page color is behind it, so the
      waving cutout's edge shadow reads consistently on light and dark sites. */
   .aspen-person-portrait { background: radial-gradient(115% 100% at 50% 0%, hsl(var(--primary) / 0.10), hsl(var(--muted) / 0.35) 78%); }
+  /* Floating states (Ron's phone test, 2026-11-14): wherever the portrait
+     is NOT seated inside the livebox frame — the chat-mode presenter above
+     its dock, the voice consent card, the focus view's still — it floats
+     with TRUE transparency. The gradient above is the livebox still's
+     designed backdrop (2026-11-11 black-frame fix: the panel's tone,
+     never black, inside the clipped livebox only); painted on an undocked
+     portrait it reads as a pasted semi-transparent rectangle over the
+     page, which is exactly what Ron photographed. */
+  .aspen-person-portrait.aspen-person-portrait-flat { background: none; }
   .aspen-voice-panel { position: relative; z-index: 10; min-height: 232px; }
   /* Caption home (2026-11-11): a FIXED 86px = 3 full caption lines
      (3 x 24px leading-6) + the box's p-1.5 padding (12px) and border
@@ -264,6 +273,12 @@
   .aspen-chat-content { display: flex; flex: 1; min-height: 0; overflow: hidden; }
   .aspen-chat-content.hidden { display: none; }
   .aspen-chat-content > div { display: flex; flex: 1; min-height: 0; flex-direction: column; }
+  /* Chat dock (2026-11-14): inside FloatingPersonFrame's ONE chat dock
+     card, the chat surface's own .aspen-panel wrapper drops its card
+     chrome (border / background / shadow / ring) so the window controls,
+     the Voice/Type toggle and the chat thread read as a single base the
+     presenter sits on — not a second card nested in the first. */
+  .aspen-chat-dock .aspen-panel { border-color: transparent; background-color: transparent; box-shadow: none; --tw-ring-shadow: 0 0 #0000; }
   .visibility-map { background: hsl(var(--muted) / 0.45); }
   .visibility-map button.audit-rank-good:hover { color: hsl(var(--primary-foreground)); background: hsl(var(--primary)); }
   .visibility-map button.audit-rank-warning:hover { color: hsl(var(--primary-foreground)); background: hsl(var(--audit-rank-warning)); }
