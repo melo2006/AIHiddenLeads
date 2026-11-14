@@ -14,7 +14,7 @@ const SIMLI = 'https://api.simli.ai';
 const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 async function sha256Hex(value: string) { return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)))).map(b => b.toString(16).padStart(2, '0')).join(''); }
 const body = z.discriminatedUnion('action', [
-  z.object({ action: z.literal('session'), agentId: z.string().max(80).optional(), shareToken: z.string().max(80).optional(), draft: z.boolean().optional(), faceId: z.string().max(80).optional(), guide: z.enum(['alex']).optional(), persona: z.enum(['aspen', 'sara', 'alex', 'frank']).optional(), parentSessionId: z.string().uuid().optional(), visitorKey: z.string().min(16).max(100).optional(), leadId: z.string().uuid().optional() }),
+  z.object({ action: z.literal('session'), agentId: z.string().max(80).optional(), shareToken: z.string().max(80).optional(), draft: z.boolean().optional(), faceId: z.string().max(80).optional(), guide: z.enum(['alex']).optional(), persona: z.enum(['aspen', 'sara', 'alex', 'frank', 'latina', 'black-professional-lady']).optional(), parentSessionId: z.string().uuid().optional(), visitorKey: z.string().min(16).max(100).optional(), leadId: z.string().uuid().optional() }),
   z.object({ action: z.literal('faces') }),
   z.object({ action: z.literal('createFace'), agentId: z.string().uuid().optional(), name: z.string().min(1).max(60), imageBase64: z.string().min(100).max(14_000_000), mimeType: z.enum(['image/png', 'image/jpeg', 'image/webp']) }),
   z.object({ action: z.literal('avatarCredit'), agentId: z.string().uuid() }),

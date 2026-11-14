@@ -40,7 +40,7 @@ import {
   VOICES,
 } from './voice-config.ts';
 
-export type PersonaId = 'aspen' | 'sara' | 'alex' | 'frank';
+export type PersonaId = 'aspen' | 'sara' | 'alex' | 'frank' | 'latina' | 'black-professional-lady';
 /** All segment boundaries: the Stage 1 simulation family plus the team
  *  intro family (design: team-intro-design-2026-11-09.md §4.1). The two
  *  families are disjoint and phase-gated against their own parent class
@@ -87,6 +87,31 @@ export const FRANK_VOICE = 'Charon';
  *  the customer-facing name is the binding's displayName below). */
 export const FRANK_FACE_ID = 'b3f85f7f-57ea-4f24-b1f6-a57229b4fae1';
 
+/** Latina's voice. ONE named constant: Sulafat — the warm female in
+ *  the Gemini Live set (Google's own descriptor for it is "Warm");
+ *  the warmest read available for the Latina face, against Sara=Leda
+ *  and Aspen=Kore. ⚠️ MUSE'S PICK (2026-11-13), not Ron-settled —
+ *  the Gemini Live library carries no accent-specific Latina voice,
+ *  so warmth is what was optimized for; a future change is a one-line
+ *  edit here and nowhere else. */
+export const LATINA_VOICE = 'Sulafat';
+/** The custom Trinity-2 "Latina Green Eyes" face, created 2026-11-13
+ *  (Simli auto-name "Radical Spider" — never shown to customers; the
+ *  customer-facing name is the binding's displayName below). */
+export const LATINA_FACE_ID = 'e0d7b128-40a7-4d03-ac84-ef4c54b92450';
+
+/** Black Professional Lady's voice. ONE named constant: Despina —
+ *  the smooth, polished professional female in the Gemini Live set
+ *  (Google's descriptor: "Smooth"), distinct from Kore/Leda/Sulafat.
+ *  ⚠️ MUSE'S PICK (2026-11-13), not Ron-settled; a future change is
+ *  a one-line edit here and nowhere else. */
+export const BLACK_PROFESSIONAL_LADY_VOICE = 'Despina';
+/** The custom Trinity-2 "Black Professional Lady" face, created
+ *  2026-11-13 (Simli auto-name "Unpleasant Lemur" — never shown to
+ *  customers; the customer-facing name is the binding's displayName
+ *  below). */
+export const BLACK_PROFESSIONAL_LADY_FACE_ID = '9344d4c1-6b69-43e7-a73f-ddc15d1a3f75';
+
 export const PERSONAS: Record<PersonaId, PersonaBinding> = {
   aspen: {
     id: 'aspen',
@@ -128,6 +153,34 @@ export const PERSONAS: Record<PersonaId, PersonaBinding> = {
     portraitFaceId: FRANK_FACE_ID,
     role: 'receptionist',
   },
+  latina: {
+    // EXAMPLE PRESENTER (Ladies batch, 2026-11-13): same whole-demo
+    // presenter shape as Frank — she FRONTS her mapped examples in
+    // one session, composed by gemini-session from the legacy
+    // whole-demo prompt bound to this binding. ⚠️ Her displayName
+    // here is a WORKING LABEL ("Latina"), not a Ron-settled name —
+    // the name lives in exactly this one config place, so settling
+    // it later is a one-line change, same as her voice pick above.
+    id: 'latina',
+    displayName: 'Latina',
+    voiceName: LATINA_VOICE,
+    faceId: LATINA_FACE_ID,
+    portraitFaceId: LATINA_FACE_ID,
+    role: 'receptionist',
+  },
+  'black-professional-lady': {
+    // EXAMPLE PRESENTER (Ladies batch, 2026-11-13): same whole-demo
+    // presenter shape as Frank and Latina. ⚠️ Her displayName here
+    // is the DESCRIPTIVE WORKING LABEL ("Black Professional Lady"),
+    // not a Ron-settled name — one config place, one-line change
+    // when he settles it, same as her voice pick above.
+    id: 'black-professional-lady',
+    displayName: 'Black Professional Lady',
+    voiceName: BLACK_PROFESSIONAL_LADY_VOICE,
+    faceId: BLACK_PROFESSIONAL_LADY_FACE_ID,
+    portraitFaceId: BLACK_PROFESSIONAL_LADY_FACE_ID,
+    role: 'receptionist',
+  },
 };
 
 export function personaFor(id: PersonaId): PersonaBinding {
@@ -135,7 +188,7 @@ export function personaFor(id: PersonaId): PersonaBinding {
 }
 
 export function isPersonaId(value: unknown): value is PersonaId {
-  return value === 'aspen' || value === 'sara' || value === 'alex' || value === 'frank';
+  return value === 'aspen' || value === 'sara' || value === 'alex' || value === 'frank' || value === 'latina' || value === 'black-professional-lady';
 }
 
 /** Integrity guard used by tests: every bound voice must be a real Gemini

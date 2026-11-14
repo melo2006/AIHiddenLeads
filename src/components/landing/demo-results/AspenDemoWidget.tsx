@@ -9,11 +9,15 @@ import AssistantErrorBoundary from '@/components/AssistantErrorBoundary';
 import AspenSalesActions from '@/components/AspenSalesActions';
 import { matchingAspenVideo } from '@/lib/aspenFace';
 import { PersonPortrait } from '@/components/FloatingPersonFrame';
-import { PERSONAS, FRANK_FACE_ID } from '../../../../supabase/functions/_shared/personas';
+import { PERSONAS } from '../../../../supabase/functions/_shared/personas';
 import { presenterForExampleLeadId } from '@/data/realtorExamplePinnedLeads';
 import { SIMLI_FACE_CATALOG } from '@/lib/simliFaceCatalog';
 
-const frankPortrait = SIMLI_FACE_CATALOG.find(f => f.id === FRANK_FACE_ID)?.image;
+/** A presenter's still portrait: the catalogue image keyed by the
+ *  persona registry's own portraitFaceId (Frank batch pattern —
+ *  covers every solo presenter, Frank and the ladies alike). */
+const presenterPortraitFor = (presenter: keyof typeof PERSONAS): string | undefined =>
+  SIMLI_FACE_CATALOG.find(f => f.id === PERSONAS[presenter].portraitFaceId)?.image;
 
 type Props = React.ComponentProps<typeof ChatWidget> & {
   voiceRequested?: boolean;
@@ -60,7 +64,7 @@ function AspenDemoWidgetContent({ voiceRequested = false, onClosed, onAssistantR
   // session + face against its own map copy regardless).
   const presenter = sample ? presenterForExampleLeadId(chatProps.leadId) : null;
   const presenterName = presenter ? PERSONAS[presenter].displayName : undefined;
-  const presenterPortrait = presenter === 'frank' ? frankPortrait : undefined;
+  const presenterPortrait = presenter ? presenterPortraitFor(presenter) : undefined;
   // Stage 3 (minimized while talking): the frame's slim bar drives the live
   // Gemini session through its shell command surface.
   const stage3: Stage3Controls | undefined = mode === 'voice' && shellState && (shellState.live || shellState.suspended) ? {
