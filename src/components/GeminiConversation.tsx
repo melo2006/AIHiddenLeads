@@ -553,7 +553,9 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       // Keep the last spoken line in the same large caption style (no highlight) after she stops talking.
       setPlaybackCaption(previous => {
         const next = live ?? (previous ? { ...previous, word: -1 } : null);
-        return previous?.text === next?.text && previous?.word === next?.word ? previous : next;
+        // highlightEnd is part of the identity: streamed text can widen the
+        // caption highlight window while text and word stay the same.
+        return previous?.text === next?.text && previous?.word === next?.word && previous?.highlightEnd === next?.highlightEnd ? previous : next;
       });
       frame = requestAnimationFrame(update);
     };
