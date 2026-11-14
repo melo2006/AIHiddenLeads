@@ -8,6 +8,7 @@ import {
   markFirecrawlRequest,
   parseRetryAfterSeconds,
 } from "../../supabase/functions/_shared/firecrawl-screenshot";
+import { CONSENT_REPORT_READBACK_SCRIPT } from "../../supabase/functions/_shared/consent-scan-probe";
 
 // The Firecrawl fallback leg moved from the deprecated v1 /scrape body
 // (whose `screenshotOptions` key Firecrawl now rejects with a 400) to the
@@ -43,11 +44,15 @@ describe("firecrawl v2 screenshot body", () => {
 describe("cookie consent dismissal actions", () => {
   const SCRIPT = "cookieConsentDismissalMain(document, {});";
 
-  it("builds wait → executeJavascript → wait actions around the dismissal script", () => {
+  it("builds wait → executeJavascript → wait → report read-back actions around the dismissal script", () => {
+    // The trailing read-back returns the dismissal's live report in
+    // actions.javascriptReturns so the scan can RECORD banner presence
+    // (Publish #49 follow-up — see _shared/consent-scan-probe.ts).
     expect(buildCookieConsentDismissalActions(SCRIPT)).toEqual([
       { type: "wait", milliseconds: 1200 },
       { type: "executeJavascript", script: SCRIPT },
       { type: "wait", milliseconds: 2500 },
+      { type: "executeJavascript", script: CONSENT_REPORT_READBACK_SCRIPT },
     ]);
   });
 

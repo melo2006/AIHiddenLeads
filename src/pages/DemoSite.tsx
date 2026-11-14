@@ -16,7 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { preloadVoiceIdentity } from "@/lib/voicePreload";
 import { linkCampaignLead } from "@/lib/campaignTracking";
-import { canPresentRawIframe, isCapturedCopyPreview, shouldHoldLoadingOverlay, shouldStartLiveView, shouldUseConsentCoveredRoute, shouldWaitForFreshLeadData, SCREENSHOT_LOAD_TIMEOUT_MS, LIVE_VIEW_LOAD_TIMEOUT_MS, PINNED_REVEAL_DEADLINE_MS } from "@/lib/demoStartup";
+import { canPresentRawIframe, isCapturedCopyPreview, resolveConsentCoveredRoute, shouldHoldLoadingOverlay, shouldStartLiveView, shouldWaitForFreshLeadData, SCREENSHOT_LOAD_TIMEOUT_MS, LIVE_VIEW_LOAD_TIMEOUT_MS, PINNED_REVEAL_DEADLINE_MS } from "@/lib/demoStartup";
 import { pinnedExampleSeedForLeadId } from "@/lib/pinnedExampleSeed";
 import DemoVerificationGate from "@/components/landing/demo-results/DemoVerificationGate";
 import DemoReassuranceStrip from "@/components/landing/DemoReassuranceStrip";
@@ -206,6 +206,8 @@ type DemoLeadRecord = Partial<{
   website_content: string;
   brand_colors: unknown;
   brand_logo: string;
+  consent_banner_seen: boolean | null;
+  consent_banner_dismissed: boolean | null;
 }>;
 
 const asBrandColors = (value: unknown) =>
@@ -236,6 +238,12 @@ const mergeLeadRecordIntoDemoData = (record: DemoLeadRecord, current: DemoLeadDa
   title: record.website_title || current.title || "",
   description: record.website_description || current.description || "",
   websiteContent: record.website_content || current.websiteContent || "",
+  // Scan-time consent verdict (Publish #49 follow-up): sticky-true
+  // within a visit — once the stored record says the capture saw a
+  // banner, the demo stays on the covered route; a record that does
+  // not carry the column yet (pre-migration RPC) simply leaves the
+  // current value alone.
+  consentBannerSeen: record.consent_banner_seen === true || current.consentBannerSeen || undefined,
   colors: asBrandColors(record.brand_colors) || current.colors || {},
   logo: record.brand_logo || current.logo || "",
 });
@@ -305,6 +313,11 @@ const DemoSite = () => {
   // the embeddable site's HTML carries a cookie/privacy-banner
   // fingerprint, so the raw iframe's banner could never be dismissed
   // — the live presentation routes through the covered live view.
+  // Publish #49 follow-up: this probe verdict is now the SECONDARY
+  // signal. The primary witness is the stored scan flag on the lead
+  // record (leadData.consentBannerSeen) — the capture pipeline saw
+  // the real page even when the probe's datacenter fetch was walled
+  // (Martinez). resolveConsentCoveredRoute applies the precedence.
   const [consentDetected, setConsentDetected] = useState(false);
   const [isIframeCheckPending, setIsIframeCheckPending] = useState(false);
   const [resolvedIframeUrl, setResolvedIframeUrl] = useState<string | null>(null);
@@ -859,7 +872,14 @@ const DemoSite = () => {
     // iframe's banner cannot be dismissed cross-origin. The stored
     // screenshot does NOT gate this start (it is only the interim
     // visual); see shouldStartLiveView in demoStartup.ts.
-    const consentCoveredRoute = shouldUseConsentCoveredRoute(
+    // Publish #49 follow-up: the stored scan flag
+    // (leadData.consentBannerSeen) is the primary witness and
+    // outranks the probe — a TRUE flag starts the covered view even
+    // when the probe calls the site unreachable, and when the flag
+    // arrives mid-visit (this visit's own scan completing) this
+    // effect re-runs on the flag dep and starts it then.
+    const consentCoveredRoute = resolveConsentCoveredRoute(
+      leadData?.consentBannerSeen === true,
       consentDetected,
       requiresBrowserFallback,
       iframeFailureMode === "unreachable",
@@ -914,7 +934,7 @@ const DemoSite = () => {
     };
 
     void startLiveView();
-  }, [consentDetected, hasScreenshotFailed, iframeBlocked, iframeFailureMode, leadData?.websiteUrl, liveViewFailed, liveViewUrl, resolvedIframeUrl, screenshotSrc]);
+  }, [consentDetected, hasScreenshotFailed, iframeBlocked, iframeFailureMode, leadData?.consentBannerSeen, leadData?.websiteUrl, liveViewFailed, liveViewUrl, resolvedIframeUrl, screenshotSrc]);
 
   // A live view session that was created but whose iframe never loads
   // (stalled Browserbase page, blocked third-party frame) must not
@@ -996,13 +1016,16 @@ const DemoSite = () => {
   // covered route mid-start and falsely earn the captured-copy note.
   useEffect(() => {
     if (isScanning || isIframeCheckPending || iframeBlocked || hasIframeLoaded || !resolvedIframeUrl) return;
-    if (consentDetected && iframeFailureMode === null) return;
+    // Any consent evidence — the probe's fingerprint OR the stored
+    // scan flag — exempts the site: on the covered route the raw
+    // iframe is deliberately unmounted while the covered view starts.
+    if ((consentDetected || leadData?.consentBannerSeen === true) && iframeFailureMode === null) return;
     const timer = window.setTimeout(() => {
       setIframeBlocked(true);
       setIframeFailureMode("blocked");
     }, 8000);
     return () => window.clearTimeout(timer);
-  }, [consentDetected, isScanning, isIframeCheckPending, iframeBlocked, iframeFailureMode, hasIframeLoaded, resolvedIframeUrl]);
+  }, [consentDetected, leadData?.consentBannerSeen, isScanning, isIframeCheckPending, iframeBlocked, iframeFailureMode, hasIframeLoaded, resolvedIframeUrl]);
 
   const maskGateEmail = (email?: string) => {
     if (!email) return "your email";
@@ -1108,7 +1131,12 @@ const DemoSite = () => {
   // presentation and the raw iframe is held back as the last resort
   // (canPresentRawIframe releases it only when the covered view has
   // failed). See demoStartup.ts for the routing rationale.
-  const consentCoveredRoute = shouldUseConsentCoveredRoute(
+  // Publish #49 follow-up: the stored scan flag is the primary
+  // witness — TRUE routes covered even when the probe verdict is
+  // "unreachable" (its datacenter fetch was walled; the visitor's
+  // browser and the covered view can still load the site).
+  const consentCoveredRoute = resolveConsentCoveredRoute(
+    leadData?.consentBannerSeen === true,
     consentDetected,
     requiresBrowserFallback,
     isWebsiteUnreachable,

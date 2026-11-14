@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { expect, test } from "vitest";
-import { canPresentRawIframe, pendingScanProgress, shouldStartLiveView, shouldStartRemotePreview, shouldUseConsentCoveredRoute, shouldWaitForFreshLeadData } from "../lib/demoStartup";
+import { canPresentRawIframe, pendingScanProgress, resolveConsentCoveredRoute, shouldStartLiveView, shouldStartRemotePreview, shouldUseConsentCoveredRoute, shouldWaitForFreshLeadData } from "../lib/demoStartup";
 test("unfinished scans never report 100 percent or exceed 88 percent", () => {
   for (const ms of [0, 13200, 30000, 90000, 300000, 3600000]) expect(pendingScanProgress(ms)).toBeLessThanOrEqual(88);
   expect(pendingScanProgress(13200)).toBeLessThan(30);
@@ -79,6 +79,27 @@ test("consent-covered route engages only for embeddable, reachable, banner-detec
   // Unreachable sites keep their own chain.
   expect(shouldUseConsentCoveredRoute(true, false, true)).toBe(false);
   expect(shouldUseConsentCoveredRoute(false, true, true)).toBe(false);
+});
+test("a stored TRUE scan flag outranks every probe verdict — even unreachable (Publish #49 follow-up)", () => {
+  // The #49 failure: the probe's datacenter fetch was bot-walled, so it
+  // answered unreachable + no detection, and the raw iframe shipped the
+  // banner. The scan's capture browser SAW the banner, so its stored
+  // flag decides — probe state is irrelevant in every combination.
+  expect(resolveConsentCoveredRoute(true, false, false, true)).toBe(true);
+  expect(resolveConsentCoveredRoute(true, false, false, false)).toBe(true);
+  expect(resolveConsentCoveredRoute(true, false, true, false)).toBe(true);
+  expect(resolveConsentCoveredRoute(true, true, true, true)).toBe(true);
+});
+test("with no stored TRUE, the resolver defers to the probe semantics unchanged", () => {
+  // Probe-detected banner on an embeddable, reachable site → covered.
+  expect(resolveConsentCoveredRoute(false, true, false, false)).toBe(true);
+  // Probe unreachable + no scan flag → the unreachable chain, as today.
+  expect(resolveConsentCoveredRoute(false, true, false, true)).toBe(false);
+  expect(resolveConsentCoveredRoute(false, false, false, true)).toBe(false);
+  // A stored FALSE (scan witnessed no banner) never forces the covered
+  // route by itself — the fast raw-iframe path is preserved.
+  expect(resolveConsentCoveredRoute(false, false, false, false)).toBe(false);
+  expect(resolveConsentCoveredRoute(false, false, true, false)).toBe(false);
 });
 test("covered route starts the live view even when a stored screenshot exists and loads", () => {
   // The screenshot is only the interim visual on the covered route —
