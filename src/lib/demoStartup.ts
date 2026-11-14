@@ -34,3 +34,32 @@ export const isCapturedCopyPreview = (
   hasScreenshot &&
   !screenshotFailed &&
   !liveViewActive;
+
+/**
+ * Whether the full-screen "building your demo" curtain stays up.
+ *
+ * Normally the curtain also waits for Aspen's first voice session to be
+ * prepared (assistantReady) so the reveal is complete. A PINNED example
+ * (fastReveal) must not wait for that: its site preview is already real
+ * the moment the stored screenshot/iframe paints, and the widget carries
+ * its own visible "Connecting…" state — holding the scanning curtain
+ * until the voice session warms up is what made pre-scanned examples
+ * look stuck at the progress asymptote (2026-11-13, Ron's phone test of
+ * the Saperstein/Steinberg pinned links).
+ */
+export const shouldHoldLoadingOverlay = (
+  isPreviewLoading: boolean,
+  hasAnyPreview: boolean,
+  assistantReady: boolean,
+  fastReveal: boolean,
+) => isPreviewLoading || (hasAnyPreview && !assistantReady && !fastReveal);
+
+/**
+ * A stored screenshot that neither loads nor errors (stalled connection,
+ * hung CDN edge) must not hold the demo curtain forever. After this
+ * budget the screenshot is treated as failed, which releases the
+ * Browserbase live view and, failing that, the scan-content preview —
+ * the visitor always lands on content, never on an endless curtain or
+ * a black area.
+ */
+export const SCREENSHOT_LOAD_TIMEOUT_MS = 12000;

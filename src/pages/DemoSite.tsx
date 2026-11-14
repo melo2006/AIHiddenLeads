@@ -16,7 +16,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { preloadVoiceIdentity } from "@/lib/voicePreload";
 import { linkCampaignLead } from "@/lib/campaignTracking";
-import { isCapturedCopyPreview, shouldStartRemotePreview } from "@/lib/demoStartup";
+import { isCapturedCopyPreview, shouldHoldLoadingOverlay, shouldStartRemotePreview, SCREENSHOT_LOAD_TIMEOUT_MS } from "@/lib/demoStartup";
+import { pinnedExampleSeedForLeadId } from "@/lib/pinnedExampleSeed";
 import DemoVerificationGate from "@/components/landing/demo-results/DemoVerificationGate";
 import DemoReassuranceStrip from "@/components/landing/DemoReassuranceStrip";
 import {
@@ -240,7 +241,23 @@ const DemoSite = () => {
 
 
   const latestLeadData = location.state?.leadData as DemoLeadData | undefined;
-  const [leadData, setLeadData] = useState<DemoLeadData | undefined>(latestLeadData);
+  // Pinned one-click example: the client pinned maps know this leadId's
+  // business name and URL, so seed the page synchronously — the real
+  // name is on the first frame instead of a hostname/"Business"
+  // placeholder while get_demo_lead is in flight, and the stored lead
+  // record merges over this seed when it lands. An unknown leadId gets
+  // no seed and follows the normal load path.
+  const pinnedExampleSeed = pinnedExampleSeedForLeadId(searchParams.get("leadId"));
+  const isPinnedExample = Boolean(pinnedExampleSeed);
+  const [leadData, setLeadData] = useState<DemoLeadData | undefined>(
+    latestLeadData ||
+      (pinnedExampleSeed
+        ? buildSeedLeadData({
+            websiteUrl: pinnedExampleSeed.websiteUrl,
+            businessName: pinnedExampleSeed.businessName,
+          })
+        : undefined),
+  );
   const [voiceOpen, setVoiceOpen] = useState(false);
   // Verified Demo Gate: engaged only when the intake sent gate=1. The gate
   // activates at the reveal moment (scan done, preview about to show); while
@@ -354,6 +371,19 @@ const DemoSite = () => {
     setHasScreenshotLoaded(false);
     setHasScreenshotFailed(false);
   }, [responsiveScreenshotSrc]);
+
+  // A stored screenshot that neither loads nor errors (stalled
+  // connection) must not pin the loading curtain forever: after the
+  // budget it counts as failed, which releases the Browserbase live
+  // view and, failing that, the scan-content preview — never blackness.
+  useEffect(() => {
+    if (!responsiveScreenshotSrc || responsiveScreenshotSrc.startsWith("data:")) return;
+    if (hasScreenshotLoaded || hasScreenshotFailed) return;
+    const timer = window.setTimeout(() => {
+      setHasScreenshotFailed(true);
+    }, SCREENSHOT_LOAD_TIMEOUT_MS);
+    return () => window.clearTimeout(timer);
+  }, [responsiveScreenshotSrc, hasScreenshotLoaded, hasScreenshotFailed]);
 
   const returnTo = searchParams.get("returnTo");
   const leadIdParam = searchParams.get("leadId");
@@ -1122,7 +1152,7 @@ const DemoSite = () => {
 
         </div>
 
-        {(isPreviewLoading || (hasAnyPreview && !assistantReady)) && <DemoLoadingState websiteUrl={homepageUrl} businessName={siteName} overlay />}
+        {shouldHoldLoadingOverlay(isPreviewLoading, hasAnyPreview, assistantReady, isPinnedExample) && <DemoLoadingState websiteUrl={homepageUrl} businessName={siteName} overlay />}
 
         {/* ===== Local Google Maps Geo-Grid Blind-Spot Diagnostic ===== */}
         {hasAnyPreview && (
