@@ -36,7 +36,9 @@ import { presenterForExampleLeadId } from '@/data/realtorExamplePinnedLeads';
 import { ALEX_FACE_ID } from '../../supabase/functions/_shared/alex-guide';
 import type { VideoAvatar } from '../../supabase/functions/_shared/video-avatar';
 import { PersonPortrait, PersonaNameLabel } from '@/components/FloatingPersonFrame';
-import { assistantOutput, nextVoiceChunkStart, pairedAudioShouldDegrade, PAIRED_CAPTION_DELAY_SEC } from '@/lib/avatarAudioTransition';
+import { assistantOutput, pairedAudioShouldDegrade, pairedCaptionDelaySec, voiceChunkStartAt, PAIRED_CAPTION_DELAY_SEC } from '@/lib/avatarAudioTransition';
+import { resolvePairedAudibleMode, PAIRED_AUDIBLE_STORAGE_KEY, type PairedAudibleMode } from '@/lib/pairedAudible';
+import { playoutDiagPayload, playoutDiagSignature, type PlayoutDiagSnapshot } from '@/lib/playoutDiag';
 import { PlaybackCaptions, type PlaybackCaption as Caption } from '@/lib/playbackCaptions';
 import { displayNumbers } from '@/lib/displayNumbers';
 import PlaybackCaption from '@/components/PlaybackCaption';
@@ -194,6 +196,21 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const swapStateRef = useRef<SwapState>({ ...INITIAL_SWAP_STATE });
   const parentSessionIdRef = useRef<string | null>(null);
   const visitorKeyRef = useRef('');
+  // Paired playout structure (volume-stream fix, 2026-11-14):
+  // resolved ONCE per page — 'local' (default) plays the presenter's
+  // voice through this component's local media-sink path and keeps
+  // Simli's returned stream muted + unsubscribed; 'stream' is the
+  // Publish #47 media tap, kept as the instant kill switch
+  // (?pairedAudible=stream). See lib/pairedAudible.ts.
+  const pairedAudibleModeRef = useRef<PairedAudibleMode | null>(null);
+  const pairedAudibleMode = (): PairedAudibleMode => {
+    if (!pairedAudibleModeRef.current) {
+      let stored: string | null = null;
+      try { stored = window.localStorage.getItem(PAIRED_AUDIBLE_STORAGE_KEY); } catch { /* private mode */ }
+      pairedAudibleModeRef.current = resolvePairedAudibleMode(window.location.search, stored);
+    }
+    return pairedAudibleModeRef.current;
+  };
   const businessNameRef = useRef('');
   const preStageRef = useRef<{ boundary: PersonaBoundary; token: string; faceReady: boolean; faceFailed?: boolean; persona: PersonaId; slot: FaceSlot; authorizedAt: number; faceEverLive?: boolean; faceStartFailed?: boolean } | null>(null);
   /** F3 PRE-STAGE (fluidity batch, 2026-11-10): the doorway Sara face
@@ -765,6 +782,34 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     })();
   }, []);
   const persistSwapDiagRef = useRef(persistSwapDiag); persistSwapDiagRef.current = persistSwapDiag;
+  // Playout telemetry (volume-stream fix, 2026-11-14): SimliAvatar
+  // snapshots its audio graph at settle points; the snapshot lands
+  // on the PARENT session row at config.playoutDiag (the row every
+  // face of this session belongs to — solo presenter demos have no
+  // swap-attempt row, so the swap channel can't carry this). Local
+  // path state (media sink readiness, playback context state) is
+  // folded into the detail line here, where it lives. Deduped by
+  // signature: a state posts when it CHANGES, not per second.
+  // Fire-and-forget — diagnostics never break the call.
+  const lastPlayoutDiagRef = useRef('');
+  const persistPlayoutDiag = useCallback((snapshot: PlayoutDiagSnapshot) => {
+    const sessionId = parentSessionIdRef.current;
+    const visitorKey = visitorKeyRef.current;
+    if (!sessionId || !visitorKey) return;
+    const sink = mediaSinkRef.current?.sink;
+    const extra = `;sink=${sink ? (sink.ready ? 'ready' : 'pending') : 'none'};pctx=${playCtxRef.current?.state ?? 'none'}`;
+    const payload = playoutDiagPayload(sessionId, snapshot, Date.now(), extra);
+    const signature = playoutDiagSignature(payload);
+    if (signature === lastPlayoutDiagRef.current) return;
+    lastPlayoutDiagRef.current = signature;
+    void (async () => {
+      try {
+        const headers = await voiceSessionHeaders();
+        await supabase.functions.invoke('gemini-session', { headers, body: { visitorKey, playoutDiag: payload } });
+      } catch { /* diagnostics never break the call */ }
+    })();
+  }, []);
+  const handlePlayoutDiag = useCallback((snapshot: PlayoutDiagSnapshot) => { persistPlayoutDiag(snapshot); }, [persistPlayoutDiag]);
   const handleSegmentFailure = useCallback((boundary: PersonaBoundary, reason: string) => {
     const { state, outcome, attempt } = noteSegmentFailure(swapStateRef.current, boundary, reason);
     swapStateRef.current = state;
@@ -1239,6 +1284,15 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     const facePending = segmentFacePendingRef.current != null;
     const output = facePending ? 'local' as const : assistantOutput(avatarRequestedRef.current, avatarLiveRef.current, captureRef.current.replaying);
     let pairedVideo = output !== 'local';
+    // LOCAL-FIRST PAIRED PLAYOUT (volume-stream fix, 2026-11-14):
+    // in 'local' mode a paired chunk is ALSO played through the
+    // local branch below — the media-sink graph the voice-only path
+    // proved media-classified on Android — while Simli still
+    // receives the chunk for lip-sync and its returned stream stays
+    // muted + unsubscribed (SimliAvatar streamAudio='muted'). The
+    // audible schedule is shifted by the paired delay so the voice
+    // lands on the lips; captions ride the schedule unshifted.
+    let pairedLocal = false;
     if (pairedVideo) {
       const wasLive = avatarLiveRef.current;
       const sendSucceeded = wasLive ? (avatarRef.current?.sendPcm24k(base64) ?? false) : false;
@@ -1277,13 +1331,15 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         // degrade stays one-way per segment.
         if (!segmentFacePendingRef.current) engageVideoFallback();
         pairedVideo = false;
+      } else if (pairedAudibleMode() === 'local') {
+        pairedLocal = true;
       } else {
         // Use a silent local clock for captions/lifecycle, never a second audible voice.
         const clockGain = ctx.createGain(); clockGain.gain.value = 0;
         source.connect(clockGain); clockGain.connect(ctx.destination);
       }
     }
-    if (!pairedVideo) {
+    if (!pairedVideo || pairedLocal) {
       const spkGain = ctx.createGain();
       spkGain.gain.value = effectivePlaybackLevel(speakerMutedRef.current, playbackVolumeRef.current);
       speakerGainRef.current = spkGain;
@@ -1296,15 +1352,21 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
     const now = ctx.currentTime;
     // Simli renders lips slightly behind the audio it receives; delay the start of each spoken run to match.
-    const startAt = nextVoiceChunkStart(now, playTimeRef.current);
+    // Local-first paired chunks carry that shift in their audible
+    // schedule (voiceChunkStartAt applies it at a drained queue; a
+    // running queue chains from the already-shifted playTimeRef).
+    const startAt = voiceChunkStartAt(now, playTimeRef.current, pairedLocal ? PAIRED_CAPTION_DELAY_SEC : 0);
     sourcesRef.current.add(source);
     source.start(startAt);
     playTimeRef.current = startAt + buffer.duration;
-    // On the paired path the visitor hears Simli's stream, not this local
-    // schedule; shift the caption window by the paired-path delay so the word
-    // highlight tracks the heard voice (see PAIRED_CAPTION_DELAY_SEC). Local
-    // playback stays on the local clock, which is when it is really heard.
-    const captionDelay = pairedVideo ? PAIRED_CAPTION_DELAY_SEC : 0;
+    // On the stream path the visitor hears Simli's stream, not this
+    // local schedule; shift the caption window by the paired-path
+    // delay so the word highlight tracks the heard voice (see
+    // PAIRED_CAPTION_DELAY_SEC). Local playback — including
+    // local-first paired chunks, whose schedule already carries the
+    // shift — stays on the schedule clock, which is when the voice
+    // is really heard.
+    const captionDelay = pairedCaptionDelaySec(pairedVideo, pairedAudibleMode());
     captionClockRef.current.audio(startAt + captionDelay, playTimeRef.current + captionDelay, captionRun);
     setAspenSpeaking(true);
     source.onended = () => {
@@ -3411,8 +3473,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   };
   const mainFaceLayer = mainFace ? (mainFace.revealed ? (fadingSlot === 'main' ? 1 : 2) : 0) : undefined;
   const avatarView = videoAvatar?.enabled && !previewOnly ? (mainFace
-    ? <SimliAvatar ref={mainSlotRef} inline={avatarInline || faceFirst} unboxed={faceFirst} avatar={{ ...videoAvatar, faceId: mainFace.persona === 'sara' ? SARA_FACE_ID : mainFace.persona === 'alex' ? ALEX_FACE_ID : videoAvatar.faceId }} persona={mainFace.persona} personaParentSessionId={parentSessionIdRef.current || undefined} personaVisitorKey={visitorKeyRef.current || undefined} concealed={!mainFace.revealed} layer={mainFaceLayer} onLiveChange={live => handleFaceLiveChange('main', live, mainFace)} />
-    : <SimliAvatar ref={mainSlotRef} inline={avatarInline || faceFirst} unboxed={faceFirst} avatar={presenterPersona ? { ...videoAvatar, faceId: PERSONAS[presenterPersona].faceId ?? videoAvatar.faceId } : (activeVideoAvatar ?? videoAvatar)} agentId={agentId} shareToken={shareToken} draft={draft} guide={guide} persona={presenterPersona ?? undefined} personaLeadId={presenterPersona ? leadId : undefined} onLiveChange={live => handleFaceLiveChange('main', live, null)} />) : null;
+    ? <SimliAvatar ref={mainSlotRef} inline={avatarInline || faceFirst} unboxed={faceFirst} avatar={{ ...videoAvatar, faceId: mainFace.persona === 'sara' ? SARA_FACE_ID : mainFace.persona === 'alex' ? ALEX_FACE_ID : videoAvatar.faceId }} persona={mainFace.persona} personaParentSessionId={parentSessionIdRef.current || undefined} personaVisitorKey={visitorKeyRef.current || undefined} concealed={!mainFace.revealed} layer={mainFaceLayer} streamAudio={pairedAudibleMode() === 'local' ? 'muted' : 'audible'} onPlayoutDiag={handlePlayoutDiag} onLiveChange={live => handleFaceLiveChange('main', live, mainFace)} />
+    : <SimliAvatar ref={mainSlotRef} inline={avatarInline || faceFirst} unboxed={faceFirst} avatar={presenterPersona ? { ...videoAvatar, faceId: PERSONAS[presenterPersona].faceId ?? videoAvatar.faceId } : (activeVideoAvatar ?? videoAvatar)} agentId={agentId} shareToken={shareToken} draft={draft} guide={guide} persona={presenterPersona ?? undefined} personaLeadId={presenterPersona ? leadId : undefined} streamAudio={pairedAudibleMode() === 'local' ? 'muted' : 'audible'} onPlayoutDiag={handlePlayoutDiag} onLiveChange={live => handleFaceLiveChange('main', live, null)} />) : null;
   // SECOND face slot: the incoming persona's instance — mounted
   // concealed while a boundary is armed (live but hidden and muted),
   // revealed by the cut-over's crossfade, and kept mounted as the
@@ -3421,7 +3483,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // drives the dissolve, layered above the retiring main slot.
   const stagedAvatarView = secondFace && videoAvatar?.enabled && !previewOnly ? (
     <div key={`staged-${secondFace.boundary}`} className={faceFirst ? "aspen-person-livebox relative z-0 mx-auto overflow-hidden" : undefined} style={faceFirst ? { position: 'absolute', inset: 0, pointerEvents: 'none' } : undefined}>
-      <SimliAvatar ref={stagedAvatarRef} inline={avatarInline || faceFirst} unboxed={faceFirst} avatar={{ ...videoAvatar, faceId: secondFace.persona === 'sara' ? SARA_FACE_ID : secondFace.persona === 'alex' ? ALEX_FACE_ID : videoAvatar.faceId }} persona={secondFace.persona} personaParentSessionId={parentSessionIdRef.current || undefined} personaVisitorKey={visitorKeyRef.current || undefined} concealed={!secondFace.revealed} layer={secondFace.revealed ? (fadingSlot === 'second' ? 1 : 2) : 0} onLiveChange={live => handleFaceLiveChange('second', live, secondFace)} />
+      <SimliAvatar ref={stagedAvatarRef} inline={avatarInline || faceFirst} unboxed={faceFirst} avatar={{ ...videoAvatar, faceId: secondFace.persona === 'sara' ? SARA_FACE_ID : secondFace.persona === 'alex' ? ALEX_FACE_ID : videoAvatar.faceId }} persona={secondFace.persona} personaParentSessionId={parentSessionIdRef.current || undefined} personaVisitorKey={visitorKeyRef.current || undefined} concealed={!secondFace.revealed} layer={secondFace.revealed ? (fadingSlot === 'second' ? 1 : 2) : 0} streamAudio={pairedAudibleMode() === 'local' ? 'muted' : 'audible'} onPlayoutDiag={handlePlayoutDiag} onLiveChange={live => handleFaceLiveChange('second', live, secondFace)} />
     </div>
   ) : null;
   // While Aspen is speaking, the karaoke caption owns the caption space. The

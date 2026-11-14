@@ -57,8 +57,12 @@ describe("paired playout contracts", () => {
   it("the tap confirms playout before silencing the direct element", () => {
     const engage = sliceBetween(playout, "async engage(", "applyLevel(");
     expect(engage.indexOf("await playout.play()")).toBeLessThan(engage.indexOf("source.volume = 0"));
-    // A suspended context must refuse rather than render silence.
-    expect(engage).toContain('if (stateNow() !== "running") return false;');
+    // A suspended context must refuse rather than render silence —
+    // and (volume-stream fix) the refusal is RECORDED, so a session
+    // that silently stayed on the direct path is visible in the
+    // session record instead of indistinguishable from an engaged one.
+    expect(engage).toContain('if (stateNow() !== "running") {');
+    expect(engage).toContain('this.lastEngageError = "ctx-suspended";');
   });
 
   it("the warm activation verifies the armed state instead of trusting activate()", () => {
