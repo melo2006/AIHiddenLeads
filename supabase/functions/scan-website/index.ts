@@ -8,8 +8,9 @@ import { learningLinks } from '../_shared/website-learning.ts';
 import { fetchFirecrawlScreenshot, markFirecrawlRequest } from '../_shared/firecrawl-screenshot.ts';
 import { buildCookieConsentDismissalScript } from '../_shared/cookie-consent-dismissal.ts';
 import {
-  consentScanFlagsFromReport,
-  extractConsentReportFromFirecrawlPayload,
+  consentScanFlagsFromEvidence,
+  extractConsentEvidenceFromFirecrawlPayload,
+  mergeConsentBannerFlags,
   probeConsentBannerViaBrowserless,
   type ConsentBannerScanFlags,
 } from '../_shared/consent-scan-probe.ts';
@@ -759,13 +760,15 @@ async function scrapeScreenshotFallback(url: string, apiKey: string) {
       consentDismissalScript: buildCookieConsentDismissalScript({ observeMs: 3000 }),
     });
 
-    // Consent RECORDING (Publish #49 follow-up): the dismissal actions
-    // end with a read-back of the script's live report, which Firecrawl
-    // returns in actions.javascriptReturns when the tier supports it.
-    // Extracted from the RAW payload (the unwrap below drops actions);
-    // absent on tiers that discard action values — the Browserless
-    // probe remains the primary recorder.
-    const consentReport = extractConsentReportFromFirecrawlPayload(response);
+    // Consent RECORDING (Publish #49 follow-up + witness repair): the
+    // dismissal actions end with read-backs of the script's live report
+    // AND the independent text/CMP witness, which Firecrawl returns in
+    // actions.javascriptReturns when the tier supports it. Extracted
+    // from the RAW payload (the unwrap below drops actions); absent on
+    // tiers that discard action values — the Browserless probe remains
+    // the primary recorder. An absent/empty read-back is UNRECORDED
+    // (null evidence), never a witnessed false.
+    const consentEvidence = extractConsentEvidenceFromFirecrawlPayload(response);
 
     const data = unwrapFirecrawlPayload(response);
     const screenshotUrl = typeof data?.screenshot === 'string' && data.screenshot ? data.screenshot : null;
@@ -778,7 +781,7 @@ async function scrapeScreenshotFallback(url: string, apiKey: string) {
     // the same no-screenshot path as a failed scrape.
     if (await isLikelyBlankScreenshot(screenshotUrl)) return null;
 
-    return { screenshotUrl, consentReport };
+    return { screenshotUrl, consentEvidence };
   } catch (error) {
     console.warn('Fallback screenshot scrape failed:', error);
     return null;
@@ -1917,25 +1920,46 @@ Deno.serve(async (req) => {
 
     console.log('Extracted contact info — phones:', extractedPhones, 'emails:', extractedEmails);
 
-    // Consent-banner flags (Publish #49 follow-up): the dedicated
-    // Browserless probe is the primary witness; the Firecrawl fallback's
-    // read-back report covers scans where Browserless could not probe
-    // but Firecrawl captured. Written in their OWN best-effort update
-    // (the screenshot_provider pattern) and deliberately BEFORE the
-    // final save below: that save flips scan_status to a terminal
-    // value, which stops the demo's record polling — the flag must
-    // already be on the row when the terminal record is pulled, so a
-    // new visitor's same-visit scan routes the covered live view the
-    // moment the scan completes. A missing column (migration
-    // 20261114120000_leads_consent_banner_flags not yet applied) only
-    // logs; the scan proceeds exactly as before.
-    const consentFlags = (await consentProbePromise) ??
-      consentScanFlagsFromReport(firecrawlFallback?.consentReport);
+    // Consent-banner flags (Publish #49 follow-up + witness repair):
+    // the dedicated Browserless probe is the primary witness; the
+    // Firecrawl fallback's read-back evidence covers scans where
+    // Browserless could not probe but Firecrawl captured. Written in
+    // their OWN best-effort update (the screenshot_provider pattern)
+    // and deliberately BEFORE the final save below: that save flips
+    // scan_status to a terminal value, which stops the demo's record
+    // polling — the flag must already be on the row when the terminal
+    // record is pulled, so a new visitor's same-visit scan routes the
+    // covered live view the moment the scan completes. A missing
+    // column (migration 20261114120000_leads_consent_banner_flags not
+    // yet applied) only logs; the scan proceeds exactly as before.
+    // STICKY-TRUE: a banner is a property of the SITE — once any scan
+    // has recorded one, a later scan whose capture didn't render it
+    // must not erase the record, so the write merges against the
+    // row's current flags (read best-effort, same warn-only pattern).
+    const witnessedConsentFlags = (await consentProbePromise) ??
+      consentScanFlagsFromEvidence(firecrawlFallback?.consentEvidence);
+    let consentFlags = witnessedConsentFlags;
     if (consentFlags) {
+      const existingConsent = await supabase.from('leads')
+        .select('consent_banner_seen, consent_banner_dismissed')
+        .eq('id', leadId)
+        .maybeSingle();
+      if (existingConsent.error) {
+        console.warn('Could not read existing consent banner flags (columns may not be applied yet):', existingConsent.error.message);
+      } else if (existingConsent.data) {
+        consentFlags = mergeConsentBannerFlags(
+          {
+            seen: existingConsent.data.consent_banner_seen,
+            dismissed: existingConsent.data.consent_banner_dismissed,
+          },
+          consentFlags,
+        ) ?? consentFlags;
+      }
       console.log(
         'Consent banner at scan time — seen:', consentFlags.seen,
         '| dismissed:', consentFlags.dismissed,
         '| clicked:', consentFlags.clicked,
+        '| via:', consentFlags.witnessVia,
       );
       const consentWrite = await supabase.from('leads').update({
         consent_banner_seen: consentFlags.seen,

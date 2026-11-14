@@ -24,9 +24,14 @@ describe("scan-website consent recording", () => {
     expect(probeStart).toBeLessThan(capturesAwait);
   });
 
-  it("falls back to the Firecrawl read-back report when the probe could not witness", () => {
-    expect(scanSource).toContain("extractConsentReportFromFirecrawlPayload(response)");
-    expect(scanSource).toContain("consentScanFlagsFromReport(firecrawlFallback?.consentReport)");
+  it("falls back to the Firecrawl read-back evidence when the probe could not witness", () => {
+    expect(scanSource).toContain("extractConsentEvidenceFromFirecrawlPayload(response)");
+    expect(scanSource).toContain("consentScanFlagsFromEvidence(firecrawlFallback?.consentEvidence)");
+  });
+
+  it("merges the write sticky-true against the row's existing flags", () => {
+    expect(scanSource).toContain("mergeConsentBannerFlags(");
+    expect(scanSource).toContain("consent_banner_seen, consent_banner_dismissed");
   });
 
   it("writes both flag columns in their own update", () => {
