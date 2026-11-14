@@ -23,7 +23,7 @@ import { transferDestination } from '../_shared/browser-handoff.ts'
 import { MANAGER_HANDOFF_DELAY_MS, MANAGER_TRANSFER_POLICY, managerTransferAnnouncement } from '../_shared/manager-transfer.ts'
 import { handoffReturnInstruction, handoffReturnOutcome } from '../_shared/handoff-return.ts'
 import { BROWSER_MINUTES_OVERAGE_POLICY } from '../_shared/overage-facts.ts'
-import { FAREWELL_END_DELAY_MS, detectFarewell, farewellSpeakerName, hasPresenterStamp } from '../_shared/farewell.ts'
+import { FAREWELL_END_DELAY_MS, FAREWELL_REPEAT_END_DELAY_MS, detectFarewell, detectFarewellLeadIn, detectFarewellPersistence, detectFarewellSoftClose, farewellSpeakerName, hasPresenterStamp } from '../_shared/farewell.ts'
 import { CONTACT_SAVE_CLIENT_ERROR, CONTACT_SAVE_FALLBACK_TOOL_RESPONSE, saveConfirmedFollowup } from '../_shared/contact-save.ts'
 import { logUsageEvent, videoAvatarEventFromSession, webVoiceEventFromSession } from '../_shared/usage-ledger.ts'
 
@@ -198,9 +198,38 @@ Deno.serve(async (req) => {
   // Visitor farewell hang-up (Fix 5): armed when the visitor's
   // completed utterance is a clear goodbye; cancelled if they speak
   // again (non-farewell) or any tool runs before it fires.
+  // FAREWELL ROUND 2 (2026-11-14; live proof session 4f161ea7):
+  // farewellHandled is no longer a once-ever flag — it marks the
+  // DELIVERED state (the closing line has been spoken and an end is
+  // armed or owed). Post-close visitor speech is CLASSIFIED at
+  // turnComplete (repeat farewell → end promptly; politeness → the
+  // end stands; genuinely new topic → revive AND reset the flag, so
+  // a later goodbye can close again). The diag fields below stamp
+  // how the session ended so a field test can prove the path:
+  // farewellEndPath lands in last_error and the call-history
+  // metadata (farewell_end_path / farewell_repeats /
+  // farewell_revivals) when closeAll persists the session.
   let farewellHandled = false
   let farewellTimer: ReturnType<typeof setTimeout> | undefined
+  let farewellEndPath = ''
+  let farewellRepeats = 0
+  let farewellRevivals = 0
   const cancelFarewellEnd = () => { if (farewellTimer) { clearTimeout(farewellTimer); farewellTimer = undefined } }
+  // Arm (or re-arm) the farewell end: the ONLY place a farewell end
+  // is scheduled. Firing posts the session-ended banner naming this
+  // session's own speaker and closes the session from our side —
+  // the provider socket and the client socket both close in
+  // closeAll, so no live mic and no further model turn can follow.
+  const armFarewellEnd = (delayMs: number, path: string) => {
+    cancelFarewellEnd()
+    farewellTimer = setTimeout(() => {
+      farewellTimer = undefined
+      if (closed) return
+      endReason = 'visitor_goodbye'; closeCode = 1000; farewellEndPath = path
+      if (clientSocket.readyState === WebSocket.OPEN) clientSocket.send(JSON.stringify({ type: 'closed', reason: `Call ended — thanks for talking with ${speakerDisplayName}.` }))
+      closeAll()
+    }, delayMs)
+  }
   // DOUBLE-CLOSE GATE (farewell-double-close fix, 2026-11-14; live
   // proof session b8e5bc63): Publish #51 removed the proxy's closing
   // injection, yet a presenter session still spoke TWO closings —
@@ -269,7 +298,7 @@ Deno.serve(async (req) => {
     const duration = Math.round((Date.now() - started) / 1000)
     EdgeRuntime.waitUntil((async () => {
       await queueRecording(true);
-      const { error } = await db.from('gemini_voice_sessions').update({ status: 'ended', ended_at: new Date().toISOString(), last_activity_at: new Date().toISOString(), duration_seconds: duration, usage: usage(), last_error: `${endReason} (code ${closeCode})`, transcript: config.recordTranscript ? transcript : [] }).eq('id', session.id)
+      const { error } = await db.from('gemini_voice_sessions').update({ status: 'ended', ended_at: new Date().toISOString(), last_activity_at: new Date().toISOString(), duration_seconds: duration, usage: usage(), last_error: `${endReason} (code ${closeCode})${farewellEndPath ? ` farewell_path=${farewellEndPath}` : ''}`, transcript: config.recordTranscript ? transcript : [] }).eq('id', session.id)
       if (error) console.error('session persistence failed', error.message)
       // Usage ledger (Usage Reporting Suite): failure-isolated — logUsageEvent
       // never throws, and the extra try/catch keeps finalize untouched either way.
@@ -285,7 +314,7 @@ Deno.serve(async (req) => {
       if (!preview) {
         const review = config.recordTranscript && config.homepageSales ? callReview(transcript) : null;
         const {data:previous}=await db.from('call_history').select('metadata').eq('retell_call_id',`gemini_${session.id}`).maybeSingle();
-        const {error:historyError} = await db.from('call_history').upsert({ retell_call_id: `gemini_${session.id}`, lead_id: session.lead_id, prospect_id: session.prospect_id, business_name: String(config.businessName), call_status: 'ended', duration_seconds: duration, started_at: new Date(started).toISOString(), ended_at: new Date().toISOString(), transcript: config.recordTranscript ? transcript.map(t => `${t.role}: ${t.text}`).join('\n') : null, ...(review ? {summary:review.summary,key_points:review.interest} : {}), metadata: { ...previous?.metadata, provider: 'gemini', session_id: session.id, agent_id: session.agent_id, campaign:config.campaign || null, transcript_consent: config.recordTranscript, end_reason:endReason,close_code:closeCode,review,usage: usage() } },{onConflict:'retell_call_id'})
+        const {error:historyError} = await db.from('call_history').upsert({ retell_call_id: `gemini_${session.id}`, lead_id: session.lead_id, prospect_id: session.prospect_id, business_name: String(config.businessName), call_status: 'ended', duration_seconds: duration, started_at: new Date(started).toISOString(), ended_at: new Date().toISOString(), transcript: config.recordTranscript ? transcript.map(t => `${t.role}: ${t.text}`).join('\n') : null, ...(review ? {summary:review.summary,key_points:review.interest} : {}), metadata: { ...previous?.metadata, provider: 'gemini', session_id: session.id, agent_id: session.agent_id, campaign:config.campaign || null, transcript_consent: config.recordTranscript, end_reason:endReason,close_code:closeCode,farewell_end_path:farewellEndPath || null,farewell_repeats:farewellRepeats,farewell_revivals:farewellRevivals,review,usage: usage() } },{onConflict:'retell_call_id'})
         if (historyError) console.error('call history persistence',historyError.message)
       }
       if(recordId)await finalizeRecord(db,recordId);
@@ -641,7 +670,20 @@ Deno.serve(async (req) => {
             // farewell — they changed their mind, so the armed end is
             // cancelled. (A completed non-farewell turn also cancels,
             // at turnComplete below.)
-            if (farewellTimer && callerUtterance.trim().split(/\s+/).length >= 2 && !detectFarewell(callerUtterance)) cancelFarewellEnd()
+            // FAREWELL ROUND 2 (2026-11-14): the cancel no longer
+            // fires on farewell-shaped speech. In session 4f161ea7
+            // the visitor's complaint "Go ahead and hang up. I said
+            // goodbye. You're still there." accumulated fragments
+            // here, tripped this cancel mid-utterance (it is not a
+            // detectFarewell match — the \bsaid\b guard sees to
+            // that), and killed the end before turnComplete could
+            // classify it. Persistence-shaped accumulations, soft
+            // politeness and bare farewell lead-ins ("go ahead…",
+            // "I said…") all defer: the completed-utterance
+            // classification at turnComplete decides, and a genuine
+            // new topic grows past every one of these shapes and
+            // still cancels on a later fragment.
+            if (farewellTimer && callerUtterance.trim().split(/\s+/).length >= 2 && !detectFarewell(callerUtterance) && !detectFarewellPersistence(callerUtterance) && !detectFarewellSoftClose(callerUtterance) && !detectFarewellLeadIn(callerUtterance)) cancelFarewellEnd()
             callerLanguageRequest = requestedConversationLanguage(callerUtterance) || callerLanguageRequest
             if (transcript.length < 2000) transcript.push({ role: 'caller', text: sc.inputTranscription.text })
             clientSocket.send(JSON.stringify({ type: 'user_transcript', text: sc.inputTranscription.text }))
@@ -665,17 +707,57 @@ Deno.serve(async (req) => {
               // The proxy only arms the hang-up and, when it fires,
               // posts the session-ended banner naming this session's
               // own speaker.
-              farewellTimer = setTimeout(() => { farewellTimer = undefined; if (closed) return; endReason = 'visitor_goodbye'; closeCode = 1000; if (clientSocket.readyState === WebSocket.OPEN) clientSocket.send(JSON.stringify({ type: 'closed', reason: `Call ended — thanks for talking with ${speakerDisplayName}.` })); closeAll() }, FAREWELL_END_DELAY_MS)
-            } else if (farewellTimer && completedUtterance.trim() && !detectFarewell(completedUtterance)) {
-              // They spoke again and it was not another farewell. An
-              // EMPTY completed utterance is not the visitor speaking
-              // again — it is the speaker's own closing turn
-              // completing, and cancelling on it made the hang-up
-              // self-defeating: the closing line's own turnComplete
-              // killed the timer every time (live proof 2026-11-12,
-              // session 59d8731e: detector fired, closing was spoken,
-              // session never ended).
-              cancelFarewellEnd()
+              armFarewellEnd(FAREWELL_END_DELAY_MS, 'timer')
+            } else if (farewellHandled && completedUtterance.trim()) {
+              // FAREWELL ROUND 2 (2026-11-14): the close has been
+              // DELIVERED and the visitor spoke again. Round 1
+              // treated ANY non-farewell utterance here as a revival
+              // and cancelled the end — but a post-close repeat
+              // goodbye is not a revival, and the conservative
+              // detector rejects exactly the shapes a frustrated
+              // repeat takes (session 4f161ea7: "Go ahead and hang
+              // up. I said goodbye. You're still there." — the
+              // \bsaid\b guard and the question form keep
+              // detectFarewell false). Classify instead:
+              if (detectFarewell(completedUtterance) || detectFarewellPersistence(completedUtterance)) {
+                // Still saying goodbye — the close already owns the
+                // farewell, so end promptly (short grace only). On
+                // presenter sessions the output gate stays up for
+                // this whole window, so the model's answer to the
+                // repeat can never become a re-emitted closing line.
+                farewellRepeats += 1
+                armFarewellEnd(FAREWELL_REPEAT_END_DELAY_MS, 'repeat_goodbye')
+              } else if (detectFarewellSoftClose(completedUtterance)) {
+                // Politeness after the close ("thank you", "you
+                // too") — neither an end demand nor a new topic, so
+                // the armed end STANDS (round 1 cancelled on it and
+                // stranded the session identically). If a tool turn
+                // consumed the timer on a non-gated session, re-arm
+                // so the delivered close still ends the session.
+                if (!farewellTimer) armFarewellEnd(FAREWELL_END_DELAY_MS, 'timer')
+              } else {
+                // A genuinely new topic: the farewell lifts and the
+                // conversation resumes. farewellHandled RESETS —
+                // round 1 left it set forever, so a revived session
+                // could never be closed by a later goodbye either.
+                farewellRevivals += 1
+                farewellHandled = false
+                cancelFarewellEnd()
+              }
+            } else if (farewellHandled && !farewellTimer && !handoffReturnHandled && !managerTransferRequested) {
+              // An EMPTY completed utterance is not the visitor
+              // speaking again — it is a model turn completing with
+              // no new visitor speech: the closing turn's own tool
+              // follow-up, whose dispatch on a non-gated session
+              // cancelled the armed end (the tool-cancel path above
+              // stood the end down, but the DELIVERED state is not a
+              // revival — nobody asked for anything new). Re-arm so
+              // the delivered close still ends the session instead
+              // of stranding it until the visitor gives up and kills
+              // it (session 4f161ea7's user_ended tail). A handoff
+              // return or a requested transfer means the conversation
+              // deliberately continues — never re-arm over those.
+              armFarewellEnd(FAREWELL_END_DELAY_MS, 'timer')
             }
             if(config.transferPhone) EdgeRuntime.waitUntil((async()=>{
               const summary=transcript.filter(t=>t.role==='caller').map(t=>t.text).join(' ').slice(-1200);
@@ -863,7 +945,7 @@ Deno.serve(async (req) => {
         // line and that end own the close — a silence check-in or
         // silence goodbye injected now would talk over the closing
         // and land as a second farewell. The gate follows the timer,
-        // not the once-ever farewellHandled flag: if the visitor
+        // not the farewellHandled flag: if the visitor
         // speaks again and the end is cancelled, silence handling
         // resumes normally. The bridge line is exempt: it is not a
         // farewell, and a swap in flight still needs it.
