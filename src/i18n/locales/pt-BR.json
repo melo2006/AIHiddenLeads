@@ -446,6 +446,10 @@
         "headline": "Nunca Mais Perca Uma Ligação",
         "body": "Sua recepcionista de IA atende 24/7 — noites, fins de semana e feriados — para transformar cada ligação em oportunidade."
       },
+      "prospects": {
+        "headline": "Prospectos Novos Todo Mês",
+        "body": "O Premium inclui até 50 prospectos B2B novos por mês, em lotes semanais — a quantidade varia conforme o mercado e nenhum número específico é garantido."
+      },
       "yourListings": {
         "headline": "Ela Vende Primeiro os Seus Anúncios",
         "body": "Aspen aprende o seu negócio a partir do seu próprio site e começa pelos seus próprios anúncios e serviços — nunca um roteiro genérico."
@@ -468,7 +472,7 @@
       },
       "pricing": {
         "headline": "Planos a Partir de $99 por Mês",
-        "body": "O Premium custa $99 por mês com 400 minutos de voz incluídos. O avatar de vídeo é um adicional opcional — só se você quiser."
+        "body": "O Premium custa $99 por mês com 400 minutos de voz incluídos. O avatar de vídeo é um adicional opcional — grátis no primeiro mês, depois $79 por mês só se você mantiver."
       },
       "callSummary": {
         "headline": "Cada Ligação, Resumida Para Você",

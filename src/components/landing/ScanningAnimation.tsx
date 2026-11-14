@@ -19,6 +19,7 @@ import {
   Wand2,
   Tag,
   FileText,
+  Users,
 } from "lucide-react";
 
 const scanSteps = [
@@ -57,6 +58,10 @@ const benefitMessages = [
   {
     icon: Clock,
     key: "missCall",
+  },
+  {
+    icon: Users,
+    key: "prospects",
   },
   {
     icon: ListChecks,

@@ -12,8 +12,11 @@ import pt from "../i18n/locales/pt-BR.json";
  * ScanningAnimation while a demo builds) predated the video avatar and
  * carried fabricated stats ("Capture 2–5x More Leads", "Most businesses
  * miss 40% of calls") plus a "ready within 48 hours" promise. The deck
- * is now 9 honest cards leading with the streaming video avatar; the
- * retired cards and claims must never come back.
+ * is now 10 honest cards leading with the streaming video avatar (the
+ * B2B-prospects card joined the deck in the 2026-11-14 homepage
+ * compliance pass, carrying the qualified "up to 50 … no specific count
+ * is guaranteed" language); the retired cards and claims must never
+ * come back.
  *
  * Job B — the wizard's custom-avatar step must set the real generation
  * expectation at the creation action: usually ready within a few hours,
@@ -34,6 +37,7 @@ const avatarSettings = readFileSync(
 const DECK_KEYS = [
   "videoAvatar",
   "missCall",
+  "prospects",
   "yourListings",
   "warmTransfer",
   "appointments",
@@ -46,7 +50,7 @@ const DECK_KEYS = [
 const FABRICATED = /2–5x|2-5x|40%|48 hours/i;
 
 describe("demo build-wait flashcard deck (scan.benefits)", () => {
-  it("has exactly the 9 refreshed cards in every locale", () => {
+  it("has exactly the 10 refreshed cards in every locale", () => {
     for (const [name, locale] of [["en", en], ["es", es], ["pt-BR", pt]] as const) {
       expect(Object.keys(locale.scan.benefits), `${name}.scan.benefits`).toEqual([...DECK_KEYS]);
     }
@@ -78,9 +82,12 @@ describe("demo build-wait flashcard deck (scan.benefits)", () => {
     expect(b.pricing.headline).toContain("$99");
     expect(b.pricing.body).toContain("400 voice minutes");
     expect(b.pricing.body).toContain("optional add-on");
+    expect(b.pricing.body).toContain("free for your first month");
+    expect(b.prospects.body).toContain("up to 50 fresh B2B prospects");
+    expect(b.prospects.body).toContain("no specific count is guaranteed");
   });
 
-  it("ScanningAnimation rotates the same 9 keys", () => {
+  it("ScanningAnimation rotates the same 10 keys", () => {
     for (const key of DECK_KEYS) {
       expect(scanningAnimation, `ScanningAnimation key ${key}`).toContain(`key: "${key}"`);
     }
