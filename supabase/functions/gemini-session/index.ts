@@ -29,7 +29,8 @@ const personaSegmentSchema=z.object({persona:z.enum(['aspen','sara','alex']),bou
 // attempt of a boundary left no server record at all (retest #4).
 const swapDiagSchema=z.object({sessionId:z.string().uuid(),event:z.enum(['gate-abort','fallback','retry-scheduled','token-stale','stage-watchdog','forced-execute','cutover','voice-first-cutover','face-takeover']),boundary:z.enum(['doorway','stepout','meet-alex','return','summon-aspen','intro-sara','intro-return-1','intro-alex','intro-return-2']),persona:z.enum(['aspen','sara','alex']).optional(),attempt:z.number().int().min(0).max(99).optional(),reason:z.string().max(200).optional(),faceState:z.string().max(100).optional(),at:z.number().optional()});
 const SWAP_DIAG_FAILURE_EVENTS: ReadonlySet<string> = new Set(['gate-abort','fallback','token-stale']);
-const schema=z.object({ visitorKey:z.string().min(16).max(100), model:z.string().max(100).optional(), agentId:z.string().uuid().optional(), leadId:z.string().uuid().optional(), prospectId:z.string().uuid().optional(), draft:z.boolean().default(false), preview:z.boolean().default(false), voice:z.enum(VOICES as [string,...string[]]).optional(), hour:z.number().int().min(0).max(23).optional(), visitorName:z.string().max(100).default(''), timeZone:z.string().max(100).default('UTC'), locale:z.string().max(10).optional(), campaign:z.object({visitId:z.string().uuid(),source:z.string().max(100),campaign:z.string().max(100),entryPath:z.enum(PUBLIC_PATHS).optional()}).nullable().optional(), consent:z.boolean().default(false), verification:z.enum(['pending','verified']).optional(), invite:z.boolean().optional(), sample:z.boolean().optional(), guide:z.enum(['alex']).optional(), share:z.string().max(100).optional(), resumeContext:z.string().max(1600).optional(), reconnect:z.boolean().default(false), prewarm:z.boolean().default(false), personaSegment:personaSegmentSchema.optional(), swapDiag:swapDiagSchema.optional() });
+const playoutDiagSchema=z.object({sessionId:z.string().uuid(),path:z.enum(['local','tap','direct','none']),detail:z.string().max(400),at:z.number().optional()});
+const schema=z.object({ visitorKey:z.string().min(16).max(100), model:z.string().max(100).optional(), agentId:z.string().uuid().optional(), leadId:z.string().uuid().optional(), prospectId:z.string().uuid().optional(), draft:z.boolean().default(false), preview:z.boolean().default(false), voice:z.enum(VOICES as [string,...string[]]).optional(), hour:z.number().int().min(0).max(23).optional(), visitorName:z.string().max(100).default(''), timeZone:z.string().max(100).default('UTC'), locale:z.string().max(10).optional(), campaign:z.object({visitId:z.string().uuid(),source:z.string().max(100),campaign:z.string().max(100),entryPath:z.enum(PUBLIC_PATHS).optional()}).nullable().optional(), consent:z.boolean().default(false), verification:z.enum(['pending','verified']).optional(), invite:z.boolean().optional(), sample:z.boolean().optional(), guide:z.enum(['alex']).optional(), share:z.string().max(100).optional(), resumeContext:z.string().max(1600).optional(), reconnect:z.boolean().default(false), prewarm:z.boolean().default(false), personaSegment:personaSegmentSchema.optional(), swapDiag:swapDiagSchema.optional(), playoutDiag:playoutDiagSchema.optional() });
 const json=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
 export async function hash(value:string) { return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)))).map(b=>b.toString(16).padStart(2,'0')).join(''); }
 Deno.serve(async req=>{
@@ -63,6 +64,24 @@ Deno.serve(async req=>{
     if(SWAP_DIAG_FAILURE_EVENTS.has(b.swapDiag.event) && !diagRow.started_at && !diagRow.last_error) {
       await db.from('gemini_voice_sessions').update({last_error:{reason:'client_swap_failure',detail:`${b.swapDiag.event}${b.swapDiag.reason?`: ${b.swapDiag.reason}`:''} (attempt ${b.swapDiag.attempt ?? '?'})`}}).eq('id',diagRow.id).is('last_error',null);
     }
+    return json({ok:true});
+  }
+  // Playout telemetry (volume-stream fix, 2026-11-14): the client
+  // snapshots the paired audio graph at settle points (which path was
+  // audible, whether the media tap engaged and if not which gate
+  // refused it, whether Simli's returned audio was unsubscribed).
+  // Appended to the PARENT session row at config.playoutDiag
+  // (bounded — the last 30), same visitor-hash ownership as swapDiag,
+  // so a phone test is read from the record instead of guessed.
+  // Best-effort: a failed stamp loses only the trace, never the call.
+  if(b.playoutDiag) {
+    const playoutVisitor=await hash(`${b.visitorKey}|${req.headers.get('x-forwarded-for')?.split(',')[0] || ''}`);
+    const {data:playoutRow}=await db.from('gemini_voice_sessions').select('id,config,visitor_hash').eq('id',b.playoutDiag.sessionId).maybeSingle();
+    if(!playoutRow || playoutRow.visitor_hash!==playoutVisitor) return json({error:'Session not found'},404);
+    const playoutConfig=(playoutRow.config ?? {}) as Record<string,unknown>;
+    const priorPlayout=Array.isArray(playoutConfig.playoutDiag) ? playoutConfig.playoutDiag : [];
+    const playoutEntry={path:b.playoutDiag.path,detail:b.playoutDiag.detail,at:b.playoutDiag.at ?? Date.now()};
+    await db.from('gemini_voice_sessions').update({config:{...playoutConfig,playoutDiag:[...priorPlayout,playoutEntry].slice(-30)}}).eq('id',playoutRow.id);
     return json({ok:true});
   }
   const bearer=req.headers.get('Authorization')?.replace(/^Bearer\s+/i,'') || '';

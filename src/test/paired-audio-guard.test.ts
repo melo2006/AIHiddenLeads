@@ -87,8 +87,13 @@ describe('1 — playPcmChunk wiring (source pins)', () => {
     // The local branch is keyed on the (possibly flipped) flag, so the
     // degrading chunk — and, via avatarRequested now false, every
     // later chunk — plays through the local speaker path.
-    expect(playBody).toContain('if (!pairedVideo) {');
-    expect(playBody.indexOf('engageVideoFallback();')).toBeLessThan(playBody.indexOf('if (!pairedVideo) {'));
+    // (Volume-stream fix, 2026-11-14: the branch ALSO admits
+    // pairedLocal — a still-paired chunk on the local-first path.
+    // The degrade fall-through is unchanged: degrade flips
+    // pairedVideo false in the branch ABOVE the mode check, so a
+    // degrading chunk never sets pairedLocal.)
+    expect(playBody).toContain('if (!pairedVideo || pairedLocal) {');
+    expect(playBody.indexOf('engageVideoFallback();')).toBeLessThan(playBody.indexOf('if (!pairedVideo || pairedLocal) {'));
   });
 
   test('the send is only attempted when the face claimed live (no send into a known-dead face)', () => {
@@ -96,7 +101,14 @@ describe('1 — playPcmChunk wiring (source pins)', () => {
   });
 
   test('captions: the degrading chunk rides the LOCAL clock (paired delay applies only while still paired)', () => {
-    expect(playBody).toContain('const captionDelay = pairedVideo ? PAIRED_CAPTION_DELAY_SEC : 0;');
+    // (Volume-stream fix, 2026-11-14: the delay is resolved by
+    // pairedCaptionDelaySec — pairedVideo=false yields 0 in BOTH
+    // modes (unit-pinned in paired-audible.test.ts), so the
+    // degrading chunk still rides the local clock; on the stream
+    // path a still-paired chunk keeps the 0.4 s shift, and on the
+    // local-first path the shift lives in the audible schedule
+    // instead, never in both.)
+    expect(playBody).toContain('const captionDelay = pairedCaptionDelaySec(pairedVideo, pairedAudibleMode());');
     // pairedVideo flips before the caption window is computed.
     expect(playBody.indexOf('pairedVideo = false;')).toBeLessThan(playBody.indexOf('const captionDelay'));
   });

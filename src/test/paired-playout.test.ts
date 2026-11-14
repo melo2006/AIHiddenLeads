@@ -130,6 +130,51 @@ describe("PairedPlayout.engage", () => {
   });
 });
 
+describe("PairedPlayout.lastEngageError — every refusal names its gate (volume-stream fix)", () => {
+  it("records no-audio-track when the element carries no stream", async () => {
+    const tap = new PairedPlayout(() => new FakeCtx() as unknown as AudioContext);
+    await expect(tap.engage(fakeElement(), fakeElement(), level)).resolves.toBe(false);
+    expect(tap.lastEngageError).toBe("no-audio-track");
+  });
+
+  it("records ctx-suspended when the context cannot run", async () => {
+    const ctx = new FakeCtx();
+    ctx.state = "suspended";
+    const tap = new PairedPlayout(() => ctx as unknown as AudioContext);
+    await expect(tap.engage(fakeElement(fakeStream()), fakeElement(), level)).resolves.toBe(false);
+    expect(tap.lastEngageError).toBe("ctx-suspended");
+  });
+
+  it("records playout-blocked when the playout element will not play", async () => {
+    const ctx = new FakeCtx();
+    const tap = new PairedPlayout(() => ctx as unknown as AudioContext);
+    const playout = fakeElement();
+    // play() resolves but the element stays paused — the browser refused.
+    playout.play = vi.fn(async () => {});
+    await expect(tap.engage(fakeElement(fakeStream()), playout, level)).resolves.toBe(false);
+    expect(tap.lastEngageError).toBe("playout-blocked");
+  });
+
+  it("records source-not-rendering when the source element stays paused", async () => {
+    const ctx = new FakeCtx();
+    const tap = new PairedPlayout(() => ctx as unknown as AudioContext);
+    const source = fakeElement(fakeStream());
+    source.play = vi.fn(async () => {}); // never unpauses
+    await expect(tap.engage(source, fakeElement(), level)).resolves.toBe(false);
+    expect(tap.lastEngageError).toBe("source-not-rendering");
+  });
+
+  it("clears the error on a successful engage and exposes gain + context state", async () => {
+    const ctx = new FakeCtx();
+    const tap = new PairedPlayout(() => ctx as unknown as AudioContext);
+    const source = fakeElement(fakeStream());
+    await expect(tap.engage(source, fakeElement(), level)).resolves.toBe(true);
+    expect(tap.lastEngageError).toBeNull();
+    expect(tap.contextState).toBe("running");
+    expect(tap.gainValue).toBeCloseTo(0.8);
+  });
+});
+
 describe("PairedPlayout.applyLevel / release", () => {
   it("routes the level to the gain while engaged and to the element while direct", async () => {
     const ctx = new FakeCtx();

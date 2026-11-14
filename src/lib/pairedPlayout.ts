@@ -97,6 +97,26 @@ export class PairedPlayout {
   private tappedStream: MediaStream | null = null;
   /** True while the audible output rides the media playout element. */
   engaged = false;
+  /**
+   * The gate that last refused engagement ('no-audio-track',
+   * 'ctx-unavailable', 'ctx-suspended', 'playout-blocked',
+   * 'source-not-rendering', 'exception'); null after a success.
+   * Playout telemetry reads this: until the volume-stream fix
+   * (2026-11-14) a refused tap left no trace anywhere, so a session
+   * that silently stayed on the direct WebRTC path was
+   * indistinguishable from an engaged one in every record.
+   */
+  lastEngageError: string | null = null;
+
+  /** Tap AudioContext state for telemetry ('none' before creation). */
+  get contextState(): string {
+    return this.ctx ? this.ctx.state : "none";
+  }
+
+  /** Current tap gain while engaged, else null (telemetry). */
+  get gainValue(): number | null {
+    return this.engaged && this.gainNode ? this.gainNode.gain.value : null;
+  }
 
   constructor(private readonly createContext: PairedContextFactory = defaultPairedContextFactory) {}
 
@@ -136,6 +156,7 @@ export class PairedPlayout {
     try {
       const stream = (source.srcObject as MediaStream | null) ?? null;
       if (!stream || typeof stream.getAudioTracks !== "function" || stream.getAudioTracks().length === 0) {
+        if (!this.engaged) this.lastEngageError = "no-audio-track";
         return this.engaged;
       }
       if (this.engaged && this.tappedStream === stream) {
@@ -153,6 +174,7 @@ export class PairedPlayout {
         typeof ctx.createMediaStreamDestination !== "function" ||
         typeof ctx.createGain !== "function"
       ) {
+        this.lastEngageError = "ctx-unavailable";
         return false;
       }
       const stateNow = () => ctx.state;
@@ -166,7 +188,10 @@ export class PairedPlayout {
       // A suspended context renders silence — engaging now would take
       // a working direct path down. Stay direct; a later gesture
       // (activate, unmute, slider) retries the tap.
-      if (stateNow() !== "running") return false;
+      if (stateNow() !== "running") {
+        this.lastEngageError = "ctx-suspended";
+        return false;
+      }
       if (!this.gainNode || !this.destinationNode) {
         this.gainNode = ctx.createGain();
         this.destinationNode = ctx.createMediaStreamDestination();
@@ -187,7 +212,10 @@ export class PairedPlayout {
         playout.srcObject = this.destinationNode.stream;
       }
       await playout.play();
-      if (playout.paused) return false;
+      if (playout.paused) {
+        this.lastEngageError = "playout-blocked";
+        return false;
+      }
       if (source.paused) {
         // The tap needs the source stream rendering; an element the
         // browser refuses to play starves it. Stay direct instead.
@@ -197,15 +225,20 @@ export class PairedPlayout {
           /* verdict below */
         }
       }
-      if (source.paused) return false;
+      if (source.paused) {
+        this.lastEngageError = "source-not-rendering";
+        return false;
+      }
       // Playout confirmed on the media element: silence the direct
       // element WITHOUT muting it (see the module header).
       source.muted = false;
       source.volume = 0;
       this.tappedStream = stream;
       this.engaged = true;
+      this.lastEngageError = null;
       return true;
     } catch {
+      if (!this.engaged) this.lastEngageError = "exception";
       return false;
     }
   }

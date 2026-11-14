@@ -11,6 +11,8 @@ import { startChromaKey, SARA_CHROMA_KEY_PROFILE } from "@/lib/chromaKey";
 import { clampPlaybackVolume } from "@/lib/playbackVolume";
 import { applySinkIdToElement } from "@/lib/speakerOutput";
 import { PairedPlayout, pairedSoundAudible, type PairedPlaybackLevel } from "@/lib/pairedPlayout";
+import { starveSimliStreamAudio, simliAudioTrackState, type SimliStreamAudioOutcome } from "@/lib/simliStreamAudio";
+import type { PlayoutDiagSnapshot, PlayoutPath } from "@/lib/playoutDiag";
 
 export interface SimliAvatarHandle {
   /** Resolves true once the face is on screen; false (with a visible reason) when Simli refuses or fails.
@@ -47,6 +49,11 @@ export interface SimliAvatarHandle {
    *  goes live, and this query lets the caller verify instead of
    *  assuming. Optional: handles predating the query don't answer. */
   soundArmed?: () => boolean;
+  /** Playout telemetry snapshot (volume-stream fix, 2026-11-14): the
+   *  audio graph as it stands right now — which path is audible, the
+   *  tap's state and last refusal gate, the returned stream track's
+   *  state. Optional: handles predating the query don't answer. */
+  playoutSnapshot?: () => PlayoutDiagSnapshot;
   stop: () => void;
   /** Stops the session but keeps the last keyed frame on screen: the frozen
    * face covers the gap while a replacement instance mounts (avatar swap). */
@@ -94,7 +101,7 @@ export interface SimliAvatarHandle {
    *  re-applied at start()/activate() once the stream exists. */
   setOutputDevice?: (deviceId: string) => Promise<boolean>;
 }
-export interface SimliAvatarProps { avatar: VideoAvatar; agentId?: string; shareToken?: string; draft?: boolean; faceOverride?: string; inline?: boolean; unboxed?: boolean; onLiveChange?: (live: boolean) => void; /** Platform guide ('alex'): request the guide's fixed library face token instead of a tenant agent's face. */ guide?: "alex"; /** Persona pre-stage (avatar swap): start behind the live face — token request carries the persona selector + parent-session proof, and the element starts muted/hidden. */ persona?: "aspen" | "sara" | "alex" | "frank" | "latina" | "black-professional-lady"; personaParentSessionId?: string; personaVisitorKey?: string; /** Example presenter (Frank batch): the main face of a solo-presenter demo — token request carries the persona + the PINNED example leadId instead of a parent session (the face starts concurrently with the parent authorization); simli-avatar authorizes it against its server-known presenter map. */ personaLeadId?: string; /** Pre-stage mode: mounted and live but not shown (opacity 0, no pointer events) until the cut-over reveals it. */ concealed?: boolean; /** Stacking layer inside the shared live box during a swap: the revealing/active face sits above the retiring frozen frame. */ layer?: number; }
+export interface SimliAvatarProps { avatar: VideoAvatar; agentId?: string; shareToken?: string; draft?: boolean; faceOverride?: string; inline?: boolean; unboxed?: boolean; onLiveChange?: (live: boolean) => void; /** Volume-stream fix (2026-11-14): 'muted' = local-first paired playout — this instance's returned stream audio is NEVER made audible (element held muted; the LiveKit audio publication is unsubscribed where the SDK internals allow, so no RTC audio receiver stays live in the page); the caller plays the Gemini voice through its local media-sink path instead, the shape proven media-classified on Android. Default 'audible' = the media-tap behavior. */ streamAudio?: "audible" | "muted"; /** Playout telemetry sink: fired at settle points (live, activation, starve outcome, tap transitions, stop) with a snapshot of the audio graph; the caller persists it to the voice session record. */ onPlayoutDiag?: (snapshot: PlayoutDiagSnapshot) => void; /** Platform guide ('alex'): request the guide's fixed library face token instead of a tenant agent's face. */ guide?: "alex"; /** Persona pre-stage (avatar swap): start behind the live face — token request carries the persona selector + parent-session proof, and the element starts muted/hidden. */ persona?: "aspen" | "sara" | "alex" | "frank" | "latina" | "black-professional-lady"; personaParentSessionId?: string; personaVisitorKey?: string; /** Example presenter (Frank batch): the main face of a solo-presenter demo — token request carries the persona + the PINNED example leadId instead of a parent session (the face starts concurrently with the parent authorization); simli-avatar authorizes it against its server-known presenter map. */ personaLeadId?: string; /** Pre-stage mode: mounted and live but not shown (opacity 0, no pointer events) until the cut-over reveals it. */ concealed?: boolean; /** Stacking layer inside the shared live box during a swap: the revealing/active face sits above the retiring frozen frame. */ layer?: number; }
 
 const POSITION: Record<VideoAvatar["position"], string> = {
   "bottom-right": "bottom-28 right-3", "bottom-left": "bottom-28 left-3", "top-right": "top-20 right-3", "top-left": "top-20 left-3",
@@ -235,7 +242,7 @@ export async function sessionToken(body: Record<string, unknown>, cancel?: Abort
 }
 
 /** Owns one Simli session: the face lip-syncs Gemini's audio; Gemini remains the only conversation brain. */
-const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, agentId, shareToken, draft, faceOverride, inline = false, unboxed = false, onLiveChange, guide, persona, personaParentSessionId, personaVisitorKey, personaLeadId, concealed = false, layer }, ref) => {
+const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, agentId, shareToken, draft, faceOverride, inline = false, unboxed = false, onLiveChange, streamAudio, onPlayoutDiag, guide, persona, personaParentSessionId, personaVisitorKey, personaLeadId, concealed = false, layer }, ref) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -293,6 +300,54 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
   const playoutRef = useRef<HTMLAudioElement | null>(null);
   const pairedRef = useRef<PairedPlayout | null>(null);
   const pairedPlayout = () => (pairedRef.current ??= new PairedPlayout());
+  // Local-first paired playout (volume-stream fix, 2026-11-14): in
+  // 'muted' stream-audio mode the returned stream is never audible —
+  // the element is held muted and its LiveKit audio publication is
+  // unsubscribed (starved) once live, so the page holds NO live RTC
+  // audio receiver; the caller plays the voice locally instead. The
+  // prop is mirrored into refs because the imperative handle and the
+  // interval below read it outside render.
+  const streamAudioRef = useRef(streamAudio);
+  streamAudioRef.current = streamAudio;
+  const streamMuted = () => streamAudioRef.current === "muted";
+  const onPlayoutDiagRef = useRef(onPlayoutDiag);
+  onPlayoutDiagRef.current = onPlayoutDiag;
+  const starveRef = useRef<SimliStreamAudioOutcome | "pending">("pending");
+  const starveAttemptsRef = useRef(0);
+  /** The audio graph as it stands right now (telemetry). */
+  const playoutSnapshot = (): PlayoutDiagSnapshot => {
+    const audio = audioRef.current;
+    const tap = pairedRef.current;
+    const engaged = tap?.engaged ?? false;
+    const path: PlayoutPath = !liveRef.current ? "none" : streamMuted() ? "local" : engaged ? "tap" : "direct";
+    return {
+      path,
+      mode: streamMuted() ? "local" : "stream",
+      engaged,
+      ctxState: tap?.contextState ?? "none",
+      engageError: tap?.lastEngageError ?? null,
+      srcPaused: audio?.paused ?? true,
+      srcMuted: audio?.muted ?? true,
+      srcVolume: audio?.volume ?? 0,
+      track: clientRef.current ? simliAudioTrackState(clientRef.current) : "absent",
+      starve: streamMuted() ? starveRef.current : "n/a",
+      playoutPaused: playoutRef.current?.paused ?? true,
+      gain: tap?.gainValue ?? null,
+    };
+  };
+  const emitPlayoutDiag = () => {
+    try { onPlayoutDiagRef.current?.(playoutSnapshot()); } catch { /* diagnostics never break the call */ }
+  };
+  /** Unsubscribe/detach the returned stream's audio (muted mode):
+   *  once an outcome lands it is recorded for telemetry; the live
+   *  interval retries while it hasn't settled and re-starves if a
+   *  fresh audio track reappears after a reconnect. */
+  const runStarve = () => {
+    if (!streamMuted() || starveRef.current !== "pending") return;
+    starveAttemptsRef.current += 1;
+    starveRef.current = starveSimliStreamAudio(clientRef.current);
+    emitPlayoutDiag();
+  };
   const currentLevel = (): PairedPlaybackLevel => ({ muted: playbackMutedRef.current, volume: playbackVolumeRef.current });
   // Sound-request latch (first-load silence fix, 2026-11-14): set by a
   // non-silent start and by activate() — INCLUDING an activate() that
@@ -309,12 +364,21 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
     // Never let a re-created element inherit a muted DEFAULT: the
     // muted property is managed explicitly everywhere below.
     audio.defaultMuted = false;
+    // Local-first mode: the returned stream is NEVER the audible
+    // path — the element stays muted whatever the session level is
+    // (the caller's local gain carries the level instead).
+    if (streamMuted()) { audio.muted = true; audio.volume = 0; return; }
     if (pairedPlayout().engaged) { pairedPlayout().applyLevel(audio, currentLevel()); return; }
     audio.muted = playbackMutedRef.current;
     audio.volume = playbackMutedRef.current ? 0 : playbackVolumeRef.current;
   };
   /** Is the paired sound actually audible right now? */
   const soundArmedNow = (): boolean => {
+    // Local-first mode: audibility lives on the caller's local path
+    // (its context state is verified by the caller before begin);
+    // this instance's armed state is the face being live with its
+    // returned audio starved/muted.
+    if (streamMuted()) return liveRef.current;
     const audio = audioRef.current;
     if (!audio || !liveRef.current) return false;
     return pairedSoundAudible({
@@ -331,6 +395,16 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
    *  is already audible. Resolves with the armed verdict. */
   const completeSound = async (): Promise<boolean> => {
     if (!wantSoundRef.current || !liveRef.current) return false;
+    if (streamMuted()) {
+      // Local-first completion: keep the returned stream inaudible
+      // (mute is the floor) and starve its audio subscription; the
+      // audible voice is the caller's local path. The tap NEVER
+      // engages in this mode — engaging it would put a live
+      // RTC-fed MediaStreamSource back into an AudioContext.
+      applyPlaybackLevel();
+      runStarve();
+      return liveRef.current;
+    }
     const audio = audioRef.current, playout = playoutRef.current;
     if (!audio || !playout) return false;
     if (soundArmedNow() && pairedPlayout().engaged) return true;
@@ -388,6 +462,23 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
   useEffect(() => {
     if (state !== "live") return;
     const id = window.setInterval(() => {
+      if (streamMuted()) {
+        // Local-first maintenance: re-assert the element mute (cheap
+        // and idempotent — nothing may unmute the returned stream),
+        // retry the starve while it hasn't settled, and re-starve
+        // when a fresh audio track reappears (a LiveKit reconnect
+        // re-subscribes automatically).
+        applyPlaybackLevel();
+        const settled = starveRef.current === "unsubscribed" || starveRef.current === "detached";
+        if (!settled) {
+          if (starveAttemptsRef.current < 20) { starveRef.current = "pending"; runStarve(); }
+        } else if (simliAudioTrackState(clientRef.current) === "live") {
+          starveRef.current = "pending";
+          starveAttemptsRef.current = 0;
+          runStarve();
+        }
+        return;
+      }
       if (!wantSoundRef.current) return;
       if (soundArmedNow() && pairedPlayout().engaged) return;
       if (soundAttemptsRef.current >= 20) return;
@@ -399,10 +490,15 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
 
   const stopKey = () => { keyStopRef.current?.(); keyStopRef.current = null; frozenFrameRef.current = false; setKeyed(false); };
   const stop = () => {
+    // Final playout snapshot BEFORE teardown (telemetry): the record
+    // shows the path the session actually ended on.
+    if (liveRef.current) emitPlayoutDiag();
     lifecycleRef.current++;
     activatedRef.current = false;
     wantSoundRef.current = false;
     soundAttemptsRef.current = 0;
+    starveRef.current = "pending";
+    starveAttemptsRef.current = 0;
     pairedPlayout().release(playoutRef.current);
     startupRejectRef.current?.(new Error('Video startup cancelled'));
     startupRejectRef.current = null;
@@ -494,6 +590,10 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
         const client = new SimliClient(token, videoRef.current, audioRef.current, null, LogLevel.ERROR, "livekit");
         disarmSimliClient(client);
         clientRef.current = client;
+        // A fresh client means a fresh returned stream: the starve
+        // verdict belongs to the previous room, never this one.
+        starveRef.current = "pending";
+        starveAttemptsRef.current = 0;
         // The provider signals START then SILENT before the browser displays
         // its first frame. Audio may flow now; displayed-frame readiness is separate.
         client.on('silent', () => {
@@ -548,6 +648,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
           // of leaving the session mute (first-load silence fix,
           // 2026-11-14).
           if (wantSoundRef.current) void completeSound();
+          emitPlayoutDiag();
           return true;
         }
         if (audioRef.current) {
@@ -555,13 +656,19 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
           await applyDesiredSink();
           try { await audioRef.current.play(); }
           catch (playError) {
+            // Local-first mode: this element is muted and inaudible
+            // BY DESIGN (the voice rides the caller's local path) —
+            // a refused play() here must not fail a start whose
+            // sound is not on this element at all.
+            if (streamMuted()) { /* rendering is best-effort */ }
             // Not a microphone problem: the browser blocked the speaker for this tap.
-            if (playError instanceof Error && playError.name === 'NotAllowedError') throw new Error(SOUND_BLOCKED);
-            throw playError;
+            else if (playError instanceof Error && playError.name === 'NotAllowedError') throw new Error(SOUND_BLOCKED);
+            else throw playError;
           }
         }
         startupRejectRef.current = null;
         setLive(true); setState("live");
+        emitPlayoutDiag();
         // Sound is on the direct element; now move it onto the media
         // tap so the hardware volume keys govern it (pairedPlayout).
         // Fire-and-forget: engage() silences the direct element only
@@ -632,6 +739,17 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
       const audio = audioRef.current, video = videoRef.current;
       if (!audio || !video) return false;
       if (!liveRef.current || !audio.srcObject) { unlockMediaElements(video, audio); return false; }
+      if (streamMuted()) {
+        // Local-first activation: the face is live and its returned
+        // audio stays muted + starved; the caller's local path is
+        // the sound. Activation succeeds on liveness alone — the
+        // NOT-live false contract above is unchanged.
+        applyPlaybackLevel();
+        if (audio.paused) { try { await audio.play(); } catch { /* muted rendering is best-effort */ } }
+        runStarve();
+        emitPlayoutDiag();
+        return true;
+      }
       applyPlaybackLevel();
       await applyDesiredSink();
       try { await audio.play(); }
@@ -655,6 +773,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
       return true;
     },
     soundArmed: () => soundArmedNow(),
+    playoutSnapshot: () => playoutSnapshot(),
     stop,
     freeze: () => {
       // Avatar-swap cover: end this persona's Simli session but leave the
@@ -692,6 +811,18 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
       // Report not-live honestly — the caller aborts the cut-over
       // BEFORE the outgoing socket closes.
       if (!liveRef.current || !audio.srcObject) { unlockMediaElements(video, audio); return false; }
+      if (streamMuted()) {
+        // Local-first cut-over: this face takes over audibly via the
+        // caller's local path; its own returned stream stays muted
+        // and starved. The dead-face false above is unchanged — the
+        // cut-over still aborts on it.
+        wantSoundRef.current = true;
+        applyPlaybackLevel();
+        if (audio.paused) { try { await audio.play(); } catch { /* muted rendering is best-effort */ } }
+        runStarve();
+        emitPlayoutDiag();
+        return true;
+      }
       applyPlaybackLevel();
       await applyDesiredSink();
       try { await audio.play(); }
