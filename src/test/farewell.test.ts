@@ -14,6 +14,7 @@ import {
   FAREWELL_END_DELAY_MS,
   FAREWELL_MAX_WORDS,
   detectFarewell,
+  farewellSpeakerName,
 } from '../../supabase/functions/_shared/farewell';
 
 const read = (rel: string) => fs.readFileSync(path.join(__dirname, '..', '..', rel), 'utf8');
@@ -93,34 +94,65 @@ describe('proxy wiring — detection at turnComplete, with cancel paths', () => 
     expect(src).toContain('farewellHandled = true');
   });
 
-  it('injects exactly one brief closing instruction — no question, no new offers', () => {
-    expect(src).toContain('The visitor has clearly said goodbye.');
-    expect(src).toContain('give ONE brief, warm closing line now');
-    expect(src).toContain('do not re-open any topic');
+  it('injects NOTHING on a farewell — the model\'s own closing is the single farewell', () => {
+    // Presenter farewell fix (2026-11-14, Ron's Frank/Martinez phone
+    // test: two goodbyes in a row). The detection is evaluated on
+    // the model's turnComplete — AFTER it has already answered the
+    // visitor's goodbye with its own scripted closing line. The old
+    // injected "give ONE brief, warm closing line now" turn made the
+    // model close a second time. The proxy now only ends the call.
+    expect(src).not.toContain('The visitor has clearly said goodbye.');
+    expect(src).not.toContain('give ONE brief, warm closing line now');
+    const farewellBlock = src.slice(
+      src.indexOf('detectFarewell(completedUtterance)'),
+      src.indexOf('FAREWELL_END_DELAY_MS', src.indexOf('detectFarewell(completedUtterance)')),
+    );
+    expect(farewellBlock).toContain('farewellHandled = true');
+    expect(farewellBlock).toContain('farewellTimer = setTimeout');
+    expect(farewellBlock).not.toContain('clientContent');
+    expect(farewellBlock).not.toContain('geminiWs.send');
   });
 
   it('arms the end timer: visitor_goodbye, code 1000, the plain closed message', () => {
     expect(src).toContain('FAREWELL_END_DELAY_MS');
     expect(src).toContain("endReason = 'visitor_goodbye'; closeCode = 1000");
     // Presenter-name fix (2026-11-14): the farewell thanks the
-    // session's OWN speaker — config.name carries the presenter's
-    // display name on solo-presenter demos and 'Aspen' elsewhere, so
-    // Aspen sessions render the identical sentence as before.
-    expect(src).toContain("const speakerDisplayName = String(config.name || 'Aspen')");
+    // session's OWN speaker, resolved by farewellSpeakerName — a
+    // demoPresenter stamp outranks the config name field, so a
+    // presenter demo can never be thanked as "Aspen" off a stale
+    // name; Aspen sessions render the identical sentence as before.
+    expect(src).toContain('const speakerDisplayName = farewellSpeakerName(config)');
     expect(src).toContain("clientSocket.send(JSON.stringify({ type: 'closed', reason: `Call ended — thanks for talking with ${speakerDisplayName}.` }))");
     expect(src).not.toContain('thanks for talking with Aspen.');
+  });
+
+  it('gates silence injections while the farewell end is armed (no second farewell)', () => {
+    expect(src).toContain("const farewellOwnsClose = farewellTimer !== undefined && msg.stage !== 'bridge'");
+    expect(src).toContain('if (!farewellOwnsClose) geminiWs.send');
   });
 
   it('cancels the armed end on new speech, on a non-farewell completed turn, on any tool call, and in closeAll', () => {
     // inputTranscription fragment path
     expect(src).toContain('if (farewellTimer && callerUtterance.trim()');
     // turnComplete path (spoke again, not a farewell) — a SUBSTANTIVE
-    // completed utterance only: an empty one is Aspen's own closing
-    // turn completing and must not cancel (live proof 2026-11-12)
+    // completed utterance only: an empty one is the speaker's own
+    // closing turn completing and must not cancel (live proof 2026-11-12)
     expect(src).toContain('} else if (farewellTimer && completedUtterance.trim() && !detectFarewell(completedUtterance)) {');
     // tool dispatch + closeAll + the two paths above
     expect(occurrences(src, 'cancelFarewellEnd()')).toBeGreaterThanOrEqual(4);
     expect(src).toContain('clearTimeout(handoffStartTimer); cancelFarewellEnd()');
+  });
+
+  it('gemini-session stamps the presenter chain the banner resolves from', () => {
+    const session = read('supabase/functions/gemini-session/index.ts');
+    // The presenter parent carries BOTH the display name and the
+    // demoPresenter stamp; the proxy's farewellSpeakerName prefers
+    // the stamp, so the two can never disagree into an "Aspen" banner.
+    expect(session).toContain('name:presenter.displayName');
+    expect(session).toContain('config.demoPresenter=presenter.id');
+    // Segment configs name the segment's own persona (the speaker
+    // who is live if the visitor says goodbye mid-cameo).
+    expect(session).toContain('name:persona.displayName');
   });
 
   it('the handoff summary stamp on turnComplete still runs after the farewell block', () => {
@@ -128,5 +160,43 @@ describe('proxy wiring — detection at turnComplete, with cancel paths', () => 
     const stampAt = src.indexOf("browser_voice_handoffs').update({summary})");
     expect(stampAt).toBeGreaterThan(farewellAt);
     expect(src).toContain("clientSocket.send(JSON.stringify({ type: 'turn_complete' }))");
+  });
+});
+
+describe('farewellSpeakerName — the banner thanks the session\'s own speaker', () => {
+  it('presenter demos thank the presenter, by persona', () => {
+    expect(farewellSpeakerName({ name: 'Frank', demoPresenter: 'frank' })).toBe('Frank');
+    expect(farewellSpeakerName({ name: 'Monica', demoPresenter: 'latina' })).toBe('Monica');
+    expect(farewellSpeakerName({ name: 'Black Professional Lady', demoPresenter: 'black-professional-lady' })).toBe('Black Professional Lady');
+  });
+
+  it('the presenter stamp outranks a stale or Aspen name field', () => {
+    // The exact live defect shape (Ron, 2026-11-14): a Frank demo
+    // whose session config still said "Aspen" thanked Aspen. With
+    // the stamp present, the banner can never do that again.
+    expect(farewellSpeakerName({ name: 'Aspen', demoPresenter: 'frank' })).toBe('Frank');
+    expect(farewellSpeakerName({ name: 'Aspen', demoPresenter: 'latina' })).toBe('Monica');
+    expect(farewellSpeakerName({ demoPresenter: 'frank' })).toBe('Frank');
+    expect(farewellSpeakerName({ name: '', demoPresenter: 'black-professional-lady' })).toBe('Black Professional Lady');
+  });
+
+  it('persona segments thank the persona who was live (name field, no stamp)', () => {
+    expect(farewellSpeakerName({ name: 'Alex' })).toBe('Alex');
+    expect(farewellSpeakerName({ name: 'Sara' })).toBe('Sara');
+    expect(farewellSpeakerName({ name: 'Frank' })).toBe('Frank');
+  });
+
+  it('Aspen sessions are unchanged', () => {
+    expect(farewellSpeakerName({ name: 'Aspen' })).toBe('Aspen');
+    expect(farewellSpeakerName({ name: 'Aspen', demoPresenter: 'aspen' })).toBe('Aspen');
+    expect(farewellSpeakerName({})).toBe('Aspen');
+    expect(farewellSpeakerName({ name: '  ' })).toBe('Aspen');
+    expect(farewellSpeakerName(null)).toBe('Aspen');
+    expect(farewellSpeakerName(undefined)).toBe('Aspen');
+  });
+
+  it('a non-presenter demoPresenter value never hijacks the name', () => {
+    expect(farewellSpeakerName({ name: 'Aspen', demoPresenter: 'sara' })).toBe('Aspen');
+    expect(farewellSpeakerName({ name: 'Sara', demoPresenter: 'bogus' })).toBe('Sara');
   });
 });

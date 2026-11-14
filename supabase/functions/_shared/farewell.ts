@@ -1,10 +1,25 @@
+import { PERSONAS } from './personas.ts';
+import type { PersonaId } from './personas.ts';
+
 // Visitor farewell detection for the Gemini Live proxy (Batch 1,
 // 2026-11-12). D3 evidence: the visitor said goodbye five times,
 // Aspen signed off five times, and the session never ended — the
 // model has no way to hang up, so the proxy watches the visitor's
-// COMPLETED utterances itself and, on a clear farewell, has Aspen
-// give one brief closing line and then ends the session (see the
-// turnComplete wiring in gemini-live-proxy).
+// COMPLETED utterances itself and, on a clear farewell, ends the
+// session after the model's own closing line (see the turnComplete
+// wiring in gemini-live-proxy).
+//
+// SINGLE-SOURCE FAREWELL (presenter farewell fix, 2026-11-14): the
+// farewell detection is evaluated on the model's turnComplete —
+// i.e. AFTER the model has already answered the visitor's goodbye
+// with its own closing line (the GOODBYES rule in voice-config.ts
+// scripts exactly one). The proxy therefore injects NO closing
+// instruction of its own: an earlier version did, and the model
+// dutifully closed TWICE — once for the goodbye, once for the
+// injection (Ron's Frank/Martinez phone test, 2026-11-14: "he said
+// goodbye and then he said goodbye again"). The proxy's only jobs
+// on a farewell are the hang-up timer and the session-ended banner
+// below; the spoken farewell belongs to the active speaker alone.
 //
 // CONSERVATIVE by design: a false positive hangs up on a visitor who
 // wanted to keep talking, which is far worse than a missed goodbye
@@ -19,6 +34,39 @@
  *  session — mirrors the proxy's quiet-period close pattern. The
  *  visitor can still cancel it by speaking again (see proxy). */
 export const FAREWELL_END_DELAY_MS = 9000;
+
+/** The whole-demo presenter personas (personas.ts isPresenterPersona):
+ *  a session stamped with one of these ids in config.demoPresenter is
+ *  FRONTED by that presenter, whatever its name field says. */
+const PRESENTER_PERSONA_IDS: ReadonlySet<string> = new Set([
+  'frank',
+  'latina',
+  'black-professional-lady',
+]);
+
+/**
+ * The name the session-ended banner thanks: the session's OWN
+ * speaker. A presenter stamp (config.demoPresenter, set by
+ * gemini-session on solo-presenter demos) outranks the config's name
+ * field, so a presenter demo can never be thanked as "Aspen" by a
+ * stale or missing name — the presenter-owns-close batch stamped the
+ * name correctly on the parent, and this precedence makes the
+ * banner depend on the one stamp that defines the demo's front
+ * person. Persona segments carry their persona's display name in
+ * config.name (gemini-session segment branch) and no presenter
+ * stamp, so the speaker who was live at the goodbye is thanked.
+ * Platform sessions carry 'Aspen' and stay byte-identical.
+ */
+export function farewellSpeakerName(
+  config: { name?: unknown; demoPresenter?: unknown } | null | undefined,
+): string {
+  const presenter = typeof config?.demoPresenter === 'string' ? config.demoPresenter : '';
+  if (PRESENTER_PERSONA_IDS.has(presenter)) {
+    return PERSONAS[presenter as PersonaId].displayName;
+  }
+  const name = typeof config?.name === 'string' ? config.name.trim() : '';
+  return name || 'Aspen';
+}
 
 /** Longest utterance that can be a standalone farewell. */
 export const FAREWELL_MAX_WORDS = 12;
