@@ -23,7 +23,7 @@ import { transferDestination } from '../_shared/browser-handoff.ts'
 import { MANAGER_HANDOFF_DELAY_MS, MANAGER_TRANSFER_POLICY, managerTransferAnnouncement } from '../_shared/manager-transfer.ts'
 import { handoffReturnInstruction, handoffReturnOutcome } from '../_shared/handoff-return.ts'
 import { BROWSER_MINUTES_OVERAGE_POLICY } from '../_shared/overage-facts.ts'
-import { FAREWELL_END_DELAY_MS, detectFarewell } from '../_shared/farewell.ts'
+import { FAREWELL_END_DELAY_MS, detectFarewell, farewellSpeakerName } from '../_shared/farewell.ts'
 import { CONTACT_SAVE_CLIENT_ERROR, CONTACT_SAVE_FALLBACK_TOOL_RESPONSE, saveConfirmedFollowup } from '../_shared/contact-save.ts'
 import { logUsageEvent, videoAvatarEventFromSession, webVoiceEventFromSession } from '../_shared/usage-ledger.ts'
 
@@ -119,11 +119,12 @@ Deno.serve(async (req) => {
   const voice = ALLOWED_VOICES.has(voiceRaw) ? voiceRaw : 'Kore'
   const preview = config.preview === true
   // Session-lifecycle copy names the session's OWN speaker (2026-11-14):
-  // gemini-session stamps the presenter's display name into config.name
-  // on solo-presenter demos (Frank, Monica, Black Professional Lady),
-  // so the farewell below thanks the person the visitor actually talked
-  // with; platform sessions carry 'Aspen' and stay byte-identical.
-  const speakerDisplayName = String(config.name || 'Aspen')
+  // farewellSpeakerName resolves it from the session config — a
+  // demoPresenter stamp (Frank, Monica, Black Professional Lady)
+  // outranks the name field, so a presenter demo's farewell banner
+  // can never thank "Aspen" off a stale or missing name; platform
+  // sessions carry 'Aspen' and stay byte-identical.
+  const speakerDisplayName = farewellSpeakerName(config)
   // Voice-asked manager transfer (Batch 1, Fix 3): available on exactly
   // the sessions gemini-session issues a browser-handoff capability
   // for — a valid saved transfer destination, not a preview, not a
@@ -607,17 +608,27 @@ Deno.serve(async (req) => {
             callerUtterance = ''
             if (!farewellHandled && !preview && begun && detectFarewell(completedUtterance)) {
               farewellHandled = true
-              if (geminiWs?.readyState === WebSocket.OPEN) geminiWs.send(JSON.stringify({clientContent:{turns:[{role:'user',parts:[{text:'The visitor has clearly said goodbye. If you have not already closed, give ONE brief, warm closing line now. Do not ask a question, make no new offers, and do not re-open any topic. The call ends right after your closing.'}]}],turnComplete:true}}))
+              // SINGLE-SOURCE FAREWELL (2026-11-14): this turnComplete
+              // is the model's OWN completed response to the visitor's
+              // goodbye — its closing line (scripted by the GOODBYES
+              // rule: one brief, warm closing, then stop) has already
+              // been generated and is playing. The proxy injects NO
+              // closing instruction here: the pre-fix injection made
+              // the model close a second time for the injected turn
+              // (Ron's Frank/Martinez test — two goodbyes in a row).
+              // The proxy only arms the hang-up and, when it fires,
+              // posts the session-ended banner naming this session's
+              // own speaker.
               farewellTimer = setTimeout(() => { farewellTimer = undefined; if (closed) return; endReason = 'visitor_goodbye'; closeCode = 1000; if (clientSocket.readyState === WebSocket.OPEN) clientSocket.send(JSON.stringify({ type: 'closed', reason: `Call ended — thanks for talking with ${speakerDisplayName}.` })); closeAll() }, FAREWELL_END_DELAY_MS)
             } else if (farewellTimer && completedUtterance.trim() && !detectFarewell(completedUtterance)) {
               // They spoke again and it was not another farewell. An
               // EMPTY completed utterance is not the visitor speaking
-              // again — it is Aspen's own closing turn (the one the
-              // injection above asked for) completing, and cancelling
-              // on it made the hang-up self-defeating: the closing
-              // line's own turnComplete killed the timer every time
-              // (live proof 2026-11-12, session 59d8731e: detector
-              // fired, closing was spoken, session never ended).
+              // again — it is the speaker's own closing turn
+              // completing, and cancelling on it made the hang-up
+              // self-defeating: the closing line's own turnComplete
+              // killed the timer every time (live proof 2026-11-12,
+              // session 59d8731e: detector fired, closing was spoken,
+              // session never ended).
               cancelFarewellEnd()
             }
             if(config.transferPhone) EdgeRuntime.waitUntil((async()=>{
@@ -801,7 +812,17 @@ Deno.serve(async (req) => {
           : msg.stage === 'checkin'
           ? 'The caller has been quiet after playback. Briefly ask in the selected conversation language: Are you still there? Take your time, I am here if you would like to continue. Then wait for their answer.'
           : 'The caller remained silent after a check-in and reply grace period. Briefly say in the selected conversation language: I will let you go for now. You are welcome to start another conversation whenever you are ready. Take care. Do not ask another question.';
-        geminiWs.send(JSON.stringify({clientContent:{turns:[{role:'user',parts:[{text}]}],turnComplete:true}}));
+        // SINGLE-SOURCE FAREWELL (2026-11-14): while a visitor-goodbye
+        // end is ARMED (farewellTimer pending), the model's closing
+        // line and that end own the close — a silence check-in or
+        // silence goodbye injected now would talk over the closing
+        // and land as a second farewell. The gate follows the timer,
+        // not the once-ever farewellHandled flag: if the visitor
+        // speaks again and the end is cancelled, silence handling
+        // resumes normally. The bridge line is exempt: it is not a
+        // farewell, and a swap in flight still needs it.
+        const farewellOwnsClose = farewellTimer !== undefined && msg.stage !== 'bridge';
+        if (!farewellOwnsClose) geminiWs.send(JSON.stringify({clientContent:{turns:[{role:'user',parts:[{text}]}],turnComplete:true}}));
       } else if (msg.type === 'handoff_ended' && managerTransferAvailable && !handoffReturnHandled) {
         // Come-back after handoff (Handoff improvement batch,
         // 2026-11-12): the browser handoff has ended and the visitor
