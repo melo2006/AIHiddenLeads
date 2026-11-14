@@ -21,6 +21,13 @@ export default function PlaybackCaption({ caption }: { caption: Caption }) {
     return () => window.clearTimeout(timer);
   }, [caption.word, caption.text]);
   return <div ref={panelRef} aria-label="Live playback captions" className="relative h-full min-h-0 flex-1 overflow-y-auto overscroll-contain text-sm font-bold leading-6" onTouchStart={() => { touchedUntil.current = Date.now() + 3000; }} onWheel={() => { touchedUntil.current = Date.now() + 3000; }}>
-    {caption.text.split(/\s+/).map((word, i) => <span key={i} ref={i === caption.word ? wordRef : undefined} className={i === caption.word ? 'rounded-sm bg-primary px-0.5 font-extrabold text-primary-foreground ring-1 ring-primary' : 'text-foreground'}>{word} </span>)}
+    {caption.text.split(/\s+/).map((word, i) => {
+      // The highlight is a window, not one word (CAPTION_HIGHLIGHT_WORDS in
+      // playbackCaptions): `word` is its first word, `highlightEnd` its
+      // exclusive end. word -1 is the panel's stopped state = no highlight.
+      // Scroll-following still anchors on the window's first word.
+      const highlighted = caption.word >= 0 && i >= caption.word && i < caption.highlightEnd;
+      return <span key={i} ref={i === caption.word ? wordRef : undefined} className={highlighted ? 'rounded-sm bg-primary px-0.5 font-extrabold text-primary-foreground ring-1 ring-primary' : 'text-foreground'}>{word} </span>;
+    })}
   </div>;
 }

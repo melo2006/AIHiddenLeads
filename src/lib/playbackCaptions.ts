@@ -1,8 +1,23 @@
 import { displayNumbers } from './displayNumbers';
 
 /** Playback-clock captions. Word positions are estimated: Live provides text, not word timestamps. */
+/**
+ * How many words carry the highlight at once. Word positions are ESTIMATES
+ * (Live sends text, not per-word timestamps), so a single highlighted word is
+ * often not the word being heard — Ron's live test (2026-11-14): his eye kept
+ * landing on a highlighted word that was not the spoken one. The window covers
+ * the current word AND the next one, so when the estimate is off by a word,
+ * the heard word is still inside the highlight. The window is clamped to the
+ * current caption run (one spoken segment — the reading unit here): at the
+ * run's last word only that word is highlighted, and the window never spills
+ * into the next segment, which restarts its own window at its own first word.
+ * Ron also floated highlighting the whole current line instead; that variant
+ * is a wider window from this one constant, not a redesign.
+ */
+export const CAPTION_HIGHLIGHT_WORDS = 2;
 type CaptionRun = { text: string; start: number | null; end: number; complete: boolean; lastWord: number; lastTime: number; shown?: { src: string; out: string } };
-export type PlaybackCaption = { text: string; word: number };
+/** `word` is the highlight window's first word (-1 = no highlight); `highlightEnd` is its exclusive end. */
+export type PlaybackCaption = { text: string; word: number; highlightEnd: number };
 export class PlaybackCaptions {
   private runs: CaptionRun[] = [];
   private current: CaptionRun | null = null;
@@ -45,6 +60,9 @@ export class PlaybackCaptions {
     if (time >= run.lastTime) word = Math.max(word, run.lastWord);
     run.lastTime = time;
     run.lastWord = word;
-    return { text: shownText, word };
+    // Widen the estimated word into the highlight window, clamped to this run:
+    // at the run's last word the window is that word alone (see the constant).
+    const highlightEnd = Math.min(words.length, word + CAPTION_HIGHLIGHT_WORDS);
+    return { text: shownText, word, highlightEnd };
   }
 }
