@@ -43,21 +43,26 @@ export const REALTOR_EXAMPLE_PINNED_LEADS: RealtorExamplePinnedLead[] = [
 ];
 
 /**
- * Example presenters (Frank batch, 2026-11-13) — CLIENT COPY of the
- * server-known map in supabase/functions/_shared/
+ * Example presenters (Frank batch + Ladies batch, 2026-11-13) —
+ * CLIENT COPY of the server-known map in supabase/functions/_shared/
  * realtor-example-pinned-leads.ts (keep in sync; the pinned-leads
  * test pins both). Examples NOT listed here run the standard
  * Aspen→Sara flow. A listed example is fronted SOLO by the named
  * presenter persona: the Senior Owner ("Frank") fronts the three
- * MALE agents' examples. The client reads this only to render the
- * right face/name from the first frame (the face token and the
- * session itself are authorized server-side against the server's
- * own copy — this copy earns nothing on its own).
+ * MALE agents' examples; Latina and the Black Professional Lady
+ * front two FEMALE agents' examples each. The client reads this
+ * only to render the right face/name from the first frame (the face
+ * token and the session itself are authorized server-side against
+ * the server's own copy — this copy earns nothing on its own).
  */
-export const REALTOR_EXAMPLE_PRESENTERS: Partial<Record<string, "aspen" | "sara" | "alex" | "frank">> = {
+export const REALTOR_EXAMPLE_PRESENTERS: Partial<Record<string, "aspen" | "sara" | "alex" | "frank" | "latina" | "black-professional-lady">> = {
   "michael-martinez": "frank",
   "richard-steinberg": "frank",
   "paul-saperstein": "frank",
+  "aurelia-perez": "latina",
+  "danielle-lazier": "latina",
+  "ann-chamberlain": "black-professional-lady",
+  "ashley-cusack": "black-professional-lady",
 };
 
 const presenterByLeadId = new Map(
@@ -67,7 +72,7 @@ const presenterByLeadId = new Map(
 
 /** The solo presenter persona for a pinned example leadId, or null
  *  when the example runs the standard Aspen→Sara flow. */
-export function presenterForExampleLeadId(leadId: string | undefined | null): "aspen" | "sara" | "alex" | "frank" | null {
+export function presenterForExampleLeadId(leadId: string | undefined | null): "aspen" | "sara" | "alex" | "frank" | "latina" | "black-professional-lady" | null {
   if (!leadId) return null;
   return presenterByLeadId.get(leadId) ?? null;
 }

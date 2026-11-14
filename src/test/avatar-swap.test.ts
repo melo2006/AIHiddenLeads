@@ -193,7 +193,7 @@ describe('segment authorization inheritance (gemini-session source pins)', () =>
   });
   test('simli-avatar persona selector requires parent proof', () => {
     const simli = read('supabase/functions/simli-avatar/index.ts');
-    expect(simli).toContain("persona: z.enum(['aspen', 'sara', 'alex', 'frank'])");
+    expect(simli).toContain("persona: z.enum(['aspen', 'sara', 'alex', 'frank', 'latina', 'black-professional-lady'])");
     expect(simli).toContain('A parent demo session is required for a persona avatar');
     expect(simli).toContain('parentConfig.personaSwapEnabled !== true');
     // Team intro widens the proof to the either/or parent class
