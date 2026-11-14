@@ -195,11 +195,15 @@ describe('authorization source pins', () => {
   const geminiSession = fs.readFileSync(path.join(__dirname, '../../supabase/functions/gemini-session/index.ts'), 'utf8');
   const simliAvatar = fs.readFileSync(path.join(__dirname, '../../supabase/functions/simli-avatar/index.ts'), 'utf8');
 
-  test('gemini-session stamps the presenter parent and withholds the swap stamp', () => {
+  test('gemini-session stamps the presenter parent and (lead path) the swap stamp', () => {
     expect(geminiSession).toContain('examplePresenterForSlug(examplePack.slug)');
     expect(geminiSession).toContain('simulationPrompt:presenterSimulationPrompt(presenter)');
     expect(geminiSession).toContain('config.demoPresenter=presenter.id');
-    expect(geminiSession).toContain('!config.demoPresenter) config.personaSwapEnabled=true');
+    // Alex handoff fix (2026-11-14): the swap stamp is no longer
+    // withheld from presenter parents on the lead path — the client
+    // runs the meet-alex-only presenter chain for them, so the
+    // close's MEET ALEX beat actually swaps to Alex and back.
+    expect(geminiSession).toContain('(!config.demoPresenter || b.leadId)) config.personaSwapEnabled=true');
   });
 
   test('simli-avatar authorizes the presenter face against the server map by leadId', () => {

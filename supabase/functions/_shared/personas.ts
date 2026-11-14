@@ -22,7 +22,7 @@
 // Segment prompts live with their owners: the simulation segments in
 // voice-config.ts (split at the script's natural seams; SIMULATION_PROMPT
 // stays assembled byte-identical), the Alex guest segment in alex-guide.ts.
-import { ALEX_FACE_ID, ALEX_VOICE } from './alex-guide.ts';
+import { ALEX_FACE_ID, ALEX_VOICE, alexPresenterGuestPrompt } from './alex-guide.ts';
 import {
   ALEX_CAMEO_PROMPT,
   INTRO_BOUNDARIES,
@@ -356,6 +356,21 @@ export function personaSegmentPrompt(
     if (!alexGuest) throw new Error('personaSegmentPrompt: alexGuest is required for the alex segment');
     return { systemPrompt: alexGuest.systemPrompt, greeting: alexGuest.greeting };
   }
+  // PRESENTER RETURN (Alex handoff fix, 2026-11-14): a presenter demo's
+  // Alex cameo hands the conversation back to the PRESENTER, not to
+  // stock Aspen — the client asks for the presenter persona on the
+  // 'return' boundary (and on 'stepout' for drop/stash re-entry into
+  // the close). The build is the close segment bound to the presenter
+  // with the same two close rewrites her parent prompt carries, so
+  // she steps out and answers follow-ups as herself. Before this
+  // branch existed, a presenter parent never armed the swap at all:
+  // the close's MEET ALEX beat was spoken and nothing executed.
+  if (isPresenterPersona(persona)) {
+    return {
+      systemPrompt: `${BUSINESS_ASSISTANT_PREAMBLE(businessName)}\n${rewritePresenterCloseSegment(bindSegmentNames(SIMULATION_CLOSE_SEGMENT, binding), binding)}${teamIntroSeen ? `\n${TEAM_INTRO_CALLBACK_CLOSE}` : ''}`,
+      greeting: '',
+    };
+  }
   // Aspen: the closing segment after Sara (stepout), the return after Alex
   // (return), or — at the doorway in reverse — the host segment that opens
   // the demo. Host sessions normally come from the legacy authorization;
@@ -402,9 +417,50 @@ export function personaSegmentPrompt(
 // fails tests instead of silently shipping Sara/Aspen lines to a
 // Frank session.
 // ---------------------------------------------------------------------------
-export function presenterSimulationPrompt(binding: PersonaBinding): string {
+/** The two CLOSE-segment presenter rewrites (beats 3–4 of the
+ *  presenter list above): the step-out line and the follow-up seat,
+ *  bound to the presenter instead of Aspen. Applied to the whole
+ *  assembled prompt by presenterSimulationPrompt, and to the bare
+ *  close segment by the presenter segment build below — one needle
+ *  set, so the two can never drift apart. */
+export function rewritePresenterCloseSegment(text: string, binding: PersonaBinding): string {
   const name = binding.displayName;
-  return SIMULATION_PROMPT
+  return text
+    .replace(
+      `"Okay — I am stepping out of simulation mode now. This is Aspen from AI Hidden Leads again." When the receptionist is the one speaking this line, she says it in her own voice instead — "Okay — I'm stepping out of simulation mode now, and I'll hand you back to Aspen" — the step-out beat belongs to whoever is live; do not wait for Aspen to announce it.`,
+      `"Okay — I am stepping out of simulation mode now. This is ${name} from AI Hidden Leads again." You hosted this demo and played the receptionist yourself, so the step-out is yours to announce — there is nobody to hand the visitor back to.`,
+    )
+    .replace(
+      'Answer follow-ups as Aspen from AI Hidden Leads under the sales policy.',
+      `Answer follow-ups as ${name} from AI Hidden Leads under the sales policy.`,
+    );
+}
+
+/** The whole-demo presenter personas (the example-demo front people).
+ *  Everyone else in the registry enters through persona segments;
+ *  these three FRONT a demo as its parent session instead. */
+export function isPresenterPersona(id: PersonaId): boolean {
+  return id === 'frank' || id === 'latina' || id === 'black-professional-lady';
+}
+
+/** Alex's guest prompt for a PRESENTER parent (Alex handoff fix,
+ *  2026-11-14): his hand-back line names the presenter, and the
+ *  client's presenter matcher arms the return on the same phrase
+ *  ("bring <name> back" — kept in step with PRESENTER_HAND_BACK in
+ *  src/lib/personaSwap.ts). The Black Professional Lady's display
+ *  name is a descriptive working label, not a name to speak, so her
+ *  chain addresses her as "your host" instead. */
+export function presenterAlexGuestPrompt(presenter: PersonaId): string {
+  const named = presenter !== 'black-professional-lady';
+  const name = PERSONAS[presenter].displayName;
+  const example = named
+    ? `Let me bring ${name} back for the plans side — ${presenter === 'frank' ? 'he' : 'she'} has all of that.`
+    : 'Let me bring your host back for the plans side — she has all of that.';
+  return alexPresenterGuestPrompt(named ? name : 'Your host', named ? name : 'your host', example);
+}
+
+export function presenterSimulationPrompt(binding: PersonaBinding): string {
+  return rewritePresenterCloseSegment(SIMULATION_PROMPT
     .replace(
       'IF THE VISITOR ASKS FOR SARA BY NAME DURING THIS HOST PHASE: that ask IS the doorway — a request for a named person is a transfer, always. Never answer AS Sara, never speak her lines, and never roleplay the business yourself in her place. Move straight to the handoff: announce the simulation briefly and end with "Can I transfer you to Sara now?", then wait for their answer.',
       `IF THE VISITOR ASKS FOR ASPEN OR SARA BY NAME DURING THIS HOST PHASE: they are your colleagues at AI Hidden Leads, and in THIS demonstration you are the host and the receptionist in one — there is no second person to bring in. Say so warmly and briefly, in your own words — for example: "Aspen and Sara are on my team — for this demonstration you've got me, and I'll look after you myself." Then carry on hosting exactly as scripted: never answer AS Aspen or Sara, and never claim a transfer to them is happening or has happened.`,
@@ -416,13 +472,5 @@ export function presenterSimulationPrompt(binding: PersonaBinding): string {
     .replace(
       'so do not wait for her version, soften it, or refer back to it.',
       'so do not soften it or refer back to an earlier version of it.',
-    )
-    .replace(
-      `"Okay — I am stepping out of simulation mode now. This is Aspen from AI Hidden Leads again." When the receptionist is the one speaking this line, she says it in her own voice instead — "Okay — I'm stepping out of simulation mode now, and I'll hand you back to Aspen" — the step-out beat belongs to whoever is live; do not wait for Aspen to announce it.`,
-      `"Okay — I am stepping out of simulation mode now. This is ${name} from AI Hidden Leads again." You hosted this demo and played the receptionist yourself, so the step-out is yours to announce — there is nobody to hand the visitor back to.`,
-    )
-    .replace(
-      'Answer follow-ups as Aspen from AI Hidden Leads under the sales policy.',
-      `Answer follow-ups as ${name} from AI Hidden Leads under the sales policy.`,
-    );
+    ), binding);
 }

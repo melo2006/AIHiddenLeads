@@ -10,7 +10,7 @@ import { workspaceAccess } from '../_shared/customer-payments.ts';
 import { resolveDemoShare } from '../_shared/demo-share.ts';
 import { DEMO_INVITE_GREETING, DEMO_INVITE_GREETING_LEGACY_SLIM, DEMO_INVITE_GREETING_VARIANTS, DEMO_INVITE_OPENING, DEMO_INVITE_OPENING_SWAP, DEMO_VERIFICATION_ACT1, DEMO_VERIFICATION_GREETING } from '../_shared/demo-sales.ts';
 import { alexGuideConfig, alexDemoGuestConfig } from '../_shared/alex-guide.ts';
-import { avatarSwapEnabled, teamIntroEnabled, personaFor, personaSegmentPrompt, presenterSimulationPrompt } from '../_shared/personas.ts';
+import { avatarSwapEnabled, teamIntroEnabled, personaFor, personaSegmentPrompt, presenterAlexGuestPrompt, presenterSimulationPrompt } from '../_shared/personas.ts';
 import { examplePresenterForSlug } from '../_shared/realtor-example-pinned-leads.ts';
 import { TEAM_INTRO_TEACHING, isIntroBoundary, teamIntroGreetingFor } from '../_shared/team-intro.ts';
 import { realtorLandingApplies, stampRealtorLanding } from '../_shared/homepage-knowledge.ts';
@@ -150,7 +150,14 @@ Deno.serve(async req=>{
     // never receive it; a parent without the marker passes nothing
     // and its segment builds stay byte-identical.
     const examplePack=b.personaSegment.persona==='sara'?examplePackBySlug((parent.exampleListings as {slug?:unknown}|undefined)?.slug):null;
-    const built=personaSegmentPrompt(b.personaSegment.persona,b.personaSegment.boundary,businessName,String(parent.systemPrompt || ''),b.personaSegment.persona==='alex'?alexDemoGuestConfig(businessName):undefined,parent.teamIntroSeen===true,undefined,examplePack?{layer:buildExampleListingsLayer(examplePack)}:undefined);
+    // PRESENTER PARENT (Alex handoff fix, 2026-11-14): when the parent
+    // is a whole-demo presenter (its config carries the demoPresenter
+    // stamp from its own authorization), Alex's guest prompt names
+    // the PRESENTER as his host — his hand-back line brings HER/HIM
+    // back, and the client's presenter matcher arms the return on
+    // that phrase. Aspen parents pass undefined and keep the stock
+    // guest prompt byte-identical.
+    const built=personaSegmentPrompt(b.personaSegment.persona,b.personaSegment.boundary,businessName,String(parent.systemPrompt || ''),b.personaSegment.persona==='alex'?alexDemoGuestConfig(businessName,parent.demoPresenter?presenterAlexGuestPrompt(parent.demoPresenter as 'frank'|'latina'|'black-professional-lady'):undefined):undefined,parent.teamIntroSeen===true,undefined,examplePack?{layer:buildExampleListingsLayer(examplePack)}:undefined);
     config={
       ...parent,
       name:persona.displayName,
@@ -217,8 +224,12 @@ Deno.serve(async req=>{
     // the simulation in one session, so the parent is composed from
     // the LEGACY whole-demo config bound to the presenter (name,
     // voice, presenter-rewritten prompt) instead of the swap-parent
-    // host composition, and the swap stamp below is withheld: no
-    // Sara segment ever arms on a presenter demo. The flag alone
+    // host composition. The presenter fronts the DEMO solo — no Sara
+    // segment ever arms on a presenter demo — but since the Alex
+    // handoff fix (2026-11-14) the parent DOES earn the swap stamp
+    // (lead path only; see the stamp below): the client runs the
+    // presenter chain, whose only boundaries are the close's MEET
+    // ALEX cameo and Alex's hand-back to the presenter. The flag alone
     // earns nothing and a URL match alone earns nothing — both, plus
     // the map entry, exactly like the listings stamp's trust pattern.
     const examplePack=b.sample===true?examplePackForSiteUrl(siteUrl):null;
@@ -359,7 +370,18 @@ Deno.serve(async req=>{
   // so the client starts the swap state machine only when the server says
   // so. Segment configs already carry personaSwapEnabled:true from their
   // branch; every other session shape is untouched when the flag is off.
-  if(!b.personaSegment && swapEnabled && (b.leadId || b.prospectId) && !b.draft && !b.preview && !config.demoPresenter) config.personaSwapEnabled=true;
+  // PRESENTER PARENTS (Alex handoff fix, 2026-11-14): a demoPresenter
+  // parent now earns the stamp too — but only on the LEAD path, where
+  // the client derives the same presenter from the lead id and runs
+  // the presenter chain (meet-alex + return only; its matcher has no
+  // doorway, so no Sara segment can ever arm on a presenter demo).
+  // Before this fix the stamp was withheld from presenter parents
+  // while their prompt kept the close's MEET ALEX beat: the presenter
+  // spoke the introduction, yielded — and no swap ever executed
+  // (Ron's Latina/Aurelia test, 2026-11-14). A prospect-path presenter
+  // parent still earns nothing: the client cannot name its presenter,
+  // so it must stay inert rather than run the Aspen chain.
+  if(!b.personaSegment && swapEnabled && (b.leadId || b.prospectId) && !b.draft && !b.preview && (!config.demoPresenter || b.leadId)) config.personaSwapEnabled=true;
   // Website UI locale → authorized starting language (Ron, 2026-11-09).
   // The client sends ONLY the visitor's explicit site-language selection;
   // it is validated here against the supported set (en / es / pt-BR) and

@@ -153,20 +153,41 @@ How this appearance works:
 - Never ask for a password, card number, email address or any contact detail in this appearance. You cannot transfer this call and never claim to.
 - Speak English unless the caller explicitly asks to change the conversation language.`;
 
+/** PRESENTER-PARENT variant of the guest prompt (Alex handoff fix,
+ *  2026-11-14): when the demo's host is a whole-demo presenter rather
+ *  than Aspen, the prompt's host references name the PRESENTER —
+ *  above all the hand-back beat. Alex is taught ONE example hand-back
+ *  line, and the client's presenter matcher arms the return on that
+ *  line's distinctive phrase ("bring <host> back"); left as Aspen's
+ *  version he would announce bringing Aspen back and then yield to a
+ *  presenter the visitor never heard named — or, naming the presenter
+ *  on his own, say a line no anchor recognizes and never yield at
+ *  all. `subject` is the sentence-initial label ("Latina", "Your
+ *  host"), `base` the mid-sentence/possessive label ("Latina", "your
+ *  host"), `example` the full taught hand-back line. */
+export function alexPresenterGuestPrompt(subject: string, base: string, example: string): string {
+  return ALEX_DEMO_GUEST_PROMPT
+    .replace('Aspen has just introduced you', `${subject} has just introduced you`)
+    .replace("heard Aspen's recap", `heard ${base}'s recap`)
+    .replace("are Aspen's job, not yours", `are ${base}'s job, not yours`)
+    .replace('"Let me bring Aspen back for the plans side — she has all of that."', `"${example}"`)
+    .replace('the session returns to Aspen.', `the session returns to ${base}.`);
+}
+
 /** The persona-segment config for demo-guest Alex (avatar swap Stage 1).
  *  Same config shape as alexGuideConfig(), but the content is the guest
  *  segment, `platformGuide` is false (this is a demo session, not the
  *  wizard), and it carries no transferPhone — no handoff token, ever. The
  *  business name follows the demo's business so reference framing stays
  *  coherent; Alex himself always speaks for AI Hidden Leads. */
-export function alexDemoGuestConfig(businessName: string) {
+export function alexDemoGuestConfig(businessName: string, systemPrompt: string = ALEX_DEMO_GUEST_PROMPT) {
   return {
     name: 'Alex',
     businessName,
     voice: ALEX_VOICE,
     avatarPath: '',
     greeting: ALEX_DEMO_GREETING,
-    systemPrompt: ALEX_DEMO_GUEST_PROMPT,
+    systemPrompt,
     knowledge: '',
     crawlDepth: 1,
     recordTranscript: false,

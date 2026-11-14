@@ -30,7 +30,7 @@ import { classifyMicrophoneFailure, isEmbeddedContext } from "@/lib/embeddedCont
 import {campaignVisit, trackCampaignEvent} from '@/lib/campaignTracking';
 import { salesPlans, type SalesPlan } from '@/lib/salesActions';
 import SimliAvatar, { SOUND_BLOCKED, isVideoStartFailure, type SimliAvatarHandle } from '@/components/SimliAvatar';
-import { BOUNDARY_TARGET, boundedSettle, boundaryForAssistantLine, buildSwapRecap, chainIsMidSegment, chainStashTarget, cutoverAudioSync, cutoverMode, cutoverReady, dequeueSwapExecution, dropApologyVariant, enqueueSwapExecution, faceLivenessOnLive, faceLivenessOnNotLive, faceLivenessOnStartSettled, gateWaitContinues, INITIAL_SWAP_STATE, introYieldOnVisitorLine, micAudioPasses, noteAlexIntent, noteAspenIntent, noteDoorwayEngagement, noteSegmentFailure, otherFaceSlot, pendingExecutionBoundary, pendingRetryBoundary, PHASE_AFTER_BOUNDARY, PHASE_ENTRY, PRESTAGE_START_TIMEOUT_MS, prestageWatchDecision, reconnectTarget, recordSwapDiag, retryArmStamp, segmentAttemptsFor, segmentConnectRetryAllowed, segmentTokenStale, SEGMENT_TOKEN_TTL_MS, swapBridgeDue, swapDiagPersistPayload, swapFallbackLine, swapWatchdogAction, SWAP_CROSSFADE_MS, SWAP_GATE_POLL_MS, SWAP_GATE_WAIT_MS, swapRecapFacts, SWAP_DIAG_PERSIST_EVENTS, visitorSignalsStepOut, type ChainStash, type FaceSlot, type PersonaBoundary, type PersonaId, type StagedFaceLiveness, type SwapDiagEntry, type SwapPhase, type SwapState } from '@/lib/personaSwap';
+import { BOUNDARY_TARGET, boundaryTargetFor, boundedSettle, boundaryForAssistantLine, buildSwapRecap, chainIsMidSegment, chainStashTarget, cutoverAudioSync, cutoverMode, cutoverReady, dequeueSwapExecution, dropApologyVariant, enqueueSwapExecution, faceLivenessOnLive, faceLivenessOnNotLive, faceLivenessOnStartSettled, gateWaitContinues, INITIAL_SWAP_STATE, introYieldOnVisitorLine, micAudioPasses, noteAlexIntent, noteAspenIntent, noteDoorwayEngagement, noteSegmentFailure, otherFaceSlot, pendingExecutionBoundary, pendingRetryBoundary, PHASE_AFTER_BOUNDARY, PHASE_ENTRY, PRESTAGE_START_TIMEOUT_MS, prestageWatchDecision, reconnectTarget, recordSwapDiag, retryArmStamp, segmentAttemptsFor, segmentConnectRetryAllowed, segmentTokenStale, SEGMENT_TOKEN_TTL_MS, swapBridgeDue, swapDiagPersistPayload, swapFallbackLine, swapWatchdogAction, SWAP_CROSSFADE_MS, SWAP_GATE_POLL_MS, SWAP_GATE_WAIT_MS, swapRecapFacts, SWAP_DIAG_PERSIST_EVENTS, visitorSignalsStepOut, type ChainStash, type FaceSlot, type PersonaBoundary, type PersonaId, type StagedFaceLiveness, type SwapDiagEntry, type SwapPhase, type SwapState } from '@/lib/personaSwap';
 import { PERSONAS, SARA_FACE_ID } from '../../supabase/functions/_shared/personas';
 import { presenterForExampleLeadId } from '@/data/realtorExamplePinnedLeads';
 import { ALEX_FACE_ID } from '../../supabase/functions/_shared/alex-guide';
@@ -217,7 +217,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
    *  consumed by the reconnected parent's arming block in
    *  startConversation, which re-arms the doorway immediately instead
    *  of waiting for a whole extra Aspen turn. */
-  const chainDropSnapshotRef = useRef<{ state: SwapState; parentSessionId: string | null; chainClass: 'simulation' | 'intro' | null; at: number } | null>(null);
+  const chainDropSnapshotRef = useRef<{ state: SwapState; parentSessionId: string | null; chainClass: 'simulation' | 'intro' | 'presenter' | null; at: number } | null>(null);
   /** Capture the live swap chain (null when no chain is armed). Reads
    *  refs only, so any render's closure is equivalent. */
   const snapshotChainState = () => swapEnabledRef.current
@@ -228,13 +228,16 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const introYieldWasBargeInRef = useRef(false);
   /** Swap chain class (hardening, 2026-11-09): how the LIVE chain was
    *  armed — 'simulation' for a business-demo parent (leadId/prospectId
-   *  authorization), 'intro' for the /demo explainer parent, null when
+   *  authorization), 'intro' for the /demo explainer parent,
+   *  'presenter' for a whole-demo presenter parent (Alex handoff fix,
+   *  2026-11-14: meet-alex + return only — the state carries the
+   *  presenter, and the matcher runs the presenter rule set), null when
    *  no chain is armed. The structural doorway trigger
    *  (noteDoorwayEngagement) folds ONLY for the simulation class: the
    *  explainer chain starts in phase 'intro', never 'host', and a
    *  homepage session carries no chain at all — so neither can ever
    *  set pendingDoorway. Set at both arming sites, cleared at teardown. */
-  const swapChainClassRef = useRef<'simulation' | 'intro' | null>(null);
+  const swapChainClassRef = useRef<'simulation' | 'intro' | 'presenter' | null>(null);
   /** Completed assistant turns on the live socket (any persona). The
    *  structural doorway's "greeting turn has completed" input: the
    *  first turn_complete of a simulation chain IS the host's greeting /
@@ -726,7 +729,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const startSwapHold = useCallback((boundary: PersonaBoundary) => {
     if (swapHoldRef.current?.boundary === boundary) return;
     swapHoldRef.current = { boundary };
-    setSwapConnecting(BOUNDARY_TARGET[boundary]);
+    setSwapConnecting(boundaryTargetFor(swapStateRef.current, boundary));
   }, []);
   const releaseSwapHold = useCallback(() => {
     if (!swapHoldRef.current) return;
@@ -774,7 +777,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       // hold and the "Connecting…" status: still pending.
       releaseSwapHold();
       setSwapNotice(swapFallbackLine(
-        PERSONAS[BOUNDARY_TARGET[boundary]].displayName,
+        PERSONAS[boundaryTargetFor(swapStateRef.current, boundary)].displayName,
         PERSONAS[swapStateRef.current.persona].displayName,
         swapFallbackCountRef.current++,
       ));
@@ -832,7 +835,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     // entered from the intro-alex phase in place. summon-aspen is the
     // same shape: an Aspen segment entered from the simulation phase,
     // whose PHASE_ENTRY value is the step-out's.
-    const persona = boundary === 'return' || boundary === 'intro-return-2' || boundary === 'summon-aspen' ? 'aspen' as PersonaId : target?.persona;
+    // Presenter chain (Alex handoff fix, 2026-11-14): Alex's 'return'
+    // on a presenter chain lands back on the PRESENTER — boundaryTargetFor
+    // carries that; every other chain keeps 'aspen' here.
+    const persona = boundary === 'return' ? boundaryTargetFor(state, boundary) : boundary === 'intro-return-2' || boundary === 'summon-aspen' ? 'aspen' as PersonaId : target?.persona;
     if (!persona) return;
     // A stage for THIS boundary is already in hand (a kept fresh stage
     // or an in-flight arm): never authorize over it. The ONE exception
@@ -965,7 +971,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const prestageDoorwayFace = useCallback(() => {
     if (!avatarRequestedRef.current || warmedFaceRef.current || preStageRef.current) return;
     if (!swapEnabledRef.current || swapStateRef.current.phase !== 'host') return;
-    if (swapChainClassRef.current === 'intro' || swapStateRef.current.done.includes('doorway')) return;
+    if (swapChainClassRef.current === 'intro' || swapChainClassRef.current === 'presenter' || swapStateRef.current.done.includes('doorway')) return;
     const slot = otherFaceSlot(faceSlotOwnerRef.current);
     warmedFaceRef.current = { boundary: 'doorway', slot, ready: false, failed: false };
     setStageGeneration(g => g + 1);
@@ -1133,9 +1139,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     const target = chainStashTarget(stash);
     if (!target?.personaSegment) return false;
     // Restore the chain context requestSegment reads (parent, visitor
-    // key, business name) BEFORE authorising.
+    // key, business name) BEFORE authorising. A presenter chain resumes
+    // as its own class (Alex handoff fix, 2026-11-14) so the doorway
+    // trigger stays off for it after the resume too.
     swapEnabledRef.current = true;
-    swapChainClassRef.current = 'simulation';
+    swapChainClassRef.current = stash.state.presenter ? 'presenter' : 'simulation';
     parentSessionIdRef.current = stash.parentSessionId;
     visitorKeyRef.current = stash.visitorKey;
     businessNameRef.current = stash.businessName;
@@ -1708,10 +1716,29 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       // manages its own chain), and flag-off responses change nothing.
       if (!preview && authorized.personaSwapEnabled === true && (leadId || prospectId)) {
         swapEnabledRef.current = true;
-        swapChainClassRef.current = 'simulation';
         parentSessionIdRef.current = String(authorized.sessionId || '');
         visitorKeyRef.current = visitorKey;
         businessNameRef.current = String(authorized.businessName || '');
+        if (presenterPersona) {
+          // PRESENTER CHAIN (Alex handoff fix, 2026-11-14): a whole-demo
+          // presenter parent earns the swap stamp on the lead path, and
+          // the client runs the presenter chain for it — the state
+          // carries the presenter, the matcher runs the presenter rule
+          // set (meet-alex + return only; her solo script's doorway /
+          // step-out anchors can never arm a Sara swap), and Alex's
+          // return lands back on her. Before this branch existed the
+          // server withheld the stamp from presenter parents, so this
+          // block never ran for them and the close's MEET ALEX beat
+          // narrated a handoff nothing executed.
+          swapChainClassRef.current = 'presenter';
+          chainDropSnapshotRef.current = null;
+          swapStateRef.current = { ...INITIAL_SWAP_STATE, persona: presenterPersona, presenter: presenterPersona };
+          setActivePersona(presenterPersona);
+          visitChainStash.delete(agentId || "homepage");
+          // fall through to the shared tail below (nothing else in the
+          // simulation branch applies: no doorway snapshot to restore)
+        } else {
+        swapChainClassRef.current = 'simulation';
         swapStateRef.current = { ...INITIAL_SWAP_STATE };
         // F4 HOST-DOORWAY RE-ARM (fluidity batch, 2026-11-10): this
         // start is the legacy reconnect after a HOST-phase drop whose
@@ -1734,6 +1761,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         // A fresh parent authorization is a genuinely new demo journey:
         // any chain stashed by the previous one is spent.
         visitChainStash.delete(agentId || "homepage");
+        }
       }
       // Team intro arming (design §7): a DIFFERENT arming class — the
       // demo-page explainer parent (server echo teamIntroEnabled, no
