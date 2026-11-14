@@ -6,17 +6,24 @@ import es from "../i18n/locales/es.json";
 import pt from "../i18n/locales/pt-BR.json";
 
 /**
- * Copy-refresh guards (Ron's direction, 2026-11-13).
+ * Copy-refresh guards (Ron's direction, 2026-11-13; deck rewritten
+ * 2026-11-14).
  *
  * Job A — the demo build-wait flashcard deck (scan.benefits, rotated by
  * ScanningAnimation while a demo builds) predated the video avatar and
  * carried fabricated stats ("Capture 2–5x More Leads", "Most businesses
- * miss 40% of calls") plus a "ready within 48 hours" promise. The deck
- * is now 10 honest cards leading with the streaming video avatar (the
- * B2B-prospects card joined the deck in the 2026-11-14 homepage
- * compliance pass, carrying the qualified "up to 50 … no specific count
- * is guaranteed" language); the retired cards and claims must never
- * come back.
+ * miss 40% of calls") plus a "ready within 48 hours" promise. The
+ * 2026-11-14 homepage compliance pass made it 10 honest cards, but it
+ * still named Aspen in four cards and rotated warm transfer mid-deck —
+ * Ron caught exactly that card on his phone during a non-Aspen demo.
+ * The deck is now the agreed 6-card presenter-neutral set, in selling
+ * order: (1) live VIDEO spokesperson, (2) answers every call 24/7
+ * instantly, (3) captures name / need / callback number, (4) books
+ * appointments preference-first, (5) warm transfer with a summary,
+ * (6) up to 50 fresh B2B prospects with the honesty qualifier. No card
+ * may name any presenter — the deck also shows during Frank, Latina
+ * and Black Professional Lady demos. The retired cards and claims must
+ * never come back.
  *
  * Job B — the wizard's custom-avatar step must set the real generation
  * expectation at the creation action: usually ready within a few hours,
@@ -37,10 +44,17 @@ const avatarSettings = readFileSync(
 const DECK_KEYS = [
   "videoAvatar",
   "missCall",
-  "prospects",
-  "yourListings",
-  "warmTransfer",
+  "leadCapture",
   "appointments",
+  "warmTransfer",
+  "prospects",
+] as const;
+
+const RETIRED_KEYS = [
+  "moreLeads",
+  "liveFast",
+  "chatAi",
+  "yourListings",
   "followUp",
   "wizardSetup",
   "pricing",
@@ -49,16 +63,19 @@ const DECK_KEYS = [
 
 const FABRICATED = /2–5x|2-5x|40%|48 hours/i;
 
+/** No presenter may be named — the deck runs during every presenter's demo. */
+const PRESENTER_NAMES = /\b(Aspen|Frank|Latina|Sara|Alex)\b/;
+
 describe("demo build-wait flashcard deck (scan.benefits)", () => {
-  it("has exactly the 10 refreshed cards in every locale", () => {
+  it("has exactly the 6 agreed cards, in selling order, in every locale", () => {
     for (const [name, locale] of [["en", en], ["es", es], ["pt-BR", pt]] as const) {
       expect(Object.keys(locale.scan.benefits), `${name}.scan.benefits`).toEqual([...DECK_KEYS]);
     }
   });
 
-  it("the retired pre-avatar cards are gone from every locale", () => {
+  it("the retired cards are gone from every locale", () => {
     for (const [name, locale] of [["en", en], ["es", es], ["pt-BR", pt]] as const) {
-      for (const retired of ["moreLeads", "liveFast", "chatAi"]) {
+      for (const retired of RETIRED_KEYS) {
         expect(retired in locale.scan.benefits, `${name}.${retired}`).toBe(false);
       }
     }
@@ -71,27 +88,47 @@ describe("demo build-wait flashcard deck (scan.benefits)", () => {
     }
   });
 
+  it("names no presenter in any locale", () => {
+    for (const [name, locale] of [["en", en], ["es", es], ["pt-BR", pt]] as const) {
+      const deckText = JSON.stringify(locale.scan.benefits);
+      expect(deckText, `${name}.scan.benefits`).not.toMatch(PRESENTER_NAMES);
+    }
+  });
+
   it("leads with the video avatar and states the mandated selling points (EN)", () => {
     const b = en.scan.benefits;
+    // (1) live VIDEO spokesperson, face-to-face, on the visitor's own site
     expect(b.videoAvatar.headline).toContain("Face on Your Website");
     expect(b.videoAvatar.body).toContain("AI spokesperson");
-    expect(b.yourListings.body).toContain("your own listings and services");
+    expect(b.videoAvatar.body).toContain("live streaming video avatar");
+    expect(b.videoAvatar.body).toContain("face-to-face");
+    // (2) answers every call 24/7 instantly — never miss a lead
+    expect(b.missCall.body).toContain("answers every call instantly");
+    expect(b.missCall.body).toContain("24/7");
+    expect(b.missCall.body).toContain("never miss another lead");
+    // (3) captures name, need and callback number
+    expect(b.leadCapture.body).toContain("name");
+    expect(b.leadCapture.body).toContain("callback number");
+    // (4) books appointments preference-first
+    expect(b.appointments.body).toContain("preference");
+    expect(b.appointments.body).toContain("preferred time first");
+    // (5) warm transfer with a summary, visitor stays in control
     expect(b.warmTransfer.headline).toContain("You Stay in Control");
-    expect(b.followUp.body).toContain("permission");
-    expect(b.wizardSetup.headline).toContain("15 Minutes");
-    expect(b.pricing.headline).toContain("$99");
-    expect(b.pricing.body).toContain("400 voice minutes");
-    expect(b.pricing.body).toContain("optional add-on");
-    expect(b.pricing.body).toContain("free for your first month");
+    expect(b.warmTransfer.body).toContain("summary of the conversation");
+    // (6) prospects with the full honesty qualifier
     expect(b.prospects.body).toContain("up to 50 fresh B2B prospects");
+    expect(b.prospects.body).toContain("counts vary by market");
     expect(b.prospects.body).toContain("no specific count is guaranteed");
   });
 
-  it("ScanningAnimation rotates the same 10 keys", () => {
-    for (const key of DECK_KEYS) {
-      expect(scanningAnimation, `ScanningAnimation key ${key}`).toContain(`key: "${key}"`);
-    }
-    for (const retired of ["moreLeads", "liveFast", "chatAi"]) {
+  it("ScanningAnimation rotates the same 6 keys in the same order", () => {
+    const block = scanningAnimation.slice(
+      scanningAnimation.indexOf("const benefitMessages"),
+      scanningAnimation.indexOf("];", scanningAnimation.indexOf("const benefitMessages")),
+    );
+    const rotated = [...block.matchAll(/key: "(\w+)"/g)].map((m) => m[1]);
+    expect(rotated).toEqual([...DECK_KEYS]);
+    for (const retired of RETIRED_KEYS) {
       expect(scanningAnimation).not.toContain(`key: "${retired}"`);
     }
   });

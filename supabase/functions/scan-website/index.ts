@@ -7,6 +7,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { learningLinks } from '../_shared/website-learning.ts';
 import { fetchFirecrawlScreenshot, markFirecrawlRequest } from '../_shared/firecrawl-screenshot.ts';
 import { rehostScreenshotUrlWith } from '../_shared/screenshot-rehost.ts';
+import { REALTOR_EXAMPLE_PINNED_LEADS } from '../_shared/realtor-example-pinned-leads.ts';
+import { B2B_EXAMPLE_PINNED_LEADS } from '../_shared/b2b-example-pinned-leads.ts';
 
 const FIRECRAWL_BASE = 'https://api.firecrawl.dev/v1';
 const GOOGLE_AI_BASE = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
@@ -1463,6 +1465,32 @@ const HARD_DEADLINE_MS = 130_000; // Return before the 150s idle timeout
 const capScreenshotBytes = (buffer: ArrayBuffer, apiKey?: string | null) =>
   capScreenshotBytesWith(buffer, apiKey ?? Deno.env.get('BROWSERLESS_API_KEY') ?? null);
 
+/**
+ * Pinned demo-example leads (one-click examples on /agents/realtors
+ * and the B2B example grids). A pinned lead's stored website_url must
+ * remain the pinned map's value (the business's canonical domain):
+ * the demo loader keys the pinned reveal off the leadId + that
+ * stored URL, and gemini-session's example-pack lookup matches the
+ * stored URL's canonical host — drifting the stored URL breaks the
+ * presenter/listings stamps. So a rescan of a pinned lead refreshes
+ * its CONTENT in place but never rewrites website_url: a scan can be
+ * invoked with a non-map URL (e.g. a rescan started from a vanity-
+ * domain entry link, martinezrealtorsfl.com instead of
+ * michaelmartinezrealtor.com) and must not drag the row's URL along
+ * with it. For these leads the stored URL is preserved; the scan
+ * still crawls the URL it was invoked with, so content stays current.
+ */
+const PINNED_EXAMPLE_LEAD_IDS = new Set<string>([
+  ...REALTOR_EXAMPLE_PINNED_LEADS.map((entry) => entry.leadId),
+  ...B2B_EXAMPLE_PINNED_LEADS.map((entry) => entry.leadId),
+]);
+
+export const isPinnedExampleLeadId = (leadId: string) => PINNED_EXAMPLE_LEAD_IDS.has(leadId);
+
+/** website_url write for a scan save: pinned example leads keep their stored URL. */
+const websiteUrlWriteFor = (isPinnedExampleLead: boolean, formattedUrl: string) =>
+  isPinnedExampleLead ? {} : { website_url: formattedUrl };
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -1497,6 +1525,10 @@ Deno.serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
+    // Pinned example lead: this scan refreshes content in place but
+    // must preserve the row's stored website_url (see
+    // PINNED_EXAMPLE_LEAD_IDS above).
+    const isPinnedExampleLead = isPinnedExampleLeadId(leadId);
 
     const firecrawlKey = Deno.env.get('FIRECRAWL_API_KEY');
     if (!firecrawlKey) {
@@ -1629,7 +1661,7 @@ Deno.serve(async (req) => {
     console.log('Screenshot provider used:', screenshotProvider, '| tablet:', !!browserlessResults.tablet, '| mobile:', !!browserlessResults.mobile);
 
     const previewUpdate = await supabase.from('leads').update({
-      website_url: formattedUrl,
+      ...websiteUrlWriteFor(isPinnedExampleLead, formattedUrl),
       website_screenshot: previewScreenshot,
       screenshot_tablet: browserlessResults.tablet || null,
       screenshot_mobile: browserlessResults.mobile || null,
@@ -1851,7 +1883,7 @@ Deno.serve(async (req) => {
     const updateResult = await supabase.from('leads').update({
       business_name: profile.businessName,
       niche: profile.detectedNiche,
-      website_url: formattedUrl,
+      ...websiteUrlWriteFor(isPinnedExampleLead, formattedUrl),
       brand_colors: branding.colors || null,
       brand_logo: branding.images?.logo || branding.logo || null,
       brand_fonts: branding.fonts || branding.typography || null,
