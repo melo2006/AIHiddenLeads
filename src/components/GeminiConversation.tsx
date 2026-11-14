@@ -786,10 +786,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       const live = ctx ? captionClockRef.current.at(ctx.currentTime) : null;
       // Keep the last spoken line in the same large caption style (no highlight) after she stops talking.
       setPlaybackCaption(previous => {
-        const next = live ?? (previous ? { ...previous, word: -1 } : null);
-        // highlightEnd is part of the identity: streamed text can widen the
-        // caption highlight window while text and word stay the same.
-        return previous?.text === next?.text && previous?.word === next?.word && previous?.highlightEnd === next?.highlightEnd ? previous : next;
+        const next = live ?? (previous ? { ...previous, speaking: false } : null);
+        // The identity is text + speaking: a streamed text delta grows the
+        // segment and the stop flip clears its highlight; the same segment
+        // still speaking is the same caption.
+        return previous?.text === next?.text && previous?.speaking === next?.speaking ? previous : next;
       });
       frame = requestAnimationFrame(update);
     };
@@ -1517,7 +1518,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     micSourceRef.current = null;
     for (const source of sourcesRef.current) { try { source.stop(); } catch { /* Already stopped. */ } }
     sourcesRef.current.clear();
-    captionClockRef.current.clear(); setPlaybackCaption(p => p ? { ...p, word: -1 } : null);
+    captionClockRef.current.clear(); setPlaybackCaption(p => p ? { ...p, speaking: false } : null);
     setMicLevel(0);
     avatarRef.current?.stop();
     avatarRequestedRef.current = false; setFaceWaiting(false);
@@ -1891,7 +1892,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     engineTimersRef.current.clear();
     mediaElementRef.current?.flush();
     avatarRef.current?.clear();
-    captionClockRef.current.clear(); setPlaybackCaption(p => p ? { ...p, word: -1 } : null);
+    captionClockRef.current.clear(); setPlaybackCaption(p => p ? { ...p, speaking: false } : null);
     playTimeRef.current = playCtxRef.current?.currentTime ?? 0;
     setAspenSpeaking(false);
   }, []);
