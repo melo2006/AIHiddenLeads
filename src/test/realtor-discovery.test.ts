@@ -184,6 +184,123 @@ describe("realtor discovery — conversation rules and close (steps 4–5)", () 
   });
 });
 
+describe("realtor discovery — hardening: resumable arc + the list is the capture (2026-11-14, session b8e5bc63)", () => {
+  it("the list is the capture: contact details exist to send the list, in the caller's channel", () => {
+    expect(layer).toContain("THE LIST IS THE CAPTURE");
+    expect(layer).toContain("the deliverable of this conversation is THE LIST");
+    expect(layer).toContain("collected TO SEND THE LIST");
+    // the block sits inside the capture step, before discovery opens
+    const captureBlock = layer.indexOf("THE LIST IS THE CAPTURE");
+    expect(captureBlock).toBeGreaterThan(layer.indexOf("2) EARLY CAPTURE"));
+    expect(captureBlock).toBeLessThan(layer.indexOf("3) DISCOVERY"));
+  });
+
+  it("bars the callback as the default close, deflection, or pushback reply", () => {
+    expect(layer).toContain("NOT the answer to a search or a no-match");
+    expect(layer).toContain("never offer a callback as the default outcome of anything");
+    // a callback survives only as the caller's own choice
+    expect(layer).toContain(
+      "only when the caller asks for a call, or declines the list",
+    );
+    expect(layer).toContain("never your deflection");
+  });
+
+  it("a promised list stays promised — pushback re-affirms it, never swaps in the callback", () => {
+    expect(layer).toContain("THE PROMISE DOES NOT CHANGE MID-CALL");
+    expect(layer).toContain("I thought you were going to send me something");
+    expect(layer).toContain("never answer that moment by repeating a callback line");
+    // and the close itself keeps the list promise even on a no-match
+    expect(layer).toContain(
+      "a no-match never converts the list promise into a callback",
+    );
+  });
+
+  it("names the precedence over the script's callback capture, while the no-match wording stands", () => {
+    expect(layer).toContain("PRECEDENCE, NAMED");
+    expect(layer).toContain("IN THIS MODE THAT CAPTURE DOES NOT GOVERN");
+    expect(layer).toContain(
+      "the no-match wording itself — plain, about the criteria, with the criteria read back to confirm — stands exactly as written",
+    );
+  });
+
+  it("the resumable arc: bank the search, answer once, then return to discovery", () => {
+    expect(layer).toContain("A SEARCH QUESTION NEVER ENDS DISCOVERY");
+    expect(layer).toContain("FIRST, BANK THE SEARCH");
+    expect(layer).toContain("SECOND, ANSWER ONCE");
+    expect(layer).toContain("THIRD, COME BACK — THE RETURN");
+    // the arc lives inside discovery, after the matching-listing beat
+    const arc = layer.indexOf("A SEARCH QUESTION NEVER ENDS DISCOVERY");
+    expect(arc).toBeGreaterThan(layer.indexOf("3) DISCOVERY"));
+    expect(arc).toBeLessThan(layer.indexOf("5) THE CLOSE"));
+  });
+
+  it("the return names the unanswered questions in order: price, area narrowed, type, must-haves, deal-breaker", () => {
+    const arcText = layer.slice(
+      layer.indexOf("THIRD, COME BACK — THE RETURN"),
+      layer.indexOf("3S) SELLING"),
+    );
+    const price = arcText.indexOf("the PRICE BRACKET");
+    const area = arcText.indexOf("the AREA, NARROWED");
+    const type = arcText.indexOf("the PROPERTY TYPE");
+    const mustHaves = arcText.indexOf("the MUST-HAVES");
+    const dealBreaker = arcText.indexOf("the ONE DEAL-BREAKER question");
+    for (const at of [price, area, type, mustHaves, dealBreaker]) {
+      expect(at).toBeGreaterThan(-1);
+    }
+    expect(price).toBeLessThan(area);
+    expect(area).toBeLessThan(type);
+    expect(type).toBeLessThan(mustHaves);
+    expect(mustHaves).toBeLessThan(dealBreaker);
+    // area narrowing is specific: a city is not an area; neighborhoods,
+    // subdivisions and local landmarks are the grain Ron asked for
+    expect(arcText).toContain("a whole city is not an area");
+    expect(arcText).toContain("a neighborhood or subdivision they like");
+    expect(arcText).toContain("the landmarks locals navigate by");
+  });
+
+  it("a no-match is a beat inside discovery — the capture close is barred while questions remain", () => {
+    expect(layer).toContain("A no-match is a BEAT inside discovery, never the end of it");
+    expect(layer).toContain("it is not the close");
+    expect(layer).toContain(
+      "The capture close (step 5) is BARRED while discovery questions remain unanswered",
+    );
+    expect(layer).toContain("unless the caller signals they are done");
+  });
+
+  it("the composed presenter layer drops the script's callback-capture recipe; the standard layer keeps it", () => {
+    const pack = examplePackBySlug("michael-martinez")!;
+    const presenterLayer = buildExampleListingsLayer(pack, { presenter: true });
+    // the deflection recipe never reaches a presenter prompt…
+    expect(presenterLayer).not.toContain(
+      "take their name and best callback number so the callback can actually happen",
+    );
+    // …it is replaced by the fold-back into discovery…
+    expect(presenterLayer).toContain(
+      "fold the search back into the discovery conversation",
+    );
+    expect(presenterLayer).toContain("never a callback capture");
+    // …while the no-match wording itself and the read-back stand
+    expect(presenterLayer).toContain("NO MATCH FOR THEIR CRITERIA");
+    expect(presenterLayer).toContain(
+      "don't have a match for that among Michael Martinez's current listings",
+    );
+    expect(presenterLayer).toContain(
+      "Read their criteria back to confirm them (the area, the beds and baths, the budget)",
+    );
+    // the standard layer keeps the approved callback capture untouched
+    const standardLayer = buildExampleListingsLayer(pack);
+    expect(standardLayer).toContain(
+      "Michael Martinez will search for them and call them back",
+    );
+    expect(standardLayer).toContain(
+      "take their name and best callback number so the callback can actually happen",
+    );
+    expect(standardLayer).not.toContain(
+      "fold the search back into the discovery conversation",
+    );
+  });
+});
+
 describe("realtor discovery — wiring into the presenter listings layer", () => {
   it("every pack's discovery layer names that pack's agent, with no placeholder left", () => {
     for (const pack of REALTOR_EXAMPLE_PACKS) {
