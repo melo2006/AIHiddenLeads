@@ -768,13 +768,13 @@
     "playingVoice": "Playing {{voice}}",
     "voiceSelected": "{{voice}} selected",
     "preparingGreeting": "Preparing greeting audio…",
-    "embeddedMicNotice": "This embedded preview can't use your microphone. Open the full page to talk to Aspen.",
+    "embeddedMicNotice": "This embedded preview can't use your microphone. Open the full page to talk to {{name}}.",
     "audioTapNeeded": "Tap play to enable sound on this phone. Your sign-in and demo allowance are unchanged.",
-    "videoFallback": "Video needs a faster connection — you’re talking with Aspen by voice.",
+    "videoFallback": "Video needs a faster connection — you’re talking with {{name}} by voice.",
     "replayAudioTitle": "Replay saved audio without another AI request"
   },
   "chat": {
-    "consentTitle": "Try Aspen chat",
+    "consentTitle": "Try {{name}} chat",
     "consentBody": "This chat and its AI summary are saved privately for our team to review. Starting means you agree. A copy is sent only if requested.",
     "consentStart": "Start chat & agree",
     "title": "Chat with Aspen",
@@ -783,10 +783,10 @@
     "minimize": "Minimize chat",
     "close": "Close chat",
     "minimizedNote": "Chat minimized. Expand to read full conversation.",
-    "placeholder": "Ask Aspen anything...",
-    "messageAria": "Message Aspen",
-    "sendAria": "Send message to Aspen",
-    "messagesAria": "Aspen chat messages",
+    "placeholder": "Ask {{name}} anything...",
+    "messageAria": "Message {{name}}",
+    "sendAria": "Send message to {{name}}",
+    "messagesAria": "{{name}} chat messages",
     "emailTranscript": "Email transcript & AI summary",
     "copyEmailPlaceholder": "Your email",
     "copyEmailAria": "Conversation copy email",
@@ -798,7 +798,7 @@
     "goodMorning": "Good morning",
     "goodAfternoon": "Good afternoon",
     "goodEvening": "Good evening",
-    "greetingBody": "I'm Aspen, the AI assistant for {{businessName}}. This is a live demo of how AI chat + AI voice can work on your website to answer questions, capture leads, and book appointments.\n\nTap a suggestion below or ask me anything.",
+    "greetingBody": "I'm {{name}}, the AI assistant for {{businessName}}. This is a live demo of how AI chat + AI voice can work on your website to answer questions, capture leads, and book appointments.\n\nTap a suggestion below or ask me anything.",
     "fallback": "Great question. I can help with that and also arrange a callback or a 15-minute demo with {{owner}}."
   }
 }

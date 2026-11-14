@@ -118,6 +118,12 @@ Deno.serve(async (req) => {
   const voiceRaw = String(config.voice || 'Kore')
   const voice = ALLOWED_VOICES.has(voiceRaw) ? voiceRaw : 'Kore'
   const preview = config.preview === true
+  // Session-lifecycle copy names the session's OWN speaker (2026-11-14):
+  // gemini-session stamps the presenter's display name into config.name
+  // on solo-presenter demos (Frank, Latina, Black Professional Lady),
+  // so the farewell below thanks the person the visitor actually talked
+  // with; platform sessions carry 'Aspen' and stay byte-identical.
+  const speakerDisplayName = String(config.name || 'Aspen')
   // Voice-asked manager transfer (Batch 1, Fix 3): available on exactly
   // the sessions gemini-session issues a browser-handoff capability
   // for — a valid saved transfer destination, not a preview, not a
@@ -602,7 +608,7 @@ Deno.serve(async (req) => {
             if (!farewellHandled && !preview && begun && detectFarewell(completedUtterance)) {
               farewellHandled = true
               if (geminiWs?.readyState === WebSocket.OPEN) geminiWs.send(JSON.stringify({clientContent:{turns:[{role:'user',parts:[{text:'The visitor has clearly said goodbye. If you have not already closed, give ONE brief, warm closing line now. Do not ask a question, make no new offers, and do not re-open any topic. The call ends right after your closing.'}]}],turnComplete:true}}))
-              farewellTimer = setTimeout(() => { farewellTimer = undefined; if (closed) return; endReason = 'visitor_goodbye'; closeCode = 1000; if (clientSocket.readyState === WebSocket.OPEN) clientSocket.send(JSON.stringify({ type: 'closed', reason: 'Call ended — thanks for talking with Aspen.' })); closeAll() }, FAREWELL_END_DELAY_MS)
+              farewellTimer = setTimeout(() => { farewellTimer = undefined; if (closed) return; endReason = 'visitor_goodbye'; closeCode = 1000; if (clientSocket.readyState === WebSocket.OPEN) clientSocket.send(JSON.stringify({ type: 'closed', reason: `Call ended — thanks for talking with ${speakerDisplayName}.` })); closeAll() }, FAREWELL_END_DELAY_MS)
             } else if (farewellTimer && completedUtterance.trim() && !detectFarewell(completedUtterance)) {
               // They spoke again and it was not another farewell. An
               // EMPTY completed utterance is not the visitor speaking
@@ -715,7 +721,7 @@ Deno.serve(async (req) => {
             geminiWs.send(JSON.stringify({toolResponse:{functionResponses:[{...orphan,response:{cancelled:true}}]}}));
           } else {
             console.info('confirm for unknown action', JSON.stringify({sessionId:session.id,id:msg.id}));
-            clientSocket.send(JSON.stringify({type:'action_result',id:msg.id,error:'That confirmation expired. If you still want this, just ask Aspen again.'}));
+            clientSocket.send(JSON.stringify({type:'action_result',id:msg.id,error:`That confirmation expired. If you still want this, just ask ${speakerDisplayName} again.`}));
           }
           return;
         }

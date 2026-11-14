@@ -3,6 +3,9 @@ import aspen from '@/assets/aspen-video-frame-final.webp';
 import frankFace from '@/assets/simli/b3f85f7f-57ea-4f24-b1f6-a57229b4fae1.webp';
 import latinaFace from '@/assets/simli/e0d7b128-40a7-4d03-ac84-ef4c54b92450.webp';
 import blackProfessionalLadyFace from '@/assets/simli/9344d4c1-6b69-43e7-a73f-ddc15d1a3f75.webp';
+import frankCutout from '@/assets/simli/b3f85f7f-57ea-4f24-b1f6-a57229b4fae1-cutout.webp';
+import latinaCutout from '@/assets/simli/e0d7b128-40a7-4d03-ac84-ef4c54b92450-cutout.webp';
+import blackProfessionalLadyCutout from '@/assets/simli/9344d4c1-6b69-43e7-a73f-ddc15d1a3f75-cutout.webp';
 import face0 from '@/assets/simli/bf13113a-355a-4d97-8b90-4edccd1da7b2.webp';
 import face1 from '@/assets/simli/f735e62c-dce7-4c0b-8e85-1c7e21774c45.webp';
 import face2 from '@/assets/simli/084479bf-de7c-4df0-8d9c-5484193ecd27.webp';
@@ -32,6 +35,27 @@ import face25 from '@/assets/simli/8ef039c1-06d7-4ea7-b01c-6b620c755a92.webp';
 import face26 from '@/assets/simli/efcb440b-6a24-4e79-a46a-764c1d4b751d.webp';
 import face27 from '@/assets/simli/fb78d7f5-37ad-4b04-9789-8712dcaa791d.webp';
 export interface AvatarFace { id: string; name: string; image?: string; category?: string; generation?: boolean; }
+
+/** Transparent-background stills for the three newest personas
+ * (2026-11-14): their catalog portraits are opaque studio photos, so
+ * unlike Aspen (whose still carries real alpha) they rendered as a
+ * solid box in the widget. These cutouts are background-removed from
+ * the EXACT catalog portraits — same face, same framing — and are
+ * what the floating-widget surfaces (demo panel, bubble, chat header,
+ * swap portraits) show. The catalog `image` itself is untouched, so
+ * the wizard library tiles and the homepage gallery keep their
+ * current photo-card look. */
+export const PRESENTER_CUTOUTS: Record<string, string> = {
+  'b3f85f7f-57ea-4f24-b1f6-a57229b4fae1': frankCutout,
+  'e0d7b128-40a7-4d03-ac84-ef4c54b92450': latinaCutout,
+  '9344d4c1-6b69-43e7-a73f-ddc15d1a3f75': blackProfessionalLadyCutout,
+};
+
+/** The still a floating widget should show for a face: its transparent
+ * cutout when one exists, else the catalog photo (Aspen's catalog
+ * image already carries real alpha; Sara/Alex keep their photos). */
+export const presenterPortraitImage = (faceId?: string | null): string | undefined =>
+  faceId ? (PRESENTER_CUTOUTS[faceId] ?? SIMLI_FACE_CATALOG.find(f => f.id === faceId)?.image) : undefined;
 export const SIMLI_FACE_CATALOG: AvatarFace[] = [
   { id: 'ed8fedd9-6c86-4dc5-bb3a-017c06146efc', name: 'Aspen · closed smile', image: aspen, category: 'Your face', generation: true },
   { id: "b3f85f7f-57ea-4f24-b1f6-a57229b4fae1", name: "Frank · Senior Owner", category: "Your face", image: frankFace, generation: true },

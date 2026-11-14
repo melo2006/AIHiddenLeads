@@ -96,9 +96,9 @@ type Phase = "idle" | "connecting" | "live" | "preview";
 /** Calm guidance shown instead of the mic-denied error when the widget is framed by an
  * embedded preview: the parent frame withholds the microphone, so no prompt can ever
  * appear. Opening this same page as its own top-level page is where the prompt works. */
-const EmbeddedMicrophoneNotice = ({ compact = false }: { compact?: boolean }) => { const { t } = useTranslation(); return (
+const EmbeddedMicrophoneNotice = ({ compact = false, name = "Aspen" }: { compact?: boolean; name?: string }) => { const { t } = useTranslation(); return (
   <div role="status" className="space-y-1.5">
-    <p className={compact ? "text-[11px] text-muted-foreground" : "text-xs text-muted-foreground"}>{t("voice.embeddedMicNotice")}</p>
+    <p className={compact ? "text-[11px] text-muted-foreground" : "text-xs text-muted-foreground"}>{t("voice.embeddedMicNotice", { name })}</p>
     <Button type="button" size="sm" className={compact ? "h-7 text-[11px]" : "h-8 text-xs"} onClick={() => { window.open(window.location.href, "_blank", "noopener"); }}>
       {t("voice.openFullPage")}
     </Button>
@@ -127,6 +127,9 @@ export interface GeminiShellState {
   hasReplay: boolean;
   replaying: boolean;
   speaking: boolean;
+  /** Focus view (face-first panel with captions off): the shell widens
+   *  so the presenter floats larger, frameless, over the page. */
+  focus?: boolean;
 }
 export interface GeminiConversationProps { agentId?: string; leadId?: string; prospectId?: string; draft?: boolean; compact?: boolean; name?: string; visitorName?: string; previewVoice?: string; autoStart?: boolean; previewOnly?: boolean; previewAudioContext?: AudioContext; testModel?: string; shareToken?: string; onRecommendedPlan?: (plan: SalesPlan) => void; videoAvatar?: VideoAvatar; avatarInline?: boolean; faceFirst?: boolean; avatarUrl?: string; /** The visitor tapped a launcher that already showed the recording notice; that tap is the agreement. */ consentOnOpen?: boolean; /** Open the paid live session silently before the tap so it starts instantly. */ prewarm?: boolean; onPrewarmed?: (ready: boolean) => void; /** Verified Demo Gate: 'pending' starts the session in the Act 1 host phase (verification before simulation); 'verified' or undefined keeps the standard session. */ verification?: "pending" | "verified"; /** Cold-email invite arrival: asks gemini-session for the invite host phase; honored server-side only when the lead's invite arrival was stamped by the demo-invite resolve. */ invite?: boolean; /** One-click example sample (Batch 2): the /agents/realtors examples grid/dropdown marks the session sample=1; forwarded to gemini-session, which honors it only when the lead's stored site URL matches one of the 14 known example sites (that example's listings pack is then stamped into the simulation). */ sample?: boolean; /** Platform guide: 'alex' starts the authenticated setup-guide session (Alex, support specialist) instead of a tenant agent; honored server-side only for signed-in users. */ guide?: "alex"; /** Fires with each finalized visitor transcript line (used by the demo gate to hear a spoken code). */ onUserTranscript?: (text: string) => void; /** Three-stage widget: the shell fills this ref with live-session commands for its Stage 3 bar. */ shellControlsRef?: { current: GeminiShellControls | null }; /** Three-stage widget: receives the live-session snapshot for the Stage 3 bar. */ onShellState?: (state: GeminiShellState) => void; /** Widget chrome rendered INSIDE the panel, in the toggle row directly under the window-controls row (the Voice/Type toggle lives here, never over her). */ belowAvatar?: ReactNode; /** Window controls (drag/minimize/end) rendered as the FIRST row inside the panel, below its top border (2026-11-12 panel layout fix: no control overlaps the portrait; the shell hands its AspenWindowControls row here in voice mode). */ windowControls?: ReactNode; /** Avatar swap (Stage 1): fires when the ACTIVE persona changes at a boundary, so the shell identity (name + portrait) follows the speaker. Never fires when the server flag is off. */ onPersonaChange?: (persona: { id: PersonaId; displayName: string }) => void; }
 const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compact = false, name = "Aspen", visitorName = "", previewVoice, autoStart = false, previewOnly = false, previewAudioContext, testModel, shareToken, onRecommendedPlan, videoAvatar, avatarInline = false, faceFirst = false, avatarUrl, consentOnOpen = false, prewarm = false, onPrewarmed, verification, invite, sample, guide, onUserTranscript, shellControlsRef, onShellState, belowAvatar, windowControls, onPersonaChange }: GeminiConversationProps) => {
@@ -312,7 +315,17 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const warmRef = useRef<{ ready: Promise<boolean>; ok: boolean; activated: boolean; goLive?: () => void } | null>(null);
   const avatarRef = useRef<SimliAvatarHandle>(null);
   const [faceLive, setFaceLive] = useState(false);
-  const [captions, setCaptions] = useState(true);
+  // Captions on/off doubles as the FOCUS VIEW switch (2026-11-14):
+  // captions off = focus view (the presenter floats frameless, panel
+  // becomes the bottom dock). The visitor's choice is remembered for
+  // the rest of the tab session, so reopening the widget never
+  // silently restores captions they turned off.
+  const [captions, setCaptions] = useState(() => {
+    try { return sessionStorage.getItem("aspen-widget-captions") !== "off"; } catch { return true; }
+  });
+  useEffect(() => {
+    try { sessionStorage.setItem("aspen-widget-captions", captions ? "on" : "off"); } catch { /* storage is best-effort */ }
+  }, [captions]);
   const avatarLiveRef = useRef(false);
   const avatarRequestedRef = useRef(false);
   const [pendingAction, setPendingAction] = useState<VoiceAction | null>(null);
@@ -3111,8 +3124,9 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       hasReplay,
       replaying,
       speaking: aspenSpeaking,
+      focus: faceFirst && !captions,
     });
-  }, [phase, suspended, muted, speakerMuted, hasReplay, replaying, aspenSpeaking]);
+  }, [phase, suspended, muted, speakerMuted, hasReplay, replaying, aspenSpeaking, faceFirst, captions]);
   useEffect(() => {
     if (!shellControlsRef) return;
     shellControlsRef.current = {
@@ -3266,6 +3280,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // except on a presenter session, whose only speaker is the
   // presenter even though the swap machine's persona stays 'aspen'.
   const speakerName = presenterPersona && activePersona === 'aspen' ? PERSONAS[presenterPersona].displayName : PERSONAS[activePersona].displayName;
+  // FOCUS VIEW (2026-11-14, Ron-approved mockup v2): captions off on a
+  // face-first panel = the presenter floats frameless and larger, and
+  // the panel's first row becomes the bottom dock (big name badge +
+  // captions-back toggle + window controls). Reported to the shell via
+  // onShellState so the frame widens with her.
+  const focusView = faceFirst && !captions;
   const activeVideoAvatar: VideoAvatar | undefined = activePersona === 'sara' && videoAvatar
     ? { ...videoAvatar, faceId: SARA_FACE_ID }
     : activePersona === 'alex' && videoAvatar
@@ -3376,7 +3396,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     </div>
   ) : null;
   const transportControls = (
-  <div className="voice-controls flex flex-wrap items-center justify-center gap-1 [&_button]:h-auto [&_button]:min-h-11 [&_button]:w-auto [&_button]:min-w-11 [&_button]:flex-col [&_button]:gap-1 [&_button]:px-1.5 [&_button]:py-1.5 [&_span]:text-[10px] [&_span]:leading-tight">
+  <div className="voice-controls flex flex-nowrap items-center justify-center gap-1 [&_button]:h-auto [&_button]:min-h-11 [&_button]:w-auto [&_button]:min-w-0 [&_button]:shrink [&_button]:flex-col [&_button]:gap-1 [&_button]:px-1.5 [&_button]:py-1.5 [&_span]:text-[10px] [&_span]:leading-tight [&_span]:truncate">
     {phase === "idle" ? (
       <Button size="icon" onClick={() => void startConversation()} title={t("voice.playToConnect", { name })} aria-label={t("voice.startConversation")}>
         <Play className="h-4 w-4" />
@@ -3538,11 +3558,18 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   if (compact) {
     return (
       <div className={faceFirst ? "flex h-full min-h-0 flex-1 flex-col px-2 pb-2 pt-0 text-foreground" : "space-y-2 p-2 text-foreground"}>
-        {faceFirst ? <div className="aspen-person-livebox relative z-0 mx-auto shrink-0 overflow-hidden"><div className={`h-full w-full ${faceLive ? 'invisible' : ''}`}><PersonPortrait name={name} avatarUrl={avatarUrl} animated={false} /></div>{avatarView}{stagedAvatarView}<PersonaNameLabel name={personaLabelName} /></div> : <>{avatarView}{stagedAvatarView}</>}
+        {faceFirst ? <div className="aspen-person-livebox relative z-0 mx-auto shrink-0 overflow-hidden"><div className={`h-full w-full ${faceLive ? 'invisible' : ''}`}><PersonPortrait name={name} avatarUrl={avatarUrl} animated={false} /></div>{avatarView}{stagedAvatarView}{!focusView && <PersonaNameLabel name={personaLabelName} />}</div> : <>{avatarView}{stagedAvatarView}</>}
         {!faceFirst && windowControls}
         {!faceFirst && toggleManagerRow}
         <div className={faceFirst ? 'aspen-voice-panel relative z-10 flex min-h-0 flex-1 flex-col space-y-2 rounded-lg border border-primary/40 bg-card p-2 shadow-lg ring-1 ring-foreground/10' : 'space-y-2'}>
-        {faceFirst && windowControls}
+        {faceFirst && (focusView ? (
+          <div data-testid="aspen-focus-dock" className="flex shrink-0 items-center gap-1.5">
+            <PersonaNameLabel name={personaLabelName} variant="dock" />
+            <div aria-hidden className="flex-1" />
+            <Button size="icon" variant="outline" className="h-10 w-10 shrink-0 border-primary/60 bg-transparent text-primary hover:bg-primary/10 hover:text-primary" aria-label={t('voice.showCaptions')} title={t('voice.showCaptions')} aria-expanded={false} onClick={() => setCaptions(true)}><ChevronsUpDown className="h-4 w-4" /></Button>
+            {windowControls}
+          </div>
+        ) : windowControls)}
         {faceFirst && (wideLandscape ? landscapeControlRow : toggleManagerRow)}
         <div className="flex items-center gap-1.5">
           {shownPhase === "connecting" && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" />}
@@ -3558,7 +3585,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             {shownPhase !== "live" && (shownPhase === "idle" ? t("voice.readyToTalk") : faceWaiting ? t("voice.connecting") : status)}
           </p>
           {remainingSeconds !== null && <span data-testid="demo-timer-pill" title={`${t("voice.demoTimeRemaining")}: ${Math.floor(remainingSeconds/60)}:${String(remainingSeconds%60).padStart(2,'0')}`} aria-label={`${t("voice.demoTimeRemaining")}: ${Math.floor(remainingSeconds/60)}:${String(remainingSeconds%60).padStart(2,'0')}`} className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-background/95 px-2 py-0.5 text-[11px] leading-tight text-muted-foreground"><Timer className="h-3 w-3" />{Math.floor(remainingSeconds/60)}:{String(remainingSeconds%60).padStart(2,'0')}</span>}
-          {faceFirst && <Button size="icon" variant="outline" className="ml-auto h-10 w-10 shrink-0 border-primary/60 bg-transparent text-primary hover:bg-primary/10 hover:text-primary" aria-label={captions ? t('voice.hideCaptions') : t('voice.showCaptions')} title={captions ? t('voice.hideCaptions') : t('voice.showCaptions')} aria-expanded={captions} onClick={() => setCaptions(v => !v)}><ChevronsUpDown className="h-4 w-4" /></Button>}
+          {faceFirst && !focusView && <Button size="icon" variant="outline" className="ml-auto h-10 w-10 shrink-0 border-primary/60 bg-transparent text-primary hover:bg-primary/10 hover:text-primary" aria-label={captions ? t('voice.hideCaptions') : t('voice.showCaptions')} title={captions ? t('voice.hideCaptions') : t('voice.showCaptions')} aria-expanded={captions} onClick={() => setCaptions(v => !v)}><ChevronsUpDown className="h-4 w-4" /></Button>}
         </div>
         {phase === 'idle' && endedByVisitor && <p className="text-xs text-muted-foreground">{t("voice.pressPlayReconnect", { name })}</p>}
 
@@ -3587,7 +3614,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         {confirmation}
         {actionNotice && <p role="status" className="text-xs text-primary">{actionNotice}</p>}
         {swapNotice && <p role="status" className="text-xs text-primary">{swapNotice}</p>}
-        {videoFallback && <p role="status" className="text-[11px] text-muted-foreground">{t("voice.videoFallback")}</p>}
+        {videoFallback && <p role="status" className="text-[11px] text-muted-foreground">{t("voice.videoFallback", { name: speakerName })}</p>}
         {!wideLandscape && transportControls}
         {phase === "live" && speakerOutputNotice && (
           <p role="status" className="text-[11px] text-muted-foreground">{speakerOutputNotice}</p>
@@ -3608,7 +3635,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           <p role="status" className="w-fit rounded-full border border-border bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-foreground">Hold to talk is ON — hold the button while you speak</p>
         )}
         {audioNeedsTap && <p role="status" className="text-[11px] text-muted-foreground">{t("voice.audioTapNeeded")}</p>}
-        {error && (micFailureKind === "mic-denied-embedded" ? <EmbeddedMicrophoneNotice compact /> : <p className="text-[11px] font-semibold text-destructive">{error}</p>)}
+        {error && (micFailureKind === "mic-denied-embedded" ? <EmbeddedMicrophoneNotice compact name={personaLabelName} /> : <p className="text-[11px] font-semibold text-destructive">{error}</p>)}
         {signInAction}
 
         {showSettings && (
@@ -3718,7 +3745,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           {confirmation}
         {actionNotice && <p role="status" className="text-xs text-primary">{actionNotice}</p>}
         {swapNotice && <p role="status" className="text-xs text-primary">{swapNotice}</p>}
-        {videoFallback && <p role="status" className="text-xs text-muted-foreground">{t("voice.videoFallback")}</p>}
+        {videoFallback && <p role="status" className="text-xs text-muted-foreground">{t("voice.videoFallback", { name: speakerName })}</p>}
         {remainingSeconds !== null && <p className="text-[11px] text-muted-foreground">{t("voice.demoTimeRemaining")}: {Math.floor(remainingSeconds/60)}:{String(remainingSeconds%60).padStart(2,'0')}</p>}
         {transferControl}
           <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
@@ -3845,7 +3872,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             <p role="status" className="w-fit rounded-full border border-border bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-foreground">Hold to talk is ON — hold the button while you speak</p>
           )}
           {audioNeedsTap && <p role="status" className="text-xs text-muted-foreground">{t("voice.audioTapNeeded")}</p>}
-          {error && (micFailureKind === "mic-denied-embedded" ? <EmbeddedMicrophoneNotice /> : <p className="text-xs text-destructive font-semibold">{error}</p>)}
+          {error && (micFailureKind === "mic-denied-embedded" ? <EmbeddedMicrophoneNotice name={personaLabelName} /> : <p className="text-xs text-destructive font-semibold">{error}</p>)}
           {signInAction}
         </Card>
 
