@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import { MessageSquare, Mic, MicOff, X, Minus, AudioLines, Play, Pause, PhoneOff, RotateCcw, Volume2, VolumeX, Maximize2, GripVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import aspenPortrait from '@/assets/aspen-video-frame-final.webp';
@@ -25,8 +25,12 @@ export function PersonaNameLabel({ name, variant = 'overlay' }: { name: string; 
       <span className="block whitespace-nowrap rounded-full bg-black/55 px-3.5 py-1 text-sm font-semibold leading-tight tracking-wide text-white shadow-sm backdrop-blur-sm">{label}</span>
     </span>;
   }
-  return <span data-testid="persona-name-label" aria-hidden="true" className="pointer-events-none absolute bottom-1.5 left-1/2 z-20 -translate-x-1/2">
-    <span className="block whitespace-nowrap rounded-full bg-black/55 px-2.5 py-0.5 text-[11px] font-semibold leading-tight tracking-wide text-white shadow-sm backdrop-blur-sm">{label}</span>
+  // Overlay placement (Ron, 2026-11-14): LEFT side of the chest, bold —
+  // the centred semibold pill read as a floating tag in his annotated
+  // screenshot. The 'dock' variant above is the focus-view in-flow pill
+  // and is deliberately NOT changed by that order.
+  return <span data-testid="persona-name-label" aria-hidden="true" className="pointer-events-none absolute bottom-1.5 left-2 z-20">
+    <span className="block whitespace-nowrap rounded-full bg-black/55 px-2.5 py-0.5 text-[11px] font-bold leading-tight tracking-wide text-white shadow-sm backdrop-blur-sm">{label}</span>
   </span>;
 }
 
@@ -105,7 +109,7 @@ function Stage3LiveFace() {
   return <canvas ref={canvasRef} width={132} height={132} data-testid="stage3-live-face" aria-hidden="true" className="absolute inset-0 h-full w-full" />;
 }
 
-const segmentClass = (active: boolean) => `flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${active ? 'bg-primary text-primary-foreground shadow-sm' : 'bg-transparent text-foreground hover:bg-muted'}`;
+const segmentClass = (active: boolean) => `flex min-h-10 items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-semibold transition-colors ${active ? 'bg-primary text-primary-foreground shadow-sm' : 'bg-transparent text-foreground hover:bg-muted'}`;
 
 /** Voice/Type segmented toggle. Rendered INSIDE the panel, never over the
  * portrait — in chat mode the frame places it under the window-controls
@@ -118,9 +122,28 @@ export function AspenModeToggle({ mode, onMode }: { mode: 'voice' | 'chat'; onMo
   // card background (never a translucent wash) and the inactive segment uses
   // full-strength foreground text — a muted/translucent inactive option
   // vanished over the gallery photos behind the floating widget.
-  return <div className="mx-auto flex shrink-0 items-center gap-0.5 rounded-full border border-border bg-card p-0.5 shadow-md" role="group" aria-label="Conversation mode">
-    <button type="button" className={segmentClass(mode === 'voice')} aria-pressed={mode === 'voice'} onClick={() => onMode('voice')}><AudioLines className="h-3.5 w-3.5" />Voice</button>
-    <button type="button" className={segmentClass(mode === 'chat')} aria-pressed={mode === 'chat'} onClick={() => onMode('chat')}><MessageSquare className="h-3.5 w-3.5" />Type</button>
+  //
+  // Deliberate-tap guard (2026-11-14, Ron's phone test: "I've changed to
+  // chat version but I did not ask for chat somehow"): switching mode is
+  // destructive — it unmounts the live voice session — so a segment only
+  // fires on a genuine tap ON that segment. Each press records where the
+  // finger landed; a click whose release point travelled more than 10px
+  // from the press point was a brush/drag-over, not a choice, and is
+  // ignored. Segments are full 40px touch targets for the same reason:
+  // the old ~24px-tall segments sat among the window controls Ron was
+  // fighting (drag/minimise/close, speaker popover) and were easy to hit
+  // by accident. Keyboard activation (no recorded pointer press) always
+  // counts as deliberate.
+  const pressOrigin = useRef<{ x: number; y: number } | null>(null);
+  const handleClick = (next: 'voice' | 'chat') => (event: ReactMouseEvent<HTMLButtonElement>) => {
+    const origin = pressOrigin.current;
+    pressOrigin.current = null;
+    if (origin && Math.hypot(event.clientX - origin.x, event.clientY - origin.y) > 10) return;
+    onMode(next);
+  };
+  return <div className="mx-auto flex shrink-0 items-center gap-0.5 rounded-full border border-border bg-card p-1 shadow-md" role="group" aria-label="Conversation mode">
+    <button type="button" className={segmentClass(mode === 'voice')} aria-pressed={mode === 'voice'} onPointerDown={(event) => { pressOrigin.current = { x: event.clientX, y: event.clientY }; }} onClick={handleClick('voice')}><AudioLines className="h-4 w-4" />Voice</button>
+    <button type="button" className={segmentClass(mode === 'chat')} aria-pressed={mode === 'chat'} onPointerDown={(event) => { pressOrigin.current = { x: event.clientX, y: event.clientY }; }} onClick={handleClick('chat')}><MessageSquare className="h-4 w-4" />Type</button>
   </div>;
 }
 

@@ -3439,14 +3439,20 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // face-first mode; in the legacy non-face-first compact flow it keeps
   // its spot under the avatar (there is no panel card there).
   const toggleManagerRow = (belowAvatar || transferPill) ? (
-    <div data-testid="toggle-manager-row" className="flex shrink-0 items-start gap-1 py-1">
+    <div data-testid="toggle-manager-row" className="flex shrink-0 items-start gap-1 py-0.5">
       <div aria-hidden className="flex-1" />
       <div className="flex shrink-0 justify-center">{belowAvatar}</div>
       <div className="flex min-w-0 flex-1 flex-col items-end">{transferPill}</div>
     </div>
   ) : null;
   const transportControls = (
-  <div className="voice-controls flex flex-nowrap items-center justify-center gap-1 [&_button]:h-auto [&_button]:min-h-11 [&_button]:w-auto [&_button]:min-w-0 [&_button]:shrink [&_button]:flex-col [&_button]:gap-1 [&_button]:px-1.5 [&_button]:py-1.5 [&_span]:text-[10px] [&_span]:leading-tight [&_span]:truncate">
+  // w-full + min-w-0 (2026-11-14): as a flex item (the landscape row's
+  // centre slot) this row used to size to its max-content and spill
+  // symmetrically out of its slot — the End button landed on the
+  // toggle's Type segment (leaving a stray clipped letter) and Replay
+  // hung off the panel's right edge. Constrained to its slot, the
+  // buttons shrink inside it instead (they carry shrink + min-w-0).
+  <div className="voice-controls flex w-full min-w-0 flex-nowrap items-center justify-center gap-1 [&_button]:h-auto [&_button]:min-h-11 [&_button]:w-auto [&_button]:min-w-0 [&_button]:shrink [&_button]:flex-col [&_button]:gap-1 [&_button]:px-1.5 [&_button]:py-1.5 [&_span]:text-[10px] [&_span]:leading-tight [&_span]:truncate">
     {phase === "idle" ? (
       <Button size="icon" onClick={() => void startConversation()} title={t("voice.playToConnect", { name })} aria-label={t("voice.startConversation")}>
         <Play className="h-4 w-4" />
@@ -3500,6 +3506,16 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           <span>{t("voice.sound")}</span>
         </Button>
         {speakerMenuOpen && (
+          <>
+          {/* Dismiss layer (2026-11-14): while the speaker menu is open,
+              the visitor's natural "tap anywhere to dismiss" must ONLY
+              dismiss. Without this layer that tap fell through to
+              whatever sat under it — in Ron's phone test the panel's
+              Voice/Type toggle row — and a dismiss gesture silently
+              flipped the mode and killed the live voice session. The
+              layer swallows exactly one tap and closes the menu; the
+              menu itself stays above it (z-50). */}
+          <div data-testid="speaker-menu-backdrop" aria-hidden="true" className="fixed inset-0 z-40 cursor-default" onPointerDown={(event) => { event.preventDefault(); event.stopPropagation(); setSpeakerMenuOpen(false); }} />
           <div role="menu" aria-label={t("voice.speakerOutput")} className="absolute bottom-full left-1/2 z-50 mb-1 w-56 max-w-[80vw] -translate-x-1/2 rounded-md border border-border bg-card p-1 text-left shadow-lg">
             {buildSpeakerMenuOptions({ devices: speakerOutputs, canSelect: speakerCanSelect, selectedDeviceId: selectedOutputId, muted: speakerMuted }).map((option: SpeakerMenuOption) => {
               if (option.kind === "mute") {
@@ -3532,6 +3548,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             {!speakerCanSelect && <p className="px-2 pb-1 pt-1.5 text-[10px] leading-snug text-muted-foreground">{t("voice.speakerNoSelectNote")}</p>}
             {speakerOutputNotice && <p role="status" className="px-2 pb-1 pt-1.5 text-[10px] leading-snug text-muted-foreground">{speakerOutputNotice}</p>}
           </div>
+          </>
         )}
       </div>
     )}
@@ -3599,9 +3616,15 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // toggle row above + the transport slot below the captions), never
   // alongside them, so exactly one instance of every control mounts.
   const landscapeControlRow = (
-    <div data-testid="toggle-transport-row" className="flex shrink-0 flex-wrap items-center gap-1 py-1">
+    // The centre slot carries a 12.5rem floor (2026-11-14): five icon
+    // buttons at their 36px minimums + gaps need ~200px. Below that
+    // the row's flex-wrap moves the transport to its own full-width
+    // line (toggle + Manager stay together on line 1) instead of the
+    // transport crushing and spilling over its neighbours — on panels
+    // wide enough (~500px) all three still share one row as designed.
+    <div data-testid="toggle-transport-row" className="flex shrink-0 flex-wrap items-center gap-1 py-0.5">
       {belowAvatar && <div className="flex shrink-0 justify-center">{belowAvatar}</div>}
-      <div className="flex min-w-0 flex-1 justify-center">{transportControls}</div>
+      <div className="flex min-w-[12.5rem] flex-1 justify-center">{transportControls}</div>
       {transferPill && <div className="flex shrink-0 flex-col items-end">{transferPill}</div>}
     </div>
   );
@@ -3611,7 +3634,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         {faceFirst ? <div className="aspen-person-livebox relative z-0 mx-auto shrink-0 overflow-hidden"><div className={`h-full w-full ${faceLive ? 'invisible' : ''}`}><PersonPortrait name={name} avatarUrl={avatarUrl} animated={false} /></div>{avatarView}{stagedAvatarView}{!focusView && <PersonaNameLabel name={personaLabelName} />}</div> : <>{avatarView}{stagedAvatarView}</>}
         {!faceFirst && windowControls}
         {!faceFirst && toggleManagerRow}
-        <div className={faceFirst ? 'aspen-voice-panel relative z-10 flex min-h-0 flex-1 flex-col space-y-2 rounded-lg border border-primary/40 bg-card p-2 shadow-lg ring-1 ring-foreground/10' : 'space-y-2'}>
+        <div className={faceFirst ? 'aspen-voice-panel relative z-10 flex min-h-0 flex-1 flex-col space-y-1.5 rounded-lg border border-primary/40 bg-card p-2 shadow-lg ring-1 ring-foreground/10' : 'space-y-2'}>
         {faceFirst && (focusView ? (
           <div data-testid="aspen-focus-dock" className="flex shrink-0 items-center gap-1.5">
             <PersonaNameLabel name={personaLabelName} variant="dock" />
@@ -3620,7 +3643,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             {windowControls}
           </div>
         ) : windowControls)}
-        {faceFirst && (wideLandscape ? landscapeControlRow : toggleManagerRow)}
+        {/* FOCUS VIEW (Ron's approved mockup v2, re-asserted 2026-11-14):
+            captions off = the presenter + voice controls + the dock —
+            the Voice/Type toggle and Manager pill rows step aside.
+            'hidden' (not unmount) so a live Manager handoff leg inside
+            the row is never torn down by entering focus; the captions
+            chevron in the dock brings the row back with the captions. */}
+        {faceFirst && <div className={focusView ? 'hidden' : 'contents'}>{wideLandscape ? landscapeControlRow : toggleManagerRow}</div>}
         <div className="flex items-center gap-1.5">
           {shownPhase === "connecting" && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" />}
           {shownPhase === "live" && !aspenSpeaking && <Mic className="h-3.5 w-3.5 shrink-0 animate-pulse text-primary" />}

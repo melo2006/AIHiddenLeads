@@ -126,7 +126,7 @@ describe('item 5 + refinement A — chat box layouts and the horizontal control 
     expect(css).toContain('.aspen-person-shell.aspen-person-focus .aspen-person-livebox { width: 234px; height: 188px; }');
   });
   it('the six voice controls never wrap into a stack', () => {
-    expect(conv).toContain('voice-controls flex flex-nowrap');
+    expect(conv).toContain('voice-controls flex w-full min-w-0 flex-nowrap');
     expect(conv).not.toContain('voice-controls flex flex-wrap');
     expect(css).toContain('.aspen-person-shell .voice-controls { flex-wrap: nowrap; }');
   });
@@ -138,6 +138,9 @@ describe('item 5 + refinement A — chat box layouts and the horizontal control 
   });
   it('both widgets pass the focus flag into the frame', () => {
     expect(read('src/components/GeminiAgentWidget.tsx')).toContain('focus={shellState?.focus ?? false}');
-    expect(read('src/components/landing/demo-results/AspenDemoWidget.tsx')).toContain('focus={shellState?.focus ?? false}');
+    // AspenDemoWidget gates the flag to voice mode (type/chat fix,
+    // 2026-11-14): focus is a voice layout — the stale shell snapshot
+    // must not widen the shell while the visitor is in Type mode.
+    expect(read('src/components/landing/demo-results/AspenDemoWidget.tsx')).toContain("focus={mode === 'voice' ? (shellState?.focus ?? false) : false}");
   });
 });
