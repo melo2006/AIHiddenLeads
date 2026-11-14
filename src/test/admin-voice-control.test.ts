@@ -2,7 +2,7 @@
 // voices from the admin Demo Voices tab instead of a code publish.
 //
 // Coverage:
-//  - Part A: Frank's code default is Gacrux now (personas.ts
+//  - Part A: Frank's code default is Schedar now (personas.ts
 //    FRANK_VOICE + the wizard library's matched voice agree); Charon
 //    was ruled too hoarse for Frank's face by Ron.
 //  - The server resolver (persona-voice-overrides.ts): a stored
@@ -53,14 +53,14 @@ const fakeDb = (result: { data?: { voice_name?: unknown } | null; error?: unknow
 });
 
 describe('Part A — Frank’s code default', () => {
-  test('FRANK_VOICE is Gacrux and the registry binding follows it', () => {
-    expect(FRANK_VOICE).toBe('Gacrux');
-    expect(PERSONAS.frank.voiceName).toBe('Gacrux');
+  test('FRANK_VOICE is Schedar and the registry binding follows it', () => {
+    expect(FRANK_VOICE).toBe('Schedar');
+    expect(PERSONAS.frank.voiceName).toBe('Schedar');
     expect(personaRegistryProblems()).toEqual([]);
   });
 
   test('the wizard library applies the same voice for Frank’s tile', () => {
-    expect(AVATAR_LIBRARY.find((e) => e.key === 'frank')?.matchedVoice).toBe('Gacrux');
+    expect(AVATAR_LIBRARY.find((e) => e.key === 'frank')?.matchedVoice).toBe('Schedar');
   });
 
   test('no other persona’s code default moved', () => {
@@ -78,9 +78,9 @@ describe('server resolver — DB wins, code default is the fallback', () => {
       .resolves.toEqual({ voice: 'Schedar', source: 'override' });
   });
 
-  test('no row → the code default (Frank: Gacrux)', async () => {
+  test('no row → the code default (Frank: Schedar)', async () => {
     await expect(resolvePersonaVoice(fakeDb({ data: null }), 'frank'))
-      .resolves.toEqual({ voice: 'Gacrux', source: 'default' });
+      .resolves.toEqual({ voice: 'Schedar', source: 'default' });
     await expect(fetchPersonaVoiceOverride(fakeDb({ data: null }), 'frank')).resolves.toBeNull();
   });
 
@@ -97,10 +97,10 @@ describe('server resolver — DB wins, code default is the fallback', () => {
 
   test('an invalid stored voice is treated as no override', async () => {
     await expect(resolvePersonaVoice(fakeDb({ data: { voice_name: 'NotAVoice' } }), 'frank'))
-      .resolves.toEqual({ voice: 'Gacrux', source: 'default' });
+      .resolves.toEqual({ voice: 'Schedar', source: 'default' });
     expect(personaVoiceOverrideValue('NotAVoice')).toBeNull();
     expect(personaVoiceOverrideValue(42)).toBeNull();
-    expect(personaVoiceOverrideValue('Gacrux')).toBe('Gacrux');
+    expect(personaVoiceOverrideValue('Schedar')).toBe('Schedar');
   });
 
   test('the pure core resolves both ways', () => {
@@ -131,7 +131,7 @@ describe('client row table — displayed defaults are the real defaults', () => 
 
   test('effectivePersonaVoice marks the source honestly', () => {
     const frank = DEMO_PERSONA_VOICE_ROWS.find((r) => r.persona === 'frank')!;
-    expect(effectivePersonaVoice(frank, {})).toEqual({ voice: 'Gacrux', source: 'default' });
+    expect(effectivePersonaVoice(frank, {})).toEqual({ voice: 'Schedar', source: 'default' });
     expect(effectivePersonaVoice(frank, { frank: 'Schedar' })).toEqual({ voice: 'Schedar', source: 'override' });
   });
 });

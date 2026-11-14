@@ -56,7 +56,7 @@ describe("AvatarLibraryGrid", () => {
     render(<AvatarLibraryGrid selectedFaceId={ASPEN_FACE_ID} onPickLibrary={onPick} />);
     fireEvent.click(screen.getByRole("button", { name: "Choose face Frank" }));
     expect(onPick).toHaveBeenCalledTimes(1);
-    expect(onPick.mock.calls[0][0]).toMatchObject({ faceId: FRANK_FACE_ID, label: "Frank", suggestedName: "Frank", matchedVoice: "Gacrux" });
+    expect(onPick.mock.calls[0][0]).toMatchObject({ faceId: FRANK_FACE_ID, label: "Frank", suggestedName: "Frank", matchedVoice: "Schedar" });
   });
 });
 
@@ -79,11 +79,11 @@ describe("AvatarSettings — library pick wiring", () => {
     return { onChange, onVoiceChange, onNameChange };
   }
 
-  it("picking Frank sets the face, applies Gacrux and pre-fills the name Frank", () => {
+  it("picking Frank sets the face, applies Schedar and pre-fills the name Frank", () => {
     const { onChange, onVoiceChange, onNameChange } = renderSettings();
     fireEvent.click(screen.getByRole("button", { name: "Choose face Frank" }));
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ faceId: FRANK_FACE_ID }));
-    expect(onVoiceChange).toHaveBeenCalledWith("Gacrux");
+    expect(onVoiceChange).toHaveBeenCalledWith("Schedar");
     expect(onNameChange).toHaveBeenCalledWith("Frank");
   });
 

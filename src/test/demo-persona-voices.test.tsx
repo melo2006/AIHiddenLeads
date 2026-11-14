@@ -2,7 +2,7 @@
 //  - one row per demo persona (all eight), each showing the persona's
 //    CURRENT effective voice and whether it is the code default or an
 //    admin override;
-//  - Frank's row shows the new Gacrux default;
+//  - Frank's row shows the new Schedar default;
 //  - an override row (Frank = Schedar in the fake store) is marked
 //    "Admin override", its Reset is armed, and clicking Reset deletes
 //    the row and the row falls back to the code default;
@@ -80,15 +80,15 @@ describe("DemoPersonaVoices", () => {
     expect(within(aspen).getByRole("button", { name: /Reset to default/ })).toHaveProperty("disabled", true);
   });
 
-  it("Reset deletes the override and the row falls back to the Gacrux code default", async () => {
+  it("Reset deletes the override and the row falls back to the Schedar code default", async () => {
     render(<DemoPersonaVoices />);
     const frank = await screen.findByTestId("persona-row-frank");
-    const reset = within(frank).getByRole("button", { name: /Reset to default \(Gacrux\)/ });
+    const reset = within(frank).getByRole("button", { name: /Reset to default \(Schedar\)/ });
     expect(reset).toHaveProperty("disabled", false);
     fireEvent.click(reset);
     expect(await within(frank).findByText("Code default")).toBeTruthy();
     expect(mocks.deleted).toEqual(["frank"]);
-    expect(within(frank).getByText("Gacrux")).toBeTruthy();
+    expect(within(frank).getByText("Schedar")).toBeTruthy();
   });
 
   it("the audition mounts the preview mechanism with the picked voice", async () => {
