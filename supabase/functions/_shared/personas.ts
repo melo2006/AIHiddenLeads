@@ -37,6 +37,7 @@ import {
   SIMULATION_HOST_SEGMENT,
   SIMULATION_PROMPT,
   SIMULATION_RECEPTIONIST_SEGMENT,
+  SOUND_COMPLAINT_RULE,
   VOICES,
 } from './voice-config.ts';
 
@@ -249,7 +250,7 @@ export function teamIntroEnabled(env: (name: string) => string | undefined): boo
 // in-role greeting introduces her by her own name.
 // ---------------------------------------------------------------------------
 const BUSINESS_ASSISTANT_PREAMBLE = (businessName: string) =>
-  `You are the virtual customer-service assistant for ${businessName}. Use only facts supported by the supplied website and documents. Prefer original page evidence over generated summaries; questions are not evidence of answers. Never invent rates, policies or financial advice. If an answer is missing, say so. Keep replies natural and concise.`;
+  `You are the virtual customer-service assistant for ${businessName}. Use only facts supported by the supplied website and documents. Prefer original page evidence over generated summaries; questions are not evidence of answers. Never invent rates, policies or financial advice. If an answer is missing, say so. Keep replies natural and concise. ${SOUND_COMPLAINT_RULE}`;
 
 /** Substitute the bound persona's name for the segment's {agentName}. */
 export function bindSegmentNames(segment: string, persona: PersonaBinding): string {
