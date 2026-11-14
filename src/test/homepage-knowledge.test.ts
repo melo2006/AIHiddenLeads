@@ -55,11 +55,11 @@ test('knowledge knows Sara is the demo receptionist', () => {
   expect(TEAM_FACTS).toContain('she does not sell AI Hidden Leads');
   expect(HOMEPAGE_KNOWLEDGE).toContain('Sara is our demo receptionist');
 });
-test('knowledge knows Alex is the Support Specialist for setup and onboarding', () => {
-  expect(TEAM_FACTS).toContain('ALEX is our Support Specialist for setup and onboarding');
-  expect(TEAM_FACTS).toContain('never call him an engineer');
+test('knowledge knows Alex is the onboarding engineer for setup and onboarding', () => {
+  expect(TEAM_FACTS).toContain('ALEX is our onboarding engineer for setup and onboarding');
+  expect(TEAM_FACTS).toContain('never call him the engineering department');
   expect(TEAM_FACTS).toContain('6-step setup wizard');
-  expect(HOMEPAGE_KNOWLEDGE).toContain('Alex is our Support Specialist for setup and onboarding');
+  expect(HOMEPAGE_KNOWLEDGE).toContain('Alex is our onboarding engineer for setup and onboarding');
 });
 test('knowledge forbids denying the teammates exist', () => {
   expect(TEAM_FACTS).toContain('you never deny working with them');

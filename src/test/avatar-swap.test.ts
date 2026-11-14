@@ -77,7 +77,7 @@ describe('prompt split', () => {
     expect(ALEX_DEMO_GREETING).toContain('10 to 15 minutes');
     expect(ALEX_DEMO_GREETING).toContain('install snippet');
     const built = personaSegmentPrompt('alex', 'meet-alex', 'Durgin Electric', SIMULATION_PROMPT, guest);
-    expect(built.systemPrompt).toContain('support specialist at AI Hidden Leads');
+    expect(built.systemPrompt).toContain('onboarding engineer at AI Hidden Leads');
     expect(built.greeting).toBe(ALEX_DEMO_GREETING);
     expect(PERSONAS.alex.voiceName).toBe('Puck');
     expect(PERSONAS.alex.faceId).toBe(ALEX_FACE_ID);

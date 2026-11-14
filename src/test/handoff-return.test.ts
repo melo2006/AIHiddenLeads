@@ -38,7 +38,7 @@ describe('handoffReturnInstruction — the come-back wording matrix', () => {
     expect(text).toContain('ask how the call went');
     expect(text).toContain('what they arranged with the manager');
     expect(text).toContain('complete their demo now, or go through a workflow');
-    expect(text).toContain('Alex, our support specialist');
+    expect(text).toContain('Alex, our onboarding engineer');
     expect(text).toContain('setup wizard');
     expect(text).toContain('choose a plan');
     expect(text).toContain('about 15 minutes');

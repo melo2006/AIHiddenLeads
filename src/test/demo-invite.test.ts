@@ -260,7 +260,7 @@ describe('invite opening copy (Aspen host phase)', () => {
     expect(DEMO_INVITE_OPENING).toContain('anti-transfer rule');
     expect(DEMO_INVITE_OPENING).toContain('Set expectations, once');
     expect(DEMO_INVITE_OPENING).toContain('Alex, once');
-    expect(DEMO_INVITE_GREETING).toContain('support specialist, Alex');
+    expect(DEMO_INVITE_GREETING).toContain('onboarding engineer, Alex');
   });
 });
 

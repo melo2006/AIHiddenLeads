@@ -23,7 +23,7 @@ test('C1a: simulation greeting is the demo-site opening — welcome, partner pit
   expect(SIMULATION_GREETING).toContain('thanks for trying the demo I built for {businessName}');
   expect(SIMULATION_GREETING).toContain('your partner for growth');
   expect(SIMULATION_GREETING).toContain("you're about to see exactly that");
-  expect(SIMULATION_GREETING).toContain('our support specialist, Alex, walks you through everything personally');
+  expect(SIMULATION_GREETING).toContain('our onboarding engineer, Alex, walks you through everything personally');
   expect(SIMULATION_GREETING).toContain('meet Sara');
   expect(SIMULATION_GREETING).not.toContain('I read the public pages of {businessName} the way any visitor would');
   expect(SIMULATION_GREETING).not.toContain("haven't touched your website or your server");
@@ -75,7 +75,7 @@ test('C7a: the step-out close runs its beats in order, incl. the Alex seam befor
   expect(SIMULATION_PROMPT).toContain('I am stepping out of simulation mode now. This is Aspen from AI Hidden Leads again.');
   expect(SIMULATION_PROMPT).toContain('did you like it?');
   expect(SIMULATION_PROMPT).toContain('helping you win more leads and close more business?');
-  expect(SIMULATION_PROMPT).toContain('This is Alex — our support specialist.');
+  expect(SIMULATION_PROMPT).toContain('This is Alex — our onboarding engineer.');
   expect(SIMULATION_PROMPT).toContain('Alex — say hello.');
 });
 

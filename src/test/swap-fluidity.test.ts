@@ -227,6 +227,6 @@ describe('meet-Alex wording (prompt pins)', () => {
   test('host segment carries the same rule for the host phase, with the one-line bring-him-in', () => {
     expect(SIMULATION_HOST_SEGMENT).toContain('IF THE VISITOR ASKS FOR ALEX DURING THIS HOST PHASE');
     expect(SIMULATION_HOST_SEGMENT).toContain('do not say you cannot complete a transfer');
-    expect(SIMULATION_HOST_SEGMENT).toContain('This is Alex — our support specialist. Alex — say hello.');
+    expect(SIMULATION_HOST_SEGMENT).toContain('This is Alex — our onboarding engineer. Alex — say hello.');
   });
 });

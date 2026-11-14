@@ -7,7 +7,8 @@
 //  - prompt content pins: Sara's cameo carries the FULL honesty clauses
 //    (rework delta c — not touched / public pages only / server
 //    untouched); Alex names WordPress/Wix/plain HTML + "most hosted
-//    builders" and NOT GoDaddy/IONOS (delta d); no "engineer" anywhere;
+//    builders" and NOT GoDaddy/IONOS (delta d); Alex titled onboarding
+//    engineer (Ron, 2026-11-14 — supersedes the no-"engineer" rule);
 //    no prices in any beat
 //  - segment routing for the intro family (right persona/boundary
 //    pairs build, wrong pairs throw, host segments require the
@@ -91,16 +92,16 @@ describe('prompt content pins', () => {
       expect(text).not.toContain('IONOS');
     }
   });
-  test('no intro prompt calls Alex an engineer, and no beat quotes a price', () => {
+  test('no intro prompt uses the retired title, and no beat quotes a price', () => {
     for (const text of ALL_INTRO_PROMPTS) {
-      expect(text.toLowerCase()).not.toContain('engineer');
+      expect(text.toLowerCase()).not.toContain('support specialist');
       expect(text).not.toContain('$');
     }
   });
-  test('Alex is framed as the support specialist in every intro surface', () => {
-    expect(TEAM_INTRO_BEAT_ALEX.toLowerCase()).toContain('support specialist');
+  test('Alex is framed as the onboarding engineer in every intro surface', () => {
+    expect(TEAM_INTRO_BEAT_ALEX.toLowerCase()).toContain('onboarding engineer');
     // The demo-site opening's only Alex material is the comfort line.
-    expect(DEMO_SITE_COMFORT_LINE).toContain('our support specialist, Alex');
+    expect(DEMO_SITE_COMFORT_LINE).toContain('our onboarding engineer, Alex');
   });
 });
 

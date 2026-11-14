@@ -307,7 +307,7 @@ export function visitorSignalsStepOut(text: string): boolean {
  *  about setup, so a setup question to her IS the Alex intent — the
  *  setup phrases match bare, with no person/meeting combination
  *  required. "Alex" matches as a WHOLE WORD only: "Alexa" devices and
- *  "Alexander" are not the support specialist. The phrase list stays
+ *  "Alexander" are not the onboarding engineer. The phrase list stays
  *  tight on purpose — these are INTENT phrases (asking for the person
  *  or the setup conversation), not topic words. */
 const ALEX_NAME_WORD = /\balex\b/;
@@ -466,7 +466,7 @@ export function buildSwapRecap(
     meta.businessName ? `Business being demonstrated: ${meta.businessName}.` : '',
     meta.visitorName ? `The visitor is ${meta.visitorName}.` : '',
     ...(meta.facts.length ? meta.facts.map(f => `Facts established: ${f}.`) : []),
-    `You are now ${incoming === 'sara' ? 'Sara, the receptionist in the simulation' : incoming === 'alex' ? 'Alex, the support specialist' : 'Aspen from AI Hidden Leads'}.`,
+    `You are now ${incoming === 'sara' ? 'Sara, the receptionist in the simulation' : incoming === 'alex' ? 'Alex, the onboarding engineer' : 'Aspen from AI Hidden Leads'}.`,
   ].filter(Boolean).join(' ');
   // Handoff divider rows are transcript chrome, not conversation: they
   // never enter the recap the incoming persona reads.

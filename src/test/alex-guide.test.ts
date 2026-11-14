@@ -19,7 +19,7 @@ const read = (rel: string) => fs.readFileSync(path.join(__dirname, '..', rel), '
 const readFn = (rel: string) => fs.readFileSync(path.join(__dirname, '..', '..', 'supabase', 'functions', rel), 'utf8');
 
 describe('Alex guide config', () => {
-  test('identity: Alex, support specialist at AI Hidden Leads, Puck voice', () => {
+  test('identity: Alex, onboarding engineer at AI Hidden Leads, Puck voice', () => {
     const c = alexGuideConfig();
     expect(c.name).toBe('Alex');
     expect(c.businessName).toBe('AI Hidden Leads');
@@ -62,7 +62,7 @@ describe('Alex greeting and prompt content', () => {
     expect(ALEX_GREETING).toContain('{timeGreeting}');
     expect(ALEX_GREETING).toContain('{agentName}');
     expect(ALEX_GREETING).toContain('{businessName}');
-    expect(ALEX_GREETING).toContain('support specialist');
+    expect(ALEX_GREETING).toContain('onboarding engineer');
     expect(ALEX_GREETING).toContain("I'm an AI guide");
     expect(ALEX_GREETING).toContain('6 short steps');
     expect(ALEX_GREETING).toContain('10 to 15 minutes');

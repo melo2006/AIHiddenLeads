@@ -79,9 +79,12 @@ export const extractBusinessName = (url: string): string => {
   try {
     const clean = url.replace(/^(?:https?:\/\/)/i, "").replace(/^www\./i, "");
     const domain = clean.split("/")[0].split(".")[0];
+    // Nothing derivable from the host: use a neutral phrase that reads
+    // as a description, never the bare word "Business" as a fake name.
+    if (!domain) return "this business";
     return domain.charAt(0).toUpperCase() + domain.slice(1);
   } catch {
-    return "Business";
+    return "this business";
   }
 };
 

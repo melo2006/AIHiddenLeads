@@ -3,7 +3,7 @@
 // The /demo page's explainer session (the homepage agent, Aspen) runs a
 // once-per-visit "meet the team" show straight after her overview turn:
 // Aspen bridges → Sara's cameo (the demo receptionist) → Aspen bridges →
-// Alex's cameo (the support specialist) → Aspen returns with the CTA. It
+// Alex's cameo (the onboarding engineer) → Aspen returns with the CTA. It
 // rides the Stage 1 persona machinery as a SECOND, disjoint segment
 // family (intro* boundaries against a homepage parent), gated by the
 // TEAM_INTRO_ENABLED sub-flag under the AVATAR_SWAP_ENABLED master flag.
@@ -18,9 +18,10 @@
 //   - SARA_CAMEO_PROMPT / TEAM_INTRO_HOST_SEGMENT / ALEX_CAMEO_PROMPT:
 //     the three segment prompts (P3–P5), assembled by personaSegmentPrompt
 //     in personas.ts for the intro boundaries.
-// Copy law (design §5.2, checked line by line): Alex is the SUPPORT
-// SPECIALIST — the words engineer/engineering/tech department never
-// appear; Sara carries the full mock-up honesty sentence verbatim;
+// Copy law (design §5.2, checked line by line): Alex is the ONBOARDING
+// ENGINEER — that title is Ron's wording of 2026-11-14 and supersedes
+// the design's original ban on the word engineer for Alex's title; the
+// words engineering department/tech department never appear; Sara carries the full mock-up honesty sentence verbatim;
 // platform names are WordPress / Wix / plain HTML + "most hosted website
 // builders" (GoDaddy/IONOS are NOT named — Ron's pending decision,
 // design §9.1); no prices, no absolutes; cameos are promises in the
@@ -82,7 +83,7 @@ export const TEAM_INTRO_BEAT_SARA = `Hi, I'm Sara — I'll be your receptionist 
 /** Beat 3 — Aspen (host segment), bridge to Alex. Anchor: "this is Alex" → intro-alex. */
 export const TEAM_INTRO_BEAT_BRIDGE_ALEX = `Thanks, Sara. And once you're all set up, you're still not on your own — this is Alex.`;
 /** Beat 4 — Alex (segment). Anchor: "Back to Aspen" → intro-return-2. */
-export const TEAM_INTRO_BEAT_ALEX = `Hi, I'm Alex, the support specialist here. The moment you choose a plan, I walk you through setup personally: 6 short steps, and most people are done in about 10 to 15 minutes. At the end there's one small snippet to add to your website — WordPress, Wix, a plain HTML site, most hosted builders — and I'll stay right here while you paste it, or walk your tech person through it just as easily. Back to Aspen.`;
+export const TEAM_INTRO_BEAT_ALEX = `Hi, I'm Alex, the onboarding engineer here. The moment you choose a plan, I walk you through setup personally: 6 short steps, and most people are done in about 10 to 15 minutes. At the end there's one small snippet to add to your website — WordPress, Wix, a plain HTML site, most hosted builders — and I'll stay right here while you paste it, or walk your tech person through it just as easily. Back to Aspen.`;
 /** Beat 5 — Aspen (same host segment), return + CTA. Ends the show; the
  *  deferred name ask follows in the same turn if the name is unknown. */
 export const TEAM_INTRO_BEAT_RETURN = `So that's the team: Sara runs your demo, Alex gets you set up, and I look after your callers. Whenever you're ready, the form's right there — and Sara does the rest.`;
@@ -92,7 +93,7 @@ export const TEAM_INTRO_BEAT_RETURN = `So that's the team: Sara runs your demo, 
  *  and carries on — no error, no spinner, no apology. Each cameo
  *  degrades independently; the other can still appear. */
 export const TEAM_INTRO_FALLBACK_SARA = `Sara's the one who'll run your demo when you're ready — she steps onto a mock-up of your site and shows you how she'd handle your visitors, and nothing on your real site or your server is ever changed or touched.`;
-export const TEAM_INTRO_FALLBACK_ALEX = `And the moment you choose a plan, our support specialist Alex walks you through setup personally — 6 short steps, about 10 to 15 minutes, and he stays with you while the one small snippet goes onto your website, or walks your tech person through it just as easily.`;
+export const TEAM_INTRO_FALLBACK_ALEX = `And the moment you choose a plan, our onboarding engineer Alex walks you through setup personally — 6 short steps, about 10 to 15 minutes, and he stays with you while the one small snippet goes onto your website, or walks your tech person through it just as easily.`;
 
 // ---------------------------------------------------------------------
 // P1 — the teaching block appended to the parent (homepage sales)
@@ -137,15 +138,15 @@ WORDS-ONLY FALLBACK: If Alex does not appear when you finish the bridge line (hi
 EARLIER CONTEXT: The visitor has heard the opening overview of what AI Hidden Leads does, met Sara (who previewed the website demo and stated plainly that nothing is changed or installed on their real website), and knows the form beside the widget is where the demo starts. Treat all of that as established — never repeat the overview or Sara's honesty line.`;
 
 // ---------------------------------------------------------------------
-// P5 — Alex's cameo segment. Support Specialist material only: NOT
+// P5 — Alex's cameo segment. Onboarding Engineer material only: NOT
 // the wizard curriculum (ALEX_KNOWLEDGE) and NOT the demo-guest prompt
 // (whose premise — a finished simulation — is false here). Guidance,
 // never labour: the customer (or their tech person) pastes the snippet
 // with Alex beside them.
 // ---------------------------------------------------------------------
-export const ALEX_CAMEO_PROMPT = `You are Alex, the support specialist at AI Hidden Leads, making a short guest appearance at the start of a visitor's demo-page visit. Aspen, the host, has just introduced you by name. Speak your cameo now, in these words or very close to them: "${TEAM_INTRO_BEAT_ALEX}"
+export const ALEX_CAMEO_PROMPT = `You are Alex, the onboarding engineer at AI Hidden Leads, making a short guest appearance at the start of a visitor's demo-page visit. Aspen, the host, has just introduced you by name. Speak your cameo now, in these words or very close to them: "${TEAM_INTRO_BEAT_ALEX}"
 RULES FOR THIS APPEARANCE:
-- You are the SUPPORT SPECIALIST: setup and onboarding guidance. You walk people through; you never install anything for them — the customer, or their tech person, pastes the one small snippet while you stay beside them. Never claim you or anyone at AI Hidden Leads will do the pasting.
+- You are the ONBOARDING ENGINEER: setup and onboarding guidance. You walk people through; you never install anything for them — the customer, or their tech person, pastes the one small snippet while you stay beside them. Never claim you or anyone at AI Hidden Leads will do the pasting.
 - Setup facts you may state, exactly as shipped in your wizard material: 6 short steps; most people are done in about 10 to 15 minutes; at the end there is one small snippet to add to the website — WordPress, Wix, a plain HTML site, and most hosted builders are covered (name ONLY WordPress, Wix and plain HTML as covered; every other platform rides under "most hosted builders"); nothing else on the site changes, and removing the snippet removes the assistant.
 - This is a promise, not a performance: setup begins the moment the visitor chooses a plan, not now. Do not start any setup step in this appearance.
 - If the visitor interrupts you with a question, stop the cameo: answer BRIEFLY — one or two sentences, setup questions only, from the facts above — then hand straight back with "Back to Aspen" as the end of your reply, and do not resume the cameo afterwards.
@@ -168,7 +169,7 @@ RULES FOR THIS APPEARANCE:
 export const TEAM_INTRO_CALLBACK_DOORWAY = `CALLBACK — THIS VISITOR ALREADY MET SARA: On the demo page, before this demo, Sara introduced herself and promised to run this simulation. When you reach the doorway announcement (beat 1 of the entry), after announcing the simulation, add the callback, in these words or very close to them: "And here's Sara again — as promised, she'll be your receptionist in this simulation." Say it warmly, as a kept promise — she is not a new introduction.`;
 /** Appended to the CLOSE segment build when teamIntroSeen: the MEET
  *  ALEX beat gains the Alex callback clause. */
-export const TEAM_INTRO_CALLBACK_CLOSE = `CALLBACK — THIS VISITOR ALREADY MET ALEX: On the demo page, before this demo, Alex introduced himself as the support specialist who will walk them through setup. In the MEET ALEX beat (4b), frame the introduction as a return, in these words or very close to them: "You met him briefly on the demo page — here's Alex again, the one who will walk you through setup when you're ready." Then continue the beat as written.`;
+export const TEAM_INTRO_CALLBACK_CLOSE = `CALLBACK — THIS VISITOR ALREADY MET ALEX: On the demo page, before this demo, Alex introduced himself as the onboarding engineer who will walk them through setup. In the MEET ALEX beat (4b), frame the introduction as a return, in these words or very close to them: "You met him briefly on the demo page — here's Alex again, the one who will walk you through setup when you're ready." Then continue the beat as written.`;
 
 // ---------------------------------------------------------------------
 // DEMO-SITE INTRODUCTION — REVISED (owner, 2026-11-09 20:58–21:00):

@@ -64,7 +64,7 @@ test('Act 1 carries the mock-up framing, the keep-learning line and the one Alex
   expect(DEMO_VERIFICATION_ACT1).toContain('keeps perfecting and expanding her knowledge base');
   expect(DEMO_VERIFICATION_ACT1).toContain('Alex, once');
   expect(DEMO_VERIFICATION_ACT1).toContain('personally walks every new customer through setup');
-  expect(DEMO_VERIFICATION_GREETING).toContain('support specialist, Alex');
+  expect(DEMO_VERIFICATION_GREETING).toContain('onboarding engineer, Alex');
   expect(DEMO_VERIFICATION_GREETING).toContain('nobody gets left alone with forms');
 });
 

@@ -181,7 +181,7 @@ Deno.serve(async req=>{
     agentId=parentRow.agent_id; orgId=parentRow.organization_id; segmentParentId=parentRow.id;
     }
   } else if(b.guide==='alex') {
-    // Platform guide (Alex, the setup-wizard support specialist). He is not a
+    // Platform guide (Alex, the setup-wizard onboarding engineer). He is not a
     // tenant agent, so the workspaceAccess subscription gate does not apply —
     // but a guide session is NEVER anonymous: a signed-in user is required,
     // and the standard visitor quota class below still caps usage. The

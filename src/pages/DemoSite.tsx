@@ -520,7 +520,11 @@ const DemoSite = () => {
     const scanWebsite = async () => {
       try {
         const { data: insertedLeadId, error: insertError } = await (supabase as any).rpc("create_demo_lead", {
-          _business_name: nameParam || "Business",
+          // No name param: store the same host-derived name the seed
+          // above displays (buildSeedLeadData → getSiteName) so the
+          // stored lead matches what the visitor sees — never the bare
+          // word "Business".
+          _business_name: nameParam || getSiteName(urlParam),
           _full_name: "CRM Prospect",
           _phone: null,
           _email: null,
