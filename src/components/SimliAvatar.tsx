@@ -10,6 +10,7 @@ import { pcm24kTo16k, type VideoAvatar } from "../../supabase/functions/_shared/
 import { startChromaKey, SARA_CHROMA_KEY_PROFILE } from "@/lib/chromaKey";
 import { clampPlaybackVolume } from "@/lib/playbackVolume";
 import { applySinkIdToElement } from "@/lib/speakerOutput";
+import { PairedPlayout, pairedSoundAudible, type PairedPlaybackLevel } from "@/lib/pairedPlayout";
 
 export interface SimliAvatarHandle {
   /** Resolves true once the face is on screen; false (with a visible reason) when Simli refuses or fails.
@@ -36,6 +37,16 @@ export interface SimliAvatarHandle {
    *  plays. (boolean | void: handles predating the signal resolve
    *  void, which callers treat as "no death reported", never as false.) */
   activate: () => Promise<boolean | void>;
+  /** Sound-armed query (first-load silence fix, 2026-11-14): true when
+   *  the paired playout is actually audible right now — the level asks
+   *  for sound AND the carrying element (media tap playout, or the
+   *  direct WebRTC element as fallback) is playing. A silently
+   *  prepared face whose activation landed before it went live used to
+   *  stay mute with no signal to the caller; activate() now RECORDS
+   *  the sound request and the instance completes it when the face
+   *  goes live, and this query lets the caller verify instead of
+   *  assuming. Optional: handles predating the query don't answer. */
+  soundArmed?: () => boolean;
   stop: () => void;
   /** Stops the session but keeps the last keyed frame on screen: the frozen
    * face covers the gap while a replacement instance mounts (avatar swap). */
@@ -271,19 +282,93 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
   // owned by GeminiConversation, pushed via setPlaybackVolume and the
   // cut-over sync. Every unmute applies THIS level, never a hardcoded 1.
   const playbackVolumeRef = useRef(1);
+  // Paired playout tap (hardware-volume root fix, 2026-11-14): the
+  // WebRTC stream LiveKit attaches to the element above is re-routed
+  // through WebAudio into this plain media element, so on Android the
+  // playout rides the MEDIA stream the hardware volume keys govern
+  // instead of the voice-communication classification WebRTC playout
+  // gets while mic capture is live (see lib/pairedPlayout.ts). The
+  // Simli element keeps playing (volume 0) — lip-sync, the caption
+  // clock and the tap itself all depend on the stream rendering.
+  const playoutRef = useRef<HTMLAudioElement | null>(null);
+  const pairedRef = useRef<PairedPlayout | null>(null);
+  const pairedPlayout = () => (pairedRef.current ??= new PairedPlayout());
+  const currentLevel = (): PairedPlaybackLevel => ({ muted: playbackMutedRef.current, volume: playbackVolumeRef.current });
+  // Sound-request latch (first-load silence fix, 2026-11-14): set by a
+  // non-silent start and by activate() — INCLUDING an activate() that
+  // lands before the face is live. The request is completed by
+  // completeSound() when the face goes live (and retried while live),
+  // instead of the old behavior where a too-early activate() resolved
+  // false into a caller that never retried and the element stayed at
+  // its silent-prewarm level until a page reload renegotiated it.
+  const wantSoundRef = useRef(false);
+  const soundAttemptsRef = useRef(0);
   const applyPlaybackLevel = () => {
     const audio = audioRef.current;
     if (!audio) return;
+    // Never let a re-created element inherit a muted DEFAULT: the
+    // muted property is managed explicitly everywhere below.
+    audio.defaultMuted = false;
+    if (pairedPlayout().engaged) { pairedPlayout().applyLevel(audio, currentLevel()); return; }
     audio.muted = playbackMutedRef.current;
     audio.volume = playbackMutedRef.current ? 0 : playbackVolumeRef.current;
+  };
+  /** Is the paired sound actually audible right now? */
+  const soundArmedNow = (): boolean => {
+    const audio = audioRef.current;
+    if (!audio || !liveRef.current) return false;
+    return pairedSoundAudible({
+      level: currentLevel(),
+      engaged: pairedPlayout().engaged,
+      sourcePaused: audio.paused,
+      playoutPaused: playoutRef.current?.paused ?? true,
+    });
+  };
+  /** Complete a recorded sound request: engage the media tap (the
+   *  hardware-key path); if the tap cannot engage, make sure the
+   *  direct element is playing at level as the fallback. Best-effort
+   *  by design — it never throws, and it never silences a path that
+   *  is already audible. Resolves with the armed verdict. */
+  const completeSound = async (): Promise<boolean> => {
+    if (!wantSoundRef.current || !liveRef.current) return false;
+    const audio = audioRef.current, playout = playoutRef.current;
+    if (!audio || !playout) return false;
+    if (soundArmedNow() && pairedPlayout().engaged) return true;
+    applyPlaybackLevel();
+    const tapped = await pairedPlayout().engage(audio, playout, currentLevel());
+    if (!tapped) {
+      applyPlaybackLevel();
+      if (audio.paused) {
+        try { await audio.play(); } catch { return soundArmedNow(); }
+      }
+    }
+    return soundArmedNow();
+  };
+  /** Level changes are gesture-adjacent (slider, mute toggles): if a
+   *  sound request is still uncompleted and the tap has not engaged,
+   *  they are a fresh chance to complete it AND a fresh attempt
+   *  budget. Once the tap is engaged a level change is just a gain
+   *  write (applyPlaybackLevel above), so this stays out of the
+   *  per-chunk mute path's way. */
+  const retrySoundCompletion = () => {
+    if (wantSoundRef.current && liveRef.current && !pairedPlayout().engaged) {
+      soundAttemptsRef.current = 0;
+      void completeSound();
+    }
   };
   // Speaker-output selection (session-scoped, owned by GeminiConversation):
   // undefined = no preference stated; a string ("" = platform default) is
   // applied to the audio element now and again when the stream (re)starts.
+  // In tap mode the audible element is the playout element, so the
+  // selection is applied there (and to the tap context) as well.
   const desiredSinkIdRef = useRef<string | undefined>(undefined);
   const applyDesiredSink = async (): Promise<boolean> => {
     if (desiredSinkIdRef.current === undefined) return false;
-    return applySinkIdToElement(audioRef.current, desiredSinkIdRef.current);
+    const [elementApplied, tapApplied] = await Promise.all([
+      applySinkIdToElement(audioRef.current, desiredSinkIdRef.current),
+      pairedPlayout().applySink(playoutRef.current, desiredSinkIdRef.current),
+    ]);
+    return elementApplied || tapApplied;
   };
   const [state, setState] = useState<"idle" | "connecting" | "live" | "failed" | "stopped">("idle");
   // Planned-swap crossfade: once fadeOut() lands, the painted (frozen)
@@ -293,10 +378,32 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
   const [reason, setReason] = useState("");
   const setLive = (live: boolean) => { liveRef.current = live; onLiveChange?.(live); };
 
+  // While the face is live with an uncompleted sound request, keep
+  // completing it: the request may have been recorded before the
+  // stream attached, and a browser-paused element recovers here
+  // instead of staying mute for the whole session. "Completed" means
+  // armed ON THE TAP — a session audible only via the direct WebRTC
+  // element still owes the hardware-key fix, so the tap keeps being
+  // attempted (bounded) even while direct sound plays.
+  useEffect(() => {
+    if (state !== "live") return;
+    const id = window.setInterval(() => {
+      if (!wantSoundRef.current) return;
+      if (soundArmedNow() && pairedPlayout().engaged) return;
+      if (soundAttemptsRef.current >= 20) return;
+      soundAttemptsRef.current += 1;
+      void completeSound();
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [state]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const stopKey = () => { keyStopRef.current?.(); keyStopRef.current = null; frozenFrameRef.current = false; setKeyed(false); };
   const stop = () => {
     lifecycleRef.current++;
     activatedRef.current = false;
+    wantSoundRef.current = false;
+    soundAttemptsRef.current = 0;
+    pairedPlayout().release(playoutRef.current);
     startupRejectRef.current?.(new Error('Video startup cancelled'));
     startupRejectRef.current = null;
     tokenAbortRef.current?.abort(); tokenAbortRef.current = null;
@@ -336,6 +443,11 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
       }
       startingRef.current = true;
       startFailedRef.current = false;
+      // A non-silent start IS a sound request: if its final play() is
+      // refused (or the tap cannot engage yet), completeSound keeps
+      // working on it once the face is live instead of leaving the
+      // session mute (first-load silence fix, 2026-11-14).
+      if (!options?.silent) { wantSoundRef.current = true; soundAttemptsRef.current = 0; }
       const lifecycle = ++lifecycleRef.current;
       setState("connecting"); setReason("");
       try {
@@ -344,7 +456,9 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
         if (!videoRef.current || !audioRef.current) throw new Error("Avatar view is not ready");
         // Stay silent until a displayed frame exists. Then this paired stream
         // is the ONLY audible output for video calls, using Gemini-generated PCM.
-        audioRef.current.defaultMuted = true;
+        // (defaultMuted is deliberately NOT latched true here: it made any
+        // re-created element inherit a muted default. The muted PROPERTY
+        // below is the silence switch; applyPlaybackLevel clears the default.)
         audioRef.current.muted = true;
         audioRef.current.volume = 0;
         // Still inside the visitor's tap: unlock both elements now. Phones and in-app
@@ -427,7 +541,15 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
         await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
         if (lifecycle !== lifecycleRef.current) return false;
         // Prepared before any tap: keep the face live but silent until activate().
-        if (options?.silent && !activatedRef.current) { startupRejectRef.current = null; setLive(true); setState("live"); return true; }
+        if (options?.silent && !activatedRef.current) {
+          startupRejectRef.current = null; setLive(true); setState("live");
+          // A sound request recorded before this face went live (an
+          // activate() that landed mid-start) completes now instead
+          // of leaving the session mute (first-load silence fix,
+          // 2026-11-14).
+          if (wantSoundRef.current) void completeSound();
+          return true;
+        }
         if (audioRef.current) {
           applyPlaybackLevel();
           await applyDesiredSink();
@@ -440,6 +562,12 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
         }
         startupRejectRef.current = null;
         setLive(true); setState("live");
+        // Sound is on the direct element; now move it onto the media
+        // tap so the hardware volume keys govern it (pairedPlayout).
+        // Fire-and-forget: engage() silences the direct element only
+        // after the tap is confirmed playing, so this can never
+        // interrupt sound that is already audible.
+        void completeSound();
         return true;
         };
 
@@ -490,6 +618,16 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
       }
     },
     activate: async () => {
+      // Record the sound request FIRST (first-load silence fix,
+      // 2026-11-14): an activation that lands before the face is live
+      // still resolves false below — that contract stands — but the
+      // request is no longer lost: completeSound() runs it when the
+      // face goes live, and keeps working while live until the sound
+      // is armed. Previously the false was swallowed by the caller
+      // and the element stayed at its silent-prewarm level until a
+      // page reload renegotiated the whole audio path.
+      wantSoundRef.current = true;
+      soundAttemptsRef.current = 0;
       activatedRef.current = true;
       const audio = audioRef.current, video = videoRef.current;
       if (!audio || !video) return false;
@@ -497,9 +635,26 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
       applyPlaybackLevel();
       await applyDesiredSink();
       try { await audio.play(); }
-      catch (playError) { if (playError instanceof Error && playError.name === 'NotAllowedError') throw new Error(SOUND_BLOCKED); throw playError; }
+      catch (playError) {
+        // The direct WebRTC element refused: LiveKit latches its room
+        // audio-disabled when the pre-gesture attach-time play() is
+        // refused, and nothing in simli-client ever calls
+        // Room.startAudio() to recover it. The media tap is an
+        // independent playout element — try it before declaring the
+        // sound blocked.
+        const playout = playoutRef.current;
+        const tapped = playout ? await pairedPlayout().engage(audio, playout, currentLevel()) : false;
+        if (tapped) return true;
+        if (playError instanceof Error && playError.name === 'NotAllowedError') throw new Error(SOUND_BLOCKED);
+        throw playError;
+      }
+      // Direct element plays: move the audible output onto the media
+      // tap so the hardware volume keys govern it (pairedPlayout).
+      const playout = playoutRef.current;
+      if (playout) void pairedPlayout().engage(audio, playout, currentLevel());
       return true;
     },
+    soundArmed: () => soundArmedNow(),
     stop,
     freeze: () => {
       // Avatar-swap cover: end this persona's Simli session but leave the
@@ -516,8 +671,8 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
       frameKeeperRef.current = false;
       stop();
     },
-    setPlaybackMuted: (muted) => { playbackMutedRef.current = muted; applyPlaybackLevel(); },
-    setPlaybackVolume: (volume) => { playbackVolumeRef.current = clampPlaybackVolume(volume); applyPlaybackLevel(); },
+    setPlaybackMuted: (muted) => { playbackMutedRef.current = muted; applyPlaybackLevel(); retrySoundCompletion(); },
+    setPlaybackVolume: (volume) => { playbackVolumeRef.current = clampPlaybackVolume(volume); applyPlaybackLevel(); retrySoundCompletion(); },
     cutoverAudioSync: async ({ muted, deviceId, volume }) => {
       // Order is the contract: mute-sync first (activate() applies
       // playbackMutedRef to the element), speaker routing next (so the
@@ -584,6 +739,14 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
       <video ref={videoRef} data-live-face-source autoPlay playsInline muted className={`h-full w-full ${unboxed ? 'object-cover object-top aspen-person-live-media' : 'object-contain'} ${keyed || unboxed && state !== 'live' ? 'absolute inset-0 opacity-0 pointer-events-none' : ''}`} />
       <canvas ref={canvasRef} data-live-face-source aria-hidden className={`h-full w-full ${unboxed ? 'object-cover object-top aspen-person-live-media' : 'object-contain'} ${keyed ? 'relative' : 'hidden'}`} />
       <audio ref={audioRef} autoPlay muted />
+      {/* Media-tap playout element (hardware-volume root fix,
+          2026-11-14): once PairedPlayout engages, THIS plain media
+          element produces the paired sound — fed by a WebAudio
+          MediaStreamDestination tap of the WebRTC stream above — so
+          Android puts it on the media stream the hardware volume
+          keys govern. The Simli element keeps rendering the stream
+          (volume 0) for lip-sync and the caption clock. */}
+      <audio ref={playoutRef} autoPlay playsInline aria-hidden="true" className="hidden" />
       {state === "connecting" && !unboxed && !concealed && <div className="absolute inset-0 bg-card/70 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}
       {state === "failed" && <div role="status" className={unboxed || concealed ? 'sr-only' : 'absolute inset-0 bg-card/90 flex items-center justify-center p-2 text-center text-[11px] text-muted-foreground'}>{reason || "Video avatar unavailable"}</div>}
     </div>

@@ -3207,6 +3207,28 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       if (wsRef.current?.readyState !== WebSocket.OPEN) throw new Error("The connection closed before the session started. Try again.");
       wsRef.current.send(JSON.stringify({ type: 'begin', consent: true }));
       w.goLive?.();
+      // Sound verification (first-load silence fix, 2026-11-14): an
+      // activation that landed before the face went live resolved
+      // false above and used to be swallowed — the session then
+      // "spoke" (captions advancing) with the avatar element parked
+      // at its silent-prewarm level until a page reload. The avatar
+      // now completes the recorded sound request itself when it goes
+      // live; verify that here, and if the sound is STILL not armed
+      // after a few seconds, surface the tap-to-enable-sound
+      // affordance instead of leaving the visitor in silence. A
+      // visitor who muted the speaker themselves is never flagged.
+      if (avatarRequestedRef.current) {
+        let checks = 0;
+        const verifySound = () => {
+          if (generation !== generationRef.current || !liveRef.current) return;
+          const handle = avatarRef.current;
+          if (!handle?.soundArmed || handle.soundArmed()) { setAudioNeedsTap(false); return; }
+          checks += 1;
+          if (checks >= 5) { if (!speakerMutedRef.current) setAudioNeedsTap(true); return; }
+          window.setTimeout(verifySound, 2000);
+        };
+        window.setTimeout(verifySound, 2500);
+      }
     } catch (e) {
       if (generation !== generationRef.current) return;
       stopEverything();
