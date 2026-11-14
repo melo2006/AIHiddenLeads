@@ -181,14 +181,17 @@ describe('widget chrome layout — three stages', () => {
   });
 
   it('minimized without a live session keeps the legacy reopen launcher', () => {
-    render(<FloatingPersonFrame {...baseProps} open={false} minimized />);
+    const view = render(<FloatingPersonFrame {...baseProps} open={false} minimized />);
     const launcher = screen.getByRole('button', { name: 'Talk to Aspen' });
     const bubble = launcher.querySelector('span');
-    // 86px since 2026-11-14: Ron's live test — the fully-minimized
-    // circle at 72px was hardly visible in the corner (tablet worst);
-    // +~20% per his direction. Shell stays !w-24, label unchanged.
-    expect(bubble?.className).toContain('h-[86px]');
-    expect(bubble?.className).toContain('w-[86px]');
+    // 103px since 2026-11-14 (72px → 86px → 103px, +~20% twice at
+    // Ron's direction — the fully-minimized circle was hardly visible
+    // in the corner, and after Publish #52 the face was still too
+    // small to read). The shell widens to !w-[112px] to contain it;
+    // the "Talk to {name}" label is unchanged.
+    expect(bubble?.className).toContain('h-[103px]');
+    expect(bubble?.className).toContain('w-[103px]');
+    expect(view.container.querySelector('section')?.className).toContain('!w-[112px]');
     expect(screen.queryByRole('group', { name: 'Call controls' })).toBeNull();
     fireEvent.click(screen.getByText('Talk to Aspen', { selector: 'span' }));
     expect(baseProps.onOpen).toHaveBeenCalledTimes(1);

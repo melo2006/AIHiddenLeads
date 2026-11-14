@@ -13,8 +13,10 @@ import type { SimliAvatarHandle } from '@/components/SimliAvatar';
 //    the big name badge appears, and the choice is remembered for
 //    the session.
 //  * item 5c MINIMIZED LIVE FACE: Stage 3 carries the live-face
-//    mirror canvas over the still, at the enlarged 66px size; the
-//    not-yet-started Stage 1 keeps the still/wave untouched.
+//    mirror canvas and the still in one stack at the enlarged 79px
+//    size, with exactly ONE of them visible at a time (the Publish
+//    #52 double-image fix); the not-yet-started Stage 1 keeps the
+//    still/wave untouched.
 //  * item 3 PRESENTER NAME: the typed chat's consent card and opening
 //    greeting name the actual presenter; without a presenter they
 //    render the Aspen strings exactly as before.
@@ -140,15 +142,56 @@ describe('focus view (item 5b)', () => {
 });
 
 describe('minimized live face (item 5c)', () => {
-  it('stage 3 renders the live-face mirror over the still, at the enlarged 66px size', () => {
+  it('stage 3 renders the face stack at the enlarged 79px size, still visible and mirror hidden before any frame flows', () => {
     const view = render(<FloatingPersonFrame {...frameProps} open={false} minimized stage3={stage3} name="Frank"><div>conversation</div></FloatingPersonFrame>);
     const mirror = view.getByTestId('stage3-live-face');
     expect(mirror.tagName).toBe('CANVAS');
-    // The mirror layers over the still photo inside the face circle.
     const faceButton = view.getByLabelText('Open Frank');
-    expect(faceButton.className).toContain('h-[66px]');
-    expect(faceButton.querySelector('img')).toBeTruthy();
+    expect(faceButton.className).toContain('h-[79px]');
+    expect(faceButton.className).toContain('w-[79px]');
     expect(faceButton.contains(mirror)).toBe(true);
+    // Single-image invariant, pre-live: the still is the one visible
+    // image; the mirror is hidden and reports not-live.
+    const still = view.getByTestId('stage3-still-face');
+    expect(faceButton.contains(still)).toBe(true);
+    expect(still.className).not.toContain('invisible');
+    expect(mirror.className).toContain('invisible');
+    expect(mirror.getAttribute('data-live')).toBe('false');
+  });
+
+  it('stage 3 shows exactly ONE image while live video flows: the mirror replaces the still, never blends with it', async () => {
+    const view = render(<FloatingPersonFrame {...frameProps} open={false} minimized stage3={stage3} name="Frank"><div>conversation</div></FloatingPersonFrame>);
+    // A live face source appears inside the shell, as SimliAvatar's
+    // keyed canvas does while a call is live.
+    const source = document.createElement('canvas');
+    source.width = 240;
+    source.height = 240;
+    source.setAttribute('data-live-face-source', '');
+    view.container.querySelector('section')!.appendChild(source);
+    const mirror = view.getByTestId('stage3-live-face');
+    const still = view.getByTestId('stage3-still-face');
+    await waitFor(() => expect(mirror.getAttribute('data-live')).toBe('true'));
+    // The still is fully hidden and the mirror is the one visible
+    // image, on an opaque backdrop — no superimposition.
+    expect(still.className).toContain('invisible');
+    expect(mirror.className).not.toContain('invisible');
+    expect(mirror.className).toContain('bg-primary');
+  });
+
+  it('stage 3 hands back to the still alone when the live source stops (stall / image-only fallback)', async () => {
+    const view = render(<FloatingPersonFrame {...frameProps} open={false} minimized stage3={stage3} name="Frank"><div>conversation</div></FloatingPersonFrame>);
+    const source = document.createElement('canvas');
+    source.width = 240;
+    source.height = 240;
+    source.setAttribute('data-live-face-source', '');
+    view.container.querySelector('section')!.appendChild(source);
+    const mirror = view.getByTestId('stage3-live-face');
+    const still = view.getByTestId('stage3-still-face');
+    await waitFor(() => expect(mirror.getAttribute('data-live')).toBe('true'));
+    source.remove();
+    await waitFor(() => expect(mirror.getAttribute('data-live')).toBe('false'));
+    expect(mirror.className).toContain('invisible');
+    expect(still.className).not.toContain('invisible');
   });
 
   it('stage 1 (not yet started) has no live-face mirror — the wave state is untouched', () => {
