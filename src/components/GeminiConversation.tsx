@@ -3624,7 +3624,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     // wide enough (~500px) all three still share one row as designed.
     <div data-testid="toggle-transport-row" className="flex shrink-0 flex-wrap items-center gap-1 py-0.5">
       {belowAvatar && <div className="flex shrink-0 justify-center">{belowAvatar}</div>}
-      <div className="flex min-w-[12.5rem] flex-1 justify-center">{transportControls}</div>
+      {/* FOCUS VIEW (2026-11-14): this whole row steps aside (hidden)
+          in focus — but the transport must NOT step aside with it:
+          Ron's #47 retest dock had no voice controls at all. While
+          focusView the centre slot stays empty and the transport
+          renders in the focus dock's own row (aspen-focus-transport,
+          below), so exactly one instance mounts either way. */}
+      {!focusView && <div className="flex min-w-[12.5rem] flex-1 justify-center">{transportControls}</div>}
       {transferPill && <div className="flex shrink-0 flex-col items-end">{transferPill}</div>}
     </div>
   );
@@ -3634,7 +3640,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         {faceFirst ? <div className="aspen-person-livebox relative z-0 mx-auto shrink-0 overflow-hidden"><div className={`h-full w-full ${faceLive ? 'invisible' : ''}`}><PersonPortrait name={name} avatarUrl={avatarUrl} animated={false} flat={focusView} /></div>{avatarView}{stagedAvatarView}{!focusView && <PersonaNameLabel name={personaLabelName} />}</div> : <>{avatarView}{stagedAvatarView}</>}
         {!faceFirst && windowControls}
         {!faceFirst && toggleManagerRow}
-        <div className={faceFirst ? 'aspen-voice-panel relative z-10 flex min-h-0 flex-1 flex-col space-y-1.5 rounded-lg border border-primary/40 bg-card p-2 shadow-lg ring-1 ring-foreground/10' : 'space-y-2'}>
+        <div className={(faceFirst ? 'aspen-voice-panel relative z-10 flex min-h-0 flex-1 flex-col space-y-1.5 rounded-lg border border-primary/40 bg-card p-2 shadow-lg ring-1 ring-foreground/10' : 'space-y-2') + (faceFirst && focusView ? ' aspen-voice-panel-focus' : '')}>
         {faceFirst && (focusView ? (
           <div data-testid="aspen-focus-dock" className="flex shrink-0 items-center gap-1.5">
             <PersonaNameLabel name={personaLabelName} variant="dock" />
@@ -3667,6 +3673,15 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           {faceFirst && !focusView && <Button size="icon" variant="outline" className="ml-auto h-10 w-10 shrink-0 border-primary/60 bg-transparent text-primary hover:bg-primary/10 hover:text-primary" aria-label={captions ? t('voice.hideCaptions') : t('voice.showCaptions')} title={captions ? t('voice.hideCaptions') : t('voice.showCaptions')} aria-expanded={captions} onClick={() => setCaptions(v => !v)}><ChevronsUpDown className="h-4 w-4" /></Button>}
         </div>
         {phase === 'idle' && endedByVisitor && <p className="text-xs text-muted-foreground">{t("voice.pressPlayReconnect", { name })}</p>}
+        {/* FOCUS VIEW transport, wide landscape only (2026-11-14): the
+            dock's voice bar, under the status line. Landscape is the
+            case that lost its controls — they rode inside the hidden
+            landscape row; its centre slot now skips the transport
+            while focusView (above), so this is the single mounted
+            instance. Narrow panels keep theirs at the bottom slot
+            below (unchanged), which is likewise the single instance
+            there: the landscape row never renders in narrow. */}
+        {faceFirst && focusView && wideLandscape && <div data-testid="aspen-focus-transport" className="flex shrink-0 justify-center">{transportControls}</div>}
 
         <div className={faceFirst ? (captions ? 'aspen-caption-space aspen-caption-region' : 'hidden') : ''}>
         {showPlaybackCaption && playbackCaption && <div className="flex min-h-0 flex-1 flex-col rounded-md border border-border bg-background/95 p-1.5"><PlaybackCaption caption={playbackCaption} /></div>}

@@ -201,6 +201,18 @@
      page, which is exactly what Ron photographed. */
   .aspen-person-portrait.aspen-person-portrait-flat { background: none; }
   .aspen-voice-panel { position: relative; z-index: 10; min-height: 232px; }
+  /* FOCUS VIEW slim dock (2026-11-14, Ron's Publish #47 phone retest):
+     captions off must SHRINK the panel to its dock content — the whole
+     point of collapsing the captions is a shorter box at the bottom
+     carrying just the voice controls. The 232px floor (and the flex-1
+     stretch) belong to the STANDARD captions-on panel, whose 86px
+     caption home needs the room; the focus dock (badge row + status
+     line + transport bar) does not, and the floor left it standing
+     ~146px taller than its content — a big empty black rectangle under
+     the presenter. GeminiConversation adds .aspen-voice-panel-focus to
+     the panel exactly while focusView is on; the standard panel and
+     the Stage 3 bar are untouched. */
+  .aspen-voice-panel.aspen-voice-panel-focus { min-height: 0; flex: none; }
   /* Caption home (2026-11-11): a FIXED 86px = 3 full caption lines
      (3 x 24px leading-6) + the box's p-1.5 padding (12px) and border
      (2px). The old 72px held barely 2 lines before any squeeze. */
