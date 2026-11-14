@@ -45,6 +45,7 @@ import { displayNumbers } from '@/lib/displayNumbers';
 import PlaybackCaption from '@/components/PlaybackCaption';
 import { voiceSessionHeaders } from '@/lib/voiceSessionAuth';
 import { shouldShowMicHint } from '@/lib/micAudibility';
+import { createMicFlowState, micDiagPayload, micDiagSignature, micDiagStamp, micInputSeconds, noteMicFrame, noteMicSessionLive, noteMicWatchdogFired, shouldShowMicWatchdog, type MicDiagEvent, type MicTrackState } from '@/lib/micWatchdog';
 import { createMediaSink, mediaPlaybackNode, type MediaSink } from '@/lib/mediaSink';
 import { clampPlaybackVolume, effectivePlaybackLevel, loadPlaybackVolume, savePlaybackVolume } from '@/lib/playbackVolume';
 import { applySinkIdToElement, audioContextSetSinkIdSupported, buildSpeakerMenuOptions, listSpeakerOutputs, pickDefaultSpeakerOutput, type SpeakerMenuOption, type SpeakerOutputDevice } from '@/lib/speakerOutput';
@@ -443,6 +444,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // updates per frame; the floor state + auto-pick re-evaluate at most
   // once every ~3s, so a passing speech burst never jerks the control.
   const feedAmbientSample = (rms: number) => {
+    // Zero-input guard: this is the single choke point every raw mic
+    // frame passes through (both capture loops, pre-gate), so the
+    // flow tracker hooks here — the true signal, never a proxy.
+    noteMicFrame(micFlowRef.current, rms, Date.now());
     const next = pushAmbientRms(ambientTrackerRef.current, rms);
     ambientTrackerRef.current = next;
     const now = performance.now();
@@ -535,6 +540,17 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const micTranscriptRef = useRef(0);
   const micHintLastRef = useRef(0);
   const sessionRecoveringRef = useRef(false);
+  // Mic zero-input guard (2026-11-14, lib/micWatchdog.ts): the flow
+  // tracker is fed every mic frame from feedAmbientSample below; the
+  // watchdog notice is the DEAD-path alarm (zero energy at all),
+  // distinct from the turn-based audibility hint above — it fires
+  // even mid-monologue, carries the one-tap recovery, and stamps
+  // config.micDiag so the session record explains the mic path.
+  const [showMicWatchdog, setShowMicWatchdog] = useState(false);
+  const micWatchdogRef = useRef(false);
+  const micWatchdogShownAtRef = useRef(0);
+  const micFlowRef = useRef(createMicFlowState());
+  const lastMicDiagRef = useRef("");
   // Media-routed playback sink (see lib/mediaSink.ts): the audible
   // local voice plays through an HTMLAudioElement once it is unlocked,
   // so the phone's hardware media volume governs it on Android Chrome.
@@ -651,6 +667,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const liveRef = useRef(false);
   const sourcesRef = useRef(new Set<AudioBufferSourceNode>());
   const micNodeRef = useRef<ScriptProcessorNode | null>(null);
+  // The MediaStreamSource feeding micNodeRef (zero-input guard): the
+  // recovery action re-feeds the EXISTING processor node from a
+  // freshly acquired stream by swapping this source, so the capture
+  // handler (and the live session) never has to be rebuilt.
+  const micSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const generationRef = useRef(0);
   const startingRef = useRef(false);
   const previewDoneRef = useRef(false);
@@ -733,12 +754,62 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         lastGateOpenAt: micGateHeardRef.current,
         lastUserTranscriptAt: micTranscriptRef.current,
         lastHintAt: micHintLastRef.current,
-        recoveryActive: sessionRecoveringRef.current || swapBusyRef.current,
+        // The zero-input watchdog (below) is the stronger dead-mic
+        // notice with the recovery action; while it is up, this
+        // passive hint stands down rather than stacking a second box.
+        recoveryActive: sessionRecoveringRef.current || swapBusyRef.current || micWatchdogRef.current,
       })) return;
       micHintLastRef.current = Date.now();
       showMicHintRef.current = true;
       setShowMicHint(true);
     }, 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  // Zero-input guard evaluator: twice a second, ask the pure helper
+  // whether the mic path is dead (startup window, or a mid-session
+  // stall after having flowed). Gate passes and input transcriptions
+  // fold in as flow proof alongside the tracker's energy frames.
+  // The notice clears the moment audio flows; a deliberate mute /
+  // pause / mode change hides it and re-arms the guard for when
+  // capture resumes. Fires even while the presenter is speaking —
+  // the ef9986df monologue is exactly when the visitor needs it.
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const flow = micFlowRef.current;
+      const sinceLive = (at: number) => (at > flow.liveSince ? at : 0);
+      const firstFlowAt = flow.firstFlowAt || sinceLive(micGateHeardRef.current) || sinceLive(micTranscriptRef.current);
+      const lastFlowAt = Math.max(flow.lastFlowAt, sinceLive(micGateHeardRef.current), sinceLive(micTranscriptRef.current));
+      if (micWatchdogRef.current) {
+        if (lastFlowAt > micWatchdogShownAtRef.current) {
+          micWatchdogRef.current = false;
+          setShowMicWatchdog(false);
+        } else if (!liveRef.current || captureRef.current.muted || captureRef.current.paused || captureRef.current.mode !== "handsfree") {
+          micWatchdogRef.current = false;
+          flow.firedForStretch = false;
+          setShowMicWatchdog(false);
+        }
+        return;
+      }
+      if (!shouldShowMicWatchdog({
+        now: Date.now(),
+        live: liveRef.current && !isPreviewRef.current,
+        handsFree: captureRef.current.mode === "handsfree",
+        muted: captureRef.current.muted,
+        paused: captureRef.current.paused,
+        handoff: handoffRef.current,
+        recoveryActive: sessionRecoveringRef.current || swapBusyRef.current,
+        liveSince: flow.liveSince,
+        firstFlowAt,
+        lastFlowAt,
+        firedForStretch: flow.firedForStretch,
+      })) return;
+      noteMicWatchdogFired(flow);
+      micWatchdogRef.current = true;
+      micWatchdogShownAtRef.current = Date.now();
+      setShowMicWatchdog(true);
+      stampMicDiagRef.current("watchdog");
+    }, 500);
     return () => window.clearInterval(timer);
   }, []);
 
@@ -967,6 +1038,92 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       gain: null,
     });
   }, [persistPlayoutDiag]);
+  // Mic zero-input guard (2026-11-14): the INPUT mirror of the
+  // playout stamp above. micDiag lands on the PARENT session row at
+  // config.micDiag through the same gemini-session diag channel
+  // (visitorKey + fire-and-forget invoke, signature-deduped), at
+  // session start, when the watchdog fires, on recovery, and at
+  // end — so a dead-mic session (ef9986df: 4m53s, zero input, no
+  // mic state on the record) can never be undiagnosable again.
+  const micTrackStamp = (): MicTrackState => {
+    const track = micStreamRef.current?.getAudioTracks()[0];
+    if (!track) return "none";
+    if (track.readyState === "ended") return "ended";
+    if (track.muted) return "muted";
+    return "live";
+  };
+  const stampMicDiag = useCallback((event: MicDiagEvent) => {
+    const sessionId = parentSessionIdRef.current;
+    const visitorKey = visitorKeyRef.current;
+    if (!sessionId || !visitorKey) return;
+    // Snapshot the mic facts NOW: the end-of-call stamp runs while
+    // teardown is about to stop the tracks, and the permission read
+    // below is async.
+    const flow = { ...micFlowRef.current };
+    const track = micTrackStamp();
+    const inputSec = micInputSeconds(flow.frames, 2048, micCtxRef.current?.sampleRate ?? 16000);
+    void (async () => {
+      let permission = "unknown";
+      try {
+        const status = await navigator.permissions?.query({ name: "microphone" as PermissionName });
+        if (status?.state) permission = status.state;
+      } catch { /* Permissions API unavailable — 'unknown' stands. */ }
+      const payload = micDiagPayload(sessionId, micDiagStamp({ event, flow, permission, track, inputSec }), Date.now());
+      const signature = micDiagSignature(payload);
+      if (signature === lastMicDiagRef.current) return;
+      lastMicDiagRef.current = signature;
+      try {
+        const headers = await voiceSessionHeaders();
+        await supabase.functions.invoke('gemini-session', { headers, body: { visitorKey, micDiag: payload } });
+      } catch { /* diagnostics never break the call */ }
+    })();
+  }, []);
+  // The watchdog evaluator interval is declared earlier in the body
+  // than stampMicDiag; it reaches the stamp through this mirror
+  // (same pattern as persistSwapDiagRef).
+  const stampMicDiagRef = useRef(stampMicDiag); stampMicDiagRef.current = stampMicDiag;
+  // One-tap microphone recovery (zero-input guard): re-request /
+  // re-acquire the mic from inside the visitor's tap (so a revoked
+  // permission can re-prompt), swap the stream under the EXISTING
+  // capture node — the session, socket and conversation are
+  // untouched — and restart the flow window so the watchdog
+  // re-checks the new path and re-fires if it is dead too.
+  const recoverMicrophone = useCallback(async () => {
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: { deviceId: microphone === "default" ? undefined : { exact: microphone }, echoCancellation: true, noiseSuppression: true, autoGainControl: microphoneAutoGain(captureMode, noiseFilterRef.current) },
+      });
+    } catch {
+      // Denied again or no device: the notice stays up (its text
+      // already tells the visitor to allow access); stamp the
+      // attempt so the record shows recovery was tried.
+      stampMicDiag("recovered");
+      return;
+    }
+    // Stamp the path that failed BEFORE the swap replaces it.
+    stampMicDiag("recovered");
+    const previous = micStreamRef.current;
+    micStreamRef.current = stream;
+    previous?.getTracks().forEach((t) => t.stop());
+    const micCtx = micCtxRef.current;
+    if (micCtx) {
+      void micCtx.resume();
+      if (micNodeRef.current) {
+        try { micSourceRef.current?.disconnect(); } catch { /* already gone */ }
+        const source = micCtx.createMediaStreamSource(stream);
+        micSourceRef.current = source;
+        source.connect(micNodeRef.current);
+      }
+    }
+    // The media-element engine runs its track raw (no echo
+    // cancellation); a fresh track starts from the browser default.
+    if (captureRawRef.current) {
+      void stream.getAudioTracks()[0]?.applyConstraints({ echoCancellation: false }).catch(() => { /* best effort */ });
+    }
+    void refreshMicrophones();
+    noteMicSessionLive(micFlowRef.current, Date.now());
+  }, [microphone, captureMode, refreshMicrophones, stampMicDiag]);
   const handleSegmentFailure = useCallback((boundary: PersonaBoundary, reason: string) => {
     const { state, outcome, attempt } = noteSegmentFailure(swapStateRef.current, boundary, reason);
     swapStateRef.current = state;
@@ -1186,6 +1343,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // ended the conversation; the Stage 3 suspend path passes false so the
   // server treats the close like a drop and the session stays resumable.
   const teardown = useCallback((endSession: boolean) => {
+    // Zero-input guard: the micDiag END stamp runs first — it needs
+    // the parent session id (nulled below), the still-live track
+    // state, and the flow totals the session accumulated.
+    if (micFlowRef.current.liveSince > 0) stampMicDiagRef.current("end");
     // Avatar swap: a full teardown ends the live chain — but a MID-SEGMENT
     // chain is STASHED for the rest of the page visit first, so pressing
     // play again resumes the ACTIVE segment instead of re-authorising a
@@ -1256,6 +1417,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     setPaused(false);
     if (micNodeRef.current) { micNodeRef.current.onaudioprocess = null; micNodeRef.current.disconnect(); }
     micNodeRef.current = null;
+    micSourceRef.current = null;
     for (const source of sourcesRef.current) { try { source.stop(); } catch { /* Already stopped. */ } }
     sourcesRef.current.clear();
     captionClockRef.current.clear(); setPlaybackCaption(p => p ? { ...p, word: -1 } : null);
@@ -1276,6 +1438,9 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     captureRawRef.current = false;
     showMicHintRef.current = false;
     setShowMicHint(false);
+    micWatchdogRef.current = false;
+    setShowMicWatchdog(false);
+    micFlowRef.current = createMicFlowState();
     micAwaitRef.current = null;
     micStreamRef.current?.getTracks().forEach((t) => t.stop());
     micStreamRef.current = null;
@@ -1314,6 +1479,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     setPaused(false);
     if (micNodeRef.current) { micNodeRef.current.onaudioprocess = null; micNodeRef.current.disconnect(); }
     micNodeRef.current = null;
+    micSourceRef.current = null;
     try { wsRef.current?.close() } catch { /* ignore */ }
     wsRef.current = null;
     flushLine("user");
@@ -2103,6 +2269,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         // re-arms for the new session.
         diagChunkStampRef.current = false;
         if (!preview && !warm) stampPlayoutDiag();
+        // Zero-input guard: every parent go-live (first connect AND
+        // every reconnect/resume) opens a fresh mic flow window and
+        // stamps the mic path's starting state on the session row.
+        noteMicSessionLive(micFlowRef.current, Date.now());
+        if (!preview) stampMicDiag("start");
         // Arm the opening mic gate: silence frames until her first turn completes.
         openingGateRef.current = true;
         openingGateSinceRef.current = performance.now();
@@ -2120,6 +2291,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         if (!micCtx || !stream) return;
         void micCtx.resume();
         const source = micCtx.createMediaStreamSource(stream);
+        micSourceRef.current = source;
         const node = micCtx.createScriptProcessor(2048, 1, 1);
         micNodeRef.current = node;
         let frame = 0;
@@ -2506,10 +2678,15 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       openingGateSinceRef.current = performance.now();
       setPhase("live");
       setStatus(captureMode === "hold" ? "Live — hold to talk" : "Live — hands-free");
+      // Zero-input guard: a segment go-live re-opens the mic flow
+      // window and stamps the parent row, same as a parent go-live.
+      noteMicSessionLive(micFlowRef.current, Date.now());
+      stampMicDiag("start");
       const micCtx = micCtxRef.current, stream = micStreamRef.current;
       if (!micCtx || !stream) return;
       void micCtx.resume();
       const source = micCtx.createMediaStreamSource(stream);
+      micSourceRef.current = source;
       const node = micCtx.createScriptProcessor(2048, 1, 1);
       micNodeRef.current = node;
       let frame = 0;
@@ -4038,6 +4215,15 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             <Button size="sm" variant="outline" className="aspen-panel-btn h-7 text-[11px] hover:bg-muted hover:text-foreground" onClick={() => setShowSettings(true)}>Check microphone</Button>
           </div>
         )}
+        {/* Zero-input guard: persistent until audio actually flows
+            (or the visitor mutes/pauses on purpose). The recovery
+            button re-acquires the microphone in one tap. */}
+        {showMicWatchdog && phase === "live" && (
+          <div role="alert" className="flex flex-wrap items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-2 text-[11px] text-foreground">
+            <span>I can't hear you — your microphone isn't sending sound. Tap the mic button, or allow microphone access in your browser.</span>
+            <Button size="sm" variant="outline" className="aspen-panel-btn h-7 text-[11px] hover:bg-muted hover:text-foreground" onClick={() => void recoverMicrophone()}>Reconnect microphone</Button>
+          </div>
+        )}
         {phase === "live" && captureMode === "hold" && (
           <p role="status" className="w-fit rounded-full border border-border bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-foreground">Hold to talk is ON — hold the button while you speak</p>
         )}
@@ -4269,6 +4455,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           {showMicHint && phase === "live" && (
             <div role="status" className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/60 p-2 text-xs text-foreground">
               <span>I can’t hear you — your microphone may be muted or set to the wrong one. Check the Microphone setting, and watch the level meter just below while you speak — it should move with your voice.</span>
+            </div>
+          )}
+          {showMicWatchdog && phase === "live" && (
+            <div role="alert" className="flex flex-wrap items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-2 text-xs text-foreground">
+              <span>I can't hear you — your microphone isn't sending sound. Tap the mic button, or allow microphone access in your browser.</span>
+              <Button size="sm" variant="outline" className="aspen-panel-btn h-7 text-[11px] hover:bg-muted hover:text-foreground" onClick={() => void recoverMicrophone()}>Reconnect microphone</Button>
             </div>
           )}
           {phase === "live" && <div className="flex items-center gap-2 text-xs text-muted-foreground">
