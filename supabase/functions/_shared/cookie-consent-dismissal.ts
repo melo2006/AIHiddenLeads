@@ -382,6 +382,78 @@ export function buildCookieConsentDismissalScript(
 }
 
 /**
+ * Server-side consent DETECTION signatures (Publish #48 follow-up,
+ * 2026-11-14). check-iframe-embed scans the prospect homepage's raw
+ * HTML for these tokens to predict whether the site will present a
+ * cookie/privacy banner. DemoSite uses that verdict to route
+ * banner-carrying sites through the dismissal-covered Browserbase
+ * live view instead of the raw cross-origin iframe (whose DOM no
+ * script can touch, so its banner can never be dismissed).
+ *
+ * The tokens are consent-framework fingerprints (script hosts, SDK
+ * ids, plugin slugs) plus the two exact strings from Ron's Martinez
+ * screenshot — NOT generic words: a footer link to a "Cookie Policy"
+ * page must not trip detection, and none of these tokens is a plain
+ * "cookie"/"privacy"/"gdpr" word. The error asymmetry is deliberate:
+ * a false positive costs one Browserbase session (the visitor still
+ * sees the real site, live, through the covered view), while a false
+ * negative leaves the banner sitting in the middle of the demo —
+ * the exact defect this detection exists to close.
+ */
+export const CONSENT_HTML_SIGNATURES: readonly string[] = [
+  // OneTrust
+  "onetrust",
+  "optanon",
+  "cdn.cookielaw.org",
+  // Cookiebot
+  "cookiebot",
+  // CookieYes (its banner headline is literally "We value your privacy")
+  "cookieyes",
+  "cdn-cookieyes",
+  // Didomi
+  "didomi",
+  // Osano (SDK markup is namespaced osano-cm-*)
+  "osano-cm",
+  // Usercentrics
+  "usercentrics",
+  // Quantcast Choice
+  "qc-cmp",
+  // TrustArc
+  "trustarc",
+  "truste-consent",
+  // Complianz (WordPress)
+  "complianz",
+  // "GDPR Cookie Consent" plugin (WordPress, by CookieYes)
+  "cookie-law-info",
+  // Cookie Notice plugin (WordPress) and the many themes/plugins that
+  // keep its id/class naming
+  "cookie-notice",
+  "cookie_notice",
+  // iubenda
+  "iubenda",
+  // Termly embed host
+  "termly.io",
+  // consentmanager.net
+  "consentmanager",
+  // Generic CMP library / container naming used by roll-your-own
+  // banners (the dismissal script's own generic-container rule keys
+  // off the same vocabulary in the rendered DOM)
+  "cookieconsent",
+  "cookie-consent",
+  "gdpr-cookie",
+  // The exact strings on Ron's 2026-11-14 Martinez screenshot
+  "we value your privacy",
+  "reject non-essential",
+];
+
+/** True when the given HTML carries a known consent-banner fingerprint. */
+export function detectConsentInHtml(html: string): boolean {
+  if (!html) return false;
+  const lower = html.toLowerCase();
+  return CONSENT_HTML_SIGNATURES.some((signature) => lower.includes(signature));
+}
+
+/**
  * Materialize the page-side function from the shared source. Used by tests
  * (and any in-process DOM owner) so the exact shipped string is what runs.
  */

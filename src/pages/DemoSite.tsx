@@ -16,7 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { preloadVoiceIdentity } from "@/lib/voicePreload";
 import { linkCampaignLead } from "@/lib/campaignTracking";
-import { isCapturedCopyPreview, shouldHoldLoadingOverlay, shouldStartRemotePreview, shouldWaitForFreshLeadData, SCREENSHOT_LOAD_TIMEOUT_MS, LIVE_VIEW_LOAD_TIMEOUT_MS, PINNED_REVEAL_DEADLINE_MS } from "@/lib/demoStartup";
+import { canPresentRawIframe, isCapturedCopyPreview, shouldHoldLoadingOverlay, shouldStartLiveView, shouldUseConsentCoveredRoute, shouldWaitForFreshLeadData, SCREENSHOT_LOAD_TIMEOUT_MS, LIVE_VIEW_LOAD_TIMEOUT_MS, PINNED_REVEAL_DEADLINE_MS } from "@/lib/demoStartup";
 import { pinnedExampleSeedForLeadId } from "@/lib/pinnedExampleSeed";
 import DemoVerificationGate from "@/components/landing/demo-results/DemoVerificationGate";
 import DemoReassuranceStrip from "@/components/landing/DemoReassuranceStrip";
@@ -301,6 +301,11 @@ const DemoSite = () => {
   const [assistantReady, setAssistantReady] = useState(false);
   const [iframeBlocked, setIframeBlocked] = useState(false);
   const [iframeFailureMode, setIframeFailureMode] = useState<"blocked" | "unreachable" | null>(null);
+  // Consent verdict from check-iframe-embed (Publish #48 follow-up):
+  // the embeddable site's HTML carries a cookie/privacy-banner
+  // fingerprint, so the raw iframe's banner could never be dismissed
+  // — the live presentation routes through the covered live view.
+  const [consentDetected, setConsentDetected] = useState(false);
   const [isIframeCheckPending, setIsIframeCheckPending] = useState(false);
   const [resolvedIframeUrl, setResolvedIframeUrl] = useState<string | null>(null);
   const [liveViewUrl, setLiveViewUrl] = useState<string | null>(null);
@@ -761,6 +766,7 @@ const DemoSite = () => {
 
     setIframeBlocked(false);
     setIframeFailureMode(null);
+    setConsentDetected(false);
     setIsIframeCheckPending(true);
     setResolvedIframeUrl(homepageUrl);
 
@@ -784,6 +790,7 @@ const DemoSite = () => {
         const unreachable = data?.unreachable === true;
         const finalUrl = typeof data?.finalUrl === "string" && data.finalUrl ? data.finalUrl : homepageUrl;
 
+        setConsentDetected(data?.consentDetected === true);
         setResolvedIframeUrl(finalUrl);
         const nextFailureMode = unreachable ? "unreachable" : embeddable ? null : "blocked";
         setIframeBlocked(Boolean(nextFailureMode));
@@ -810,6 +817,10 @@ const DemoSite = () => {
   }, [leadData?.websiteUrl]);
 
   // When iframe is blocked, start a Browserbase live view session.
+  // The same effect also serves the consent-covered route: an
+  // embeddable site with a detected consent banner starts the covered
+  // session so its banner is dismissed before the visitor sees the
+  // page (Publish #48 follow-up, 2026-11-14).
   //
   // Publish #42 regression fix (2026-11-14): the previous shape set
   // isLiveViewLoading(true) inside the effect while ALSO listing it in
@@ -842,8 +853,19 @@ const DemoSite = () => {
     const requiresBrowserFallback =
       iframeFailureMode !== "unreachable" &&
       (iframeBlocked || isMixedContentPreview(previewUrl, embedOrigin));
+    // Consent-covered route (Publish #48 follow-up): an embeddable
+    // site whose HTML carries a consent banner starts the covered
+    // live view even though the raw iframe would have worked — the
+    // iframe's banner cannot be dismissed cross-origin. The stored
+    // screenshot does NOT gate this start (it is only the interim
+    // visual); see shouldStartLiveView in demoStartup.ts.
+    const consentCoveredRoute = shouldUseConsentCoveredRoute(
+      consentDetected,
+      requiresBrowserFallback,
+      iframeFailureMode === "unreachable",
+    );
 
-    if (!shouldStartRemotePreview(requiresBrowserFallback, Boolean(screenshotSrc), hasScreenshotFailed) || liveViewUrl || liveViewFailed) return;
+    if (!shouldStartLiveView(requiresBrowserFallback, Boolean(screenshotSrc), hasScreenshotFailed, consentCoveredRoute) || liveViewUrl || liveViewFailed) return;
     if (liveViewInFlightRef.current === homepageUrl) return;
 
     liveViewInFlightRef.current = homepageUrl;
@@ -892,7 +914,7 @@ const DemoSite = () => {
     };
 
     void startLiveView();
-  }, [hasScreenshotFailed, iframeBlocked, iframeFailureMode, leadData?.websiteUrl, liveViewFailed, liveViewUrl, resolvedIframeUrl, screenshotSrc]);
+  }, [consentDetected, hasScreenshotFailed, iframeBlocked, iframeFailureMode, leadData?.websiteUrl, liveViewFailed, liveViewUrl, resolvedIframeUrl, screenshotSrc]);
 
   // A live view session that was created but whose iframe never loads
   // (stalled Browserbase page, blocked third-party frame) must not
@@ -967,14 +989,20 @@ const DemoSite = () => {
   }, [liveViewUrl]);
 
   // A slow permitted iframe must not hide an already captured website indefinitely.
+  // Consent-covered route exempt: there the raw iframe is DELIBERATELY
+  // unmounted while the covered live view starts (its own 15s load
+  // budget governs), so "iframe never loaded" is the expected state,
+  // not a slow iframe — marking the site blocked would kill the
+  // covered route mid-start and falsely earn the captured-copy note.
   useEffect(() => {
     if (isScanning || isIframeCheckPending || iframeBlocked || hasIframeLoaded || !resolvedIframeUrl) return;
+    if (consentDetected && iframeFailureMode === null) return;
     const timer = window.setTimeout(() => {
       setIframeBlocked(true);
       setIframeFailureMode("blocked");
     }, 8000);
     return () => window.clearTimeout(timer);
-  }, [isScanning, isIframeCheckPending, iframeBlocked, hasIframeLoaded, resolvedIframeUrl]);
+  }, [consentDetected, isScanning, isIframeCheckPending, iframeBlocked, iframeFailureMode, hasIframeLoaded, resolvedIframeUrl]);
 
   const maskGateEmail = (email?: string) => {
     if (!email) return "your email";
@@ -1075,9 +1103,19 @@ const DemoSite = () => {
     ? normalizePhoneNumber(testPhoneOverride)
     : rawFollowUpPhone;
   const siteName = leadData.businessName?.trim() || getSiteName(homepageUrl, leadData.title);
+  // Consent-covered route (Publish #48 follow-up): embeddable site +
+  // detected consent banner → the covered live view is the live
+  // presentation and the raw iframe is held back as the last resort
+  // (canPresentRawIframe releases it only when the covered view has
+  // failed). See demoStartup.ts for the routing rationale.
+  const consentCoveredRoute = shouldUseConsentCoveredRoute(
+    consentDetected,
+    requiresBrowserFallback,
+    isWebsiteUnreachable,
+  );
   const canRenderInlineIframe = Boolean(
     resolvedIframeUrl && !isIframeCheckPending && !requiresBrowserFallback && !isWebsiteUnreachable,
-  );
+  ) && canPresentRawIframe(consentCoveredRoute, liveViewFailed);
   const isGeneratedScreenshot = typeof screenshotSrc === "string" && screenshotSrc.startsWith("data:image/svg+xml");
   const isLivePreviewReady = Boolean(liveViewUrl && hasLiveViewLoaded && !isGeneratedScreenshot);
   // Protected-site note (owner request, 2026-11-09, after the Great Gulf
@@ -1150,7 +1188,14 @@ const DemoSite = () => {
   const isPreviewLoading =
     shouldHoldScanningState ||
     (isInlinePreviewLoading && !pinnedStoredContentReady) ||
-    (requiresBrowserFallback && !liveViewFailed && !isStaticPreviewReady && !isLivePreviewReady && !pinnedFallbackReady);
+    (requiresBrowserFallback && !liveViewFailed && !isStaticPreviewReady && !isLivePreviewReady && !pinnedFallbackReady) ||
+    // Consent-covered route: while the covered view spins up, the
+    // curtain waits on the same surfaces as the fallback arm — the
+    // stored screenshot or the covered view itself. The pinned
+    // stored-content reveal bypasses it exactly like the other arms,
+    // so a pinned banner site (Martinez) still reveals instantly on
+    // its stored content and the covered view swaps in when ready.
+    (consentCoveredRoute && !liveViewFailed && !isStaticPreviewReady && !isLivePreviewReady && !pinnedStoredContentReady);
   const isPreviewAvailable =
     (!requiresBrowserFallback && !isWebsiteUnreachable && hasIframeLoaded) ||
     isLivePreviewReady ||
@@ -1227,7 +1272,9 @@ const DemoSite = () => {
         )}
       </header>
 
-      {/* Website — iframe first, screenshot fallback */}
+      {/* Website — iframe first, screenshot fallback. On the consent-covered
+          route the order inverts: covered live view first, raw iframe only
+          as the last resort once the covered view has failed. */}
       {hasAnyPreview && <DemoWatermark />}
       <div className="relative" style={{ minHeight: `calc(100dvh - ${previewBarHeight}px)` }}>
         {/* While the verification gate waits, the prospect's site stays visible but blurred and inert behind the bright widget. */}
@@ -1247,8 +1294,13 @@ const DemoSite = () => {
             }}
           />
         )}
-        {/* Iframe blocked → try Browserbase live view, then screenshot fallback */}
-        {(requiresBrowserFallback || shouldShowScreenshotFallback) && (
+        {/* Iframe blocked → try Browserbase live view, then screenshot fallback.
+            The consent-covered route renders through this same container:
+            the banner-free screenshot is the interim visual and the covered
+            live view fades in over it. Once the covered view has failed and
+            the last-resort raw iframe has loaded, the container steps aside
+            (!hasIframeLoaded) so no empty full-height block trails the page. */}
+        {(requiresBrowserFallback || shouldShowScreenshotFallback || (consentCoveredRoute && !hasIframeLoaded)) && (
           <div className="relative min-h-[calc(100dvh-4.5rem)]">
             {shouldShowScreenshotFallback && screenshotSrc && (
               <div className="relative mx-auto w-full max-w-[1600px]">
@@ -1280,7 +1332,7 @@ const DemoSite = () => {
               </div>
             )}
 
-            {requiresBrowserFallback && liveViewUrl && !isGeneratedScreenshot && (!hasScreenshotAsset || hasScreenshotFailed) && (
+            {(requiresBrowserFallback || consentCoveredRoute) && liveViewUrl && !isGeneratedScreenshot && (consentCoveredRoute || !hasScreenshotAsset || hasScreenshotFailed) && (
               <iframe
                 src={liveViewUrl}
                 className={`absolute inset-0 h-full w-full border-0 transition-opacity duration-300 ${hasLiveViewLoaded ? "opacity-100" : "opacity-0"}`}

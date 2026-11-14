@@ -61,6 +61,71 @@ export const shouldStartRemotePreview = (
 ) => needsFallback && (!hasScreenshot || screenshotFailed);
 
 /**
+ * CONSENT-COVERED ROUTE (Publish #48 follow-up, 2026-11-14).
+ *
+ * Publish #48 taught every surface WE control to dismiss the
+ * prospect site's cookie/privacy banner (scan captures, and the
+ * Browserbase live view where dismissal runs over CDP). One surface
+ * stayed uncovered: an EMBEDDABLE site presented through DemoSite's
+ * raw cross-origin iframe — the browser forbids scripting another
+ * origin's DOM, so the banner sat in the middle of the live demo
+ * (verified live on the Martinez demo, 2026-11-14).
+ *
+ * When check-iframe-embed reports the site embeddable AND its HTML
+ * carries a consent-banner fingerprint (`consentDetected`), the
+ * demo's live presentation routes through the covered Browserbase
+ * live view instead. Blocked / mixed-content sites keep the existing
+ * fallback chain (requiresBrowserFallback), and unreachable sites
+ * keep theirs — the covered route exists only for the embeddable
+ * case those chains never reach.
+ *
+ * Why not covered-view-for-everyone? Browserbase sessions are a
+ * metered, capped resource in this codebase: create-browser-session
+ * opens keepAlive sessions with a 300s timeout, anticipates quota
+ * refusals (402/429 → QUOTA_EXCEEDED), and the cost rule on
+ * shouldStartRemotePreview above exists precisely to avoid spending
+ * a session when a cheaper surface suffices; a covered session also
+ * takes seconds of CDP navigation + dismissal time before it can be
+ * handed over, where the raw iframe paints natively. Sites WITHOUT
+ * a banner gain nothing from the covered view, so only
+ * banner-carrying sites pay for it.
+ */
+export const shouldUseConsentCoveredRoute = (
+  consentDetected: boolean,
+  requiresBrowserFallback: boolean,
+  isWebsiteUnreachable: boolean,
+) => consentDetected && !requiresBrowserFallback && !isWebsiteUnreachable;
+
+/**
+ * Whether to start the Browserbase live view at all. The blocked /
+ * mixed-content fallback keeps its screenshot cost rule
+ * (shouldStartRemotePreview). The consent-covered route starts the
+ * session REGARDLESS of the stored screenshot: the screenshot is
+ * only the interim visual while the covered view spins up — it is
+ * static, and the demo's live presentation for an embeddable site
+ * is a live, interactive site, so a capture must not gate it.
+ */
+export const shouldStartLiveView = (
+  needsFallback: boolean,
+  hasScreenshot: boolean,
+  screenshotFailed: boolean,
+  consentCoveredRoute: boolean,
+) => consentCoveredRoute || shouldStartRemotePreview(needsFallback, hasScreenshot, screenshotFailed);
+
+/**
+ * Whether the raw cross-origin iframe may be the demo's live
+ * presentation. On the consent-covered route the raw iframe is the
+ * LAST RESORT: it stays unmounted while the covered view is pending
+ * or live (mounting it would flash the very banner the route exists
+ * to remove), and takes over only once the covered view has failed
+ * (session refused / quota, navigation incomplete, or its 15s load
+ * budget expired). Off the covered route it is the primary live
+ * surface, exactly as before.
+ */
+export const canPresentRawIframe = (consentCoveredRoute: boolean, coveredViewFailed: boolean) =>
+  !consentCoveredRoute || coveredViewFailed;
+
+/**
  * The demo is running on a captured copy of the site because the real site
  * blocks live embedding (check-iframe-embed verdict: blocked — NOT merely
  * unreachable) and what is on screen is the stored screenshot (loaded, or

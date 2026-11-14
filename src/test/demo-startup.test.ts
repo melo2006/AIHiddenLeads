@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { expect, test } from "vitest";
-import { pendingScanProgress, shouldStartRemotePreview, shouldWaitForFreshLeadData } from "../lib/demoStartup";
+import { canPresentRawIframe, pendingScanProgress, shouldStartLiveView, shouldStartRemotePreview, shouldUseConsentCoveredRoute, shouldWaitForFreshLeadData } from "../lib/demoStartup";
 test("unfinished scans never report 100 percent or exceed 88 percent", () => {
   for (const ms of [0, 13200, 30000, 90000, 300000, 3600000]) expect(pendingScanProgress(ms)).toBeLessThanOrEqual(88);
   expect(pendingScanProgress(13200)).toBeLessThan(30);
@@ -68,6 +68,37 @@ test("the fresh-data wait still protects ordinary demos from stale cross-site da
   expect(
     shouldWaitForFreshLeadData("https://site-b.example/", "https://site-a.example/", false, false),
   ).toBe(true);
+});
+test("consent-covered route engages only for embeddable, reachable, banner-detected sites", () => {
+  // The verified gap (Martinez, 2026-11-14): embeddable + banner → covered route.
+  expect(shouldUseConsentCoveredRoute(true, false, false)).toBe(true);
+  // No banner detected → the raw iframe keeps the live presentation.
+  expect(shouldUseConsentCoveredRoute(false, false, false)).toBe(false);
+  // Blocked / mixed-content sites already belong to the fallback chain.
+  expect(shouldUseConsentCoveredRoute(true, true, false)).toBe(false);
+  // Unreachable sites keep their own chain.
+  expect(shouldUseConsentCoveredRoute(true, false, true)).toBe(false);
+  expect(shouldUseConsentCoveredRoute(false, true, true)).toBe(false);
+});
+test("covered route starts the live view even when a stored screenshot exists and loads", () => {
+  // The screenshot is only the interim visual on the covered route —
+  // the blocked path's cost rule must not gate the start.
+  expect(shouldStartLiveView(false, true, false, true)).toBe(true);
+  expect(shouldStartLiveView(false, false, false, true)).toBe(true);
+});
+test("off the covered route, live-view starts keep the existing screenshot cost rule", () => {
+  expect(shouldStartLiveView(true, true, false, false)).toBe(false);
+  expect(shouldStartLiveView(true, false, false, false)).toBe(true);
+  expect(shouldStartLiveView(true, true, true, false)).toBe(true);
+  expect(shouldStartLiveView(false, false, false, false)).toBe(false);
+  expect(shouldStartLiveView(false, true, true, false)).toBe(false);
+});
+test("raw iframe is the last resort on the covered route — suppressed until the covered view fails", () => {
+  expect(canPresentRawIframe(true, false)).toBe(false);
+  expect(canPresentRawIframe(true, true)).toBe(true);
+  // Off the covered route the raw iframe is the primary live surface.
+  expect(canPresentRawIframe(false, false)).toBe(true);
+  expect(canPresentRawIframe(false, true)).toBe(true);
 });
 test("no fresh-data wait when homepages match, router data exists, or either side is unknown", () => {
   expect(shouldWaitForFreshLeadData("https://a.example/", "https://a.example/", false, false)).toBe(false);
