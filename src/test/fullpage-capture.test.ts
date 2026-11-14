@@ -51,7 +51,12 @@ describe("full-page capture (scan-website)", () => {
       "{ type: 'screenshot', fullPage: true, viewport: { width: 1920, height: 1080 } }",
     );
     expect(firecrawlShotSource).toContain("https://api.firecrawl.dev/v2");
-    expect(scanSource).toContain("fetchFirecrawlScreenshot(url, apiKey)");
+    expect(scanSource).toContain("fetchFirecrawlScreenshot(url, apiKey, {");
+    // The fallback capture dismisses the site's cookie banner first (demo
+    // surfaces must not show it) — see _shared/cookie-consent-dismissal.ts.
+    expect(scanSource).toContain(
+      "consentDismissalScript: buildCookieConsentDismissalScript({ observeMs: 3000 })",
+    );
     expect(scanSource).not.toContain("screenshotOptions");
   });
 

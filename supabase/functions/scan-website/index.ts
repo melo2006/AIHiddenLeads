@@ -6,6 +6,7 @@ const corsHeaders = {
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { learningLinks } from '../_shared/website-learning.ts';
 import { fetchFirecrawlScreenshot, markFirecrawlRequest } from '../_shared/firecrawl-screenshot.ts';
+import { buildCookieConsentDismissalScript } from '../_shared/cookie-consent-dismissal.ts';
 import { rehostScreenshotUrlWith } from '../_shared/screenshot-rehost.ts';
 import { REALTOR_EXAMPLE_PINNED_LEADS } from '../_shared/realtor-example-pinned-leads.ts';
 import { B2B_EXAMPLE_PINNED_LEADS } from '../_shared/b2b-example-pinned-leads.ts';
@@ -291,6 +292,13 @@ async function browserlessScreenshotSingle(
           },
           waitForSelector: { selector: 'body', timeout: 8000 },
           addScriptTag: [{
+            // Cookie-consent dismissal FIRST (demo surfaces must not show the
+            // site's privacy banner): prefers Reject/Decline, falls back to
+            // Accept only when no refusal exists, and keeps watching for
+            // late banners while the overlay script below runs. See
+            // _shared/cookie-consent-dismissal.ts (unit-tested).
+            content: buildCookieConsentDismissalScript({ observeMs: 20000 }),
+          }, {
             content: `
               (async () => {
                 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -360,12 +368,10 @@ async function browserlessScreenshotSingle(
                 const closeOverlays = () => {
                   // Phase 1: Click all dismiss/close/accept buttons we can find
                   const clickSelectors = [
-                    // Cookie consent
-                    '[class*="cookie"] button', '[id*="cookie"] button',
-                    '[class*="consent"] button', '[class*="gdpr"] button',
-                    'button[class*="accept"]', 'button[class*="agree"]',
-                    'button[id*="accept"]', 'button[id*="agree"]',
-                    'a[class*="accept"]', 'a[id*="accept"]',
+                    // Cookie consent is NOT handled here: the dedicated
+                    // dismissal script (injected before this one) owns it and
+                    // prefers Reject — this list must never click accept-style
+                    // consent buttons indiscriminately again.
                     // Generic close buttons
                     '[class*="popup"] [class*="close"]', '[class*="popup"] button[class*="dismiss"]',
                     '[class*="modal"] [class*="close"]', '[class*="modal"] button[class*="dismiss"]',
@@ -741,7 +747,11 @@ async function scrapeScreenshotFallback(url: string, apiKey: string) {
     // v1-style screenshot options key (400, live logs 2026-11-13). The
     // shared call carries the pacing + bounded 429 retry; the returned
     // Firecrawl URL still expires in 24h, so the caller re-hosts it.
-    const response = await fetchFirecrawlScreenshot(url, apiKey);
+    // The consent dismissal runs as Firecrawl actions before the capture;
+    // the shared client retries without actions if they are rejected.
+    const response = await fetchFirecrawlScreenshot(url, apiKey, {
+      consentDismissalScript: buildCookieConsentDismissalScript({ observeMs: 3000 }),
+    });
 
     const data = unwrapFirecrawlPayload(response);
     const screenshotUrl = typeof data?.screenshot === 'string' && data.screenshot ? data.screenshot : null;

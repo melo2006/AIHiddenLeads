@@ -22,13 +22,32 @@ export const FIRECRAWL_V2_BASE = 'https://api.firecrawl.dev/v2';
  * settle budget of the Browserless path: JS-driven heroes can take well
  * over 3s to paint, and a frame snapped early is a solid-color blank.
  */
-export function buildFirecrawlScreenshotBody(url: string): Record<string, unknown> {
+export function buildFirecrawlScreenshotBody(
+  url: string,
+  actions?: Array<Record<string, unknown>>,
+): Record<string, unknown> {
   return {
     url,
     formats: [{ type: 'screenshot', fullPage: true, viewport: { width: 1920, height: 1080 } }],
+    ...(actions && actions.length > 0 ? { actions } : {}),
     waitFor: 10000,
     timeout: 40000,
   };
+}
+
+/**
+ * Firecrawl actions that dismiss the site's cookie-consent banner BEFORE the
+ * screenshot is taken (demo surfaces must not show the banner — see
+ * _shared/cookie-consent-dismissal.ts). The dismissal script installs an
+ * in-page observer, so the trailing wait gives late banners time to appear
+ * and be refused; Firecrawl captures the formats after actions complete.
+ */
+export function buildCookieConsentDismissalActions(script: string): Array<Record<string, unknown>> {
+  return [
+    { type: 'wait', milliseconds: 1200 },
+    { type: 'executeJavascript', script },
+    { type: 'wait', milliseconds: 2500 },
+  ];
 }
 
 /**
@@ -91,6 +110,13 @@ export interface FirecrawlScreenshotDeps {
   sleep?: (ms: number) => Promise<void>;
   log?: (...args: unknown[]) => void;
   paceWaitMs?: () => number;
+  /**
+   * When set, the screenshot request first runs this cookie-consent
+   * dismissal script in the page (see buildCookieConsentDismissalActions).
+   * If Firecrawl rejects the actions key with a 400, the request is retried
+   * once WITHOUT actions, so the fallback leg can never be broken by it.
+   */
+  consentDismissalScript?: string;
 }
 
 const realSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -113,8 +139,10 @@ export async function fetchFirecrawlScreenshot(
   const paceWaitMs = deps.paceWaitMs ?? (() => firecrawlPaceWaitMs());
 
   let lastError: Error | null = null;
+  let includeActions = Boolean(deps.consentDismissalScript);
+  let attempt = 0;
 
-  for (let attempt = 0; attempt <= FIRECRAWL_429_MAX_RETRIES; attempt++) {
+  for (;;) {
     const pace = paceWaitMs();
     if (pace > 0) {
       log(`[Firecrawl v2] Pacing screenshot request for ${url}: waiting ${pace}ms since the previous Firecrawl call`);
@@ -128,7 +156,12 @@ export async function fetchFirecrawlScreenshot(
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(buildFirecrawlScreenshotBody(url)),
+      body: JSON.stringify(
+        buildFirecrawlScreenshotBody(
+          url,
+          includeActions ? buildCookieConsentDismissalActions(deps.consentDismissalScript!) : undefined,
+        ),
+      ),
     });
 
     const data: unknown = await response.json().catch(() => null);
@@ -136,6 +169,15 @@ export async function fetchFirecrawlScreenshot(
     if (response.ok) return data;
 
     lastError = new Error(`Firecrawl v2 error [${response.status}]: ${JSON.stringify(data)}`);
+
+    // The actions key is the only new surface here; if a plan/tier rejects
+    // it (400, like the v1 screenshotOptions rejection), drop the actions
+    // and retry the plain screenshot instead of losing the fallback leg.
+    if (response.status === 400 && includeActions) {
+      includeActions = false;
+      log(`[Firecrawl v2] Actions rejected (400) for ${url}; retrying screenshot without consent-dismissal actions`);
+      continue;
+    }
 
     if (response.status !== 429 || attempt === FIRECRAWL_429_MAX_RETRIES) break;
 
@@ -154,6 +196,7 @@ export async function fetchFirecrawlScreenshot(
       (retryAfterSeconds !== null ? ` (retry_after_seconds=${retryAfterSeconds})` : ' (no retry_after hint; exponential backoff)'),
     );
     await sleep(waitMs);
+    attempt++;
   }
 
   throw lastError!;
