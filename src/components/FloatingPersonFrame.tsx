@@ -1,4 +1,4 @@
-import { useEffect, useRef, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import { MessageSquare, Mic, MicOff, X, Minus, AudioLines, Play, Pause, PhoneOff, RotateCcw, Volume2, VolumeX, Maximize2, GripVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import aspenPortrait from '@/assets/aspen-video-frame-final.webp';
@@ -59,21 +59,44 @@ export interface Stage3Controls {
 
 const barButton = 'flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-full text-foreground transition-colors hover:bg-muted';
 
-/** Stage 3 LIVE face (2026-11-14): while a call is live, the minimized
- * bar shows the presenter's REAL moving face — lips moving — not her
- * still photo and never the waving-hand idle animation (that belongs
- * to Stage 1, the not-yet-started state). The live media already lives
- * inside this same shell (the conversation stays mounted while
- * minimized): SimliAvatar marks its keyed canvas / raw video with
+/** Stage 3 face stack (2026-11-14): the minimized bar's circle shows
+ * exactly ONE image at a time — the presenter's REAL moving face while
+ * live video is flowing, otherwise her still photo (never the
+ * waving-hand idle animation; that belongs to Stage 1, the
+ * not-yet-started state). The live media already lives inside this
+ * same shell (the conversation stays mounted while minimized):
+ * SimliAvatar marks its keyed canvas / raw video with
  * [data-live-face-source], and this canvas mirrors the active one
- * frame by frame, cover-cropped to the circle. The still photo stays
- * underneath, so if no frame ever arrives (voice-only fallback) the
- * mirror simply never paints and the photo shows, exactly as before.
- * Sizing: the face circle is 66px — +18% over the old 56px (Ron's
- * 15–20% band, 2026-11-14: just enough for mouth movement to read,
- * not bigger); the bar buttons grow in proportion, 36px → 42px. */
-function Stage3LiveFace() {
+ * frame by frame, cropped to the circle.
+ *
+ * DOUBLE-IMAGE FIX (Ron's Publish #52 phone test — "he is
+ * superimposing the static picture of himself"): the first version
+ * painted the mirror on a TRANSPARENT canvas permanently layered over
+ * the still, and cropped it differently from the still's own framing
+ * (.aspen-bubble-face zooms 1.5×; the mirror did not). The keyed Simli
+ * canvas is transparent everywhere except the face silhouette, so the
+ * still showed through all around a differently-scaled live face — a
+ * ghostly double face. The stack now enforces the single-image
+ * invariant structurally: this component owns BOTH layers, tracks
+ * whether frames are actually flowing (a [data-live-face-source] with
+ * real dimensions inside this shell), and flips visibility in one
+ * render — while frames flow, the still is `invisible` and the mirror
+ * carries the opaque bg-primary backdrop; when frames stop (source
+ * gone, zero-size, or the image-only fallback), the mirror is
+ * `invisible` AND cleared (no stale frame may linger) and the still
+ * returns. The mirror's crop also replicates the still's framing
+ * exactly (cover-fit at object-position 50% 12%, then the same 1.5×
+ * zoom about 50% 30%), so the face does not jump scale when the video
+ * takes over or hands back.
+ * Sizing: the face circle is 79px — 56px → 66px → 79px, +~20% again
+ * at Ron's direction after Publish #52 (the moving face was still too
+ * small to read). The bar buttons stay 42px: six 50px buttons beside
+ * a 79px face would push the bar past small-phone widths, and 42px
+ * already meets this shell's 40px touch-target standard. */
+function Stage3LiveFace({ photo }: { photo?: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [live, setLive] = useState(false);
+  const liveRef = useRef(false);
   useEffect(() => {
     let raf = 0;
     let stopped = false;
@@ -81,6 +104,7 @@ function Stage3LiveFace() {
       if (stopped) return;
       const canvas = canvasRef.current;
       const shell = canvas?.closest('.aspen-person-shell');
+      let flowing = false;
       if (canvas && shell) {
         const candidates = Array.from(shell.querySelectorAll('[data-live-face-source]'));
         // Prefer the keyed canvas (the transparent face); the raw
@@ -91,22 +115,46 @@ function Stage3LiveFace() {
         if (source) {
           const sw = source instanceof HTMLVideoElement ? source.videoWidth : (source as HTMLCanvasElement).width;
           const sh = source instanceof HTMLVideoElement ? source.videoHeight : (source as HTMLCanvasElement).height;
-          const ctx = canvas.getContext('2d');
-          if (ctx && sw > 0 && sh > 0) {
-            const size = canvas.width;
-            const scale = Math.max(size / sw, size / sh);
-            const dw = sw * scale;
-            const dh = sh * scale;
-            ctx.drawImage(source as CanvasImageSource, (size - dw) / 2, 0, dw, dh);
+          if (sw > 0 && sh > 0) {
+            flowing = true;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              const size = canvas.width;
+              // Replicate .aspen-bubble-face: cover-fit at
+              // object-position 50% 12%, then scale(1.5) about
+              // 50% 30% — the live face lands exactly where the
+              // still's face was.
+              const cover = Math.max(size / sw, size / sh);
+              const dw0 = sw * cover;
+              const dh0 = sh * cover;
+              const dx0 = (size - dw0) * 0.5;
+              const dy0 = (size - dh0) * 0.12;
+              const zoom = 1.5;
+              const ox = size * 0.5;
+              const oy = size * 0.3;
+              ctx.drawImage(source as CanvasImageSource, ox + (dx0 - ox) * zoom, oy + (dy0 - oy) * zoom, dw0 * zoom, dh0 * zoom);
+            }
           }
         }
+      }
+      if (flowing !== liveRef.current) {
+        liveRef.current = flowing;
+        if (!flowing && canvas) {
+          // No stale frame may survive the hand-back to the still.
+          const ctx = canvas.getContext('2d');
+          if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+        setLive(flowing);
       }
       raf = requestAnimationFrame(draw);
     };
     raf = requestAnimationFrame(draw);
     return () => { stopped = true; cancelAnimationFrame(raf); };
   }, []);
-  return <canvas ref={canvasRef} width={132} height={132} data-testid="stage3-live-face" aria-hidden="true" className="absolute inset-0 h-full w-full" />;
+  return <>
+    {photo ? <img src={photo} alt="" draggable={false} data-testid="stage3-still-face" className={`aspen-bubble-face h-full w-full ${live ? 'invisible' : ''}`} /> : <Mic className={`h-6 w-6 ${live ? 'invisible' : ''}`} />}
+    <canvas ref={canvasRef} width={158} height={158} data-testid="stage3-live-face" data-live={live ? 'true' : 'false'} aria-hidden="true" className={`absolute inset-0 h-full w-full ${live ? 'bg-primary' : 'invisible'}`} />
+  </>;
 }
 
 const segmentClass = (active: boolean) => `flex min-h-10 items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-semibold transition-colors ${active ? 'bg-primary text-primary-foreground shadow-sm' : 'bg-transparent text-foreground hover:bg-muted'}`;
@@ -208,7 +256,7 @@ export default function FloatingPersonFrame({ name = 'Aspen', avatarUrl, open, m
   // photo ('') keeps the plain mic icon instead of borrowing Aspen's face.
   const bubblePhoto = avatarUrl === undefined ? aspenIdleBeckon : avatarUrl;
   const stage = open ? 2 : minimized ? (stage3 ? 3 : 0) : 1;
-  return <section aria-label={`${name} floating assistant`} className={`aspen-person-shell relative ${open ? 'aspen-person-expanded' : 'aspen-person-collapsed'} ${open && focus ? 'aspen-person-focus' : ''} ${stage === 1 ? 'aspen-person-stage1 items-center' : ''} ${stage === 3 ? 'aspen-person-stage3' : ''} ${stage === 0 ? '!w-24 items-center' : ''}`}>
+  return <section aria-label={`${name} floating assistant`} className={`aspen-person-shell relative ${open ? 'aspen-person-expanded' : 'aspen-person-collapsed'} ${open && focus ? 'aspen-person-focus' : ''} ${stage === 1 ? 'aspen-person-stage1 items-center' : ''} ${stage === 3 ? 'aspen-person-stage3' : ''} ${stage === 0 ? '!w-[112px] items-center' : ''}`}>
     {open && mode === 'chat' && <PersonPortrait name={name} avatarUrl={avatarUrl} nameLabel flat />}
     {/* CHAT DOCK (2026-11-14, Ron's phone test): in chat mode the window
         controls, the Voice/Type toggle and the chat surface used to be
@@ -230,25 +278,25 @@ export default function FloatingPersonFrame({ name = 'Aspen', avatarUrl, open, m
       </span>
       <span className="w-fit rounded-md bg-card/90 px-2 py-0.5 text-center text-xs font-semibold leading-tight text-foreground shadow-sm">{inviteArrival ? `▶ Hear ${firstName || 'Aspen'}` : 'Tap to talk'}</span>
     </Button>}
-    {/* Stage 0 bubble sizing (2026-11-14): 72px → 86px (+~20%, Ron's
-        live test — the fully-minimized circle was hardly visible in
-        the corner, especially on tablet). The stage-0 shell stays
-        !w-24 (96px): the wider circle still fits inside it, so the
-        corner footprint, anchoring and "Talk to {name}" label layout
-        are unchanged. Stages 1 (80px idle bubble) and 3 (66px live
-        face in the minimized bar) are separate states and do NOT
-        follow this size. */}
+    {/* Stage 0 bubble sizing (2026-11-14): 72px → 86px → 103px (+~20%
+        twice, Ron's live tests — the fully-minimized circle was hardly
+        visible in the corner, and after Publish #52 the face was still
+        too small to read). At 103px the old !w-24 (96px) shell no
+        longer contains the circle, so the stage-0 shell widens to
+        !w-[112px]; the "Talk to {name}" label layout under the circle
+        is unchanged. Stages 1 (80px idle bubble) and 3 (79px live face
+        in the minimized bar) are separate states and do NOT follow
+        this size. */}
     {stage === 0 && <Button variant="ghost" onClick={onOpen} title={talkLabel} aria-label={talkLabel} className="flex h-auto flex-col items-center gap-1 p-0 hover:bg-transparent">
-      <span className="flex h-[86px] w-[86px] shrink-0 items-center justify-center overflow-hidden rounded-full border border-primary/60 bg-primary text-primary-foreground shadow-md">
+      <span className="flex h-[103px] w-[103px] shrink-0 items-center justify-center overflow-hidden rounded-full border border-primary/60 bg-primary text-primary-foreground shadow-md">
         {bubblePhoto ? <img src={bubblePhoto} alt="" className="h-full w-full object-cover" draggable={false} /> : <Mic className="h-8 w-8" />}
       </span>
       <span className="w-fit rounded-md bg-card/90 px-1.5 text-center text-[10px] font-medium leading-tight text-muted-foreground">{talkLabel}</span>
     </Button>}
     {stage === 3 && stage3 && <div className="flex items-center gap-2">
-      <button type="button" onClick={onOpen} title={`Open ${name}`} aria-label={`Open ${name}`} className="relative h-[66px] w-[66px] shrink-0 rounded-full">
-        <span className="relative flex h-[66px] w-[66px] items-center justify-center overflow-hidden rounded-full border border-primary/60 bg-primary text-primary-foreground shadow-md">
-          {bubblePhoto ? <img src={bubblePhoto} alt="" draggable={false} className="aspen-bubble-face h-full w-full" /> : <Mic className="h-6 w-6" />}
-          <Stage3LiveFace />
+      <button type="button" onClick={onOpen} title={`Open ${name}`} aria-label={`Open ${name}`} className="relative h-[79px] w-[79px] shrink-0 rounded-full">
+        <span className="relative flex h-[79px] w-[79px] items-center justify-center overflow-hidden rounded-full border border-primary/60 bg-primary text-primary-foreground shadow-md">
+          <Stage3LiveFace photo={bubblePhoto} />
         </span>
         <span aria-hidden className={`aspen-live-ring ${stage3.suspended ? 'aspen-live-ring-paused' : ''}`} />
         <span className="sr-only" role="status">{stage3.suspended ? 'Call paused' : 'Call live'}</span>

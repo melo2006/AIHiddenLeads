@@ -130,11 +130,23 @@ describe('item 5 + refinement A — chat box layouts and the horizontal control 
     expect(conv).not.toContain('voice-controls flex flex-wrap');
     expect(css).toContain('.aspen-person-shell .voice-controls { flex-wrap: nowrap; }');
   });
-  it('stage 3 face is 66px (+18% over 56px, inside the 15–20% band) with the live mirror', () => {
+  it('stage 3 face is 79px (56px → 66px → 79px, +~20% again after Publish #52) with the single-image face stack', () => {
     expect(frame).toContain('data-testid="stage3-live-face"');
-    expect(frame).toContain('h-[66px] w-[66px]');
+    expect(frame).toContain('data-testid="stage3-still-face"');
+    expect(frame).toContain('h-[79px] w-[79px]');
+    expect(frame).not.toContain('h-[66px] w-[66px]');
     expect(frame).not.toContain('relative h-14 w-14 shrink-0 rounded-full');
     expect(frame).toContain("h-[42px] w-[42px]");
+    // Single-image invariant machinery (Publish #52 double-image fix):
+    // visibility flips on the live state; opaque backdrop behind the
+    // keyed mirror while live, mirror hidden otherwise.
+    expect(frame).toContain("data-live={live ? 'true' : 'false'}");
+    expect(frame).toContain("live ? 'bg-primary' : 'invisible'");
+  });
+  it('stage 0 reopen bubble is 103px (72px → 86px → 103px) in a !w-[112px] shell', () => {
+    expect(frame).toContain('h-[103px] w-[103px]');
+    expect(frame).toContain('!w-[112px]');
+    expect(frame).not.toContain('h-[86px] w-[86px]');
   });
   it('both widgets pass the focus flag into the frame', () => {
     expect(read('src/components/GeminiAgentWidget.tsx')).toContain('focus={shellState?.focus ?? false}');
