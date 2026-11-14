@@ -508,3 +508,224 @@ describe("realtor discovery — verbal capture confirmation (2026-11-14, Ron: a 
     }
   });
 });
+
+describe("realtor discovery — round 2: arc discipline (2026-11-14, session 4f161ea7)", () => {
+  const closeSlice = layer.slice(layer.indexOf("5) THE CLOSE"));
+  const captureSlice = layer.slice(
+    layer.indexOf("2) EARLY CAPTURE"),
+    layer.indexOf("3) DISCOVERY"),
+  );
+  const arcSlice = layer.slice(
+    layer.indexOf("THIRD, COME BACK — THE RETURN"),
+    layer.indexOf("3S) SELLING"),
+  );
+
+  it("purpose is one of the core four — asked or confirmed before any search firms up", () => {
+    // the core four are named as a set, purpose first among equals
+    expect(layer).toContain(
+      "the PURPOSE (live in it, rent it out, flip and resell it, a second home), the PRICE BRACKET, the AREA, narrowed, and the PROPERTY TYPE",
+    );
+    expect(layer).toContain(
+      "Purpose is one of THE CORE FOUR (the gate below), first among equals",
+    );
+    expect(layer).toContain(
+      "it must be asked or confirmed before any search firms up",
+    );
+    // banked from what they volunteer, never assumed from the ask
+    expect(layer).toContain(
+      "never assumed from the property they happen to ask about",
+    );
+    expect(layer).toContain("a search that firms up before its purpose is known");
+  });
+
+  it("purpose heads the resumable arc's return order, ahead of price", () => {
+    const purpose = arcSlice.indexOf("the PURPOSE");
+    const price = arcSlice.indexOf("the PRICE BRACKET");
+    expect(purpose).toBeGreaterThan(-1);
+    expect(price).toBeGreaterThan(-1);
+    expect(purpose).toBeLessThan(price);
+    expect(arcSlice).toContain(
+      "the PURPOSE — what the home is for: live in it, rent it out, flip and resell it, or a second home — if it is still unknown",
+    );
+  });
+
+  it("no early promise: the close is gated on the core four being banked or waved off", () => {
+    expect(layer).toContain("THE CORE FOUR — AND NO EARLY PROMISE (hard rule)");
+    expect(layer).toContain(
+      "While any one of the four is still unknown — never asked, never volunteered, never confirmed — and the caller has not signalled they are done, the close is barred in every form",
+    );
+    // the evidence failure is named: the promise sentence itself,
+    // said while purpose / area / type were still open
+    expect(layer).toContain(
+      "\"I'll get that list put together and sent to your email\" said while the purpose, the area or the type is still open is the close arriving early",
+    );
+    expect(layer).toContain("you didn't ask me what location I want");
+    // the gate lives inside discovery, after the resumable arc
+    const gate = layer.indexOf("NO EARLY PROMISE");
+    expect(gate).toBeGreaterThan(layer.indexOf("A SEARCH QUESTION NEVER ENDS DISCOVERY"));
+    expect(gate).toBeLessThan(layer.indexOf("5) THE CLOSE"));
+    // and the close step itself opens on the gate
+    expect(layer).toContain(
+      "when the core four are banked or waved off (the gate in step 3), or the caller is ready to wrap up",
+    );
+  });
+
+  it("a waved-off dimension counts as banked, and the caller's own wrap-up overrides the gate", () => {
+    expect(layer).toContain("counts as BANKED: declined is an answer");
+    expect(layer).toContain("never circle back to it");
+    expect(layer).toContain("the gate binds YOUR timing, never the caller's");
+    expect(layer).toContain("promise at once with what is banked");
+    expect(layer).toContain("name each missing piece as refinable later");
+    expect(layer).toContain("never as a reason to hold the list hostage");
+  });
+
+  it("recap integrity: the recap states only what the caller gave or confirmed", () => {
+    expect(closeSlice).toContain("RECAP INTEGRITY (hard rule)");
+    expect(closeSlice).toContain(
+      "the recap may only state what the caller actually gave you or confirmed",
+    );
+    // the evidence failure is named verbatim: type recited as
+    // settled when it was never discussed
+    expect(closeSlice).toContain(
+      "reciting \"a two-bed, two-bath condo or house\" as the caller's settled criteria when property type was never discussed is exactly the failure this rule exists to prevent",
+    );
+    // a still-open dimension is left out or labelled open — never
+    // dressed up as the caller's answer
+    expect(closeSlice).toContain(
+      "an open question labelled open is honest; the same words presented as their answer are not",
+    );
+    // the same integrity binds the mid-discovery criteria read-back
+    expect(closeSlice).toContain(
+      "The same integrity binds the criteria read-back after a search answer (step 3)",
+    );
+  });
+
+  it("a second search gets its own mini-arc: compact, banking volunteers, asking only what's missing", () => {
+    expect(layer).toContain("A SECOND SEARCH IS A NEW SEARCH — THE MINI-ARC (hard rule)");
+    expect(layer).toContain(
+      "confirm its PURPOSE, its AREA, its TYPE and its BUDGET, and ask its one MUST-HAVE or deal-breaker question",
+    );
+    expect(layer).toContain("two or three conversational questions at most");
+    expect(layer).toContain("ask ONLY what is missing");
+    expect(layer).toContain(
+      "never re-ask what the new search already told you",
+    );
+    // the evidence shape is named: everything volunteered in one
+    // breath is confirmed crisply, not re-interrogated
+    expect(layer).toContain(
+      "a one-bed fixer-upper in Pompano and Deerfield, up to a hundred and fifty, to buy and flip",
+    );
+  });
+
+  it("the two searches never leak into each other and stay distinct through the close", () => {
+    expect(layer).toContain(
+      "its budget is not the second's budget, its area is not the second's area, its purpose is not the second's purpose",
+    );
+    expect(layer).toContain("The core-four gate above applies to the new search too");
+    expect(layer).toContain("recap each on its own terms");
+    expect(layer).toContain("\"we'll put both lists together\"");
+    expect(layer).toContain("never one blended list");
+  });
+
+  it("role containment: inside the simulation the presenter is the business, full stop", () => {
+    expect(layer).toContain(
+      "ROLE CONTAINMENT — INSIDE THE SIMULATION, YOU ARE THE BUSINESS (hard rule)",
+    );
+    // the rule frames the whole arc: it lands before the warm opening
+    const containment = layer.indexOf("ROLE CONTAINMENT");
+    expect(containment).toBeGreaterThan(-1);
+    expect(containment).toBeLessThan(layer.indexOf("0) THE WARM OPENING"));
+    // the banned shapes are named — the platform menu, the
+    // how-it-works talk, the cannot-complete transfer narration
+    expect(layer).toContain(
+      "no menu of what the visitor might do next (keep trying the simulation, discuss implementation questions, book a quick call)",
+    );
+    expect(layer).toContain("no explaining how the demo or the service works");
+    expect(layer).toContain(
+      "no transfer explanations — narrating a transfer you cannot complete, or apologising for one, is platform talk too",
+    );
+    expect(layer).toContain("Never volunteer platform talk mid-inquiry");
+  });
+
+  it("the only doors out of the role are the visitor's — and the platform talk waits for the real end", () => {
+    expect(layer).toContain(
+      "The doors out of the role are the visitor's, never yours: they ask for a person, or they step out of the simulation themselves",
+    );
+    expect(layer).toContain(
+      "The platform conversation and the demo close belong to the simulation's real end — after the step 5 close — never mid-inquiry",
+    );
+    expect(layer).toContain(
+      "never attached to the recap, the promise or the capture: those beats end in role, full stop",
+    );
+    // in-role person asks still route through the script, untouched
+    expect(layer).toContain(
+      "the visitor asks for Michael Martinez or another person at this business (in role, the way the script directs)",
+    );
+  });
+
+  it("channel completeness: an email-only capture leaves the offered text link open for one close ask", () => {
+    expect(closeSlice).toContain("CHANNEL COMPLETENESS — THE ONE TEXT ASK (hard rule)");
+    expect(closeSlice).toContain(
+      "If the caller gave an email and no mobile number, the text half of that offer is still open",
+    );
+    // the ask itself, one easy line
+    expect(closeSlice).toContain(
+      "\"And if you'd like the link by text as well, what's the best mobile number for it?\"",
+    );
+    // the evidence moment is named: "both or just one?" never gets a
+    // flat email-only answer that lets the text die in silence
+    expect(closeSlice).toContain(
+      "Never answer a \"both or just one?\" question with a flat \"email only, since that's what you gave me\" and let the text die in silence",
+    );
+    expect(closeSlice).toContain("answer honestly with the channel you have, then make the one ask");
+  });
+
+  it("the text ask is coordinated: verbal confirmation first, a decline final, never stacked on the re-offer", () => {
+    expect(closeSlice).toContain(
+      "goes through the verbal capture confirmation above — the digit-group read-back, what happens next, the spoken yes — before any text is promised on it",
+    );
+    expect(closeSlice).toContain(
+      "the number is never asked again in this call",
+    );
+    expect(closeSlice).toContain(
+      "it is NOT the step 2 re-offer (that one is only for a caller who gave no details at all), the two never stack",
+    );
+    expect(closeSlice).toContain(
+      "it never applies to a caller who declined the send itself",
+    );
+    // step 2 names the same coordination, so the capture discipline
+    // and the channel ask can never be read as a third capture ask
+    expect(captureSlice).toContain("step 5's channel completeness");
+    expect(captureSlice).toContain(
+      "completing a delivery channel for a send they already agreed to",
+    );
+  });
+
+  it("the composed presenter layer carries each round-2 rule exactly once; the standard layer carries none", () => {
+    const pack = examplePackBySlug("michael-martinez")!;
+    const presenterLayer = buildExampleListingsLayer(pack, { presenter: true });
+    for (const marker of [
+      "ROLE CONTAINMENT",
+      "NO EARLY PROMISE",
+      "RECAP INTEGRITY",
+      "THE MINI-ARC",
+      "CHANNEL COMPLETENESS",
+    ]) {
+      expect(occurrences(presenterLayer, marker)).toBe(1);
+    }
+    const standardLayer = buildExampleListingsLayer(pack);
+    for (const marker of [
+      "ROLE CONTAINMENT",
+      "NO EARLY PROMISE",
+      "RECAP INTEGRITY",
+      "MINI-ARC",
+      "CHANNEL COMPLETENESS",
+      "CORE FOUR",
+    ]) {
+      expect(standardLayer).not.toContain(marker);
+    }
+    // the round-2 rules ride in through the discovery layer only —
+    // the verbal beat is still exactly once alongside them
+    expect(occurrences(presenterLayer, "DETAILS DICTATED BY VOICE ARE CONFIRMED OUT LOUD")).toBe(1);
+  });
+});
