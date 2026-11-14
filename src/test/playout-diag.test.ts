@@ -44,6 +44,35 @@ describe("playoutDiagDetail", () => {
   });
 });
 
+describe("playoutDiagDetail — terminal sink (volume-speaker fix)", () => {
+  it("a media-element terminal proves no AudioContext is in the heard chain", () => {
+    const detail = playoutDiagDetail({
+      ...localSettled,
+      terminal: { sink: "media-element", paused: false, readyState: 4, ctxInChain: false, trailSec: 0.25 },
+    });
+    expect(detail).toContain("term=media-element");
+    expect(detail).toContain("tp=0");
+    expect(detail).toContain("trs=4");
+    expect(detail).toContain("ctxchain=0");
+    expect(detail).toContain("trail=0.25");
+  });
+
+  it("the #48 media-stream terminal reports the context in the chain and no trail", () => {
+    const detail = playoutDiagDetail({
+      ...localSettled,
+      terminal: { sink: "media-stream", paused: true, readyState: 2, ctxInChain: true, trailSec: null },
+    });
+    expect(detail).toContain("term=media-stream");
+    expect(detail).toContain("tp=1");
+    expect(detail).toContain("ctxchain=1");
+    expect(detail).toContain("trail=-");
+  });
+
+  it("snapshots without a terminal keep the pre-fix detail shape", () => {
+    expect(playoutDiagDetail(localSettled)).not.toContain("term=");
+  });
+});
+
 describe("playoutDiagPayload / signature", () => {
   it("builds the server payload and folds local-path state into the detail", () => {
     const payload = playoutDiagPayload("11111111-1111-4111-8111-111111111111", localSettled, 123, ";sink=ready;pctx=running");
@@ -60,5 +89,14 @@ describe("playoutDiagPayload / signature", () => {
     expect(playoutDiagSignature(a)).toBe(playoutDiagSignature(b));
     const c = playoutDiagPayload("s", { ...localSettled, starve: "muted-only" }, 3);
     expect(playoutDiagSignature(c)).not.toBe(playoutDiagSignature(a));
+  });
+
+  it("dedupe is session-scoped: a reconnect's identical state still stamps (reconnect-stamp fix)", () => {
+    // Ron's failing 238 s session (2026-11-14) was a reconnect whose
+    // playout state matched the prior session's last stamp; with a
+    // session-blind key its first stamp would have been suppressed.
+    const a = playoutDiagPayload("session-a", localSettled, 1);
+    const b = playoutDiagPayload("session-b", localSettled, 1);
+    expect(playoutDiagSignature(a)).not.toBe(playoutDiagSignature(b));
   });
 });

@@ -37,8 +37,9 @@ import { ALEX_FACE_ID } from '../../supabase/functions/_shared/alex-guide';
 import type { VideoAvatar } from '../../supabase/functions/_shared/video-avatar';
 import { PersonPortrait, PersonaNameLabel } from '@/components/FloatingPersonFrame';
 import { assistantOutput, pairedAudioShouldDegrade, pairedCaptionDelaySec, voiceChunkStartAt, PAIRED_CAPTION_DELAY_SEC } from '@/lib/avatarAudioTransition';
-import { resolvePairedAudibleMode, PAIRED_AUDIBLE_STORAGE_KEY, type PairedAudibleMode } from '@/lib/pairedAudible';
-import { playoutDiagPayload, playoutDiagSignature, type PlayoutDiagSnapshot } from '@/lib/playoutDiag';
+import { resolvePairedAudibleMode, resolveHeardEngine, PAIRED_AUDIBLE_STORAGE_KEY, HEARD_ENGINE_STORAGE_KEY, type PairedAudibleMode, type HeardEngine } from '@/lib/pairedAudible';
+import { playoutDiagPayload, playoutDiagSignature, type PlayoutDiagSnapshot, type PlayoutTerminalDiag } from '@/lib/playoutDiag';
+import { MediaElementPlayout, MEDIA_ELEMENT_PIPELINE_SEC } from '@/lib/mediaElementPlayout';
 import { PlaybackCaptions, type PlaybackCaption as Caption } from '@/lib/playbackCaptions';
 import { displayNumbers } from '@/lib/displayNumbers';
 import PlaybackCaption from '@/components/PlaybackCaption';
@@ -211,6 +212,34 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     }
     return pairedAudibleModeRef.current;
   };
+  // Heard-engine structure (volume-speaker fix, 2026-11-14): which
+  // engine carries the LOCAL path's audible voice — 'element'
+  // (default) is the media-element engine (a plain media element
+  // playing an MSE media resource; no WebAudio in the heard chain),
+  // 'sink' is the Publish #48 media-sink graph, restored with
+  // ?heardEngine=sink for A/B on the same phone. The engine is
+  // feature-detected per session: where WebCodecs/MSE opus is
+  // unavailable, chunks simply keep routing to the sink graph —
+  // the exact #48 behaviour — so this preference can never
+  // silence a call by itself. See lib/mediaElementPlayout.ts.
+  const heardEngineRef = useRef<HeardEngine | null>(null);
+  const heardEngine = (): HeardEngine => {
+    if (!heardEngineRef.current) {
+      let stored: string | null = null;
+      try { stored = window.localStorage.getItem(HEARD_ENGINE_STORAGE_KEY); } catch { /* private mode */ }
+      heardEngineRef.current = resolveHeardEngine(window.location.search, stored);
+    }
+    return heardEngineRef.current;
+  };
+  const mediaElementRef = useRef<MediaElementPlayout | null>(null);
+  const mediaElementStateRef = useRef<'idle' | 'starting' | 'ready' | 'failed'>('idle');
+  /** End-of-chunk timers for engine-routed chunks (they have no
+   *  AudioBufferSourceNode, so onended bookkeeping runs here). */
+  const engineTimersRef = useRef(new Set<ReturnType<typeof setTimeout>>());
+  /** True once the live mic track has been re-requested WITHOUT
+   *  echo cancellation for the media-element engine (and not yet
+   *  restored). See applyCaptureProcessing below. */
+  const captureRawRef = useRef(false);
   const businessNameRef = useRef('');
   const preStageRef = useRef<{ boundary: PersonaBoundary; token: string; faceReady: boolean; faceFailed?: boolean; persona: PersonaId; slot: FaceSlot; authorizedAt: number; faceEverLive?: boolean; faceStartFailed?: boolean } | null>(null);
   /** F3 PRE-STAGE (fluidity batch, 2026-11-10): the doorway Sara face
@@ -524,6 +553,93 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     return mediaPlaybackNode(ctx, entry.sink);
   };
 
+  // Media-element engine lifecycle (volume-speaker fix): created
+  // lazily at the first local chunk, started asynchronously. Until
+  // it reports ready — and forever on platforms without the APIs —
+  // chunks route to the media-sink graph above, exactly as in
+  // Publish #48. When it becomes ready it inherits the session's
+  // current level and speaker-output choice, and the mic track is
+  // re-requested without echo cancellation (applyCaptureProcessing).
+  const ensureMediaElement = (): MediaElementPlayout | null => {
+    if (heardEngine() !== 'element') return null;
+    if (mediaElementStateRef.current === 'failed') return null;
+    let engine = mediaElementRef.current;
+    if (engine) return engine;
+    mediaElementStateRef.current = 'starting';
+    engine = new MediaElementPlayout(undefined, () => {
+      // The engine died (encoder/MSE/stall): the session falls
+      // back to the sink graph for every later chunk, and the mic
+      // gets its echo cancellation back — the raw-capture request
+      // only ever rides with the element engine.
+      mediaElementStateRef.current = 'failed';
+      applyCaptureProcessing(false);
+      // The heard terminal changed materially — re-stamp the route.
+      stampPlayoutDiag();
+    });
+    mediaElementRef.current = engine;
+    void engine.start().then((ok) => {
+      if (!ok || mediaElementRef.current !== engine) return;
+      mediaElementStateRef.current = 'ready';
+      engine.setLevel({ muted: speakerMutedRef.current, volume: playbackVolumeRef.current });
+      if (captureRef.current.paused) engine.setPaused(true);
+      if (selectedOutputIdRef.current) void applySinkIdToElement(engine.element, selectedOutputIdRef.current);
+      applyCaptureProcessing(true);
+      // The heard terminal is now the media element — re-stamp.
+      stampPlayoutDiag();
+    });
+    return engine;
+  };
+
+  // Capture processing switch for the media-element engine. The
+  // demo's mic is requested WITH echoCancellation (Gemini start
+  // paths below) — the constraint that selects Android Chrome's
+  // voice-communication capture path, under which the platform
+  // binds the hardware keys to the call stream instead of the
+  // media stream the element plays on. While the element engine
+  // carries the voice, the live track is re-requested WITHOUT
+  // echo cancellation (best effort: applyConstraints can refuse,
+  // and the track's getSettings() is what the playout diag stamps
+  // either way). Restored when the engine dies or the call ends.
+  const applyCaptureProcessing = (raw: boolean) => {
+    if (captureRawRef.current === raw) return;
+    captureRawRef.current = raw;
+    const track = micStreamRef.current?.getAudioTracks()[0];
+    if (!track) return;
+    void track.applyConstraints({ echoCancellation: !raw }).catch(() => { /* Browser may not support re-requesting processing. */ });
+  };
+
+  /** The live mic track's echo-cancellation setting as the
+   *  platform reports it ('comm' = EC on, 'raw' = EC off,
+   *  'na' = no track / not reported) — playout telemetry. */
+  const captureModeStamp = (): string => {
+    const track = micStreamRef.current?.getAudioTracks()[0];
+    if (!track) return 'na';
+    try {
+      const settings = track.getSettings() as { echoCancellation?: boolean };
+      if (typeof settings.echoCancellation !== 'boolean') return 'na';
+      return settings.echoCancellation ? 'comm' : 'raw';
+    } catch {
+      return 'na';
+    }
+  };
+
+  /** The local path's terminal sink right now (playout telemetry):
+   *  the media element when the engine is carrying the voice, the
+   *  media-sink element while the #48 graph is, the bare context
+   *  destination before the sink unlocks. */
+  const localTerminalDiag = (): PlayoutTerminalDiag => {
+    const engine = mediaElementRef.current;
+    if (engine && mediaElementStateRef.current === 'ready' && !engine.failed) {
+      const state = engine.diagState();
+      return { sink: 'media-element', paused: state.paused, readyState: state.readyState, ctxInChain: false, trailSec: engine.trailSec() };
+    }
+    const sink = mediaSinkRef.current?.sink;
+    if (sink) {
+      return { sink: 'media-stream', paused: sink.element.paused, readyState: sink.element.readyState, ctxInChain: true, trailSec: null };
+    }
+    return { sink: 'context', paused: true, readyState: 0, ctxInChain: true, trailSec: null };
+  };
+
   const wsRef = useRef<WebSocket | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
   const micCtxRef = useRef<AudioContext | null>(null);
@@ -797,8 +913,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     const visitorKey = visitorKeyRef.current;
     if (!sessionId || !visitorKey) return;
     const sink = mediaSinkRef.current?.sink;
-    const extra = `;sink=${sink ? (sink.ready ? 'ready' : 'pending') : 'none'};pctx=${playCtxRef.current?.state ?? 'none'}`;
-    const payload = playoutDiagPayload(sessionId, snapshot, Date.now(), extra);
+    const extra = `;sink=${sink ? (sink.ready ? 'ready' : 'pending') : 'none'};pctx=${playCtxRef.current?.state ?? 'none'};cap=${captureModeStamp()}`;
+    // The local terminal (volume-speaker fix): which sink the
+    // heard voice physically ends in — media element, media
+    // stream, or the bare context — rides on the snapshot itself.
+    const payload = playoutDiagPayload(sessionId, { ...snapshot, terminal: localTerminalDiag() }, Date.now(), extra);
     const signature = playoutDiagSignature(payload);
     if (signature === lastPlayoutDiagRef.current) return;
     lastPlayoutDiagRef.current = signature;
@@ -810,6 +929,42 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     })();
   }, []);
   const handlePlayoutDiag = useCallback((snapshot: PlayoutDiagSnapshot) => { persistPlayoutDiag(snapshot); }, [persistPlayoutDiag]);
+  // Conversation-owned stamping (reconnect-stamp fix, 2026-11-14):
+  // the SimliAvatar settle-point emits above are NOT sufficient —
+  // Ron's failing 238 s Martinez session was a RECONNECT: the face
+  // stayed live across the socket restart, no settle point crossed,
+  // and the new session row carried NO playoutDiag at all, leaving
+  // the exact failure unverifiable. The conversation therefore
+  // stamps from its OWN lifecycle: at go-live of every parent start
+  // (first connect AND every reconnect/resume — goLive is their
+  // common point) and again at the session's first locally-routed
+  // chunk, when the heard terminal has settled. The snapshot is
+  // pulled from the avatar handle when one answers (on a reconnect
+  // it carries the real, already-live graph state); otherwise a
+  // local fallback snapshot describes the local path on its own —
+  // persistPlayoutDiag folds in the terminal/sink/capture extras
+  // either way. Dedupe is session-scoped (see playoutDiagSignature),
+  // so a new session's first stamp always lands.
+  const diagChunkStampRef = useRef(false);
+  const stampPlayoutDiag = useCallback(() => {
+    const fromAvatar = mainSlotRef.current?.playoutSnapshot?.() ?? avatarRef.current?.playoutSnapshot?.();
+    if (fromAvatar) { persistPlayoutDiag(fromAvatar); return; }
+    const mode = pairedAudibleMode();
+    persistPlayoutDiag({
+      path: 'local',
+      mode,
+      engaged: false,
+      ctxState: 'none',
+      engageError: null,
+      srcPaused: true,
+      srcMuted: true,
+      srcVolume: 0,
+      track: 'absent',
+      starve: mode === 'local' ? 'pending' : 'n/a',
+      playoutPaused: true,
+      gain: null,
+    });
+  }, [persistPlayoutDiag]);
   const handleSegmentFailure = useCallback((boundary: PersonaBoundary, reason: string) => {
     const { state, outcome, attempt } = noteSegmentFailure(swapStateRef.current, boundary, reason);
     swapStateRef.current = state;
@@ -1111,6 +1266,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     wsRef.current = null;
     mediaSinkRef.current?.sink?.dispose();
     mediaSinkRef.current = null;
+    for (const timer of engineTimersRef.current) clearTimeout(timer);
+    engineTimersRef.current.clear();
+    mediaElementRef.current?.dispose();
+    mediaElementRef.current = null;
+    mediaElementStateRef.current = 'idle';
+    captureRawRef.current = false;
     showMicHintRef.current = false;
     setShowMicHint(false);
     micAwaitRef.current = null;
@@ -1339,25 +1500,50 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         source.connect(clockGain); clockGain.connect(ctx.destination);
       }
     }
-    if (!pairedVideo || pairedLocal) {
-      const spkGain = ctx.createGain();
-      spkGain.gain.value = effectivePlaybackLevel(speakerMutedRef.current, playbackVolumeRef.current);
-      speakerGainRef.current = spkGain;
-      source.connect(spkGain);
-      // Media-routed output (see lib/mediaSink.ts): through the audio
-      // element once unlocked, so the device's hardware media volume
-      // governs her voice; ctx.destination until the element plays.
-      spkGain.connect(mediaOutputNode(ctx));
-    }
-
     const now = ctx.currentTime;
     // Simli renders lips slightly behind the audio it receives; delay the start of each spoken run to match.
     // Local-first paired chunks carry that shift in their audible
     // schedule (voiceChunkStartAt applies it at a drained queue; a
     // running queue chains from the already-shifted playTimeRef).
     const startAt = voiceChunkStartAt(now, playTimeRef.current, pairedLocal ? PAIRED_CAPTION_DELAY_SEC : 0);
-    sourcesRef.current.add(source);
-    source.start(startAt);
+    // MEDIA-ELEMENT ENGINE (volume-speaker fix, 2026-11-14): a
+    // local chunk is offered FIRST to the media-element engine — a
+    // plain media element playing an MSE media resource, the route
+    // whose hardware-key behaviour is proven on Ron's phone. The
+    // engine accepts only once ready; every chunk it refuses
+    // (engine starting, unsupported platform, engine failed) plays
+    // through the media-sink graph below, exactly as in Publish
+    // #48, so no chunk is ever lost to the switch. For a paired
+    // chunk the +0.4 s lip offset lives in the engine's trail
+    // target instead of this schedule (the engine plays from
+    // arrival, not from startAt); the schedule still advances
+    // identically, so captions, lifecycle and a mid-session
+    // fallback to the graph all stay on one clock.
+    let engineRouted = false;
+    if (!pairedVideo || pairedLocal) {
+      const engine = ensureMediaElement();
+      if (engine && mediaElementStateRef.current === 'ready' && !captureRef.current.paused) {
+        const trailTarget = pairedLocal ? Math.max(0.05, PAIRED_CAPTION_DELAY_SEC - MEDIA_ELEMENT_PIPELINE_SEC) : 0.1;
+        engineRouted = engine.enqueuePcm16(samples, trailTarget);
+      }
+      if (!engineRouted) {
+        const spkGain = ctx.createGain();
+        spkGain.gain.value = effectivePlaybackLevel(speakerMutedRef.current, playbackVolumeRef.current);
+        speakerGainRef.current = spkGain;
+        source.connect(spkGain);
+        // Media-routed output (see lib/mediaSink.ts): through the audio
+        // element once unlocked, so the device's hardware media volume
+        // governs her voice; ctx.destination until the element plays.
+        spkGain.connect(mediaOutputNode(ctx));
+      }
+      // Reconnect-stamp fix: the session's first locally-routed
+      // chunk stamps the SETTLED heard terminal (engine vs sink vs
+      // context) onto the session row.
+      if (!diagChunkStampRef.current) {
+        diagChunkStampRef.current = true;
+        stampPlayoutDiag();
+      }
+    }
     playTimeRef.current = startAt + buffer.duration;
     // On the stream path the visitor hears Simli's stream, not this
     // local schedule; shift the caption window by the paired-path
@@ -1365,20 +1551,41 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     // PAIRED_CAPTION_DELAY_SEC). Local playback — including
     // local-first paired chunks, whose schedule already carries the
     // shift — stays on the schedule clock, which is when the voice
-    // is really heard.
+    // is really heard. Engine-routed chunks are heard later than
+    // the schedule by the engine's trail + pipeline, so their
+    // caption window shifts by that measured delay instead.
+    const engineDelay = engineRouted ? (mediaElementRef.current?.trailSec() ?? 0) + MEDIA_ELEMENT_PIPELINE_SEC : 0;
     const captionDelay = pairedCaptionDelaySec(pairedVideo, pairedAudibleMode());
-    captionClockRef.current.audio(startAt + captionDelay, playTimeRef.current + captionDelay, captionRun);
+    captionClockRef.current.audio(startAt + captionDelay + engineDelay, playTimeRef.current + captionDelay + engineDelay, captionRun);
     setAspenSpeaking(true);
-    source.onended = () => {
-      sourcesRef.current.delete(source);
+    // End-of-chunk bookkeeping, shared by the graph route (the
+    // buffer source's onended) and the engine route (a timer at
+    // the heard end — engine chunks have no buffer source). The
+    // drain checks consider BOTH queues: a replay or a preview
+    // ends only when nothing is left to hear on either route.
+    const noteChunkEnded = () => {
       if (ctx.currentTime >= playTimeRef.current - 0.05) setAspenSpeaking(false);
-      if (sourcesRef.current.size === 0 && captureRef.current.replaying) {
+      if (sourcesRef.current.size === 0 && engineTimersRef.current.size === 0 && captureRef.current.replaying) {
         captureRef.current.replaying = false;
         setReplaying(false);
         avatarRef.current?.setPlaybackMuted(speakerMutedRef.current || captureRef.current.paused);
       }
-      if (isPreviewRef.current && previewDoneRef.current && sourcesRef.current.size === 0) stopEverything();
+      if (isPreviewRef.current && previewDoneRef.current && sourcesRef.current.size === 0 && engineTimersRef.current.size === 0) stopEverything();
     };
+    if (engineRouted) {
+      const timer = setTimeout(() => {
+        engineTimersRef.current.delete(timer);
+        noteChunkEnded();
+      }, Math.max(0, (playTimeRef.current + engineDelay - ctx.currentTime) * 1000));
+      engineTimersRef.current.add(timer);
+    } else {
+      sourcesRef.current.add(source);
+      source.start(startAt);
+      source.onended = () => {
+        sourcesRef.current.delete(source);
+        noteChunkEnded();
+      };
+    }
   }, [stopEverything, engageVideoFallback]);
 
   // Interrupt: drop all queued playback instantly
@@ -1387,6 +1594,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     setReplaying(false);
     for (const source of sourcesRef.current) { try { source.stop(); } catch { /* Already stopped. */ } }
     sourcesRef.current.clear();
+    // Engine route: drop held/buffered audio and its end timers.
+    for (const timer of engineTimersRef.current) clearTimeout(timer);
+    engineTimersRef.current.clear();
+    mediaElementRef.current?.flush();
     avatarRef.current?.clear();
     captionClockRef.current.clear(); setPlaybackCaption(p => p ? { ...p, word: -1 } : null);
     playTimeRef.current = playCtxRef.current?.currentTime ?? 0;
@@ -1414,6 +1625,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       captureRef.current.paused = false;
       setPaused(false);
       void playCtxRef.current?.resume().catch(() => {});
+      mediaElementRef.current?.setPaused(false);
       avatarRef.current?.setPlaybackMuted(speakerMutedRef.current);
     } else {
       pauseCapture();
@@ -1421,6 +1633,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       captureRef.current.paused = true;
       setPaused(true);
       void playCtxRef.current?.suspend().catch(() => {});
+      mediaElementRef.current?.setPaused(true);
       avatarRef.current?.setPlaybackMuted(true);
     }
   }, [pauseCapture, clearPlayback]);
@@ -1437,6 +1650,9 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     setPlaybackVolume(level);
     savePlaybackVolume(level);
     if (speakerGainRef.current) speakerGainRef.current.gain.value = effectivePlaybackLevel(speakerMutedRef.current, level);
+    // Media-element engine: the slider drives the element's own
+    // volume property — the media-player control surface.
+    mediaElementRef.current?.setLevel({ muted: speakerMutedRef.current, volume: level });
     avatarRef.current?.setPlaybackVolume?.(level);
     stagedAvatarRef.current?.setPlaybackVolume?.(level);
     mainSlotRef.current?.setPlaybackVolume?.(level);
@@ -1448,6 +1664,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     speakerMutedRef.current = next;
     setSpeakerMuted(next);
     if (speakerGainRef.current) speakerGainRef.current.gain.value = effectivePlaybackLevel(next, playbackVolumeRef.current);
+    // Media-element engine: the mute silences the element itself.
+    mediaElementRef.current?.setLevel({ muted: next, volume: playbackVolumeRef.current });
     avatarRef.current?.setPlaybackMuted(next || captureRef.current.paused || captureRef.current.replaying);
     if (next) setCaptions(true);
   }, []);
@@ -1468,6 +1686,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     }
     const sinkElement = mediaSinkRef.current?.sink?.element;
     if (sinkElement && await applySinkIdToElement(sinkElement, deviceId)) applied = true;
+    const engineElement = mediaElementRef.current?.element;
+    if (engineElement && await applySinkIdToElement(engineElement, deviceId)) applied = true;
     const ctx = playCtxRef.current;
     if (audioContextSetSinkIdSupported(ctx)) {
       try { await (ctx as unknown as { setSinkId: (id: string) => Promise<void> }).setSinkId(deviceId); applied = true; } catch { /* best effort */ }
@@ -1673,6 +1893,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       // activation is fresh, so her voice can play through the audio
       // element (hardware media volume) from the first chunk.
       mediaOutputNode(playCtx);
+      // Prime the media-element engine in the same gesture, so its
+      // element is unlocked and ready before the first chunk lands
+      // (chunks route to the sink graph until it reports ready).
+      ensureMediaElement();
       playTimeRef.current = 0;
       const playResume = warm ? Promise.resolve() : playCtx.resume();
       const micCtx = preview || warm ? null : new AudioContext({ sampleRate: 16000 });
@@ -1871,6 +2095,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         if (generation !== generationRef.current) return;
         liveRef.current = true;
         sessionRecoveringRef.current = false;
+        // Reconnect-stamp fix (2026-11-14): EVERY parent session —
+        // first connect and every reconnect/resume alike — stamps
+        // its playout route at go-live, and the first-chunk stamp
+        // re-arms for the new session.
+        diagChunkStampRef.current = false;
+        if (!preview && !warm) stampPlayoutDiag();
         // Arm the opening mic gate: silence frames until her first turn completes.
         openingGateRef.current = true;
         openingGateSinceRef.current = performance.now();

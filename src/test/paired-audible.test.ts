@@ -5,7 +5,7 @@
 // audible schedule on the local path, the caption window on the
 // stream path, never both, never neither for a paired chunk.
 import { describe, expect, it } from "vitest";
-import { resolvePairedAudibleMode } from "@/lib/pairedAudible";
+import { resolveHeardEngine, resolvePairedAudibleMode } from "@/lib/pairedAudible";
 import { pairedCaptionDelaySec, voiceChunkStartAt, PAIRED_CAPTION_DELAY_SEC } from "@/lib/avatarAudioTransition";
 
 describe("resolvePairedAudibleMode", () => {
@@ -61,5 +61,24 @@ describe("pairedCaptionDelaySec — the caption shift exists only on the stream 
   it("non-paired chunks never shift in either mode", () => {
     expect(pairedCaptionDelaySec(false, "stream")).toBe(0);
     expect(pairedCaptionDelaySec(false, "local")).toBe(0);
+  });
+});
+
+describe("resolveHeardEngine — the local path's heard engine (volume-speaker fix)", () => {
+  it("defaults to the media-element engine", () => {
+    expect(resolveHeardEngine("", null)).toBe("element");
+    expect(resolveHeardEngine(null, null)).toBe("element");
+    expect(resolveHeardEngine(undefined, undefined)).toBe("element");
+  });
+
+  it("?heardEngine=sink restores the Publish #48 media-sink graph and wins over storage", () => {
+    expect(resolveHeardEngine("?heardEngine=sink", "element")).toBe("sink");
+    expect(resolveHeardEngine("?heardEngine=element", "sink")).toBe("element");
+    expect(resolveHeardEngine("?demo=1&heardEngine=sink", null)).toBe("sink");
+  });
+
+  it("the stored preference applies when the URL is silent; bogus values fall through", () => {
+    expect(resolveHeardEngine("", "sink")).toBe("sink");
+    expect(resolveHeardEngine("?heardEngine=bogus", "bogus")).toBe("element");
   });
 });
