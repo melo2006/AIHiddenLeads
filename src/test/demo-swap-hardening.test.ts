@@ -51,11 +51,17 @@ describe('A — gemini-session greeting gating (source pins)', () => {
     expect(src).toContain('TEAM_INTRO_TEACHING');
   });
 
-  test('personaSwapEnabled is still stamped on swapEnabled alone', () => {
-    // Frank batch (2026-11-13): the one documented exception — a
-    // presenter-stamped parent (config.demoPresenter) never arms the
-    // swap, because the presenter fronts the whole demo solo.
-    expect(src).toContain('if(!b.personaSegment && swapEnabled && (b.leadId || b.prospectId) && !b.draft && !b.preview && !config.demoPresenter) config.personaSwapEnabled=true;');
+  test('personaSwapEnabled is stamped on swapEnabled alone — presenter parents included on the lead path', () => {
+    // Frank batch (2026-11-13) withheld the stamp from presenter
+    // parents (the presenter fronts the whole demo solo) — but her
+    // prompt kept the close's MEET ALEX beat, so she narrated a
+    // handoff nothing executed (Ron's Latina test, 2026-11-14).
+    // Alex handoff fix: a presenter parent earns the stamp on the
+    // LEAD path (the client derives the same presenter there and
+    // runs the meet-alex-only presenter chain); a prospect-path
+    // presenter parent still earns nothing, because the client
+    // cannot name its presenter.
+    expect(src).toContain('if(!b.personaSegment && swapEnabled && (b.leadId || b.prospectId) && !b.draft && !b.preview && (!config.demoPresenter || b.leadId)) config.personaSwapEnabled=true;');
   });
 
   test('the verification-pending (code gate) path is untouched', () => {

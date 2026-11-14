@@ -4,7 +4,7 @@
 // matcher, the swap-recap builder, the atomic cut-over gate, and the drop
 // bookkeeping shared by the planned-swap and unplanned-reconnect paths.
 // GeminiConversation owns the effects; this module owns the decisions.
-import type { PersonaBoundary, PersonaId } from '../../supabase/functions/_shared/personas';
+import { PERSONAS, type PersonaBoundary, type PersonaId } from '../../supabase/functions/_shared/personas';
 import {
   ALEX_HAND_BACK_ANCHORS,
   BOUNDARY_ANCHORS,
@@ -26,6 +26,18 @@ export type SwapPhase =
 export interface SwapState {
   phase: SwapPhase;
   persona: PersonaId;
+  /** PRESENTER CHAIN (Alex handoff fix, 2026-11-14): set ONLY on a
+   *  whole-demo presenter chain (Frank / Latina / Black Professional
+   *  Lady fronting an example demo) — the presenter persona the chain
+   *  belongs to. While set, boundaryForAssistantLine runs the
+   *  presenter rule set INSTEAD of the standard one: the presenter
+   *  fronts the demo solo, so the doorway/step-out/summon anchors in
+   *  her solo script (her own "stepping into simulation mode"
+   *  announcement above all) must NEVER arm a Sara/Aspen swap — the
+   *  only live boundaries are meet-alex (visitor intent, or her
+   *  scripted handoff line itself) and Alex's return, which lands
+   *  back on the presenter. Absent/null on every standard chain. */
+  presenter?: PersonaId | null;
   /** Segment authorizations so far (0 = the parent session itself). */
   segment: number;
   /** Boundaries already armed (pre-staging fired) — arming is one-shot. */
@@ -220,6 +232,19 @@ export const BOUNDARY_TARGET: Record<PersonaBoundary, PersonaId> = {
  *  plan/pricing/booking topics (the B3 return swap). */
 export const RETURN_ANCHORS = ALEX_HAND_BACK_ANCHORS;
 
+/** The persona a boundary's incoming segment must be FOR THIS CHAIN:
+ *  BOUNDARY_TARGET, except that on a presenter chain Alex's 'return'
+ *  lands back on the PRESENTER (her face, voice and name), never on
+ *  stock Aspen. Every other boundary targets the same persona in
+ *  both worlds. Used wherever the target drives something real —
+ *  the segment authorization, the "Connecting…" label, the fallback
+ *  line; pure diagnostics keep BOUNDARY_TARGET (the server diag
+ *  schema's persona enum predates the presenter personas). */
+export function boundaryTargetFor(state: SwapState, boundary: PersonaBoundary): PersonaId {
+  if (boundary === 'return' && state.presenter) return state.presenter;
+  return BOUNDARY_TARGET[boundary];
+}
+
 const normalize = (text: string) => text.toLowerCase().replace(/[’‘]/g, "'").replace(/\s+/g, ' ');
 
 /**
@@ -230,9 +255,62 @@ const normalize = (text: string) => text.toLowerCase().replace(/[’‘]/g, "'")
  * are full phrases). One-shot per boundary, enforced by the caller via
  * state.done/state.armed.
  */
+/** The PERFORMATIVE half of the scripted Alex handoff lines — the
+ *  phrases that only occur when the presenter is actually performing
+ *  the introduction (the host rule's "This is Alex — our onboarding
+ *  engineer. Alex — say hello." and the close beat 4b line, which
+ *  carries both). Deliberately NOT the loose 'this is alex' anchor:
+ *  a topic mention ("this is Alex's area") matches none of these, so
+ *  an announcement can arm the swap without topic chatter ever doing
+ *  so. Shared by the presenter gate and the standard host-phase rule
+ *  below (Alex handoff fix, 2026-11-14). */
+export const MEET_ALEX_STRONG_ANCHORS = [
+  'alex — say hello', 'alex - say hello',
+  'this is alex — our onboarding engineer', 'this is alex - our onboarding engineer',
+];
+
+/** Alex's hand-back phrases on a PRESENTER chain, keyed by presenter —
+ *  the distinctive middle of the example line his presenter-parent
+ *  guest prompt teaches him (presenterAlexGuestPrompt in
+ *  _shared/personas.ts; keep the two in step). The Black Professional
+ *  Lady's display name is a working label, not a spoken name, so her
+ *  chain hands back to "your host". */
+export const PRESENTER_HAND_BACK_ANCHORS: Partial<Record<PersonaId, string[]>> = {
+  frank: ['bring frank back'],
+  latina: ['bring latina back'],
+  'black-professional-lady': ['bring your host back', 'bring our host back'],
+};
+
 export function boundaryForAssistantLine(text: string, state: SwapState): PersonaBoundary | null {
   const line = normalize(text);
   if (!line) return null;
+  // PRESENTER CHAIN (Alex handoff fix, 2026-11-14): a whole-demo
+  // presenter fronts her demo SOLO — her script is the legacy
+  // whole-demo prompt, whose doorway/step-out/summon anchors are
+  // lines she speaks HERSELF in role (her own "stepping into
+  // simulation mode" announcement above all). None of them may arm a
+  // swap here: there is no Sara segment in a presenter demo. The only
+  // live boundaries are meet-alex — armed by the visitor's intent
+  // (pendingAlex) or by her scripted handoff line itself (the strong
+  // anchors) — and Alex's return, which lands back on her. Ron's
+  // 2026-11-14 Latina test is the failure this gate exists for: she
+  // spoke the handoff line verbatim, and on the standard rules (had
+  // the chain even been armed) nothing in 'host' phase could match.
+  if (state.presenter) {
+    if (state.phase === 'alex-guest') {
+      // His taught hand-back line names the PRESENTER (the server
+      // builds his guest prompt that way for a presenter parent —
+      // presenterAlexGuestPrompt); the stock Aspen anchor stays as a
+      // fallback in case he reaches for her name anyway.
+      if (BOUNDARY_ANCHORS.return.some(a => line.includes(normalize(a)))) return 'return';
+      if ((PRESENTER_HAND_BACK_ANCHORS[state.presenter] ?? []).some(a => line.includes(a))) return 'return';
+    }
+    if ((state.phase === 'host' || state.phase === 'close') && !state.done.includes('meet-alex')) {
+      if (state.pendingAlex) return 'meet-alex';
+      if (MEET_ALEX_STRONG_ANCHORS.some(a => line.includes(normalize(a)))) return 'meet-alex';
+    }
+    return null;
+  }
   // Visitor-armed meet-alex (2026-11-09): the visitor asked for Alex /
   // setup help / a staff meeting (state.pendingAlex, set by
   // noteAlexIntent from a VISITOR line), so Aspen's next line IS the
@@ -243,6 +321,17 @@ export function boundaryForAssistantLine(text: string, state: SwapState): Person
   // Scoped to host/close only: in simulation the flag rides the
   // step-out instead, and the intro family never sees it.
   if ((state.phase === 'host' || state.phase === 'close') && state.pendingAlex && !state.done.includes('meet-alex')) return 'meet-alex';
+  // Scripted-announcement binding (Alex handoff fix, 2026-11-14): the
+  // host segment's own Alex rule orders Aspen to speak the handoff
+  // line DURING THE HOST PHASE — but the anchor path below matches
+  // meet-alex only in 'close', and the visitor-armed path above only
+  // fires when the visitor's wording hit the intent list (a plain
+  // "yes, bring him in" hits nothing). When she performs the
+  // announcement in host, the announcement itself arms the swap: the
+  // strong anchors are performative-only, so this cannot fire on
+  // topic mentions, and it beats the doorway below — a line that
+  // introduces Alex is the handoff, whatever the visitor asked for.
+  if (state.phase === 'host' && !state.done.includes('meet-alex') && MEET_ALEX_STRONG_ANCHORS.some(a => line.includes(normalize(a)))) return 'meet-alex';
   // Structural doorway (2026-11-09 hardening): the greeting turn
   // completed and the visitor engaged (state.pendingDoorway, set by
   // noteDoorwayEngagement from a VISITOR line), so Aspen's next line
@@ -466,7 +555,7 @@ export function buildSwapRecap(
     meta.businessName ? `Business being demonstrated: ${meta.businessName}.` : '',
     meta.visitorName ? `The visitor is ${meta.visitorName}.` : '',
     ...(meta.facts.length ? meta.facts.map(f => `Facts established: ${f}.`) : []),
-    `You are now ${incoming === 'sara' ? 'Sara, the receptionist in the simulation' : incoming === 'alex' ? 'Alex, the onboarding engineer' : 'Aspen from AI Hidden Leads'}.`,
+    `You are now ${incoming === 'sara' ? 'Sara, the receptionist in the simulation' : incoming === 'alex' ? 'Alex, the onboarding engineer' : `${PERSONAS[incoming].displayName} from AI Hidden Leads`}.`,
   ].filter(Boolean).join(' ');
   // Handoff divider rows are transcript chrome, not conversation: they
   // never enter the recap the incoming persona reads.

@@ -295,9 +295,9 @@ Deno.serve(async (req) => {
           const opening = openingText({
             preview,
             opening: config.opening,
-            personaSwap: (config.personaSwap ?? null) as { to: 'aspen' | 'sara' | 'alex'; boundary: 'doorway' | 'stepout' | 'meet-alex' | 'return' } | null,
-            personaDrop: (config.personaDrop ?? null) as { persona: 'aspen' | 'sara' | 'alex'; drops: number } | null,
-            personaResume: (config.personaResume ?? null) as { persona: 'aspen' | 'sara' | 'alex' } | null,
+            personaSwap: (config.personaSwap ?? null) as { to: 'aspen' | 'sara' | 'alex' | 'frank' | 'latina' | 'black-professional-lady'; boundary: 'doorway' | 'stepout' | 'meet-alex' | 'return' } | null,
+            personaDrop: (config.personaDrop ?? null) as { persona: 'aspen' | 'sara' | 'alex' | 'frank' | 'latina' | 'black-professional-lady'; drops: number } | null,
+            personaResume: (config.personaResume ?? null) as { persona: 'aspen' | 'sara' | 'alex' | 'frank' | 'latina' | 'black-professional-lady' } | null,
             resumeContext: config.resumeContext,
             segmentGreeting: config.segmentGreeting,
             businessName: config.businessName,
