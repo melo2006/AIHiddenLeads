@@ -13,7 +13,7 @@
 // This module is dependency-injected (fetcher / sleep / clock) so vitest can
 // pin the body shape and the 429 behaviour without network or Deno.
 
-import { CONSENT_REPORT_READBACK_SCRIPT } from "./consent-scan-probe.ts";
+import { CONSENT_EVIDENCE_READBACK_SCRIPT, CONSENT_REPORT_READBACK_SCRIPT } from "./consent-scan-probe.ts";
 
 export const FIRECRAWL_V2_BASE = 'https://api.firecrawl.dev/v2';
 
@@ -44,11 +44,14 @@ export function buildFirecrawlScreenshotBody(
  * in-page observer, so the trailing wait gives late banners time to appear
  * and be refused; Firecrawl captures the formats after actions complete.
  *
- * The final action reads the dismissal's live report back so the scan
+ * The final actions read the dismissal's evidence back so the scan
  * can RECORD whether a banner was present (see
- * _shared/consent-scan-probe.ts, Publish #49 follow-up): it lands in
- * the response's actions.javascriptReturns when the tier returns
- * action values, and is silently absent when it does not.
+ * _shared/consent-scan-probe.ts, Publish #49 follow-up + the witness
+ * repair): the report read-back lands in the response's
+ * actions.javascriptReturns when the tier returns action values, and
+ * the combined evidence read-back adds the independent text/CMP
+ * witness evaluated at read-back time. Both are silently absent on
+ * tiers that discard action values.
  */
 export function buildCookieConsentDismissalActions(script: string): Array<Record<string, unknown>> {
   return [
@@ -56,6 +59,7 @@ export function buildCookieConsentDismissalActions(script: string): Array<Record
     { type: 'executeJavascript', script },
     { type: 'wait', milliseconds: 2500 },
     { type: 'executeJavascript', script: CONSENT_REPORT_READBACK_SCRIPT },
+    { type: 'executeJavascript', script: CONSENT_EVIDENCE_READBACK_SCRIPT },
   ];
 }
 
