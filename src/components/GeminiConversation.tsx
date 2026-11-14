@@ -594,6 +594,47 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     return mediaPlaybackNode(ctx, entry.sink);
   };
 
+  // Round 5 stranded-speech drain: when the media-element engine
+  // fails fatally, it hands back the PCM chunks it had accepted
+  // but never played (drainPendingPcm). They are replayed here
+  // through the sink graph — one shared gain, so the session's
+  // mute/volume controls keep governing them — chained in order
+  // on the shared schedule clock, so live chunks queue behind
+  // the drained speech instead of overlapping it. (During a
+  // stall the schedule clock stays near now — chunks chain at
+  // their arrival time — so the drain starts essentially
+  // immediately, not after a stall-sized silence.) The flip
+  // delays this speech; it never drops it.
+  const playDrainedSamples = (chunks: Int16Array[]): void => {
+    if (chunks.length === 0) return;
+    if (!playCtxRef.current) {
+      playCtxRef.current = new AudioContext({ sampleRate: 24000 });
+      playTimeRef.current = 0;
+    }
+    const ctx = playCtxRef.current;
+    if (ctx.state === "suspended" && !captureRef.current.paused) void ctx.resume().catch(() => { /* the graph branch reports a stuck context on the next live chunk */ });
+    const gain = ctx.createGain();
+    gain.gain.value = effectivePlaybackLevel(speakerMutedRef.current, playbackVolumeRef.current);
+    speakerGainRef.current = gain;
+    gain.connect(mediaOutputNode(ctx));
+    let at = Math.max(ctx.currentTime + 0.02, playTimeRef.current);
+    for (const samples of chunks) {
+      const floats = new Float32Array(samples.length);
+      for (let i = 0; i < samples.length; i++) floats[i] = samples[i] / 32768;
+      const buffer = ctx.createBuffer(1, floats.length, 24000);
+      buffer.getChannelData(0).set(floats);
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(gain);
+      sourcesRef.current.add(source);
+      source.onended = () => { sourcesRef.current.delete(source); };
+      source.start(at);
+      at += buffer.duration;
+    }
+    playTimeRef.current = at;
+    setAspenSpeaking(true);
+  };
+
   // Media-element engine lifecycle (volume-speaker fix): created
   // lazily at the first local chunk, started asynchronously. Until
   // it reports ready — and forever on platforms without the APIs —
@@ -623,6 +664,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       // The heard terminal changed materially — re-stamp the route.
       stampPlayoutDiag();
       drainEngineHold();
+      // Round 5: speech the engine accepted but never played is
+      // replayed through the sink graph, in order — the flip
+      // delays it, it does not drop it. (Start failures drain
+      // empty: nothing was ever accepted.)
+      playDrainedSamples(mediaElementRef.current?.drainPendingPcm() ?? []);
     });
     mediaElementRef.current = engine;
     void engine.start().then((ok) => {
@@ -741,6 +787,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       engineState: heardEngine() !== 'element' ? 'off' : mediaElementStateRef.current,
       engineFailure: mediaElementFailureRef.current ?? engine?.failureReason ?? null,
       encoderRate: engine?.encoderRate ?? null,
+      // Round 5: the engine's stall counters ride every terminal
+      // shape — after a flip, the sink terminal's stamp still
+      // shows how many stalls preceded it and how many were
+      // recovered in place before it.
+      stalls: engine?.stallCount,
+      recoveries: engine?.recoveryCount,
     };
     if (engine && mediaElementStateRef.current === 'ready' && !engine.failed) {
       const state = engine.diagState();

@@ -65,6 +65,54 @@
  * Every failure also records its reason on the instance
  * (failureReason) and the caller stamps it (efail=) — a start that
  * cannot succeed must say why in the session record, never vanish.
+ *
+ * ROUND 5 (playout round 5, 2026-11-14 — the Publish #52 phone
+ * test): round 4's engine ENGAGED on the phone (eng=ready,
+ * erate=24000, hardware keys working in stretches) but the heard
+ * voice still cut in and out, and one session's second stamp
+ * showed the engine dead — efail=element-stalled — with the
+ * session flipped back to the MediaStream sink. The stall
+ * watchdog could only amputate: it waited for 2.4 s of continuous
+ * freeze, then failed the engine and silently discarded every
+ * chunk the engine had accepted but not yet played. The code
+ * explains both field shapes:
+ *  - Timeline HOLES. Clusters carry absolute timestamps, and a
+ *    hole appears whenever the appended timeline is discontinuous
+ *    (a flush whose buffer remove was skipped while the buffer
+ *    was updating, a seam the platform demuxes short) — MSE does
+ *    not cross a hole: the playhead parks at the end of the
+ *    earlier range with playable media beyond it. That is the
+ *    element-stalled signature exactly.
+ *  - Live-edge UNDERRUN. The trail gate meters ENCODED audio
+ *    (fedEndSec), not BUFFERED audio, and the local trail target
+ *    (0.1 s) is thinner than the encode→append pipeline delay —
+ *    so the element's true cushion hovers at zero and playback
+ *    drip-feeds: underrun, wait, resume in bursts. Each burst is
+ *    shorter than the old watchdog's continuous-freeze window,
+ *    so the record read eng=ready while the owner heard holes.
+ * Round 5 therefore RECOVERS in place instead of amputating:
+ *  - A stall monitor on the existing 40 ms pump opens an episode
+ *    after ~320 ms of frozen playhead with unplayed audio on
+ *    hand, and works a recovery ladder: force both pumps (a
+ *    wedged append queue is the cheapest stall), re-request
+ *    play(), GAP-JUMP a parked playhead to the next buffered
+ *    range, and REBUFFER an underrun — hold the element while
+ *    the pumps rebuild a 0.35 s cushion (the trail gate is
+ *    temporarily raised to the cushion inside an episode), then
+ *    resume once, cleanly, instead of burst by burst.
+ *  - Played media is trimmed on the pump (5 s kept behind the
+ *    playhead), so the SourceBuffer stays small and the
+ *    platform's own eviction cannot manufacture holes near the
+ *    playhead late in a long session.
+ *  - Only an episode that survives ~6 s of recovery fails the
+ *    engine — with round 4's reason string, so records stay
+ *    comparable — and fail() first hands every accepted-but-
+ *    unplayed PCM chunk back (drainPendingPcm), in order, so
+ *    the caller's flip to the fallback REPLAYS that speech
+ *    instead of stranding it.
+ *  - The diag gains stalls=/rec= counters (episodes opened /
+ *    recovered in place), so the next field test proves whether
+ *    stalls still occur and whether recovery worked.
  */
 import { clampPlaybackVolume } from "@/lib/playbackVolume";
 import { opusHead, webmOpusCluster, webmOpusInitSegment } from "@/lib/webmOpusMux";
@@ -79,6 +127,36 @@ export const MEDIA_ELEMENT_PIPELINE_SEC = 0.15;
 export const MEDIA_ELEMENT_INPUT_RATE = 24000;
 
 const MSE_TYPE = 'audio/webm; codecs="opus"';
+
+/* Round 5 stall-recovery tuning. The pump ticks every 40 ms;
+ * counts are in ticks so the behaviour is deterministic under
+ * test timers. */
+/** Frozen playhead (with unplayed audio on hand) that opens a
+ *  stall episode: ~320 ms — long enough to ignore jitter, short
+ *  enough to catch the burst stalls the old 2.4 s watchdog
+ *  never saw. */
+const STALL_OPEN_TICKS = 8;
+/** Recovery actions re-apply on this cadence inside an episode. */
+const STALL_ACTION_TICKS = 15; // ~600 ms
+/** An episode surviving this long despite recovery is an honest
+ *  engine failure (round 4's watchdog used ~2.4 s and could only
+ *  fail; recovery earns a longer leash). */
+const STALL_FAIL_TICKS = 150; // ~6 s
+/** Buffered-ahead cushion an underrun rebuffer rebuilds before
+ *  resuming — comfortably above the pipeline delay that made
+ *  the un-cushioned element drip-feed. */
+const REBUFFER_TARGET_SEC = 0.35;
+/** Longest a rebuffer may hold speech before resuming with
+ *  whatever has landed. */
+const REBUFFER_MAX_TICKS = 62; // ~2.5 s
+/** Buffer hygiene: trim played media on this cadence, keeping
+ *  TRIM_BEHIND_SEC behind the playhead, once the playhead is
+ *  past TRIM_MIN_PLAYHEAD_SEC — the buffer stays small enough
+ *  that platform eviction never picks the ranges near the
+ *  playhead. */
+const TRIM_EVERY_TICKS = 62;
+const TRIM_BEHIND_SEC = 5;
+const TRIM_MIN_PLAYHEAD_SEC = 12;
 
 /** A WebCodecs Opus encoder configuration (round 4: the probe
  *  walks OPUS_ENCODER_RATES and the winner is kept, so the config
@@ -280,9 +358,37 @@ export class MediaElementPlayout {
    *  encoded before a flush — whose encoder has been replaced —
    *  is discarded when it surfaces, never played late. */
   private encoderSession = 0;
-  /** Stall watchdog: the playhead position/tick at last check. */
+  /** Round 5 stall accounting, stamped into the playout diag
+   *  (stalls=/rec=): episodes opened, and episodes recovered in
+   *  place without a terminal flip. A field test can now prove
+   *  "stalls still happen but recovery works" apart from "no
+   *  stalls at all" — the two states round 4's record could not
+   *  distinguish. */
+  stallCount = 0;
+  recoveryCount = 0;
+  /** Stall monitor: pump ticks since start, the playhead at the
+   *  last tick, and how many consecutive ticks it has sat frozen
+   *  with unplayed audio on hand. */
+  private tickCount = 0;
   private lastPlayheadSec = -1;
-  private stalledTicks = 0;
+  private frozenTicks = 0;
+  /** The open stall episode, if any: when it opened, the
+   *  playhead it froze at, and how many recovery actions have
+   *  been applied (and when the last one was). */
+  private episode: { startTick: number; frozenPlayhead: number; actions: number; lastActionTick: number } | null = null;
+  /** Rebuffer state (round 5): while an underrun episode rebuilds
+   *  its cushion the element is held paused by the engine itself
+   *  (wantPlaying is untouched — this is not a user pause). */
+  private rebuffering = false;
+  private rebufferTicks = 0;
+  /** Last gap-jump seek target: playhead movement only counts as
+   *  recovery once it passes the position the engine seeked to —
+   *  the seek itself is not the playhead recovering. */
+  private lastSeekTargetSec = -1;
+  /** PCM accepted but never played, captured by fail() for the
+   *  caller to replay on the fallback (drainPendingPcm). */
+  private pendingDrain: Int16Array[] = [];
+  private lastTrimTick = 0;
   private holdQueue: HeldChunk[] = [];
   private pumpTimer: ReturnType<typeof setInterval> | null = null;
   private appendQueue: Uint8Array[] = [];
@@ -350,8 +456,9 @@ export class MediaElementPlayout {
       // exactly the phones this engine exists for. The element
       // starts audibly when the first cluster lands;
       // enqueuePcm16 retries play() while it sits paused, and
-      // the stall watchdog fails the engine if the playhead
-      // never advances under load.
+      // the round-5 stall monitor recovers — or, at the limit,
+      // honestly fails — an engine whose playhead never advances
+      // under load.
       void this.tryPlay();
       this.ready = true;
       this.element.addEventListener("error", () => {
@@ -403,6 +510,18 @@ export class MediaElementPlayout {
       this.failed = true;
       this.ready = false;
       this.failureReason = reason;
+      // Round 5: hand the caller every accepted-but-unplayed PCM
+      // chunk, in order, BEFORE the fatal callback fires, so the
+      // terminal flip replays that speech on the fallback instead
+      // of stranding it (the caller had already counted it as
+      // heard). The held PCM is where a stall actually piles
+      // speech up — the trail gate stops encoding while the
+      // playhead is parked. Encoded-but-unappended clusters
+      // cannot be turned back into PCM here; the append pump
+      // keeps that queue at a cluster or two.
+      this.pendingDrain = this.holdQueue.map((held) => held.samples);
+      this.holdQueue = [];
+      this.closeEpisode(false);
       try {
         this.onFatal(reason);
       } catch {
@@ -412,16 +531,30 @@ export class MediaElementPlayout {
     return false;
   }
 
+  /** Round 5: the PCM chunks fail() captured — accepted by the
+   *  engine but never played, in the order they were accepted.
+   *  Drains once; empty when nothing was stranded (including the
+   *  common start-failure shapes, where nothing was accepted). */
+  drainPendingPcm(): Int16Array[] {
+    const out = this.pendingDrain;
+    this.pendingDrain = [];
+    return out;
+  }
+
   private async tryPlay(): Promise<void> {
-    if (!this.wantPlaying || this.disposed) return;
+    // While a rebuffer is rebuilding its cushion the element is
+    // held on purpose: a play() here would resume into the same
+    // drip-feed the rebuffer exists to end. The rebuffer's own
+    // completion calls tryPlay after clearing the flag.
+    if (!this.wantPlaying || this.disposed || this.rebuffering) return;
     try {
       await this.element.play();
     } catch {
       /* Autoplay refusal: the next enqueue retries play() while
          the element sits paused, and setPaused(false) retries on
          resume — a rejected play() never fails the engine by
-         itself; only the stall watchdog (fed but never advancing)
-         does. */
+         itself; only the stall monitor (fed but never advancing,
+         and unrecoverable) does. */
     }
   }
 
@@ -448,32 +581,246 @@ export class MediaElementPlayout {
     if (this.pumpTimer !== null) return;
     this.pumpTimer = setInterval(() => {
       if (this.disposed || this.failed) return;
+      this.tickCount += 1;
       this.pumpHold();
-      this.watchdog();
+      this.stallMonitor();
+      this.trimPlayedBuffer();
     }, 40);
   }
 
-  /** If the element stops advancing while audible audio is fed and
-   *  waiting, the engine has failed in a way no event reported:
-   *  hand the session back to the fallback rather than swallowing
-   *  chunks the caller believes were accepted. User pause and an
-   *  empty trail are not stalls. */
-  private watchdog(): void {
-    if (!this.ready || !this.wantPlaying) {
-      this.stalledTicks = 0;
-      return;
+  /** Buffered ranges of the SourceBuffer, read defensively: an
+   *  unreadable TimeRanges reads as no ranges (the monitor then
+   *  treats the stall as a feed problem, not a gap). */
+  private bufferedRanges(): Array<[number, number]> {
+    const out: Array<[number, number]> = [];
+    try {
+      const buffered = this.sourceBuffer?.buffered;
+      if (!buffered) return out;
+      for (let i = 0; i < buffered.length; i++) out.push([buffered.start(i), buffered.end(i)]);
+    } catch {
+      /* platform quirk — no ranges */
     }
+    return out;
+  }
+
+  /** Is there speech the visitor has not heard yet? Held PCM,
+   *  encoded clusters awaiting append, a buffered range running
+   *  past the playhead, or a fed timeline meaningfully ahead of
+   *  it. Silence between utterances (playhead caught up with
+   *  everything fed) is NOT a stall — this is the check that
+   *  keeps a quiet call from ever opening an episode. The fed
+   *  clause carries a wide tolerance on purpose: it is the
+   *  weakest signal (encoder frame rounding can leave the
+   *  playhead a few frames short of the fed end at an
+   *  utterance's tail); ranges and queues are the precise ones. */
+  private hasUnplayedAudio(playhead: number): boolean {
+    if (this.holdQueue.length > 0 || this.appendQueue.length > 0) return true;
+    if (this.fedEndSec - playhead > 0.3) return true;
+    return this.bufferedRanges().some(([, end]) => end > playhead + 0.05);
+  }
+
+  /** Close the open episode, if any. A recovery is counted only
+   *  when the episode ends because the playhead moved again —
+   *  never when it ends because the user paused, a flush reset
+   *  the timeline, or the engine failed anyway. */
+  private closeEpisode(recovered: boolean): void {
+    if (!this.episode) return;
+    if (recovered && this.episode.actions > 0) this.recoveryCount += 1;
+    this.episode = null;
+    this.rebuffering = false;
+    this.rebufferTicks = 0;
+    this.lastSeekTargetSec = -1;
+  }
+
+  /**
+   * Round 5 stall monitor — replaces the round-4 watchdog, which
+   * could only fail the engine (after 2.4 s of continuous freeze,
+   * a window burst stalls never filled). The monitor watches the
+   * playhead on the pump: frozen while unplayed audio is on hand
+   * for ~320 ms opens an EPISODE, and the episode works the
+   * recovery ladder (recoverFromStall) until the playhead moves
+   * under its own power again. Only an episode that survives
+   * ~6 s of recovery fails the engine — with round 4's reason
+   * string, so session records stay comparable — and fail()
+   * drains the stranded PCM to the caller first.
+   */
+  private stallMonitor(): void {
     const playhead = this.element.currentTime;
-    if (playhead !== this.lastPlayheadSec) {
-      this.lastPlayheadSec = playhead;
-      this.stalledTicks = 0;
+    const advanced = playhead - this.lastPlayheadSec;
+    this.lastPlayheadSec = playhead;
+    if (!this.ready || !this.wantPlaying || this.disposed || this.failed) {
+      // Not running, or the user paused: no episode may be open.
+      this.frozenTicks = 0;
+      this.closeEpisode(false);
       return;
     }
-    if (this.fedEndSec - playhead > 0.5 && this.element.readyState < 3) {
-      this.stalledTicks += 1;
-      if (this.stalledTicks > 60) this.fail("element-stalled");
-    } else {
-      this.stalledTicks = 0;
+    if (this.episode) {
+      // Recovery is proven by the playhead moving on its OWN:
+      // past where the freeze began, and past any position the
+      // engine seeked it to (the seek itself is not recovery).
+      const movedOnItsOwn =
+        playhead > this.episode.frozenPlayhead + 0.05 && playhead > this.lastSeekTargetSec + 0.02;
+      if (movedOnItsOwn && advanced > 0.0005) {
+        this.closeEpisode(true);
+        this.frozenTicks = 0;
+        return;
+      }
+      if (this.tickCount - this.episode.startTick > STALL_FAIL_TICKS) {
+        this.fail("element-stalled");
+        return;
+      }
+      if (this.tickCount - this.episode.lastActionTick >= STALL_ACTION_TICKS) {
+        this.episode.lastActionTick = this.tickCount;
+        this.episode.actions += 1;
+        this.recoverFromStall(playhead);
+      }
+      if (this.rebuffering) this.rebufferTick(playhead);
+      return;
+    }
+    if (advanced > 0.001) {
+      this.frozenTicks = 0;
+      return;
+    }
+    if (!this.hasUnplayedAudio(playhead)) {
+      this.frozenTicks = 0;
+      return;
+    }
+    this.frozenTicks += 1;
+    if (this.frozenTicks >= STALL_OPEN_TICKS) {
+      this.episode = {
+        startTick: this.tickCount,
+        frozenPlayhead: playhead,
+        actions: 1,
+        lastActionTick: this.tickCount,
+      };
+      this.stallCount += 1;
+      this.recoverFromStall(playhead);
+    }
+  }
+
+  /** One recovery pass for the open episode. Ordered cheapest
+   *  first; each pass re-derives the stall's shape from the
+   *  current ranges, because the previous pass may have changed
+   *  it (an append landed, a seek moved the playhead). */
+  private recoverFromStall(playhead: number): void {
+    // 1. Feed: a wedged append pump or a starved encoder is the
+    //    cheapest stall there is — force both pumps before
+    //    touching the playhead.
+    this.pumpHold();
+    this.pumpAppends();
+    const ranges = this.bufferedRanges();
+    const containing = ranges.find(([start, end]) => playhead >= start - 0.02 && playhead <= end + 0.02);
+    const nextRange = ranges.find(([start]) => start > playhead + 0.03);
+    // 2. Gap jump: the playhead is parked at (or about to reach)
+    //    the end of its range with playable media beyond a hole.
+    //    MSE never crosses a hole by itself — the element waits
+    //    at the gap forever — so seek to just inside the next
+    //    range. At most a breath of range-tail is skipped; the
+    //    alternative is the whole utterance.
+    if (nextRange && (!containing || containing[1] - playhead < 0.03)) {
+      const target = nextRange[0] + 0.01;
+      try {
+        this.element.currentTime = target;
+      } catch {
+        /* a refused seek leaves the episode to its next pass */
+      }
+      this.lastSeekTargetSec = target;
+      this.lastPlayheadSec = target;
+      if (this.element.paused) void this.tryPlay();
+      return;
+    }
+    const bufferedAhead = containing ? containing[1] - playhead : 0;
+    // 3. Underrun: the playhead is at the end of the playable
+    //    media with speech still behind the pipeline (held,
+    //    encoding, or awaiting append). Rebuffer — hold the
+    //    element while the pumps rebuild a cushion — instead of
+    //    resuming into the same drip-feed that burst the audio
+    //    apart in the first place.
+    const backlog =
+      this.holdQueue.length > 0 ||
+      this.appendQueue.length > 0 ||
+      this.fedEndSec - playhead > bufferedAhead + 0.05;
+    if ((!containing || bufferedAhead < REBUFFER_TARGET_SEC) && backlog) {
+      this.beginRebuffer();
+      return;
+    }
+    // 4. Playable media surrounds the playhead yet it sits
+    //    frozen: the element dropped its playing state without
+    //    an event anyone heard. Re-request play.
+    if (this.element.paused) void this.tryPlay();
+  }
+
+  private beginRebuffer(): void {
+    if (this.rebuffering) return;
+    this.rebuffering = true;
+    this.rebufferTicks = 0;
+    try {
+      this.element.pause();
+    } catch {
+      /* ignore */
+    }
+  }
+
+  /** Per-tick rebuffer bookkeeping while an episode holds the
+   *  element: keep the pumps forced, and resume — once — when
+   *  the cushion is rebuilt, when the backlog has fully landed
+   *  (an utterance's tail may never reach the cushion size), or
+   *  when the hold has run long enough that waiting longer costs
+   *  more than it buys. */
+  private rebufferTick(playhead: number): void {
+    this.rebufferTicks += 1;
+    this.pumpHold();
+    this.pumpAppends();
+    const ranges = this.bufferedRanges();
+    const containing = ranges.find(([start, end]) => playhead >= start - 0.02 && playhead <= end + 0.02);
+    const ahead = containing ? containing[1] - playhead : 0;
+    // Drained means NOTHING is still in transit — including the
+    // append currently in flight, which has already left the
+    // queue (that in-flight append is usually the very audio the
+    // rebuffer is waiting for).
+    const backlogDrained = this.holdQueue.length === 0 && this.appendQueue.length === 0 && !this.appending;
+    if (ahead < REBUFFER_TARGET_SEC && !backlogDrained && this.rebufferTicks <= REBUFFER_MAX_TICKS) return;
+    this.rebuffering = false;
+    this.rebufferTicks = 0;
+    // If everything landed beyond a hole, resume inside the
+    // next range rather than at the parked playhead.
+    if (!containing) {
+      const nextRange = ranges.find(([start]) => start > playhead);
+      if (nextRange) {
+        const target = nextRange[0] + 0.01;
+        try {
+          this.element.currentTime = target;
+        } catch {
+          /* ignore */
+        }
+        this.lastSeekTargetSec = target;
+        this.lastPlayheadSec = target;
+      }
+    }
+    void this.tryPlay();
+  }
+
+  /** Buffer hygiene (round 5): drop media the playhead has
+   *  passed, keeping a few seconds behind it. Without this the
+   *  SourceBuffer grows for the whole session, and the
+   *  platform's MSE eviction — which picks what to drop under
+   *  memory pressure — can take ranges near the playhead and
+   *  manufacture a hole mid-session. Never mid-episode, never
+   *  while an append is in flight or queued. */
+  private trimPlayedBuffer(): void {
+    if (this.tickCount - this.lastTrimTick < TRIM_EVERY_TICKS) return;
+    this.lastTrimTick = this.tickCount;
+    if (this.episode || this.disposed || this.failed) return;
+    const buffer = this.sourceBuffer;
+    if (!buffer || buffer.updating || this.appending || this.appendQueue.length > 0) return;
+    const playhead = this.element.currentTime;
+    if (playhead < TRIM_MIN_PLAYHEAD_SEC) return;
+    const ranges = this.bufferedRanges();
+    if (ranges.length === 0 || ranges[0][0] >= playhead - TRIM_BEHIND_SEC) return;
+    try {
+      buffer.remove(0, playhead - TRIM_BEHIND_SEC);
+    } catch {
+      /* best-effort hygiene; a refused trim retries next cadence */
     }
   }
 
@@ -486,7 +833,16 @@ export class MediaElementPlayout {
       // always releases (an empty stream must start), and a chunk
       // is atomic — the trail may overshoot the target by one
       // chunk's duration, then the next chunk waits it out.
-      if (this.fedEndSec > 0 && this.trailSec() > next.trailTargetSec) break;
+      // Round 5: inside a stall episode the gate is raised to the
+      // rebuffer cushion — the episode exists because the element
+      // ran dry, and recovery must be able to rebuild headroom
+      // past the (thinner) steady-state target. Outside episodes
+      // the gate is exactly the round-4 behaviour, so the trail —
+      // and with it the +0.4 s lip offset — is unchanged.
+      const gateTarget = this.episode
+        ? Math.max(next.trailTargetSec, REBUFFER_TARGET_SEC)
+        : next.trailTargetSec;
+      if (this.fedEndSec > 0 && this.trailSec() > gateTarget) break;
       this.holdQueue.shift();
       // Encode at the ladder's winning rate (round 4): at the
       // 48 kHz rung the 24 kHz input is upsampled ×2 first, so the
@@ -593,6 +949,11 @@ export class MediaElementPlayout {
   setPaused(paused: boolean): void {
     this.wantPlaying = !paused;
     if (paused) {
+      // A user pause ends any stall episode WITHOUT counting a
+      // recovery: the playhead is frozen on purpose now, and the
+      // rebuffer hold (the engine's own pause) is released too.
+      this.closeEpisode(false);
+      this.frozenTicks = 0;
       try {
         this.element.pause();
       } catch {
@@ -613,6 +974,10 @@ export class MediaElementPlayout {
    *  must not pretend. */
   flush(): void {
     if (this.disposed || this.failed) return;
+    // The timeline is re-anchored below; any open stall episode
+    // described the OLD timeline, so it closes uncounted.
+    this.closeEpisode(false);
+    this.frozenTicks = 0;
     this.holdQueue = [];
     this.appendQueue = [];
     const buffer = this.sourceBuffer;
@@ -639,25 +1004,24 @@ export class MediaElementPlayout {
   }
 
   private bufferedEnd(): number {
-    try {
-      const buffered = this.sourceBuffer?.buffered;
-      if (!buffered || buffered.length === 0) return this.element.currentTime;
-      return buffered.end(buffered.length - 1);
-    } catch {
-      return this.element.currentTime;
-    }
+    const ranges = this.bufferedRanges();
+    return ranges.length === 0 ? this.element.currentTime : ranges[ranges.length - 1][1];
   }
 
   /** Playout-diag state: the terminal sink IS this element.
    *  Round 4 adds the element's own muted/volume — the record
    *  must prove the terminal is a decoded-media element, unmuted,
-   *  at the visitor's slider level. */
-  diagState(): { paused: boolean; readyState: number; muted: boolean; volume: number } {
+   *  at the visitor's slider level. Round 5 adds the stall
+   *  counters (stalls=/rec=): episodes opened and episodes
+   *  recovered in place over the engine's lifetime. */
+  diagState(): { paused: boolean; readyState: number; muted: boolean; volume: number; stalls: number; recoveries: number } {
     return {
       paused: this.element.paused,
       readyState: this.element.readyState,
       muted: this.element.muted,
       volume: this.element.volume,
+      stalls: this.stallCount,
+      recoveries: this.recoveryCount,
     };
   }
 
@@ -670,6 +1034,8 @@ export class MediaElementPlayout {
     }
     this.holdQueue = [];
     this.appendQueue = [];
+    this.pendingDrain = [];
+    this.closeEpisode(false);
     try {
       this.encoder?.close();
     } catch {
