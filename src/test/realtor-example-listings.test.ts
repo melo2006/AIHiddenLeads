@@ -147,11 +147,15 @@ describe("example listings stamp — predicate and layer", () => {
     expect(script).toContain("exactly one listing, feature that one");
     // The showing close, verbatim.
     expect(script).toContain("What day suits you?");
-    // The not-my-listing branch: the honest line and both offers, with
-    // the {agentName} placeholder the layer substitutes per pack.
+    // The not-my-listing branch: the honest line survives ONLY for a
+    // specific named property, with the {agentName} placeholder the
+    // layer substitutes per pack. The old path-one demand — "Give me
+    // the exact address" — was the 2026-11-14 defect and is gone:
+    // a criteria searcher is captured on criteria + callback number
+    // instead (pinned in detail by the no-match describe below).
     expect(script).toContain("not among {agentName}'s listings");
-    expect(script).toContain("Give me the exact address");
-    expect(script).toContain("will search it and call you back");
+    expect(script).not.toContain("Give me the exact address");
+    expect(script).toContain("will search for them and call them back");
     // Ron's transfer narration line, verbatim.
     expect(script).toContain(
       "In a real call I'd whisper a summary and transfer you to {agentName} right now — this is a simulation, so let me take your name and number instead",
@@ -183,6 +187,100 @@ describe("example listings stamp — predicate and layer", () => {
     expect(
       occurrences(String(config.systemPrompt), "EXAMPLE LISTINGS LAYER"),
     ).toBe(1);
+  });
+});
+
+describe("listings no-match behavior (2026-11-14, Ron's Frank/Martinez retest)", () => {
+  const script = REALTOR_EXAMPLE_SIMULATION_SCRIPT;
+  const section = (from: string, to: string) =>
+    script.slice(script.indexOf(from), script.indexOf(to));
+  const collect = section(
+    "COLLECT THE CRITERIA BEFORE YOU ANSWER",
+    "THE LISTING MOMENT",
+  );
+  const criteriaNoMatch = section(
+    "NO MATCH FOR THEIR CRITERIA",
+    "NOT ONE OF OURS",
+  );
+  const notOurs = section("NOT ONE OF OURS", "SELLERS:");
+  const sellers = section("SELLERS:", "THE DEMO-GUIDE INVITE");
+
+  it("collects piecemeal criteria BEFORE answering — no yes-then-flip", () => {
+    // The collect rule sits between the preference question and the
+    // listing moment, so the ordering is structural, not a suggestion.
+    expect(script.indexOf("COLLECT THE CRITERIA BEFORE YOU ANSWER")).toBeGreaterThan(
+      script.indexOf("ASK WHAT THEY'RE LOOKING FOR"),
+    );
+    expect(script.indexOf("COLLECT THE CRITERIA BEFORE YOU ANSWER")).toBeLessThan(
+      script.indexOf("THE LISTING MOMENT"),
+    );
+    expect(collect).toContain("piece by piece");
+    expect(collect).toContain('NEVER begin a "yes, we have');
+    expect(collect).toContain("Answer ONCE");
+  });
+
+  it("criteria no-match is worded about the criteria, never a phantom property", () => {
+    expect(criteriaNoMatch).toContain("SEARCHING BY CRITERIA");
+    expect(criteriaNoMatch).toContain(
+      "don't have a match for that among {agentName}'s current listings",
+    );
+    // The defect line framed the visitor as having named a property.
+    expect(criteriaNoMatch).toContain('there is no "that one"');
+    expect(criteriaNoMatch).not.toContain(
+      "That one's not among {agentName}'s listings",
+    );
+  });
+
+  it("never demands an exact address from a searching buyer", () => {
+    expect(script).not.toContain("Give me the exact address");
+    expect(criteriaNoMatch).toContain("never ask a searching visitor");
+    expect(notOurs).toContain("never DEMAND the exact address");
+    // The honest not-ours line survives ONLY in the named-property branch.
+    expect(notOurs).toContain(
+      "\"That one's not among {agentName}'s listings.\"",
+    );
+  });
+
+  it("criteria no-match captures the criteria and a callback number", () => {
+    expect(criteriaNoMatch).toContain(
+      "the area, the beds and baths, the budget",
+    );
+    expect(criteriaNoMatch).toContain(
+      "{agentName} will search for them and call them back",
+    );
+    expect(criteriaNoMatch).toContain("best callback number");
+    expect(criteriaNoMatch).toContain("if you do not already have them");
+  });
+
+  it("the address ask belongs ONLY to the seller path", () => {
+    expect(sellers).toContain("ONLY place the address ask belongs");
+    expect(sellers).toContain(
+      "address of the property they want to sell",
+    );
+    expect(sellers).toContain("never turn a seller away for location");
+  });
+
+  it("the built layer carries the same split for the pack's agent", () => {
+    const pack = examplePackForSiteUrl(
+      "https://michaelmartinezrealtor.com/",
+    )!;
+    const layer = buildExampleListingsLayer(pack);
+    expect(layer).toContain(
+      "no current match for those criteria among Michael Martinez's listings",
+    );
+    expect(layer).toContain(
+      "never ask a searching visitor for an exact address",
+    );
+    expect(layer).toContain(
+      "never demand the exact address from a buyer",
+    );
+    expect(layer).not.toContain("take the exact address");
+    // The presenter variant carries it too (Frank fronts Martinez).
+    const presenterLayer = buildExampleListingsLayer(pack, {
+      presenter: true,
+    });
+    expect(presenterLayer).toContain("NO MATCH FOR THEIR CRITERIA");
+    expect(presenterLayer).not.toContain("Give me the exact address");
   });
 });
 

@@ -109,11 +109,16 @@ describe('1b — simulated layer: the caller is captured in role', () => {
     const layer = buildExampleListingsLayer(REALTOR_EXAMPLE_PACKS[0]);
     expect(layer).toContain("take the caller's name and best callback number");
     expect(layer).toContain('never asked twice');
-    // Preference-first / feature-first rules intact; the owner-locked
-    // quoted script itself is unchanged by this batch.
+    // Preference-first / feature-first rules intact. The script DID
+    // stay untouched by the close-capture batch; Ron's 2026-11-14
+    // no-match fix (his live Frank/Martinez retest) later directed
+    // the script's no-match branches themselves to capture a callback
+    // number, so the phrase now legitimately appears there — pinned
+    // in detail by the no-match describe in
+    // realtor-example-listings.test.ts.
     expect(layer).toContain('ask ONE preference question');
     expect(layer).toContain('FEATURE-FIRST');
-    expect(REALTOR_EXAMPLE_SIMULATION_SCRIPT).not.toContain('best callback number');
+    expect(REALTOR_EXAMPLE_SIMULATION_SCRIPT).toContain('best callback number');
   });
 
   test("Sara's doorway segment carries the capture block", () => {
