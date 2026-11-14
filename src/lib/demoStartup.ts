@@ -74,3 +74,28 @@ export const SCREENSHOT_LOAD_TIMEOUT_MS = 12000;
  * screenshot or the scan-content preview.
  */
 export const LIVE_VIEW_LOAD_TIMEOUT_MS = 15000;
+
+/**
+ * Hard terminal guarantee for PINNED example demos (Publish #43
+ * regression round 2, 2026-11-14). A pinned demo's stored scan
+ * content is a complete preview by itself, so its reveal must never
+ * depend on a chain of sequential waits — iframe-embed check, then a
+ * multi-megabyte screenshot download, then a third-party iframe load
+ * event, then an 8s rescue timer. On a slow network, or in a browser
+ * tab whose timers are throttled, that chain stretched past three
+ * minutes on the Frank pinned demos while the scan content sat
+ * rendered behind the curtain (Aurelia's lead escaped only because
+ * her chain happened to settle through the fallback state).
+ *
+ * Two mechanisms enforce the guarantee in DemoSite:
+ *  1. Stored-content reveal: the moment a pinned lead's record has
+ *     merged and carries scan content, the demo reveals on that
+ *     content on EVERY preview path (inline iframe included) —
+ *     richer previews still take over when they arrive.
+ *  2. This deadline: if a pinned demo still has not revealed 15s
+ *     after mount, every preview gate is force-settled (iframe
+ *     counts as blocked, screenshot and live view count as failed)
+ *     and the stored record is pulled once more, so the curtain
+ *     cannot outlive the deadline once content exists.
+ */
+export const PINNED_REVEAL_DEADLINE_MS = 15000;

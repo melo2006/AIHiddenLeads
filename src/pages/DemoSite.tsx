@@ -16,7 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { preloadVoiceIdentity } from "@/lib/voicePreload";
 import { linkCampaignLead } from "@/lib/campaignTracking";
-import { isCapturedCopyPreview, shouldHoldLoadingOverlay, shouldStartRemotePreview, SCREENSHOT_LOAD_TIMEOUT_MS, LIVE_VIEW_LOAD_TIMEOUT_MS } from "@/lib/demoStartup";
+import { isCapturedCopyPreview, shouldHoldLoadingOverlay, shouldStartRemotePreview, SCREENSHOT_LOAD_TIMEOUT_MS, LIVE_VIEW_LOAD_TIMEOUT_MS, PINNED_REVEAL_DEADLINE_MS } from "@/lib/demoStartup";
 import { pinnedExampleSeedForLeadId } from "@/lib/pinnedExampleSeed";
 import DemoVerificationGate from "@/components/landing/demo-results/DemoVerificationGate";
 import DemoReassuranceStrip from "@/components/landing/DemoReassuranceStrip";
@@ -315,6 +315,13 @@ const DemoSite = () => {
   const [hasScreenshotFailed, setHasScreenshotFailed] = useState(false);
   const liveViewSessionRef = useRef<string | null>(null);
   const startedScanLeadRef = useRef<string | null>(null);
+  // Pinned-reveal deadline (Publish #43 regression round 2): mirrors
+  // the derived reveal state so the one-shot deadline timer below can
+  // read it at fire time without depending on render-scope values.
+  const previewRevealedRef = useRef(false);
+  const iframeLoadedRef = useRef(false);
+  const pinnedDeadlineRef = useRef<string | null>(null);
+  const pinnedDeadlineTimerRef = useRef<number | null>(null);
   const [prospectOwner, setProspectOwner] = useState<{name?: string; email?: string; phone?: string} | null>(null);
   const [showTestOverride, setShowTestOverride] = useState(false);
   const [testPhoneOverride, setTestPhoneOverride] = useState(() => {
@@ -899,6 +906,58 @@ const DemoSite = () => {
     return () => window.clearTimeout(timer);
   }, [liveViewUrl, hasLiveViewLoaded, liveViewFailed]);
 
+  // HARD REVEAL DEADLINE for pinned examples (Publish #43 regression
+  // round 2, 2026-11-14): armed ONCE per pinned lead, shortly after
+  // mount. If the demo still has not revealed when it fires, every
+  // preview gate is force-settled — the iframe counts as blocked,
+  // the screenshot and the live view count as failed — and the
+  // stored record is pulled once more in case the first fetch is
+  // the thing that hung. Combined with the stored-content reveal in
+  // the derived state below, a pinned demo whose record exists
+  // cannot sit behind the building curtain past this deadline, no
+  // matter how the scan, the live-view provider, the target site's
+  // iframe, or the voice warm-up behave. The timer deliberately has
+  // no cleanup on dep changes (a record merge re-runs this effect
+  // and must not disarm it); it is cleared on unmount only.
+  useEffect(() => {
+    if (!isPinnedExample) return;
+    const key = leadIdParam || leadData?.leadId;
+    if (!key || pinnedDeadlineRef.current === key) return;
+    pinnedDeadlineRef.current = key;
+    pinnedDeadlineTimerRef.current = window.setTimeout(() => {
+      if (previewRevealedRef.current) return;
+      setIsIframeCheckPending(false);
+      setIsScanning(false);
+      if (!iframeLoadedRef.current) {
+        setIframeBlocked(true);
+        setIframeFailureMode("blocked");
+      }
+      setHasScreenshotFailed(true);
+      setLiveViewFailed(true);
+      setIsLiveViewLoading(false);
+      void (supabase as any)
+        .rpc("get_demo_lead", { _lead_id: key })
+        .maybeSingle()
+        .then(({ data, error }: { data: DemoLeadRecord | null; error: unknown }) => {
+          if (!error && data) {
+            setLeadData((current) => (current ? mergeLeadRecordIntoDemoData(data, current) : current));
+          }
+        })
+        .catch(() => {
+          // The stored-content reveal fires when any fetch lands;
+          // a failed deadline refetch changes nothing on screen.
+        });
+    }, PINNED_REVEAL_DEADLINE_MS);
+  }, [isPinnedExample, leadIdParam, leadData?.leadId]);
+
+  useEffect(() => {
+    return () => {
+      if (pinnedDeadlineTimerRef.current) {
+        window.clearTimeout(pinnedDeadlineTimerRef.current);
+      }
+    };
+  }, []);
+
   useEffect(() => {
     setHasIframeLoaded(false);
   }, [resolvedIframeUrl]);
@@ -1037,6 +1096,11 @@ const DemoSite = () => {
   // weekly example refresh landing mid-visit) must never re-raise the
   // curtain or unmount the widget — both were the Saperstein flash.
   const shouldHoldScanningState = isScanning && !isPinnedExample;
+  const hasGeneratedPreviewData = Boolean(
+    (leadData.websiteContent && leadData.websiteContent.trim().length > 40) ||
+    (leadData.description && leadData.description.trim().length > 24) ||
+    (leadData.title && leadData.title.trim().length > 3),
+  );
   // PINNED FALLBACK REVEAL (Publish #42 regression, 2026-11-14): a
   // pinned example's stored scan content is a real preview the moment
   // the record has merged — the demo must reveal on it rather than
@@ -1048,26 +1112,47 @@ const DemoSite = () => {
   const pinnedFallbackReady =
     isPinnedExample &&
     (requiresBrowserFallback || isWebsiteUnreachable) &&
+    hasGeneratedPreviewData;
+  // PINNED STORED-CONTENT REVEAL (Publish #43 regression round 2,
+  // 2026-11-14): the round-1 fallback reveal above only armed AFTER
+  // the demo entered a fallback state — which itself waits on the
+  // iframe-embed check or the 8s slow-iframe rescue timer. For an
+  // EMBEDDABLE pinned site (both Frank demos' chain in the live
+  // re-verify), the reveal stayed chained to the target iframe's
+  // load event or a multi-megabyte screenshot download: on a slow
+  // network, or in a tab whose timers are throttled, the curtain
+  // outlived three minutes with the scan content already rendered
+  // behind it. A pinned example's stored content is a complete
+  // preview on EVERY path, so once the record has merged the demo
+  // reveals on it immediately; the iframe, screenshot and live view
+  // still take over when they arrive.
+  //
+  // The content test deliberately reads ONLY the record-sourced
+  // fields (websiteContent / description): the pinned seed's title
+  // is the business name, present from the first frame, so the
+  // title arm of hasGeneratedPreviewData would make this fire
+  // before the stored record has actually arrived.
+  const pinnedStoredContentReady =
+    isPinnedExample &&
     Boolean(
       (leadData.websiteContent && leadData.websiteContent.trim().length > 40) ||
-      (leadData.description && leadData.description.trim().length > 24) ||
-      (leadData.title && leadData.title.trim().length > 3),
+      (leadData.description && leadData.description.trim().length > 24),
     );
   const isPreviewLoading =
     shouldHoldScanningState ||
-    isInlinePreviewLoading ||
+    (isInlinePreviewLoading && !pinnedStoredContentReady) ||
     (requiresBrowserFallback && !liveViewFailed && !isStaticPreviewReady && !isLivePreviewReady && !pinnedFallbackReady);
   const isPreviewAvailable =
     (!requiresBrowserFallback && !isWebsiteUnreachable && hasIframeLoaded) ||
     isLivePreviewReady ||
     isStaticPreviewReady;
-  const hasGeneratedPreviewData = Boolean(
-    (leadData.websiteContent && leadData.websiteContent.trim().length > 40) ||
-    (leadData.description && leadData.description.trim().length > 24) ||
-    (leadData.title && leadData.title.trim().length > 3),
-  );
-  const isScanPreviewReady = !isScanning && !isPreviewAvailable && hasGeneratedPreviewData;
+  const isScanPreviewReady =
+    (!isScanning || pinnedStoredContentReady) && !isPreviewAvailable && hasGeneratedPreviewData;
   const hasAnyPreview = !isPreviewLoading && (isPreviewAvailable || isScanPreviewReady);
+  // Mirrors for the pinned reveal deadline (declared with the hooks
+  // above, which cannot read these render-scope values at fire time).
+  previewRevealedRef.current = hasAnyPreview;
+  iframeLoadedRef.current = hasIframeLoaded;
   const isScanFailed = !isScanning && !hasGeneratedPreviewData && !isPreviewAvailable && !isPreviewLoading;
 
   return (
