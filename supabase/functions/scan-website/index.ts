@@ -546,7 +546,7 @@ async function browserlessScreenshotSingle(
 
     // The stored object name follows the actual bytes: a desktop capture
     // that had to be JPEG-capped lands as .jpg (see capScreenshotBytes).
-    const capped = capScreenshotBytes(buffer);
+    const capped = await capScreenshotBytes(buffer);
     const uploadBytes = capped.bytes;
     const uploadType = capped.type;
     if (capped.wasConverted) {

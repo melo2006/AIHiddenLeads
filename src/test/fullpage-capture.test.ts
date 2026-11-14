@@ -77,6 +77,45 @@ describe("full-page capture (scan-website)", () => {
   });
 });
 
+describe("Browserless cap await (…-tablet.undefined / 0-byte upload regression, 2026-11-14)", () => {
+  // capScreenshotBytes is async (it wraps the async capScreenshotBytesWith).
+  // The Browserless upload path once read .extension/.bytes/.type off the
+  // UN-AWAITED call, so every field was undefined: uploads landed as
+  // "<leadId>-tablet.undefined" / "<leadId>-mobile.undefined", 0 bytes,
+  // served as text/plain — the broken screenshot_tablet/screenshot_mobile
+  // variants on the pinned example leads. The rehost path (via the injected
+  // capBytes dep) always awaited correctly; only this caller missed it.
+  it("the cap helper really is async, so its result must be awaited", () => {
+    expect(scanSource).toContain("export async function capScreenshotBytesWith(");
+    expect(scanSource).toContain("const capScreenshotBytes = (buffer: ArrayBuffer, apiKey?: string | null) =>");
+  });
+
+  it("the Browserless capture path awaits the cap before reading its fields", () => {
+    expect(scanSource).toContain("const capped = await capScreenshotBytes(buffer);");
+    expect(scanSource).not.toContain("const capped = capScreenshotBytes(buffer);");
+  });
+
+  it("EVERY call site of capScreenshotBytes in the function is awaited", () => {
+    // Matches call sites only: the definition is `const capScreenshotBytes =`
+    // (no paren) and capScreenshotBytesWith( has "With" before the paren.
+    const callSites = [...scanSource.matchAll(/capScreenshotBytes\(/g)];
+    expect(callSites.length).toBeGreaterThan(0);
+    for (const site of callSites) {
+      const before = scanSource.slice(Math.max(0, (site.index ?? 0) - 6), site.index);
+      expect(before).toBe("await ");
+    }
+  });
+
+  it("the awaited result is what reaches the storage upload (name, body, type)", () => {
+    expect(scanSource).toContain("const uploadBytes = capped.bytes;");
+    expect(scanSource).toContain("const uploadType = capped.type;");
+    expect(scanSource).toContain("`${leadId}-${viewport.suffix}.${capped.extension}`");
+    // The capped result only ever carries a real image extension.
+    expect(scanSource).toContain("extension: 'png'");
+    expect(scanSource).toContain("extension: 'jpg'");
+  });
+});
+
 // A PNG whose size betrays a solid-color frame. Mirrors the pure helper's
 // construction in scan-website (signature + IHDR + filler under budget).
 const makePng = (width: number, height: number, totalBytes: number): Uint8Array => {
