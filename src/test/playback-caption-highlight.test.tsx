@@ -2,24 +2,27 @@ import { render } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import PlaybackCaption from '@/components/PlaybackCaption';
 
-// The highlight is a two-word window (CAPTION_HIGHLIGHT_WORDS): positions are
-// estimates, so the current word and the next one light up together and the
-// heard word stays inside the highlight when the estimate is off by one.
+// The highlight is the WHOLE segment currently being spoken, as one block:
+// word positions are only playback-clock estimates, so a moving word window
+// visibly sat on the wrong words. A segment block is either fully lit (while
+// it is spoken) or not lit at all (the panel's stopped state).
 const lit = (view: ReturnType<typeof render>) =>
   Array.from(view.getByLabelText('Live playback captions').querySelectorAll('span'))
     .map(s => s.className.includes('bg-primary'));
 
-describe('caption highlight window', () => {
-  it('highlights the current word and the next one together', () => {
-    const view = render(<PlaybackCaption caption={{ text: 'One two three four', word: 1, highlightEnd: 3 }} />);
-    expect(lit(view)).toEqual([false, true, true, false]);
+describe('caption segment highlight', () => {
+  it('highlights every word of the segment being spoken', () => {
+    const view = render(<PlaybackCaption caption={{ text: 'One two three four', speaking: true }} />);
+    expect(lit(view)).toEqual([true, true, true, true]);
   });
-  it('highlights only the final word at the end of a run', () => {
-    const view = render(<PlaybackCaption caption={{ text: 'One two three four', word: 3, highlightEnd: 4 }} />);
-    expect(lit(view)).toEqual([false, false, false, true]);
+  it('moves the whole block to the next segment', () => {
+    const view = render(<PlaybackCaption caption={{ text: 'First response', speaking: true }} />);
+    expect(lit(view)).toEqual([true, true]);
+    view.rerender(<PlaybackCaption caption={{ text: 'Next response here', speaking: true }} />);
+    expect(lit(view)).toEqual([true, true, true]);
   });
-  it('highlights nothing when the panel marks playback stopped (word -1)', () => {
-    const view = render(<PlaybackCaption caption={{ text: 'One two three four', word: -1, highlightEnd: 3 }} />);
+  it('highlights nothing when the panel marks playback stopped', () => {
+    const view = render(<PlaybackCaption caption={{ text: 'One two three four', speaking: false }} />);
     expect(lit(view)).toEqual([false, false, false, false]);
   });
 });
