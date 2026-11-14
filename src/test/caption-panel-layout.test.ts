@@ -89,7 +89,7 @@ describe("caption panel — manager transfer is a compact pill in the Voice/Type
   });
 
   it("the pill is rendered in the toggle row, NOT in the voice-controls row (it wrapped onto its own row on phones there)", () => {
-    const rowStart = conversation.indexOf('className="voice-controls flex flex-nowrap');
+    const rowStart = conversation.indexOf('className="voice-controls flex w-full min-w-0 flex-nowrap');
     // Scalone batch Item 8: the transport row is now the extracted
     // transportControls element (defined just above the landscape row
     // that also embeds it) — slice only that definition.
@@ -129,7 +129,7 @@ describe("caption panel — manager transfer is a compact pill in the Voice/Type
     expect(conversation.indexOf('data-testid="aspen-focus-dock"')).toBeLessThan(conversation.indexOf("{windowControls}", conversation.indexOf('data-testid="aspen-focus-dock"')));
     // Scalone batch Item 8b: the slot renders the combined
     // toggle+transport row in wide landscape, the toggle row otherwise.
-    const toggleRow = conversation.indexOf("{faceFirst && (wideLandscape ? landscapeControlRow : toggleManagerRow)}");
+    const toggleRow = conversation.indexOf("{wideLandscape ? landscapeControlRow : toggleManagerRow}");
     const header = conversation.indexOf('<div className="flex items-center gap-1.5">');
     // Portrait first, then the panel; inside the panel: window controls,
     // then the toggle row, then the status header — nothing between the

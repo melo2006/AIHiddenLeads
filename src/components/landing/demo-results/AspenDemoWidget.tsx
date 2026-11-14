@@ -11,7 +11,29 @@ import { matchingAspenVideo } from '@/lib/aspenFace';
 import { PersonPortrait } from '@/components/FloatingPersonFrame';
 import { PERSONAS } from '../../../../supabase/functions/_shared/personas';
 import { presenterForExampleLeadId } from '@/data/realtorExamplePinnedLeads';
+import { examplePackForSiteUrl } from '@/data/realtorExampleListings';
 import { presenterPortraitImage } from '@/lib/simliFaceCatalog';
+
+/** Presenter chat knowledge (2026-11-14): the typed chat on a pinned
+ *  example demo gets the example's listings pack as a compact digest —
+ *  the same client-canonical pack gemini-session stamps into the VOICE
+ *  session server-side (parity-tested copies). Without it the typed
+ *  chat knew only the bare website scan while the voice demo led with
+ *  the listings. Returns undefined when the demo site has no pack. */
+function presenterChatKnowledge(websiteUrl: string | undefined): string | undefined {
+  const pack = websiteUrl ? examplePackForSiteUrl(websiteUrl) : null;
+  if (!pack) return undefined;
+  const lines = pack.listings.slice(0, 8).map((listing) => {
+    const specs = [
+      listing.beds ? `${listing.beds} bed` : null,
+      listing.baths ? `${listing.baths} bath` : null,
+      listing.sqft ? `${listing.sqft.toLocaleString('en-US')} sq ft` : null,
+      listing.price ? `$${listing.price.toLocaleString('en-US')}` : null,
+    ].filter(Boolean).join(', ');
+    return `- ${listing.descriptor}${specs ? ` (${specs})` : ''} — ${listing.tagline}`;
+  });
+  return lines.length ? lines.join('\n') : undefined;
+}
 
 /** A presenter's still portrait: the catalogue image keyed by the
  *  persona registry's own portraitFaceId (Frank batch pattern —
@@ -67,6 +89,7 @@ function AspenDemoWidgetContent({ voiceRequested = false, onClosed, onAssistantR
   const presenter = sample ? presenterForExampleLeadId(chatProps.leadId) : null;
   const presenterName = presenter ? PERSONAS[presenter].displayName : undefined;
   const presenterPortrait = presenter ? presenterPortraitFor(presenter) : undefined;
+  const presenterKnowledge = presenter ? presenterChatKnowledge(chatProps.websiteUrl) : undefined;
   // Stage 3 (minimized while talking): the frame's slim bar drives the live
   // Gemini session through its shell command surface.
   const stage3: Stage3Controls | undefined = mode === 'voice' && shellState && (shellState.live || shellState.suspended) ? {
@@ -82,7 +105,7 @@ function AspenDemoWidgetContent({ voiceRequested = false, onClosed, onAssistantR
     onReplay: () => shellControlsRef.current?.replay(),
   } : undefined;
   return <DraggableFloating initialX={12} initialY={window.innerHeight - 90} anchorRight anchorBottom resetKey={expanded ? 'open' : 'closed'} dragHandlePlacement={expanded ? 'chest' : minimized ? 'top' : 'below'}>
-    <FloatingPersonFrame name={presenterName} avatarUrl={presenterPortrait} open={expanded} minimized={minimized} mode={mode} onOpen={() => { setHasOpened(true); setMinimized(false); setOpen(true); }} onMinimize={minimize} onClose={close} onMode={next => { setMode(next); if (next === 'chat') setChatVisited(true); }} keepRendered={prewarm} stage3={stage3} inviteArrival={!!invite} focus={shellState?.focus ?? false}>
+    <FloatingPersonFrame name={presenterName} avatarUrl={presenterPortrait} open={expanded} minimized={minimized} mode={mode} onOpen={() => { setHasOpened(true); setMinimized(false); setOpen(true); }} onMinimize={minimize} onClose={close} onMode={next => { setMode(next); if (next === 'chat') setChatVisited(true); }} keepRendered={prewarm} stage3={stage3} inviteArrival={!!invite} focus={mode === 'voice' ? (shellState?.focus ?? false) : false}>
       {mounted && mode === 'voice' && <>
         {gateWaiting && <div className="aspen-panel flex flex-col items-center gap-2 px-4 py-3 text-center" role="status">
           <div className="h-20 w-20 overflow-hidden rounded-full border border-primary/50">
@@ -95,7 +118,7 @@ function AspenDemoWidgetContent({ voiceRequested = false, onClosed, onAssistantR
           <GeminiConversation compact faceFirst avatarInline autoStart={expanded} consentOnOpen={expanded} prewarm={prewarm} onPrewarmed={() => onAssistantReady?.()} leadId={chatProps.leadId} prospectId={chatProps.prospectId} name={presenterName} avatarUrl={presenterPortrait} visitorName={chatProps.callerName} onRecommendedPlan={setRecommendedPlan} videoAvatar={matchingAspenVideo(videoAvatar)} verification={verification} invite={invite} sample={sample} onUserTranscript={onUserTranscript} shellControlsRef={shellControlsRef} onShellState={setShellState} belowAvatar={<AspenModeToggle mode={mode} onMode={next => { setMode(next); if (next === 'chat') setChatVisited(true); }} />} windowControls={<AspenWindowControls onMinimize={minimize} onClose={close} />} />
         </div>
       </>}
-      {chatVisited && <div className={mode === 'chat' ? 'aspen-panel min-h-80 overflow-hidden rounded-lg border border-border bg-card' : 'hidden'}><div className="aspen-chat-content"><ChatWidget {...chatProps} presenterName={presenterName} embedded active={expanded && mode === 'chat'} /></div></div>}
+      {chatVisited && <div className={mode === 'chat' ? 'aspen-panel min-h-80 overflow-hidden rounded-lg border border-border bg-card' : 'hidden'}><div className="aspen-chat-content"><ChatWidget {...chatProps} presenterName={presenterName} presenterKnowledge={presenterKnowledge} embedded active={expanded && mode === 'chat'} /></div></div>}
       <div className="aspen-sales-actions"><AspenSalesActions plan={recommendedPlan} /></div>
     </FloatingPersonFrame>
   </DraggableFloating>;

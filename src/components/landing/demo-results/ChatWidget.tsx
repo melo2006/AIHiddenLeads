@@ -30,6 +30,14 @@ interface ChatWidgetProps {
    *  or him instead of Aspen. Undefined on every Aspen surface, where
    *  all strings render exactly as before. */
   presenterName?: string;
+  /** Presenter demo only: extra demo knowledge for the chat brain —
+   *  on the pinned realtor examples, the example's listings pack
+   *  digest (the same canonical pack the voice session is stamped
+   *  with server-side), so the typed chat answers as the presenter
+   *  WITH the demo's listings, not from the bare website scan. The
+   *  demo widget builds it; every other surface leaves it undefined
+   *  and the prompt is unchanged. */
+  presenterKnowledge?: string;
 }
 
 interface Message {
@@ -54,8 +62,15 @@ const ChatWidget = ({
   embedded = false,
   active = true,
   presenterName,
+  presenterKnowledge,
 }: ChatWidgetProps) => {
   const presenterDisplayName = presenterName?.trim() || "Aspen";
+  // A named presenter means the WHOLE chat is that presenter — display
+  // strings AND the brain (sendToAI below). Before 2026-11-14 only the
+  // strings followed the presenter while the system prompt still said
+  // "You are Aspen", so a Frank demo greeted as Frank and then thought
+  // and answered as Aspen.
+  const isPresenterChat = Boolean(presenterName?.trim());
   const { t } = useTranslation();
   const [messages, setMessages] = useState<Message[]>([]);
   const [recordingAgreed,setRecordingAgreed]=useState(false);
@@ -144,8 +159,12 @@ const ChatWidget = ({
       ],
     };
 
-    return nichePrompts[businessNiche] ?? nichePrompts.general;
-  }, [businessNiche]);
+    const prompts = nichePrompts[businessNiche] ?? nichePrompts.general;
+    // Presenter demos: the starter questions name the presenter too —
+    // "What can Aspen do…" under a Frank demo was part of the same
+    // wrong-identity bug. Aspen surfaces keep the strings untouched.
+    return isPresenterChat ? prompts.map((prompt) => prompt.replace(/Aspen/g, presenterDisplayName)) : prompts;
+  }, [businessNiche, isPresenterChat, presenterDisplayName]);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -170,8 +189,24 @@ const ChatWidget = ({
   }, [businessName, callerName]);
 
   const sendToAI = async (conversationHistory: Message[]) => {
-    const systemPrompt = `You are Aspen, the AI chat assistant for ${businessName}. You are warm, witty, funny, and genuinely helpful — like a knowledgeable friend who happens to work at the business.
-
+    // Presenter brain (2026-11-14): on a presenter demo the identity
+    // line names the presenter and a PRESENTER DEMO block pins the
+    // role, so the chat thinks as Frank/Latina — the same presenter
+    // who fronts the voice demo — instead of falling back to Aspen
+    // under the presenter's name tag. Without a presenter both blocks
+    // are empty and the prompt is byte-identical to the legacy Aspen
+    // prompt every other surface has always sent.
+    const presenterBlock = isPresenterChat ? `
+PRESENTER DEMO:
+- You are ${presenterDisplayName}, the presenter fronting this demo — the same ${presenterDisplayName} who runs the voice demo on this page. Always speak as ${presenterDisplayName}; never call yourself Aspen or any other name.
+- In this typed chat you are demonstrating the business's own AI chat assistant: answer as ${businessName}'s assistant, using the business knowledge below.
+` : "";
+    const presenterKnowledgeBlock = isPresenterChat && presenterKnowledge?.trim() ? `
+CURRENT LISTINGS FOR THIS BUSINESS (the demo's listings pack — present each home by its descriptor, the way the business's own site names it; never invent listings, prices or details beyond this list and the knowledge above):
+${presenterKnowledge.trim()}
+` : "";
+    const systemPrompt = `You are ${isPresenterChat ? presenterDisplayName : "Aspen"}, the AI chat assistant for ${businessName}. You are warm, witty, funny, and genuinely helpful — like a knowledgeable friend who happens to work at the business.
+${presenterBlock}
 IMPORTANT CONTEXT:
 - Business: ${businessName}
 - Industry: ${businessNiche}
@@ -183,6 +218,7 @@ IMPORTANT CONTEXT:
 
 COMPREHENSIVE BUSINESS KNOWLEDGE (scraped from their website + web research):
 ${businessInfo?.substring(0, 8000) || "A professional business offering quality services."}
+${presenterKnowledgeBlock}
 
 PERSONALITY & STYLE:
 - Be funny, cordial, and CONVERSATIONAL — talk like a real person, not a robot.

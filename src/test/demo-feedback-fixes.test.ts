@@ -89,7 +89,7 @@ describe("demo feedback fixes (2026-11-09)", () => {
 
   it("keeps BOTH Voice/Type options fully visible in both states (Ron's Z Fold screenshots)", () => {
     // The pill carries its own opaque background — never a translucent wash.
-    expect(frame).toContain("border-border bg-card p-0.5 shadow-md");
+    expect(frame).toContain("border-border bg-card p-1 shadow-md");
     expect(frame).not.toContain("bg-muted/50");
     // The inactive segment is full-strength foreground text, never muted.
     expect(frame).not.toContain("text-muted-foreground hover:text-foreground");
