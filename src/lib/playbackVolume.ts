@@ -11,8 +11,11 @@
  * entirely (full blast, keys dead; on Bluetooth the headset's own
  * buttons worked, the phone's keys still didn't). No web API can force
  * the stream class, so the guaranteed lever is an in-app level applied
- * at BOTH playback sinks:
+ * at EVERY playback sink:
  *   - local path: the per-chunk speaker GainNode in GeminiConversation;
+ *   - media-element engine (volume-speaker fix, 2026-11-14): the
+ *     engine element's own muted/volume properties, driven through
+ *     MediaElementPlayout.setLevel from the same controls;
  *   - paired path: the Simli audio element's own volume (SimliAvatar).
  * Default is unity (1) — with the slider untouched, playback is exactly
  * as loud as it has always been, and the speaker-mute toggle still wins

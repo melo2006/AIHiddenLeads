@@ -17,6 +17,32 @@ import type { SimliAudioTrackState, SimliStreamAudioOutcome } from "@/lib/simliS
 /** Which path is producing the presenter's audible voice. */
 export type PlayoutPath = "local" | "tap" | "direct" | "none";
 
+/**
+ * The LOCAL path's terminal sink (volume-speaker fix, 2026-11-14):
+ * what the heard voice physically ends in, so the next phone test
+ * reads the route from the record instead of from assumptions.
+ *  - 'media-element': the media-element engine's element playing an
+ *    MSE media resource (no AudioContext in the heard chain).
+ *  - 'media-stream': the #48 media sink — an element rendering a
+ *    WebAudio MediaStreamDestination stream.
+ *  - 'context': the bare AudioContext destination.
+ *  - 'none': no local terminal exists (no local chunk yet).
+ */
+export type PlayoutTerminalSink = "media-element" | "media-stream" | "context" | "none";
+
+export interface PlayoutTerminalDiag {
+  sink: PlayoutTerminalSink;
+  /** The terminal element's paused state (context/none: true). */
+  paused: boolean;
+  /** The terminal element's readyState (context/none: 0). */
+  readyState: number;
+  /** True while any AudioContext node carries the heard signal. */
+  ctxInChain: boolean;
+  /** Media-element engine's buffered-ahead trail, seconds, when
+   *  the terminal is the engine; null otherwise. */
+  trailSec: number | null;
+}
+
 export interface PlayoutDiagSnapshot {
   path: PlayoutPath;
   mode: PairedAudibleMode;
@@ -38,6 +64,10 @@ export interface PlayoutDiagSnapshot {
   playoutPaused: boolean;
   /** Tap gain value while engaged, else null. */
   gain: number | null;
+  /** The local path's terminal sink (volume-speaker fix). Filled
+   *  by GeminiConversation, which owns the local terminals;
+   *  SimliAvatar snapshots leave it undefined. */
+  terminal?: PlayoutTerminalDiag;
 }
 
 /**
@@ -58,6 +88,15 @@ export function playoutDiagDetail(s: PlayoutDiagSnapshot): string {
     `out=${s.playoutPaused ? "paused" : "playing"}`,
     `gain=${s.gain === null ? "-" : s.gain}`,
   ];
+  if (s.terminal) {
+    parts.push(
+      `term=${s.terminal.sink}`,
+      `tp=${s.terminal.paused ? 1 : 0}`,
+      `trs=${s.terminal.readyState}`,
+      `ctxchain=${s.terminal.ctxInChain ? 1 : 0}`,
+      `trail=${s.terminal.trailSec === null ? "-" : s.terminal.trailSec.toFixed(2)}`,
+    );
+  }
   return parts.join(";");
 }
 
@@ -82,7 +121,15 @@ export function playoutDiagPayload(
   };
 }
 
-/** Dedupe key: identical consecutive snapshots are posted once. */
+/**
+ * Dedupe key: identical consecutive snapshots are posted once —
+ * WITHIN one session. The session id is part of the key on purpose
+ * (reconnect-stamp fix, 2026-11-14): Ron's failing 238 s session
+ * was a RECONNECT whose state matched the prior session's last
+ * stamp, and a session-blind key would have suppressed its first
+ * stamp even if one had been emitted. A new session's first stamp
+ * must always land.
+ */
 export function playoutDiagSignature(payload: PlayoutDiagPayload): string {
-  return `${payload.path}|${payload.detail}`;
+  return `${payload.sessionId}|${payload.path}|${payload.detail}`;
 }

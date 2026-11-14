@@ -75,3 +75,79 @@ describe("local-first paired playout contracts", () => {
     expect(geminiSession).toContain("if(b.playoutDiag)");
   });
 });
+
+describe("media-element heard engine contracts (volume-speaker fix, 2026-11-14)", () => {
+  it("a local chunk is offered to the media element FIRST; the sink graph is the fallback inside the same branch", () => {
+    const chunk = sliceBetween(conversation, "const playPcmChunk = useCallback", "// Interrupt: drop all queued playback instantly");
+    expect(chunk).toContain("const engine = ensureMediaElement();");
+    expect(chunk).toContain("engineRouted = engine.enqueuePcm16(samples, trailTarget);");
+    // The graph path survives verbatim behind the refusal branch.
+    expect(chunk).toContain("if (!engineRouted) {");
+    expect(chunk).toContain("spkGain.connect(mediaOutputNode(ctx))");
+    // Engine routing never applies to the stream path's silent clock
+    // or while the session is paused.
+    expect(chunk).toContain("mediaElementStateRef.current === 'ready' && !captureRef.current.paused");
+    // Simli still receives every paired chunk for lip-sync BEFORE
+    // the local routing (the send lives in the paired block above).
+    expect(chunk.indexOf("sendPcm24k(base64)")).toBeLessThan(chunk.indexOf("engine.enqueuePcm16"));
+    // The paired lip offset moves into the engine's trail target.
+    expect(chunk).toContain("PAIRED_CAPTION_DELAY_SEC - MEDIA_ELEMENT_PIPELINE_SEC");
+    // Engine chunks keep their end-of-chunk bookkeeping via timers,
+    // and the drain checks wait for BOTH routes.
+    expect(chunk).toContain("engineTimersRef.current.size === 0");
+  });
+
+  it("the speaker mute and the slider drive the media element itself (setLevel), gain path untouched", () => {
+    const apply = sliceBetween(conversation, "const applyPlaybackVolume = useCallback", "// Silence speaker");
+    expect(apply).toContain("mediaElementRef.current?.setLevel({ muted: speakerMutedRef.current, volume: level })");
+    const mute = sliceBetween(conversation, "const toggleSpeakerMute = useCallback", "// Apply a speaker-output device");
+    expect(mute).toContain("mediaElementRef.current?.setLevel({ muted: next, volume: playbackVolumeRef.current })");
+    // The #48 button semantics are unchanged: the amber/red/green
+    // controls call these same handlers (pinned in
+    // button-state-colors.test.tsx); nothing here re-colours them.
+  });
+
+  it("interrupt flushes the engine, stop disposes it, and the engine is primed in the start tap", () => {
+    const clear = sliceBetween(conversation, "const clearPlayback = useCallback", "const pauseCapture = useCallback");
+    expect(clear).toContain("mediaElementRef.current?.flush()");
+    expect(conversation).toContain("mediaElementRef.current?.dispose()");
+    // Primed inside the start tap, right after the sink priming and
+    // before the timeline reset (so the element unlocks on the tap).
+    const prime = sliceBetween(conversation, "mediaOutputNode(playCtx);", "playTimeRef.current = 0;");
+    expect(prime).toContain("ensureMediaElement();");
+  });
+
+  it("the playout diag stamps the local terminal and the capture processing mode", () => {
+    expect(conversation).toContain("terminal: localTerminalDiag()");
+    expect(conversation).toContain("cap=${captureModeStamp()}");
+    expect(conversation).toContain("applyCaptureProcessing(true)");
+    expect(conversation).toContain("applyCaptureProcessing(false)");
+  });
+
+  it("every session stamps the diag — go-live (first connect AND reconnect), first chunk, engine transitions", () => {
+    // The helper pulls the avatar handle's live snapshot when one
+    // answers (the reconnect case: the face never went away) and
+    // falls back to a local-path snapshot otherwise.
+    expect(conversation).toContain("const stampPlayoutDiag = useCallback(");
+    expect(conversation).toContain("mainSlotRef.current?.playoutSnapshot?.()");
+    expect(conversation).toContain("avatarRef.current?.playoutSnapshot?.()");
+    // goLive is the common point of first connect, reconnect and
+    // resume — the stamp lives there, not on any Simli settle point
+    // (a reconnect crosses none; Ron's 238 s reconnect session,
+    // 2026-11-14, carried no playoutDiag at all).
+    const goLive = sliceBetween(conversation, "const goLive = () => {", "openingGateRef.current = true;");
+    expect(goLive).toContain("if (!preview && !warm) stampPlayoutDiag();");
+    expect(goLive).toContain("diagChunkStampRef.current = false;");
+    // The first locally-routed chunk of a session re-stamps with the
+    // settled terminal; engine ready/fatal transitions re-stamp too.
+    const chunk = sliceBetween(conversation, "const playPcmChunk = useCallback", "// Interrupt: drop all queued playback instantly");
+    expect(chunk).toContain("diagChunkStampRef.current = true;");
+    expect(chunk).toContain("stampPlayoutDiag();");
+    expect(count(conversation, "stampPlayoutDiag();")).toBe(4);
+  });
+
+  it("the paired-mode kill switch is untouched by the engine switch", () => {
+    expect(conversation).toContain("resolveHeardEngine(window.location.search, stored)");
+    expect(count(conversation, "streamAudio={pairedAudibleMode() === 'local' ? 'muted' : 'audible'}")).toBe(3);
+  });
+});
