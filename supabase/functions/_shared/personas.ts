@@ -414,15 +414,36 @@ export function personaSegmentPrompt(
 //      back to Aspen") — the presenter steps out as himself.
 //   4. The close's follow-up seat ("Answer follow-ups as Aspen") —
 //      the presenter answers as himself.
+//   5. The receptionist segment's AI Hidden Leads beat ("BRING ASPEN
+//      BACK, LIVE") — removed entirely (presenter-owns-close,
+//      2026-11-14): in a presenter demo the platform topic is the
+//      presenter's OWN — he steps out briefly, answers plans /
+//      pricing / setup himself under the sales policy, and offers
+//      the way back into the simulation. Ron's Frank/Martinez test
+//      is the failure this rewrite exists for: Frank spoke the
+//      bring-Aspen-back line, no swap exists on a presenter chain
+//      to keep the promise, and the visitor was handed to a
+//      stranger who never arrived.
+//   6. The receptionist segment's named-person beat — the
+//      never-impersonate core stands, but its Aspen arm ("brings
+//      Aspen back IMMEDIATELY") becomes the host phase's solo
+//      answer: Aspen/Sara are colleagues, the visitor has the
+//      presenter, and a repeated ask gets the same warm answer —
+//      never a promised handoff. A person at the BUSINESS stays an
+//      in-role transfer-honesty matter.
+//   7. The close's MEET ALEX tail ("do not keep selling in Aspen's
+//      voice") — the voice that must stop selling is the
+//      presenter's own.
 // Every rewrite is a verbatim-needle replacement against the shared
 // constants; the unit tests pin each needle against the real
 // SIMULATION_PROMPT, so a future prompt edit that moves a needle
 // fails tests instead of silently shipping Sara/Aspen lines to a
 // Frank session.
 // ---------------------------------------------------------------------------
-/** The two CLOSE-segment presenter rewrites (beats 3–4 of the
+/** The CLOSE-segment presenter rewrites (beats 3, 4 and 7 of the
  *  presenter list above): the step-out line and the follow-up seat,
- *  bound to the presenter instead of Aspen. Applied to the whole
+ *  bound to the presenter instead of Aspen, and the MEET ALEX tail's
+ *  voice corrected to the presenter's own. Applied to the whole
  *  assembled prompt by presenterSimulationPrompt, and to the bare
  *  close segment by the presenter segment build below — one needle
  *  set, so the two can never drift apart. */
@@ -436,6 +457,10 @@ export function rewritePresenterCloseSegment(text: string, binding: PersonaBindi
     .replace(
       'Answer follow-ups as Aspen from AI Hidden Leads under the sales policy.',
       `Answer follow-ups as ${name} from AI Hidden Leads under the sales policy.`,
+    )
+    .replace(
+      "do not keep selling in Aspen's voice after the introduction.",
+      'do not keep selling in your own voice after the introduction.',
     );
 }
 
@@ -475,5 +500,20 @@ export function presenterSimulationPrompt(binding: PersonaBinding): string {
     .replace(
       'so do not wait for her version, soften it, or refer back to it.',
       'so do not soften it or refer back to an earlier version of it.',
+    )
+    // Beat 5 (presenter-owns-close, 2026-11-14): the receptionist
+    // segment's bring-Aspen-back beat — the presenter OWNS the AI
+    // Hidden Leads topic: plans, pricing, setup and booking are his
+    // to answer in role and in the close; no Aspen handoff exists.
+    .replace(
+      `QUESTIONS ABOUT AI HIDDEN LEADS ITSELF — NOT YOURS TO SELL; BRING ASPEN BACK, LIVE: in this simulation you are {businessName}'s receptionist — never AI Hidden Leads staff. If the visitor asks YOU about AI Hidden Leads itself — its pricing or plans, the setup or installation, how the service works — or asks for Aspen by name, do not answer as staff, never answer AS Aspen herself, do not pitch it, do not refuse, and never push scheduling a sales meeting or a 15-to-20-minute call. Bring Aspen back on the spot instead: say ONE short line containing the words "bring Aspen back" — for example: "That's one for Aspen — let me bring Aspen back for that." — and then stop talking and let her take over. Bringing Aspen back is a real handoff inside this demo that happens live, exactly like bringing in Alex: never describe it as a transfer you cannot complete, never tell the visitor to wait for a step-out, and never keep the topic yourself after the line.`,
+      `QUESTIONS ABOUT AI HIDDEN LEADS ITSELF — YOURS TO ANSWER; THERE IS NO HANDOFF TO ASPEN IN THIS DEMO: in this demonstration you are the host AND the receptionist in one — there is no second host to bring in. If the visitor asks you about AI Hidden Leads itself — its pricing or plans, the setup or installation, how the service works — that topic is YOURS: step out of the business roleplay briefly and answer it yourself, as ${binding.displayName} from AI Hidden Leads, under the sales policy — the plans, the pricing and the booking are yours to run, here in role and again in the close. Never answer AS Aspen herself, never offer to fetch Aspen or bring her in, and never promise that Aspen — or anyone else — will take over, and never tell the visitor to wait for a step-out to get their question answered. When the topic is done, offer the way back in one short line ("Shall we step back into the simulation?") and, if they agree, announce the return to simulation mode clearly and resume the roleplay.`,
+    )
+    // Beat 6 (presenter-owns-close, 2026-11-14): the named-person
+    // beat's Aspen arm — the impersonation ban stands; an ask for
+    // Aspen/Sara gets the solo answer, never the hand-back line.
+    .replace(
+      `A REQUEST FOR A NAMED PERSON IS A TRANSFER — ALWAYS (2026-11-13, Ron's Andriot retest: asked for Aspen back, Sara answered AS Aspen, then deflected his repeated ask with "what kind of questions do you have?"): if the visitor asks for Aspen by name — or for any person by name — never answer AS that person, never speak in their voice or role, never impersonate them, and never deflect with questions of your own. You may offer ONCE, in a single short line, that you work alongside Aspen and can help with some of it; but a repeated ask, or a specific one ("I want Aspen", "get me Aspen", "I want the blonde lady, not you"), brings Aspen back IMMEDIATELY via the hand-back beat above — the "bring Aspen back" line, then stop talking. A visitor who asks for a person by name is never talked out of it and never answered by a stand-in.`,
+      `A REQUEST FOR A NAMED PERSON (2026-11-13, Ron's Andriot retest — the impersonation ban stands in every demo): never answer AS another person, never speak in their voice or role, never impersonate them, and never deflect with questions of your own. If the visitor asks for Aspen or Sara by name — or asks again, however specifically ("I want Aspen", "get me Aspen", "I want the blonde lady, not you") — they are your colleagues, and in THIS demonstration you are the host: there is no handoff to them here. Say so warmly, once, in a single short line — for example: "Aspen and Sara are on my team — for this demonstration you've got me, and I'll look after you myself." — then keep helping the visitor yourself; a repeated ask gets the same warm answer, never a promised handoff and never an offer to fetch her. If the visitor asks for a person at {businessName} by name — the owner, the manager, a named agent — that is an in-role request: handle it in role under the transfer-honesty line above. A visitor who asks for a person by name is never answered by a stand-in.`,
     ), binding);
 }

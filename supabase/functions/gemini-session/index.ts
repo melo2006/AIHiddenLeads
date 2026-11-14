@@ -10,14 +10,14 @@ import { workspaceAccess } from '../_shared/customer-payments.ts';
 import { resolveDemoShare } from '../_shared/demo-share.ts';
 import { DEMO_INVITE_GREETING, DEMO_INVITE_GREETING_LEGACY_SLIM, DEMO_INVITE_GREETING_VARIANTS, DEMO_INVITE_OPENING, DEMO_INVITE_OPENING_SWAP, DEMO_VERIFICATION_ACT1, DEMO_VERIFICATION_GREETING } from '../_shared/demo-sales.ts';
 import { alexGuideConfig, alexDemoGuestConfig } from '../_shared/alex-guide.ts';
-import { avatarSwapEnabled, teamIntroEnabled, personaFor, personaSegmentPrompt, presenterAlexGuestPrompt, presenterSimulationPrompt } from '../_shared/personas.ts';
+import { avatarSwapEnabled, teamIntroEnabled, isPresenterPersona, personaFor, personaSegmentPrompt, presenterAlexGuestPrompt, presenterSimulationPrompt } from '../_shared/personas.ts';
 import { examplePresenterForSlug } from '../_shared/realtor-example-pinned-leads.ts';
 import { TEAM_INTRO_TEACHING, isIntroBoundary, teamIntroGreetingFor } from '../_shared/team-intro.ts';
 import { realtorLandingApplies, stampRealtorLanding } from '../_shared/homepage-knowledge.ts';
 import { buildExampleListingsLayer, examplePackBySlug, examplePackForSiteUrl, stampExampleListings } from '../_shared/realtor-example-listings.ts';
 import { PUBLIC_PATHS } from '../_shared/report-context.ts';
 import { normalizeUiLocale, startingLanguageForUiLocale } from '../_shared/conversation-language.ts';
-const personaSegmentSchema=z.object({persona:z.enum(['aspen','sara','alex']),boundary:z.enum(['doorway','stepout','meet-alex','return','summon-aspen','intro-sara','intro-return-1','intro-alex','intro-return-2']),parentSessionId:z.string().uuid(),swapRecap:z.string().max(2400),drops:z.number().int().min(0).max(99).default(0),dropRecovery:z.boolean().default(false),manualResume:z.boolean().default(false),swap:z.boolean().default(false),teamIntroSeen:z.boolean().default(false)});
+const personaSegmentSchema=z.object({persona:z.enum(['aspen','sara','alex','frank','latina','black-professional-lady']),boundary:z.enum(['doorway','stepout','meet-alex','return','summon-aspen','intro-sara','intro-return-1','intro-alex','intro-return-2']),parentSessionId:z.string().uuid(),swapRecap:z.string().max(2400),drops:z.number().int().min(0).max(99).default(0),dropRecovery:z.boolean().default(false),manualResume:z.boolean().default(false),swap:z.boolean().default(false),teamIntroSeen:z.boolean().default(false)});
 // SWAP DIAG (voice-first batch, 2026-11-10): the client posts a doorway
 // attempt's RESOLUTION (gate-abort, fallback, forced-execute,
 // voice-first cut-over, face takeover, watchdog action…) against the
@@ -27,7 +27,7 @@ const personaSegmentSchema=z.object({persona:z.enum(['aspen','sara','alex']),bou
 // existed only in the page (a 100-entry ring buffer that died with
 // it) or as prose inside a successor's resumeContext — the final
 // attempt of a boundary left no server record at all (retest #4).
-const swapDiagSchema=z.object({sessionId:z.string().uuid(),event:z.enum(['gate-abort','fallback','retry-scheduled','token-stale','stage-watchdog','forced-execute','cutover','voice-first-cutover','face-takeover']),boundary:z.enum(['doorway','stepout','meet-alex','return','summon-aspen','intro-sara','intro-return-1','intro-alex','intro-return-2']),persona:z.enum(['aspen','sara','alex']).optional(),attempt:z.number().int().min(0).max(99).optional(),reason:z.string().max(200).optional(),faceState:z.string().max(100).optional(),at:z.number().optional()});
+const swapDiagSchema=z.object({sessionId:z.string().uuid(),event:z.enum(['gate-abort','fallback','retry-scheduled','token-stale','stage-watchdog','forced-execute','cutover','voice-first-cutover','face-takeover']),boundary:z.enum(['doorway','stepout','meet-alex','return','summon-aspen','intro-sara','intro-return-1','intro-alex','intro-return-2']),persona:z.enum(['aspen','sara','alex','frank','latina','black-professional-lady']).optional(),attempt:z.number().int().min(0).max(99).optional(),reason:z.string().max(200).optional(),faceState:z.string().max(100).optional(),at:z.number().optional()});
 const SWAP_DIAG_FAILURE_EVENTS: ReadonlySet<string> = new Set(['gate-abort','fallback','token-stale']);
 const schema=z.object({ visitorKey:z.string().min(16).max(100), model:z.string().max(100).optional(), agentId:z.string().uuid().optional(), leadId:z.string().uuid().optional(), prospectId:z.string().uuid().optional(), draft:z.boolean().default(false), preview:z.boolean().default(false), voice:z.enum(VOICES as [string,...string[]]).optional(), hour:z.number().int().min(0).max(23).optional(), visitorName:z.string().max(100).default(''), timeZone:z.string().max(100).default('UTC'), locale:z.string().max(10).optional(), campaign:z.object({visitId:z.string().uuid(),source:z.string().max(100),campaign:z.string().max(100),entryPath:z.enum(PUBLIC_PATHS).optional()}).nullable().optional(), consent:z.boolean().default(false), verification:z.enum(['pending','verified']).optional(), invite:z.boolean().optional(), sample:z.boolean().optional(), guide:z.enum(['alex']).optional(), share:z.string().max(100).optional(), resumeContext:z.string().max(1600).optional(), reconnect:z.boolean().default(false), prewarm:z.boolean().default(false), personaSegment:personaSegmentSchema.optional(), swapDiag:swapDiagSchema.optional() });
 const json=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
@@ -101,6 +101,23 @@ Deno.serve(async req=>{
     const introRequest=isIntroBoundary(b.personaSegment.boundary);
     const introParentOk=!!parent && parent.teamIntroEnabled===true && parent.homepageSales===true && parent.simulation!==true;
     if(!parentRow || !parent || (introRequest ? !introParentOk : parent.simulation!==true)) return json({error:'Persona segment parent session not found'},404);
+    // PRESENTER SEGMENT GATE (presenter-owns-close, 2026-11-14): a
+    // presenter parent (its config carries the demoPresenter stamp)
+    // serves EXACTLY two segment shapes — Alex's meet-alex cameo and
+    // the presenter's own re-entry (Alex's hand-back 'return', plus
+    // 'stepout' for drop/stash re-entry into the close). Every other
+    // request under it is refused, so no client state can ever arm
+    // an Aspen or Sara segment on a presenter demo: the Aspen
+    // handoff Ron removed from the presenter script has no server
+    // side either. Symmetrically, a presenter persona is refused
+    // under any parent that is not its own presenter parent. (The
+    // segment schema's persona enum now admits the presenter ids —
+    // before this, the client's presenter return request failed
+    // validation outright and Alex's hand-back could never land.)
+    const parentPresenter=parent.demoPresenter==='frank' || parent.demoPresenter==='latina' || parent.demoPresenter==='black-professional-lady' ? parent.demoPresenter : null;
+    const segPersona=b.personaSegment.persona; const segBoundary=b.personaSegment.boundary;
+    if(isPresenterPersona(segPersona) && parentPresenter!==segPersona) return json({error:'Persona segment not available for this demo'},404);
+    if(parentPresenter && !((segPersona==='alex' && segBoundary==='meet-alex') || (segPersona===parentPresenter && (segBoundary==='return' || segBoundary==='stepout')))) return json({error:'Persona segment not available for this demo'},404);
     const persona=personaFor(b.personaSegment.persona);
     const businessName=String(parent.businessName || '');
     if(introRequest) {
@@ -292,7 +309,7 @@ Deno.serve(async req=>{
     // agent's own listings first. The flag alone earns nothing, a URL
     // match alone earns nothing, and every non-sample simulation stays
     // byte-identical.
-    if(examplePack) stampExampleListings(config, examplePack);
+    if(examplePack) stampExampleListings(config, examplePack, presenter ? { presenter: true } : undefined);
   } else {
     let query=db.from('voice_agents').select('*'); query=b.agentId?query.eq('id',b.agentId):query.eq('slug','aspen-homepage');
     const {data:agent}=await query.maybeSingle(); if(!agent?.published) return json({error:'Voice agent is not published yet'},409);

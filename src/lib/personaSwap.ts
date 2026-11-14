@@ -499,8 +499,16 @@ export function visitorRequestsAspen(text: string): boolean {
  *  finalized line executes 'summon-aspen' via
  *  boundaryForAssistantLine, anchor or no anchor. One-shot: once
  *  'summon-aspen' is in state.done this is a no-op. Returns the SAME
- *  state object when nothing changes. */
+ *  state object when nothing changes.
+ *  PRESENTER CHAINS NEVER SUMMON (presenter-owns-close, 2026-11-14):
+ *  a presenter chain's phases never include 'simulation' today, so
+ *  the phase gate already keeps it inert — the explicit presenter
+ *  guard below is defense-in-depth for Ron's rule that a presenter
+ *  demo has no Aspen handoff at all: the presenter answers plans /
+ *  pricing / booking questions himself, so the intent is never even
+ *  recorded, whatever phase a future change might add. */
 export function noteAspenIntent(state: SwapState, text: string): SwapState {
+  if (state.presenter) return state;
   if (state.phase !== 'simulation') return state;
   if (state.done.includes('summon-aspen')) return state;
   if (!visitorRequestsAspen(text)) return state;
