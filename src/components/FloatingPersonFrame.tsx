@@ -230,8 +230,16 @@ export default function FloatingPersonFrame({ name = 'Aspen', avatarUrl, open, m
       </span>
       <span className="w-fit rounded-md bg-card/90 px-2 py-0.5 text-center text-xs font-semibold leading-tight text-foreground shadow-sm">{inviteArrival ? `▶ Hear ${firstName || 'Aspen'}` : 'Tap to talk'}</span>
     </Button>}
+    {/* Stage 0 bubble sizing (2026-11-14): 72px → 86px (+~20%, Ron's
+        live test — the fully-minimized circle was hardly visible in
+        the corner, especially on tablet). The stage-0 shell stays
+        !w-24 (96px): the wider circle still fits inside it, so the
+        corner footprint, anchoring and "Talk to {name}" label layout
+        are unchanged. Stages 1 (80px idle bubble) and 3 (66px live
+        face in the minimized bar) are separate states and do NOT
+        follow this size. */}
     {stage === 0 && <Button variant="ghost" onClick={onOpen} title={talkLabel} aria-label={talkLabel} className="flex h-auto flex-col items-center gap-1 p-0 hover:bg-transparent">
-      <span className="flex h-[72px] w-[72px] shrink-0 items-center justify-center overflow-hidden rounded-full border border-primary/60 bg-primary text-primary-foreground shadow-md">
+      <span className="flex h-[86px] w-[86px] shrink-0 items-center justify-center overflow-hidden rounded-full border border-primary/60 bg-primary text-primary-foreground shadow-md">
         {bubblePhoto ? <img src={bubblePhoto} alt="" className="h-full w-full object-cover" draggable={false} /> : <Mic className="h-8 w-8" />}
       </span>
       <span className="w-fit rounded-md bg-card/90 px-1.5 text-center text-[10px] font-medium leading-tight text-muted-foreground">{talkLabel}</span>
