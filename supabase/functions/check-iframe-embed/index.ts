@@ -1,3 +1,5 @@
+import { detectConsentInHtml } from "../_shared/cookie-consent-dismissal.ts";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -135,6 +137,63 @@ const fetchResponse = async (url: string) => {
   throw lastError ?? new Error("Unable to inspect iframe headers");
 };
 
+// Consent detection (Publish #48 follow-up, 2026-11-14): the embed
+// verdict above is headers-only by design and stays untouched. When —
+// and only when — the site turns out EMBEDDABLE, the demo's live
+// presentation would be the raw cross-origin iframe, whose consent
+// banner no script can dismiss. So for embeddable sites only, fetch
+// the homepage HTML once and fingerprint it for a consent banner
+// (see _shared/cookie-consent-dismissal.ts). Detection is strictly
+// best-effort: any failure (bot wall, timeout, non-HTML) answers
+// false, which routes exactly like today — the raw iframe.
+const CONSENT_DETECTION_MAX_BYTES = 512_000;
+const CONSENT_DETECTION_TIMEOUT_MS = 4000;
+
+const readBoundedBody = async (response: Response, maxBytes: number): Promise<string> => {
+  if (!response.body) return response.text().then((text) => text.slice(0, maxBytes));
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let received = 0;
+  let html = "";
+  try {
+    while (received < maxBytes) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      received += value.byteLength;
+      html += decoder.decode(value, { stream: true });
+    }
+  } finally {
+    // Stop downloading the rest of the page once the fingerprint
+    // window is full — CMP fingerprints live in the head / early body.
+    await reader.cancel().catch(() => undefined);
+  }
+  return html;
+};
+
+const detectConsentBanner = async (url: string): Promise<boolean> => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), CONSENT_DETECTION_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      redirect: "follow",
+      signal: controller.signal,
+      headers: {
+        "user-agent": "LovableIframeChecker/1.0",
+        accept: "text/html,application/xhtml+xml",
+      },
+    });
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType && !contentType.includes("html")) return false;
+    const html = await readBoundedBody(response, CONSENT_DETECTION_MAX_BYTES);
+    return detectConsentInHtml(html);
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -163,11 +222,17 @@ Deno.serve(async (req) => {
         isFrameAncestorsAllowed(frameAncestors, safeEmbedOrigin, targetOrigin)
       : true;
 
+    // Blocked/unreachable sites never present through the raw iframe,
+    // so detection would change nothing there — it runs only for the
+    // embeddable case it exists to reroute.
+    const consentDetected = embeddable ? await detectConsentBanner(finalUrl) : false;
+
     return new Response(
       JSON.stringify({
         success: true,
         checked: true,
         embeddable,
+        consentDetected,
         finalUrl,
         headers: {
           xFrameOptions,
@@ -187,6 +252,7 @@ Deno.serve(async (req) => {
         checked: true,
         embeddable: false,
         unreachable: true,
+        consentDetected: false,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
