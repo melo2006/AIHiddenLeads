@@ -7,6 +7,7 @@ import {
   EXECUTIVE_D_FACE_ID,
   FRANK_FACE_ID,
   LATINA_FACE_ID,
+  MIDDLE_AGED_PRO_FACE_ID,
 } from "@/lib/avatarLibrary";
 import { DEFAULT_VIDEO_AVATAR, type VideoAvatar } from "../../supabase/functions/_shared/video-avatar";
 
@@ -35,13 +36,14 @@ const tileButtons = () => screen.getAllByRole("button", { name: /^Choose face / 
 describe("AvatarLibraryGrid", () => {
   it("renders our models first, in library order, with the selected tile pressed", () => {
     render(<AvatarLibraryGrid selectedFaceId={ASPEN_FACE_ID} onPickLibrary={vi.fn()} />);
-    const labels = tileButtons().slice(0, 7).map((b) => b.getAttribute("aria-label"));
+    const labels = tileButtons().slice(0, 8).map((b) => b.getAttribute("aria-label"));
     expect(labels).toEqual([
       "Choose face Aspen",
       "Choose face Frank",
       "Choose face Latina",
       "Choose face Black Professional Lady",
       "Choose face Executive",
+      "Choose face Middle-Aged Pro",
       "Choose face Sara",
       "Choose face Alex",
     ]);
@@ -98,6 +100,14 @@ describe("AvatarSettings — library pick wiring", () => {
     fireEvent.click(screen.getByRole("button", { name: "Choose face Executive" }));
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ faceId: EXECUTIVE_D_FACE_ID }));
     expect(onVoiceChange).toHaveBeenCalledTimes(1);
+    expect(onNameChange).not.toHaveBeenCalled();
+  });
+
+  it("picking Middle-Aged Pro sets face + matched voice but never a name", () => {
+    const { onChange, onVoiceChange, onNameChange } = renderSettings();
+    fireEvent.click(screen.getByRole("button", { name: "Choose face Middle-Aged Pro" }));
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ faceId: MIDDLE_AGED_PRO_FACE_ID }));
+    expect(onVoiceChange).toHaveBeenCalledWith("Rasalgethi");
     expect(onNameChange).not.toHaveBeenCalled();
   });
 
