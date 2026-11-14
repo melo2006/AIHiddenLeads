@@ -81,13 +81,17 @@ describe("widget viewport fit — pinned chrome, scrolling transcript", () => {
   });
 });
 
-describe("widget viewport fit — chevron lives on the header row", () => {
-  it("the captions chevron is inside the status header row, right-aligned, with a 40px target", () => {
+describe("widget viewport fit — Captions pill lives on the header row", () => {
+  it("the Captions pill is inside the status header row, right-aligned, with a 40px target", () => {
     const headerStart = conversation.indexOf('<div className="flex items-center gap-1.5">');
     const headerEnd = conversation.indexOf("</div>", headerStart);
     const header = conversation.slice(headerStart, headerEnd);
-    expect(header).toContain("ChevronsUpDown");
-    expect(header).toContain("ml-auto h-10 w-10 shrink-0");
+    expect(header).toContain("t('voice.captions')");
+    expect(header).toContain("ml-auto h-10 shrink-0");
+    expect(header).toContain("rounded-full");
+    expect(header).toContain("px-3 text-xs font-semibold");
+    // A word pill, not the old fixed-width (w-10) chevron icon button.
+    expect(header).not.toContain("w-10");
     // The old standalone full-width chevron row (h-8 w-8, outside the header) is gone.
     expect(conversation).not.toContain('className="h-8 w-8 border-primary/60 bg-transparent text-primary');
     // Status text takes the flexible slot so a crowded header truncates instead of wrapping.

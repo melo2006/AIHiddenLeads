@@ -192,17 +192,24 @@ describe('voice transport (live session)', () => {
     expect(has(speaker, 'bg-secondary')).toBe(false);
   });
 
-  it('captions toggle wears the GREEN ON fill while captions are on', async () => {
+  it('captions toggle is a word pill wearing the GREEN ON fill while captions are on', async () => {
     const view = await goLive({ faceFirst: true });
     const toggle = await waitFor(() => view.getByLabelText('Hide captions'));
     expect(has(toggle, 'bg-primary')).toBe(true);
     expect(has(toggle, 'text-primary-foreground')).toBe(true);
-    // Turning captions off leaves focus view: the dock's show-captions
-    // chevron is the OFF state — no green fill.
+    // The control is the "Captions" word pill (2026-11-14, Ron's pick
+    // over the up/down chevron): the word is the label in BOTH states —
+    // the fill carries the state, the text never changes.
+    expect(toggle.textContent).toBe('Captions');
+    expect(has(toggle, 'rounded-full')).toBe(true);
+    // Turning captions off leaves focus view: the dock's Captions pill
+    // is the OFF state — no green fill.
     fireEvent.click(toggle);
-    const dockChevron = await waitFor(() => view.getByLabelText('Show captions'));
-    expect(has(dockChevron, 'bg-primary')).toBe(false);
-    expect(has(dockChevron, 'aspen-panel-btn')).toBe(true);
+    const dockPill = await waitFor(() => view.getByLabelText('Show captions'));
+    expect(has(dockPill, 'bg-primary')).toBe(false);
+    expect(has(dockPill, 'aspen-panel-btn')).toBe(true);
+    expect(dockPill.textContent).toBe('Captions');
+    expect(has(dockPill, 'rounded-full')).toBe(true);
   });
 });
 

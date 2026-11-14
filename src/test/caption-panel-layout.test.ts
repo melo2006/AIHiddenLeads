@@ -61,16 +61,16 @@ describe("caption panel — demo timer is a pill in the header row", () => {
     expect(header).toContain('data-testid="demo-timer-pill"');
     expect(header).toContain('t("voice.demoTimeRemaining")');
     expect(header).toContain("rounded-full");
-    // After the status/speaking text, before the captions chevron.
+    // After the status/speaking text, before the Captions pill.
     expect(header.indexOf('data-testid="demo-timer-pill"')).toBeGreaterThan(header.indexOf('t("voice.speaking"'));
-    expect(header.indexOf('data-testid="demo-timer-pill"')).toBeLessThan(header.indexOf("ChevronsUpDown"));
+    expect(header.indexOf('data-testid="demo-timer-pill"')).toBeLessThan(header.indexOf("t('voice.captions')"));
   });
 
   it("the pill shows only where the timer already exists (remainingSeconds gate, nothing new)", () => {
     expect(header).toContain("remainingSeconds !== null && <span data-testid=\"demo-timer-pill\"");
   });
 
-  it("the pill is compact (clock icon + mm:ss) with the full line as its accessible name — the 280px panel cannot fit the full text beside the speaking label and chevron without crushing them", () => {
+  it("the pill is compact (clock icon + mm:ss) with the full line as its accessible name — the 280px panel cannot fit the full text beside the speaking label and the Captions pill without crushing them", () => {
     expect(header).toContain("<Timer className=\"h-3 w-3\" />");
     expect(header).toContain('aria-label={`${t("voice.demoTimeRemaining")}:');
     expect(header).toContain('title={`${t("voice.demoTimeRemaining")}:');
