@@ -11,7 +11,9 @@ import VoiceClonePanel from "@/components/VoiceClonePanel";
 import AvatarDevicePreview from "@/components/AvatarDevicePreview";
 import GeminiConversation from "@/components/GeminiConversation";
 import { VOICES } from "@/components/setup-wizard/wizardModel";
-import { SIMLI_FACE_CATALOG, type AvatarFace } from '@/lib/simliFaceCatalog';
+import { type AvatarFace } from '@/lib/simliFaceCatalog';
+import AvatarLibraryGrid from "@/components/AvatarLibraryGrid";
+import { avatarLibraryEntryByFaceId, avatarLibraryPick, type AvatarLibraryEntry } from "@/lib/avatarLibrary";
 import goodPhotoExample from "@/assets/avatar-photo-good-example.jpg";
 import aspenCutout from "@/assets/aspen-video-frame-final.webp";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -44,13 +46,16 @@ interface Props {
   voice?: string;
   onVoiceChange?: (voice: string) => void;
   name?: string;
+  /** Called when a library tile with a suggested name is picked, so the
+   *  parent can pre-fill the assistant-name field (freely editable after). */
+  onNameChange?: (name: string) => void;
   /** Picker state for the client's own cloned voice (VoiceClonePanel). */
   clonedVoiceSelected?: boolean;
   onClonedVoiceSelectedChange?: (selected: boolean) => void;
 }
 
 /** Shared video-face picker for the setup wizard and the admin Video Avatars page. */
-export default function AvatarSettings({ value, onChange, agentId, beforePreview, faces = [], adminPreview = false, voice = "Kore", onVoiceChange, name = "Aspen", clonedVoiceSelected = false, onClonedVoiceSelectedChange }: Props) {
+export default function AvatarSettings({ value, onChange, agentId, beforePreview, faces = [], adminPreview = false, voice = "Kore", onVoiceChange, name = "Aspen", onNameChange, clonedVoiceSelected = false, onClonedVoiceSelectedChange }: Props) {
   const set = (patch: Partial<VideoAvatar>) => onChange({ ...value, ...patch });
   const [uploading, setUploading] = useState(false);
   const [pending, setPending] = useState<{ faceId: string; status: string } | null>(null);
@@ -64,8 +69,20 @@ export default function AvatarSettings({ value, onChange, agentId, beforePreview
   useEffect(() => { setTesting(false); avatarRef.current?.stop(); setPreviewing(false); }, [agentId, voice, value.faceId, value.enabled]);
   const fileRef = useRef<HTMLInputElement>(null);
   const avatarRef = useRef<SimliAvatarHandle>(null);
-  const allFaces: Face[] = [...SIMLI_FACE_CATALOG, ...faces.filter((f) => !SIMLI_FACE_CATALOG.some((p) => p.id === f.id))];
-  if (!allFaces.some((f) => f.id === value.faceId)) allFaces.push({ id: value.faceId, name: "Custom face" });
+  // Faces outside the shared library (a tenant's own Simli faces, or the
+  // currently selected custom face) are appended after the library tiles.
+  const extraFaces: Face[] = faces.filter((f) => !avatarLibraryEntryByFaceId(f.id));
+  if (!avatarLibraryEntryByFaceId(value.faceId) && !extraFaces.some((f) => f.id === value.faceId)) extraFaces.push({ id: value.faceId, name: "Custom face" });
+
+  // Picking a library tile sets the face, applies the face's matched voice
+  // (changeable right after in the voice picker) and pre-fills the
+  // assistant name with the face's suggested name when it has one.
+  function pickLibraryFace(entry: AvatarLibraryEntry) {
+    const pick = avatarLibraryPick(entry);
+    set({ faceId: pick.faceId });
+    if (pick.voice && onVoiceChange) onVoiceChange(pick.voice);
+    if (pick.suggestedName && onNameChange) onNameChange(pick.suggestedName);
+  }
 
   // Poll a new face's generation; Simli spaces generations about ten minutes apart.
   useEffect(() => {
@@ -124,7 +141,8 @@ export default function AvatarSettings({ value, onChange, agentId, beforePreview
     finally { setPreparing(false); }
   }
   async function faceReady() {
-    if (!allFaces.find(f => f.id === value.faceId)?.generation) return true;
+    const generation = avatarLibraryEntryByFaceId(value.faceId)?.generation ?? extraFaces.find(f => f.id === value.faceId)?.generation;
+    if (!generation) return true;
     try {
       const d = await call({ action: 'status', faceId: value.faceId });
       if (d.status === 'completed') return true;
@@ -144,15 +162,8 @@ export default function AvatarSettings({ value, onChange, agentId, beforePreview
         {value.enabled && <>
           <div className="space-y-1.5">
             <p className="text-sm font-medium">Choose a face</p>
-            <div className="grid max-h-72 grid-cols-2 gap-2 overflow-y-auto">
-              {allFaces.map((f) => (
-                <Button variant="outline" key={f.id} className={`${choice(value.faceId === f.id)} flex-col items-start`} aria-pressed={value.faceId === f.id} onClick={() => set({ faceId: f.id })}>
-                  {f.image && <img src={f.image} alt={f.name} loading="lazy" width={240} height={240} className="mb-1 aspect-square w-full rounded-md object-contain" />}
-                  <p className="text-xs font-semibold">{f.name}</p>
-                  {f.category && <span className="text-[10px] text-muted-foreground">{f.category}</span>}
-                </Button>
-              ))}
-            </div>
+            <p className="text-[11px] text-muted-foreground">Pick from the library — the face's name and matched voice fill in for you, and you can change both. Or create a face from your own photo below.</p>
+            <AvatarLibraryGrid selectedFaceId={value.faceId} onPickLibrary={pickLibraryFace} extraFaces={extraFaces} onPickExtra={(f) => set({ faceId: f.id })} />
           </div>
 
           <div className="space-y-2 rounded-xl border-2 border-dashed border-border p-3">
@@ -199,7 +210,7 @@ export default function AvatarSettings({ value, onChange, agentId, beforePreview
       <div className="min-w-0 space-y-3">
         <AvatarDevicePreview avatar={value} />
         {value.enabled && <><div className={previewing ? "" : "hidden"}><SimliAvatar ref={avatarRef} inline avatar={{ ...value, size: Math.min(value.size, 300) }} agentId={agentId} draft={Boolean(agentId)} faceOverride={adminPreview ? value.faceId : undefined} onLiveChange={(live) => { if (!live) setPreviewing(false); }} /></div>{(agentId || adminPreview) && <Button variant="outline" className="w-full" disabled={testing || preparing} onClick={() => void togglePreview()}>{previewing ? <><Square />Stop face preview</> : <><Play />Preview live face (silent)</>}</Button>}</>}
-        {agentId && <><Button className="w-full" disabled={preparing} onClick={() => void testConversation()}>{preparing ? <Loader2 className="animate-spin"/> : testing ? <Square/> : <Mic/>}{preparing ? 'Saving your choices…' : testing ? 'Close test' : `Test ${name} · ${voice}`}</Button>{testing && <GeminiConversation draft agentId={agentId} compact name={name} previewVoice={voice} videoAvatar={value} avatarInline />}</>}
+        {agentId && <><Button className="w-full" disabled={preparing} onClick={() => void testConversation()}>{preparing ? <Loader2 className="animate-spin"/> : testing ? <Square/> : <Mic/>}{preparing ? 'Saving your choices…' : testing ? 'Close test' : `Preview: hear ${name} with this voice`}</Button>{testing && <GeminiConversation draft agentId={agentId} compact name={name} previewVoice={voice} videoAvatar={value} avatarInline />}</>}
         <p className="text-[11px] text-muted-foreground">Test usage counts toward voice and video limits. Video plan pricing is not finalized.</p>
       </div>
       <Dialog open={confirmAspen} onOpenChange={setConfirmAspen}><DialogContent className="bg-card"><DialogTitle>Create Aspen in Simli?</DialogTitle><DialogDescription>This sends the optimized portrait to Simli and uses one avatar generation. Your current live face stays unchanged until the new face is ready and you explicitly apply it. Generation usually takes a few hours — please allow up to 24 hours.</DialogDescription><Button disabled={uploading} onClick={() => void createAspenFace()}><UploadCloud />Create Aspen face</Button></DialogContent></Dialog>
