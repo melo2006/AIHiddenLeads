@@ -58,6 +58,7 @@ export const FRANK_FACE_ID = "b3f85f7f-57ea-4f24-b1f6-a57229b4fae1";
 export const LATINA_FACE_ID = "e0d7b128-40a7-4d03-ac84-ef4c54b92450";
 export const BLACK_PROFESSIONAL_LADY_FACE_ID = "9344d4c1-6b69-43e7-a73f-ddc15d1a3f75";
 export const EXECUTIVE_D_FACE_ID = "9262002f-2b65-4335-8ebf-6092a5cfe01e";
+export const MIDDLE_AGED_PRO_FACE_ID = "c0be182f-72a4-4be4-8c22-35d6db4c4a11";
 export const SARA_FACE_ID = "f735e62c-dce7-4c0b-8e85-1c7e21774c45";
 export const ALEX_FACE_ID = "a36d66df-a23d-4569-996b-d0e990019857";
 
@@ -139,6 +140,22 @@ const OWN_MODELS: AvatarLibraryEntry[] = [
     image: executiveTile,
     category: "Your face",
     generation: true,
+    own: true,
+  },
+  {
+    key: "middle-aged-pro",
+    faceId: MIDDLE_AGED_PRO_FACE_ID,
+    // Working label only — see Latina above: no settled product name, so
+    // picking this tile pre-fills no name. Matched voice "Rasalgethi"
+    // (mature, gravelly male — distinct from Frank's Charon and the
+    // Executive's Sadaltager) is Muse's pick, flagged for Ron's
+    // ear-check 2026-11-14.
+    label: "Middle-Aged Pro",
+    nameSettled: false,
+    matchedVoice: "Rasalgethi",
+    image: catalogImage(MIDDLE_AGED_PRO_FACE_ID),
+    category: "Your face",
+    generation: catalogGeneration(MIDDLE_AGED_PRO_FACE_ID),
     own: true,
   },
   {

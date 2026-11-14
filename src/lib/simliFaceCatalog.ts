@@ -3,6 +3,7 @@ import aspen from '@/assets/aspen-video-frame-final.webp';
 import frankFace from '@/assets/simli/b3f85f7f-57ea-4f24-b1f6-a57229b4fae1.webp';
 import latinaFace from '@/assets/simli/e0d7b128-40a7-4d03-ac84-ef4c54b92450.webp';
 import blackProfessionalLadyFace from '@/assets/simli/9344d4c1-6b69-43e7-a73f-ddc15d1a3f75.webp';
+import middleAgedProFace from '@/assets/simli/c0be182f-72a4-4be4-8c22-35d6db4c4a11.webp';
 import frankCutout from '@/assets/simli/b3f85f7f-57ea-4f24-b1f6-a57229b4fae1-cutout.webp';
 import latinaCutout from '@/assets/simli/e0d7b128-40a7-4d03-ac84-ef4c54b92450-cutout.webp';
 import blackProfessionalLadyCutout from '@/assets/simli/9344d4c1-6b69-43e7-a73f-ddc15d1a3f75-cutout.webp';
@@ -61,6 +62,7 @@ export const SIMLI_FACE_CATALOG: AvatarFace[] = [
   { id: "b3f85f7f-57ea-4f24-b1f6-a57229b4fae1", name: "Frank · Senior Owner", category: "Your face", image: frankFace, generation: true },
   { id: "e0d7b128-40a7-4d03-ac84-ef4c54b92450", name: "Latina · Green Eyes", category: "Your face", image: latinaFace, generation: true },
   { id: "9344d4c1-6b69-43e7-a73f-ddc15d1a3f75", name: "Black Professional Lady", category: "Your face", image: blackProfessionalLadyFace, generation: true },
+  { id: "c0be182f-72a4-4be4-8c22-35d6db4c4a11", name: "Middle-Aged Pro", category: "Your face", image: middleAgedProFace, generation: true },
   { id: "bf13113a-355a-4d97-8b90-4edccd1da7b2", name: "Anna", category: "Standard", image: face0 },
   { id: "f735e62c-dce7-4c0b-8e85-1c7e21774c45", name: "Sara", category: "Standard", image: face1 },
   { id: "084479bf-de7c-4df0-8d9c-5484193ecd27", name: "Mei", category: "Standard", image: face2 },

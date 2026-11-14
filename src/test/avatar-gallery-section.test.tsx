@@ -23,6 +23,7 @@ describe("AvatarGallerySection", () => {
       "Latina",
       "Black Professional Lady",
       "Executive",
+      "Middle-Aged Pro",
       "Sara",
       "Alex",
       "Anna",
@@ -37,8 +38,8 @@ describe("AvatarGallerySection", () => {
   it("shows each face once — Lukas appears only as Alex — with matching alt text", () => {
     const { container } = render(<AvatarGallerySection />);
     const alts = [...container.querySelectorAll("img")].map((img) => img.getAttribute("alt"));
-    expect(alts).toHaveLength(12);
-    expect(new Set(alts).size).toBe(12);
+    expect(alts).toHaveLength(13);
+    expect(new Set(alts).size).toBe(13);
     expect(alts).not.toContain("Lukas");
     expect(container.textContent).toContain("one-time $50 setup");
   });
