@@ -78,7 +78,7 @@ describe("avatar library — data integrity", () => {
 
   it("pairs our models with real Gemini Live voices", () => {
     expect(avatarLibraryEntryByFaceId(ASPEN_FACE_ID)?.matchedVoice).toBe("Kore");
-    expect(avatarLibraryEntryByFaceId(FRANK_FACE_ID)?.matchedVoice).toBe("Charon");
+    expect(avatarLibraryEntryByFaceId(FRANK_FACE_ID)?.matchedVoice).toBe("Gacrux");
     expect(avatarLibraryEntryByFaceId(LATINA_FACE_ID)?.matchedVoice).toBe("Sulafat");
     expect(avatarLibraryEntryByFaceId(BLACK_PROFESSIONAL_LADY_FACE_ID)?.matchedVoice).toBe("Despina");
     expect(avatarLibraryEntryByFaceId(MIDDLE_AGED_PRO_FACE_ID)?.matchedVoice).toBe("Rasalgethi");
@@ -112,9 +112,9 @@ describe("avatar library — data integrity", () => {
 });
 
 describe("avatar library — pick behavior (pure)", () => {
-  it("picking Frank applies his face, the Charon voice and the Frank name", () => {
+  it("picking Frank applies his face, the Gacrux voice and the Frank name", () => {
     const frank = avatarLibraryEntryByFaceId(FRANK_FACE_ID)!;
-    expect(avatarLibraryPick(frank)).toEqual({ faceId: FRANK_FACE_ID, voice: "Charon", suggestedName: "Frank" });
+    expect(avatarLibraryPick(frank)).toEqual({ faceId: FRANK_FACE_ID, voice: "Gacrux", suggestedName: "Frank" });
   });
 
   it("picking Executive applies face + matched voice but NO name", () => {

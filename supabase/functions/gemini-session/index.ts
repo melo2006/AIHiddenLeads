@@ -11,6 +11,7 @@ import { resolveDemoShare } from '../_shared/demo-share.ts';
 import { DEMO_INVITE_GREETING, DEMO_INVITE_GREETING_LEGACY_SLIM, DEMO_INVITE_GREETING_VARIANTS, DEMO_INVITE_OPENING, DEMO_INVITE_OPENING_SWAP, DEMO_VERIFICATION_ACT1, DEMO_VERIFICATION_GREETING } from '../_shared/demo-sales.ts';
 import { alexGuideConfig, alexDemoGuestConfig } from '../_shared/alex-guide.ts';
 import { avatarSwapEnabled, teamIntroEnabled, isPresenterPersona, personaFor, personaSegmentPrompt, presenterAlexGuestPrompt, presenterSimulationPrompt } from '../_shared/personas.ts';
+import { fetchPersonaVoiceOverride, resolvePersonaVoice } from '../_shared/persona-voice-overrides.ts';
 import { examplePresenterForSlug } from '../_shared/realtor-example-pinned-leads.ts';
 import { TEAM_INTRO_TEACHING, isIntroBoundary, teamIntroGreetingFor } from '../_shared/team-intro.ts';
 import { realtorLandingApplies, stampRealtorLanding } from '../_shared/homepage-knowledge.ts';
@@ -138,6 +139,11 @@ Deno.serve(async req=>{
     if(isPresenterPersona(segPersona) && parentPresenter!==segPersona) return json({error:'Persona segment not available for this demo'},404);
     if(parentPresenter && !((segPersona==='alex' && segBoundary==='meet-alex') || (segPersona===parentPresenter && (segBoundary==='return' || segBoundary==='stepout')))) return json({error:'Persona segment not available for this demo'},404);
     const persona=personaFor(b.personaSegment.persona);
+    // ADMIN VOICE OVERRIDE (2026-11-14): a persona_voice_overrides row
+    // (admin Demo Voices tab) wins over the registry voice for segment
+    // sessions too; no row / any read problem → persona.voiceName,
+    // byte-identical to before. Fail-safe inside the resolver.
+    const segVoice=(await resolvePersonaVoice(db, persona.id)).voice;
     const businessName=String(parent.businessName || '');
     if(introRequest) {
       // TEAM INTRO SEGMENT: the prompt pack lives in team-intro.ts via
@@ -150,7 +156,7 @@ Deno.serve(async req=>{
       config={
         ...parent,
         name:persona.displayName,
-        voice:persona.voiceName,
+        voice:segVoice,
         systemPrompt:builtIntro.systemPrompt,
         greeting:builtIntro.greeting || parent.greeting,
         knowledge:parent.knowledge ?? '',
@@ -197,7 +203,7 @@ Deno.serve(async req=>{
     config={
       ...parent,
       name:persona.displayName,
-      voice:persona.voiceName,
+      voice:segVoice,
       systemPrompt:built.systemPrompt,
       greeting:built.greeting || parent.greeting,
       knowledge:parent.knowledge ?? '',
@@ -231,6 +237,12 @@ Deno.serve(async req=>{
     // config carries no transferPhone, so no handoff token is issued.
     if(!user) return json({error:'Sign in to use the setup guide'},401);
     config=alexGuideConfig();
+    // ADMIN VOICE OVERRIDE (2026-11-14): Alex is one persona with one
+    // voice — an admin override for 'alex' covers his guide sessions
+    // as well as his demo segments. Override-only: with no row the
+    // guide config stays byte-identical (ALEX_VOICE).
+    const guideVoiceOverride=await fetchPersonaVoiceOverride(db,'alex');
+    if(guideVoiceOverride) config.voice=guideVoiceOverride;
   } else if(b.share) {
     const agent=await resolveDemoShare(db,b.share); if(!agent) return json({error:'This demo link has expired or was turned off.'},404);
     const {data:sources}=await db.from('voice_agent_sources').select('content').eq('agent_id',agent.id).eq('status','ready');
@@ -271,6 +283,11 @@ Deno.serve(async req=>{
     const examplePack=b.sample===true?examplePackForSiteUrl(siteUrl):null;
     const presenterId=examplePack?examplePresenterForSlug(examplePack.slug):null;
     const presenter=presenterId?personaFor(presenterId):null;
+    // ADMIN VOICE OVERRIDE (2026-11-14): a presenter parent stamps the
+    // RESOLVED voice — persona_voice_overrides (admin Demo Voices tab)
+    // wins over the registry default; no row → presenter.voiceName,
+    // byte-identical to before. Fail-safe inside the resolver.
+    const presenterVoice=presenter?(await resolvePersonaVoice(db, presenter.id)).voice:null;
     // SWAP-PARENT COMPOSITION (handover fix, 2026-11-10): a
     // swap-enabled demo parent is composed HOST-ONLY — its prompt
     // excludes the simulation host entry beats and the receptionist
@@ -283,8 +300,15 @@ Deno.serve(async req=>{
     // identical to before. The verification branch composes from
     // whichever base applies — Act 1's own text is unchanged either
     // way, and its session still ends at the code gate.
-    config={...(presenter ? businessDemoConfig(businessName,knowledge,{...(published ?? {}),name:presenter.displayName,voice:presenter.voiceName,simulationPrompt:presenterSimulationPrompt(presenter)}) : swapEnabled ? businessDemoConfigSwapParent(businessName,knowledge,published) : businessDemoConfig(businessName,knowledge,published)), visitorContact, platformFollowup:true};
+    config={...(presenter ? businessDemoConfig(businessName,knowledge,{...(published ?? {}),name:presenter.displayName,voice:presenterVoice ?? presenter.voiceName,simulationPrompt:presenterSimulationPrompt(presenter)}) : swapEnabled ? businessDemoConfigSwapParent(businessName,knowledge,published) : businessDemoConfig(businessName,knowledge,published)), visitorContact, platformFollowup:true};
     if(presenter) config.demoPresenter=presenter.id;
+    // ADMIN VOICE OVERRIDE (2026-11-14): the non-presenter demo parent
+    // IS Aspen — her composed voice otherwise comes from the published
+    // homepage snapshot, so the override applies ONLY when a row
+    // exists; with no row this branch stays byte-identical. (The
+    // homepage/agent branch is untouched: that voice stays the Voice
+    // Agents editor's published snapshot.)
+    if(!presenter) { const aspenVoiceOverride=await fetchPersonaVoiceOverride(db,'aspen'); if(aspenVoiceOverride) config.voice=aspenVoiceOverride; }
     if(b.verification==='pending') { config.greeting=DEMO_VERIFICATION_GREETING; config.greetings=[]; config.systemPrompt=`${DEMO_VERIFICATION_ACT1}\n\n${String(config.systemPrompt)}`; config.verificationGate=true; }
     // Invite arrivals (cold-email personal link): the host phase replaces
     // the code gate. Honored ONLY when the demo-invite resolve stamped the

@@ -90,7 +90,10 @@ const OWN_MODELS: AvatarLibraryEntry[] = [
     label: "Frank",
     suggestedName: "Frank",
     nameSettled: true,
-    matchedVoice: "Charon",
+    // Frank's demo voice (personas.ts FRANK_VOICE): Gacrux since
+    // 2026-11-14 — Ron ruled Charon too hoarse for Frank's face. The
+    // wizard pick applies the same voice his demos use by default.
+    matchedVoice: "Gacrux",
     // Tile uses the approved Senior Owner portrait (finals PNG), not the
     // Simli-generated still in the preset catalog.
     image: frankTile,
@@ -151,7 +154,7 @@ const OWN_MODELS: AvatarLibraryEntry[] = [
     // Working label only — no settled product name (the rule in the
     // working-label entries above), so
     // picking this tile pre-fills no name. Matched voice "Rasalgethi"
-    // (mature, gravelly male — distinct from Frank's Charon and the
+    // (mature, gravelly male — distinct from Frank's Gacrux and the
     // Executive's Sadaltager) is Muse's pick, flagged for Ron's
     // ear-check 2026-11-14.
     label: "Middle-Aged Pro",

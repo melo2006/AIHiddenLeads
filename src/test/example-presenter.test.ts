@@ -2,8 +2,9 @@
 //
 // Coverage:
 //  - the Frank registry binding (name lives in exactly one config
-//    place — PERSONAS.frank.displayName; voice Charon; the Senior
-//    Owner face created 2026-11-13) + registry integrity
+//    place — PERSONAS.frank.displayName; voice Gacrux since
+//    2026-11-14 (Ron's ruling: Charon read too hoarse for Frank's
+//    face); the Senior Owner face created 2026-11-13) + registry integrity
 //  - the ladies' registry bindings (Monica: Ron-settled name,
 //    Sulafat voice, her green-eyes face; Black Professional
 //    Lady: descriptive working-label name, Despina voice, her face)
@@ -61,8 +62,8 @@ describe('frank registry binding', () => {
   test('binds the approved name, the mature male voice and the Senior Owner face', () => {
     const frank = personaFor('frank');
     expect(frank.displayName).toBe('Frank');
-    expect(frank.voiceName).toBe('Charon');
-    expect(FRANK_VOICE).toBe('Charon');
+    expect(frank.voiceName).toBe('Gacrux');
+    expect(FRANK_VOICE).toBe('Gacrux');
     expect(frank.faceId).toBe('b3f85f7f-57ea-4f24-b1f6-a57229b4fae1');
     expect(FRANK_FACE_ID).toBe(frank.faceId);
     expect(frank.portraitFaceId).toBe(frank.faceId);

@@ -77,11 +77,15 @@ export const SARA_FACE_ID = 'f735e62c-dce7-4c0b-8e85-1c7e21774c45';
 /** Aspen's catalogue portrait key (her custom snapshot face). */
 export const ASPEN_PORTRAIT_FACE_ID = 'ed8fedd9-6c86-4dc5-bb3a-017c06146efc';
 
-/** Frank's voice. ONE named constant: Charon — the mature, deep,
- *  informative male in the Gemini Live set; the age-appropriate match
- *  for the Senior Owner face (Sara=Leda, Alex=Puck, Aspen=Kore). A
- *  future change is a one-line edit here and nowhere else. */
-export const FRANK_VOICE = 'Charon';
+/** Frank's voice. ONE named constant: Gacrux — Google's "Mature"
+ *  voice in the Gemini Live set. Ron's ruling (2026-11-14): the
+ *  previous pick, Charon, read too hoarse and wrong for Frank's face
+ *  (an older white gentleman), especially in the low register, so the
+ *  default moved. This constant is only the FALLBACK: a row in
+ *  persona_voice_overrides (set from the admin Demo Voices tab) wins
+ *  over it at session time — see _shared/persona-voice-overrides.ts.
+ *  (Sara=Leda, Alex=Puck, Aspen=Kore.) */
+export const FRANK_VOICE = 'Gacrux';
 /** The custom Trinity-2 "Senior Owner" face, created 2026-11-13
  *  (Simli auto-name "Convincing Cougar" — never shown to customers;
  *  the customer-facing name is the binding's displayName below). */
