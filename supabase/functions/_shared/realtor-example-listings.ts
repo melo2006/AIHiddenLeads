@@ -402,7 +402,22 @@ function formatListingLine(l: ExampleListing): string {
  * (realtor-discovery.ts — warm opening, buy-or-sell opener, early
  * capture, branching discovery, recap-and-promise close) after the
  * shared text, so all three presenters inherit the same realtor
- * conversation. The standard layer is untouched by it. */
+ * conversation. The standard layer is untouched by it.
+ *
+ * PRESENTER DISCOVERY HARDENING (discovery-hardening, 2026-11-14,
+ * Ron's live retest, session b8e5bc63): the presenter variant ALSO
+ * rewrites the script's criteria-no-match capture sentence. The
+ * shared sentence captures a no-match as a callback (the agent
+ * searches and calls back; name + best callback number) — the right
+ * shape for the standard chain, but in presenter mode it overrode
+ * the discovery arc in that session: one search question ended
+ * discovery and collapsed the close into a repeated callback
+ * deflection, even after the caller reminded the presenter a list
+ * had been promised. The presenter rewrite keeps the no-match
+ * wording and the criteria read-back, and hands what happens next
+ * to the discovery layer (the resumable arc; the list is the
+ * capture). Only that one sentence differs; the script constant and
+ * the standard layer stay byte-identical. */
 export function buildExampleListingsLayer(pack: RealtorExamplePack, opts?: { presenter?: boolean }): string {
   const top = topExampleListings(pack, 3).map((l) => l.descriptor).join('; ');
   const lines = pack.listings.map(formatListingLine).join('\n');
@@ -410,6 +425,14 @@ export function buildExampleListingsLayer(pack: RealtorExamplePack, opts?: { pre
     ? REALTOR_EXAMPLE_SIMULATION_SCRIPT.replace(
       'ASKING FOR A PERSON BY NAME: if the visitor asks for Aspen by name — or for any person by name — that is a transfer, always: use the bring-Aspen-back line from your instructions immediately and stop talking. Never answer AS Aspen, never impersonate her, and never deflect a repeated ask with questions of your own.',
       'ASKING FOR A PERSON BY NAME: if the visitor asks for Aspen by name, she is your colleague at AI Hidden Leads — but in THIS demonstration you are the host and the receptionist in one, and there is no handoff to her here, however often or specifically they ask. Say so warmly, once, in a single short line — for example: "Aspen is on my team — for this demonstration you\'ve got me, and I\'ll look after you myself." — then keep helping them yourself. Never answer AS Aspen, never impersonate her, never promise a transfer to her, and never offer to bring her in — no such handoff exists in this demo. If the visitor asks for {agentName} or another person at this business by name, that is an in-role request: handle it the way the script above handles transfers inside the simulation (narrate it; never claim a real transfer happened).',
+    ).replace(
+      // Discovery hardening (2026-11-14, session b8e5bc63): the
+      // script's criteria-no-match capture sentence, rewritten for
+      // presenter mode — the no-match wording and the criteria
+      // read-back stand; the callback capture does not (see the
+      // buildExampleListingsLayer doc comment above).
+      'Instead, capture the search: read their criteria back to confirm them (the area, the beds and baths, the budget), offer that {agentName} will search for them and call them back, and — if you do not already have them — take their name and best callback number so the callback can actually happen, reading the number back to confirm.',
+      'Read their criteria back to confirm them (the area, the beds and baths, the budget) — then fold the search back into the discovery conversation: in presenter mode the discovery layer below governs what happens next (the return to the discovery questions still unanswered; the caller\'s result is the matched-properties list in their channel, never a callback capture).',
     )
     : REALTOR_EXAMPLE_SIMULATION_SCRIPT;
   const script = rawScript.replace(/\{agentName\}/g, pack.agentName);
