@@ -234,6 +234,31 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   };
   const mediaElementRef = useRef<MediaElementPlayout | null>(null);
   const mediaElementStateRef = useRef<'idle' | 'starting' | 'ready' | 'failed'>('idle');
+  // Round 4 (volume round 4, 2026-11-14): the engine's start
+  // failure reason, mirrored from the engine instance so the
+  // playout diag can stamp it (efail=) — on Publish #51 the
+  // engine died (or never settled) on Ron's phone and the record
+  // carried no reason at all.
+  const mediaElementFailureRef = useRef<string | null>(null);
+  // Round 4 engine-first hold: while the media-element engine is
+  // still 'starting', local chunks are HELD (below) instead of
+  // spilling onto the MediaStream sink — the sink is what Ron's
+  // phone kept hearing. Held chunks replay through playPcmChunk
+  // itself the moment the engine settles: to the engine when it
+  // reports ready, to the sink graph when it reports failure, so
+  // no chunk is ever lost to the wait. The release latch stops a
+  // slow start from holding the whole greeting: after the
+  // deadline (or the size cap) the held chunks drain to the sink
+  // and later chunks follow today's routing until the engine is
+  // ready.
+  const engineHoldRef = useRef<Array<{ base64: string; reserved?: ReturnType<PlaybackCaptions['reserve']> }>>([]);
+  const engineHoldSecRef = useRef(0);
+  const engineHoldTimerRef = useRef<number | null>(null);
+  const engineHoldReleasedRef = useRef(false);
+  /** Latest playPcmChunk, for the hold drain (the callback's own
+   *  identity changes with its deps; the drain always wants the
+   *  current one). Assigned right after its definition. */
+  const playPcmChunkRef = useRef<((base64: string, reserved?: ReturnType<PlaybackCaptions['reserve']>) => void) | null>(null);
   /** End-of-chunk timers for engine-routed chunks (they have no
    *  AudioBufferSourceNode, so onended bookkeeping runs here). */
   const engineTimersRef = useRef(new Set<ReturnType<typeof setTimeout>>());
@@ -582,19 +607,32 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     let engine = mediaElementRef.current;
     if (engine) return engine;
     mediaElementStateRef.current = 'starting';
-    engine = new MediaElementPlayout(undefined, () => {
+    mediaElementFailureRef.current = null;
+    engineHoldReleasedRef.current = false;
+    engine = new MediaElementPlayout(undefined, (reason) => {
       // The engine died (encoder/MSE/stall): the session falls
       // back to the sink graph for every later chunk, and the mic
       // gets its echo cancellation back — the raw-capture request
-      // only ever rides with the element engine.
+      // only ever rides with the element engine. Round 4: the
+      // reason is KEPT (it is stamped as efail= — a silent death
+      // is what made Publish #51's failure unreadable), and any
+      // chunks held for the engine drain to the sink graph.
       mediaElementStateRef.current = 'failed';
+      mediaElementFailureRef.current = reason;
       applyCaptureProcessing(false);
       // The heard terminal changed materially — re-stamp the route.
       stampPlayoutDiag();
+      drainEngineHold();
     });
     mediaElementRef.current = engine;
     void engine.start().then((ok) => {
-      if (!ok || mediaElementRef.current !== engine) return;
+      if (mediaElementRef.current !== engine) return;
+      if (!ok) {
+        // start() failed (its reason already landed via onFatal):
+        // release anything held for the engine to the sink graph.
+        drainEngineHold();
+        return;
+      }
       mediaElementStateRef.current = 'ready';
       engine.setLevel({ muted: speakerMutedRef.current, volume: playbackVolumeRef.current });
       if (captureRef.current.paused) engine.setPaused(true);
@@ -602,6 +640,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       applyCaptureProcessing(true);
       // The heard terminal is now the media element — re-stamp.
       stampPlayoutDiag();
+      // Chunks held during the start now play through the engine.
+      drainEngineHold();
     });
     return engine;
   };
@@ -624,6 +664,53 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     void track.applyConstraints({ echoCancellation: !raw }).catch(() => { /* Browser may not support re-requesting processing. */ });
   };
 
+  // Round 4 engine-first hold (see the refs above): how long a
+  // chunk may wait for the engine, and how much audio may pile
+  // up, before the hold gives up and drains to the sink graph.
+  const ENGINE_HOLD_MAX_MS = 1500;
+  const ENGINE_HOLD_MAX_SEC = 4;
+  /** Replay every held chunk through playPcmChunk, in order.
+   *  Where they land is decided by the routing at replay time:
+   *  the engine when it settled ready, the sink graph when it
+   *  failed or the hold gave up — a held chunk is delayed, never
+   *  dropped. */
+  const drainEngineHold = useCallback(() => {
+    if (engineHoldTimerRef.current !== null) {
+      window.clearTimeout(engineHoldTimerRef.current);
+      engineHoldTimerRef.current = null;
+    }
+    const held = engineHoldRef.current;
+    engineHoldRef.current = [];
+    engineHoldSecRef.current = 0;
+    const play = playPcmChunkRef.current;
+    if (!play) return;
+    for (const chunk of held) play(chunk.base64, chunk.reserved);
+  }, []);
+  /** Hold one local chunk for the starting engine. The deadline
+   *  timer arms on the first held chunk; the size cap drains
+   *  immediately. Either release latches engineHoldReleasedRef
+   *  so the rest of this start's chunks take today's routing
+   *  instead of queueing behind a slow engine. */
+  const holdChunkForEngine = useCallback((base64: string, reserved?: ReturnType<PlaybackCaptions['reserve']>) => {
+    engineHoldRef.current.push({ base64, reserved });
+    // base64 → PCM16 24 kHz seconds: chars × 3/4 = bytes, ÷2 =
+    // samples, ÷24000 = seconds (padding ignored — an estimate
+    // for a cap, not a clock).
+    engineHoldSecRef.current += (base64.length * 3) / 4 / 2 / 24000;
+    if (engineHoldSecRef.current >= ENGINE_HOLD_MAX_SEC) {
+      engineHoldReleasedRef.current = true;
+      drainEngineHold();
+      return;
+    }
+    if (engineHoldTimerRef.current === null) {
+      engineHoldTimerRef.current = window.setTimeout(() => {
+        engineHoldTimerRef.current = null;
+        engineHoldReleasedRef.current = true;
+        drainEngineHold();
+      }, ENGINE_HOLD_MAX_MS);
+    }
+  }, [drainEngineHold]);
+
   /** The live mic track's echo-cancellation setting as the
    *  platform reports it ('comm' = EC on, 'raw' = EC off,
    *  'na' = no track / not reported) — playout telemetry. */
@@ -645,15 +732,25 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
    *  destination before the sink unlocks. */
   const localTerminalDiag = (): PlayoutTerminalDiag => {
     const engine = mediaElementRef.current;
+    // Round 4 proof fields ride on EVERY terminal shape: the
+    // engine's state/failure/rate, plus the terminal element's
+    // own muted/volume where an element exists. On the #51
+    // record none of this existed, so "the engine never carried
+    // the voice" could not be told apart from "it failed".
+    const proof = {
+      engineState: heardEngine() !== 'element' ? 'off' : mediaElementStateRef.current,
+      engineFailure: mediaElementFailureRef.current ?? engine?.failureReason ?? null,
+      encoderRate: engine?.encoderRate ?? null,
+    };
     if (engine && mediaElementStateRef.current === 'ready' && !engine.failed) {
       const state = engine.diagState();
-      return { sink: 'media-element', paused: state.paused, readyState: state.readyState, ctxInChain: false, trailSec: engine.trailSec() };
+      return { sink: 'media-element', paused: state.paused, readyState: state.readyState, ctxInChain: false, trailSec: engine.trailSec(), ...proof, elementMuted: state.muted, elementVolume: state.volume };
     }
     const sink = mediaSinkRef.current?.sink;
     if (sink) {
-      return { sink: 'media-stream', paused: sink.element.paused, readyState: sink.element.readyState, ctxInChain: true, trailSec: null };
+      return { sink: 'media-stream', paused: sink.element.paused, readyState: sink.element.readyState, ctxInChain: true, trailSec: null, ...proof, elementMuted: sink.element.muted, elementVolume: sink.element.volume };
     }
-    return { sink: 'context', paused: true, readyState: 0, ctxInChain: true, trailSec: null };
+    return { sink: 'context', paused: true, readyState: 0, ctxInChain: true, trailSec: null, ...proof, elementMuted: null, elementVolume: null };
   };
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -1435,6 +1532,14 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     mediaElementRef.current?.dispose();
     mediaElementRef.current = null;
     mediaElementStateRef.current = 'idle';
+    // Round 4: held chunks belong to the dead session — clear
+    // the queue, its deadline timer and the release latch so the
+    // next start's hold begins empty.
+    engineHoldRef.current = [];
+    engineHoldSecRef.current = 0;
+    engineHoldReleasedRef.current = false;
+    if (engineHoldTimerRef.current !== null) { window.clearTimeout(engineHoldTimerRef.current); engineHoldTimerRef.current = null; }
+    mediaElementFailureRef.current = null;
     captureRawRef.current = false;
     showMicHintRef.current = false;
     setShowMicHint(false);
@@ -1584,6 +1689,24 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
   // Play a 24 kHz PCM chunk (base64) with gapless scheduling
   const playPcmChunk = useCallback((base64: string, reserved?: ReturnType<PlaybackCaptions['reserve']>) => {
+    // ROUND-4 ENGINE-FIRST HOLD (volume round 4, 2026-11-14):
+    // while the media-element engine is still starting, a LOCAL
+    // chunk waits for it instead of playing through the
+    // MediaStream sink — on Publish #51 the sink was the only
+    // terminal Ron's phone ever stamped, because the engine's
+    // start never settled and every chunk took the graph. The
+    // hold covers the whole chunk (Simli feed included) so the
+    // face and the voice shift together and the +0.4 s lip
+    // relationship is untouched. Stream mode never holds (its
+    // local branch is a silent clock), a paused session never
+    // holds, and the hold self-releases on the engine settling,
+    // on its deadline, or at its size cap (see holdChunkForEngine).
+    if (!engineHoldReleasedRef.current && !captureRef.current.paused
+      && pairedAudibleMode() !== 'stream' && heardEngine() === 'element'
+      && mediaElementStateRef.current === 'starting') {
+      holdChunkForEngine(base64, reserved);
+      return;
+    }
     const captionRun = reserved ?? captionClockRef.current.reserve();
     if (!playCtxRef.current) {
       playCtxRef.current = new AudioContext({ sampleRate: 24000 });
@@ -1754,7 +1877,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         noteChunkEnded();
       };
     }
-  }, [stopEverything, engageVideoFallback]);
+  }, [stopEverything, engageVideoFallback, holdChunkForEngine]);
+  playPcmChunkRef.current = playPcmChunk;
 
   // Interrupt: drop all queued playback instantly
   const clearPlayback = useCallback(() => {
@@ -2112,6 +2236,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       }).then(stream => {
         if (generation !== generationRef.current) { stream.getTracks().forEach(t => t.stop()); return null; }
         micStreamRef.current = stream;
+        // Round 4: the engine may have become ready while this
+        // request was in flight (its ready path ran before a
+        // track existed) — apply the raw-capture switch to the
+        // track that just landed, so cap= can read 'raw' while
+        // the element carries the voice.
+        if (mediaElementStateRef.current === 'ready') applyCaptureProcessing(true);
         return stream;
       }, (micError: unknown) => {
         // Only a refusal from the microphone request itself is a microphone permission problem.
@@ -3670,6 +3800,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       const [stream, ready] = await Promise.all([micRequest, Promise.race([w.ready, timeout]), playResume, micResume]);
       if (generation !== generationRef.current) { stream?.getTracks().forEach(t => t.stop()); return; }
       micStreamRef.current = stream;
+      // Round 4: same raw-capture re-apply as the main start —
+      // a track acquired after the engine settled still gets the
+      // switch (see the microphoneReady handler above).
+      if (stream && mediaElementStateRef.current === 'ready') applyCaptureProcessing(true);
       if (stream) void refreshMicrophones();
       if (!ready) throw new Error("The voice service did not respond in time. Please try again.");
       await faceSound;

@@ -40,6 +40,31 @@
  * track the heard voice rather than the schedule clock. The diag
  * snapshot stamps the measured trail per session, so the residual
  * error is visible in the record instead of guessed.
+ *
+ * ROUND 4 (volume round 4, 2026-11-14 — Ron's SIXTH report, on
+ * Publish #51): the #51 session record proved this engine never
+ * became the heard terminal on his phone — every stamp read
+ * term=media-stream (the #48 WebAudio sink) while the engine's
+ * start outcome left no trace anywhere. Two structural defects
+ * made that possible, and both are removed here:
+ *  1. start() AWAITED element.play() before reporting ready. On a
+ *     real MSE element with only an init segment appended, play()'s
+ *     promise can stay pending until frames exist — and frames can
+ *     only be encoded after ready. That is a deadlock: no data
+ *     without ready, no ready without play() resolving. start()
+ *     now requests play() WITHOUT awaiting it (enqueuePcm16 keeps
+ *     retrying while the element is paused, and the stall watchdog
+ *     still fails the engine honestly if the playhead never moves).
+ *  2. The encoder was probed at exactly one configuration —
+ *     Opus at the 24 kHz input rate. A platform whose WebCodecs
+ *     Opus encoder only accepts 48 kHz failed the probe and killed
+ *     the engine before it existed. start() now walks a ladder
+ *     (24 kHz native, then 48 kHz with the PCM upsampled ×2 — one
+ *     media second stays one media second) and records which rung
+ *     won on the instance (encoderRate).
+ * Every failure also records its reason on the instance
+ * (failureReason) and the caller stamps it (efail=) — a start that
+ * cannot succeed must say why in the session record, never vanish.
  */
 import { clampPlaybackVolume } from "@/lib/playbackVolume";
 import { opusHead, webmOpusCluster, webmOpusInitSegment } from "@/lib/webmOpusMux";
@@ -54,12 +79,44 @@ export const MEDIA_ELEMENT_PIPELINE_SEC = 0.15;
 export const MEDIA_ELEMENT_INPUT_RATE = 24000;
 
 const MSE_TYPE = 'audio/webm; codecs="opus"';
-const OPUS_ENCODER_CONFIG = {
+
+/** A WebCodecs Opus encoder configuration (round 4: the probe
+ *  walks OPUS_ENCODER_RATES and the winner is kept, so the config
+ *  travels with the encoder instead of being one fixed constant). */
+export interface OpusEncoderConfigLike {
+  codec: string;
+  sampleRate: number;
+  numberOfChannels: number;
+  bitrate: number;
+}
+
+/** Encoder sample-rate ladder, most faithful first: the native
+ *  24 kHz input rate, then 48 kHz (the rate WebCodecs Opus
+ *  encoders most broadly accept; PCM is upsampled ×2 to feed it,
+ *  which preserves the media timeline exactly). */
+export const OPUS_ENCODER_RATES: readonly number[] = [MEDIA_ELEMENT_INPUT_RATE, 48000];
+
+const opusEncoderConfig = (sampleRate: number): OpusEncoderConfigLike => ({
   codec: "opus",
-  sampleRate: MEDIA_ELEMENT_INPUT_RATE,
+  sampleRate,
   numberOfChannels: 1,
   bitrate: 40_000,
-} as const;
+});
+
+/** ×2 linear-interpolation upsample of PCM16 (24 kHz → 48 kHz for
+ *  the ladder's second rung). Speech-grade: each input sample is
+ *  kept, with the midpoint to its successor inserted between. */
+export function upsample2x(samples: Int16Array): Int16Array {
+  if (samples.length === 0) return new Int16Array(0);
+  const out = new Int16Array(samples.length * 2);
+  for (let i = 0; i < samples.length; i++) {
+    const cur = samples[i];
+    const next = i + 1 < samples.length ? samples[i + 1] : cur;
+    out[2 * i] = cur;
+    out[2 * i + 1] = Math.round((cur + next) / 2);
+  }
+  return out;
+}
 
 /* ------------------------------------------------------------------ */
 /* Structural types for the platform pieces (WebCodecs is not in the  */
@@ -106,8 +163,9 @@ export interface MediaElementPlayoutDeps {
   createEncoder: (
     output: (chunk: EncodedChunkLike, meta?: EncoderOutputMeta) => void,
     error: (err: unknown) => void,
+    config: OpusEncoderConfigLike,
   ) => AudioEncoderLike | null;
-  encoderSupported: () => Promise<boolean>;
+  encoderSupported: (config: OpusEncoderConfigLike) => Promise<boolean>;
   createAudioData: (init: {
     format: string;
     sampleRate: number;
@@ -131,7 +189,7 @@ export const defaultMediaElementDeps: MediaElementPlayoutDeps = {
     const Ctor = (globalThis as { MediaSource?: typeof MediaSource }).MediaSource;
     return typeof Ctor?.isTypeSupported === "function" ? Ctor.isTypeSupported(type) : false;
   },
-  createEncoder: (output, error) => {
+  createEncoder: (output, error, config) => {
     const Ctor = (globalThis as {
       AudioEncoder?: new (init: {
         output: (chunk: EncodedChunkLike, meta?: EncoderOutputMeta) => void;
@@ -143,16 +201,16 @@ export const defaultMediaElementDeps: MediaElementPlayoutDeps = {
       output: (chunk, meta) => output(chunk, meta),
       error: (err) => error(err),
     });
-    encoder.configure({ ...OPUS_ENCODER_CONFIG });
+    encoder.configure({ ...config });
     return encoder;
   },
-  encoderSupported: async () => {
+  encoderSupported: async (config) => {
     const Ctor = (globalThis as {
       AudioEncoder?: { isConfigSupported?: (config: unknown) => Promise<{ supported?: boolean }> };
     }).AudioEncoder;
     if (typeof Ctor?.isConfigSupported !== "function") return false;
     try {
-      const result = await Ctor.isConfigSupported({ ...OPUS_ENCODER_CONFIG });
+      const result = await Ctor.isConfigSupported({ ...config });
       return result?.supported === true;
     } catch {
       return false;
@@ -192,6 +250,19 @@ export class MediaElementPlayout {
   ready = false;
   /** Sticky failure: the caller must keep chunks on the fallback. */
   failed = false;
+  /** The encoder ladder rung that won the probe (round 4), or
+   *  null before start settles / when no rung was supported. The
+   *  playout diag stamps it (erate=) so the record shows which
+   *  configuration the platform actually accepted. */
+  encoderRate: number | null = null;
+  /** Why the engine failed (round 4): the fail() reason, kept on
+   *  the instance because the #51 record proved a start failure
+   *  that left no trace is indistinguishable from a start that
+   *  never ran. The caller stamps it (efail=). */
+  failureReason: string | null = null;
+  /** The winning encoder configuration, reused by every encoder
+   *  (re)creation (start + flush restarts). */
+  private encoderConfig: OpusEncoderConfigLike | null = null;
 
   private readonly deps: MediaElementPlayoutDeps;
   private readonly onFatal: (reason: string) => void;
@@ -234,7 +305,10 @@ export class MediaElementPlayout {
     this.started = true;
     try {
       if (!mediaElementPlayoutMaybeSupported(this.deps)) return this.fail("unsupported");
-      if (!(await this.deps.encoderSupported())) return this.fail("encoder-unsupported");
+      const config = await this.probeEncoderConfig();
+      if (!config) return this.fail("encoder-unsupported");
+      this.encoderConfig = config;
+      this.encoderRate = config.sampleRate;
       const mediaSource = this.deps.createMediaSource();
       if (!mediaSource) return this.fail("no-mediasource");
       this.mediaSource = mediaSource;
@@ -258,15 +332,27 @@ export class MediaElementPlayout {
       if (!opened || this.disposed) return this.fail("sourceopen-timeout");
       this.sourceBuffer = mediaSource.addSourceBuffer(MSE_TYPE);
       // The init segment goes out first, ahead of any cluster. The
-      // CodecPrivate is the self-built OpusHead (pre-skip 0): the
-      // encoder is created after this append by construction, so a
-      // metadata-reported OpusHead could never arrive in time —
-      // the residual is a few ms of pipeline latency, absorbed in
+      // CodecPrivate is the self-built OpusHead (pre-skip 0),
+      // declaring the ENCODER's rate (round 4): at the ladder's
+      // 48 kHz rung the encoded frames really are 48 kHz samples,
+      // so the header must say so. The encoder is created after
+      // this append by construction, so a metadata-reported
+      // OpusHead could never arrive in time — the residual is a
+      // few ms of pipeline latency, absorbed in
       // MEDIA_ELEMENT_PIPELINE_SEC.
-      this.appendQueue.push(webmOpusInitSegment(opusHead(MEDIA_ELEMENT_INPUT_RATE, 1, 0)));
+      this.appendQueue.push(webmOpusInitSegment(opusHead(config.sampleRate, 1, 0)));
       this.pumpAppends();
       if (!this.startEncoder()) return this.fail("no-encoder");
-      await this.tryPlay();
+      // Round 4: play() is requested but NOT awaited. Its promise
+      // can stay pending on an MSE element until frames exist,
+      // and frames only exist once the caller routes chunks —
+      // which waits for ready. Awaiting it deadlocked start() on
+      // exactly the phones this engine exists for. The element
+      // starts audibly when the first cluster lands;
+      // enqueuePcm16 retries play() while it sits paused, and
+      // the stall watchdog fails the engine if the playhead
+      // never advances under load.
+      void this.tryPlay();
       this.ready = true;
       this.element.addEventListener("error", () => {
         if (this.ready && !this.disposed) this.fail("element-error");
@@ -276,6 +362,22 @@ export class MediaElementPlayout {
     } catch {
       return this.fail("exception");
     }
+  }
+
+  /** Walk the encoder ladder (round 4): the first configuration
+   *  the platform's WebCodecs Opus encoder accepts wins. A rung
+   *  whose probe throws counts as unsupported, not fatal — the
+   *  next rung may still work. */
+  private async probeEncoderConfig(): Promise<OpusEncoderConfigLike | null> {
+    for (const rate of OPUS_ENCODER_RATES) {
+      const config = opusEncoderConfig(rate);
+      try {
+        if (await this.deps.encoderSupported(config)) return config;
+      } catch {
+        /* probe failure on this rung — try the next */
+      }
+    }
+    return null;
   }
 
   /** Create the encoder, wiring callbacks that only honor their
@@ -289,6 +391,7 @@ export class MediaElementPlayout {
       () => {
         if (session === this.encoderSession) this.fail("encoder-error");
       },
+      this.encoderConfig ?? opusEncoderConfig(MEDIA_ELEMENT_INPUT_RATE),
     );
     if (!encoder) return false;
     this.encoder = encoder;
@@ -299,6 +402,7 @@ export class MediaElementPlayout {
     if (!this.failed) {
       this.failed = true;
       this.ready = false;
+      this.failureReason = reason;
       try {
         this.onFatal(reason);
       } catch {
@@ -313,10 +417,11 @@ export class MediaElementPlayout {
     try {
       await this.element.play();
     } catch {
-      /* Autoplay refusal mid-start: the next enqueue retries; the
-         caller keeps the fallback graph until ready flips — start()
-         only reports ready after this attempt, and a rejected
-         play() here is retried on every enqueue while unpaused. */
+      /* Autoplay refusal: the next enqueue retries play() while
+         the element sits paused, and setPaused(false) retries on
+         resume — a rejected play() never fails the engine by
+         itself; only the stall watchdog (fed but never advancing)
+         does. */
     }
   }
 
@@ -383,15 +488,21 @@ export class MediaElementPlayout {
       // chunk's duration, then the next chunk waits it out.
       if (this.fedEndSec > 0 && this.trailSec() > next.trailTargetSec) break;
       this.holdQueue.shift();
-      const frames = next.samples.length;
+      // Encode at the ladder's winning rate (round 4): at the
+      // 48 kHz rung the 24 kHz input is upsampled ×2 first, so the
+      // AudioData carries twice the frames at twice the rate —
+      // the SAME media duration, and the timestamp (media-timeline
+      // microseconds) is unchanged either way.
+      const rate = this.encoderRate ?? MEDIA_ELEMENT_INPUT_RATE;
+      const encoded = rate === MEDIA_ELEMENT_INPUT_RATE * 2 ? upsample2x(next.samples) : next.samples;
       const timestamp = Math.round(this.fedEndSec * 1_000_000);
-      const data = new ArrayBuffer(frames * 2);
-      new Int16Array(data).set(next.samples);
+      const data = new ArrayBuffer(encoded.length * 2);
+      new Int16Array(data).set(encoded);
       try {
         const audioData = this.deps.createAudioData({
           format: "s16",
-          sampleRate: MEDIA_ELEMENT_INPUT_RATE,
-          numberOfFrames: frames,
+          sampleRate: rate,
+          numberOfFrames: encoded.length,
           numberOfChannels: 1,
           timestamp,
           data,
@@ -401,7 +512,7 @@ export class MediaElementPlayout {
         this.fail("encode-exception");
         return;
       }
-      this.fedEndSec += frames / MEDIA_ELEMENT_INPUT_RATE;
+      this.fedEndSec += next.samples.length / MEDIA_ELEMENT_INPUT_RATE;
     }
   }
 
@@ -537,9 +648,17 @@ export class MediaElementPlayout {
     }
   }
 
-  /** Playout-diag state: the terminal sink IS this element. */
-  diagState(): { paused: boolean; readyState: number } {
-    return { paused: this.element.paused, readyState: this.element.readyState };
+  /** Playout-diag state: the terminal sink IS this element.
+   *  Round 4 adds the element's own muted/volume — the record
+   *  must prove the terminal is a decoded-media element, unmuted,
+   *  at the visitor's slider level. */
+  diagState(): { paused: boolean; readyState: number; muted: boolean; volume: number } {
+    return {
+      paused: this.element.paused,
+      readyState: this.element.readyState,
+      muted: this.element.muted,
+      volume: this.element.volume,
+    };
   }
 
   dispose(): void {

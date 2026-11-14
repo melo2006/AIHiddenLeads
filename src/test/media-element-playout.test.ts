@@ -15,6 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   MediaElementPlayout,
   mediaElementPlayoutMaybeSupported,
+  upsample2x,
   type EncodedChunkLike,
   type MediaElementPlayoutDeps,
   type MediaSourceLike,
@@ -229,12 +230,14 @@ describe("MediaElementPlayout", () => {
     engine.dispose();
   });
 
-  it("reports its terminal state for the playout diag (paused + readyState off the element)", async () => {
+  it("reports its terminal state for the playout diag (paused + readyState + the element's muted/volume)", async () => {
     const { deps } = makeDeps();
     const engine = new MediaElementPlayout(deps);
     await engine.start();
     await settle();
-    expect(engine.diagState()).toEqual({ paused: false, readyState: 4 });
+    expect(engine.diagState()).toEqual({ paused: false, readyState: 4, muted: false, volume: 1 });
+    engine.setLevel({ muted: false, volume: 0.3 });
+    expect(engine.diagState()).toEqual({ paused: false, readyState: 4, muted: false, volume: 0.3 });
     engine.setPaused(true);
     expect(engine.diagState().paused).toBe(true);
     engine.dispose();
@@ -271,6 +274,10 @@ describe("MediaElementPlayout", () => {
     expect(engine.failed).toBe(true);
     expect(engine.ready).toBe(false);
     expect(onFatal).toHaveBeenCalledWith("encoder-unsupported");
+    // Round 4: the reason and the (unwon) ladder live on the
+    // instance, so the session record can stamp them.
+    expect(engine.failureReason).toBe("encoder-unsupported");
+    expect(engine.encoderRate).toBe(null);
     expect(engine.enqueuePcm16(pcm(0.2), 0.1)).toBe(false);
     engine.dispose();
   });
@@ -281,6 +288,118 @@ describe("MediaElementPlayout", () => {
     const engine = new MediaElementPlayout(deps, onFatal);
     expect(await engine.start()).toBe(false);
     expect(onFatal).toHaveBeenCalledWith("unsupported");
+    expect(engine.failureReason).toBe("unsupported");
     engine.dispose();
+  });
+});
+
+describe("MediaElementPlayout — round 4 (start deadlock + encoder ladder)", () => {
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it("start() reports ready even when the element's play() promise never settles", async () => {
+    // The #51 failure shape: play() on an MSE element with only
+    // an init segment appended can stay pending until frames
+    // exist — and frames wait for ready. Awaiting play() inside
+    // start() deadlocked the engine on the phone; start() must
+    // settle without it.
+    const hanging = document.createElement("audio");
+    hanging.play = () => new Promise<void>(() => { /* never settles */ });
+    hanging.pause = () => {};
+    const { deps } = makeDeps({ createElement: () => hanging });
+    const engine = new MediaElementPlayout(deps);
+    await expect(engine.start()).resolves.toBe(true);
+    expect(engine.ready).toBe(true);
+    expect(engine.failed).toBe(false);
+    expect(engine.enqueuePcm16(pcm(0.2), 0.1)).toBe(true);
+    engine.dispose();
+  });
+
+  it("walks the encoder ladder to 48 kHz when 24 kHz is refused, upsampling the PCM ×2", async () => {
+    const configs: number[] = [];
+    const audioDataInits: Array<{ sampleRate: number; numberOfFrames: number; timestamp: number; data: ArrayBuffer }> = [];
+    const { deps, mediaSource } = makeDeps({
+      encoderSupported: async (config) => config.sampleRate === 48000,
+      createEncoder: (output, _error, config) => {
+        configs.push(config.sampleRate);
+        const encoder: FakeEncoder = {
+          state: "configured",
+          encoded: [],
+          closed: false,
+          encode: (data) => {
+            const init = data as { timestamp: number; numberOfFrames: number; sampleRate: number; format: string; data: ArrayBuffer };
+            audioDataInits.push(init);
+            const chunk: EncodedChunkLike = {
+              timestamp: init.timestamp,
+              duration: Math.round((init.numberOfFrames * 1_000_000) / init.sampleRate),
+              byteLength: 3,
+              copyTo: (dest: ArrayBuffer) => { new Uint8Array(dest).set([0xaa, 0xbb, 0xcc]); },
+            };
+            queueMicrotask(() => output(chunk));
+          },
+          flush: async () => {},
+          close: () => { encoder.closed = true; },
+          lateOutput: () => {},
+        };
+        return encoder;
+      },
+    });
+    const engine = new MediaElementPlayout(deps);
+    expect(await engine.start()).toBe(true);
+    expect(engine.encoderRate).toBe(48000);
+    expect(configs).toEqual([48000]); // the encoder was CREATED at the winning rung
+
+    // The init segment's OpusHead declares the encoder's rate.
+    await settle();
+    const init = mediaSource.buffers[0].appended[0];
+    const magic = [0x4f, 0x70, 0x75, 0x73, 0x48, 0x65, 0x61, 0x64]; // "OpusHead"
+    let at = -1;
+    for (let i = 0; i + magic.length <= init.length; i++) {
+      if (magic.every((b, j) => init[i + j] === b)) { at = i; break; }
+    }
+    expect(at).toBeGreaterThanOrEqual(0);
+    expect(new DataView(init.buffer, init.byteOffset + at + 12, 4).getUint32(0, true)).toBe(48000);
+
+    // A 240-sample ramp at 24 kHz becomes 480 frames at 48 kHz,
+    // linearly interpolated, on the same media timestamp.
+    const ramp = new Int16Array(240);
+    for (let i = 0; i < ramp.length; i++) ramp[i] = i * 10;
+    expect(engine.enqueuePcm16(ramp, 0.1)).toBe(true);
+    await settle();
+    expect(audioDataInits.length).toBe(1);
+    expect(audioDataInits[0].sampleRate).toBe(48000);
+    expect(audioDataInits[0].numberOfFrames).toBe(480);
+    expect(audioDataInits[0].timestamp).toBe(0);
+    const out = new Int16Array(audioDataInits[0].data);
+    expect(out[0]).toBe(0);
+    expect(out[1]).toBe(5); // midpoint of 0 and 10
+    expect(out[2]).toBe(10);
+    expect(out[3]).toBe(15);
+    expect(out[479]).toBe(2390); // final sample held (no successor)
+    engine.dispose();
+  });
+
+  it("prefers the native 24 kHz rung when the platform accepts it", async () => {
+    const probed: number[] = [];
+    const { deps, encoders } = makeDeps({
+      encoderSupported: async (config) => { probed.push(config.sampleRate); return true; },
+    });
+    const engine = new MediaElementPlayout(deps);
+    expect(await engine.start()).toBe(true);
+    expect(engine.encoderRate).toBe(24000);
+    expect(probed).toEqual([24000]); // ladder stops at the first accepted rung
+    engine.enqueuePcm16(pcm(0.2), 0.1);
+    await settle();
+    expect(encoders[0].encoded[0].sampleRate).toBe(24000);
+    expect(encoders[0].encoded[0].numberOfFrames).toBe(4800);
+    engine.dispose();
+  });
+});
+
+describe("upsample2x", () => {
+  it("keeps every sample and inserts midpoints, holding the last sample", () => {
+    expect([...upsample2x(new Int16Array([0, 100, 200]))]).toEqual([0, 50, 100, 150, 200, 200]);
+    expect(upsample2x(new Int16Array(0)).length).toBe(0);
+    expect([...upsample2x(new Int16Array([7]))]).toEqual([7, 7]);
   });
 });
