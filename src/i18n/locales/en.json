@@ -437,43 +437,27 @@
     "benefits": {
       "videoAvatar": {
         "headline": "Not Just a Voice — a Face on Your Website",
-        "body": "Aspen is a live streaming video avatar — your AI spokesperson. She greets visitors face-to-face on your website and talks them through what you offer."
+        "body": "Meet your AI spokesperson — a live streaming video avatar that greets visitors face-to-face on your website and talks them through what you offer."
       },
       "missCall": {
         "headline": "Never Miss Another Call",
-        "body": "Your AI receptionist answers 24/7 — nights, weekends, and holidays — so every caller becomes a potential customer."
+        "body": "Your AI receptionist answers every call instantly, 24/7 — nights, weekends, and holidays — so you never miss another lead."
+      },
+      "leadCapture": {
+        "headline": "Every Lead, Captured",
+        "body": "Each conversation captures the caller's name, what they need, and the best callback number for your follow-up."
+      },
+      "appointments": {
+        "headline": "Instant Appointments",
+        "body": "Booking starts with the caller's preference — their preferred time first — then confirms it on the spot. No more phone tag."
+      },
+      "warmTransfer": {
+        "headline": "Warm Transfer — You Stay in Control",
+        "body": "When a caller needs a person, the call transfers to you live with a summary of the conversation — you stay in control of every call."
       },
       "prospects": {
         "headline": "Fresh Prospects Every Month",
         "body": "Premium includes up to 50 fresh B2B prospects a month, in weekly batches — counts vary by market, and no specific count is guaranteed."
-      },
-      "yourListings": {
-        "headline": "She Sells Your Listings First",
-        "body": "Aspen learns your business from your own website and leads with your own listings and services — never a generic script."
-      },
-      "warmTransfer": {
-        "headline": "Warm Transfer — You Stay in Control",
-        "body": "When a caller needs a person, Aspen transfers them to you live with a summary of the conversation — you stay in control of every call."
-      },
-      "appointments": {
-        "headline": "Instant Appointments",
-        "body": "AI books, reschedules, and follows up automatically. No more phone tag — your calendar fills itself."
-      },
-      "followUp": {
-        "headline": "Follow-Ups After the Call",
-        "body": "With the caller's permission, Aspen follows up by text and email after the call — recaps, booking links, and reminders — so no lead goes cold."
-      },
-      "wizardSetup": {
-        "headline": "Start Yourself in About 15 Minutes",
-        "body": "No tech team needed. The setup wizard walks you through it step by step — add your website, your FAQs, and your voice, and you're on your way."
-      },
-      "pricing": {
-        "headline": "Plans From $99 a Month",
-        "body": "Premium is $99 a month with 400 voice minutes included. The video avatar is an optional add-on — free for your first month, then $79 a month only if you keep it."
-      },
-      "callSummary": {
-        "headline": "Every Call, Summarized for You",
-        "body": "Every call lands on your dashboard as a short summary with the full transcript, so you always know what your callers asked for."
       }
     }
   },

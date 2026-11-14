@@ -14,11 +14,7 @@ import {
   Clock,
   Headphones,
   Video,
-  ListChecks,
-  MailCheck,
-  Wand2,
-  Tag,
-  FileText,
+  ClipboardList,
   Users,
 } from "lucide-react";
 
@@ -49,7 +45,12 @@ const scanSteps = [
   },
 ] as const;
 
-/** Rotating benefit/sales messages shown while waiting */
+/**
+ * Rotating benefit/sales messages shown while waiting. Presenter-neutral
+ * by design: these cards also appear during Frank / Latina / Black Lady
+ * demos, so no card names a presenter. Order is the agreed selling order
+ * (2026-11-14): video spokesperson first, prospects last.
+ */
 const benefitMessages = [
   {
     icon: Video,
@@ -60,36 +61,20 @@ const benefitMessages = [
     key: "missCall",
   },
   {
-    icon: Users,
-    key: "prospects",
-  },
-  {
-    icon: ListChecks,
-    key: "yourListings",
-  },
-  {
-    icon: Headphones,
-    key: "warmTransfer",
+    icon: ClipboardList,
+    key: "leadCapture",
   },
   {
     icon: CalendarCheck,
     key: "appointments",
   },
   {
-    icon: MailCheck,
-    key: "followUp",
+    icon: Headphones,
+    key: "warmTransfer",
   },
   {
-    icon: Wand2,
-    key: "wizardSetup",
-  },
-  {
-    icon: Tag,
-    key: "pricing",
-  },
-  {
-    icon: FileText,
-    key: "callSummary",
+    icon: Users,
+    key: "prospects",
   },
 ];
 
