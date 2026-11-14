@@ -77,12 +77,17 @@ export default function BrowserVoiceHandoff({token,onActive,onEnded,microphone,p
  // and would stretch the toggle row). The visible label is a bare text
  // node, not a <span>, so small-viewport span rules elsewhere can never
  // shrink or hide it.
+ // Button state colours (2026-11-14, Ron-approved spec): while a manager
+ // handoff is ACTIVE the pill wears the green ON fill ("Return to Aspen" =
+ // a live manager call is in progress); idle is the neutral near-black
+ // outline with a dark-grey hover wash (.aspen-panel-btn keeps touch free
+ // of the old sticky violet hover).
  if(pill)return <>
-  {active?<Button size="sm" variant="outline" className="aspen-manager-pill !flex-row !min-h-11 !px-3 rounded-full" onClick={()=>{void request('cancel',token).catch(()=>{});finish('Back with Aspen.',joined.current?'completed':'unavailable');}} aria-label="Return to Aspen"><RotateCcw className="mr-1 h-4 w-4"/>Return to Aspen</Button>:!used&&<Button size="sm" variant="outline" className="aspen-manager-pill !flex-row !min-h-11 !px-3 rounded-full" onClick={()=>void begin()} aria-label="Talk to manager"><PhoneForwarded className="mr-1 h-4 w-4"/>Manager</Button>}
+  {active?<Button size="sm" variant="default" className="aspen-manager-pill !flex-row !min-h-11 !px-3 rounded-full" onClick={()=>{void request('cancel',token).catch(()=>{});finish('Back with Aspen.',joined.current?'completed':'unavailable');}} aria-label="Return to Aspen"><RotateCcw className="mr-1 h-4 w-4"/>Return to Aspen</Button>:!used&&<Button size="sm" variant="outline" className="aspen-manager-pill aspen-panel-btn !flex-row !min-h-11 !px-3 rounded-full hover:bg-muted hover:text-foreground" onClick={()=>void begin()} aria-label="Talk to manager"><PhoneForwarded className="mr-1 h-4 w-4"/>Manager</Button>}
   {status&&<p role="status" className="max-w-full break-words text-right text-xs text-muted-foreground">{status}</p>}
  </>;
  return <div className="space-y-1 border-t border-border pt-2">
-  {active?<Button size="sm" variant="outline" onClick={()=>{void request('cancel',token).catch(()=>{});finish('Back with Aspen.',joined.current?'completed':'unavailable');}} aria-label="Return to Aspen"><RotateCcw className="mr-1 h-4 w-4"/>Return to Aspen</Button>:!used&&<Button size="sm" variant="outline" onClick={()=>void begin()} aria-label="Talk to manager"><PhoneForwarded className="mr-1 h-4 w-4"/>Talk to manager</Button>}
+  {active?<Button size="sm" variant="default" onClick={()=>{void request('cancel',token).catch(()=>{});finish('Back with Aspen.',joined.current?'completed':'unavailable');}} aria-label="Return to Aspen"><RotateCcw className="mr-1 h-4 w-4"/>Return to Aspen</Button>:!used&&<Button size="sm" variant="outline" className="aspen-panel-btn hover:bg-muted hover:text-foreground" onClick={()=>void begin()} aria-label="Talk to manager"><PhoneForwarded className="mr-1 h-4 w-4"/>Talk to manager</Button>}
   {status&&<p role="status" className="break-words text-xs text-muted-foreground">{status}</p>}
  </div>;
 }

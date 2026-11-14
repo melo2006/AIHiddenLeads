@@ -169,7 +169,11 @@ export function AspenWindowControls({ onMinimize, onClose }: { onMinimize: () =>
       <span className="text-[8px] font-bold uppercase tracking-wider">Drag</span>
     </button>
     <Button size="icon" variant="secondary" className="h-8 w-8 border border-border bg-background/90 text-foreground" onClick={onMinimize} title="Minimize" aria-label="Minimize"><Minus className="h-4 w-4" /></Button>
-    <Button size="icon" variant="secondary" className="h-8 w-8 border border-primary/60 bg-background/90 text-foreground" onClick={onClose} title="End conversation" aria-label="End conversation"><X className="h-4 w-4" /></Button>
+    {/* Button state colours (2026-11-14, Ron-approved spec): × ENDS the
+        conversation, so it wears the destructive treatment — red icon +
+        red border — instead of matching harmless Minimize (before, the
+        only tell was a green vs grey border tint). */}
+    <Button size="icon" variant="secondary" className="h-8 w-8 border border-destructive/70 bg-background/90 text-destructive hover:bg-destructive/10" onClick={onClose} title="End conversation" aria-label="End conversation"><X className="h-4 w-4" /></Button>
   </div>;
 }
 
@@ -242,12 +246,20 @@ export default function FloatingPersonFrame({ name = 'Aspen', avatarUrl, open, m
         <span className="sr-only" role="status">{stage3.suspended ? 'Call paused' : 'Call live'}</span>
       </button>
       <div className="flex items-center gap-0.5 rounded-full border border-border bg-card/95 px-1 py-1 shadow-md" role="group" aria-label="Call controls">
-        <button type="button" className={barButton} onClick={stage3.onToggleSuspend} title={stage3.suspended ? 'Resume conversation' : 'Pause conversation'} aria-label={stage3.suspended ? 'Resume conversation' : 'Pause conversation'} aria-pressed={stage3.suspended}>{stage3.suspended ? <Play className="h-[18px] w-[18px]" /> : <Pause className="h-[18px] w-[18px]" />}</button>
-        <button type="button" className={`${barButton} text-destructive hover:bg-destructive/10`} onClick={stage3.onEnd} title="Disconnect" aria-label="Disconnect"><PhoneOff className="h-[18px] w-[18px]" /></button>
-        <button type="button" className={barButton} onClick={stage3.onToggleMic} title={stage3.muted ? 'Unmute microphone' : 'Mute microphone'} aria-label={stage3.muted ? 'Unmute microphone' : 'Mute microphone'} aria-pressed={stage3.muted}>{stage3.muted ? <MicOff className="h-[18px] w-[18px]" /> : <Mic className="h-[18px] w-[18px]" />}</button>
-        <button type="button" className={barButton} onClick={stage3.onToggleSpeaker} title={stage3.speakerMuted ? 'Turn speaker sound on' : 'Silence speaker'} aria-label={stage3.speakerMuted ? 'Turn speaker sound on' : 'Silence speaker'} aria-pressed={stage3.speakerMuted}>{stage3.speakerMuted ? <VolumeX className="h-[18px] w-[18px]" /> : <Volume2 className="h-[18px] w-[18px]" />}</button>
-        <button type="button" className={`${barButton} disabled:opacity-40`} onClick={stage3.onReplay} disabled={!stage3.hasReplay || stage3.replaying} title="Replay last message" aria-label="Replay last message"><RotateCcw className="h-[18px] w-[18px]" /></button>
-        <button type="button" className={barButton} onClick={onOpen} title="Maximize" aria-label="Maximize"><Maximize2 className="h-[18px] w-[18px]" /></button>
+        {/* Button state colours (2026-11-14, Ron-approved spec): the
+            Stage-3 bar speaks the SAME colour language as the panel —
+            green fill = pause engaged (matches the panel Pause button),
+            amber fill = muted/silenced (mic AND speaker), solid red =
+            disconnect only. Before, state here was icon-only and
+            disconnect was a bare red icon. Neutral buttons carry
+            .aspen-panel-btn so touch gets no lingering hover wash;
+            filled state buttons don't (their same-hue hover is safe). */}
+        <button type="button" className={stage3.suspended ? `${barButton} bg-primary text-primary-foreground hover:bg-primary/90` : `${barButton} aspen-panel-btn`} onClick={stage3.onToggleSuspend} title={stage3.suspended ? 'Resume conversation' : 'Pause conversation'} aria-label={stage3.suspended ? 'Resume conversation' : 'Pause conversation'} aria-pressed={stage3.suspended}>{stage3.suspended ? <Play className="h-[18px] w-[18px]" /> : <Pause className="h-[18px] w-[18px]" />}</button>
+        <button type="button" className={`${barButton} bg-destructive text-destructive-foreground hover:bg-destructive/90`} onClick={stage3.onEnd} title="Disconnect" aria-label="Disconnect"><PhoneOff className="h-[18px] w-[18px]" /></button>
+        <button type="button" className={stage3.muted ? `${barButton} bg-warning text-warning-foreground hover:bg-warning/90` : `${barButton} aspen-panel-btn`} onClick={stage3.onToggleMic} title={stage3.muted ? 'Unmute microphone' : 'Mute microphone'} aria-label={stage3.muted ? 'Unmute microphone' : 'Mute microphone'} aria-pressed={stage3.muted}>{stage3.muted ? <MicOff className="h-[18px] w-[18px]" /> : <Mic className="h-[18px] w-[18px]" />}</button>
+        <button type="button" className={stage3.speakerMuted ? `${barButton} bg-warning text-warning-foreground hover:bg-warning/90` : `${barButton} aspen-panel-btn`} onClick={stage3.onToggleSpeaker} title={stage3.speakerMuted ? 'Turn speaker sound on' : 'Silence speaker'} aria-label={stage3.speakerMuted ? 'Turn speaker sound on' : 'Silence speaker'} aria-pressed={stage3.speakerMuted}>{stage3.speakerMuted ? <VolumeX className="h-[18px] w-[18px]" /> : <Volume2 className="h-[18px] w-[18px]" />}</button>
+        <button type="button" className={`${barButton} aspen-panel-btn disabled:opacity-40`} onClick={stage3.onReplay} disabled={!stage3.hasReplay || stage3.replaying} title="Replay last message" aria-label="Replay last message"><RotateCcw className="h-[18px] w-[18px]" /></button>
+        <button type="button" className={`${barButton} aspen-panel-btn`} onClick={onOpen} title="Maximize" aria-label="Maximize"><Maximize2 className="h-[18px] w-[18px]" /></button>
       </div>
     </div>}
     {!(open && mode === 'chat') && <div className={open ? 'flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain' : keepRendered ? 'aspen-prewarm-offscreen' : 'hidden'} aria-hidden={!open || undefined}>{children}</div>}

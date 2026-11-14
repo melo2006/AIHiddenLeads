@@ -3464,11 +3464,18 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         <span>{t("voice.end")}</span>
       </Button>
     )}
+    {/* Button state colours (2026-11-14, Ron-approved canonical spec):
+        green fill = ON/engaged, AMBER fill = muted/silenced (mic AND
+        speaker — muted mic used to wear the same solid red as End),
+        solid red = End only, near-black = idle. Neutral buttons take a
+        dark-grey hover wash + .aspen-panel-btn so the violet --accent
+        hover can never stick after a touch tap and invent a state. */}
     {phase === "live" && captureMode !== "hold" && (
       <Button
         size="icon"
         disabled={handoffActive}
-        variant={muted ? "destructive" : "outline"}
+        variant={muted ? "warning" : "outline"}
+        className={muted ? undefined : "aspen-panel-btn hover:bg-muted hover:text-foreground"}
         aria-pressed={muted}
         title={muted ? t("voice.unmuteMic") : t("voice.muteMic")}
         aria-label={muted ? t("voice.unmuteMic") : t("voice.muteMic")}
@@ -3482,6 +3489,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       <Button
         size="icon"
         variant={paused ? "default" : "outline"}
+        className={paused ? undefined : "aspen-panel-btn hover:bg-muted hover:text-foreground"}
         aria-pressed={paused}
         title={paused ? t("voice.resumeConversation") : t("voice.pauseConversation")}
         aria-label={paused ? t("voice.resumeConversation") : t("voice.pauseConversation")}
@@ -3495,7 +3503,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       <div className="relative">
         <Button
           size="icon"
-          variant={speakerMuted ? "secondary" : "outline"}
+          variant={speakerMuted ? "warning" : "outline"}
+          className={speakerMuted ? undefined : "aspen-panel-btn hover:bg-muted hover:text-foreground"}
           aria-haspopup="menu"
           aria-expanded={speakerMenuOpen}
           title={t("voice.speakerOutputChoose")}
@@ -3522,8 +3531,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
                 return (
                   <div key={option.id}>
                     <div className="my-1 border-t border-border" aria-hidden />
-                    <button type="button" role="menuitemradio" aria-checked={option.selected} aria-label={t("voice.speakerMute")} className="flex w-full items-center gap-2 rounded-sm px-2 py-2 text-xs font-medium hover:bg-muted" onClick={chooseSpeakerMute}>
-                      <span className="flex h-4 w-4 shrink-0 items-center justify-center">{option.selected && <Check className="h-3.5 w-3.5" />}</span>
+                    <button type="button" role="menuitemradio" aria-checked={option.selected} aria-label={t("voice.speakerMute")} className={`flex w-full items-center gap-2 rounded-sm px-2 py-2 text-xs font-medium hover:bg-muted ${option.selected ? "bg-primary/15" : ""}`} onClick={chooseSpeakerMute}>
+                      <span className="flex h-4 w-4 shrink-0 items-center justify-center">{option.selected && <Check className="h-3.5 w-3.5 text-primary" />}</span>
                       <VolumeX className="h-4 w-4 shrink-0" />
                       <span>{t("voice.speakerMute")}</span>
                     </button>
@@ -3538,8 +3547,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
               const Icon = option.kind === "speaker" ? Speaker : option.kind === "earpiece" || option.kind === "platform" ? Smartphone : option.kind === "bluetooth" || option.kind === "headset" ? Bluetooth : Volume2;
               const device = option.deviceId ? speakerOutputs.find(d => d.deviceId === option.deviceId) : undefined;
               return (
-                <button key={option.id} type="button" role="menuitemradio" aria-checked={option.selected} aria-label={label} className="flex w-full items-center gap-2 rounded-sm px-2 py-2 text-xs font-medium hover:bg-muted" onClick={() => { if (device) void chooseSpeakerDevice(device); else choosePlatformOutput(); }}>
-                  <span className="flex h-4 w-4 shrink-0 items-center justify-center">{option.selected && <Check className="h-3.5 w-3.5" />}</span>
+                <button key={option.id} type="button" role="menuitemradio" aria-checked={option.selected} aria-label={label} className={`flex w-full items-center gap-2 rounded-sm px-2 py-2 text-xs font-medium hover:bg-muted ${option.selected ? "bg-primary/15" : ""}`} onClick={() => { if (device) void chooseSpeakerDevice(device); else choosePlatformOutput(); }}>
+                  <span className="flex h-4 w-4 shrink-0 items-center justify-center">{option.selected && <Check className="h-3.5 w-3.5 text-primary" />}</span>
                   <Icon className="h-4 w-4 shrink-0" />
                   <span className="truncate">{label}</span>
                 </button>
@@ -3555,6 +3564,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     <Button
       size="icon"
       variant="outline"
+      className="aspen-panel-btn hover:bg-muted hover:text-foreground"
       disabled={!hasReplay || paused || replaying || aspenSpeaking || phase === "connecting" || phase === "preview"}
       onClick={() => void replayLastMessage()}
       title={t("voice.replayLastTitle")}
@@ -3564,7 +3574,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       <span>{t("voice.replay")}</span>
     </Button>
     {replaying && (
-      <Button size="icon" variant="outline" onClick={clearPlayback} title={t("voice.stopReplayTitle")} aria-label={t("voice.stopReplayTitle")}>
+      <Button size="icon" variant="outline" className="aspen-panel-btn hover:bg-muted hover:text-foreground" onClick={clearPlayback} title={t("voice.stopReplayTitle")} aria-label={t("voice.stopReplayTitle")}>
         <PhoneOff className="h-4 w-4" />
         <span>{t("voice.stopReplay")}</span>
       </Button>
@@ -3598,6 +3608,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     <Button
       size="icon"
       variant="ghost"
+      className="aspen-panel-btn hover:bg-muted hover:text-foreground"
       onClick={() => setShowSettings((s) => !s)}
       title={t("voice.voiceSettings")}
       aria-label={t("voice.voiceSettings")}
@@ -3639,7 +3650,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           <div data-testid="aspen-focus-dock" className="flex shrink-0 items-center gap-1.5">
             <PersonaNameLabel name={personaLabelName} variant="dock" />
             <div aria-hidden className="flex-1" />
-            <Button size="icon" variant="outline" className="h-10 w-10 shrink-0 border-primary/60 bg-transparent text-primary hover:bg-primary/10 hover:text-primary" aria-label={t('voice.showCaptions')} title={t('voice.showCaptions')} aria-expanded={false} onClick={() => setCaptions(true)}><ChevronsUpDown className="h-4 w-4" /></Button>
+            <Button size="icon" variant="outline" className="aspen-panel-btn h-10 w-10 shrink-0 border-primary/60 bg-transparent text-primary hover:bg-muted hover:text-primary" aria-label={t('voice.showCaptions')} title={t('voice.showCaptions')} aria-expanded={false} onClick={() => setCaptions(true)}><ChevronsUpDown className="h-4 w-4" /></Button>
             {windowControls}
           </div>
         ) : windowControls)}
@@ -3664,7 +3675,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             {shownPhase !== "live" && (shownPhase === "idle" ? t("voice.readyToTalk") : faceWaiting ? t("voice.connecting") : status)}
           </p>
           {remainingSeconds !== null && <span data-testid="demo-timer-pill" title={`${t("voice.demoTimeRemaining")}: ${Math.floor(remainingSeconds/60)}:${String(remainingSeconds%60).padStart(2,'0')}`} aria-label={`${t("voice.demoTimeRemaining")}: ${Math.floor(remainingSeconds/60)}:${String(remainingSeconds%60).padStart(2,'0')}`} className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-background/95 px-2 py-0.5 text-[11px] leading-tight text-muted-foreground"><Timer className="h-3 w-3" />{Math.floor(remainingSeconds/60)}:{String(remainingSeconds%60).padStart(2,'0')}</span>}
-          {faceFirst && !focusView && <Button size="icon" variant="outline" className="ml-auto h-10 w-10 shrink-0 border-primary/60 bg-transparent text-primary hover:bg-primary/10 hover:text-primary" aria-label={captions ? t('voice.hideCaptions') : t('voice.showCaptions')} title={captions ? t('voice.hideCaptions') : t('voice.showCaptions')} aria-expanded={captions} onClick={() => setCaptions(v => !v)}><ChevronsUpDown className="h-4 w-4" /></Button>}
+          {/* Captions toggle colour (2026-11-14 spec): captions ON wears
+              the green ON fill — before, expanded and collapsed looked
+              identical (green icon either way). OFF keeps the green
+              icon/border affordance with a dark-grey hover wash. */}
+          {faceFirst && !focusView && <Button size="icon" variant="outline" className={captions ? "ml-auto h-10 w-10 shrink-0 border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground" : "aspen-panel-btn ml-auto h-10 w-10 shrink-0 border-primary/60 bg-transparent text-primary hover:bg-muted hover:text-primary"} aria-label={captions ? t('voice.hideCaptions') : t('voice.showCaptions')} title={captions ? t('voice.hideCaptions') : t('voice.showCaptions')} aria-expanded={captions} onClick={() => setCaptions(v => !v)}><ChevronsUpDown className="h-4 w-4" /></Button>}
         </div>
         {phase === 'idle' && endedByVisitor && <p className="text-xs text-muted-foreground">{t("voice.pressPlayReconnect", { name })}</p>}
 
@@ -3707,7 +3722,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         {showMicHint && phase === "live" && (
           <div role="status" className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/60 p-2 text-[11px] text-foreground">
             <span>I can’t hear you — your microphone may be muted or set to the wrong one.</span>
-            <Button size="sm" variant="outline" className="h-7 text-[11px]" onClick={() => setShowSettings(true)}>Check microphone</Button>
+            <Button size="sm" variant="outline" className="aspen-panel-btn h-7 text-[11px] hover:bg-muted hover:text-foreground" onClick={() => setShowSettings(true)}>Check microphone</Button>
           </div>
         )}
         {phase === "live" && captureMode === "hold" && (
@@ -3721,7 +3736,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           <Dialog open={showSettings} onOpenChange={setShowSettings}><DialogContent className="max-h-[85dvh] w-[calc(100vw-24px)] max-w-sm overflow-y-auto"><DialogTitle>{t("voice.voiceSettings")}</DialogTitle><DialogDescription>{t("voice.voiceSettingsDesc")}</DialogDescription><div className="space-y-3">
             {phase !== "idle" && <div className="space-y-2 rounded-md border border-border p-3">
               <p role="status" className="text-xs text-foreground">{t("voice.settingsLiveNote")}</p>
-              <Button variant="outline" size="sm" onClick={stopEverything}><PhoneOff className="mr-1.5 h-3.5 w-3.5" />{t("voice.endCallToEdit")}</Button>
+              <Button variant="destructive" size="sm" onClick={stopEverything}><PhoneOff className="mr-1.5 h-3.5 w-3.5" />{t("voice.endCallToEdit")}</Button>
             </div>}
             <label className="block space-y-1 text-xs">{t("voice.noiseFiltering")}
               <Select value={noiseFilter} onValueChange={value => chooseNoiseFilter(value as NoiseFilter)}>
@@ -3887,7 +3902,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
           {phase !== "idle" && <div className="flex flex-wrap items-center gap-2">
             <p role="status" className="text-xs text-muted-foreground">{t("voice.transcriptNote")}</p>
-            <Button variant="outline" size="sm" onClick={stopEverything}><PhoneOff className="mr-1.5 h-4 w-4" />{t("voice.endCallToEdit")}</Button>
+            <Button variant="destructive" size="sm" onClick={stopEverything}><PhoneOff className="mr-1.5 h-4 w-4" />{t("voice.endCallToEdit")}</Button>
           </div>}
           <div className="flex flex-wrap items-center gap-2">
             {(!compact || draft) && <Button variant="outline" size="sm" disabled={phase !== "idle"} onClick={() => void startConversation(true)} aria-label={t("voice.previewVoice")} title={t("voice.previewVoice")}>
@@ -3897,10 +3912,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
               try { localStorage.setItem("gemini-aspen-voice", voice); setSavedVoice(voice); setStatus(`${voice} saved for Gemini calls in this browser.`); } catch { setError("Your browser could not save the voice preference."); }
             }}><Save className="h-4 w-4 mr-2" /> {t("voice.saveVoice")}</Button>}
             {phase === "preview" && <span className="text-xs text-muted-foreground">{t("voice.voicePreviewSuffix", { voice })}</span>}
-            <Button variant="outline" size="sm" disabled={!hasReplay || paused || replaying || aspenSpeaking || phase === "connecting" || phase === "preview"} onClick={() => void replayLastMessage()} title={t("voice.replayAudioTitle")}><RotateCcw className="mr-2 h-4 w-4" />{t("voice.replayLastMessage")}</Button>
-            {replaying && <Button variant="outline" size="sm" onClick={clearPlayback}><PhoneOff className="mr-2 h-4 w-4" />{t("voice.stopReplay")}</Button>}
-            {phase === "live" && <Button variant={muted ? "destructive" : "outline"} size="sm" disabled={handoffActive} aria-pressed={muted} onClick={toggleMicMute}>{muted ? <MicOff className="mr-2 h-4 w-4" /> : <Mic className="mr-2 h-4 w-4" />}{muted ? t("voice.unmuteMic") : t("voice.muteMic")}</Button>}
-            {phase === "live" && <Button variant={paused ? "default" : "outline"} size="sm" aria-pressed={paused} disabled={handoffActive} onClick={togglePause}>{paused ? <Play className="mr-2 h-4 w-4" /> : <Pause className="mr-2 h-4 w-4" />}{paused ? t("voice.resume") : t("voice.pause")}</Button>}
+            <Button variant="outline" size="sm" className="aspen-panel-btn hover:bg-muted hover:text-foreground" disabled={!hasReplay || paused || replaying || aspenSpeaking || phase === "connecting" || phase === "preview"} onClick={() => void replayLastMessage()} title={t("voice.replayAudioTitle")}><RotateCcw className="mr-2 h-4 w-4" />{t("voice.replayLastMessage")}</Button>
+            {replaying && <Button variant="outline" size="sm" className="aspen-panel-btn hover:bg-muted hover:text-foreground" onClick={clearPlayback}><PhoneOff className="mr-2 h-4 w-4" />{t("voice.stopReplay")}</Button>}
+            {phase === "live" && <Button variant={muted ? "warning" : "outline"} className={muted ? undefined : "aspen-panel-btn hover:bg-muted hover:text-foreground"} size="sm" disabled={handoffActive} aria-pressed={muted} onClick={toggleMicMute}>{muted ? <MicOff className="mr-2 h-4 w-4" /> : <Mic className="mr-2 h-4 w-4" />}{muted ? t("voice.unmuteMic") : t("voice.muteMic")}</Button>}
+            {phase === "live" && <Button variant={paused ? "default" : "outline"} className={paused ? undefined : "aspen-panel-btn hover:bg-muted hover:text-foreground"} size="sm" aria-pressed={paused} disabled={handoffActive} onClick={togglePause}>{paused ? <Play className="mr-2 h-4 w-4" /> : <Pause className="mr-2 h-4 w-4" />}{paused ? t("voice.resume") : t("voice.pause")}</Button>}
             {phase === "live" && captureMode === "hold" && <Button
               className="touch-none select-none" variant={held ? "default" : "secondary"} disabled={muted || paused || replaying || handoffActive}
               aria-pressed={held} onContextMenu={event => event.preventDefault()}

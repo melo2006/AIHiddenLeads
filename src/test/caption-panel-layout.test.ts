@@ -164,7 +164,9 @@ describe("caption panel — manager transfer is a compact pill in the Voice/Type
     expect(handoff).toContain("pill?:boolean");
     expect(handoff).toContain('aria-label="Talk to manager"');
     expect(handoff).toContain("<PhoneForwarded className=\"mr-1 h-4 w-4\"/>Manager</Button>");
-    expect(handoff).toContain('className="aspen-manager-pill !flex-row !min-h-11 !px-3 rounded-full" onClick={()=>void begin()}');
+    // 2026-11-14 button-colour spec: the idle pill's class list also carries
+    // .aspen-panel-btn + the dark-grey hover wash (violet hover removed).
+    expect(handoff).toContain('className="aspen-manager-pill aspen-panel-btn !flex-row !min-h-11 !px-3 rounded-full hover:bg-muted hover:text-foreground" onClick={()=>void begin()}');
     // The active state keeps the same cancel/return action and label.
     expect(handoff).toContain('aria-label="Return to Aspen"');
   });
