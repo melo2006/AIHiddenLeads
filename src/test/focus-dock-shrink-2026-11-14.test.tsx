@@ -193,7 +193,7 @@ describe('focus dock shrink — rendered layout', () => {
     expect(panel?.contains(focusTransport)).toBe(true);
   });
 
-  it('restore: the captions-back chevron returns the standard layout exactly — modifier off, caption region back, one transport', async () => {
+  it('restore: the dock Captions pill returns the standard layout exactly — modifier off, caption region back, one transport', async () => {
     stubBrowser();
     const view = render(<GeminiConversation compact faceFirst consentOnOpen videoAvatar={videoAvatar} />);
     await waitFor(() => expect(view.getByText('Ready to talk')).toBeTruthy());

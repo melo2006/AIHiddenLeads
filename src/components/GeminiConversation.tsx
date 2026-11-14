@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Mic, MicOff, Volume2, VolumeX, FlaskConical, PhoneOff, Loader2, Play, Pause, Save, RotateCcw, RefreshCw, Settings2, ChevronsUpDown, Check, Speaker, Smartphone, Bluetooth, Timer } from "lucide-react";
+import { Mic, MicOff, Volume2, VolumeX, FlaskConical, PhoneOff, Loader2, Play, Pause, Save, RotateCcw, RefreshCw, Settings2, Check, Speaker, Smartphone, Bluetooth, Timer } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useTranslation } from "react-i18next";
 // This component renders in standalone harnesses (Voice Lab, embeds, tests)
@@ -3718,7 +3718,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           <div data-testid="aspen-focus-dock" className="flex shrink-0 items-center gap-1.5">
             <PersonaNameLabel name={personaLabelName} variant="dock" />
             <div aria-hidden className="flex-1" />
-            <Button size="icon" variant="outline" className="aspen-panel-btn h-10 w-10 shrink-0 border-primary/60 bg-transparent text-primary hover:bg-muted hover:text-primary" aria-label={t('voice.showCaptions')} title={t('voice.showCaptions')} aria-expanded={false} onClick={() => setCaptions(true)}><ChevronsUpDown className="h-4 w-4" /></Button>
+            <Button variant="outline" className="aspen-panel-btn h-10 shrink-0 rounded-full border-primary/60 bg-transparent px-3 text-xs font-semibold text-primary hover:bg-muted hover:text-primary" aria-label={t('voice.showCaptions')} title={t('voice.showCaptions')} aria-expanded={false} onClick={() => setCaptions(true)}>{t('voice.captions')}</Button>
             {windowControls}
           </div>
         ) : windowControls)}
@@ -3726,8 +3726,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             captions off = the presenter + voice controls + the dock —
             the Voice/Type toggle and Manager pill rows step aside.
             'hidden' (not unmount) so a live Manager handoff leg inside
-            the row is never torn down by entering focus; the captions
-            chevron in the dock brings the row back with the captions. */}
+            the row is never torn down by entering focus; the Captions
+            pill in the dock brings the row back with the captions. */}
         {faceFirst && <div className={focusView ? 'hidden' : 'contents'}>{wideLandscape ? landscapeControlRow : toggleManagerRow}</div>}
         <div className="flex items-center gap-1.5">
           {shownPhase === "connecting" && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" />}
@@ -3743,11 +3743,15 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             {shownPhase !== "live" && (shownPhase === "idle" ? t("voice.readyToTalk") : faceWaiting ? t("voice.connecting") : status)}
           </p>
           {remainingSeconds !== null && <span data-testid="demo-timer-pill" title={`${t("voice.demoTimeRemaining")}: ${Math.floor(remainingSeconds/60)}:${String(remainingSeconds%60).padStart(2,'0')}`} aria-label={`${t("voice.demoTimeRemaining")}: ${Math.floor(remainingSeconds/60)}:${String(remainingSeconds%60).padStart(2,'0')}`} className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-background/95 px-2 py-0.5 text-[11px] leading-tight text-muted-foreground"><Timer className="h-3 w-3" />{Math.floor(remainingSeconds/60)}:{String(remainingSeconds%60).padStart(2,'0')}</span>}
-          {/* Captions toggle colour (2026-11-14 spec): captions ON wears
-              the green ON fill — before, expanded and collapsed looked
-              identical (green icon either way). OFF keeps the green
-              icon/border affordance with a dark-grey hover wash. */}
-          {faceFirst && !focusView && <Button size="icon" variant="outline" className={captions ? "ml-auto h-10 w-10 shrink-0 border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground" : "aspen-panel-btn ml-auto h-10 w-10 shrink-0 border-primary/60 bg-transparent text-primary hover:bg-muted hover:text-primary"} aria-label={captions ? t('voice.hideCaptions') : t('voice.showCaptions')} title={captions ? t('voice.hideCaptions') : t('voice.showCaptions')} aria-expanded={captions} onClick={() => setCaptions(v => !v)}><ChevronsUpDown className="h-4 w-4" /></Button>}
+          {/* Captions toggle (2026-11-14): a word pill labelled
+              "Captions" — Ron picked the word over the up/down
+              chevron, which read as decoration; the same pill sits
+              in the focus dock. The FILL carries the state and the
+              label never changes: captions ON wears the green ON
+              fill (before, expanded and collapsed looked identical
+              — green icon either way); OFF keeps the green border
+              affordance with a dark-grey hover wash. */}
+          {faceFirst && !focusView && <Button variant="outline" className={captions ? "ml-auto h-10 shrink-0 rounded-full border-primary bg-primary px-3 text-xs font-semibold text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground" : "aspen-panel-btn ml-auto h-10 shrink-0 rounded-full border-primary/60 bg-transparent px-3 text-xs font-semibold text-primary hover:bg-muted hover:text-primary"} aria-label={captions ? t('voice.hideCaptions') : t('voice.showCaptions')} title={captions ? t('voice.hideCaptions') : t('voice.showCaptions')} aria-expanded={captions} onClick={() => setCaptions(v => !v)}>{t('voice.captions')}</Button>}
         </div>
         {phase === 'idle' && endedByVisitor && <p className="text-xs text-muted-foreground">{t("voice.pressPlayReconnect", { name })}</p>}
         {/* FOCUS VIEW transport, wide landscape only (2026-11-14): the

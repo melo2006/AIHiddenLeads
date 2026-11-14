@@ -8,7 +8,7 @@ import type { SimliAvatarHandle } from '@/components/SimliAvatar';
 
 // Demo fix batch (2026-11-14) — component-level proof for the parts
 // that do not need a live Simli/Gemini session:
-//  * item 5b FOCUS VIEW: captions chevron collapses captions into the
+//  * item 5b FOCUS VIEW: Captions pill collapses captions into the
 //    floating layout, the shell is told (focus flag), the dock with
 //    the big name badge appears, and the choice is remembered for
 //    the session.
@@ -86,7 +86,7 @@ const stage3: Stage3Controls = {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); sessionStorage.clear(); Socket.current = undefined; vi.clearAllMocks(); });
 
 describe('focus view (item 5b)', () => {
-  it('the captions chevron switches the panel to the dock layout and reports focus to the shell', async () => {
+  it('the Captions pill switches the panel to the dock layout and reports focus to the shell', async () => {
     stubBrowser();
     const onShellState = vi.fn();
     const view = render(<GeminiConversation compact faceFirst consentOnOpen videoAvatar={videoAvatar} onShellState={onShellState} />);
