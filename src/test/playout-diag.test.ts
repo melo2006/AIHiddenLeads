@@ -133,6 +133,61 @@ describe("playoutDiagDetail — round 4 engine proof", () => {
   });
 });
 
+describe("playoutDiagDetail — round 5 stall counters", () => {
+  it("a media-element terminal reports stall episodes opened and recovered in place", () => {
+    const detail = playoutDiagDetail({
+      ...localSettled,
+      terminal: {
+        sink: "media-element", paused: false, readyState: 4, ctxInChain: false, trailSec: 0.25,
+        engineState: "ready", engineFailure: null, encoderRate: 24000, elementMuted: false, elementVolume: 1,
+        stalls: 3, recoveries: 2,
+      },
+    });
+    expect(detail).toContain("stalls=3");
+    expect(detail).toContain("rec=2");
+  });
+
+  it("a sink terminal after an engine death still carries the counters from before the flip", () => {
+    const detail = playoutDiagDetail({
+      ...localSettled,
+      terminal: {
+        sink: "media-stream", paused: false, readyState: 4, ctxInChain: true, trailSec: null,
+        engineState: "failed", engineFailure: "element-stalled", encoderRate: 24000, elementMuted: false, elementVolume: 1,
+        stalls: 4, recoveries: 3,
+      },
+    });
+    expect(detail).toContain("efail=element-stalled");
+    expect(detail).toContain("stalls=4");
+    expect(detail).toContain("rec=3");
+  });
+
+  it("no engine to count them reads as '-'", () => {
+    const detail = playoutDiagDetail({
+      ...localSettled,
+      terminal: {
+        sink: "context", paused: true, readyState: 0, ctxInChain: true, trailSec: null,
+        engineState: "off", engineFailure: null, encoderRate: null, elementMuted: null, elementVolume: null,
+      },
+    });
+    expect(detail).toContain("stalls=-");
+    expect(detail).toContain("rec=-");
+  });
+
+  it("the full round-5 line still fits the server's 400-char detail cap", () => {
+    const payload = playoutDiagPayload("s", {
+      ...localSettled,
+      terminal: {
+        sink: "media-element", paused: false, readyState: 4, ctxInChain: false, trailSec: 0.25,
+        engineState: "ready", engineFailure: null, encoderRate: 48000, elementMuted: false, elementVolume: 0.3,
+        stalls: 12, recoveries: 11,
+      },
+    }, 1, ";sink=ready;pctx=running;cap=raw");
+    expect(payload.detail.length).toBeLessThanOrEqual(400);
+    expect(payload.detail).toContain("stalls=12");
+    expect(payload.detail).toContain("rec=11");
+  });
+});
+
 describe("playoutDiagPayload / signature", () => {
   it("builds the server payload and folds local-path state into the detail", () => {
     const payload = playoutDiagPayload("11111111-1111-4111-8111-111111111111", localSettled, 123, ";sink=ready;pctx=running");

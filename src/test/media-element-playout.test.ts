@@ -235,9 +235,10 @@ describe("MediaElementPlayout", () => {
     const engine = new MediaElementPlayout(deps);
     await engine.start();
     await settle();
-    expect(engine.diagState()).toEqual({ paused: false, readyState: 4, muted: false, volume: 1 });
+    // Round 5: the diag state also carries the stall counters.
+    expect(engine.diagState()).toEqual({ paused: false, readyState: 4, muted: false, volume: 1, stalls: 0, recoveries: 0 });
     engine.setLevel({ muted: false, volume: 0.3 });
-    expect(engine.diagState()).toEqual({ paused: false, readyState: 4, muted: false, volume: 0.3 });
+    expect(engine.diagState()).toEqual({ paused: false, readyState: 4, muted: false, volume: 0.3, stalls: 0, recoveries: 0 });
     engine.setPaused(true);
     expect(engine.diagState().paused).toBe(true);
     engine.dispose();
@@ -392,6 +393,236 @@ describe("MediaElementPlayout — round 4 (start deadlock + encoder ladder)", ()
     await settle();
     expect(encoders[0].encoded[0].sampleRate).toBe(24000);
     expect(encoders[0].encoded[0].numberOfFrames).toBe(4800);
+    engine.dispose();
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Round 5: stall detection + in-place recovery. The fakes model    */
+/* the stall HONESTLY: the playhead only moves when the test moves  */
+/* it (a real element's playhead freezes the same way when it is    */
+/* parked at a hole or starved at the live edge), buffered ranges   */
+/* are the test's to shape, and the manual buffer's appends only    */
+/* complete when the test settles them (a slow platform append).    */
+/* ------------------------------------------------------------------ */
+
+const rangesOf = (ranges: Array<[number, number]>) => ({
+  length: ranges.length,
+  start: (i: number) => ranges[i][0],
+  end: (i: number) => ranges[i][1],
+});
+
+class ManualSourceBuffer implements SourceBufferLike {
+  updating = false;
+  appended: Uint8Array[] = [];
+  removed: Array<[number, number]> = [];
+  buffered = { length: 0, start: () => 0, end: () => 0 };
+  private listeners = new Map<string, Set<() => void>>();
+  addEventListener(type: string, fn: () => void) {
+    if (!this.listeners.has(type)) this.listeners.set(type, new Set());
+    this.listeners.get(type)!.add(fn);
+  }
+  removeEventListener(type: string, fn: () => void) {
+    this.listeners.get(type)?.delete(fn);
+  }
+  appendBuffer(data: Uint8Array) {
+    this.appended.push(new Uint8Array(data));
+    this.updating = true; // settles only when the test says so
+  }
+  settleAppends() {
+    this.updating = false;
+    for (const fn of [...(this.listeners.get("updateend") ?? [])]) fn();
+  }
+  remove(start: number, end: number) {
+    this.removed.push([start, end]);
+  }
+}
+
+describe("MediaElementPlayout — round 5 (stall recovery)", () => {
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it("gap stall: a playhead parked at a timeline hole is seeked into the next range and the episode counts as recovered", async () => {
+    const onFatal = vi.fn();
+    const { deps, element, mediaSource, setPlayhead, setReadyState } = makeDeps();
+    const engine = new MediaElementPlayout(deps, onFatal);
+    await engine.start();
+    await settle();
+    const buffer = mediaSource.buffers[0];
+    engine.enqueuePcm16(pcm(0.5), 0.1);
+    await settle();
+    // The appended timeline has a hole: [0, 0.5] then [0.8, 1.3].
+    // The playhead plays to the end of the first range and parks.
+    buffer.buffered = rangesOf([[0, 0.5], [0.8, 1.3]]);
+    setPlayhead(0.5);
+    setReadyState(2);
+    vi.advanceTimersByTime(400); // episode opens ~320 ms in; first recovery pass seeks
+    await settle();
+    expect(element.currentTime).toBeCloseTo(0.81); // jumped to just inside the next range
+    expect(engine.failed).toBe(false);
+    expect(onFatal).not.toHaveBeenCalled();
+    expect(engine.diagState().stalls).toBe(1);
+    expect(engine.diagState().recoveries).toBe(0); // not yet: the seek alone is not recovery
+    // Playback resumes under its own power past the seek target.
+    setPlayhead(0.9);
+    vi.advanceTimersByTime(120);
+    await settle();
+    expect(engine.diagState().recoveries).toBe(1);
+    expect(engine.failed).toBe(false);
+
+    // A second hole later in the same session recovers the same
+    // way — episodes accumulate, the engine survives.
+    buffer.buffered = rangesOf([[0, 0.5], [0.8, 1.3], [1.6, 2.0]]);
+    setPlayhead(1.3);
+    vi.advanceTimersByTime(400);
+    await settle();
+    expect(element.currentTime).toBeCloseTo(1.61);
+    expect(engine.diagState().stalls).toBe(2);
+    setPlayhead(1.75);
+    vi.advanceTimersByTime(120);
+    await settle();
+    expect(engine.diagState().recoveries).toBe(2);
+    expect(engine.failed).toBe(false);
+    expect(onFatal).not.toHaveBeenCalled();
+    engine.dispose();
+  });
+
+  it("underrun: a slow append starves the live edge — the engine rebuffers (holds, rebuilds the cushion) instead of drip-feeding, then resumes once", async () => {
+    const manual = new ManualSourceBuffer();
+    const manualSource: MediaSourceLike = {
+      readyState: "open",
+      addSourceBuffer: () => manual,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      endOfStream: () => {},
+    };
+    const onFatal = vi.fn();
+    const { deps, element, setPlayhead, setReadyState } = makeDeps({ createMediaSource: () => manualSource });
+    const engine = new MediaElementPlayout(deps, onFatal);
+    await engine.start();
+    await settle();
+    manual.settleAppends(); // init segment lands
+    // First chunk plays cleanly to its end.
+    engine.enqueuePcm16(pcm(0.5), 0.1);
+    await settle();
+    manual.settleAppends();
+    manual.buffered = rangesOf([[0, 0.5]]);
+    setPlayhead(0.25);
+    vi.advanceTimersByTime(200);
+    setPlayhead(0.5);
+    vi.advanceTimersByTime(100);
+    await settle();
+    expect(engine.diagState().stalls).toBe(0); // caught up with everything fed: not a stall
+    // The next chunk's append is SLOW (the platform is busy): the
+    // playhead sits at the buffered end while the append is still
+    // in flight — the drip-feed shape from the field.
+    engine.enqueuePcm16(pcm(0.5), 0.1);
+    await settle(); // encoded; append started and is stuck in flight
+    setReadyState(2);
+    const playCallsBefore = (element.play as ReturnType<typeof vi.fn>).mock.calls.length;
+    vi.advanceTimersByTime(400); // episode opens; recovery engages the rebuffer
+    await settle();
+    expect(engine.failed).toBe(false);
+    expect(engine.diagState().stalls).toBe(1);
+    expect(element.pause).toHaveBeenCalled(); // the engine holds the element while it rebuilds the cushion
+    expect((element.play as ReturnType<typeof vi.fn>).mock.calls.length).toBe(playCallsBefore); // and does not drip-resume
+    // The append finally lands, extending the range contiguously.
+    manual.settleAppends();
+    manual.buffered = rangesOf([[0, 1.0]]);
+    vi.advanceTimersByTime(120); // rebuffer sees the cushion and resumes, once
+    await settle();
+    expect((element.play as ReturnType<typeof vi.fn>).mock.calls.length).toBe(playCallsBefore + 1);
+    setPlayhead(0.7); // playback moving again under its own power
+    vi.advanceTimersByTime(120);
+    await settle();
+    expect(engine.diagState().recoveries).toBe(1);
+    expect(engine.failed).toBe(false);
+    expect(onFatal).not.toHaveBeenCalled();
+    engine.dispose();
+  });
+
+  it("unrecoverable stall: after ~6 s of failed recovery the engine fails with round 4's reason — and hands back the stranded PCM, in order", async () => {
+    const onFatal = vi.fn();
+    const { deps, mediaSource, setPlayhead, setReadyState } = makeDeps();
+    const engine = new MediaElementPlayout(deps, onFatal);
+    await engine.start();
+    await settle();
+    const buffer = mediaSource.buffers[0];
+    engine.enqueuePcm16(pcm(0.5), 0.1); // plays; fed end 0.5
+    await settle();
+    engine.enqueuePcm16(pcm(0.6), 0.1); // encodes (trail was 0); fed end 1.1
+    await settle();
+    engine.enqueuePcm16(pcm(0.6), 0.1); // trail 0.6 > target: held as PCM
+    engine.enqueuePcm16(pcm(0.6), 0.1); // held as PCM
+    // A hole ahead, and a playhead that will never move again —
+    // even the gap jump lands it inside the later range, frozen.
+    buffer.buffered = rangesOf([[0, 0.5], [0.8, 1.3]]);
+    setPlayhead(0.5);
+    setReadyState(2);
+    for (let i = 0; i < 16; i++) {
+      vi.advanceTimersByTime(500);
+      await settle();
+    }
+    expect(onFatal).toHaveBeenCalledTimes(1);
+    expect(onFatal).toHaveBeenCalledWith("element-stalled");
+    expect(engine.failed).toBe(true);
+    expect(engine.diagState().stalls).toBeGreaterThanOrEqual(1);
+    expect(engine.diagState().recoveries).toBe(0);
+    // The stranded speech is handed back for the caller's
+    // fallback to replay: the still-held 0.6 s chunk (the other
+    // held chunk was legitimately fed to the element by the
+    // in-episode gate raise before the failure). Drains once.
+    const drained = engine.drainPendingPcm();
+    expect(drained.length).toBe(1);
+    expect(drained[0].length).toBe(14400); // 0.6 s at 24 kHz
+    expect(engine.drainPendingPcm()).toEqual([]);
+    expect(engine.enqueuePcm16(pcm(0.2), 0.1)).toBe(false);
+    engine.dispose();
+  });
+
+  it("no false stalls: silence between utterances and a user pause never open an episode", async () => {
+    const onFatal = vi.fn();
+    const { deps, setPlayhead } = makeDeps();
+    const engine = new MediaElementPlayout(deps, onFatal);
+    await engine.start();
+    await settle();
+    // Nothing fed at all: the playhead sits at 0 for seconds.
+    vi.advanceTimersByTime(5000);
+    await settle();
+    expect(engine.diagState().stalls).toBe(0);
+    // Audio fed, then the USER pauses: frozen on purpose.
+    engine.enqueuePcm16(pcm(0.5), 0.1);
+    await settle();
+    engine.setPaused(true);
+    vi.advanceTimersByTime(3000);
+    await settle();
+    expect(engine.diagState().stalls).toBe(0);
+    expect(engine.failed).toBe(false);
+    expect(onFatal).not.toHaveBeenCalled();
+    setPlayhead(0.1);
+    engine.dispose();
+  });
+
+  it("trims played media behind the playhead on a long session, so the buffer cannot grow into eviction trouble", async () => {
+    const { deps, mediaSource, setPlayhead } = makeDeps();
+    const engine = new MediaElementPlayout(deps);
+    await engine.start();
+    await settle();
+    const buffer = mediaSource.buffers[0];
+    engine.enqueuePcm16(pcm(0.5), 0.1);
+    await settle();
+    buffer.buffered = rangesOf([[0, 30]]);
+    // Healthy playback far into a session: the playhead keeps
+    // moving (0.25 s per 200 ms of ticks — never frozen).
+    for (let i = 0; i < 16; i++) {
+      setPlayhead(20 + i * 0.25);
+      vi.advanceTimersByTime(200);
+      await settle();
+    }
+    expect(buffer.removed.length).toBeGreaterThanOrEqual(1);
+    expect(buffer.removed[0][0]).toBe(0);
+    expect(buffer.removed[0][1]).toBeGreaterThan(15); // playhead − 5 s keep-behind
+    expect(engine.failed).toBe(false);
     engine.dispose();
   });
 });

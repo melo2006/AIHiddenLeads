@@ -63,6 +63,15 @@ export interface PlayoutTerminalDiag {
   /** The TERMINAL element's volume property (the slider level
    *  on the media-element route), null like elementMuted. */
   elementVolume?: number | null;
+  /** Round 5 stall counters from the media-element engine:
+   *  stall episodes opened, and episodes recovered in place.
+   *  They ride EVERY terminal shape (the engine instance keeps
+   *  counting from before a flip), so a session that ended on
+   *  the sink still records how many stalls preceded the flip
+   *  and how many were recovered before it. Undefined when no
+   *  engine exists (heard-engine off / not yet created). */
+  stalls?: number;
+  recoveries?: number;
 }
 
 export interface PlayoutDiagSnapshot {
@@ -129,6 +138,10 @@ export function playoutDiagDetail(s: PlayoutDiagSnapshot): string {
         `erate=${s.terminal.encoderRate ?? "-"}`,
         `emut=${s.terminal.elementMuted === null || s.terminal.elementMuted === undefined ? "-" : s.terminal.elementMuted ? 1 : 0}`,
         `evol=${s.terminal.elementVolume === null || s.terminal.elementVolume === undefined ? "-" : s.terminal.elementVolume.toFixed(2)}`,
+        // Round 5: stall episodes opened / recovered in place.
+        // '-' when no engine exists to count them.
+        `stalls=${s.terminal.stalls ?? "-"}`,
+        `rec=${s.terminal.recoveries ?? "-"}`,
       );
     }
   }
