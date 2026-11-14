@@ -73,6 +73,66 @@ describe("playoutDiagDetail — terminal sink (volume-speaker fix)", () => {
   });
 });
 
+describe("playoutDiagDetail — round 4 engine proof", () => {
+  it("a settled media-element terminal proves engine ready, encoder rate, unmuted element at the slider volume", () => {
+    const detail = playoutDiagDetail({
+      ...localSettled,
+      terminal: {
+        sink: "media-element", paused: false, readyState: 4, ctxInChain: false, trailSec: 0.25,
+        engineState: "ready", engineFailure: null, encoderRate: 48000, elementMuted: false, elementVolume: 0.3,
+      },
+    });
+    expect(detail).toContain("term=media-element");
+    expect(detail).toContain("eng=ready");
+    expect(detail).toContain("efail=-");
+    expect(detail).toContain("erate=48000");
+    expect(detail).toContain("emut=0");
+    expect(detail).toContain("evol=0.30");
+  });
+
+  it("a sink terminal after an engine death names the failure instead of hiding it (the #51 record could not)", () => {
+    const detail = playoutDiagDetail({
+      ...localSettled,
+      terminal: {
+        sink: "media-stream", paused: false, readyState: 4, ctxInChain: true, trailSec: null,
+        engineState: "failed", engineFailure: "encoder-unsupported", encoderRate: null, elementMuted: false, elementVolume: 1,
+      },
+    });
+    expect(detail).toContain("term=media-stream");
+    expect(detail).toContain("eng=failed");
+    expect(detail).toContain("efail=encoder-unsupported");
+    expect(detail).toContain("erate=-");
+    expect(detail).toContain("emut=0");
+    expect(detail).toContain("evol=1.00");
+  });
+
+  it("an engine still starting reads as such, and a context terminal has no element to prove", () => {
+    const starting = playoutDiagDetail({
+      ...localSettled,
+      terminal: {
+        sink: "context", paused: true, readyState: 0, ctxInChain: true, trailSec: null,
+        engineState: "starting", engineFailure: null, encoderRate: null, elementMuted: null, elementVolume: null,
+      },
+    });
+    expect(starting).toContain("eng=starting");
+    expect(starting).toContain("emut=-");
+    expect(starting).toContain("evol=-");
+  });
+
+  it("the full round-4 line still fits the server's 400-char detail cap", () => {
+    const payload = playoutDiagPayload("s", {
+      ...localSettled,
+      terminal: {
+        sink: "media-element", paused: false, readyState: 4, ctxInChain: false, trailSec: 0.25,
+        engineState: "ready", engineFailure: null, encoderRate: 48000, elementMuted: false, elementVolume: 0.3,
+      },
+    }, 1, ";sink=ready;pctx=running;cap=raw");
+    expect(payload.detail.length).toBeLessThanOrEqual(400);
+    expect(payload.detail).toContain("term=media-element");
+    expect(payload.detail).toContain("cap=raw");
+  });
+});
+
 describe("playoutDiagPayload / signature", () => {
   it("builds the server payload and folds local-path state into the detail", () => {
     const payload = playoutDiagPayload("11111111-1111-4111-8111-111111111111", localSettled, 123, ";sink=ready;pctx=running");

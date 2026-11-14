@@ -41,6 +41,28 @@ export interface PlayoutTerminalDiag {
   /** Media-element engine's buffered-ahead trail, seconds, when
    *  the terminal is the engine; null otherwise. */
   trailSec: number | null;
+  /** Round 4 proof fields — the #51 record could not distinguish
+   *  "engine never ran" from "engine failed silently", so the
+   *  terminal now carries the engine's own state with it:
+   *  engineState: 'idle' | 'starting' | 'ready' | 'failed', or
+   *  'off' when the heard-engine A/B (?heardEngine=sink) disables
+   *  the engine outright. */
+  engineState?: string;
+  /** Why the engine failed (its fail() reason), null while it
+   *  has not failed. A start failure must be readable from the
+   *  record, never inferred. */
+  engineFailure?: string | null;
+  /** The encoder ladder rung the platform accepted (24000 or
+   *  48000), null before the probe settles / when none did. */
+  encoderRate?: number | null;
+  /** The TERMINAL element's muted flag — for the media-element
+   *  terminal this is the proof the heard voice ends in an
+   *  unmuted decoded-media element; null when the terminal has
+   *  no element (context/none). */
+  elementMuted?: boolean | null;
+  /** The TERMINAL element's volume property (the slider level
+   *  on the media-element route), null like elementMuted. */
+  elementVolume?: number | null;
 }
 
 export interface PlayoutDiagSnapshot {
@@ -96,6 +118,19 @@ export function playoutDiagDetail(s: PlayoutDiagSnapshot): string {
       `ctxchain=${s.terminal.ctxInChain ? 1 : 0}`,
       `trail=${s.terminal.trailSec === null ? "-" : s.terminal.trailSec.toFixed(2)}`,
     );
+    // Round 4 engine proof (see PlayoutTerminalDiag): which state
+    // the media-element engine is in, why it failed if it did,
+    // which encoder rate the platform accepted, and the terminal
+    // element's own muted/volume. Absent fields render as '-'.
+    if (s.terminal.engineState !== undefined) {
+      parts.push(
+        `eng=${s.terminal.engineState}`,
+        `efail=${s.terminal.engineFailure ?? "-"}`,
+        `erate=${s.terminal.encoderRate ?? "-"}`,
+        `emut=${s.terminal.elementMuted === null || s.terminal.elementMuted === undefined ? "-" : s.terminal.elementMuted ? 1 : 0}`,
+        `evol=${s.terminal.elementVolume === null || s.terminal.elementVolume === undefined ? "-" : s.terminal.elementVolume.toFixed(2)}`,
+      );
+    }
   }
   return parts.join(";");
 }
