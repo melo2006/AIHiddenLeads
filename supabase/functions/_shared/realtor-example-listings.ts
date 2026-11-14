@@ -372,11 +372,28 @@ function formatListingLine(l: ExampleListing): string {
  * flow structure and the owner-approved simulation script appended to
  * a sample simulation's system prompt by stampExampleListings. The
  * script slots in via REALTOR_EXAMPLE_SIMULATION_SCRIPT, with its
- * {agentName} placeholders replaced by this pack's agent name. */
-export function buildExampleListingsLayer(pack: RealtorExamplePack): string {
+ * {agentName} placeholders replaced by this pack's agent name.
+ *
+ * PRESENTER VARIANT (presenter-owns-close, 2026-11-14): the script's
+ * closing ASKING FOR A PERSON BY NAME paragraph orders the stock
+ * bring-Aspen-back line — correct for Sara on the standard chain,
+ * but a presenter parent (Frank / Monica / Black Professional Lady
+ * fronting the example solo) has no Aspen handoff to give: the
+ * paragraph is rewritten to the solo answer (Aspen is a colleague;
+ * the visitor has the presenter; never impersonate, never promise
+ * the handoff), mirroring presenterSimulationPrompt's named-person
+ * rewrite. Only that one paragraph differs; every other byte of the
+ * layer is shared, and Sara's segment build never passes the flag. */
+export function buildExampleListingsLayer(pack: RealtorExamplePack, opts?: { presenter?: boolean }): string {
   const top = topExampleListings(pack, 3).map((l) => l.descriptor).join('; ');
   const lines = pack.listings.map(formatListingLine).join('\n');
-  const script = REALTOR_EXAMPLE_SIMULATION_SCRIPT.replace(/\{agentName\}/g, pack.agentName);
+  const rawScript = opts?.presenter
+    ? REALTOR_EXAMPLE_SIMULATION_SCRIPT.replace(
+      'ASKING FOR A PERSON BY NAME: if the visitor asks for Aspen by name — or for any person by name — that is a transfer, always: use the bring-Aspen-back line from your instructions immediately and stop talking. Never answer AS Aspen, never impersonate her, and never deflect a repeated ask with questions of your own.',
+      'ASKING FOR A PERSON BY NAME: if the visitor asks for Aspen by name, she is your colleague at AI Hidden Leads — but in THIS demonstration you are the host and the receptionist in one, and there is no handoff to her here, however often or specifically they ask. Say so warmly, once, in a single short line — for example: "Aspen is on my team — for this demonstration you\'ve got me, and I\'ll look after you myself." — then keep helping them yourself. Never answer AS Aspen, never impersonate her, never promise a transfer to her, and never offer to bring her in — no such handoff exists in this demo. If the visitor asks for {agentName} or another person at this business by name, that is an in-role request: handle it the way the script above handles transfers inside the simulation (narrate it; never claim a real transfer happened).',
+    )
+    : REALTOR_EXAMPLE_SIMULATION_SCRIPT;
+  const script = rawScript.replace(/\{agentName\}/g, pack.agentName);
   return `EXAMPLE LISTINGS LAYER — THIS SIMULATION RUNS ON ${pack.agentName.toUpperCase()}'S OWN WEBSITE: this session is a one-click example simulation from our realtors page, so you are answering as the receptionist for ${pack.agentName} in ${pack.city}, on their own website, and the visitor is most likely the agent (or a colleague) testing how you would sound on their site. The listings below are ${pack.agentName}'s own active listings for this simulation. Treat them as YOUR listings: when the visitor asks what is for sale, what listings you have, or about homes in an area, answer concretely from this list — beds, baths, features and prices — and lead with the agent's own listings first, pitched FEATURE-FIRST the way the script below directs (the descriptors in this list carry the facts; the street address is a closing detail, never the headline).
 NAME THESE FIRST: ${top}.
 THE LISTINGS:
@@ -391,11 +408,11 @@ ${script}Never invent listings, prices, beds, baths or features beyond this list
  * gemini-session calls this ONLY for a session the client marked
  * sample=1 whose lead/prospect site URL (fetched server-side) matches
  * one of the 14 example packs. Every other session is untouched. */
-export function stampExampleListings<T extends Record<string, unknown>>(config: T, pack: RealtorExamplePack): T {
+export function stampExampleListings<T extends Record<string, unknown>>(config: T, pack: RealtorExamplePack, opts?: { presenter?: boolean }): T {
   config.exampleListings = { slug: pack.slug, agentName: pack.agentName, listings: pack.listings.length };
   const prompt = String(config.systemPrompt || '');
   if (!prompt.includes('EXAMPLE LISTINGS LAYER')) {
-    config.systemPrompt = `${prompt}\n${buildExampleListingsLayer(pack)}`;
+    config.systemPrompt = `${prompt}\n${buildExampleListingsLayer(pack, opts)}`;
   }
   return config;
 }

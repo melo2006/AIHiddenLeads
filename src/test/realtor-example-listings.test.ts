@@ -195,19 +195,23 @@ describe("example listings wiring — source pins", () => {
     // semantics are unchanged: flag alone earns nothing, URL match
     // alone earns nothing.
     expect(
-      occurrences(geminiSessionSource, "stampExampleListings(config, examplePack);"),
+      occurrences(geminiSessionSource, "stampExampleListings(config, examplePack, presenter ? { presenter: true } : undefined);"),
     ).toBe(1);
     expect(geminiSessionSource).toContain(
       "const examplePack=b.sample===true?examplePackForSiteUrl(siteUrl):null;",
     );
+    // Presenter-owns-close (2026-11-14): the stamp passes the
+    // presenter variant when this session's resolved presenter
+    // fronts the example — the layer's named-person paragraph is
+    // the solo version there; the trust semantics are unchanged.
     expect(geminiSessionSource).toContain(
-      "if(examplePack) stampExampleListings(config, examplePack);",
+      "if(examplePack) stampExampleListings(config, examplePack, presenter ? { presenter: true } : undefined);",
     );
     expect(geminiSessionSource).toContain("siteUrl=lead.website_url || ''");
     // The stamp sits inside the simulation branch: after the simulation
     // config is composed and before the homepage branch opens.
     const stampAt = geminiSessionSource.indexOf(
-      "stampExampleListings(config, examplePack);",
+      "stampExampleListings(config, examplePack, presenter ? { presenter: true } : undefined);",
     );
     const composedAt = geminiSessionSource.indexOf("businessDemoConfig(");
     const homepageStampAt = geminiSessionSource.indexOf(
