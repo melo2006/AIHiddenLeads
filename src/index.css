@@ -46,6 +46,7 @@
     --glow: 160 84% 50%;
     --glow-accent: 262 83% 65%;
     --warning: 38 92% 50%;
+    --warning-foreground: 220 20% 4%;
     --audit-rank-warning: 48 96% 53%;
     --rank-map-paper: 0 0% 100%;
     --rank-map-ink: 220 20% 8%;
@@ -251,6 +252,19 @@
      vertical space — the buttons shrink instead (the transport row
      itself is flex-nowrap; this is the belt for it). */
   .aspen-person-shell .voice-controls { flex-wrap: nowrap; }
+
+  /* Button state colours (2026-11-14, Ron-approved canonical spec):
+     inside the demo panel, neutral buttons take a dark-grey hover wash
+     (hover:bg-muted via className, which replaces the violet --accent
+     hover of the outline/ghost variants) — but ONLY on hover-capable
+     devices. On touch, a :hover fill sticks after the tap and reads as
+     a state that does not exist (the purple speaker button in Ron's
+     07:03 screenshot). Panel buttons opt in with .aspen-panel-btn;
+     filled state buttons (green/amber/red) never carry it — their
+     same-hue hover shade is harmless. */
+  @media (hover: none) {
+    .aspen-person-shell .aspen-panel-btn:hover { background-color: transparent; color: inherit; }
+  }
 
 /* Stage 2 window-controls row (historical class name — it began life as
    the "chest cluster"): ONE in-flow row — drag handle + minimize (dash)
