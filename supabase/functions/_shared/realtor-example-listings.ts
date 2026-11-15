@@ -419,6 +419,19 @@ function formatListingLine(l: ExampleListing): string {
  * capture). Only that one sentence differs; the script constant and
  * the standard layer stay byte-identical.
  *
+ * PRESENTER GATE-FIRST FLOW (Publish #72, 2026-11-15, the #69 live
+ * verification): the presenter variant ALSO rewrites the shared
+ * flow paragraph's no-match capture sentence (confirm the criteria,
+ * offer the callback, take name + number) — in presenter mode that
+ * sentence works against the discovery layer twice over: it
+ * makes a callback — not the list — the outcome, and it takes a
+ * name and number on the no-match turn itself, the one turn that
+ * carries no capture ask in presenter mode. The rewrite keeps
+ * the criteria confirmation and swaps the callback capture for
+ * a broader-market search commitment, handing what happens next
+ * to the discovery layer (whose confirm gate bars the list
+ * promise until it has run). Standard builds are untouched.
+ *
  * VERBAL CAPTURE CONFIRMATION (verbal-capture-confirm, 2026-11-14,
  * Ron-directed): the { verbalCapture: true } opt appends the verbal
  * capture confirmation beat (buildVerbalCaptureConfirmation in
@@ -456,6 +469,29 @@ THE LISTINGS:
 ${lines}
 HOW THE LISTINGS CONVERSATION FLOWS (structure — keep it conversational, never question-heavy; where the approved script below gives an exact line, use that line): the greeting stays clean, with no listing dump up front. After the introduction, offer one soft prompt about listings, ask ONE preference question (condo, house, townhouse or high-rise — near the water? bedrooms?), then pitch the listings that match FEATURE-FIRST — type, beds and baths, size, neighbourhood and the standout feature — with the street address as a closing detail, never the headline and never a read-out list of addresses. Criteria often arrive piece by piece (area, then beds and baths, then budget): while the visitor is still giving them, only acknowledge and collect — never begin a "yes, we have…" answer before the criteria are complete, then answer once. If the visitor is searching by criteria and nothing on this list matches all of them, say plainly there is no current match for those criteria among ${pack.agentName}'s listings — never "that one is not among the listings" (they named no property) and never ask a searching visitor for an exact address — then capture the search: confirm the criteria back, offer that ${pack.agentName} will search and call them back, and take their name and best callback number if you do not already have them. If the visitor names one specific property that is NOT on this list, say plainly that it is not one of ${pack.agentName}'s own listings, and offer the two paths: ${pack.agentName} searches it and calls them back (take name and callback number; never demand the exact address from a buyer), or a transfer to ${pack.agentName} right now when it is urgent or they are at the property (in this simulation, narrate that transfer — see the script below). If the visitor is a seller or names an address they own and want sold, that is a seller lead: the address ask belongs only there — take the property address, their name and callback number. If the visitor picks one of the listings, move toward arranging a showing — day and time. As you arrange it, take the caller's name and best callback number so ${pack.agentName} can confirm — the name early if you do not have it yet, the number as the showing firms up, read back to confirm; a brush-off is accepted at once and never asked twice.
 ${script}Never invent listings, prices, beds, baths or features beyond this list and the site knowledge already in this session; if a detail is not here, say you will confirm it with ${pack.agentName}.`;
+  // PRESENTER GATE-FIRST FLOW (Publish #72, 2026-11-15): the shared
+  // flow paragraph above still describes the standard chain's
+  // capture-the-search no-match close (confirm the criteria back,
+  // offer that the agent will search and call back, take name +
+  // callback number). In presenter mode that sentence is the
+  // listings layer's own pre-gate promise leak, and a callback
+  // capture taken on the one turn that carries no capture ask in
+  // presenter mode (capture lives at the discovery layer's step 2
+  // and step 5) — the #69 live verification caught the layer's
+  // promise phrasing surfacing mid-pass, before the confirm gate —
+  // so the presenter
+  // build rewrites it the same way it rewrites the script's
+  // no-match capture sentence above: criteria confirmed back, a
+  // broader-market search commitment, and the discovery layer
+  // governing everything after (discovery continues; the gate runs
+  // before any promise or capture). Only that one sentence
+  // differs; the standard layer stays byte-identical.
+  const flowLayer = opts?.presenter
+    ? layer.replace(
+      `then capture the search: confirm the criteria back, offer that ${pack.agentName} will search and call them back, and take their name and best callback number if you do not already have them.`,
+      `then confirm the criteria back and commit to searching the broader market for exactly those criteria — no capture and no list promise on that turn: in presenter mode the discovery layer below governs what happens next (discovery continues, and its confirm gate runs before the list promise).`,
+    )
+    : layer;
   // VERBAL CAPTURE CONFIRMATION (2026-11-14): a standard build that
   // carries the opt appends the verbal capture confirmation beat
   // after the shared layer — this is how stamped Aspen-fronted
@@ -464,8 +500,8 @@ ${script}Never invent listings, prices, beds, baths or features beyond this list
   // the append: the discovery layer below carries the same beat
   // inside step 2, so it lands exactly once either way.
   const withVerbalCapture = opts?.verbalCapture && !opts?.presenter
-    ? `${layer}\n${buildVerbalCaptureConfirmation(pack.agentName)}`
-    : layer;
+    ? `${flowLayer}\n${buildVerbalCaptureConfirmation(pack.agentName)}`
+    : flowLayer;
   // REALTOR DISCOVERY (presenter-realtor-discovery, 2026-11-14): a
   // presenter-fronted example also carries the discovery layer — the
   // warm opening, the buy-or-sell opener, the early capture with its
