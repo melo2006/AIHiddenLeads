@@ -2,6 +2,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { createMediaSink, mediaPlaybackNode } from "@/lib/mediaSink";
+import en from "../i18n/locales/en.json";
 
 const read = (rel: string) => readFileSync(new URL(rel, import.meta.url), "utf8");
 const conversation = read("../components/GeminiConversation.tsx");
@@ -93,12 +94,17 @@ describe("conversation wiring", () => {
 
   it("surfaces the can't-hear-you hint with a settings shortcut, and the hold-to-talk chip", () => {
     expect(conversation).toContain("I can’t hear you — your microphone may be muted or set to the wrong one.");
-    expect(conversation).toContain("onClick={() => setShowSettings(true)}>Check microphone</Button>");
+    expect(conversation).toContain("onClick={() => setShowSettings(true)}");
+    // Publish #71: the button label comes from the panel.* catalog
+    // (panel.checkMicrophone = "Check microphone") for /demo/br.
+    expect(conversation).toContain('t("panel.checkMicrophone"');
+    expect(en.panel.checkMicrophone).toBe("Check microphone");
     expect(conversation.split("Hold to talk is ON — hold the button while you speak").length - 1).toBe(2);
   });
 
   it("keeps the mic level meter visible in the open panel during voice mode (not gated on captions)", () => {
     expect(conversation).not.toContain('phase === "live" && (!faceFirst || captions)');
-    expect(conversation).toContain('aria-label="Microphone level"');
+    // Publish #71: the meter's aria-label comes from the panel.* catalog (panel.micLevel = "Microphone level") so /demo/br announces it in Portuguese.
+    expect(conversation).toContain('aria-label={t("panel.micLevel"');
   });
 });

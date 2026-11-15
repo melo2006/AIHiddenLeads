@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { CheckCircle2, Clock3, KeyRound, Mail, MessageSquareText, Play, RefreshCw, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -48,6 +49,7 @@ export default function DemoVerificationGate({
   onWaitingChange,
   onExit,
 }: DemoVerificationGateProps) {
+  const { t } = useTranslation();
   const [panel, setPanel] = useState<GatePanel>('entry');
   const [digits, setDigits] = useState<string[]>(EMPTY_DIGITS);
   const [elapsedMs, setElapsedMs] = useState(0);
@@ -134,7 +136,7 @@ export default function DemoVerificationGate({
         }
         if (result.ok === true) {
           // A 2xx without a verified flag is not an unlock; treat it like a mismatch.
-          setErrorMessage('That code did not match — please try again.');
+          setErrorMessage(t('gate.errMismatch'));
           clearBoxes();
           return;
         }
@@ -142,8 +144,8 @@ export default function DemoVerificationGate({
           case 'code_mismatch':
             setErrorMessage(
               typeof result.attemptsRemaining === 'number'
-                ? `That code did not match — ${result.attemptsRemaining} tries left. The boxes show what was entered — want to type it instead?`
-                : 'That code did not match — please try again.',
+                ? t('gate.errMismatchTries', { count: result.attemptsRemaining })
+                : t('gate.errMismatch'),
             );
             clearBoxes();
             break;
@@ -155,7 +157,7 @@ export default function DemoVerificationGate({
             setPanel('locked');
             break;
           default:
-            setErrorMessage('Something went wrong checking that code — please try again.');
+            setErrorMessage(t('gate.errCheckFailed'));
             break;
         }
       } finally {
@@ -200,7 +202,7 @@ export default function DemoVerificationGate({
   const handleResend = async (targetChannel: DemoVerificationChannel = currentChannel) => {
     if (isResending) return;
     if (targetChannel === 'sms' && !SMS_VERIFICATION_ENABLED) {
-      setNotice('Text codes are coming soon — email works today.');
+      setNotice(t('gate.noticeSmsSoon'));
       return;
     }
     setIsResending(true);
@@ -220,16 +222,16 @@ export default function DemoVerificationGate({
       if (result.error === 'resend_cooldown') {
         setNotice(
           typeof result.retryAfterSeconds === 'number'
-            ? `Please wait ${result.retryAfterSeconds} seconds before resending.`
-            : 'Please wait a moment before resending.',
+            ? t('gate.noticeWaitSeconds', { count: result.retryAfterSeconds })
+            : t('gate.noticeWaitResend'),
         );
         return;
       }
       if (result.error === 'sms_verification_not_enabled') {
-        setNotice('Text codes are coming soon — email works today.');
+        setNotice(t('gate.noticeSmsSoon'));
         return;
       }
-      setNotice('Could not resend the code — please try again in a moment.');
+      setNotice(t('gate.noticeResendFailed'));
     } finally {
       setIsResending(false);
     }
@@ -315,17 +317,17 @@ export default function DemoVerificationGate({
   const otherChannel: DemoVerificationChannel = currentChannel === 'email' ? 'sms' : 'email';
   const stageLine =
     stage === 'first-nudge'
-      ? GATE_LINES.firstNudge
+      ? t('gate.firstNudge', { defaultValue: GATE_LINES.firstNudge })
       : stage === 'final-nudge'
-        ? GATE_LINES.finalNudge
+        ? t('gate.finalNudge', { defaultValue: GATE_LINES.finalNudge })
         : currentChannel === 'sms'
-          ? GATE_LINES.sentSms
-          : GATE_LINES.sentEmail;
+          ? t('gate.sentSms', { defaultValue: GATE_LINES.sentSms })
+          : t('gate.sentEmail', { defaultValue: GATE_LINES.sentEmail });
   const showLadderActions = panel === 'entry' && stage !== 'waiting';
 
   const sampleDemoLink = (
     <Button type="button" variant="link" size="sm" className="text-muted-foreground" onClick={onSampleDemo}>
-      Rather not? Watch a sample demo
+      {t('gate.ratherSample')}
     </Button>
   );
 
@@ -335,19 +337,19 @@ export default function DemoVerificationGate({
         <CardContent className="space-y-4 p-8 text-center">
           <CheckCircle2 className="mx-auto h-12 w-12 text-primary" aria-hidden />
           <p role="status" className="text-base leading-relaxed">
-            {displayNumbers(GATE_LINES.verified)}
+            {displayNumbers(t('gate.verified', { defaultValue: GATE_LINES.verified }))}
           </p>
-          <p className="text-sm text-muted-foreground">Opening your demo…</p>
+          <p className="text-sm text-muted-foreground">{t('gate.openingDemo')}</p>
         </CardContent>
       ) : panel === 'exit' ? (
         <CardContent className="space-y-4 p-8 text-center">
           <Clock3 className="mx-auto h-12 w-12 text-muted-foreground" aria-hidden />
           <p role="status" className="text-base leading-relaxed">
-            {displayNumbers(GATE_LINES.exit)}
+            {displayNumbers(t('gate.exit', { defaultValue: GATE_LINES.exit }))}
           </p>
           <Button type="button" className="w-full" onClick={onSampleDemo}>
             <Play aria-hidden />
-            Watch a sample demo instead
+            {t('gate.watchSample')}
           </Button>
         </CardContent>
       ) : panel === 'expired' || panel === 'locked' ? (
@@ -358,11 +360,11 @@ export default function DemoVerificationGate({
             <ShieldAlert className="mx-auto h-12 w-12 text-muted-foreground" aria-hidden />
           )}
           <div className="space-y-2">
-            <h3 className="text-xl font-semibold">{panel === 'expired' ? 'That code has expired' : 'Too many tries'}</h3>
+            <h3 className="text-xl font-semibold">{panel === 'expired' ? t('gate.expiredTitle') : t('gate.lockedTitle')}</h3>
             <p role="status" className="text-sm leading-relaxed text-muted-foreground">
               {panel === 'expired'
-                ? displayNumbers('Codes are good for 10 minutes. Send a fresh one and we will pick up right here.')
-                : 'That code is locked after too many tries. Send a fresh one and we will pick up right here.'}
+                ? displayNumbers(t('gate.expiredBody'))
+                : t('gate.lockedBody')}
             </p>
           </div>
           {notice && (
@@ -372,7 +374,7 @@ export default function DemoVerificationGate({
           )}
           <Button type="button" className="w-full" disabled={isResending} onClick={() => void handleResend()}>
             <RefreshCw aria-hidden />
-            {isResending ? 'Sending…' : 'Resend a fresh code'}
+            {isResending ? t('gate.sending') : t('gate.resendFresh')}
           </Button>
           {sampleDemoLink}
         </CardContent>
@@ -380,9 +382,9 @@ export default function DemoVerificationGate({
         <>
           <CardHeader className="space-y-2 text-center">
             <KeyRound className="mx-auto h-8 w-8 text-primary" aria-hidden />
-            <CardTitle className="text-2xl">{displayNumbers(`Your demo of ${businessName} is ready`)}</CardTitle>
+            <CardTitle className="text-2xl">{displayNumbers(t('gate.titleReady', { name: businessName }))}</CardTitle>
             <CardDescription>
-              {displayNumbers(`Enter the 4-digit code we sent to ${currentMaskedTarget} to step inside.`)}
+              {displayNumbers(t('gate.enterCode', { target: currentMaskedTarget }))}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
@@ -412,7 +414,7 @@ export default function DemoVerificationGate({
                     onFocus={(event) => event.target.select()}
                     inputMode="numeric"
                     autoComplete={index === 0 ? 'one-time-code' : 'off'}
-                    aria-label={`Digit ${index + 1} of 4`}
+                    aria-label={t('gate.digitAria', { index: index + 1 })}
                     className="h-14 w-12 rounded-xl text-center text-2xl font-semibold sm:w-14"
                   />
                 ))}
@@ -430,7 +432,7 @@ export default function DemoVerificationGate({
               )}
 
               <Button type="submit" className="w-full" size="lg" disabled={!codeComplete || isSubmitting}>
-                {isSubmitting ? 'Checking…' : 'Verify and step inside'}
+                {isSubmitting ? t('gate.checking') : t('gate.verifyButton')}
               </Button>
             </form>
 
@@ -438,7 +440,7 @@ export default function DemoVerificationGate({
               <div className="flex flex-wrap items-center justify-center gap-2">
                 <Button type="button" variant="outline" size="sm" disabled={isResending} onClick={() => void handleResend()}>
                   <RefreshCw aria-hidden />
-                  {isResending ? 'Sending…' : 'Resend code'}
+                  {isResending ? t('gate.sending') : t('gate.resendCode')}
                 </Button>
                 <Button
                   type="button"
@@ -448,14 +450,14 @@ export default function DemoVerificationGate({
                   onClick={() => void handleResend(otherChannel)}
                 >
                   {otherChannel === 'sms' ? <MessageSquareText aria-hidden /> : <Mail aria-hidden />}
-                  {otherChannel === 'sms' ? 'Use text instead' : 'Use email instead'}
+                  {otherChannel === 'sms' ? t('gate.useText') : t('gate.useEmail')}
                 </Button>
               </div>
             )}
 
             <div className="space-y-2 text-center">
               {sampleDemoLink}
-              <p className="text-xs leading-relaxed text-muted-foreground">{DEMO_CONSENT_DISCLOSURE}</p>
+              <p className="text-xs leading-relaxed text-muted-foreground">{t('consent.disclosure', { defaultValue: DEMO_CONSENT_DISCLOSURE })}</p>
             </div>
           </CardContent>
         </>

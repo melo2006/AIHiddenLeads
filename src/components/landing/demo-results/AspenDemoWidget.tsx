@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { preloadVoiceIdentity } from '@/lib/voicePreload';
 import type { VideoAvatar } from '../../../../supabase/functions/_shared/video-avatar';
 import GeminiConversation, { type GeminiShellControls, type GeminiShellState } from '@/components/GeminiConversation';
@@ -59,6 +60,7 @@ type Props = React.ComponentProps<typeof ChatWidget> & {
   gateWaiting?: boolean;
 };
 function AspenDemoWidgetContent({ voiceRequested = false, onClosed, onAssistantReady, verification, invite, sample, onUserTranscript, gateWaiting = false, ...chatProps }: Props) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [minimized, setMinimized] = useState(false);
   // The first conversation is prepared live (silently) while the demo loads; later reopenings start normally.
@@ -111,8 +113,8 @@ function AspenDemoWidgetContent({ voiceRequested = false, onClosed, onAssistantR
           <div className="h-20 w-20 overflow-hidden rounded-full border border-primary/50">
             <PersonPortrait animated={false} />
           </div>
-          <p className="text-xs font-medium text-foreground">Aspen is waiting for your code</p>
-          <p className="text-[11px] leading-snug text-muted-foreground">She is still here — say the 4 digits out loud or type them in the card.</p>
+          <p className="text-xs font-medium text-foreground">{t("gate.waitingTitle")}</p>
+          <p className="text-[11px] leading-snug text-muted-foreground">{t("gate.waitingBody")}</p>
         </div>}
         <div className={gateWaiting ? 'hidden' : 'flex min-h-0 flex-1 flex-col'} aria-hidden={gateWaiting || undefined}>
           <GeminiConversation compact faceFirst avatarInline autoStart={expanded} consentOnOpen={expanded} prewarm={prewarm} onPrewarmed={() => onAssistantReady?.()} leadId={chatProps.leadId} prospectId={chatProps.prospectId} name={presenterName} avatarUrl={presenterPortrait} visitorName={chatProps.callerName} onRecommendedPlan={setRecommendedPlan} videoAvatar={matchingAspenVideo(videoAvatar)} verification={verification} invite={invite} sample={sample} onUserTranscript={onUserTranscript} shellControlsRef={shellControlsRef} onShellState={setShellState} belowAvatar={<AspenModeToggle mode={mode} onMode={next => { setMode(next); if (next === 'chat') setChatVisited(true); }} />} windowControls={<AspenWindowControls onMinimize={minimize} onClose={close} />} />

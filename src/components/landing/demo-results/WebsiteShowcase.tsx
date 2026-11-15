@@ -1,5 +1,6 @@
 import { ArrowRight, CheckCircle2, MapPin, MessageSquare, Quote, Sparkles, Star } from "lucide-react";
 import type { CSSProperties } from "react";
+import { useTranslation } from "react-i18next";
 import type { DemoLeadData } from "./demoResultsUtils";
 import {
   buildModernHeadline,
@@ -29,6 +30,7 @@ interface WebsiteShowcaseProps {
 const tint = (channels: string, alpha: number) => `hsl(${channels} / ${alpha})`;
 
 const WebsiteShowcase = ({ leadData, compact = false, hideEmbeddedAssistant = false }: WebsiteShowcaseProps) => {
+  const { t } = useTranslation();
   const siteName = getSiteName(leadData.websiteUrl, leadData.title);
   const logoSrc = getImageSrc(leadData.logo);
   const screenshotSrc = getImageSrc(leadData.screenshot);
@@ -37,21 +39,28 @@ const WebsiteShowcase = ({ leadData, compact = false, hideEmbeddedAssistant = fa
   const backgroundColor = getThemeColor(leadData.colors?.background, "220 18% 8%");
   const textColor = getThemeColor(leadData.colors?.textPrimary, "210 40% 96%");
 
-  const headline = buildModernHeadline({ siteName, title: leadData.title });
-  const supportingCopy = buildSupportingCopy({ description: leadData.description, siteName });
+  const headline = buildModernHeadline({
+    siteName,
+    title: leadData.title,
+    templates: {
+      fromTitle: (title) => t("showcase.headlineReimagined", { title }),
+      fromSite: (name) => t("showcase.headlineSite", { name }),
+    },
+  });
+  const supportingCopy = buildSupportingCopy({ description: leadData.description, siteName, fallback: (name) => t("showcase.supportingFallback", { name }) });
   const menuItems = extractNavigationLabels(leadData.websiteContent, compact ? 4 : 5);
   const services = extractHeadings(leadData.websiteContent, compact ? 3 : 4);
   const details = extractBulletItems(leadData.websiteContent, compact ? 4 : 6);
 
-  const nav = menuItems.length > 0 ? menuItems : ["Services", "About", "Reviews", "Contact"];
-  const serviceCards = services.length > 0 ? services : ["Signature Service", "Premium Experience", "Fast Follow-Up"];
+  const nav = menuItems.length > 0 ? menuItems : [t("showcase.navServices"), t("showcase.navAbout"), t("showcase.navReviews"), t("showcase.navContact")];
+  const serviceCards = services.length > 0 ? services : [t("showcase.service1"), t("showcase.service2"), t("showcase.service3")];
   const trustPoints = details.length > 0
     ? details.slice(0, compact ? 3 : 4)
     : [
-        "Fast response times for new leads",
-        "Clear service pathways with stronger trust signals",
-        "Appointment booking built directly into the experience",
-        "A polished layout that feels current and premium",
+        t("showcase.trust1"),
+        t("showcase.trust2"),
+        t("showcase.trust3"),
+        t("showcase.trust4"),
       ].slice(0, compact ? 3 : 4);
 
   const shellStyle: CSSProperties = {
@@ -98,9 +107,9 @@ const WebsiteShowcase = ({ leadData, compact = false, hideEmbeddedAssistant = fa
       };
 
   const stats = [
-    { value: "15 min", label: "Booking slot" },
-    { value: "24/7", label: "Answer coverage" },
-    { value: compact ? "AI" : "Live AI", label: "Lead handling" },
+    { value: "15 min", label: t("showcase.statBooking") },
+    { value: "24/7", label: t("showcase.statCoverage") },
+    { value: compact ? "AI" : t("showcase.statLiveAi"), label: t("showcase.statHandling") },
   ];
 
   return (
@@ -110,7 +119,7 @@ const WebsiteShowcase = ({ leadData, compact = false, hideEmbeddedAssistant = fa
           {logoSrc ? (
             <img
               src={logoSrc}
-              alt={`${siteName} logo`}
+              alt={t("showcase.logoAlt", { name: siteName })}
               className="h-10 w-10 rounded-2xl border object-contain p-1.5"
               style={glassStyle}
               loading="lazy"
@@ -124,7 +133,7 @@ const WebsiteShowcase = ({ leadData, compact = false, hideEmbeddedAssistant = fa
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold">{siteName}</p>
             <p className="text-xs" style={{ color: tint(textColor, 0.72) }}>
-              Refreshed customer-facing website concept
+              {t("showcase.concept")}
             </p>
           </div>
         </div>
@@ -139,7 +148,7 @@ const WebsiteShowcase = ({ leadData, compact = false, hideEmbeddedAssistant = fa
 
         <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em]" style={softAccentStyle}>
           <Star className="h-3.5 w-3.5" />
-          Demo-ready redesign
+          {t("showcase.demoReady")}
         </div>
       </header>
 
@@ -147,7 +156,7 @@ const WebsiteShowcase = ({ leadData, compact = false, hideEmbeddedAssistant = fa
         <div className="space-y-5">
           <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em]" style={softPrimaryStyle}>
             <Sparkles className="h-3.5 w-3.5" />
-            Modern homepage direction
+            {t("showcase.modernDirection")}
           </div>
 
           <div className="space-y-3">
@@ -161,12 +170,12 @@ const WebsiteShowcase = ({ leadData, compact = false, hideEmbeddedAssistant = fa
 
           <div className="flex flex-wrap gap-3">
             <div className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold" style={ctaStyle}>
-              Explore services
+              {t("showcase.exploreServices")}
               <ArrowRight className="h-4 w-4" />
             </div>
             <div className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold" style={glassStyle}>
               <MessageSquare className="h-4 w-4" />
-              Ask Aspen live
+              {t("showcase.askAspen")}
             </div>
           </div>
 
@@ -189,12 +198,12 @@ const WebsiteShowcase = ({ leadData, compact = false, hideEmbeddedAssistant = fa
           <div className="relative flex h-full flex-col justify-between">
             <div className="ml-auto inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em]" style={glassStyle}>
               <CheckCircle2 className="h-3.5 w-3.5" />
-              Feels like a real site
+              {t("showcase.feelsReal")}
             </div>
 
             <div className="rounded-[1.5rem] border p-4 sm:p-5" style={glassStyle}>
               <p className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: tint(textColor, 0.64) }}>
-                Why this version converts better
+                {t("showcase.whyConverts")}
               </p>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 {trustPoints.slice(0, compact ? 2 : 4).map((point) => (
@@ -212,18 +221,18 @@ const WebsiteShowcase = ({ leadData, compact = false, hideEmbeddedAssistant = fa
         <div className="space-y-4">
           <div className="flex items-center gap-2 text-sm font-semibold">
             <Sparkles className="h-4 w-4" />
-            Featured sections
+            {t("showcase.featuredSections")}
           </div>
 
           <div className={`grid gap-3 ${compact ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
             {serviceCards.map((item, index) => (
               <article key={item} className="rounded-[1.35rem] border p-4" style={index % 2 === 0 ? softPrimaryStyle : softAccentStyle}>
                 <p className="text-xs font-semibold uppercase tracking-[0.16em]" style={{ color: tint(textColor, 0.64) }}>
-                  Section {index + 1}
+                  {t("showcase.sectionLabel", { index: index + 1 })}
                 </p>
                 <h4 className="mt-2 text-lg font-semibold">{item}</h4>
                 <p className="mt-2 text-sm" style={{ color: tint(textColor, 0.72) }}>
-                  Structured to guide visitors quickly from discovery to trust to action.
+                  {t("showcase.sectionBody")}
                 </p>
               </article>
             ))}
@@ -234,17 +243,17 @@ const WebsiteShowcase = ({ leadData, compact = false, hideEmbeddedAssistant = fa
           <div className="rounded-[1.35rem] border p-4" style={glassStyle}>
             <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
               <Quote className="h-4 w-4" />
-              Brand voice
+              {t("showcase.brandVoice")}
             </div>
             <p className="text-base font-medium leading-relaxed sm:text-lg">
-              “{leadData.description || `${siteName} now feels more current, more trustworthy, and far easier to act on from the first screen.`}”
+              “{leadData.description || t("showcase.fallbackDescription", { name: siteName })}”
             </p>
           </div>
 
           <div className="rounded-[1.35rem] border p-4" style={softAccentStyle}>
             <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
               <MapPin className="h-4 w-4" />
-              Trust builders
+              {t("showcase.trustBuilders")}
             </div>
             <div className="flex flex-wrap gap-2">
               {trustPoints.map((point) => (
@@ -261,11 +270,11 @@ const WebsiteShowcase = ({ leadData, compact = false, hideEmbeddedAssistant = fa
         <section className="grid gap-4 border-t p-4 sm:p-5 xl:grid-cols-[1.05fr_0.95fr] xl:p-6" style={chromeStyle}>
           <div className="rounded-[1.5rem] border p-5" style={softPrimaryStyle}>
             <p className="text-sm font-semibold uppercase tracking-[0.16em]" style={{ color: tint(textColor, 0.66) }}>
-              Live conversion layer
+              {t("showcase.liveLayer")}
             </p>
-            <h4 className="mt-3 text-2xl font-bold">A polished site plus a conversational closer.</h4>
+            <h4 className="mt-3 text-2xl font-bold">{t("showcase.closerTitle")}</h4>
             <p className="mt-3 max-w-xl text-sm sm:text-base" style={{ color: tint(textColor, 0.76) }}>
-              Aspen answers like a real front desk, confirms a 15-minute appointment, and can guide the visitor toward a human handoff without making the experience feel robotic.
+              {t("showcase.closerBody")}
             </p>
           </div>
 

@@ -171,16 +171,18 @@ interface ScanFallbackPreviewProps {
   homepageUrl: string;
 }
 
-const ScanFallbackPreview = ({ leadData, siteName, homepageUrl }: ScanFallbackPreviewProps) => (
+const ScanFallbackPreview = ({ leadData, siteName, homepageUrl }: ScanFallbackPreviewProps) => {
+  const { t } = useTranslation();
+  return (
   <div className="min-h-[100dvh] bg-background px-3 pb-28 pt-28 sm:px-6 sm:pt-32">
     <div className="mx-auto max-w-6xl space-y-4">
       <div className="rounded-[1.75rem] border border-border bg-card/95 p-5 shadow-xl backdrop-blur-xl sm:p-6">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-primary">Scan-based preview</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-primary">{t("demoSite.scanFallbackEyebrow")}</p>
         <h2 className="mt-2 text-2xl font-semibold text-foreground sm:text-3xl">
-          We couldn&apos;t load the live website, so this demo now uses the scan result instead.
+          {t("demoSite.scanFallbackTitle")}
         </h2>
         <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">
-          Aspen can still use the captured services, messaging, and business details here without dropping you on a blank page.
+          {t("demoSite.scanFallbackBody")}
         </p>
         <div className="mt-4 flex flex-wrap gap-2 text-xs font-medium text-muted-foreground">
           <span className="rounded-full border border-border bg-background px-3 py-1.5">{siteName}</span>
@@ -193,7 +195,8 @@ const ScanFallbackPreview = ({ leadData, siteName, homepageUrl }: ScanFallbackPr
       <WebsiteShowcase leadData={leadData} hideEmbeddedAssistant />
     </div>
   </div>
-);
+  );
+};
 
 type DemoLeadRecord = Partial<{
   id: string;
@@ -540,7 +543,7 @@ const DemoSite = () => {
       } catch (err) {
         console.error("Scan error:", err);
         if (!cancelled) {
-          toast.error("The live demo opened, but the site scan is still gathering details in the background.");
+          toast.error(t("demoSite.toastScanBackground"));
           setIsScanning(false);
         }
       }
@@ -638,14 +641,14 @@ const DemoSite = () => {
         }).catch((err: any) => {
           console.error("Scan error:", err);
           if (!cancelled) {
-            toast.error("The live website is loading, but Aspen is still gathering the business details.");
+            toast.error(t("demoSite.toastLoadingDetails"));
             setIsScanning(false);
           }
         });
       } catch (err: any) {
         console.error("Scan error:", err);
         if (!cancelled) {
-          toast.error("The live website is loading, but Aspen is still gathering the business details.");
+          toast.error(t("demoSite.toastLoadingDetails"));
           setIsScanning(false);
         }
       }
@@ -1090,19 +1093,19 @@ const DemoSite = () => {
       return (
         <div className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
           <div className="w-full max-w-xl rounded-3xl border border-border bg-card p-6 text-center shadow-xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-primary">Demo Preview</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-primary">{t("demoSite.previewEyebrow")}</p>
             <h1 className="mt-3 text-2xl font-semibold text-foreground sm:text-3xl">
-              Select a lead to open the live demo
+              {t("demoSite.noLeadTitle")}
             </h1>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              This page is meant to preview a specific business website with the Aspen voice and chat widgets overlaid on top.
+              {t("demoSite.noLeadBody")}
             </p>
             <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
               <button
                 onClick={() => navigate("/prospects")}
                 className="inline-flex items-center justify-center rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
               >
-                Go to Prospects
+                {t("demoSite.goToProspects")}
               </button>
             </div>
           </div>
@@ -1258,19 +1261,19 @@ const DemoSite = () => {
 
   return (
     <div className="relative min-h-[100dvh] bg-background">
-      <header className="relative z-40" aria-label="Business demo header">
+      <header className="relative z-40" aria-label={t("demoSite.headerAria")}>
         <div ref={previewBarRef} className="border-b border-border bg-card px-3 py-2 sm:px-5">
           <div className="flex min-w-0 items-center gap-2">
-            <Button size="icon" variant="outline" className="h-8 w-8 shrink-0" onClick={() => navigate("/")} aria-label="Back to homepage" title="Homepage"><ArrowLeft className="h-4 w-4" /></Button>
-            <a href={homepageUrl} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1" title={`Open ${siteName} website`}>
-              <span className="block text-[10px] font-semibold text-primary">Simulation preview {isScanning && "· Learning…"}</span>
+            <Button size="icon" variant="outline" className="h-8 w-8 shrink-0" onClick={() => navigate("/")} aria-label={t("demoSite.backToHomepage")} title={t("demoSite.homepage")}><ArrowLeft className="h-4 w-4" /></Button>
+            <a href={homepageUrl} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1" title={t("demoSite.openSiteTitle", { name: siteName })}>
+              <span className="block text-[10px] font-semibold text-primary">{t("demoSite.simulationPreview")} {isScanning && t("demoSite.learning")}</span>
               <span className="block truncate text-xs font-semibold text-foreground">{siteName}</span>
             </a>
             <LanguageSwitcher variant="full" className="h-8 shrink-0" />
-            <Button asChild size="sm" className="h-8 shrink-0 text-xs"><a href="/plans" target="_blank" rel="noopener noreferrer"><span className="sm:hidden">Install</span><span className="hidden sm:inline">Get the install code</span><ExternalLink className="ml-1 h-3 w-3" /></a></Button>
+            <Button asChild size="sm" className="h-8 shrink-0 text-xs"><a href="/plans" target="_blank" rel="noopener noreferrer"><span className="sm:hidden">{t("demoSite.installShort")}</span><span className="hidden sm:inline">{t("demoSite.installLong")}</span><ExternalLink className="ml-1 h-3 w-3" /></a></Button>
           </div>
           <div className="mt-1.5 flex min-w-0 items-center gap-2">
-            <p className="shrink-0 text-[10px] leading-tight text-muted-foreground"><span className="sm:hidden">Original site unchanged</span><span className="hidden sm:inline">Your real website is not changed.</span></p>
+            <p className="shrink-0 text-[10px] leading-tight text-muted-foreground"><span className="sm:hidden">{t("demoSite.siteUnchangedShort")}</span><span className="hidden sm:inline">{t("demoSite.siteUnchangedLong", { defaultValue: "Your real website is not changed." })}</span></p>
             {/* "Not hacked" reassurance — Dennis's rule (2026-11-09): the
                 one-line note on its own is not enough; the strong version
                 must be seen before the first tap. Folded into THIS row on
@@ -1281,7 +1284,7 @@ const DemoSite = () => {
             <DemoReassuranceStrip compact />
             <div className="ml-auto flex min-w-0 items-center gap-1">
               <RankAuditPanel businessName={searchParams.get("auditBusiness") || leadData.businessName || siteName} city={searchParams.get("city") || undefined} niche={leadData.niche} websiteUrl={leadData.websiteUrl} initialKeyword={searchParams.get("keyword") || undefined} initialMode={searchParams.get("auditMode") === "nationwide" ? "nationwide" : "maps"} compact />
-              <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0" onClick={() => setShowTestOverride(v => !v)} title="Test phone override" aria-label="Test phone override"><Phone className="h-3 w-3" /></Button>
+              <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0" onClick={() => setShowTestOverride(v => !v)} title={t("demoSite.testPhoneOverride")} aria-label={t("demoSite.testPhoneOverride")}><Phone className="h-3 w-3" /></Button>
             </div>
           </div>
           {/* Protected-site note: this site blocks live embedding, so the
@@ -1299,7 +1302,7 @@ const DemoSite = () => {
         {showTestOverride && (
           <div className="pointer-events-auto absolute left-1/2 top-full mt-2 w-[calc(100%-1.5rem)] max-w-md -translate-x-1/2 rounded-2xl border border-border bg-card/95 px-4 py-3 shadow-xl backdrop-blur-xl">
             <label className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-1.5">
-              Transfer test to different number
+              {t("demoSite.transferTestLabel")}
             </label>
             <input
               type="tel"
@@ -1310,10 +1313,12 @@ const DemoSite = () => {
             />
             <p className="mt-1.5 text-[10px] text-muted-foreground">
               {testPhoneOverride && isLikelyCallablePhoneNumber(testPhoneOverride)
-                ? `✅ Transfers will go to ${normalizePhoneNumber(testPhoneOverride)}`
+                ? t("demoSite.transferWillGo", { number: normalizePhoneNumber(testPhoneOverride) })
                 : testPhoneOverride
-                  ? "⚠️ Invalid number — using default"
-                  : `Using default: ${rawFollowUpPhone || "none"}`}
+                  ? t("demoSite.transferInvalid")
+                  : rawFollowUpPhone
+                    ? t("demoSite.transferDefault", { number: rawFollowUpPhone })
+                    : t("demoSite.transferDefaultNone")}
             </p>
           </div>
         )}
@@ -1331,7 +1336,7 @@ const DemoSite = () => {
             src={livePreviewUrl}
             className="w-full border-0"
             style={{ height: `calc(100dvh - ${previewBarHeight}px)`, minHeight: 320 }}
-            title={`${siteName} website`}
+            title={t("demoSite.siteTitle", { name: siteName })}
             onLoad={() => {
               setHasIframeLoaded(true);
             }}
@@ -1384,7 +1389,7 @@ const DemoSite = () => {
                 src={liveViewUrl}
                 className={`absolute inset-0 h-full w-full border-0 transition-opacity duration-300 ${hasLiveViewLoaded ? "opacity-100" : "opacity-0"}`}
                 style={{ height: `calc(100dvh - ${previewBarHeight}px)`, minHeight: 320 }}
-                title={`${siteName} website (live view)`}
+                title={t("demoSite.siteLiveTitle", { name: siteName })}
                 allow="clipboard-read; clipboard-write"
                 onLoad={() => setHasLiveViewLoaded(true)}
                 onError={() => setLiveViewFailed(true)}
@@ -1401,41 +1406,37 @@ const DemoSite = () => {
           <div className="absolute inset-0 flex items-center justify-center bg-muted/40 px-4 text-center">
             <div className="w-full max-w-lg rounded-[1.75rem] border border-border bg-card/95 p-6 shadow-xl sm:p-8">
               <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-primary">
-                {isWebsiteUnreachable ? "Website unavailable" : isScanFailed ? "Website could not be read" : "Preview unavailable"}
+                {isWebsiteUnreachable ? t("demoSite.statusUnavailable") : isScanFailed ? t("demoSite.statusScanFailed") : t("demoSite.statusPreviewUnavailable")}
               </p>
               <h2 className="mt-3 text-2xl font-semibold text-foreground sm:text-3xl">
                 {isWebsiteUnreachable
-                  ? "This website did not respond"
+                  ? t("demoSite.unreachableTitle")
                   : isScanFailed
-                    ? "We couldn't access this website's content"
-                    : "We couldn't render this website here"}
+                    ? t("demoSite.scanFailedTitle")
+                    : t("demoSite.renderFailedTitle")}
               </h2>
               <p className="mt-3 text-sm leading-6 text-muted-foreground">
                 {isScanFailed ? (
                   <>
-                    Hi, we tried to read and learn from <strong>{homepageUrl}</strong>, but it appears the website
-                    is either blocking automated access, using a technology we couldn't parse, or the URL may have a typo.
+                    {t("demoSite.scanFailedBody1a")}<strong>{homepageUrl}</strong>{t("demoSite.scanFailedBody1b")}
                     <br /><br />
-                    For this demo, Aspen won't be able to simulate your website's actual content because we couldn't
-                    access it. However, on the <strong>real implementation</strong>, we go behind the scenes to manually
-                    deploy an accurate knowledge base so the voice AI talks correctly based on your products and services.
+                    {t("demoSite.scanFailedBody2a")}<strong>{t("demoSite.scanFailedStrong")}</strong>{t("demoSite.scanFailedBody2b")}
                     <br /><br />
-                    This quick demo is designed to work in under two minutes — but it needs website access to shine.
-                    You're welcome to try another URL that you know of, and we can simulate the same experience with a different website!
+                    {t("demoSite.scanFailedBody3")}
                   </>
                 ) : isWebsiteUnreachable ? (
-                  "We gathered business details, but this website address appears offline, broken, or incorrect right now, so there was no live page to render."
+                  t("demoSite.unreachableBody")
                 ) : (
-                  "This site blocked the live preview and the backup browser session did not load correctly, so we switched to a safe fallback."
+                  t("demoSite.renderFailedBody")
                 )}
               </p>
               <div className="mt-4 rounded-2xl border border-border bg-background/80 p-4 text-left">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">Website URL</p>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">{t("demoSite.websiteUrlLabel")}</p>
                 <p className="mt-2 break-all text-sm font-medium text-foreground">{homepageUrl}</p>
               </div>
               {(leadData.title || leadData.description) && (
                 <div className="mt-4 rounded-2xl border border-border bg-background/80 p-4 text-left">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">Scan result</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">{t("demoSite.scanResultLabel")}</p>
                   <p className="mt-2 text-sm font-semibold text-foreground">{leadData.title || siteName}</p>
                   {leadData.description && (
                     <p className="mt-2 text-sm leading-6 text-muted-foreground">{leadData.description}</p>
@@ -1447,13 +1448,13 @@ const DemoSite = () => {
                   onClick={() => navigate("/try-demo")}
                   className="inline-flex items-center justify-center rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
                 >
-                  Try Another Website
+                  {t("demoSite.tryAnother")}
                 </button>
                 <button
                   onClick={handleBack}
                   className="inline-flex items-center justify-center rounded-xl border border-border bg-background px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-secondary"
                 >
-                  Back
+                  {t("demoSite.back")}
                 </button>
                 <a
                   href={homepageUrl}
@@ -1461,7 +1462,7 @@ const DemoSite = () => {
                   rel="noopener noreferrer"
                   className="inline-flex items-center justify-center rounded-xl border border-border bg-background px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-secondary"
                 >
-                  {isWebsiteUnreachable ? "Try site anyway" : "Open site"}
+                  {isWebsiteUnreachable ? t("demoSite.trySiteAnyway") : t("demoSite.openSite")}
                 </a>
               </div>
             </div>

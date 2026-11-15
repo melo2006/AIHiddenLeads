@@ -33,8 +33,8 @@ const metaOf = (html: string, attr: string, name: string) =>
   html.match(new RegExp(`<meta ${attr}="${name}" content="([^"]*)">`))?.[1];
 
 describe("SEO route data (scripts/seo-routes.mjs — prerender + client source of truth)", () => {
-  it("covers exactly the four sitemap routes", () => {
-    expect(routes.map((r) => r.path)).toEqual(["/", "/demo", "/book", "/agents/realtors"]);
+  it("covers exactly the five sitemap routes", () => {
+    expect(routes.map((r) => r.path)).toEqual(["/", "/demo", "/demo/br", "/book", "/agents/realtors"]);
     // The client mirror must carry the same routes (both read the same file).
     expect(SEO_PAGE_HEADS.map((r) => r.path)).toEqual(routes.map((r) => r.path));
     for (const r of routes) expect(seoHeadForPath(r.path)?.canonical).toBe(r.canonical);
@@ -167,9 +167,10 @@ describe("keyword Q&A (FAQPage schema + fallback + visible copy parity)", () => 
   };
   const faqOf = (p: string) => byPath(p).faq ?? [];
 
-  it("carries the approved question sets: 5 homepage, 3 demo, 4 realtors, none on /book", () => {
+  it("carries the approved question sets: 5 homepage, 3 demo, 3 demo/br, 4 realtors, none on /book", () => {
     expect(faqOf("/")).toHaveLength(5);
     expect(faqOf("/demo")).toHaveLength(3);
+    expect(faqOf("/demo/br")).toHaveLength(3);
     expect(faqOf("/agents/realtors")).toHaveLength(4);
     expect(faqOf("/book")).toHaveLength(0);
     // The client mirror carries the same sets.

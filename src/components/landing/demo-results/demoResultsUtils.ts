@@ -211,29 +211,37 @@ export const extractBulletItems = (content?: string, limit = 6) => {
 export const buildModernHeadline = ({
   siteName,
   title,
+  templates,
 }: {
   siteName: string;
   title?: string;
+  /** Localized templates (Publish #71); English when omitted. */
+  templates?: { fromTitle: (title: string) => string; fromSite: (name: string) => string };
 }) => {
   const cleanedTitle = cleanText(title ?? "").split(/[-|]/)[0]?.trim();
 
   if (cleanedTitle && cleanedTitle.length <= 42) {
-    return `${cleanedTitle}, reimagined`;
+    return templates ? templates.fromTitle(cleanedTitle) : `${cleanedTitle}, reimagined`;
   }
 
-  return `${siteName}, reimagined for the modern web`;
+  return templates ? templates.fromSite(siteName) : `${siteName}, reimagined for the modern web`;
 };
 
 export const buildSupportingCopy = ({
   description,
   siteName,
+  fallback,
 }: {
   description?: string;
   siteName: string;
+  /** Localized fallback (Publish #71); English when omitted. */
+  fallback?: (name: string) => string;
 }) => {
   const cleanedDescription = cleanText(description ?? "");
 
   if (cleanedDescription) return cleanedDescription;
 
-  return `A cleaner, faster, more premium experience for ${siteName} with stronger trust signals, better service discovery, and built-in AI lead capture.`;
+  return fallback
+    ? fallback(siteName)
+    : `A cleaner, faster, more premium experience for ${siteName} with stronger trust signals, better service discovery, and built-in AI lead capture.`;
 };

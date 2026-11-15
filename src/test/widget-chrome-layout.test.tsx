@@ -1,6 +1,37 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import en from "../i18n/locales/en.json";
 import FloatingPersonFrame, { AspenWindowControls, type Stage3Controls } from '@/components/FloatingPersonFrame';
+
+// Publish #71: components on the demo path read their copy from
+// i18next; resolve keys against the real en locale (the pattern from
+// demo-reassurance-strip.test.tsx), with interpolation + defaultValue.
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({
+    t: (key: string, options?: Record<string, unknown>) => {
+      const value = key.split(".").reduce<unknown>(
+        (acc, part) =>
+          acc && typeof acc === "object" ? (acc as Record<string, unknown>)[part] : undefined,
+        en as unknown,
+      );
+      let out =
+        typeof value === "string"
+          ? value
+          : typeof options?.defaultValue === "string"
+            ? (options.defaultValue as string)
+            : key;
+      if (options) {
+        for (const [k, v] of Object.entries(options)) {
+          if (k !== "defaultValue" && (typeof v === "string" || typeof v === "number"))
+            out = out.split(`{{${k}}}`).join(String(v));
+        }
+      }
+      return out;
+    },
+    i18n: { language: "en", resolvedLanguage: "en", changeLanguage: async () => undefined },
+  }),
+}));
+
 
 // Three-stage widget chrome (Ron, 2026-11-08 — reverses the 2026-11-03
 // controls-v2 ruling): Stage 1 is ONE small bubble with a single "Tap to

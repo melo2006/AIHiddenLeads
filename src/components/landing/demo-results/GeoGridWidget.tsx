@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { MapPin, Loader2, Target, TrendingDown, Zap, CalendarCheck } from "lucide-react";
@@ -70,6 +71,7 @@ const ScanMap = ({ center, grid }: { center: { lat: number; lng: number }; grid:
 };
 
 const GeoGridWidget = ({ businessName, websiteUrl, defaultKeyword, onBookCall, onVoiceCall }: Props) => {
+  const { t } = useTranslation();
   const [keyword, setKeyword] = useState(defaultKeyword || "");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ScanResult | null>(null);
@@ -77,7 +79,7 @@ const GeoGridWidget = ({ businessName, websiteUrl, defaultKeyword, onBookCall, o
 
   const runScan = async () => {
     if (!keyword.trim()) {
-      toast.error("Enter a target keyword");
+      toast.error(t("geoGrid.errKeyword"));
       return;
     }
     setLoading(true);
@@ -92,7 +94,7 @@ const GeoGridWidget = ({ businessName, websiteUrl, defaultKeyword, onBookCall, o
       setResult(data as ScanResult);
     } catch (e: any) {
       console.error(e);
-      setError(e?.message || "Scan failed. Try again.");
+      setError(e?.message || t("geoGrid.errFailed"));
       toast.error("Geo-Grid scan failed", { description: e?.message });
     } finally {
       setLoading(false);
@@ -118,10 +120,10 @@ const GeoGridWidget = ({ businessName, websiteUrl, defaultKeyword, onBookCall, o
           </div>
           <div className="flex-1 min-w-0">
             <h2 className="text-lg sm:text-2xl font-extrabold leading-tight">
-              Local Google Maps <span className="text-primary">Blind-Spot</span> Diagnostic
+              {t("geoGrid.titleA")} <span className="text-primary">{t("geoGrid.titleB")}</span> {t("geoGrid.titleC")}
             </h2>
             <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-              Live scan of your Google Maps rank across a 3×3 geo-grid around <span className="font-semibold text-foreground">{businessName}</span>.
+              {t("geoGrid.subtitle")} <span className="font-semibold text-foreground">{businessName}</span>.
             </p>
           </div>
         </div>
@@ -130,18 +132,18 @@ const GeoGridWidget = ({ businessName, websiteUrl, defaultKeyword, onBookCall, o
           <Input
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
-            placeholder='Target keyword (e.g. "med spa near me")'
+            placeholder={t("geoGrid.keywordPlaceholder")}
             disabled={loading}
             className="h-11"
           />
           <Button onClick={runScan} disabled={loading} className="h-11 font-semibold whitespace-nowrap">
-            {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Scanning…</> : <><MapPin className="w-4 h-4 mr-2" />Run Geo-Grid Scan</>}
+            {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />{t("geoGrid.scanning")}</> : <><MapPin className="w-4 h-4 mr-2" />{t("geoGrid.runScan")}</>}
           </Button>
         </div>
 
         {loading && (
           <div className="text-xs text-muted-foreground italic">
-            Querying Google Maps across 9 hyper-local checkpoints — this takes 60-120 seconds.
+            {t("geoGrid.querying")}
           </div>
         )}
 
@@ -155,10 +157,10 @@ const GeoGridWidget = ({ businessName, websiteUrl, defaultKeyword, onBookCall, o
           <div className="space-y-4 mt-2">
             {/* Stats strip */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <Stat label="Avg Rank" value={stats?.avgRank ? `#${stats.avgRank.toFixed(1)}` : "—"} tone={stats?.avgRank && stats.avgRank <= 5 ? "good" : "bad"} />
-              <Stat label="Top-3 Visibility" value={`${stats?.top3VisibilityPct ?? 0}%`} tone={(stats?.top3VisibilityPct ?? 0) >= 50 ? "good" : "bad"} />
-              <Stat label="Cells Ranked" value={`${stats?.rankedCells ?? 0}/${stats?.totalCells ?? 0}`} />
-              <Stat label="Blind Spots" value={`${blindSpots}`} tone={blindSpots === 0 ? "good" : "bad"} icon={<TrendingDown className="w-3 h-3" />} />
+              <Stat label={t("geoGrid.statAvgRank")} value={stats?.avgRank ? `#${stats.avgRank.toFixed(1)}` : "—"} tone={stats?.avgRank && stats.avgRank <= 5 ? "good" : "bad"} />
+              <Stat label={t("geoGrid.statTop3")} value={`${stats?.top3VisibilityPct ?? 0}%`} tone={(stats?.top3VisibilityPct ?? 0) >= 50 ? "good" : "bad"} />
+              <Stat label={t("geoGrid.statCells")} value={`${stats?.rankedCells ?? 0}/${stats?.totalCells ?? 0}`} />
+              <Stat label={t("geoGrid.statBlind")} value={`${blindSpots}`} tone={blindSpots === 0 ? "good" : "bad"} icon={<TrendingDown className="w-3 h-3" />} />
             </div>
 
             {/* Map */}
@@ -169,18 +171,16 @@ const GeoGridWidget = ({ businessName, websiteUrl, defaultKeyword, onBookCall, o
             {/* Voice agent narrative + CTAs */}
             <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 sm:p-5">
               <p className="text-sm sm:text-base text-foreground leading-relaxed">
-                Fixing these map blind spots takes roughly <span className="font-semibold text-primary">2 to 4 weeks</span> of consistent localized
-                proximity signal adjustments. Deploy our automated hyper-local asset system and let our custom AI voice agent handle the incoming
-                caller volume as your local pins turn <span className="text-emerald-500 font-semibold">green</span>.
+                {t("geoGrid.narrativeA")} <span className="font-semibold text-primary">{t("geoGrid.narrativeWeeks")}</span> {t("geoGrid.narrativeB")} <span className="text-emerald-500 font-semibold">{t("geoGrid.narrativeGreen")}</span>.
               </p>
               <div className="flex flex-col sm:flex-row gap-2 mt-4">
                 <Button onClick={onVoiceCall} className="flex-1 h-12 font-bold">
                   <Zap className="w-4 h-4 mr-2" />
-                  Talk to Our Automated Specialist Now
+                  {t("geoGrid.ctaVoice")}
                 </Button>
                 <Button onClick={onBookCall} variant="outline" className="flex-1 h-12 font-bold">
                   <CalendarCheck className="w-4 h-4 mr-2" />
-                  Book a Strategy Call
+                  {t("geoGrid.ctaBook")}
                 </Button>
               </div>
             </div>

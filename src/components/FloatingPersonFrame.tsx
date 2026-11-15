@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MessageSquare, Mic, MicOff, X, Minus, AudioLines, Play, Pause, PhoneOff, RotateCcw, Volume2, VolumeX, Maximize2, GripVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import aspenPortrait from '@/assets/aspen-video-frame-final.webp';
@@ -165,6 +166,7 @@ const segmentClass = (active: boolean) => `flex min-h-10 items-center gap-1.5 ro
  * passes it into GeminiConversation (belowAvatar), which renders it in
  * the voice panel's toggle row, under the window-controls row. */
 export function AspenModeToggle({ mode, onMode }: { mode: 'voice' | 'chat'; onMode: (mode: 'voice' | 'chat') => void }) {
+  const { t } = useTranslation();
   // Ron's rule (2026-11-09, after his Z Fold screenshots): BOTH options stay
   // fully visible in BOTH states. The pill therefore carries its OWN opaque
   // card background (never a translucent wash) and the inactive segment uses
@@ -189,9 +191,9 @@ export function AspenModeToggle({ mode, onMode }: { mode: 'voice' | 'chat'; onMo
     if (origin && Math.hypot(event.clientX - origin.x, event.clientY - origin.y) > 10) return;
     onMode(next);
   };
-  return <div className="mx-auto flex shrink-0 items-center gap-0.5 rounded-full border border-border bg-card p-1 shadow-md" role="group" aria-label="Conversation mode">
-    <button type="button" className={segmentClass(mode === 'voice')} aria-pressed={mode === 'voice'} onPointerDown={(event) => { pressOrigin.current = { x: event.clientX, y: event.clientY }; }} onClick={handleClick('voice')}><AudioLines className="h-4 w-4" />Voice</button>
-    <button type="button" className={segmentClass(mode === 'chat')} aria-pressed={mode === 'chat'} onPointerDown={(event) => { pressOrigin.current = { x: event.clientX, y: event.clientY }; }} onClick={handleClick('chat')}><MessageSquare className="h-4 w-4" />Type</button>
+  return <div className="mx-auto flex shrink-0 items-center gap-0.5 rounded-full border border-border bg-card p-1 shadow-md" role="group" aria-label={t("frame.modeAria")}>
+    <button type="button" className={segmentClass(mode === 'voice')} aria-pressed={mode === 'voice'} onPointerDown={(event) => { pressOrigin.current = { x: event.clientX, y: event.clientY }; }} onClick={handleClick('voice')}><AudioLines className="h-4 w-4" />{t("frame.voice")}</button>
+    <button type="button" className={segmentClass(mode === 'chat')} aria-pressed={mode === 'chat'} onPointerDown={(event) => { pressOrigin.current = { x: event.clientX, y: event.clientY }; }} onClick={handleClick('chat')}><MessageSquare className="h-4 w-4" />{t("frame.type")}</button>
   </div>;
 }
 
@@ -211,17 +213,18 @@ export function AspenModeToggle({ mode, onMode }: { mode: 'voice' | 'chat'; onMo
  * delegates dragging to its container, so the handle drags the whole
  * widget from its in-panel home exactly as before. */
 export function AspenWindowControls({ onMinimize, onClose }: { onMinimize: () => void; onClose: () => void }) {
-  return <div className="aspen-person-chest-cluster" role="group" aria-label="Window controls">
-    <button type="button" data-drag-handle className="flex h-8 cursor-grab touch-none select-none items-center gap-1 rounded-full border border-primary/60 bg-background/90 px-2 text-primary shadow-sm backdrop-blur-sm transition-colors hover:bg-secondary active:cursor-grabbing" aria-label="Drag widget" title="Drag">
+  const { t } = useTranslation();
+  return <div className="aspen-person-chest-cluster" role="group" aria-label={t("frame.windowAria")}>
+    <button type="button" data-drag-handle className="flex h-8 cursor-grab touch-none select-none items-center gap-1 rounded-full border border-primary/60 bg-background/90 px-2 text-primary shadow-sm backdrop-blur-sm transition-colors hover:bg-secondary active:cursor-grabbing" aria-label={t("frame.dragWidget")} title={t("frame.drag")}>
       <GripVertical className="h-3.5 w-3.5" />
-      <span className="text-[8px] font-bold uppercase tracking-wider">Drag</span>
+      <span className="text-[8px] font-bold uppercase tracking-wider">{t("frame.drag")}</span>
     </button>
-    <Button size="icon" variant="secondary" className="h-8 w-8 border border-border bg-background/90 text-foreground" onClick={onMinimize} title="Minimize" aria-label="Minimize"><Minus className="h-4 w-4" /></Button>
+    <Button size="icon" variant="secondary" className="h-8 w-8 border border-border bg-background/90 text-foreground" onClick={onMinimize} title={t("frame.minimize")} aria-label={t("frame.minimize")}><Minus className="h-4 w-4" /></Button>
     {/* Button state colours (2026-11-14, Ron-approved spec): × ENDS the
         conversation, so it wears the destructive treatment — red icon +
         red border — instead of matching harmless Minimize (before, the
         only tell was a green vs grey border tint). */}
-    <Button size="icon" variant="secondary" className="h-8 w-8 border border-destructive/70 bg-background/90 text-destructive hover:bg-destructive/10" onClick={onClose} title="End conversation" aria-label="End conversation"><X className="h-4 w-4" /></Button>
+    <Button size="icon" variant="secondary" className="h-8 w-8 border border-destructive/70 bg-background/90 text-destructive hover:bg-destructive/10" onClick={onClose} title={t("frame.endConversation")} aria-label={t("frame.endConversation")}><X className="h-4 w-4" /></Button>
   </div>;
 }
 
@@ -248,15 +251,16 @@ export default function FloatingPersonFrame({ name = 'Aspen', avatarUrl, open, m
   name?: string; avatarUrl?: string; open: boolean; minimized?: boolean; mode: 'voice' | 'chat';
   onOpen: () => void; onMinimize: () => void; onClose: () => void; onMode: (mode: 'voice' | 'chat') => void; keepRendered?: boolean; stage3?: Stage3Controls; /** Cold-email invite arrival: Stage 1 shows a play affordance + "Hear Aspen" instead of the generic label — the first tap is still the one gesture that unlocks audio and starts her invite greeting. */ inviteArrival?: boolean; /** FOCUS VIEW (2026-11-14): the conversation reports captions-off; the shell widens (CSS .aspen-person-focus) so the presenter floats ~25% larger with no frame around her. */ focus?: boolean; children?: ReactNode;
 }) {
+  const { t } = useTranslation();
   const firstName = name?.trim().split(/\s+/)[0];
-  const talkLabel = firstName ? `Talk to ${firstName}` : 'Talk to Me';
+  const talkLabel = firstName ? t("frame.talkToName", { name: firstName }) : t("frame.talkToMe");
   // The launcher/bubble shows the agent's own photo. avatarUrl comes from the
   // agent record; undefined means a platform (Aspen) surface with no tenant record,
   // which uses the same default portrait as PersonPortrait. A tenant record with no
   // photo ('') keeps the plain mic icon instead of borrowing Aspen's face.
   const bubblePhoto = avatarUrl === undefined ? aspenIdleBeckon : avatarUrl;
   const stage = open ? 2 : minimized ? (stage3 ? 3 : 0) : 1;
-  return <section aria-label={`${name} floating assistant`} className={`aspen-person-shell relative ${open ? 'aspen-person-expanded' : 'aspen-person-collapsed'} ${open && focus ? 'aspen-person-focus' : ''} ${stage === 1 ? 'aspen-person-stage1 items-center' : ''} ${stage === 3 ? 'aspen-person-stage3' : ''} ${stage === 0 ? '!w-[112px] items-center' : ''}`}>
+  return <section aria-label={t("frame.shellAria", { name })} className={`aspen-person-shell relative ${open ? 'aspen-person-expanded' : 'aspen-person-collapsed'} ${open && focus ? 'aspen-person-focus' : ''} ${stage === 1 ? 'aspen-person-stage1 items-center' : ''} ${stage === 3 ? 'aspen-person-stage3' : ''} ${stage === 0 ? '!w-[112px] items-center' : ''}`}>
     {open && mode === 'chat' && <PersonPortrait name={name} avatarUrl={avatarUrl} nameLabel flat />}
     {/* CHAT DOCK (2026-11-14, Ron's phone test): in chat mode the window
         controls, the Voice/Type toggle and the chat surface used to be
@@ -271,12 +275,12 @@ export default function FloatingPersonFrame({ name = 'Aspen', avatarUrl, open, m
       <AspenModeToggle mode={mode} onMode={onMode} />
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">{children}</div>
     </div>}
-    {stage === 1 && <Button variant="ghost" onClick={onOpen} title={inviteArrival ? `Hear ${firstName || 'Aspen'}` : talkLabel} aria-label={inviteArrival ? `Hear ${firstName || 'Aspen'} — tap to hear your demo` : talkLabel} className="flex h-auto flex-col items-center gap-1.5 p-0 hover:bg-transparent">
+    {stage === 1 && <Button variant="ghost" onClick={onOpen} title={inviteArrival ? t("frame.hearName", { name: firstName || 'Aspen' }) : talkLabel} aria-label={inviteArrival ? t("frame.hearNameAria", { name: firstName || 'Aspen' }) : talkLabel} className="flex h-auto flex-col items-center gap-1.5 p-0 hover:bg-transparent">
       <span className="relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border border-primary/60 bg-primary text-primary-foreground shadow-lg">
         {bubblePhoto ? <img src={bubblePhoto} alt="" draggable={false} className="aspen-bubble-face h-full w-full" /> : <Mic className="h-8 w-8" />}
         {inviteArrival && <span aria-hidden className="absolute inset-0 flex items-center justify-center bg-black/35"><Play className="h-7 w-7 fill-white text-white" /></span>}
       </span>
-      <span className="w-fit rounded-md bg-card/90 px-2 py-0.5 text-center text-xs font-semibold leading-tight text-foreground shadow-sm">{inviteArrival ? `▶ Hear ${firstName || 'Aspen'}` : 'Tap to talk'}</span>
+      <span className="w-fit rounded-md bg-card/90 px-2 py-0.5 text-center text-xs font-semibold leading-tight text-foreground shadow-sm">{inviteArrival ? t("frame.hearNamePlay", { name: firstName || 'Aspen' }) : t('frame.tapToTalk', { defaultValue: 'Tap to talk' })}</span>
     </Button>}
     {/* Stage 0 bubble sizing (2026-11-14): 72px → 86px → 103px (+~20%
         twice, Ron's live tests — the fully-minimized circle was hardly
@@ -294,14 +298,14 @@ export default function FloatingPersonFrame({ name = 'Aspen', avatarUrl, open, m
       <span className="w-fit rounded-md bg-card/90 px-1.5 text-center text-[10px] font-medium leading-tight text-muted-foreground">{talkLabel}</span>
     </Button>}
     {stage === 3 && stage3 && <div className="flex items-center gap-2">
-      <button type="button" onClick={onOpen} title={`Open ${name}`} aria-label={`Open ${name}`} className="relative h-[79px] w-[79px] shrink-0 rounded-full">
+      <button type="button" onClick={onOpen} title={t("frame.openName", { name })} aria-label={t("frame.openName", { name })} className="relative h-[79px] w-[79px] shrink-0 rounded-full">
         <span className="relative flex h-[79px] w-[79px] items-center justify-center overflow-hidden rounded-full border border-primary/60 bg-primary text-primary-foreground shadow-md">
           <Stage3LiveFace photo={bubblePhoto} />
         </span>
         <span aria-hidden className={`aspen-live-ring ${stage3.suspended ? 'aspen-live-ring-paused' : ''}`} />
-        <span className="sr-only" role="status">{stage3.suspended ? 'Call paused' : 'Call live'}</span>
+        <span className="sr-only" role="status">{stage3.suspended ? t("frame.callPaused") : t("frame.callLive")}</span>
       </button>
-      <div className="flex items-center gap-0.5 rounded-full border border-border bg-card/95 px-1 py-1 shadow-md" role="group" aria-label="Call controls">
+      <div className="flex items-center gap-0.5 rounded-full border border-border bg-card/95 px-1 py-1 shadow-md" role="group" aria-label={t("frame.callControlsAria")}>
         {/* Button state colours (2026-11-14, Ron-approved spec): the
             Stage-3 bar speaks the SAME colour language as the panel —
             green fill = pause engaged (matches the panel Pause button),
@@ -310,12 +314,12 @@ export default function FloatingPersonFrame({ name = 'Aspen', avatarUrl, open, m
             disconnect was a bare red icon. Neutral buttons carry
             .aspen-panel-btn so touch gets no lingering hover wash;
             filled state buttons don't (their same-hue hover is safe). */}
-        <button type="button" className={stage3.suspended ? `${barButton} bg-primary text-primary-foreground hover:bg-primary/90` : `${barButton} aspen-panel-btn`} onClick={stage3.onToggleSuspend} title={stage3.suspended ? 'Resume conversation' : 'Pause conversation'} aria-label={stage3.suspended ? 'Resume conversation' : 'Pause conversation'} aria-pressed={stage3.suspended}>{stage3.suspended ? <Play className="h-[18px] w-[18px]" /> : <Pause className="h-[18px] w-[18px]" />}</button>
-        <button type="button" className={`${barButton} bg-destructive text-destructive-foreground hover:bg-destructive/90`} onClick={stage3.onEnd} title="Disconnect" aria-label="Disconnect"><PhoneOff className="h-[18px] w-[18px]" /></button>
-        <button type="button" className={stage3.muted ? `${barButton} bg-warning text-warning-foreground hover:bg-warning/90` : `${barButton} aspen-panel-btn`} onClick={stage3.onToggleMic} title={stage3.muted ? 'Unmute microphone' : 'Mute microphone'} aria-label={stage3.muted ? 'Unmute microphone' : 'Mute microphone'} aria-pressed={stage3.muted}>{stage3.muted ? <MicOff className="h-[18px] w-[18px]" /> : <Mic className="h-[18px] w-[18px]" />}</button>
-        <button type="button" className={stage3.speakerMuted ? `${barButton} bg-warning text-warning-foreground hover:bg-warning/90` : `${barButton} aspen-panel-btn`} onClick={stage3.onToggleSpeaker} title={stage3.speakerMuted ? 'Turn speaker sound on' : 'Silence speaker'} aria-label={stage3.speakerMuted ? 'Turn speaker sound on' : 'Silence speaker'} aria-pressed={stage3.speakerMuted}>{stage3.speakerMuted ? <VolumeX className="h-[18px] w-[18px]" /> : <Volume2 className="h-[18px] w-[18px]" />}</button>
-        <button type="button" className={`${barButton} aspen-panel-btn disabled:opacity-40`} onClick={stage3.onReplay} disabled={!stage3.hasReplay || stage3.replaying} title="Replay last message" aria-label="Replay last message"><RotateCcw className="h-[18px] w-[18px]" /></button>
-        <button type="button" className={`${barButton} aspen-panel-btn`} onClick={onOpen} title="Maximize" aria-label="Maximize"><Maximize2 className="h-[18px] w-[18px]" /></button>
+        <button type="button" className={stage3.suspended ? `${barButton} bg-primary text-primary-foreground hover:bg-primary/90` : `${barButton} aspen-panel-btn`} onClick={stage3.onToggleSuspend} title={stage3.suspended ? t("frame.resumeConversation") : t("frame.pauseConversation")} aria-label={stage3.suspended ? t("frame.resumeConversation") : t("frame.pauseConversation")} aria-pressed={stage3.suspended}>{stage3.suspended ? <Play className="h-[18px] w-[18px]" /> : <Pause className="h-[18px] w-[18px]" />}</button>
+        <button type="button" className={`${barButton} bg-destructive text-destructive-foreground hover:bg-destructive/90`} onClick={stage3.onEnd} title={t("frame.disconnect")} aria-label={t("frame.disconnect")}><PhoneOff className="h-[18px] w-[18px]" /></button>
+        <button type="button" className={stage3.muted ? `${barButton} bg-warning text-warning-foreground hover:bg-warning/90` : `${barButton} aspen-panel-btn`} onClick={stage3.onToggleMic} title={stage3.muted ? t("frame.unmuteMic") : t("frame.muteMic")} aria-label={stage3.muted ? t("frame.unmuteMic") : t("frame.muteMic")} aria-pressed={stage3.muted}>{stage3.muted ? <MicOff className="h-[18px] w-[18px]" /> : <Mic className="h-[18px] w-[18px]" />}</button>
+        <button type="button" className={stage3.speakerMuted ? `${barButton} bg-warning text-warning-foreground hover:bg-warning/90` : `${barButton} aspen-panel-btn`} onClick={stage3.onToggleSpeaker} title={stage3.speakerMuted ? t("frame.speakerOn") : t("frame.silenceSpeaker")} aria-label={stage3.speakerMuted ? t("frame.speakerOn") : t("frame.silenceSpeaker")} aria-pressed={stage3.speakerMuted}>{stage3.speakerMuted ? <VolumeX className="h-[18px] w-[18px]" /> : <Volume2 className="h-[18px] w-[18px]" />}</button>
+        <button type="button" className={`${barButton} aspen-panel-btn disabled:opacity-40`} onClick={stage3.onReplay} disabled={!stage3.hasReplay || stage3.replaying} title={t("frame.replay")} aria-label={t("frame.replay")}><RotateCcw className="h-[18px] w-[18px]" /></button>
+        <button type="button" className={`${barButton} aspen-panel-btn`} onClick={onOpen} title={t("frame.maximize")} aria-label={t("frame.maximize")}><Maximize2 className="h-[18px] w-[18px]" /></button>
       </div>
     </div>}
     {/* Publish #56 layout fix: the portrait (livebox) is the first

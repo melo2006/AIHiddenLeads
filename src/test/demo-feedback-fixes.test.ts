@@ -104,8 +104,13 @@ describe("demo feedback fixes (2026-11-09)", () => {
     // Both segments always render, with pressed state on the active one.
     expect(frame).toContain('aria-pressed={mode === \'voice\'}');
     expect(frame).toContain('aria-pressed={mode === \'chat\'}');
-    expect(frame).toContain(">Voice</button>");
-    expect(frame).toContain(">Type</button>");
+    // Publish #71: the toggle labels come from the frame.* catalog so
+    // /demo/br renders "Voz"/"Texto"; the English catalog values are the
+    // same labels this pin always protected.
+    expect(frame).toContain('t("frame.voice"');
+    expect(frame).toContain('t("frame.type"');
+    expect(en.frame.voice).toBe("Voice");
+    expect(en.frame.type).toBe("Type");
   });
 
   it("replaces the raw provider close code with a plain-language drop line", () => {

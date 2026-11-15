@@ -285,7 +285,8 @@ describe('invite arrival UX (autoplay-safe, one tap)', () => {
   test('Stage 1 invite affordance: animated bubble + play overlay + "Hear Aspen" label', () => {
     const frame = read('components/FloatingPersonFrame.tsx');
     expect(frame).toContain('inviteArrival');
-    expect(frame).toContain('Hear ${firstName');
+    // Publish #71: the label comes from the frame.* catalog (frame.hearNamePlay, "▶ Hear {{name}}") so /demo/br renders it in Portuguese.
+    expect(frame).toContain('frame.hearNamePlay');
     expect(frame).toContain('<Play');
     // The animated idle (beckon GIF) remains the bubble face.
     expect(frame).toContain('aspenIdleBeckon');
