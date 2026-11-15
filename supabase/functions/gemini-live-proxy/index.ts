@@ -904,14 +904,36 @@ Deno.serve(async (req) => {
               void trySend(followupAlert(mailContact)); void trySend(visitorFollowup({...mailContact,screenshot:saved.lead?.website_screenshot ?? undefined,didDemo:!!session.prospect_id}));
             }
           } else {
-            if(!confirmedContact || !action.slotStart)throw new Error('Confirm contact details and appointment first.');
-            const booked=await bookPlatformCall(db,{...confirmedContact,businessName:String(config.businessName),slotStart:action.slotStart});
+            // request_platform_appointment: book with the contact the
+            // CARD just submitted — the exact name/email/phone the
+            // visitor saw pre-filled and confirmed — never an earlier
+            // session snapshot, which can predate the number the
+            // visitor gave Aspen (Nov 15, the Roger booking: the
+            // snapshot carried no phone, so the confirmation email
+            // printed a bare reach-you line with no number after it).
+            // A client that sends no contact keeps the snapshot path.
+            const cardContact = msg.contact ? confirmedVisitorContact(msg.contact) : confirmedContact;
+            if(!cardContact || !action.slotStart)throw new Error('Confirm contact details and appointment first.');
+            // SMS consent: the texting opt-in from the card when the
+            // payload carries one; otherwise the stored answer on the
+            // lead from the demo form — the same resolution the
+            // book_call tool route uses, so a booking completed on
+            // the card texts exactly when a tool booking would.
+            // Before Publish #65 this route passed no consent at all
+            // and card bookings NEVER texted (NULL stamp, zero
+            // delivery-log rows — the three Nov 16 test bookings).
+            let smsConsent = typeof msg.contact?.smsConsent === 'boolean' ? msg.contact.smsConsent : undefined;
+            if (smsConsent === undefined && session.lead_id) {
+              const { data: leadRow } = await db.from('leads').select('sms_consent').eq('id', session.lead_id).maybeSingle();
+              if (leadRow && typeof leadRow.sms_consent === 'boolean') smsConsent = leadRow.sms_consent;
+            }
+            const booked=await bookPlatformCall(db,{...cardContact,businessName:String(config.businessName),slotStart:action.slotStart,smsConsent:smsConsent === true});
             response=booked;
             // Same confirmation machinery as every booking path (emails
             // + .ics invite + consented SMS), via the shared helper.
             // Fire-and-forget as before: the visitor sees action_result
             // without waiting on SMTP.
-            if((booked as {ok?:boolean}).ok){ void sendBookingConfirmations(db, booked, {...confirmedContact, businessName:String(config.businessName||''), slotStart:action.slotStart}); }
+            if((booked as {ok?:boolean}).ok){ void sendBookingConfirmations(db, booked, {...cardContact, businessName:String(config.businessName||''), slotStart:action.slotStart,smsConsent:smsConsent === true}); }
           }
         } catch(e) {response={error:e instanceof Error?e.message:'Action failed'};}
         clientSocket.send(JSON.stringify({type:'action_result',id:msg.id,...(clientResult ?? response)}));
