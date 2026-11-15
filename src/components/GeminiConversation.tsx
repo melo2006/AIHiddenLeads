@@ -48,6 +48,7 @@ import PlaybackCaption from '@/components/PlaybackCaption';
 import { voiceSessionHeaders } from '@/lib/voiceSessionAuth';
 import { shouldShowMicHint } from '@/lib/micAudibility';
 import { createMicFlowState, micDiagPayload, micDiagSignature, micDiagStamp, micInputSeconds, noteMicFrame, noteMicSessionLive, noteMicWatchdogFired, shouldShowMicWatchdog, type MicDiagEvent, type MicTrackState } from '@/lib/micWatchdog';
+import { clearRetainedHandoffMic, handoffDiagPayload, handoffDiagSignature, handoffVisitFact, isHandoffAnnouncement, micStreamIsLive, retainHandoffMic, reusableMicStream, stripHandoffAnnouncement, takeRetainedHandoffMic, type HandoffDiagEvent, type HandoffDiagMic, type HandoffDiagOutcome } from '@/lib/handoffRecovery';
 import { createMediaSink, mediaPlaybackNode, type MediaSink } from '@/lib/mediaSink';
 import { clampPlaybackVolume, effectivePlaybackLevel, loadPlaybackVolume, savePlaybackVolume } from '@/lib/playbackVolume';
 import { applySinkIdToElement, audioContextSetSinkIdSupported, buildSpeakerMenuOptions, listSpeakerOutputs, pickDefaultSpeakerOutput, type SpeakerMenuOption, type SpeakerOutputDevice } from '@/lib/speakerOutput';
@@ -434,6 +435,22 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // before onActive(false); it is kept in a ref so onHandoffActive
   // can forward it to the proxy, which authors the return line.
   const handoffOutcomeRef = useRef<'completed' | 'unavailable' | null>(null);
+  // Handoff-leg recovery (2026-11-14): the announcement Aspen spoke
+  // for the transfer, captured when the dial is signalled — a return
+  // session's recap is built WITHOUT it (the line is said once; its
+  // replay as the return's opening was tonight's Round A defect).
+  // handoffReturnRef marks that a handoff happened this visit and a
+  // later start is a RETURN: it carries the leg outcome for the
+  // recap's [visit fact] line and the handoffDiag return stamps,
+  // and is cleared when the return lands (go-live) or fails (the
+  // start's mic-denied catch). handoffMicReusedRef records that
+  // the live start adopted the retained pre-handoff stream, so
+  // the return stamp can say mic=reused. Visit-scoped on purpose:
+  // a stop + play resume in the same visit IS a return.
+  const handoffAnnouncementRef = useRef<string | null>(null);
+  const handoffReturnRef = useRef<{ outcome: 'completed' | 'unavailable' | 'unknown' } | null>(null);
+  const handoffMicReusedRef = useRef(false);
+  const lastHandoffDiagRef = useRef('');
   const consent = consentReadyRef.current;
   const [voice, setVoice] = useState(() => {
     try { const saved = localStorage.getItem("gemini-aspen-voice"); return VOICES.some(v => v.id === saved) ? saved ?? "Kore" : "Kore"; } catch { return "Kore"; }
@@ -1301,6 +1318,56 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // than stampMicDiag; it reaches the stamp through this mirror
   // (same pattern as persistSwapDiagRef).
   const stampMicDiagRef = useRef(stampMicDiag); stampMicDiagRef.current = stampMicDiag;
+  // Handoff-leg recovery (2026-11-14): the handoffDiag stamp —
+  // micDiag's sibling through the same gemini-session diag channel,
+  // landing on the session row at config.handoffDiag. It records
+  // the leg's lifecycle (announced → leg started → ended /
+  // interrupted → return-ok / return-failed + the mic state), so
+  // whether the manager's phone rang, connected, or the return
+  // even started is readable from the record. Fired ONLY around
+  // an actual handoff: sessions without one never stamp, keeping
+  // their records byte-identical. Fire-and-forget, deduped by
+  // signature — diagnostics never break the call.
+  const stampHandoffDiag = useCallback((event: HandoffDiagEvent, outcome: HandoffDiagOutcome, mic: HandoffDiagMic) => {
+    const target = diagStampTarget();
+    if (!target) return;
+    const { sessionId, visitorKey } = target;
+    const payload = handoffDiagPayload(sessionId, { event, outcome, mic }, Date.now());
+    const signature = handoffDiagSignature(payload);
+    if (signature === lastHandoffDiagRef.current) return;
+    lastHandoffDiagRef.current = signature;
+    void (async () => {
+      try {
+        const headers = await voiceSessionHeaders();
+        await supabase.functions.invoke('gemini-session', { headers, body: { visitorKey, handoffDiag: payload } });
+      } catch { /* diagnostics never break the call */ }
+    })();
+  }, []);
+  // Teardown reaches the interrupted stamp through this mirror
+  // (same pattern as stampMicDiagRef above).
+  const stampHandoffDiagRef = useRef(stampHandoffDiag); stampHandoffDiagRef.current = stampHandoffDiag;
+  // The mic state for a handoff stamp, in the stamp's vocabulary:
+  // the live track's own state, read at stamp time.
+  const handoffMicState = (): HandoffDiagMic => {
+    const track = micTrackStamp();
+    return track === "live" ? "live" : track === "muted" ? "muted" : track === "ended" ? "ended" : "none";
+  };
+  // Capture the announcement Aspen just spoke, so a later return
+  // session's recap can be built without it. The announcement is
+  // the model's last assistant line when the dial is signalled
+  // (the policy is say-it-once-then-stop); the in-flight line is
+  // the fallback while the turn is still completing. Only a line
+  // carrying the announcement's invariant opening is captured —
+  // anything else leaves a previous capture untouched.
+  const noteHandoffAnnouncement = useCallback(() => {
+    const stored = visitMemory.get(agentId || "homepage") || [];
+    for (let i = stored.length - 1; i >= 0; i--) {
+      if (stored[i].role !== "assistant") continue;
+      if (isHandoffAnnouncement(stored[i].text)) { handoffAnnouncementRef.current = stored[i].text; return; }
+      break; // the last assistant line is an older, completed one — the announcement may still be in flight below
+    }
+    if (isHandoffAnnouncement(aspenLineRef.current)) handoffAnnouncementRef.current = aspenLineRef.current.trim();
+  }, [agentId]);
   // One-tap microphone recovery (zero-input guard): re-request /
   // re-acquire the mic from inside the visitor's tap (so a revoked
   // permission can re-prompt), swap the stream under the EXISTING
@@ -1628,6 +1695,22 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     setPendingAction(null);
     deadlineRef.current = 0;
     setRemainingSeconds(null);
+    // Handoff-leg recovery (2026-11-14): a teardown that lands
+    // MID-LEG (a socket drop while the visitor is on — or waiting
+    // for — the manager call) must not kill the return path. The
+    // leg's outcome was never reported, so the record says
+    // 'interrupted', and the pre-handoff mic stream is RETAINED
+    // instead of stopped (its capture node is disconnected below
+    // as usual; nothing sends from it) for the return start to
+    // adopt — tonight's Round B return died re-asking the browser
+    // for a microphone while a still-live stream existed. A
+    // teardown after a completed leg (handoffRef already false)
+    // retains nothing and stamps nothing.
+    const micRetainedForReturn = handoffRef.current ? micStreamRef.current : null;
+    if (handoffRef.current) {
+      stampHandoffDiagRef.current("interrupted", "unknown", handoffMicState());
+      if (micRetainedForReturn) retainHandoffMic(micRetainedForReturn);
+    }
     setHandoffToken(null);
     handoffRef.current = false;
     setHandoffActive(false);
@@ -1679,7 +1762,9 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     setShowMicWatchdog(false);
     micFlowRef.current = createMicFlowState();
     micAwaitRef.current = null;
-    micStreamRef.current?.getTracks().forEach((t) => t.stop());
+    // Handoff-leg recovery: the stream retained above keeps its
+    // tracks — the return start adopts it (see startConversation).
+    if (micStreamRef.current && micStreamRef.current !== micRetainedForReturn) micStreamRef.current.getTracks().forEach((t) => t.stop());
     micStreamRef.current = null;
     micCtxRef.current?.close().catch(() => {});
     micCtxRef.current = null;
@@ -1728,6 +1813,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
   const endByVisitor = useCallback(() => {
     stopEverything();
+    // Handoff-leg recovery: a DELIBERATE end drops any mic stream
+    // the teardown retained for a return — the visitor ended the
+    // conversation, so the microphone must not stay hot for a
+    // return they never asked for.
+    clearRetainedHandoffMic();
     setError(null);
     setAudioNeedsTap(false);
     setEndedByVisitor(true);
@@ -2324,7 +2414,22 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     setLimitReached(false);
     setEndedByVisitor(false);
     setVideoFallback(false);
-    const resumeContext = preview ? undefined : resumeRecap(visitMemory.get(agentId || "homepage") || []);
+    // Handoff-leg recovery (2026-11-14): after a manager handoff,
+    // the recap is built WITHOUT the transfer announcement (it was
+    // said once, word for word; a return session that re-speaks it
+    // as its opening was tonight's Round A defect) and carries a
+    // [visit fact] line recording that the transfer already
+    // happened and how the leg ended. The combined context stays
+    // inside gemini-session's 1600-char cap: the fact rides last,
+    // so the recap keeps its most recent lines. Visits with no
+    // handoff build the recap exactly as before.
+    const memoryTurns = visitMemory.get(agentId || "homepage") || [];
+    const recapTurns = handoffAnnouncementRef.current ? stripHandoffAnnouncement(memoryTurns, handoffAnnouncementRef.current) : memoryTurns;
+    let resumeContext = preview ? undefined : resumeRecap(recapTurns);
+    if (!preview && resumeContext && handoffReturnRef.current) {
+      const fact = handoffVisitFact(handoffReturnRef.current.outcome);
+      resumeContext = `${resumeContext.slice(-(1600 - fact.length - 1))}\n${fact}`;
+    }
     setTurns([]);
     setPartialUser("");
     setPartialAspen("");
@@ -2395,11 +2500,27 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       let visitorKey = crypto.randomUUID();
       try { localStorage.setItem("gemini-visitor-key", visitorKey); } catch { /* ignore */ }
       // Prepare the server's business snapshot alongside permission/audio setup, only after a tap.
-      const microphoneReady = preview || warm ? Promise.resolve(null) : navigator.mediaDevices.getUserMedia({
+      // Handoff-leg recovery (2026-11-14): a return start after a
+      // handoff adopts the RETAINED pre-handoff stream when one is
+      // still live (stashed by the mid-leg teardown) instead of a
+      // fresh getUserMedia — the fresh ask runs outside any user
+      // gesture, can collide with the Twilio device's own capture,
+      // and its NotAllowedError is what killed tonight's Round B
+      // return after its session row was already authorized. The
+      // handlers below are shared: an adopted stream wires into
+      // micStreamRef exactly like a fresh one. No live retained
+      // stream (or none stashed) → the fresh ask, unchanged.
+      const stashedMic = preview || warm || micStreamIsLive(micStreamRef.current) ? null : takeRetainedHandoffMic<MediaStream>();
+      const retainedMic = preview || warm ? null : reusableMicStream(micStreamRef.current, stashedMic);
+      const micRequest: Promise<MediaStream> = retainedMic ?? navigator.mediaDevices.getUserMedia({
         audio: { deviceId: microphone === "default" ? undefined : { exact: microphone }, echoCancellation: true, noiseSuppression: true, autoGainControl: microphoneAutoGain(captureMode, noiseFilterRef.current) },
-      }).then(stream => {
+      });
+      const microphoneReady = preview || warm ? Promise.resolve(null) : micRequest.then(stream => {
         if (generation !== generationRef.current) { stream.getTracks().forEach(t => t.stop()); return null; }
         micStreamRef.current = stream;
+        // Handoff-leg recovery: mark an adopted retained stream so
+        // the return stamp can prove the mic was reused, not re-asked.
+        if (retainedMic && stream === retainedMic) handoffMicReusedRef.current = true;
         // Round 4: the engine may have become ready while this
         // request was in flight (its ready path ran before a
         // track existed) — apply the raw-capture switch to the
@@ -2579,6 +2700,16 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         // stamps the mic path's starting state on the session row.
         noteMicSessionLive(micFlowRef.current, Date.now());
         if (!preview) stampMicDiag("start");
+        // Handoff-leg recovery (2026-11-14): a start that follows a
+        // handoff has now LANDED — stamp the return on this new
+        // session's row (the diag target was re-pointed by this
+        // start's authorization) and close the return window, so
+        // the next ordinary reconnect is not mistaken for a return.
+        if (!preview && handoffReturnRef.current) {
+          stampHandoffDiag("return-ok", handoffReturnRef.current.outcome, handoffMicReusedRef.current ? "reused" : handoffMicState());
+          handoffReturnRef.current = null;
+          handoffMicReusedRef.current = false;
+        }
         // Arm the opening mic gate: silence frames until her first turn completes.
         openingGateRef.current = true;
         openingGateSinceRef.current = performance.now();
@@ -2670,6 +2801,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             // Server contract (Batch 1): {type:'start_handoff'} sent a
             // few seconds after Aspen announces the manager transfer.
             // Bump the counter BrowserVoiceHandoff watches to auto-dial.
+            // Handoff-leg recovery (2026-11-14): capture the
+            // announcement line (a return session's recap is built
+            // without it), open the return window, and stamp the
+            // announcement on the session record.
+            noteHandoffAnnouncement();
+            handoffReturnRef.current = { outcome: 'unknown' };
+            stampHandoffDiag("announced", "-", handoffMicState());
             setHandoffStartSignal(value => value + 1);
             break;
           case "recommended_plan": {
@@ -2917,6 +3055,19 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       if (generation !== generationRef.current) return;
       if (silentWarm()) { failWarm(); return; }
       resolveWarm(false);
+      // Handoff-leg recovery (2026-11-14): a return start that
+      // dies on the mic-denied error stamps return-failed on the
+      // PREVIOUS session's row — the diag target still points
+      // there because this start's authorization block (which
+      // re-points it) never ran — and it is stamped BEFORE
+      // stopEverything clears the target. Tonight's Round B
+      // shape, made readable: announced → interrupted →
+      // return-failed;mic=denied.
+      if (handoffReturnRef.current && e instanceof Error && e.message === MICROPHONE_DENIED) {
+        stampHandoffDiag("return-failed", handoffReturnRef.current.outcome, "denied");
+        handoffReturnRef.current = null;
+        handoffMicReusedRef.current = false;
+      }
       stopEverything();
       if (e instanceof Error && (e.message === AUDIO_TAP_NEEDED || e.name === 'NotAllowedError' || e.message === SOUND_BLOCKED)) {
         setAudioNeedsTap(true);
@@ -3063,6 +3214,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         case "start_handoff":
           // Same server contract as the main socket (Batch 1): bump the
           // counter BrowserVoiceHandoff watches to auto-dial.
+          // Handoff-leg recovery (2026-11-14): same announcement
+          // capture, return window and stamp as the main socket.
+          noteHandoffAnnouncement();
+          handoffReturnRef.current = { outcome: 'unknown' };
+          stampHandoffDiag("announced", "-", handoffMicState());
           setHandoffStartSignal(value => value + 1);
           break;
         case "recommended_plan": {
@@ -4043,12 +4199,30 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     handoffRef.current = active;
     setHandoffActive(active);
     if (active) {
+      // Handoff-leg recovery (2026-11-14): the announcement has
+      // landed by the time the leg starts — capture it now (the
+      // start_handoff capture can race the turn completing), keep
+      // the return window open, and stamp the leg's start.
+      noteHandoffAnnouncement();
+      if (!handoffReturnRef.current) handoffReturnRef.current = { outcome: 'unknown' };
+      stampHandoffDiag("leg-started", "-", handoffMicState());
       pauseCapture(); clearPlayback();
       captureRef.current.paused = true; setPaused(true);
       void playCtxRef.current?.suspend();
     } else {
       captureRef.current.paused = false; setPaused(false);
       void playCtxRef.current?.resume();
+      // Handoff-leg recovery (2026-11-14): record the leg's end
+      // and its outcome BEFORE the come-back send below reads it.
+      // Whether the return is still owed after this handler
+      // depends on the socket: a delivered handoff_ended completes
+      // the come-back in-session (window closed under the send);
+      // a dead socket leaves the window open so the next start is
+      // stamped — and recapped — as the return.
+      const socketOpen = wsRef.current?.readyState === WebSocket.OPEN;
+      const endedOutcome = handoffOutcomeRef.current ?? 'unavailable';
+      handoffReturnRef.current = { outcome: endedOutcome };
+      stampHandoffDiag("ended", endedOutcome, handoffMicState());
       // Come-back after handoff (Handoff improvement batch,
       // 2026-11-12): report ONLY the terminal outcome; the proxy
       // authors the return instruction server-side (welcome-back,
@@ -4058,6 +4232,9 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       // nothing and asked nothing the same way after every ending.
       if (wsRef.current?.readyState === WebSocket.OPEN) wsRef.current.send(JSON.stringify({type:'handoff_ended',outcome:handoffOutcomeRef.current ?? 'unavailable'}));
       handoffOutcomeRef.current = null;
+      // Handoff-leg recovery: a delivered outcome report completes
+      // the come-back in-session — no new-session return is owed.
+      if (socketOpen) handoffReturnRef.current = null;
     }
   };
   const confirmation = pendingAction ? <VoiceActionConfirmation key={pendingAction.id} action={pendingAction} onAnswer={(approved, contact) => { wsRef.current?.send(JSON.stringify({type:'confirm_action',id:pendingAction.id,approved,contact})); setPendingAction(null); }}/> : null;

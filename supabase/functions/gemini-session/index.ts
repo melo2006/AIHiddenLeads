@@ -37,7 +37,15 @@ const playoutDiagSchema=z.object({sessionId:z.string().uuid(),path:z.enum(['loca
 // the zero-input watchdog fired) so a dead-mic session explains
 // itself from the record. Same channel, same ownership, same shape.
 const micDiagSchema=z.object({sessionId:z.string().uuid(),detail:z.string().max(400),at:z.number().optional()});
-const schema=z.object({ visitorKey:z.string().min(16).max(100), model:z.string().max(100).optional(), agentId:z.string().uuid().optional(), leadId:z.string().uuid().optional(), prospectId:z.string().uuid().optional(), draft:z.boolean().default(false), preview:z.boolean().default(false), voice:z.enum(VOICES as [string,...string[]]).optional(), hour:z.number().int().min(0).max(23).optional(), visitorName:z.string().max(100).default(''), timeZone:z.string().max(100).default('UTC'), locale:z.string().max(10).optional(), campaign:z.object({visitId:z.string().uuid(),source:z.string().max(100),campaign:z.string().max(100),entryPath:z.enum(PUBLIC_PATHS).optional()}).nullable().optional(), consent:z.boolean().default(false), verification:z.enum(['pending','verified']).optional(), invite:z.boolean().optional(), sample:z.boolean().optional(), guide:z.enum(['alex']).optional(), share:z.string().max(100).optional(), resumeContext:z.string().max(1600).optional(), reconnect:z.boolean().default(false), prewarm:z.boolean().default(false), personaSegment:personaSegmentSchema.optional(), swapDiag:swapDiagSchema.optional(), playoutDiag:playoutDiagSchema.optional(), micDiag:micDiagSchema.optional() });
+// HANDOFF DIAG (handoff-leg recovery, 2026-11-14): the client stamps
+// the browser-handoff leg's lifecycle (announced, leg started, leg
+// outcome, return started / return failed, mic state on return) so
+// whether the manager's phone rang, connected, or the return even
+// started is readable from the record — tonight's failed returns
+// left no handoff trace at all. Same channel, same ownership, same
+// shape as micDiag; sessions with no handoff never stamp.
+const handoffDiagSchema=z.object({sessionId:z.string().uuid(),detail:z.string().max(400),at:z.number().optional()});
+const schema=z.object({ visitorKey:z.string().min(16).max(100), model:z.string().max(100).optional(), agentId:z.string().uuid().optional(), leadId:z.string().uuid().optional(), prospectId:z.string().uuid().optional(), draft:z.boolean().default(false), preview:z.boolean().default(false), voice:z.enum(VOICES as [string,...string[]]).optional(), hour:z.number().int().min(0).max(23).optional(), visitorName:z.string().max(100).default(''), timeZone:z.string().max(100).default('UTC'), locale:z.string().max(10).optional(), campaign:z.object({visitId:z.string().uuid(),source:z.string().max(100),campaign:z.string().max(100),entryPath:z.enum(PUBLIC_PATHS).optional()}).nullable().optional(), consent:z.boolean().default(false), verification:z.enum(['pending','verified']).optional(), invite:z.boolean().optional(), sample:z.boolean().optional(), guide:z.enum(['alex']).optional(), share:z.string().max(100).optional(), resumeContext:z.string().max(1600).optional(), reconnect:z.boolean().default(false), prewarm:z.boolean().default(false), personaSegment:personaSegmentSchema.optional(), swapDiag:swapDiagSchema.optional(), playoutDiag:playoutDiagSchema.optional(), micDiag:micDiagSchema.optional(), handoffDiag:handoffDiagSchema.optional() });
 const json=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
 export async function hash(value:string) { return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)))).map(b=>b.toString(16).padStart(2,'0')).join(''); }
 Deno.serve(async req=>{
@@ -103,6 +111,20 @@ Deno.serve(async req=>{
     const priorMic=Array.isArray(micConfig.micDiag) ? micConfig.micDiag : [];
     const micEntry={detail:b.micDiag.detail,at:b.micDiag.at ?? Date.now()};
     await db.from('gemini_voice_sessions').update({config:{...micConfig,micDiag:[...priorMic,micEntry].slice(-30)}}).eq('id',micRow.id);
+    return json({ok:true});
+  }
+  // Handoff telemetry (handoff-leg recovery, 2026-11-14): appended
+  // to the session row at config.handoffDiag (bounded — the last
+  // 30), same visitor-hash ownership as micDiag. Best-effort: a
+  // failed stamp loses only the trace, never the call.
+  if(b.handoffDiag) {
+    const handoffVisitor=await hash(`${b.visitorKey}|${req.headers.get('x-forwarded-for')?.split(',')[0] || ''}`);
+    const {data:handoffRow}=await db.from('gemini_voice_sessions').select('id,config,visitor_hash').eq('id',b.handoffDiag.sessionId).maybeSingle();
+    if(!handoffRow || handoffRow.visitor_hash!==handoffVisitor) return json({error:'Session not found'},404);
+    const handoffConfig=(handoffRow.config ?? {}) as Record<string,unknown>;
+    const priorHandoff=Array.isArray(handoffConfig.handoffDiag) ? handoffConfig.handoffDiag : [];
+    const handoffEntry={detail:b.handoffDiag.detail,at:b.handoffDiag.at ?? Date.now()};
+    await db.from('gemini_voice_sessions').update({config:{...handoffConfig,handoffDiag:[...priorHandoff,handoffEntry].slice(-30)}}).eq('id',handoffRow.id);
     return json({ok:true});
   }
   const bearer=req.headers.get('Authorization')?.replace(/^Bearer\s+/i,'') || '';
