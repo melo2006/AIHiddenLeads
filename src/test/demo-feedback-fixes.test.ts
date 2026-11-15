@@ -11,6 +11,7 @@ import {
 import {
   DEMO_NOT_TOUCHED_REASSURANCE,
   SIMULATION_GREETING,
+  SIMULATION_PROMPT,
   SIMULATION_RECEPTIONIST_SEGMENT,
   VOICE_DISCONNECT_PLAIN,
 } from "../../supabase/functions/_shared/voice-config";
@@ -60,23 +61,29 @@ describe("demo feedback fixes (2026-11-09)", () => {
     expect(tryDemo.indexOf("<DemoReassuranceStrip />")).toBeLessThan(tryDemo.indexOf("<DemoIntakePanel"));
   });
 
-  it("spoken not-touched reassurance: Sara owns it at the simulation entry; Aspen's demo-site greetings no longer carry it", () => {
-    // Owner decision (2026-11-09 21:00, superseding the same-day
-    // disclaimer-slim greeting pins below): the SPOKEN disclaimer moved
-    // from Aspen to Sara — she is the one standing on the mock-up. The
-    // verification gate's Act 1 greeting KEEPS Aspen's line (deliberate
-    // scoping: the gate speaks before any mock-up is on screen).
+  it("spoken not-touched reassurance: the host owns it ONCE at the very beginning; NO disclaimer in role (owner, 2026-11-15)", () => {
+    // Owner decision (2026-11-15, superseding the 2026-11-09 placement
+    // below): the SPOKEN disclaimer is said ONCE, at the very beginning
+    // of the demo, in the host greeting — and is NEVER repeated when
+    // the presenter steps into the website-spokesperson role (Ron's
+    // Frank-test direction: the in-role repeat is removed from every
+    // demo). The verification gate's Act 1 greeting KEEPS Aspen's line
+    // (deliberate scoping: the gate speaks before any mock-up is on
+    // screen).
     expect(DEMO_VERIFICATION_GREETING).toContain(DEMO_NOT_TOUCHED_REASSURANCE);
     expect(DEMO_VERIFICATION_GREETING.indexOf(DEMO_NOT_TOUCHED_REASSURANCE)).toBeLessThan(120);
     for (const greeting of [SIMULATION_GREETING, DEMO_INVITE_GREETING]) {
-      expect(greeting).not.toContain(DEMO_NOT_TOUCHED_REASSURANCE);
-      expect(greeting).not.toContain("haven't touched your website or your server");
+      expect(greeting).toContain(DEMO_NOT_TOUCHED_REASSURANCE);
+      expect(greeting).toContain("haven't touched your website or your server");
+      // Exactly once per greeting — the dedup is the point.
+      expect(greeting.split(DEMO_NOT_TOUCHED_REASSURANCE).length - 1).toBe(1);
     }
-    // Sara's first in-simulation beat carries the full substance: the
-    // slim sentence's clauses plus the public-pages clause.
-    expect(SIMULATION_RECEPTIONIST_SEGMENT).toContain("THE HONESTY NOTE");
-    expect(SIMULATION_RECEPTIONIST_SEGMENT).toContain("mock-up layered over a copy of your site — we haven't touched your website or your server");
-    expect(SIMULATION_RECEPTIONIST_SEGMENT).toContain("built only from your public pages");
+    // The in-role segment carries the prohibition, never the delivery:
+    // the old honesty-note beat is gone, replaced by the no-disclaimer
+    // rule, and its scripted delivery sentence appears nowhere.
+    expect(SIMULATION_RECEPTIONIST_SEGMENT).toContain("NO DISCLAIMER IN ROLE");
+    expect(SIMULATION_RECEPTIONIST_SEGMENT).not.toContain("quick honesty note: this is a mock-up layered over a copy of your site");
+    expect(SIMULATION_PROMPT).not.toContain("quick honesty note: this is a mock-up layered over a copy of your site");
     // Slimmed spoken line (owner's order, 2026-11-09): one sentence, exact
     // pin plus a word-count ceiling so it cannot creep back to a paragraph.
     expect(DEMO_NOT_TOUCHED_REASSURANCE).toBe(

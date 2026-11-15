@@ -15,24 +15,25 @@ import { GATE_LINES } from '../lib/demoVerification';
 
 const read = (rel: string) => fs.readFileSync(path.join(__dirname, '..', '..', rel), 'utf8');
 
-test('C1a: simulation greeting is the demo-site opening — welcome, partner pitch, Alex comfort, Sara intro (owner revision 2026-11-09)', () => {
-  // Superseded the same evening by the owner's demo-site opening +
-  // disclaimer-ownership decisions: Aspen's greeting no longer carries
-  // the mock-up explanation or the not-touched line (Sara speaks the
-  // honesty note at the entry, beat 4b); it carries the partner pitch.
+test('C1a: simulation greeting is the demo-site opening — welcome, disclaimer once, partner pitch, Alex comfort, Sara intro (owner revision 2026-11-09; disclaimer placement 2026-11-15)', () => {
+  // Disclaimer placement (owner, 2026-11-15, superseding the same-day
+  // 2026-11-09 ownership decision): Aspen's greeting carries the
+  // not-touched line ONCE, at the very beginning of the demo; the
+  // in-role honesty-note repeat at the entry was removed. The longer
+  // mock-up explanation sentences stay out of this variant.
   expect(SIMULATION_GREETING).toContain('thanks for trying the demo I built for {businessName}');
   expect(SIMULATION_GREETING).toContain('your partner for growth');
   expect(SIMULATION_GREETING).toContain("you're about to see exactly that");
   expect(SIMULATION_GREETING).toContain('our onboarding engineer, Alex, walks you through everything personally');
   expect(SIMULATION_GREETING).toContain('meet Sara');
   expect(SIMULATION_GREETING).not.toContain('I read the public pages of {businessName} the way any visitor would');
-  expect(SIMULATION_GREETING).not.toContain("haven't touched your website or your server");
+  expect(SIMULATION_GREETING).toContain("haven't touched your website or your server");
   expect(SIMULATION_GREETING).not.toContain('Your own calendar and warm transfers require setup');
   expect(SIMULATION_GREETING).toContain('{timeGreeting}, {visitorFirstName}.');
 });
 
-test('C1b: the entry sequence runs the beats in order (incl. Sara\'s honesty note, 2026-11-09)', () => {
-  const beats = ['THE ANNOUNCEMENT', 'EXPECTATIONS', 'THE PAUSE', 'THE IN-ROLE GREETING', 'THE HONESTY NOTE', 'THE BUSINESS OVERVIEW', 'THE NAME, THEN THE OPENING QUESTION'];
+test('C1b: the entry sequence runs the beats in order (incl. the no-disclaimer-in-role rule, 2026-11-15)', () => {
+  const beats = ['THE ANNOUNCEMENT', 'EXPECTATIONS', 'THE PAUSE', 'THE IN-ROLE GREETING', 'NO DISCLAIMER IN ROLE', 'THE BUSINESS OVERVIEW', 'THE NAME, THEN THE OPENING QUESTION'];
   let last = -1;
   for (const beat of beats) {
     const idx = SIMULATION_PROMPT.indexOf(beat);
@@ -43,7 +44,7 @@ test('C1b: the entry sequence runs the beats in order (incl. Sara\'s honesty not
   expect(SIMULATION_PROMPT).toContain('pricing, details, a manager, anything they want to know');
   expect(SIMULATION_PROMPT).toContain('about 2 minutes of learning');
   expect(SIMULATION_PROMPT).toContain('keeps perfecting and expanding my knowledge base');
-  expect(SIMULATION_PROMPT).toContain('a slow count of 3 in silence');
+  expect(SIMULATION_PROMPT).toContain('a slow count of 3 to 5 in silence');
   // Bug 2 (2026-11-13, Ron's Andriot retest) supersedes the old
   // "never open the role with how can I help you" law: the in-role
   // greeting now CLOSES with the question — a bare opening with it,

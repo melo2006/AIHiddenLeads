@@ -158,9 +158,12 @@ describe('presenter simulation prompt', () => {
     expect(prompt).not.toContain('that ask IS the doorway');
     expect(prompt).toContain('you are the host and the receptionist in one');
     expect(prompt).toContain('never claim a transfer to them is happening');
-    // The honesty note is the presenter's own.
+    // No in-role disclaimer for anyone (owner, 2026-11-15): the old
+    // honesty-note attribution is gone entirely; the presenter prompt
+    // carries the no-disclaimer rule like every other prompt.
     expect(prompt).not.toContain('belongs to Sara');
-    expect(prompt).toContain('the spoken disclaimer belongs to you, the one standing on the mock-up');
+    expect(prompt).not.toContain('belongs to you, the one standing on the mock-up');
+    expect(prompt).toContain('NO DISCLAIMER IN ROLE');
     // The step-out is Frank's, and follow-ups are answered as Frank.
     expect(prompt).not.toContain('This is Aspen from AI Hidden Leads again');
     expect(prompt).not.toContain('hand you back to Aspen');

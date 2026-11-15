@@ -416,8 +416,13 @@ export function personaSegmentPrompt(
 //      transfer would break the demo's honesty line; the solo beat
 //      names the colleagues, declines the handoff honestly, and
 //      carries on hosting.
-//   2. The honesty-note attribution ("belongs to Sara") — the note is
-//      the presenter's own, as the one standing on the mock-up.
+//   2. (RETIRED 2026-11-15) The honesty-note attribution rewrite —
+//      the in-role honesty note itself was removed by the owner's
+//      disclaimer-dedup decision (the disclaimer is said once, by the
+//      host, at the very beginning; never repeated in role), so the
+//      two replaces that re-attributed it are gone with it. The
+//      no-disclaimer beat (voice-config beat 4b) applies to
+//      presenters unchanged.
 //   3. The close's step-out line ("This is Aspen again" / "hand you
 //      back to Aspen") — the presenter steps out as himself.
 //   4. The close's follow-up seat ("Answer follow-ups as Aspen") —
@@ -513,14 +518,6 @@ export function presenterSimulationPrompt(binding: PersonaBinding): string {
     .replace(
       'IF THE VISITOR ASKS FOR SARA BY NAME DURING THIS HOST PHASE: that ask IS the doorway — a request for a named person is a transfer, always. Never answer AS Sara, never speak her lines, and never roleplay the business yourself in her place. Move straight to the handoff: announce the simulation briefly and end with "Can I transfer you to Sara now?", then wait for their answer.',
       `IF THE VISITOR ASKS FOR ASPEN OR SARA BY NAME DURING THIS HOST PHASE: they are your colleagues at AI Hidden Leads, and in THIS demonstration you are the host and the receptionist in one — there is no second person to bring in. Say so warmly and briefly, in your own words — for example: "Aspen and Sara are on my team — for this demonstration you've got me, and I'll look after you myself." Then carry on hosting exactly as scripted: never answer AS Aspen or Sara, and never claim a transfer to them is happening or has happened.`,
-    )
-    .replace(
-      'the spoken disclaimer belongs to Sara, the one standing on the mock-up',
-      'the spoken disclaimer belongs to you, the one standing on the mock-up',
-    )
-    .replace(
-      'so do not wait for her version, soften it, or refer back to it.',
-      'so do not soften it or refer back to an earlier version of it.',
     )
     // Beat 5 (presenter-owns-close, 2026-11-14): the receptionist
     // segment's bring-Aspen-back beat — the presenter OWNS the AI

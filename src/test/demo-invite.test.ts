@@ -193,7 +193,7 @@ describe('resolve response parsing', () => {
 });
 
 describe('invite opening copy (Aspen host phase)', () => {
-  test('greeting: pre-built, no waiting, partner pitch + Sara intro; the spoken disclaimer is Sara\'s now (owner, 2026-11-09)', () => {
+  test('greeting: pre-built, no waiting, partner pitch + Sara intro; the spoken disclaimer is the host\'s, once, at the beginning (owner, 2026-11-15)', () => {
     expect(DEMO_INVITE_GREETING).toContain('{timeGreeting}');
     expect(DEMO_INVITE_GREETING).toContain('{visitorFirstName}');
     expect(DEMO_INVITE_GREETING).toContain('{businessName}');
@@ -203,11 +203,12 @@ describe('invite opening copy (Aspen host phase)', () => {
     expect(DEMO_INVITE_GREETING).toContain('Thanks for accepting the invitation');
     expect(DEMO_INVITE_GREETING).toContain('your partner for growth');
     expect(DEMO_INVITE_GREETING).toContain('meet Sara');
-    // The scripted not-touched lines moved OUT of Aspen's greeting —
-    // Sara speaks the honesty note at the simulation entry (beat 4b).
+    // The scripted not-touched line lives in Aspen's greeting — said
+    // ONCE, at the very beginning (owner, 2026-11-15); the longer
+    // legacy-slim mock-up sentences stay out of this variant.
     expect(DEMO_INVITE_GREETING).not.toContain('simulation layered over your website');
     expect(DEMO_INVITE_GREETING).not.toContain('has not been changed');
-    expect(DEMO_INVITE_GREETING).not.toContain("haven't touched your website or your server");
+    expect(DEMO_INVITE_GREETING).toContain("haven't touched your website or your server");
     expect(DEMO_INVITE_GREETING).toContain('{nameConfirm}');
     expect(DEMO_INVITE_GREETING).not.toContain('being prepared');
     expect(DEMO_INVITE_GREETING).not.toContain('4-digit code');
