@@ -182,6 +182,32 @@
 //    lives only in this layer (plus the one presenter rewrite
 //    in the listings layer); the standard layer stays
 //    byte-identical.
+//  - publish78-discovery-fixes (2026-11-15, the #72 live
+//    verification rerun — the first run in which #72's behavior
+//    was observable): this layer's rules proved sound mid-flow
+//    (check C passed clean) but failed at the scripted-beat
+//    boundaries of the composed presenter prompt: a push to skip
+//    drew a contact ask instead of the SHORT GATE (check B); a
+//    name never given looped for four turns and starved a
+//    clearly stated $300–400k budget, which was never confirmed
+//    or recapped (check D); and the receptionist segment's
+//    beat 5/6 re-delivered a greeting-shaped opener and re-asked
+//    a name the host beat had already collected (check A). No
+//    persona-segment swap is involved — the presenter fronts the
+//    demo solo, host and receptionist beats in ONE session — so
+//    the dropped state is tracked MECHANICALLY instead: the
+//    proxy-side discovery gate (_shared/discovery-gate.ts) keeps
+//    the ledger (banked name, banked purpose/budget, greetings
+//    delivered, the owed gate) from the visitor's own words and
+//    the model's own turns, and injects the order at the turn
+//    boundary where the obligation was dropped — the short-gate
+//    order at a skip, the name-known correction, the name-loop
+//    release, the stated-budget guards, the greeting-once count.
+//    NOTHING in this layer's text changes: the gate enforces the
+//    rules as written (the gate still guards the promise; step
+//    2's early ask is untouched; the #74 capture gate's behavior
+//    is untouched — the discovery gate runs after it and stands
+//    down on any boundary it or the consent ask already used).
 
 // WARM OPENINGS (step 0 of the arc): the in-role greeting variants for
 // a presenter realtor demo. Every variant carries the time-of-day

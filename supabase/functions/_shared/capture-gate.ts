@@ -58,6 +58,14 @@
 //     that segmented form, a ONE-TIME correction nudge orders a
 //     true letter-by-letter re-read (with the exact character
 //     sequence spelled out) before the confirmation counts.
+//     Publish #78 (defect 4): the separator word is part of the
+//     form, not a fixed word — the #74 verification's session A
+//     rendered "tony PERIOD test at example dot com", which the
+//     classifier matched as neither spelled nor segmented, so no
+//     correction fired and the capture stood on the segmented
+//     confirmation. "period" / "point" now classify exactly like
+//     "dot", in the rendering classifier and in the spoken-form
+//     dictation detector alike.
 //
 // FALSE-POSITIVE DISCIPLINE (a gate that interrupts a clean segment
 // is itself a defect): detection reads VISITOR turns only; the
@@ -94,8 +102,13 @@ const TYPED_EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-
 // The spoken form ASR produces when a visitor dictates an address:
 // "tony dot test at example dot com", "tony.test at example dot
 // com". Word-bounded "at", at least one "dot" in the domain part —
-// a bare "meet at noon"-style phrase can never match.
-const SPOKEN_EMAIL = /\b([a-z0-9]+(?:\s*(?:dot|\.)\s*[a-z0-9]+)*)\s+at\s+([a-z0-9]+(?:\s*(?:dot|\.)\s*[a-z0-9]+)+)\b/i;
+// a bare "meet at noon"-style phrase can never match. The dot's
+// separator word is "dot", "period" or "point" (Publish #78,
+// defect 4): a dictation spoken with "period" reconstructs to the
+// same address — without it, the pattern would bank a fragment
+// ("test@example.com" out of "tony period test at example dot
+// com") as if it were the dictated address.
+const SPOKEN_EMAIL = /\b([a-z0-9]+(?:\s*(?:dot|period|point|\.)\s*[a-z0-9]+)*)\s+at\s+([a-z0-9]+(?:\s*(?:dot|period|point|\.)\s*[a-z0-9]+)+)\b/i;
 
 /**
  * The email a visitor dictated in this text, or ''. Typed form
@@ -110,7 +123,7 @@ export function detectDictatedEmail(text: string): string {
   if (typed) return typed[0].toLowerCase();
   const spoken = text.toLowerCase().match(SPOKEN_EMAIL);
   if (!spoken) return '';
-  const squeeze = (part: string) => part.replace(/\s*dot\s*/g, '.').replace(/\s*\.\s*/g, '.').replace(/\s+/g, '');
+  const squeeze = (part: string) => part.replace(/\s*(?:dot|period|point)\s*/g, '.').replace(/\s*\.\s*/g, '.').replace(/\s+/g, '');
   const local = squeeze(spoken[1]);
   // A fragment like "…me at gmail dot com" reconstructs to an
   // address nobody dictated: the local part must be substantive
@@ -288,6 +301,19 @@ export function turnReadsBackPhone(text: string, phoneDigits: string): boolean {
  * the two renderings of THIS address, dotted or dotless, so a turn
  * that merely mentions other words can never be misread as a
  * read-back of this email.
+ *
+ * SEPARATOR WORDS (Publish #78, defect 4 — the #74 verification's
+ * session A): the model's read-back rendered the address's first
+ * dot as the word "period" — "tony period test at example dot
+ * com" — which matched NEITHER sequence: the turn classified as
+ * not-a-read-back at all, no correction fired, and the capture
+ * stood on the segmented confirmation. The separator is a spoken
+ * word, not a fixed one: "period" and "point" are normalized to
+ * "dot" in the token stream before matching, so ANY spoken
+ * separator earns the same classification — segmented when the
+ * parts are whole words, spelled when they are letter-by-letter
+ * (a true spell-back spoken with "period" stays a spell-back and
+ * is never corrected).
  */
 export function emailRenderingInTurn(text: string, email: string): 'spelled' | 'segmented' | null {
   if (!text || !email || !email.includes('@')) return null;
@@ -295,7 +321,8 @@ export function emailRenderingInTurn(text: string, email: string): 'spelled' | '
   const localWords = localRaw.split(/[^a-z0-9]+/).filter(Boolean);
   const domainWords = domainRaw.split(/[^a-z0-9]+/).filter(Boolean);
   if (!localWords.length || domainWords.length < 2) return null;
-  const tokens = text.toLowerCase().replace(/@/g, ' at ').replace(/-/g, ' ').split(/[^a-z0-9]+/).filter(Boolean);
+  const tokens = text.toLowerCase().replace(/@/g, ' at ').replace(/-/g, ' ').split(/[^a-z0-9]+/).filter(Boolean)
+    .map((t) => (t === 'period' || t === 'point' ? 'dot' : t));
   const containsSequence = (seq: string[]) => {
     if (!seq.length || seq.length > tokens.length) return false;
     outer: for (let i = 0; i + seq.length <= tokens.length; i++) {
