@@ -678,6 +678,8 @@
     "captions": "Captions",
     "hideCaptions": "Hide captions",
     "showCaptions": "Show captions",
+    "captionsTip": "Want to follow along in text? Tap the Captions button to see captions of this conversation.",
+    "captionsTipDismiss": "Dismiss",
     "mic": "Mic",
     "sound": "Sound",
     "quiet": "Quiet",

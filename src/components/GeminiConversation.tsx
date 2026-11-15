@@ -400,15 +400,40 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const [faceLive, setFaceLive] = useState(false);
   // Captions on/off doubles as the FOCUS VIEW switch (2026-11-14):
   // captions off = focus view (the presenter floats frameless, panel
-  // becomes the bottom dock). The visitor's choice is remembered for
-  // the rest of the tab session, so reopening the widget never
-  // silently restores captions they turned off.
+  // becomes the bottom dock). DEFAULT CHANGED (owner-directed
+  // 2026-11-15): a brand-new visitor now starts with captions OFF —
+  // the animated avatar is the showpiece, and the one-time tip card
+  // (below) points them at the Captions button. An explicit Captions
+  // choice is remembered across visits in localStorage, written ONLY
+  // by the toggle buttons (chooseCaptions); the session-level memory
+  // (sessionStorage) still tracks the live state as before, so
+  // reopening the widget never silently restores captions they
+  // turned off, and a mute-forced captions-on never overwrites the
+  // visitor's stored preference.
   const [captions, setCaptions] = useState(() => {
-    try { return sessionStorage.getItem("aspen-widget-captions") !== "off"; } catch { return true; }
+    try {
+      const saved = localStorage.getItem("aspen-widget-captions");
+      if (saved === "on") return true;
+      if (saved === "off") return false;
+      return sessionStorage.getItem("aspen-widget-captions") === "on";
+    } catch { return false; }
   });
   useEffect(() => {
     try { sessionStorage.setItem("aspen-widget-captions", captions ? "on" : "off"); } catch { /* storage is best-effort */ }
   }, [captions]);
+  const chooseCaptions = useCallback((next: boolean) => {
+    setCaptions(next);
+    try { localStorage.setItem("aspen-widget-captions", next ? "on" : "off"); } catch { /* storage is best-effort */ }
+  }, []);
+  // CAPTIONS TIP CARD (owner-directed 2026-11-15): with the new
+  // captions-off default, a first-time visitor gets ONE semi-
+  // transparent tip card for ~10 seconds when their first live
+  // session starts, pointing at the Captions button. Once per
+  // visitor (localStorage), and it disappears the moment captions
+  // come on, the session ends, or they dismiss it.
+  const [captionsTip, setCaptionsTip] = useState(false);
+  // (The effect that drives this lives below, next to the phase
+  // state it depends on.)
   const avatarLiveRef = useRef(false);
   const avatarRequestedRef = useRef(false);
   const [pendingAction, setPendingAction] = useState<VoiceAction | null>(null);
@@ -555,6 +580,19 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const [hasReplay, setHasReplay] = useState(false);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [phase, setPhase] = useState<Phase>("idle");
+  // CAPTIONS TIP CARD driver (see the captions block above): show
+  // the one-time tip when a first live session runs with captions
+  // off; hide it when captions come on or the session leaves live.
+  useEffect(() => {
+    if (phase !== "live" || captions || isPreviewRef.current) { setCaptionsTip(false); return; }
+    let seen = true;
+    try { seen = localStorage.getItem("aspen-captions-tip-seen") === "1"; } catch { /* storage unavailable: treat as seen */ }
+    if (seen) return;
+    try { localStorage.setItem("aspen-captions-tip-seen", "1"); } catch { /* best-effort */ }
+    setCaptionsTip(true);
+    const timer = window.setTimeout(() => setCaptionsTip(false), 10000);
+    return () => window.clearTimeout(timer);
+  }, [phase, captions]);
   const [aspenSpeaking, setAspenSpeaking] = useState(false);
   const [status, setStatus] = useState(
     "Pick a voice and press Start — then just talk, like a real phone call. You can interrupt her."
@@ -4695,10 +4733,16 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           <div data-testid="aspen-focus-dock" className="flex shrink-0 items-center gap-1.5">
             <PersonaNameLabel name={personaLabelName} variant="dock" />
             <div aria-hidden className="flex-1" />
-            <Button variant="outline" className="aspen-panel-btn h-10 shrink-0 rounded-full border-primary/60 bg-transparent px-3 text-xs font-semibold text-primary hover:bg-muted hover:text-primary" aria-label={t('voice.showCaptions')} title={t('voice.showCaptions')} aria-expanded={false} onClick={() => setCaptions(true)}>{t('voice.captions')}</Button>
+            <Button variant="outline" className="aspen-panel-btn h-10 shrink-0 rounded-full border-primary/60 bg-transparent px-3 text-xs font-semibold text-primary hover:bg-muted hover:text-primary" aria-label={t('voice.showCaptions')} title={t('voice.showCaptions')} aria-expanded={false} onClick={() => chooseCaptions(true)}>{t('voice.captions')}</Button>
             {windowControls}
           </div>
         ) : windowControls)}
+        {captionsTip && faceFirst && (
+          <div data-testid="aspen-captions-tip" role="status" className="absolute inset-x-2 bottom-2 z-20 flex items-start gap-2 rounded-lg border border-primary/40 bg-card/85 p-2.5 text-xs text-foreground shadow-lg backdrop-blur-sm">
+            <p className="min-w-0 flex-1">{t('voice.captionsTip')}</p>
+            <button type="button" aria-label={t('voice.captionsTipDismiss')} className="shrink-0 rounded-full px-1 leading-none text-muted-foreground hover:text-foreground" onClick={() => setCaptionsTip(false)}>✕</button>
+          </div>
+        )}
         {/* FOCUS VIEW (Ron's approved mockup v2, re-asserted 2026-11-14):
             captions off = the presenter + voice controls + the dock —
             the Voice/Type toggle and Manager pill rows step aside.
@@ -4728,7 +4772,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
               fill (before, expanded and collapsed looked identical
               — green icon either way); OFF keeps the green border
               affordance with a dark-grey hover wash. */}
-          {faceFirst && !focusView && <Button variant="outline" className={captions ? "ml-auto h-10 shrink-0 rounded-full border-primary bg-primary px-3 text-xs font-semibold text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground" : "aspen-panel-btn ml-auto h-10 shrink-0 rounded-full border-primary/60 bg-transparent px-3 text-xs font-semibold text-primary hover:bg-muted hover:text-primary"} aria-label={captions ? t('voice.hideCaptions') : t('voice.showCaptions')} title={captions ? t('voice.hideCaptions') : t('voice.showCaptions')} aria-expanded={captions} onClick={() => setCaptions(v => !v)}>{t('voice.captions')}</Button>}
+          {faceFirst && !focusView && <Button variant="outline" className={captions ? "ml-auto h-10 shrink-0 rounded-full border-primary bg-primary px-3 text-xs font-semibold text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground" : "aspen-panel-btn ml-auto h-10 shrink-0 rounded-full border-primary/60 bg-transparent px-3 text-xs font-semibold text-primary hover:bg-muted hover:text-primary"} aria-label={captions ? t('voice.hideCaptions') : t('voice.showCaptions')} title={captions ? t('voice.hideCaptions') : t('voice.showCaptions')} aria-expanded={captions} onClick={() => chooseCaptions(!captions)}>{t('voice.captions')}</Button>}
         </div>
         {phase === 'idle' && endedByVisitor && <p className="text-xs text-muted-foreground">{t("voice.pressPlayReconnect", { name })}</p>}
         {/* FOCUS VIEW transport, wide landscape only (2026-11-14): the

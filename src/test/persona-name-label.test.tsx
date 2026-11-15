@@ -64,6 +64,10 @@ function stubBrowser() {
   vi.stubGlobal('WebSocket', Socket);
   vi.stubGlobal('AudioContext', Context);
   vi.stubGlobal('navigator', { mediaDevices: { addEventListener: vi.fn(), removeEventListener: vi.fn(), getUserMedia: async () => ({ getTracks: () => [{ stop: vi.fn() }], getAudioTracks: () => [] }), enumerateDevices: async () => [] } });
+  // The livebox badge lives in the standard (captions-on) layout —
+  // in focus view the dock carries the name instead. Captions-off
+  // became the new-visitor default on 2026-11-15, so seed ON.
+  localStorage.setItem('aspen-widget-captions', 'on');
 }
 
 const frameProps = { onOpen: vi.fn(), onClose: vi.fn(), onMinimize: vi.fn(), onMode: vi.fn() };

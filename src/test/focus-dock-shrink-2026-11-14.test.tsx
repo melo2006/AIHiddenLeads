@@ -82,6 +82,10 @@ function stubBrowser() {
   vi.stubGlobal('WebSocket', Socket);
   vi.stubGlobal('AudioContext', Context);
   vi.stubGlobal('navigator', { mediaDevices: { addEventListener: vi.fn(), removeEventListener: vi.fn(), getUserMedia: async () => ({ getTracks: () => [{ stop: vi.fn() }], getAudioTracks: () => [] }), enumerateDevices: async () => [] } });
+  // The rendered tests here start from the standard (captions-on)
+  // layout and toggle into focus; captions-off became the
+  // new-visitor default on 2026-11-15, so seed the preference ON.
+  localStorage.setItem('aspen-widget-captions', 'on');
 }
 
 function stubLandscape() {

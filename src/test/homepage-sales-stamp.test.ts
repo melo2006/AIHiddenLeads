@@ -1,9 +1,12 @@
 // @vitest-environment node
 import { describe, expect, test } from 'vitest';
+import { readFileSync } from 'node:fs';
 import {
   HOMEPAGE_GREETING,
   HOMEPAGE_GREETING_VARIANTS,
+  HOMEPAGE_KNOWLEDGE,
   HOMEPAGE_SALES_LAYER,
+  TEAM_FACTS,
   stampHomepageSales,
 } from '../../supabase/functions/_shared/homepage-knowledge';
 import { NAME_ASK_SENTENCE } from '../../supabase/functions/_shared/team-intro';
@@ -73,12 +76,38 @@ describe('sales conversation arc content (the draft Ron approved)', () => {
 
   test('implementation detail is gated to when they ask', () => {
     expect(HOMEPAGE_SALES_LAYER).toContain('15 to 30 minutes with Alex');
-    expect(HOMEPAGE_SALES_LAYER).toContain('ONLY when they ask how implementation works');
+    expect(HOMEPAGE_SALES_LAYER).toContain('ONLY when they ask a follow-up about what is involved');
     expect(HOMEPAGE_SALES_LAYER).toContain('a couple of hours to a couple of days');
   });
 
   test('scope: sales layer only, never in-simulation', () => {
     expect(HOMEPAGE_SALES_LAYER).toContain('SALES CONVERSATION ARC');
     expect(HOMEPAGE_SALES_LAYER).toContain('booking the setup call is the FLOOR');
+  });
+});
+
+describe('Publish #61 fixes (live-test defects, 2026-11-15)', () => {
+  test('the silence bridge statistic is pinned to the 85% line — no invented figures', () => {
+    // The first live bridge improvised "69%". The bridge may now use
+    // exactly one figure, in exactly this framing.
+    expect(HOMEPAGE_SALES_LAYER).toContain('Surveys of businesses like yours tell us that 85% of callers who reach a business\'s voicemail don\'t call back');
+    expect(HOMEPAGE_SALES_LAYER).toContain('NEVER invent, blend, round or substitute a statistic');
+    const proxy = readFileSync(new URL('../../supabase/functions/gemini-live-proxy/index.ts', import.meta.url), 'utf8');
+    expect(proxy).toContain('That 85% figure is the ONLY percentage or statistic you may use in this turn');
+  });
+
+  test('setup-time questions get the short answer first (first-answer rule)', () => {
+    expect(HOMEPAGE_SALES_LAYER).toContain('FIRST-ANSWER RULE');
+    expect(HOMEPAGE_SALES_LAYER).toContain('Never lead with the long version');
+  });
+
+  test('no stale "few hours" setup claims remain in the code reference', () => {
+    // The stored snapshots carried three of these; the code reference
+    // carried two (TEAM_FACTS + HOMEPAGE_KNOWLEDGE). The snapshot fix
+    // is migration 20261115020000; the code must never re-seed them.
+    expect(TEAM_FACTS).not.toContain('few hours');
+    expect(HOMEPAGE_KNOWLEDGE).not.toContain('few hours');
+    expect(TEAM_FACTS).toContain('15 to 30 minutes');
+    expect(HOMEPAGE_KNOWLEDGE).toContain('15 to 30 minutes');
   });
 });

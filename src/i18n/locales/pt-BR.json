@@ -652,6 +652,8 @@
     "captions": "Legendas",
     "hideCaptions": "Ocultar legendas",
     "showCaptions": "Mostrar legendas",
+    "captionsTip": "Quer acompanhar em texto? Toque no botão Legendas para ver as legendas desta conversa.",
+    "captionsTipDismiss": "Dispensar",
     "mic": "Microfone",
     "sound": "Som",
     "quiet": "Silêncio",

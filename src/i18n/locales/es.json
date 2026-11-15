@@ -652,6 +652,8 @@
     "captions": "Subtítulos",
     "hideCaptions": "Ocultar subtítulos",
     "showCaptions": "Mostrar subtítulos",
+    "captionsTip": "¿Quieres seguir la conversación en texto? Toca el botón Subtítulos para ver los subtítulos de esta conversación.",
+    "captionsTipDismiss": "Descartar",
     "mic": "Micrófono",
     "sound": "Sonido",
     "quiet": "Silencio",
