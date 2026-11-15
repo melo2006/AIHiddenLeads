@@ -443,10 +443,12 @@
       }
     },
     "featuresTitle": "Mientras esperas — lo que ella hace por ti",
+    "previousFeature": "Función anterior",
+    "nextFeature": "Función siguiente",
     "benefits": {
       "videoAvatar": {
         "headline": "No Solo Una Voz — Un Rostro en Tu Sitio Web",
-        "body": "Conoce a tu portavoz de IA: un avatar de video en vivo que saluda a tus visitantes cara a cara en tu sitio web y mantiene una conversación en video bidireccional, como casi nadie más puede ofrecerte. Elige el rostro que encaje con tu negocio:",
+        "body": "Conoce a tu portavoz de IA: un avatar de video en vivo que saluda a tus visitantes cara a cara en tu sitio web y mantiene una conversación en video bidireccional.",
         "avatarsNote": "Aspen, Frank, Sara — y muchos más para elegir."
       },
       "conversation": {
@@ -463,7 +465,7 @@
       },
       "warmTransfer": {
         "headline": "Transferencia en Vivo, Con un Resumen de la IA",
-        "body": "Cuando una llamada necesita a una persona, se transfiere contigo en vivo y antes te pasa un resumen de la conversación generado por la IA: atiendes sabiendo ya toda la historia y mantienes el control de cada llamada."
+        "body": "Cuando una llamada necesita a una persona, se transfiere contigo en vivo — antes recibes un resumen de la conversación generado por la IA. Atiendes sabiendo ya la historia y mantienes el control de cada llamada."
       },
       "readyFast": {
         "headline": "Listo en Menos de Dos Minutos",
