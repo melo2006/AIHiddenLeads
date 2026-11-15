@@ -151,8 +151,8 @@ interface DemoLoadingStateProps {
 
 const DemoLoadingState = ({ websiteUrl, businessName, overlay = false, language }: DemoLoadingStateProps) => (
   <div
-    className={`flex w-full items-center justify-center overflow-hidden px-4 py-4 text-center ${
-      overlay ? "absolute inset-0 bg-background/92 backdrop-blur-sm" : "h-[100dvh] bg-background"
+    className={`flex w-full items-center justify-center overflow-y-auto px-4 py-4 text-center ${
+      overlay ? "absolute inset-0 bg-background/92 backdrop-blur-sm" : "min-h-[100dvh] bg-background"
     }`}
   >
     <ScanningAnimation

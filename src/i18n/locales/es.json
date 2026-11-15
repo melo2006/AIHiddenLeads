@@ -321,6 +321,11 @@
     "perkFast": "Responde en segundos, 24/7 — noches, fines de semana y mientras tu equipo está ocupado.",
     "perkCapture": "Captura nombre, correo y teléfono mientras conversa, para que cada conversación pueda convertirse en un cliente potencial.",
     "perkBookings": "Toma solicitudes de cita y te las envía.",
+    "perkVoicemailShort": "Ninguna llamada llega al buzón de voz",
+    "perkFastShort": "Responde en segundos, 24/7",
+    "perkCaptureShort": "Cada conversación se vuelve un lead",
+    "perkBookingsShort": "Reserva citas por ti",
+    "perkLiveAvatarShort": "Avatar de video en vivo — no solo voz",
     "perkLiveAvatar": "No es solo otra IA de voz: es un avatar de video EN VIVO. Mira a Aspen hablar, escuchar y vender en tu sitio web, como lo hará en tu demo. Casi nadie más puede darte eso.",
     "smsNote": "El seguimiento por SMS llega pronto — los resúmenes por correo ya funcionan hoy.",
     "notTouched": "Maqueta de demostración — su sitio web no se toca, nada en su servidor cambia.",
@@ -422,45 +427,47 @@
       },
       "voice": {
         "label": "Preparando la demo de Voz de IA",
-        "detail": "Una nueva forma de nunca perder una llamada de cliente."
+        "detail": "Configurando su voz, su saludo y lo que sabe de tu negocio…"
       },
       "chat": {
         "label": "Configurando el Chat de IA",
-        "detail": "Respuestas instantáneas convierten visitantes en leads capturados."
+        "detail": "Preparando respuestas instantáneas desde el contenido de tu sitio…"
       },
       "transfer": {
         "label": "Activando transferencias en vivo",
-        "detail": "Los leads calientes se conectan con una persona rápidamente."
+        "detail": "Conectando la transferencia en vivo a tu teléfono…"
       },
       "final": {
         "label": "Finalizando tu demo en vivo",
-        "detail": "Mira cómo la IA captura leads que hoy podrías estar perdiendo."
+        "detail": "Dando los toques finales a tu demo…"
       }
     },
+    "featuresTitle": "Mientras esperas — lo que ella hace por ti",
     "benefits": {
       "videoAvatar": {
         "headline": "No Solo Una Voz — Un Rostro en Tu Sitio Web",
-        "body": "Conoce a tu portavoz de IA: un avatar de video en vivo que saluda a tus visitantes cara a cara en tu sitio web y les explica lo que ofreces."
+        "body": "Conoce a tu portavoz de IA: un avatar de video en vivo que saluda a tus visitantes cara a cara en tu sitio web y mantiene una conversación en video bidireccional, como casi nadie más puede ofrecerte. Elige el rostro que encaje con tu negocio:",
+        "avatarsNote": "Aspen, Frank, Sara — y muchos más para elegir."
       },
-      "missCall": {
-        "headline": "Nunca Más Pierdas Una Llamada",
-        "body": "Tu recepcionista de IA responde cada llamada al instante, 24/7 — noches, fines de semana y feriados — para que nunca pierdas un cliente potencial."
+      "conversation": {
+        "headline": "Una Conversación Real, en Ambos Sentidos",
+        "body": "Escucha, responde preguntas y hace las preguntas correctas — sin guiones leídos a tus visitantes y sin menús telefónicos sin salida."
       },
-      "leadCapture": {
-        "headline": "Cada Lead, Capturado",
-        "body": "Cada conversación captura el nombre de quien llama, lo que necesita y el mejor número para devolver la llamada, listo para tu seguimiento."
+      "dashboard": {
+        "headline": "Cada Llamada en un Solo Panel",
+        "body": "Cada llamada, transcripción, mensaje y cita en un solo lugar: revísalo desde donde estés y que nada se te escape."
       },
       "appointments": {
-        "headline": "Citas Instantáneas",
-        "body": "La reserva empieza por la preferencia de quien llama — primero su horario preferido — y se confirma en el momento. Se acabó perseguir clientes por teléfono."
+        "headline": "Reservado — y Confirmado — Automáticamente",
+        "body": "La reserva empieza por la preferencia de quien llama — primero su horario preferido —, se confirma en el momento y la confirmación se envía automáticamente. Se acabó perseguir clientes por teléfono."
       },
       "warmTransfer": {
-        "headline": "Transferencia en Vivo — Tú Mantienes el Control",
-        "body": "Cuando una llamada necesita a una persona, se transfiere contigo en vivo con un resumen de la conversación — tú mantienes el control de cada llamada."
+        "headline": "Transferencia en Vivo, Con un Resumen de la IA",
+        "body": "Cuando una llamada necesita a una persona, se transfiere contigo en vivo y antes te pasa un resumen de la conversación generado por la IA: atiendes sabiendo ya toda la historia y mantienes el control de cada llamada."
       },
-      "prospects": {
-        "headline": "Prospectos Nuevos Cada Mes",
-        "body": "Premium incluye hasta 50 prospectos B2B nuevos al mes, en lotes semanales — la cantidad varía según el mercado y no se garantiza un número específico."
+      "readyFast": {
+        "headline": "Listo en Menos de Dos Minutos",
+        "body": "La demo que estás por probar se preparó desde tu sitio web en menos de dos minutos: así de rápido aprende sobre un negocio."
       }
     }
   },

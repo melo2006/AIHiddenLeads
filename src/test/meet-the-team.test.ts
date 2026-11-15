@@ -87,16 +87,14 @@ describe("meet the team section", () => {
     expect(stats).toBeGreaterThan(team);
   });
 
-  it("demo page: compact variant at the Benefits → How-it-works seam only", () => {
-    const benefits = tryDemo.indexOf('t("tryDemo.smsNote")');
-    const team = tryDemo.indexOf("<TeamSection compact />");
-    const how = tryDemo.indexOf('id="demo-how-title"');
-    expect(benefits).toBeGreaterThan(-1);
-    expect(team).toBeGreaterThan(benefits);
-    expect(how).toBeGreaterThan(team);
-    // Exactly one mount on the page; the intake panel and the widget mount
-    // are untouched by this build.
-    expect(tryDemo.match(/<TeamSection/g)).toHaveLength(1);
+  it("demo page: no longer mounted (Publish #73 one-screen demo page)", () => {
+    // Publish #73 (owner directive, 2026-11-15) compacted /demo to a
+    // single screen and removed every below-the-fold section, this one
+    // included: the "meet the team / pick your face" story is now told
+    // by the scan screen's avatar row (Aspen / Frank / Sara + more).
+    // The section itself is untouched and still mounts on the homepage
+    // (pinned above); the demo page's intake + widget mounts are intact.
+    expect(tryDemo).not.toContain("<TeamSection");
     expect(tryDemo).toContain("<DemoIntakePanel");
     expect(tryDemo).toContain("<GeminiAgentWidget");
   });
