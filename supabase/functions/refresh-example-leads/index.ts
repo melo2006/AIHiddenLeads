@@ -1,5 +1,8 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { REALTOR_EXAMPLE_PINNED_LEADS } from '../_shared/realtor-example-pinned-leads.ts';
+import {
+  REALTOR_EXAMPLE_PINNED_LEADS,
+  applyPinnedServiceArea,
+} from '../_shared/realtor-example-pinned-leads.ts';
 
 // Weekly refresh for the PINNED realtor demo-example leads
 // (pinned-example-leads build, 2026-11-13).
@@ -19,6 +22,21 @@ import { REALTOR_EXAMPLE_PINNED_LEADS } from '../_shared/realtor-example-pinned-
 // pinned leads, and this function additionally re-asserts the pinned
 // map value after every scan it triggers, so the stored URL cannot
 // drift from the map even if another write path appears.
+//
+// Two more pinned facts are re-asserted the same way (Martinez pins
+// fix, 2026-11-14), and — unlike a scan outcome — they are asserted
+// UNCONDITIONALLY: whether the scan succeeded, walled, or failed
+// outright. (1) serviceArea: the stored knowledge's SERVICE AREA
+// line(s) are rewritten to the pin's recorded area, so a
+// confabulated model answer cannot survive a refresh. (2)
+// consentBannerVerified (michael-martinez only): the owner has
+// personally witnessed the site's cookie banner live, but the site
+// sits behind a Cloudflare bot check that walls the capture
+// browsers and the consent probe records null on a wall by design —
+// no scan can ever witness the banner, so the stale FALSE on the
+// row would otherwise be immortal. The refresh re-asserts
+// consent_banner_seen=true after every scan of that pin, including
+// scans that recorded nothing.
 //
 // Invocation shape: POST { slug } or { leadId } refreshes ONE pinned
 // lead (a single scan can take ~1-2 minutes, so the schedule fires
@@ -64,6 +82,13 @@ Deno.serve(async (req) => {
       refreshed.push({ slug: target.slug, leadId: target.leadId, ok: false, reason: 'lead_not_found' });
       continue;
     }
+    // The scan outcome is captured, not thrown: the pinned-fact
+    // assertions below run WHATEVER the scan did — success, a walled
+    // or failed scan, even an invoke that never completed. A walled
+    // scan is precisely the case the consent pin exists for.
+    let scanOk = false;
+    let scanHttpStatus: number | null = null;
+    let scanFailureReason: string | null = null;
     try {
       // Same invoke body the demo client uses for a fresh scan of this
       // site; keyed by the pinned leadId, so the scan lands on the same
@@ -83,22 +108,77 @@ Deno.serve(async (req) => {
         }),
       });
       await res.text().catch(() => '');
-      // PINNED URL PRESERVATION (2026-11-14): whatever the scan wrote,
-      // the pinned lead's stored website_url ends this refresh at the
-      // pinned map's value (target.url) — it never drifts. A failure
-      // is reported, not hidden.
-      let websiteUrlPreserved: boolean | null = null;
-      {
-        const { error: restoreError } = await db
-          .from('leads')
-          .update({ website_url: target.url })
-          .eq('id', target.leadId);
-        websiteUrlPreserved = !restoreError;
-      }
-      refreshed.push({ slug: target.slug, leadId: target.leadId, ok: res.ok, httpStatus: res.status, websiteUrlPreserved });
+      scanOk = res.ok;
+      scanHttpStatus = res.status;
     } catch (e) {
-      refreshed.push({ slug: target.slug, leadId: target.leadId, ok: false, reason: `scan_invoke_failed: ${String(e).slice(0, 200)}` });
+      scanFailureReason = `scan_invoke_failed: ${String(e).slice(0, 200)}`;
     }
+    // PINNED URL PRESERVATION (2026-11-14): whatever the scan wrote,
+    // the pinned lead's stored website_url ends this refresh at the
+    // pinned map's value (target.url) — it never drifts. A failure
+    // is reported, not hidden.
+    let websiteUrlPreserved: boolean | null = null;
+    {
+      const { error: restoreError } = await db
+        .from('leads')
+        .update({ website_url: target.url })
+        .eq('id', target.leadId);
+      websiteUrlPreserved = !restoreError;
+    }
+    // PINNED CONSENT (Martinez pins fix, 2026-11-14): only for pins
+    // whose banner a human has verified (today: michael-martinez
+    // only). The capture browsers are walled by the site's bot check
+    // and the probe records null on a wall, so the scan can never
+    // witness this banner; the pin is the witness. Idempotent —
+    // writing true over true is a no-op in effect. Pins without the
+    // flag never touch the consent columns here.
+    let consentBannerSeenPinned: boolean | null = null;
+    if (target.consentBannerVerified) {
+      const { error: consentError } = await db
+        .from('leads')
+        .update({ consent_banner_seen: true })
+        .eq('id', target.leadId);
+      consentBannerSeenPinned = !consentError;
+    }
+    // PINNED SERVICE AREA (Martinez pins fix, 2026-11-14): rewrite
+    // the SERVICE AREA line(s) in the knowledge the scan just stored
+    // to the pin's recorded area. Read AFTER the scan (the scan
+    // overwrites website_content); write only when the text actually
+    // changes, so an already-pinned row is untouched.
+    let serviceAreaPinned: boolean | null = null;
+    if (target.serviceArea) {
+      const { data: kbRow, error: kbReadError } = await db
+        .from('leads')
+        .select('website_content')
+        .eq('id', target.leadId)
+        .maybeSingle();
+      if (kbReadError) {
+        serviceAreaPinned = false;
+      } else {
+        const currentContent = kbRow?.website_content ?? null;
+        const assertedContent = applyPinnedServiceArea(currentContent, target.serviceArea);
+        if (assertedContent !== (currentContent ?? '')) {
+          const { error: kbWriteError } = await db
+            .from('leads')
+            .update({ website_content: assertedContent })
+            .eq('id', target.leadId);
+          serviceAreaPinned = !kbWriteError;
+        } else {
+          serviceAreaPinned = true;
+        }
+      }
+    }
+    const refreshEntry: Record<string, unknown> = {
+      slug: target.slug,
+      leadId: target.leadId,
+      ok: scanOk,
+      websiteUrlPreserved,
+      consentBannerSeenPinned,
+      serviceAreaPinned,
+    };
+    if (scanHttpStatus !== null) refreshEntry.httpStatus = scanHttpStatus;
+    if (scanFailureReason) refreshEntry.reason = scanFailureReason;
+    refreshed.push(refreshEntry);
   }
 
   return json({ ok: refreshed.every((r) => r.ok), refreshed });

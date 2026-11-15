@@ -1870,6 +1870,22 @@ Deno.serve(async (req) => {
       combinedContent: [homepageMarkdown, combinedPageContent, secondaryContent, filesContent].filter(Boolean).join('\n\n'),
     });
 
+    // PINNED SERVICE AREA (Martinez pins fix, 2026-11-14): for a
+    // pinned example lead with a recorded serviceArea, the pin
+    // replaces the model's free-text answer HERE — the single choke
+    // point every downstream write reads (the initial knowledge, the
+    // background enrichment's research queries and its rebuilt
+    // knowledge, the fallback screenshot). Without this, each scan
+    // re-derives the area from whatever content survived that day
+    // and a starved scrape confabulates a same-named business's
+    // city. Non-pinned leads and pins without a recorded area keep
+    // the model's answer untouched.
+    if (isPinnedExampleLead) {
+      const pinnedServiceArea = REALTOR_EXAMPLE_PINNED_LEADS
+        .find((entry) => entry.leadId === leadId)?.serviceArea;
+      if (pinnedServiceArea) profile.serviceArea = pinnedServiceArea;
+    }
+
     // Build initial knowledge (without web research)
     const initialKnowledge = buildStructuredKnowledge({
       websiteUrl: formattedUrl,
