@@ -21,6 +21,8 @@ interface RouteHead {
   ogDescription: string;
   heading: string;
   summary: string[];
+  faqHeading?: string;
+  footerLinks?: { href: string; label: string }[];
   faq?: { q: string; a: string }[];
 }
 const routes = SEO_ROUTES as RouteHead[];
@@ -219,6 +221,27 @@ describe("keyword Q&A (FAQPage schema + fallback + visible copy parity)", () => 
     });
   }
 
+  it("FAQ section heading comes from each route's own data (never hardcoded English)", () => {
+    // Every route with a Q&A set carries its own localized section heading,
+    // and the prerendered fallback prints exactly that string.
+    for (const r of routes.filter((x) => (x.faq?.length ?? 0) > 0)) {
+      expect(r.faqHeading?.length).toBeGreaterThan(0);
+      const html = buildRouteHtml(indexHtml, r) as string;
+      expect(html).toContain(`<h2>${r.faqHeading}</h2>`);
+    }
+    // The bug this pins: /demo/br's Portuguese Q&A used to sit under the
+    // English heading "Common questions" in the prerendered page.
+    expect(byPath("/demo/br").faqHeading).toBe("Perguntas frequentes");
+    const brHtml = buildRouteHtml(indexHtml, byPath("/demo/br")) as string;
+    expect(brHtml).toContain("<h2>Perguntas frequentes</h2>");
+    expect(brHtml).not.toContain("Common questions");
+    // English routes keep the English heading.
+    expect(byPath("/demo").faqHeading).toBe("Common questions");
+    expect(byPath("/").faqHeading).toBe("Common questions");
+    // The client mirror carries the same heading per route.
+    for (const r of routes) expect(seoHeadForPath(r.path)?.faqHeading).toBe(r.faqHeading ?? "");
+  });
+
   it("/book: prerender strips the homepage FAQPage block and declares none of its own", () => {
     const html = buildRouteHtml(indexHtml, byPath("/book")) as string;
     expect(html).not.toContain("data-faq-schema");
@@ -254,5 +277,55 @@ describe("keyword Q&A (FAQPage schema + fallback + visible copy parity)", () => 
     expect(recordings?.a).toMatch(/Not yet/);
     expect(recordings?.a).toMatch(/summary/);
     expect(recordings?.a).toMatch(/transcript/);
+  });
+});
+
+describe("fallback footer links (seoMainHtml — route-localized labels)", () => {
+  const EN_FOOTER_LINKS = [
+    { href: "/demo", label: "Try the free website demo" },
+    { href: "/book", label: "Book a brief introductory call" },
+    { href: "/privacy", label: "Privacy policy" },
+    { href: "/terms", label: "Terms of service" },
+  ];
+  const footerOf = (html: string) => html.match(/<footer>([\s\S]*?)<\/footer>/)?.[1] ?? "";
+
+  it("every route carries the four footer links — same hrefs, same order, non-empty labels", () => {
+    for (const r of routes) {
+      expect(r.footerLinks?.map((l) => l.href)).toEqual(["/demo", "/book", "/privacy", "/terms"]);
+      for (const l of r.footerLinks ?? []) expect(l.label.length).toBeGreaterThan(0);
+      // And the prerendered fallback prints exactly the route's own anchors.
+      const footer = footerOf(buildRouteHtml(indexHtml, r) as string);
+      for (const l of r.footerLinks ?? []) {
+        expect(footer).toContain(`<a href="${l.href}">${l.label}</a>`);
+      }
+    }
+  });
+
+  it("English routes keep the exact pre-existing English labels (wording unchanged)", () => {
+    for (const r of routes.filter((x) => x.path !== "/demo/br")) {
+      expect(r.footerLinks).toEqual(EN_FOOTER_LINKS);
+    }
+  });
+
+  it("/demo/br footer is fully Portuguese — no English footer label anywhere in its built HTML", () => {
+    expect(byPath("/demo/br").footerLinks).toEqual([
+      { href: "/demo", label: "Experimente a demo gratuita do site" },
+      { href: "/book", label: "Agende uma breve ligação de apresentação" },
+      { href: "/privacy", label: "Política de Privacidade" },
+      { href: "/terms", label: "Termos de Uso" },
+    ]);
+    const html = buildRouteHtml(indexHtml, byPath("/demo/br")) as string;
+    const footer = footerOf(html);
+    for (const l of byPath("/demo/br").footerLinks ?? []) {
+      expect(footer).toContain(`<a href="${l.href}">${l.label}</a>`);
+    }
+    // The bug this pins: /demo/br's prerendered fallback used to end in an
+    // English footer. The template's own English footer lives inside the
+    // <main> applyRouteMain replaces, so no English label may survive at all.
+    for (const l of EN_FOOTER_LINKS) expect(html).not.toContain(l.label);
+  });
+
+  it("client mirror carries the same footer links per route", () => {
+    for (const r of routes) expect(seoHeadForPath(r.path)?.footerLinks).toEqual(r.footerLinks ?? []);
   });
 });

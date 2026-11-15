@@ -9,6 +9,12 @@ export interface SeoRouteHead {
   ogDescription: string;
   heading: string;
   summary: string[];
+  /** Localized heading over the route's Q&A section in the no-JS fallback
+   * (e.g. "Perguntas frequentes" on /demo/br); "" for routes without one. */
+  faqHeading: string;
+  /** Localized labels for the no-JS fallback footer links, in render order
+   * (e.g. "Política de Privacidade" / "Termos de Uso" on /demo/br). */
+  footerLinks: { href: string; label: string }[];
   /** Keyword Q&A set for this route (visible section + fallback + FAQPage
    * schema all carry this same wording); empty for routes without one. */
   faq: { q: string; a: string }[];
@@ -27,6 +33,8 @@ export const SEO_PAGE_HEADS: SeoRouteHead[] = (SEO_ROUTES as any[]).map((r) => (
   ogDescription: r.ogDescription,
   heading: r.heading,
   summary: r.summary,
+  faqHeading: r.faqHeading ?? "",
+  footerLinks: r.footerLinks ?? [],
   faq: r.faq ?? [],
 }));
 
