@@ -7,23 +7,28 @@ import pt from "../i18n/locales/pt-BR.json";
 
 /**
  * Copy-refresh guards (Ron's direction, 2026-11-13; deck rewritten
- * 2026-11-14).
+ * 2026-11-14; rebuilt as a feature grid by Publish #73, 2026-11-15).
  *
- * Job A — the demo build-wait flashcard deck (scan.benefits, rotated by
+ * Job A — the demo build-wait deck (scan.benefits, shown by
  * ScanningAnimation while a demo builds) predated the video avatar and
  * carried fabricated stats ("Capture 2–5x More Leads", "Most businesses
  * miss 40% of calls") plus a "ready within 48 hours" promise. The
- * 2026-11-14 homepage compliance pass made it 10 honest cards, but it
- * still named Aspen in four cards and rotated warm transfer mid-deck —
- * Ron caught exactly that card on his phone during a non-Aspen demo.
- * The deck is now the agreed 6-card presenter-neutral set, in selling
- * order: (1) live VIDEO spokesperson, (2) answers every call 24/7
- * instantly, (3) captures name / need / callback number, (4) books
- * appointments preference-first, (5) warm transfer with a summary,
- * (6) up to 50 fresh B2B prospects with the honesty qualifier. No card
- * may name any presenter — the deck also shows during Frank, Monica
- * and Black Professional Lady demos. The retired cards and claims must
+ * 2026-11-14 pass made it an honest 6-card rotating set. Publish #73
+ * (owner's directive: "the scan wait is a captive audience — make it
+ * SELL") replaced the one-at-a-time rotation with a six-card feature
+ * GRID — all six visible at once, bigger icons — in selling order:
+ * (1) live VIDEO spokesperson with the avatar-library row, (2) natural
+ * two-way conversation, (3) one dashboard for every call, (4) booking
+ * + automatic confirmations, (5) warm transfer with an AI briefing,
+ * (6) ready in under two minutes. The retired cards and claims must
  * never come back.
+ *
+ * Presenter-neutral rule, one deliberate exception: card copy names no
+ * presenter — the grid also shows during Frank / Monica / Denise
+ * demos — EXCEPT the video card's avatar row, which names the avatar
+ * LIBRARY (Aspen / Frank / Sara + more) because choosing your face is
+ * the feature being sold there. Names may appear ONLY in
+ * videoAvatar.avatarsNote, never in a headline or body.
  *
  * Job B — the wizard's custom-avatar step must set the real generation
  * expectation at the creation action: usually ready within a few hours,
@@ -43,11 +48,11 @@ const avatarSettings = readFileSync(
 
 const DECK_KEYS = [
   "videoAvatar",
-  "missCall",
-  "leadCapture",
+  "conversation",
+  "dashboard",
   "appointments",
   "warmTransfer",
-  "prospects",
+  "readyFast",
 ] as const;
 
 const RETIRED_KEYS = [
@@ -59,6 +64,13 @@ const RETIRED_KEYS = [
   "wizardSetup",
   "pricing",
   "callSummary",
+  // Retired by Publish #73: the 2026-11-14 rotating deck's middle
+  // cards were absorbed into the new six (missed calls → conversation
+  // + dashboard; lead capture → dashboard; prospects left the deck —
+  // the offer is stated once, in the demo page's price strip).
+  "missCall",
+  "leadCapture",
+  "prospects",
 ] as const;
 
 const FABRICATED = /2–5x|2-5x|40%|48 hours/i;
@@ -68,7 +80,7 @@ const FABRICATED = /2–5x|2-5x|40%|48 hours/i;
  *  label "Latina" stays in the guard so it can never slip back in.) */
 const PRESENTER_NAMES = /\b(Aspen|Frank|Latina|Monica|Sara|Alex)\b/;
 
-describe("demo build-wait flashcard deck (scan.benefits)", () => {
+describe("demo build-wait feature deck (scan.benefits)", () => {
   it("has exactly the 6 agreed cards, in selling order, in every locale", () => {
     for (const [name, locale] of [["en", en], ["es", es], ["pt-BR", pt]] as const) {
       expect(Object.keys(locale.scan.benefits), `${name}.scan.benefits`).toEqual([...DECK_KEYS]);
@@ -90,49 +102,63 @@ describe("demo build-wait flashcard deck (scan.benefits)", () => {
     }
   });
 
-  it("names no presenter in any locale", () => {
+  it("names a presenter ONLY in the video card's avatar-library row", () => {
     for (const [name, locale] of [["en", en], ["es", es], ["pt-BR", pt]] as const) {
-      const deckText = JSON.stringify(locale.scan.benefits);
-      expect(deckText, `${name}.scan.benefits`).not.toMatch(PRESENTER_NAMES);
+      const b = locale.scan.benefits as unknown as Record<string, { headline: string; body: string; avatarsNote?: string }>;
+      // Headlines + bodies stay presenter-neutral in every locale…
+      const copyText = DECK_KEYS.map((k) => `${b[k].headline} ${b[k].body}`).join(" ");
+      expect(copyText, `${name}.scan.benefits copy`).not.toMatch(PRESENTER_NAMES);
+      // …and the one allowed naming spot is the avatar row, which must
+      // name the library (Aspen / Frank / Sara) in every locale.
+      expect(b.videoAvatar.avatarsNote, `${name}.avatarsNote`).toContain("Aspen");
+      expect(b.videoAvatar.avatarsNote, `${name}.avatarsNote`).toContain("Frank");
+      expect(b.videoAvatar.avatarsNote, `${name}.avatarsNote`).toContain("Sara");
     }
   });
 
   it("leads with the video avatar and states the mandated selling points (EN)", () => {
     const b = en.scan.benefits;
-    // (1) live VIDEO spokesperson, face-to-face, on the visitor's own site
+    // (1) live VIDEO spokesperson, face-to-face, two-way, on the visitor's own site
     expect(b.videoAvatar.headline).toContain("Face on Your Website");
     expect(b.videoAvatar.body).toContain("AI spokesperson");
     expect(b.videoAvatar.body).toContain("live streaming video avatar");
     expect(b.videoAvatar.body).toContain("face-to-face");
-    // (2) answers every call 24/7 instantly — never miss a lead
-    expect(b.missCall.body).toContain("answers every call instantly");
-    expect(b.missCall.body).toContain("24/7");
-    expect(b.missCall.body).toContain("never miss another lead");
-    // (3) captures name, need and callback number
-    expect(b.leadCapture.body).toContain("name");
-    expect(b.leadCapture.body).toContain("callback number");
-    // (4) books appointments preference-first
+    expect(b.videoAvatar.body).toContain("two-way video conversation");
+    expect(b.videoAvatar.avatarsNote).toContain("more to choose from");
+    // (2) a real two-way conversation — listens, answers, asks back
+    expect(b.conversation.body).toContain("listens");
+    expect(b.conversation.body).toContain("answers questions");
+    expect(b.conversation.body).toContain("asks the right ones back");
+    // (3) one dashboard — calls, transcripts, texts, appointments.
+    // (Never "recordings": the approved realtor FAQ says recordings
+    // are not yet available, so the card must not promise them.)
+    expect(b.dashboard.body).toContain("transcript");
+    expect(b.dashboard.body).not.toMatch(/recording/i);
+    // (4) books preference-first AND confirms automatically
     expect(b.appointments.body).toContain("preference");
     expect(b.appointments.body).toContain("preferred time first");
-    // (5) warm transfer with a summary, visitor stays in control
-    expect(b.warmTransfer.headline).toContain("You Stay in Control");
+    expect(b.appointments.body).toContain("confirmation");
+    // (5) warm transfer with an AI summary briefing, visitor in control
     expect(b.warmTransfer.body).toContain("summary of the conversation");
-    // (6) prospects with the full honesty qualifier
-    expect(b.prospects.body).toContain("up to 50 fresh B2B prospects");
-    expect(b.prospects.body).toContain("counts vary by market");
-    expect(b.prospects.body).toContain("no specific count is guaranteed");
+    expect(b.warmTransfer.body).toContain("stay in control");
+    // (6) the under-two-minutes proof, scoped to the demo itself
+    expect(b.readyFast.headline).toContain("Under Two Minutes");
+    expect(b.readyFast.body).toContain("under two minutes");
   });
 
-  it("ScanningAnimation rotates the same 6 keys in the same order", () => {
+  it("ScanningAnimation shows the same 6 keys in the same order, as a grid", () => {
     const block = scanningAnimation.slice(
-      scanningAnimation.indexOf("const benefitMessages"),
-      scanningAnimation.indexOf("];", scanningAnimation.indexOf("const benefitMessages")),
+      scanningAnimation.indexOf("const featureCards"),
+      scanningAnimation.indexOf("] as const;", scanningAnimation.indexOf("const featureCards")),
     );
-    const rotated = [...block.matchAll(/key: "(\w+)"/g)].map((m) => m[1]);
-    expect(rotated).toEqual([...DECK_KEYS]);
+    const shown = [...block.matchAll(/key: "(\w+)"/g)].map((m) => m[1]);
+    expect(shown).toEqual([...DECK_KEYS]);
     for (const retired of RETIRED_KEYS) {
       expect(scanningAnimation).not.toContain(`key: "${retired}"`);
     }
+    // The rotation is gone: no single-card benefit carousel remains.
+    expect(scanningAnimation).not.toContain("benefitMessages");
+    expect(scanningAnimation).not.toContain("currentBenefit");
   });
 });
 

@@ -6,17 +6,20 @@ import {
   CheckCircle,
   Globe,
   MessageSquare,
+  MessagesSquare,
   Mic,
   PhoneCall,
   Sparkles,
   Search,
   CalendarCheck,
-  Clock,
   Headphones,
   Video,
-  ClipboardList,
-  Users,
+  LayoutDashboard,
+  Timer,
 } from "lucide-react";
+import aspenFace from "@/assets/aspen-video-frame-final.webp";
+import frankFace from "@/assets/simli/b3f85f7f-57ea-4f24-b1f6-a57229b4fae1.webp";
+import saraFace from "@/assets/simli/f735e62c-dce7-4c0b-8e85-1c7e21774c45.webp";
 
 const scanSteps = [
   {
@@ -46,23 +49,30 @@ const scanSteps = [
 ] as const;
 
 /**
- * Rotating benefit/sales messages shown while waiting. Presenter-neutral
- * by design: these cards also appear during Frank / Monica / Black Lady
- * demos, so no card names a presenter. Order is the agreed selling order
- * (2026-11-14): video spokesperson first, prospects last.
+ * The six feature cards that sell while the visitor waits (Publish #73,
+ * owner's directive 2026-11-15: the ~2-minute scan wait is a captive
+ * audience — use it). ALL six are on screen at once in a grid; a soft
+ * highlight cycles through them so the eye keeps moving without any
+ * card ever being hidden. Order is the agreed selling order: video
+ * spokesperson first, the under-two-minutes proof last. Card copy is
+ * presenter-neutral — these cards also appear during Frank / Monica /
+ * Denise demos — with ONE deliberate exception: the video card's
+ * avatar row names the avatar LIBRARY (Aspen / Frank / Sara + more),
+ * because "pick your face" is the product feature being sold there,
+ * not the current presenter introducing herself.
  */
-const benefitMessages = [
+const featureCards = [
   {
     icon: Video,
     key: "videoAvatar",
   },
   {
-    icon: Clock,
-    key: "missCall",
+    icon: MessagesSquare,
+    key: "conversation",
   },
   {
-    icon: ClipboardList,
-    key: "leadCapture",
+    icon: LayoutDashboard,
+    key: "dashboard",
   },
   {
     icon: CalendarCheck,
@@ -73,13 +83,21 @@ const benefitMessages = [
     key: "warmTransfer",
   },
   {
-    icon: Users,
-    key: "prospects",
+    icon: Timer,
+    key: "readyFast",
   },
-];
+] as const;
+
+/** The avatar-library row on the video card: the current approved
+ * Aspen portrait plus the catalog faces for Frank and Sara. */
+const AVATAR_ROW = [
+  { name: "Aspen", image: aspenFace },
+  { name: "Frank", image: frankFace },
+  { name: "Sara", image: saraFace },
+] as const;
 
 const STEP_DURATION = 2200;
-const BENEFIT_DURATION = 4500;
+const FEATURE_HIGHLIGHT_DURATION = 4500;
 
 interface ScanningAnimationProps {
   websiteUrl: string;
@@ -129,7 +147,7 @@ const ScanningAnimation = ({
     t(key, { ...options, lng: language });
   const [currentStep, setCurrentStep] = useState(0);
   const [progress, setProgress] = useState(0);
-  const [currentBenefit, setCurrentBenefit] = useState(0);
+  const [activeFeature, setActiveFeature] = useState(0);
   const onCompleteRef = useRef(onComplete);
 
   useEffect(() => {
@@ -185,12 +203,13 @@ const ScanningAnimation = ({
     };
   }, [businessName, mode, websiteUrl]);
 
-  // Benefit message rotation
+  // Feature-card highlight cycle: all six cards stay visible; only the
+  // highlight moves, so nothing a visitor is mid-read on ever vanishes.
   useEffect(() => {
-    setCurrentBenefit(0);
+    setActiveFeature(0);
     const id = window.setInterval(() => {
-      setCurrentBenefit((prev) => (prev + 1) % benefitMessages.length);
-    }, BENEFIT_DURATION);
+      setActiveFeature((prev) => (prev + 1) % featureCards.length);
+    }, FEATURE_HIGHLIGHT_DURATION);
     return () => window.clearInterval(id);
   }, []);
 
@@ -200,14 +219,12 @@ const ScanningAnimation = ({
   const firstName = getFirstName(callerName);
   const isComplete = mode === "timed" && progress >= 100;
   const StepIcon = isComplete ? CheckCircle : activeStep.icon;
-  const activeBenefit = benefitMessages[currentBenefit];
-  const BenefitIcon = activeBenefit.icon;
 
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.97 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="mx-auto flex w-full max-w-lg flex-col items-center justify-center gap-5 px-4"
+      className="mx-auto flex w-full max-w-3xl flex-col items-center justify-center gap-4 px-4 sm:gap-5"
     >
       {/* Personalized greeting */}
       <div className="w-full text-center">
@@ -231,8 +248,10 @@ const ScanningAnimation = ({
         </motion.p>
       </div>
 
-      {/* Main scanner card */}
-      <div className="relative w-full overflow-hidden rounded-2xl border border-border bg-card/95 px-4 py-5 shadow-xl sm:rounded-3xl sm:px-6 sm:py-6">
+      {/* Main scanner card — the TRUTHFUL progress block (real scan
+          steps + real progress), kept visually distinct from the
+          feature grid below: this card reports, the grid sells. */}
+      <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-border bg-card/95 px-4 py-5 shadow-xl sm:rounded-3xl sm:px-6 sm:py-6">
         {/* Glow */}
         <div className="absolute left-1/2 top-0 h-20 w-20 -translate-x-1/2 rounded-full bg-primary/10 blur-2xl" />
 
@@ -331,28 +350,63 @@ const ScanningAnimation = ({
         </div>
       </div>
 
-      {/* Rotating benefit messages */}
+      {/* Feature grid — the captive-wait sell (Publish #73): all six
+          cards on screen at once, bigger icons, real visual weight.
+          A soft highlight cycles through them; no card is ever hidden. */}
       <div className="w-full">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={currentBenefit}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.35 }}
-            className="flex items-start gap-3 rounded-xl border border-border/60 bg-card/70 px-4 py-3 backdrop-blur-sm"
-          >
-            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-              <BenefitIcon className="h-4 w-4 text-primary" />
-            </div>
-            <div className="text-left">
-              <p className="text-sm font-semibold text-foreground">{tt(`scan.benefits.${activeBenefit.key}.headline`)}</p>
-              <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-                {tt(`scan.benefits.${activeBenefit.key}.body`)}
-              </p>
-            </div>
-          </motion.div>
-        </AnimatePresence>
+        <p className="text-center text-[10px] font-bold uppercase tracking-[0.25em] text-muted-foreground sm:text-xs">
+          {tt("scan.featuresTitle")}
+        </p>
+        <div className="mt-3 grid grid-cols-1 gap-2.5 min-[480px]:grid-cols-2 lg:grid-cols-3">
+          {featureCards.map(({ key, icon: Icon }, i) => {
+            const highlighted = i === activeFeature;
+            return (
+              <motion.div
+                key={key}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.35, delay: 0.15 + i * 0.08 }}
+                className={`rounded-2xl border px-4 py-3.5 text-left backdrop-blur-sm transition-all duration-500 ${
+                  highlighted
+                    ? "border-primary/60 bg-primary/10 shadow-lg shadow-primary/10"
+                    : "border-border/60 bg-card/70"
+                }`}
+              >
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/15">
+                  <Icon className="h-6 w-6 text-primary" />
+                </div>
+                <p className="mt-2.5 text-sm font-bold leading-snug text-foreground">
+                  {tt(`scan.benefits.${key}.headline`)}
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  {tt(`scan.benefits.${key}.body`)}
+                </p>
+                {key === "videoAvatar" && (
+                  <div className="mt-3 flex items-center gap-2.5">
+                    <div className="flex -space-x-2.5">
+                      {AVATAR_ROW.map(({ name, image }) => (
+                        <img
+                          key={name}
+                          src={image}
+                          alt={name}
+                          width={72}
+                          height={72}
+                          loading="lazy"
+                          decoding="async"
+                          draggable={false}
+                          className="h-9 w-9 rounded-full object-cover object-top ring-2 ring-background"
+                        />
+                      ))}
+                    </div>
+                    <p className="text-[11px] font-medium leading-tight text-foreground/80">
+                      {tt("scan.benefits.videoAvatar.avatarsNote")}
+                    </p>
+                  </div>
+                )}
+              </motion.div>
+            );
+          })}
+        </div>
       </div>
 
       {/* CTA to talk to sales */}

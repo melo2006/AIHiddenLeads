@@ -10,6 +10,15 @@ import { rankAuditExamples } from "../lib/rankAuditExamples";
  * Structural guards for the /demo landing redesign (owner spec, 2026-11-08):
  * hero-first layout, the gate flow untouched, the LIVE-avatar
  * differentiation copy, and the live homepage widget on the landing only.
+ *
+ * Publish #73 (owner directive, 2026-11-15) superseded the below-the-fold
+ * structure: the page is now ONE screen — hero + form + a single compact
+ * perks strip + disclaimer — and the examples accordion, the Maps rank
+ * grid, the team section, how-it-works, the trust strip and the FAQ
+ * accordion no longer render here (the rank audit lives inside the demo
+ * itself; the Q&A lives in the prerendered SEO head + FAQ schema, whose
+ * catalog parity seo-head.test.ts still pins). The two structural tests
+ * below were rewritten to pin the new shape.
  */
 
 const tryDemo = readFileSync(new URL("../pages/TryDemo.tsx", import.meta.url), "utf8");
@@ -35,26 +44,31 @@ describe("/demo landing redesign", () => {
     expect(tryDemo).not.toContain("PhoneForwarded");
   });
 
-  it("puts the examples in a collapsed-by-default accordion driven by rankAuditExamples", () => {
-    expect(tryDemo).toContain("<Accordion");
-    expect(tryDemo).toContain("collapsible");
-    expect(tryDemo).not.toContain('defaultValue="examples"');
-    expect(tryDemo).toContain("rankAuditExamples.map");
-    // The 4 wired examples stay wired; the accordion grid wraps for up to 10.
+  it("renders no below-the-fold sections anymore (Publish #73 one-screen page)", () => {
+    // The examples accordion, rank grid, team section, how-it-works and
+    // FAQ accordion are gone from /demo; the data behind them is intact
+    // (the 4 wired examples still exist for the surfaces that use them).
+    expect(tryDemo).not.toContain("<Accordion");
+    expect(tryDemo).not.toContain("<RankAuditPanel");
+    expect(tryDemo).not.toContain("<TeamSection");
+    expect(tryDemo).not.toContain("rankAuditExamples");
+    expect(tryDemo).not.toContain("demo-how-title");
+    expect(tryDemo).not.toContain("demo-benefits-title");
+    expect(tryDemo).not.toContain("faqItems");
     expect(rankAuditExamples).toHaveLength(4);
-    expect(rankAuditExamples.map((e) => e.name)).toEqual(
-      expect.arrayContaining([
-        "Willing Cleaning Company",
-        "ARZ Machining Inc.",
-        "Seal-Tec",
-        expect.stringContaining("Shobu"),
-      ]),
-    );
   });
 
-  it("keeps the rank grid on the page, below the examples", () => {
-    expect(tryDemo).toContain("<RankAuditPanel");
-    expect(tryDemo.indexOf("<RankAuditPanel")).toBeGreaterThan(tryDemo.indexOf("examplesTitle"));
+  it("states the selling points exactly once, in the compact perks strip", () => {
+    // The strip renders the Short labels; the long perk sentences are
+    // no longer rendered anywhere on the page (no repeated claims).
+    for (const shortKey of ["perkVoicemailShort", "perkFastShort", "perkCaptureShort", "perkBookingsShort", "perkLiveAvatarShort"]) {
+      expect(tryDemo).toContain(`"${shortKey}"`);
+    }
+    for (const longKey of ["perkVoicemail", "perkFast", "perkCapture", "perkBookings", "perkLiveAvatar"]) {
+      expect(tryDemo).not.toContain(`"${longKey}"`);
+    }
+    expect(tryDemo).not.toContain("tryDemo.trusted");
+    expect(tryDemo).not.toContain("tryDemo.smsNote");
   });
 
   it("keeps the verified-demo gate plumbing identical (toggle, resume, prefill, gate params)", () => {

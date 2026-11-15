@@ -36,8 +36,11 @@ describe("Publish #71 — /demo/br route", () => {
     const intakeIdx = tryDemoSource.indexOf("<DemoIntakePanel");
     expect(examplesIdx).toBeGreaterThan(-1);
     expect(intakeIdx).toBeGreaterThan(examplesIdx);
-    // The US examples accordion + US rank grid are /demo-only.
-    expect(tryDemoSource).toContain('variant !== "br"');
+    // Publish #73 removed the US examples accordion + US rank grid from
+    // BOTH variants (one-screen demo page), so the old `variant !== "br"`
+    // gate is gone with them; the Brazil cards above the form are now
+    // the br variant's only structural difference.
+    expect(tryDemoSource).not.toContain('variant !== "br"');
   });
 
   it("the sendable link carries a Portuguese prerendered head", () => {

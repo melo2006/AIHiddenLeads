@@ -318,6 +318,11 @@
     "perkFast": "Answers in seconds, 24/7 — nights, weekends and while your team is busy.",
     "perkCapture": "Captures name, email and phone while she talks, so every conversation can become a lead.",
     "perkBookings": "Takes appointment requests and sends them to you.",
+    "perkVoicemailShort": "No caller reaches voicemail",
+    "perkFastShort": "Answers in seconds, 24/7",
+    "perkCaptureShort": "Every conversation becomes a lead",
+    "perkBookingsShort": "Books appointments for you",
+    "perkLiveAvatarShort": "Live video avatar — not just a voice",
     "perkLiveAvatar": "Not just another voice AI — a LIVE video avatar. Watch Aspen talk, listen and sell on your website, like she will in your demo. Almost nobody else can give you that.",
     "smsNote": "Text-message follow-ups are coming soon — email summaries work today.",
     "notTouched": "Demo mock-up — your website is untouched, nothing on your server is changed.",
@@ -637,45 +642,47 @@
       },
       "voice": {
         "label": "Preparing Voice AI demo",
-        "detail": "A new way to never miss a customer call."
+        "detail": "Setting up her voice, greeting and knowledge of your business…"
       },
       "chat": {
         "label": "Setting up Chat AI",
-        "detail": "Instant answers turn visitors into captured leads."
+        "detail": "Preparing instant answers from your site's content…"
       },
       "transfer": {
         "label": "Enabling warm transfers",
-        "detail": "Hot leads get connected to a human—fast."
+        "detail": "Wiring up live transfer to your phone…"
       },
       "final": {
         "label": "Finalizing your live demo",
-        "detail": "See how AI captures leads you're missing today."
+        "detail": "Putting the finishing touches on your demo…"
       }
     },
+    "featuresTitle": "While you wait — what she does for you",
     "benefits": {
       "videoAvatar": {
         "headline": "Not Just a Voice — a Face on Your Website",
-        "body": "Meet your AI spokesperson — a live streaming video avatar that greets visitors face-to-face on your website and talks them through what you offer."
+        "body": "Meet your AI spokesperson — a live streaming video avatar that greets visitors face-to-face on your website and holds a two-way video conversation with them, the kind almost nobody else can give you. Pick the face that fits your business:",
+        "avatarsNote": "Aspen, Frank, Sara — and more to choose from."
       },
-      "missCall": {
-        "headline": "Never Miss Another Call",
-        "body": "Your AI receptionist answers every call instantly, 24/7 — nights, weekends, and holidays — so you never miss another lead."
+      "conversation": {
+        "headline": "A Real Two-Way Conversation",
+        "body": "She listens, answers questions and asks the right ones back — no script read at your visitors, no phone-tree dead ends."
       },
-      "leadCapture": {
-        "headline": "Every Lead, Captured",
-        "body": "Each conversation captures the caller's name, what they need, and the best callback number for your follow-up."
+      "dashboard": {
+        "headline": "Every Call in One Dashboard",
+        "body": "Every call, transcript, text and appointment in one place — check in from anywhere, and nothing slips through."
       },
       "appointments": {
-        "headline": "Instant Appointments",
-        "body": "Booking starts with the caller's preference — their preferred time first — then confirms it on the spot. No more phone tag."
+        "headline": "Booked — and Confirmed — Automatically",
+        "body": "Booking starts with the caller's preference — their preferred time first — then she confirms it on the spot and sends the confirmation automatically. No more phone tag."
       },
       "warmTransfer": {
-        "headline": "Warm Transfer — You Stay in Control",
-        "body": "When a caller needs a person, the call transfers to you live with a summary of the conversation — you stay in control of every call."
+        "headline": "Warm Transfer, With an AI Briefing",
+        "body": "When a caller needs a person, the call transfers to you live and she briefs you first with an AI summary of the conversation — you pick up already knowing the story, and you stay in control of every call."
       },
-      "prospects": {
-        "headline": "Fresh Prospects Every Month",
-        "body": "Premium includes up to 50 fresh B2B prospects a month, in weekly batches — counts vary by market, and no specific count is guaranteed."
+      "readyFast": {
+        "headline": "Ready in Under Two Minutes",
+        "body": "The demo you're about to try was prepared from your website in under two minutes — that's how fast she learns a business."
       }
     }
   },
