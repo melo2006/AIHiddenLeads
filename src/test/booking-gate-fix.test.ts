@@ -49,6 +49,15 @@ describe('platformBookingInstruction — the gate matrix', () => {
     expect(text).toContain('Ask the visitor to confirm the exact slot on screen (request_platform_appointment)');
     expect(text).not.toContain('[path]');
   });
+
+  it('frames the on-screen card as the one-tap finish, never a form (Publish #56)', () => {
+    const text = platformBookingInstruction(true, false);
+    expect(text).toContain('one tap on Confirm books it');
+    expect(text).toContain('never call it a form');
+    expect(text).toContain('never offer to text or email them a booking link instead while the card is available');
+    // The no-screen fallback path is unchanged.
+    expect(text).toContain('If the visitor will not use the screen, use get_availability, check_time and book_call');
+  });
 });
 
 describe('proxy wiring — tools and policy share one gate', () => {

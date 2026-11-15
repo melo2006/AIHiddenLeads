@@ -48,6 +48,26 @@ describe("scan-website consent recording", () => {
   });
 });
 
+describe("demo live-view dismissal parity (Publish #56)", () => {
+  // The demo's Browserbase live view injects the SAME shared
+  // dismissal script as the scan capture. Publish #56 raised its
+  // observe window from 5000 to the capture's 20000: a consent
+  // platform rendering after ~5s used to outlive the watcher and
+  // sit in the live view undismissed. These pins keep the two
+  // injection sites from drifting apart again.
+  const browserSessionSource = read("../../supabase/functions/create-browser-session/index.ts");
+
+  it("injects the shared dismissal script into the live view", () => {
+    expect(browserSessionSource).toContain("buildCookieConsentDismissalScript(");
+  });
+
+  it("observes for the same 20000ms window as the scan capture", () => {
+    expect(scanSource).toContain("observeMs: 20000");
+    expect(browserSessionSource).toContain("observeMs: 20000");
+    expect(browserSessionSource).not.toContain("observeMs: 5000");
+  });
+});
+
 describe("consent flag migration", () => {
   it("adds both columns additively", () => {
     expect(migration).toContain("ADD COLUMN IF NOT EXISTS consent_banner_seen boolean");

@@ -181,6 +181,20 @@ describe('ASPEN_SLOT_OFFER_METHOD prompt pins (both paths)', () => {
     expect(PHONE_DEMO_HOST_POLICY).toContain('get_availability');
     expect(PHONE_DEMO_HOST_POLICY).toContain('check_time');
   });
+  // Publish #56 sequencing (owner's 2026-11-14 D4 re-run): Aspen
+  // offered slots, heard "no", and jumped straight to the step-5
+  // texted-link exit; when he then picked a time verbally she
+  // bounced him to the on-screen card framed like a form. The pins
+  // below hold the repaired order: a refusal asks (step 4), a pick
+  // finishes (step 3), the exit is last-resort only.
+  test('sequencing: a pick ends the shopping and a refusal asks, not exits', () => {
+    expect(ASPEN_SLOT_OFFER_METHOD).toContain('A pick ENDS the shopping');
+    expect(ASPEN_SLOT_OFFER_METHOD).toContain('never offer the step-5 exit afterwards');
+    expect(ASPEN_SLOT_OFFER_METHOD).toContain('A "no" to the offered slots means ASK, not exit');
+    expect(ASPEN_SLOT_OFFER_METHOD).toContain('never as a shortcut past step 4');
+    // The zero-pressure exit line itself stays verbatim.
+    expect(ASPEN_SLOT_OFFER_METHOD).toContain("I'll text you the booking link with the recap — grab any time that suits you, no rush.");
+  });
 });
 
 describe('bookCallWithConfirmations wiring', () => {

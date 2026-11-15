@@ -226,7 +226,16 @@ async function navigateViaCDP(connectUrl: string, targetUrl: string): Promise<bo
             } else {
               try {
                 send(ws, "Runtime.enable", undefined, sid);
-                const expression = buildCookieConsentDismissalScript({ observeMs: 5000 });
+                // Publish #56: observe-window PARITY with the scan
+                // capture (scan-website injects 20000). This used to
+                // be 5000, so a consent platform that renders its
+                // banner after ~5s — late-loading CMPs are common —
+                // outlived the in-page watcher and sat in the live
+                // view for the whole demo, undismissed (the owner's
+                // Publish #53 retest). The watcher persists in-page
+                // past this CDP socket's cleanup; only its deadline
+                // was short. Same script, same Reject-first rule.
+                const expression = buildCookieConsentDismissalScript({ observeMs: 20000 });
                 const evaluateNow = () => {
                   if (resolved) return;
                   const id = send(ws, "Runtime.evaluate", { expression, returnByValue: true }, sid);

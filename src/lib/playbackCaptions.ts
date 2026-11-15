@@ -1,25 +1,29 @@
 import { displayNumbers } from './displayNumbers';
 
-/** Playback-clock captions. Live provides text, not word timestamps. */
+/** Playback-clock captions. Word positions are estimated: Live provides text, not word timestamps. */
 /**
- * The highlight covers the WHOLE segment currently being spoken, as one
- * block. Word positions would only be ESTIMATES (Live sends text, not
- * per-word timestamps): the one-word and two-word windows visibly sat on the
- * wrong words in the owner's live tests (2026-11-14) — the highlight lagged
- * on the line above while the spoken words were already on the line below.
- * The segment is the unit the playback clock CAN place reliably (it starts
- * and ends with the segment's own audio), so the block advances segment by
- * segment on that same clock and is never wrong word-by-word.
+ * How many words carry the highlight at once. Word positions are ESTIMATES
+ * (Live sends text, not per-word timestamps), so a single highlighted word is
+ * often not the word being heard — Ron's live test (2026-11-14): his eye kept
+ * landing on a highlighted word that was not the spoken one. The window covers
+ * the current word AND the next one, so when the estimate is off by a word,
+ * the heard word is still inside the highlight. The window is clamped to the
+ * current caption run (one spoken segment — the reading unit here): at the
+ * run's last word only that word is highlighted, and the window never spills
+ * into the next segment, which restarts its own window at its own first word.
+ * Ron also floated highlighting the whole current line instead; that variant
+ * is a wider window from this one constant, not a redesign.
  */
-type CaptionRun = { text: string; start: number | null; end: number; complete: boolean; shown?: { src: string; out: string } };
-/** One spoken segment: while `speaking`, the whole `text` block is highlighted; stopped panels keep the last segment with `speaking` false. */
-export type PlaybackCaption = { text: string; speaking: boolean };
+export const CAPTION_HIGHLIGHT_WORDS = 2;
+type CaptionRun = { text: string; start: number | null; end: number; complete: boolean; lastWord: number; lastTime: number; shown?: { src: string; out: string } };
+/** `word` is the highlight window's first word (-1 = no highlight); `highlightEnd` is its exclusive end. */
+export type PlaybackCaption = { text: string; word: number; highlightEnd: number };
 export class PlaybackCaptions {
   private runs: CaptionRun[] = [];
   private current: CaptionRun | null = null;
   private run() {
     if (!this.current) {
-      this.current = { text: '', start: null, end: 0, complete: false };
+      this.current = { text: '', start: null, end: 0, complete: false, lastWord: 0, lastTime: -1 };
       this.runs.push(this.current);
       this.runs = this.runs.slice(-8);
     }
@@ -46,6 +50,19 @@ export class PlaybackCaptions {
     if (!run || run.start === null || !run.text.trim() || time >= run.end) return null;
     const shownText = this.displayText(run).trim();
     if (!shownText) return null;
-    return { text: shownText, speaking: true };
+    const words = shownText.split(/\s+/);
+    // Longer words and punctuation take longer; this is an estimate, never provider alignment.
+    const weights = words.map(w => Math.max(2, w.replace(/[^\p{L}\p{N}]/gu, '').length) + (/[,.!?;:]$/.test(w) ? 2 : 0));
+    let target = Math.max(0, (time - run.start) / Math.max(.01, run.end - run.start)) * weights.reduce((a, b) => a + b, 0);
+    let word = 0;
+    while (word < weights.length - 1 && target >= weights[word]) { target -= weights[word]; word++; }
+    // Streaming audio extends the end time; never rewind a highlighted word as that happens.
+    if (time >= run.lastTime) word = Math.max(word, run.lastWord);
+    run.lastTime = time;
+    run.lastWord = word;
+    // Widen the estimated word into the highlight window, clamped to this run:
+    // at the run's last word the window is that word alone (see the constant).
+    const highlightEnd = Math.min(words.length, word + CAPTION_HIGHLIGHT_WORDS);
+    return { text: shownText, word, highlightEnd };
   }
 }

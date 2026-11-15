@@ -21,6 +21,12 @@ export default function VoiceActionConfirmation({ action, onAnswer }: { action: 
     <DialogTitle>{copy ? 'Email your private conversation copy' : appointment ? 'Confirm sales appointment' : 'Confirm your follow-up details'}</DialogTitle>
     <DialogDescription>{copy ? 'Transcript and AI summary · seven-day private link · no marketing subscription' : 'AI Hidden Leads sales team · not the simulated business'}</DialogDescription>
     {appointment && <p className="text-sm font-semibold">{action.slotStart && new Date(action.slotStart).toLocaleString(undefined, { dateStyle: 'full', timeStyle: 'short' })}</p>}
+    {/* Publish #56: the appointment card arrives pre-filled from the
+        voice-confirmed contact, but it LOOKS like a form — the owner
+        objected ("You already have my email") when Aspen bounced him
+        to it after a verbal slot pick. Say plainly that there is
+        nothing to fill in: the one tap IS the finish. */}
+    {appointment && <p className="text-xs text-muted-foreground">Your details from our conversation are already filled in — nothing to type. Just tick the box and tap Confirm appointment, and you're booked.</p>}
     <label className="text-xs">First and last name<Input aria-label="Confirmed full name" value={contact.name} maxLength={100} onChange={e => setContact({ ...contact, name: e.target.value })} disabled={appointment}/></label>
     <label className="text-xs">Email<Input aria-label="Confirmed email" type="email" value={contact.email} maxLength={255} onChange={e => setContact({ ...contact, email: e.target.value })} disabled={appointment}/></label>
     {!copy && <label className="text-xs">Phone (optional)<Input aria-label="Confirmed phone" type="tel" value={contact.phone} maxLength={30} onChange={e => setContact({ ...contact, phone: e.target.value })} disabled={appointment}/></label>}

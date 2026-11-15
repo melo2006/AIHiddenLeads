@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import {
   MIC_ENERGY_EPSILON,
+  MIC_MUTED_START_GRACE_MS,
   MIC_WATCHDOG_STALL_MS,
   MIC_WATCHDOG_STARTUP_MS,
   createMicFlowState,
@@ -10,6 +11,7 @@ import {
   micDiagSignature,
   micDiagStamp,
   micInputSeconds,
+  micTrackStartVerdict,
   noteMicFrame,
   noteMicSessionLive,
   noteMicWatchdogFired,
@@ -166,6 +168,98 @@ describe("mic watchdog decision", () => {
       liveSince: flow.liveSince, firstFlowAt: flow.firstFlowAt, lastFlowAt: flow.lastFlowAt,
       firedForStretch: flow.firedForStretch, now: stalledAt + 61_000 + MIC_WATCHDOG_STALL_MS,
     }))).toBe(true);
+  });
+});
+
+describe("mic watchdog recalibration (Publish #56 — quiet speech must not trip it)", () => {
+  it("tracks the alive tier separately: any non-zero frame, however quiet", () => {
+    const flow = createMicFlowState();
+    noteMicSessionLive(flow, T0);
+    noteMicFrame(flow, 0, T0 + 100);
+    expect(flow.lastAliveAt).toBe(0); // an exact-zero frame is not a sign of life
+    noteMicFrame(flow, MIC_ENERGY_EPSILON / 2, T0 + 200); // under the energy epsilon, still non-zero
+    expect(flow.lastAliveAt).toBe(T0 + 200);
+    expect(flow.energyFrames).toBe(0); // but it is NOT speech-level flow
+    expect(flow.firstFlowAt).toBe(0);
+    noteMicSessionLive(flow, T0 + 50_000); // a new window resets the alive tier too
+    expect(flow.lastAliveAt).toBe(0);
+  });
+
+  it("does NOT fire at startup when quiet-room frames tick non-zero under the epsilon", () => {
+    // The owner's quiet room: NS-processed room tone / whispered
+    // speech that never crosses MIC_ENERGY_EPSILON, but is not
+    // digital silence either. The old single-tier test fired here.
+    const alive = { firstFlowAt: 0, lastFlowAt: 0, lastAliveAt: T0 + 7_500 };
+    expect(shouldShowMicWatchdog(snapshot({ ...alive, now: T0 + MIC_WATCHDOG_STARTUP_MS + 1 }))).toBe(false);
+    expect(shouldShowMicWatchdog(snapshot({ ...alive, now: T0 + 120_000, lastAliveAt: T0 + 119_000 }))).toBe(false);
+  });
+
+  it("still fires at startup on true zero-input: frames of exact zeros", () => {
+    const flow = createMicFlowState();
+    noteMicSessionLive(flow, T0);
+    for (let i = 0; i < 200; i++) noteMicFrame(flow, 0, T0 + 40 * i);
+    expect(flow.frames).toBe(200);
+    expect(flow.lastAliveAt).toBe(0);
+    expect(shouldShowMicWatchdog(snapshot({
+      liveSince: flow.liveSince, firstFlowAt: flow.firstFlowAt, lastFlowAt: flow.lastFlowAt,
+      lastAliveAt: flow.lastAliveAt, firedForStretch: flow.firedForStretch,
+      now: T0 + MIC_WATCHDOG_STARTUP_MS,
+    }))).toBe(true);
+  });
+
+  it("does NOT re-fire mid-session while alive frames keep ticking under the epsilon", () => {
+    // Flowed at startup, then a long quiet stretch: speech energy
+    // is stale past the stall window, but the path keeps proving
+    // itself alive — a listening visitor, not a dead mic.
+    const base = { firstFlowAt: T0 + 400, lastFlowAt: T0 + 400 };
+    expect(shouldShowMicWatchdog(snapshot({
+      ...base, lastAliveAt: T0 + 400 + MIC_WATCHDOG_STALL_MS - 1_000,
+      now: T0 + 400 + MIC_WATCHDOG_STALL_MS + 5_000,
+    }))).toBe(false);
+  });
+
+  it("still fires mid-session when BOTH tiers go silent for the stall window", () => {
+    const base = { firstFlowAt: T0 + 400, lastFlowAt: T0 + 400, lastAliveAt: T0 + 400 };
+    const stalledAt = T0 + 400 + MIC_WATCHDOG_STALL_MS;
+    expect(shouldShowMicWatchdog(snapshot({ ...base, now: stalledAt - 1 }))).toBe(false);
+    expect(shouldShowMicWatchdog(snapshot({ ...base, now: stalledAt }))).toBe(true);
+  });
+
+  it("track evidence outranks levels: a muted/ended track fires even with alive ticks", () => {
+    const alive = { firstFlowAt: 0, lastFlowAt: 0, lastAliveAt: T0 + 7_900, trackDead: true };
+    expect(shouldShowMicWatchdog(snapshot({ ...alive, now: T0 + MIC_WATCHDOG_STARTUP_MS - 1 }))).toBe(false);
+    expect(shouldShowMicWatchdog(snapshot({ ...alive, now: T0 + MIC_WATCHDOG_STARTUP_MS }))).toBe(true);
+    // A mid-session track death is already past the startup clock:
+    // it surfaces at the next evaluation, not after a stall window.
+    expect(shouldShowMicWatchdog(snapshot({
+      firstFlowAt: T0 + 400, lastFlowAt: T0 + 400, lastAliveAt: T0 + 59_000, trackDead: true,
+      now: T0 + 60_000,
+    }))).toBe(true);
+  });
+
+  it("track evidence never overrides the deliberate-state gates", () => {
+    const dead = { trackDead: true, now: T0 + 300_000 };
+    expect(shouldShowMicWatchdog(snapshot({ ...dead, muted: true }))).toBe(false);
+    expect(shouldShowMicWatchdog(snapshot({ ...dead, paused: true }))).toBe(false);
+    expect(shouldShowMicWatchdog(snapshot({ ...dead, handoff: true }))).toBe(false);
+    expect(shouldShowMicWatchdog(snapshot({ ...dead, live: false }))).toBe(false);
+  });
+});
+
+describe("mic track start verdict (Publish #56 — tracks that start muted)", () => {
+  it("classifies the track's own testimony", () => {
+    expect(micTrackStartVerdict(null)).toBe("none");
+    expect(micTrackStartVerdict(undefined)).toBe("none");
+    expect(micTrackStartVerdict({ readyState: "live", muted: false })).toBe("ok");
+    expect(micTrackStartVerdict({ readyState: "live", muted: true })).toBe("muted");
+    expect(micTrackStartVerdict({ readyState: "ended", muted: false })).toBe("ended");
+    // An ended track is dead even if it also reports muted.
+    expect(micTrackStartVerdict({ readyState: "ended", muted: true })).toBe("ended");
+  });
+
+  it("the muted-start grace is short — seconds, not the startup window", () => {
+    expect(MIC_MUTED_START_GRACE_MS).toBeGreaterThan(0);
+    expect(MIC_MUTED_START_GRACE_MS).toBeLessThan(MIC_WATCHDOG_STARTUP_MS);
   });
 });
 

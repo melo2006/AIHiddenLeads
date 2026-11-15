@@ -25,13 +25,37 @@
  *     dead-mic session explains itself from the record.
  *
  * "Flowed" means real acoustic energy crossed the transducer: a
- * frame whose raw RMS exceeds MIC_ENERGY_EPSILON. A live microphone
- * in a quiet room still crosses it constantly (self-noise + room
- * tone); digital silence — an OS-muted track, an ended track, a
- * dead capture device — never does. This watchdog therefore detects
- * a DEAD path, not a quiet visitor: a visitor silently listening
- * to a long answer never trips it, because their mic keeps
- * reporting the room.
+ * frame whose raw RMS exceeds MIC_ENERGY_EPSILON. Digital silence
+ * — an OS-muted track, an ended track, a dead capture device —
+ * never crosses it. This watchdog therefore detects a DEAD path,
+ * not a quiet visitor.
+ *
+ * RECALIBRATION (Publish #56, 2026-11-14): the first version also
+ * assumed a live mic in a quiet room crosses the energy epsilon
+ * constantly (self-noise + room tone). The owner's phone disproved
+ * it: with echo cancellation + noise suppression on, a quiet room
+ * — and the owner's own QUIET SPEECH (he whispers beside a sleeping
+ * partner) — can sit under the epsilon for a whole stall window,
+ * so the guard false-fired on a working mic (Publish #52/#53
+ * retests). The flow test is now two-tier:
+ *
+ *  - ENERGY (rms > MIC_ENERGY_EPSILON): speech-level flow, as
+ *    before — drives first/last flow and the micDiag facts.
+ *  - ALIVE (rms > 0, any non-zero frame at all): proof the path is
+ *    a live transducer. A dead/OS-muted path delivers literally
+ *    digital zeros (the ef9986df session's input was exactly 0);
+ *    a live path in a silent room still ticks non-zero frames —
+ *    room tone, a breath, NS gate breathing. The guard now fires
+ *    only when BOTH tiers are silent for the full window: true
+ *    zero-input still trips it on schedule, quiet speech and
+ *    quiet listening never do.
+ *
+ * Direct track evidence outranks level inference entirely: when
+ * the browser reports the track itself muted or ended, the path
+ * is dead by the track's own testimony (see trackDead in the
+ * snapshot, and the acquisition-time check in micTrackStartVerdict
+ * — Publish #53's records showed tracks STARTING muted in 3 of 4
+ * sessions, which must surface at once, not after a window).
  */
 
 /** Raw-RMS floor for "the microphone heard something real". Far
@@ -43,6 +67,13 @@ export const MIC_WATCHDOG_STARTUP_MS = 8000;
 /** Mid-session stall: zero flow this long (after having flowed)
  *  re-fires the guard, once per silent stretch. */
 export const MIC_WATCHDOG_STALL_MS = 25000;
+/** Grace for a track that reports `muted` the moment it is
+ *  acquired: some devices start a track muted for a beat before
+ *  the source unlocks, so the acquisition check waits this long
+ *  for the `unmute` event before declaring the start dead. A
+ *  track still muted after the grace is surfaced immediately
+ *  (the guard's notice + Reconnect path), never silently. */
+export const MIC_MUTED_START_GRACE_MS = 2000;
 
 export interface MicFlowState {
   /** When the current voice session went live (ms epoch, 0 = not live). */
@@ -57,6 +88,10 @@ export interface MicFlowState {
   firstFlowAt: number;
   /** Most recent energy frame (ms epoch, 0 = never). */
   lastFlowAt: number;
+  /** Most recent NON-ZERO frame (ms epoch, 0 = never): the alive
+   *  tier — any signal at all crossed the path, however quiet. A
+   *  dead path never produces one (its frames are exact zeros). */
+  lastAliveAt: number;
   /** The watchdog has fired for the current silent stretch;
    *  re-armed by the next energy frame. */
   firedForStretch: boolean;
@@ -71,6 +106,7 @@ export function createMicFlowState(): MicFlowState {
     energyFrames: 0,
     firstFlowAt: 0,
     lastFlowAt: 0,
+    lastAliveAt: 0,
     firedForStretch: false,
     watchdogFired: false,
   };
@@ -86,6 +122,7 @@ export function noteMicSessionLive(state: MicFlowState, now: number): MicFlowSta
   state.energyFrames = 0;
   state.firstFlowAt = 0;
   state.lastFlowAt = 0;
+  state.lastAliveAt = 0;
   state.firedForStretch = false;
   state.watchdogFired = false;
   return state;
@@ -93,9 +130,12 @@ export function noteMicSessionLive(state: MicFlowState, now: number): MicFlowSta
 
 /** Feed one microphone frame's raw RMS (pre-gate, straight from the
  *  capture loops). Energy frames stamp first/last flow and re-arm
- *  the watchdog for the next silent stretch. */
+ *  the watchdog for the next silent stretch; any non-zero frame
+ *  stamps the alive tier (the path is a live transducer, however
+ *  quiet the room or the speaker). */
 export function noteMicFrame(state: MicFlowState, rms: number, now: number): MicFlowState {
   state.frames += 1;
+  if (rms > 0) state.lastAliveAt = now;
   if (rms > MIC_ENERGY_EPSILON) {
     state.energyFrames += 1;
     if (state.firstFlowAt === 0) state.firstFlowAt = now;
@@ -146,6 +186,13 @@ export interface MicWatchdogSnapshot {
   firstFlowAt: number;
   /** Most recent flow proof (ms epoch, 0 = never). */
   lastFlowAt: number;
+  /** Most recent NON-ZERO frame (ms epoch, 0 = never): the alive
+   *  tier. Optional for older callers; absent reads as 0. */
+  lastAliveAt?: number;
+  /** The browser reports the mic track itself muted or ended:
+   *  the path is dead by direct evidence, whatever the levels
+   *  say. Optional for older callers; absent reads as false. */
+  trackDead?: boolean;
   /** Already fired for this silent stretch. */
   firedForStretch: boolean;
 }
@@ -153,13 +200,53 @@ export interface MicWatchdogSnapshot {
 export function shouldShowMicWatchdog(s: MicWatchdogSnapshot): boolean {
   if (!s.live || !s.handsFree || s.muted || s.paused || s.handoff || s.recoveryActive) return false;
   if (s.liveSince <= 0 || s.firedForStretch) return false;
-  // Startup: nothing has flowed at all within the startup window —
-  // the ef9986df shape (dead from the first frame). Fires even
-  // while the presenter is mid-monologue: that is precisely when
-  // the visitor needs it, unlike the turn-based audibility hint.
-  if (s.firstFlowAt === 0) return s.now - s.liveSince >= MIC_WATCHDOG_STARTUP_MS;
-  // Mid-session stall: the path died after having worked.
-  return s.now - s.lastFlowAt >= MIC_WATCHDOG_STALL_MS;
+  // Direct track evidence outranks level inference: a track the
+  // browser reports muted/ended is dead even if a stray non-zero
+  // frame ticked the alive tier on its way down. Fires on the
+  // startup clock (a mid-session track death is already past it,
+  // so it surfaces at the next evaluation tick).
+  if (s.trackDead) return s.now - s.liveSince >= MIC_WATCHDOG_STARTUP_MS;
+  const aliveAt = s.lastAliveAt ?? 0;
+  // Startup: nothing but digital zeros (or no frames at all) for
+  // the whole window — the ef9986df shape (dead from the first
+  // frame). Fires even while the presenter is mid-monologue: that
+  // is precisely when the visitor needs it, unlike the turn-based
+  // audibility hint. Any non-zero frame — room tone, a breath,
+  // quiet speech the noise suppressor pushed under the energy
+  // epsilon — proves the path alive and holds the guard off.
+  if (s.firstFlowAt === 0) return aliveAt === 0 && s.now - s.liveSince >= MIC_WATCHDOG_STARTUP_MS;
+  // Mid-session stall: the path died after having worked — no
+  // speech energy AND no sign of life for the whole window. A
+  // quietly listening visitor's mic keeps ticking alive frames,
+  // so listening alone never reaches this either.
+  return s.now - Math.max(s.lastFlowAt, aliveAt) >= MIC_WATCHDOG_STALL_MS;
+}
+
+/* ------------------------------------------------------------------ */
+/* Acquisition-time track check (Publish #56): permission granted   */
+/* is not a working microphone — Publish #53's session records      */
+/* showed the track STARTING muted in 3 of 4 sessions, and the      */
+/* session then ran "normally" on a dead path. The component runs   */
+/* this verdict on every freshly acquired track: 'muted' earns a    */
+/* short grace for the `unmute` event (some devices start a track   */
+/* muted for a beat), then the guard surfaces immediately; 'ended'  */
+/* surfaces at once — an ended track never revives.                 */
+/* ------------------------------------------------------------------ */
+
+export type MicTrackStartVerdict = "ok" | "muted" | "ended" | "none";
+
+/** The minimal structural shape of a MediaStreamTrack this check
+ *  needs (keeps the helper testable without a DOM lib). */
+export interface MicTrackLike {
+  readyState: string;
+  muted: boolean;
+}
+
+export function micTrackStartVerdict(track: MicTrackLike | null | undefined): MicTrackStartVerdict {
+  if (!track) return "none";
+  if (track.readyState === "ended") return "ended";
+  if (track.muted) return "muted";
+  return "ok";
 }
 
 /* ------------------------------------------------------------------ */

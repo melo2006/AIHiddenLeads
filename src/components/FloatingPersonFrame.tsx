@@ -318,7 +318,18 @@ export default function FloatingPersonFrame({ name = 'Aspen', avatarUrl, open, m
         <button type="button" className={`${barButton} aspen-panel-btn`} onClick={onOpen} title="Maximize" aria-label="Maximize"><Maximize2 className="h-[18px] w-[18px]" /></button>
       </div>
     </div>}
-    {!(open && mode === 'chat') && <div className={open ? 'flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain' : keepRendered ? 'aspen-prewarm-offscreen' : 'hidden'} aria-hidden={!open || undefined}>{children}</div>}
+    {/* Publish #56 layout fix: the portrait (livebox) is the first
+        child of this wrapper and the panel stacks below it; when the
+        panel's rows push the content past the shell's height cap,
+        any scroll of this wrapper (touch drag on the panel body,
+        wheel) slides the portrait up out of the frame — the owner's
+        "dragging chops her head" — and nothing ever scrolled it
+        back. Scrolling this wrapper is never a deliberate gesture
+        (the caption box and the transcript scroll INTERNALLY), so
+        pin it to the top: the portrait stays whole, ending at the
+        panel's top border, at every drag position. The class string
+        stays byte-identical (the viewport-fit test pins it). */}
+    {!(open && mode === 'chat') && <div className={open ? 'flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain' : keepRendered ? 'aspen-prewarm-offscreen' : 'hidden'} aria-hidden={!open || undefined} onScroll={(event) => { if (event.currentTarget.scrollTop !== 0) event.currentTarget.scrollTop = 0; }}>{children}</div>}
     {open && <p className="shrink-0 text-center text-[10px] leading-tight text-muted-foreground">Calls are recorded</p>}
   </section>;
 }

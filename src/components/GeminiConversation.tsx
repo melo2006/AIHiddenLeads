@@ -47,7 +47,7 @@ import { displayNumbers } from '@/lib/displayNumbers';
 import PlaybackCaption from '@/components/PlaybackCaption';
 import { voiceSessionHeaders } from '@/lib/voiceSessionAuth';
 import { shouldShowMicHint } from '@/lib/micAudibility';
-import { createMicFlowState, micDiagPayload, micDiagSignature, micDiagStamp, micInputSeconds, noteMicFrame, noteMicSessionLive, noteMicWatchdogFired, shouldShowMicWatchdog, type MicDiagEvent, type MicTrackState } from '@/lib/micWatchdog';
+import { createMicFlowState, MIC_MUTED_START_GRACE_MS, micDiagPayload, micDiagSignature, micDiagStamp, micInputSeconds, micTrackStartVerdict, noteMicFrame, noteMicSessionLive, noteMicWatchdogFired, shouldShowMicWatchdog, type MicDiagEvent, type MicTrackState } from '@/lib/micWatchdog';
 import { clearRetainedHandoffMic, handoffDiagPayload, handoffDiagSignature, handoffVisitFact, isHandoffAnnouncement, micStreamIsLive, retainHandoffMic, reusableMicStream, stripHandoffAnnouncement, takeRetainedHandoffMic, type HandoffDiagEvent, type HandoffDiagMic, type HandoffDiagOutcome } from '@/lib/handoffRecovery';
 import { createMediaSink, mediaPlaybackNode, type MediaSink } from '@/lib/mediaSink';
 import { clampPlaybackVolume, effectivePlaybackLevel, loadPlaybackVolume, savePlaybackVolume } from '@/lib/playbackVolume';
@@ -888,11 +888,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       const live = ctx ? captionClockRef.current.at(ctx.currentTime) : null;
       // Keep the last spoken line in the same large caption style (no highlight) after she stops talking.
       setPlaybackCaption(previous => {
-        const next = live ?? (previous ? { ...previous, speaking: false } : null);
-        // The identity is text + speaking: a streamed text delta grows the
-        // segment and the stop flip clears its highlight; the same segment
-        // still speaking is the same caption.
-        return previous?.text === next?.text && previous?.speaking === next?.speaking ? previous : next;
+        const next = live ?? (previous ? { ...previous, word: -1 } : null);
+        // highlightEnd is part of the identity: streamed text can widen the
+        // caption highlight window while text and word stay the same.
+        return previous?.text === next?.text && previous?.word === next?.word && previous?.highlightEnd === next?.highlightEnd ? previous : next;
       });
       frame = requestAnimationFrame(update);
     };
@@ -991,6 +990,9 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         }
         return;
       }
+      // Direct track evidence (Publish #56): a track the browser
+      // reports muted/ended is a dead path whatever the levels say.
+      const micTrack = micStreamRef.current?.getAudioTracks()[0];
       if (!shouldShowMicWatchdog({
         now: Date.now(),
         live: liveRef.current && !isPreviewRef.current,
@@ -1002,6 +1004,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         liveSince: flow.liveSince,
         firstFlowAt,
         lastFlowAt,
+        lastAliveAt: flow.lastAliveAt,
+        trackDead: !!micTrack && (micTrack.readyState === "ended" || micTrack.muted),
         firedForStretch: flow.firedForStretch,
       })) return;
       noteMicWatchdogFired(flow);
@@ -1318,6 +1322,69 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // than stampMicDiag; it reaches the stamp through this mirror
   // (same pattern as persistSwapDiagRef).
   const stampMicDiagRef = useRef(stampMicDiag); stampMicDiagRef.current = stampMicDiag;
+  // Acquisition-time track check (Publish #56): permission granted
+  // is not a working mic — Publish #53's records showed the track
+  // STARTING muted in 3 of 4 sessions, and those sessions then ran
+  // "normally" on a dead path until the watchdog's startup window
+  // (or the visitor) noticed. Every acquisition now runs the
+  // verdict on its track: 'ended' surfaces the guard's notice (the
+  // persistent alert + Reconnect path) at once; 'muted' earns the
+  // short grace for the `unmute` event some devices fire a beat
+  // after start, then surfaces the same way. A verdict that lands
+  // before go-live is held in micStartDeadPendingRef and surfaced
+  // by goLive itself, so the notice never flashes pre-session.
+  const micStartWatchRef = useRef<{ timer: number; track: MediaStreamTrack; onUnmute: () => void } | null>(null);
+  const micStartDeadPendingRef = useRef(false);
+  const clearMicStartWatch = useCallback(() => {
+    const watch = micStartWatchRef.current;
+    if (!watch) return;
+    window.clearTimeout(watch.timer);
+    watch.track.removeEventListener("unmute", watch.onUnmute);
+    micStartWatchRef.current = null;
+  }, []);
+  const surfaceDeadMicStart = useCallback(() => {
+    if (!liveRef.current) { micStartDeadPendingRef.current = true; return; }
+    noteMicWatchdogFired(micFlowRef.current);
+    micWatchdogRef.current = true;
+    micWatchdogShownAtRef.current = Date.now();
+    setShowMicWatchdog(true);
+    stampMicDiagRef.current("watchdog");
+  }, []);
+  const watchAcquiredMicStream = useCallback((stream: MediaStream | null) => {
+    clearMicStartWatch();
+    const track = stream?.getAudioTracks()[0];
+    if (!stream || !track) return;
+    const verdict = micTrackStartVerdict(track);
+    if (verdict === "ok" || verdict === "none") return;
+    if (verdict === "ended") {
+      if (micStreamRef.current === stream) surfaceDeadMicStart();
+      return;
+    }
+    // 'muted': grace for the transient start-muted, then surface.
+    const onUnmute = () => clearMicStartWatch();
+    track.addEventListener("unmute", onUnmute);
+    const timer = window.setTimeout(() => {
+      clearMicStartWatch();
+      if (micStreamRef.current !== stream) return; // superseded by a newer stream
+      if (micTrackStartVerdict(track) === "ok") return; // unlocked on its own
+      surfaceDeadMicStart();
+    }, MIC_MUTED_START_GRACE_MS);
+    micStartWatchRef.current = { timer, track, onUnmute };
+  }, [clearMicStartWatch, surfaceDeadMicStart]);
+  // goLive / goLiveSegment call this right after the flow window
+  // opens: a dead-start verdict held from acquisition surfaces now
+  // that the session is live (and stamps, like any watchdog fire).
+  const surfacePendingDeadMicStart = useCallback(() => {
+    if (!micStartDeadPendingRef.current) return;
+    micStartDeadPendingRef.current = false;
+    // Re-verify against the track that actually went live.
+    if (micTrackStartVerdict(micStreamRef.current?.getAudioTracks()[0]) === "ok") return;
+    noteMicWatchdogFired(micFlowRef.current);
+    micWatchdogRef.current = true;
+    micWatchdogShownAtRef.current = Date.now();
+    setShowMicWatchdog(true);
+    stampMicDiagRef.current("watchdog");
+  }, []);
   // Handoff-leg recovery (2026-11-14): the handoffDiag stamp —
   // micDiag's sibling through the same gemini-session diag channel,
   // landing on the session row at config.handoffDiag. It records
@@ -1391,6 +1458,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     stampMicDiag("recovered");
     const previous = micStreamRef.current;
     micStreamRef.current = stream;
+    // The replacement track gets the same start verdict as any
+    // acquisition: a recovery that lands on another muted/ended
+    // track surfaces again instead of going silent.
+    watchAcquiredMicStream(stream);
     previous?.getTracks().forEach((t) => t.stop());
     const micCtx = micCtxRef.current;
     if (micCtx) {
@@ -1409,7 +1480,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     }
     void refreshMicrophones();
     noteMicSessionLive(micFlowRef.current, Date.now());
-  }, [microphone, captureMode, refreshMicrophones, stampMicDiag]);
+  }, [microphone, captureMode, refreshMicrophones, stampMicDiag, watchAcquiredMicStream]);
   const handleSegmentFailure = useCallback((boundary: PersonaBoundary, reason: string) => {
     const { state, outcome, attempt } = noteSegmentFailure(swapStateRef.current, boundary, reason);
     swapStateRef.current = state;
@@ -1732,7 +1803,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     micSourceRef.current = null;
     for (const source of sourcesRef.current) { try { source.stop(); } catch { /* Already stopped. */ } }
     sourcesRef.current.clear();
-    captionClockRef.current.clear(); setPlaybackCaption(p => p ? { ...p, speaking: false } : null);
+    captionClockRef.current.clear(); setPlaybackCaption(p => p ? { ...p, word: -1 } : null);
     setMicLevel(0);
     avatarRef.current?.stop();
     avatarRequestedRef.current = false; setFaceWaiting(false);
@@ -1760,6 +1831,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     setShowMicHint(false);
     micWatchdogRef.current = false;
     setShowMicWatchdog(false);
+    clearMicStartWatch();
+    micStartDeadPendingRef.current = false;
     micFlowRef.current = createMicFlowState();
     micAwaitRef.current = null;
     // Handoff-leg recovery: the stream retained above keeps its
@@ -1775,7 +1848,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     setAspenSpeaking(false);
     setPhase("idle");
     setStatus("Conversation ended. Press Start to begin again.");
-  }, [flushLine, agentId]);
+  }, [flushLine, agentId, clearMicStartWatch]);
 
   /** PARTIAL teardown for a persona cut-over (spec §5.4): closes ONLY the
    * current voice socket (no end_session — the server treats it like the
@@ -2145,7 +2218,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     engineTimersRef.current.clear();
     mediaElementRef.current?.flush();
     avatarRef.current?.clear();
-    captionClockRef.current.clear(); setPlaybackCaption(p => p ? { ...p, speaking: false } : null);
+    captionClockRef.current.clear(); setPlaybackCaption(p => p ? { ...p, word: -1 } : null);
     playTimeRef.current = playCtxRef.current?.currentTime ?? 0;
     setAspenSpeaking(false);
   }, []);
@@ -2518,6 +2591,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       const microphoneReady = preview || warm ? Promise.resolve(null) : micRequest.then(stream => {
         if (generation !== generationRef.current) { stream.getTracks().forEach(t => t.stop()); return null; }
         micStreamRef.current = stream;
+        // Acquisition track check (Publish #56): a fresh OR a
+        // handoff-retained stream whose track starts muted/ended
+        // surfaces the dead-mic path instead of running silently.
+        watchAcquiredMicStream(stream);
         // Handoff-leg recovery: mark an adopted retained stream so
         // the return stamp can prove the mic was reused, not re-asked.
         if (retainedMic && stream === retainedMic) handoffMicReusedRef.current = true;
@@ -2700,6 +2777,9 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         // stamps the mic path's starting state on the session row.
         noteMicSessionLive(micFlowRef.current, Date.now());
         if (!preview) stampMicDiag("start");
+        // Acquisition track check (Publish #56): a dead-start
+        // verdict held from acquisition surfaces now we are live.
+        if (!preview) surfacePendingDeadMicStart();
         // Handoff-leg recovery (2026-11-14): a start that follows a
         // handoff has now LANDED — stamp the return on this new
         // session's row (the diag target was re-pointed by this
@@ -4131,6 +4211,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       const [stream, ready] = await Promise.all([micRequest, Promise.race([w.ready, timeout]), playResume, micResume]);
       if (generation !== generationRef.current) { stream?.getTracks().forEach(t => t.stop()); return; }
       micStreamRef.current = stream;
+      // Acquisition track check (Publish #56), warm-activation path.
+      watchAcquiredMicStream(stream);
       // Round 4: same raw-capture re-apply as the main start —
       // a track acquired after the engine settled still gets the
       // switch (see the microphoneReady handler above).
