@@ -531,3 +531,58 @@ describe("BlobElementPlayout — stalls are playback-waiting events", () => {
     engine.dispose();
   });
 });
+
+describe("BlobElementPlayout — rate witness (Publish #54)", () => {
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it("a file the element plays at its true rate notes ≈1.00 (fed vs raw playhead)", async () => {
+    const h = makeDeps();
+    const engine = await startWithFirstSegment(h); // 0.4 s file loaded
+    expect(engine.rateWitness()).toEqual({ count: 0, min: null, max: null, last: null });
+    // The element's own timeline agrees with the fed duration:
+    // it ends the file at 0.4.
+    h.setPlayhead(0.4);
+    h.element.dispatchEvent(new Event("ended"));
+    const w = engine.rateWitness();
+    expect(w.count).toBe(1);
+    expect(w.min).toBeCloseTo(1, 5);
+    expect(w.max).toBeCloseTo(1, 5);
+    expect(w.last).toBeCloseTo(1, 5);
+    engine.dispose();
+  });
+
+  it("a platform that burns the file in half its fed duration reads the exact factor 2.00", async () => {
+    const h = makeDeps();
+    const engine = await startWithFirstSegment(h);
+    // Queue the 1.6 s second file behind the first.
+    for (let i = 0; i < 4; i++) engine.enqueuePcm16(pcm(0.4), 4);
+    await settle();
+    expect(h.createdUrls.length).toBe(2);
+    // File 1 (0.4 s fed) ends honestly at 0.4.
+    h.setPlayhead(0.4);
+    h.element.dispatchEvent(new Event("ended"));
+    expect(engine.rateWitness().last).toBeCloseTo(1, 5);
+    // File 2 (1.6 s fed) ends with the element's raw playhead at
+    // 0.8 — the platform derived half the duration from the
+    // wrong rate. The witness names the factor.
+    h.setPlayhead(0.8);
+    h.element.dispatchEvent(new Event("ended"));
+    const w = engine.rateWitness();
+    expect(w.count).toBe(2);
+    expect(w.min).toBeCloseTo(1, 5);
+    expect(w.max).toBeCloseTo(2, 5);
+    expect(w.last).toBeCloseTo(2, 5);
+    engine.dispose();
+  });
+
+  it("a skipped file never enters the aggregate (its speech was lost, not mis-rated)", async () => {
+    const h = makeDeps();
+    const engine = await startWithFirstSegment(h);
+    // The element errors on the loaded file: the engine skips it
+    // (skipCurrentSegment) without an 'ended' — no witness note.
+    h.element.dispatchEvent(new Event("error"));
+    expect(engine.rateWitness().count).toBe(0);
+    engine.dispose();
+  });
+});

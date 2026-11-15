@@ -350,6 +350,14 @@ export interface HeardElementEngine {
   setPaused: (paused: boolean) => void;
   flush: () => void;
   diagState: () => { paused: boolean; readyState: number; muted: boolean; volume: number; stalls: number; recoveries: number };
+  /** Rate witness aggregate (Publish #54, lib/rateWitness.ts):
+   *  fed-vs-terminal-clock ratios over completed utterances.
+   *  Optional — the blob engine implements it (one utterance
+   *  per completed file, against the element's raw playhead);
+   *  the MSE engine's continuous timeline offers no honest
+   *  per-utterance clock, so it stays unimplemented there
+   *  rather than fabricating one. */
+  rateWitness?: () => import("@/lib/rateWitness").RateWitnessState;
   dispose: () => void;
 }
 

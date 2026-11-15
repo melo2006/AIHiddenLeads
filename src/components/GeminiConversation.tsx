@@ -39,6 +39,7 @@ import { PersonPortrait, PersonaNameLabel } from '@/components/FloatingPersonFra
 import { assistantOutput, pairedAudioShouldDegrade, pairedCaptionDelaySec, voiceChunkStartAt, PAIRED_CAPTION_DELAY_SEC } from '@/lib/avatarAudioTransition';
 import { resolvePairedAudibleMode, resolveHeardEngine, PAIRED_AUDIBLE_STORAGE_KEY, HEARD_ENGINE_STORAGE_KEY, type PairedAudibleMode, type HeardEngine } from '@/lib/pairedAudible';
 import { playoutDiagPayload, playoutDiagSignature, type PlayoutDiagSnapshot, type PlayoutTerminalDiag } from '@/lib/playoutDiag';
+import { createRateWitness, noteRateUtterance, resetRateWitness, type RateWitnessState } from '@/lib/rateWitness';
 import { MediaElementPlayout, MEDIA_ELEMENT_PIPELINE_SEC, type HeardElementEngine } from '@/lib/mediaElementPlayout';
 import { BlobElementPlayout } from '@/lib/blobElementPlayout';
 import { PlaybackCaptions, type PlaybackCaption as Caption } from '@/lib/playbackCaptions';
@@ -786,6 +787,19 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     }
   };
 
+  /** Rate witness aggregate → terminal diag fields (Publish
+   *  #54): an absent witness (the MSE engine, which implements
+   *  no per-utterance clock) still renders rw=- — the record
+   *  shows the witness ran and completed nothing, rather than
+   *  omitting the keys the reader looks for. */
+  const rateStampOf = (w: RateWitnessState | undefined) => ({
+    rateMin: w ? w.min : null,
+    rateMax: w ? w.max : null,
+    rateLast: w ? w.last : null,
+  });
+  const elementPlaybackRateOf = (element: HTMLAudioElement): number | null =>
+    Number.isFinite(element.playbackRate) ? element.playbackRate : null;
+
   /** The local path's terminal sink right now (playout telemetry):
    *  the media element when the engine is carrying the voice, the
    *  media-sink element while the #48 graph is, the bare context
@@ -815,13 +829,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       // blob/file engine (the default), 'media-element' for the
       // MediaSource engine behind its opt-in — so the record
       // proves which one ran.
-      return { sink: engine.kind === 'blob' ? 'blob-element' : 'media-element', paused: state.paused, readyState: state.readyState, ctxInChain: false, trailSec: engine.trailSec(), ...proof, elementMuted: state.muted, elementVolume: state.volume };
+      return { sink: engine.kind === 'blob' ? 'blob-element' : 'media-element', paused: state.paused, readyState: state.readyState, ctxInChain: false, trailSec: engine.trailSec(), ...proof, elementMuted: state.muted, elementVolume: state.volume, elementPlaybackRate: elementPlaybackRateOf(engine.element), ctxRate: null, ...rateStampOf(engine.rateWitness?.()) };
     }
     const sink = mediaSinkRef.current?.sink;
     if (sink) {
-      return { sink: 'media-stream', paused: sink.element.paused, readyState: sink.element.readyState, ctxInChain: true, trailSec: null, ...proof, elementMuted: sink.element.muted, elementVolume: sink.element.volume };
+      return { sink: 'media-stream', paused: sink.element.paused, readyState: sink.element.readyState, ctxInChain: true, trailSec: null, ...proof, elementMuted: sink.element.muted, elementVolume: sink.element.volume, elementPlaybackRate: elementPlaybackRateOf(sink.element), ctxRate: playCtxRef.current?.sampleRate ?? null, ...rateStampOf(graphWitnessRef.current) };
     }
-    return { sink: 'context', paused: true, readyState: 0, ctxInChain: true, trailSec: null, ...proof, elementMuted: null, elementVolume: null };
+    return { sink: 'context', paused: true, readyState: 0, ctxInChain: true, trailSec: null, ...proof, elementMuted: null, elementVolume: null, elementPlaybackRate: null, ctxRate: playCtxRef.current?.sampleRate ?? null, ...rateStampOf(graphWitnessRef.current) };
   };
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -1149,11 +1163,42 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // folded into the detail line here, where it lives. Deduped by
   // signature: a state posts when it CHANGES, not per second.
   // Fire-and-forget — diagnostics never break the call.
+  // DIAG LANDING FIX (Publish #54): parentSessionIdRef and
+  // visitorKeyRef were the diag channel's ONLY target, and they
+  // are assigned solely by
+  // the swap-arming and team-intro branches of the authorization
+  // below — classes a plain HOMEPAGE sales session never arms.
+  // Homepage sessions therefore ran with both refs empty and
+  // every playoutDiag/micDiag write early-returned for the whole
+  // session (session 19b82691, 2026-11-14: 8m11s, zero stamps —
+  // the wandering-voice test that could not be read back). The
+  // diag channel now keeps its OWN target, stamped at EVERY
+  // parent authorization; the swap parent still wins when one
+  // exists (segment stamps keep landing on the parent row,
+  // exactly as before). Telemetry only — the swap machine's
+  // refs keep their exact prior semantics.
+  const diagTargetRef = useRef<{ sessionId: string; visitorKey: string } | null>(null);
+  const diagStampTarget = (): { sessionId: string; visitorKey: string } | null => {
+    if (parentSessionIdRef.current) {
+      return visitorKeyRef.current
+        ? { sessionId: parentSessionIdRef.current, visitorKey: visitorKeyRef.current }
+        : null;
+    }
+    return diagTargetRef.current;
+  };
+  // Rate witness (Publish #54) for the SINK GRAPH terminal: the
+  // aggregate over this session's drained graph runs, plus the
+  // currently open run (fed seconds accumulated per chunk; the
+  // clock read at open/close from the sink element, or from the
+  // context when no sink element renders the stream). The blob
+  // engine keeps its own witness internally.
+  const graphWitnessRef = useRef<RateWitnessState>(createRateWitness());
+  const graphSegmentRef = useRef<{ fedSec: number; clockStart: number; clock: 'element' | 'ctx' } | null>(null);
   const lastPlayoutDiagRef = useRef('');
   const persistPlayoutDiag = useCallback((snapshot: PlayoutDiagSnapshot) => {
-    const sessionId = parentSessionIdRef.current;
-    const visitorKey = visitorKeyRef.current;
-    if (!sessionId || !visitorKey) return;
+    const target = diagStampTarget();
+    if (!target) return;
+    const { sessionId, visitorKey } = target;
     const sink = mediaSinkRef.current?.sink;
     const extra = `;sink=${sink ? (sink.ready ? 'ready' : 'pending') : 'none'};pctx=${playCtxRef.current?.state ?? 'none'};cap=${captureModeStamp()}`;
     // The local terminal (volume-speaker fix): which sink the
@@ -1207,6 +1252,9 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       gain: null,
     });
   }, [persistPlayoutDiag]);
+  // Teardown reaches the playout end stamp through this mirror
+  // (same pattern as stampMicDiagRef below).
+  const stampPlayoutDiagRef = useRef(stampPlayoutDiag); stampPlayoutDiagRef.current = stampPlayoutDiag;
   // Mic zero-input guard (2026-11-14): the INPUT mirror of the
   // playout stamp above. micDiag lands on the PARENT session row at
   // config.micDiag through the same gemini-session diag channel
@@ -1222,9 +1270,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     return "live";
   };
   const stampMicDiag = useCallback((event: MicDiagEvent) => {
-    const sessionId = parentSessionIdRef.current;
-    const visitorKey = visitorKeyRef.current;
-    if (!sessionId || !visitorKey) return;
+    // Same diag target as the playout stamp (see diagStampTarget):
+    // the mic channel shared the homepage landing gap exactly.
+    const target = diagStampTarget();
+    if (!target) return;
+    const { sessionId, visitorKey } = target;
     // Snapshot the mic facts NOW: the end-of-call stamp runs while
     // teardown is about to stop the tracks, and the permission read
     // below is async.
@@ -1516,6 +1566,15 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     // the parent session id (nulled below), the still-live track
     // state, and the flow totals the session accumulated.
     if (micFlowRef.current.liveSince > 0) stampMicDiagRef.current("end");
+    // Playout END stamp (Publish #54): the session's FINAL diag —
+    // the settled terminal, the actual rates and the completed
+    // rate-witness aggregate — lands before the diag target is
+    // cleared below, so every session type's record ends with a
+    // readable playout line, not just its last settle point. An
+    // open graph witness run is discarded, never noted: its
+    // audio was cut off, so its clock proves nothing.
+    graphSegmentRef.current = null;
+    if (parentSessionIdRef.current || diagTargetRef.current) stampPlayoutDiagRef.current();
     // Avatar swap: a full teardown ends the live chain — but a MID-SEGMENT
     // chain is STASHED for the rest of the page visit first, so pressing
     // play again resumes the ACTIVE segment instead of re-authorising a
@@ -1538,6 +1597,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     assistantTurnsRef.current = 0;
     introYieldWasBargeInRef.current = false;
     parentSessionIdRef.current = null;
+    diagTargetRef.current = null;
     preStageRef.current = null;
     warmedFaceRef.current = null;
     // Face slots reset with the chain: both slot states clear, pending
@@ -1900,6 +1960,19 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         // element once unlocked, so the device's hardware media volume
         // governs her voice; ctx.destination until the element plays.
         spkGain.connect(mediaOutputNode(ctx));
+        // Rate witness (Publish #54): this chunk is HEARD through
+        // the sink graph — open a witness run if none is open and
+        // feed it the chunk's scheduled duration. The run's clock
+        // is the sink element's playhead when the element renders
+        // the stream, else the context's own clock; the run closes
+        // when the graph drains (noteChunkEnded below).
+        if (!graphSegmentRef.current) {
+          const sinkElement = mediaSinkRef.current?.sink?.element;
+          graphSegmentRef.current = sinkElement
+            ? { fedSec: 0, clockStart: sinkElement.currentTime, clock: 'element' }
+            : { fedSec: 0, clockStart: ctx.currentTime, clock: 'ctx' };
+        }
+        graphSegmentRef.current.fedSec += buffer.duration;
       }
       // Reconnect-stamp fix: the session's first locally-routed
       // chunk stamps the SETTLED heard terminal (engine vs sink vs
@@ -1929,6 +2002,20 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     // drain checks consider BOTH queues: a replay or a preview
     // ends only when nothing is left to hear on either route.
     const noteChunkEnded = () => {
+      // Rate witness (Publish #54): the graph has drained — the
+      // open run's utterance is complete. Note fed vs the run
+      // clock's advance and stamp the fresh aggregate onto the
+      // session row while the terminal state is settled.
+      if (sourcesRef.current.size === 0 && graphSegmentRef.current) {
+        const run = graphSegmentRef.current;
+        graphSegmentRef.current = null;
+        const clockEnd = run.clock === 'element'
+          ? (mediaSinkRef.current?.sink?.element?.currentTime ?? Number.NaN)
+          : ctx.currentTime;
+        if (noteRateUtterance(graphWitnessRef.current, run.fedSec, clockEnd - run.clockStart) !== null) {
+          stampPlayoutDiag();
+        }
+      }
       if (ctx.currentTime >= playTimeRef.current - 0.05) setAspenSpeaking(false);
       if (sourcesRef.current.size === 0 && engineTimersRef.current.size === 0 && captureRef.current.replaying) {
         captureRef.current.replaying = false;
@@ -1958,6 +2045,9 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const clearPlayback = useCallback(() => {
     captureRef.current.replaying = false;
     setReplaying(false);
+    // Rate witness: an interrupted graph run is discarded, never
+    // noted — its audio was cut off, so its clock proves nothing.
+    graphSegmentRef.current = null;
     for (const source of sourcesRef.current) { try { source.stop(); } catch { /* Already stopped. */ } }
     sourcesRef.current.clear();
     // Engine route: drop held/buffered audio and its end timers.
@@ -2368,6 +2458,17 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       }
       if (generation !== generationRef.current) { stream?.getTracks().forEach(t => t.stop()); return; }
       deadlineRef.current = Date.now() + Number(authorized.maxSeconds || 300) * 1000;
+      // DIAG LANDING FIX (Publish #54): EVERY parent authorization
+      // — homepage sales included — gives the diag channel its
+      // target row, so playoutDiag/micDiag stamps land on every
+      // session type instead of only swap/intro-armed ones. The
+      // graph rate witness restarts with the new session: its
+      // aggregate is per-session evidence.
+      if (!preview && authorized.sessionId) {
+        diagTargetRef.current = { sessionId: String(authorized.sessionId), visitorKey };
+        resetRateWitness(graphWitnessRef.current);
+        graphSegmentRef.current = null;
+      }
       // Avatar swap arming (Stage 1): only a parent business-demo
       // authorization can enable the flow, and only when the server says
       // so. Segment/drop starts never re-arm from here (the swap machine

@@ -333,6 +333,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
       starve: streamMuted() ? starveRef.current : "n/a",
       playoutPaused: playoutRef.current?.paused ?? true,
       gain: tap?.gainValue ?? null,
+      tapCtxRate: tap?.contextRate ?? null,
     };
   };
   const emitPlayoutDiag = () => {

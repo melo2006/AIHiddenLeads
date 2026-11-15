@@ -113,6 +113,15 @@ export class PairedPlayout {
     return this.ctx ? this.ctx.state : "none";
   }
 
+  /** Tap AudioContext ACTUAL sample rate for telemetry (Publish
+   *  #54 rate witness): the context is created at the device
+   *  default with no rate requested, and until now nothing
+   *  stamped what the platform actually granted. Null before
+   *  the context exists. */
+  get contextRate(): number | null {
+    return this.ctx ? this.ctx.sampleRate : null;
+  }
+
   /** Current tap gain while engaged, else null (telemetry). */
   get gainValue(): number | null {
     return this.engaged && this.gainNode ? this.gainNode.gain.value : null;

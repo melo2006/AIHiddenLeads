@@ -207,6 +207,72 @@ describe("playoutDiagDetail — round 5 stall counters", () => {
   });
 });
 
+describe("playoutDiagDetail — rate witness (Publish #54)", () => {
+  it("the pre-witness base shape is byte-identical (existing keys never move)", () => {
+    expect(playoutDiagDetail(localSettled)).toBe(
+      "path=local;mode=local;engaged=0;ctx=none;err=-;src=playing,muted,v=0;track=absent;starve=unsubscribed;out=paused;gain=-",
+    );
+  });
+
+  it("stamps the ACTUAL rates beside the assumed ones: tcrate=, crate=, prate=", () => {
+    const detail = playoutDiagDetail({
+      ...localSettled,
+      tapCtxRate: 48000,
+      terminal: {
+        sink: "media-stream", paused: false, readyState: 4, ctxInChain: true, trailSec: null,
+        engineState: "off", engineFailure: null, encoderRate: null, elementMuted: false, elementVolume: 1,
+        ctxRate: 44100, elementPlaybackRate: 1,
+      },
+    });
+    expect(detail).toContain("tcrate=48000");
+    // The graph was REQUESTED at 24000; the stamp carries the
+    // platform's actual 44100 — the number the investigation
+    // could never read from a session record before.
+    expect(detail).toContain("crate=44100");
+    expect(detail).toContain("prate=1.00");
+  });
+
+  it("the witness aggregate reads rw=min..max with rwl= last; no utterances yet reads '-'", () => {
+    const noted = playoutDiagDetail({
+      ...localSettled,
+      terminal: {
+        sink: "blob-element", paused: false, readyState: 4, ctxInChain: false, trailSec: 0.4,
+        engineState: "ready", engineFailure: null, encoderRate: 24000, elementMuted: false, elementVolume: 1,
+        elementPlaybackRate: 1, ctxRate: null, rateMin: 0.92, rateMax: 1.5, rateLast: 1.33,
+      },
+    });
+    expect(noted).toContain("rw=0.92..1.50");
+    expect(noted).toContain("rwl=1.33");
+    expect(noted).toContain("crate=-"); // element terminal: no context in the chain
+    const fresh = playoutDiagDetail({
+      ...localSettled,
+      terminal: {
+        sink: "blob-element", paused: true, readyState: 0, ctxInChain: false, trailSec: null,
+        engineState: "starting", engineFailure: null, encoderRate: null, elementMuted: null, elementVolume: null,
+        elementPlaybackRate: null, ctxRate: null, rateMin: null, rateMax: null, rateLast: null,
+      },
+    });
+    expect(fresh).toContain("rw=-");
+    expect(fresh).toContain("rwl=-");
+    expect(fresh).toContain("prate=-");
+  });
+
+  it("the full witness line still fits the server's 400-char detail cap", () => {
+    const payload = playoutDiagPayload("s", {
+      ...localSettled,
+      tapCtxRate: 48000,
+      terminal: {
+        sink: "blob-element", paused: false, readyState: 4, ctxInChain: false, trailSec: 0.25,
+        engineState: "ready", engineFailure: null, encoderRate: 48000, elementMuted: false, elementVolume: 0.3,
+        stalls: 12, recoveries: 11, ctxRate: null, elementPlaybackRate: 1, rateMin: 0.92, rateMax: 1.5, rateLast: 1.33,
+      },
+    }, 1, ";sink=ready;pctx=running;cap=raw");
+    expect(payload.detail.length).toBeLessThanOrEqual(400);
+    expect(payload.detail).toContain("rw=0.92..1.50");
+    expect(payload.detail).toContain("cap=raw");
+  });
+});
+
 describe("playoutDiagPayload / signature", () => {
   it("builds the server payload and folds local-path state into the detail", () => {
     const payload = playoutDiagPayload("11111111-1111-4111-8111-111111111111", localSettled, 123, ";sink=ready;pctx=running");

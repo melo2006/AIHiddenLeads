@@ -86,6 +86,7 @@
  * not recoverable, exactly like appended-but-unplayed ranges).
  */
 import { clampPlaybackVolume } from "@/lib/playbackVolume";
+import { createRateWitness, noteRateUtterance, type RateWitnessState } from "@/lib/rateWitness";
 import { opusHead, webmOpusCluster, webmOpusInitSegment } from "@/lib/webmOpusMux";
 import {
   MEDIA_ELEMENT_INPUT_RATE,
@@ -274,6 +275,14 @@ export class BlobElementPlayout implements HeardElementEngine {
    *  the heard position is this plus the element's position in
    *  the current file. */
   private playedBaseSec = 0;
+  /** Rate witness (Publish #54): one utterance per COMPLETED
+   *  file — fed = the file's PCM duration (durationSec), clock =
+   *  the element's raw final currentTime in it. heardSec() above
+   *  is denominated in fed seconds and can never convict a
+   *  mis-rating platform; the raw playhead can. Skipped files
+   *  never reach onSegmentEnded, so they never enter the
+   *  aggregate. */
+  private witness: RateWitnessState = createRateWitness();
   /** Consecutive files that errored with no playback progress
    *  between them — two in a row is an engine failure, not a
    *  bad segment. */
@@ -553,6 +562,12 @@ export class BlobElementPlayout implements HeardElementEngine {
 
   private onSegmentEnded = (): void => {
     if (!this.current || this.disposed) return;
+    // Rate witness: the file played to completion — note the
+    // fed duration against the element's RAW final position
+    // before the bookkeeping below denominates it in fed
+    // seconds. A platform that derived the file's duration
+    // from the wrong rate leaves its factor here.
+    noteRateUtterance(this.witness, this.current.durationSec, this.element.currentTime);
     this.revoke(this.current.url);
     this.playedBaseSec += this.current.durationSec;
     this.current = null;
@@ -856,6 +871,13 @@ export class BlobElementPlayout implements HeardElementEngine {
       stalls: this.stallCount,
       recoveries: this.recoveryCount,
     };
+  }
+
+  /** Rate witness aggregate (Publish #54): fed-vs-playhead
+   *  ratios over this engine's completed files — see the
+   *  witness field. Read by the caller's terminal diag. */
+  rateWitness(): RateWitnessState {
+    return this.witness;
   }
 
   dispose(): void {

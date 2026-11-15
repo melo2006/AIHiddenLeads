@@ -78,6 +78,27 @@ export interface PlayoutTerminalDiag {
    *  engine exists (heard-engine off / not yet created). */
   stalls?: number;
   recoveries?: number;
+  /** Rate witness fields (Publish #54): the ACTUAL sample rate
+   *  of the AudioContext carrying the heard signal (the sink
+   *  graph's context — requested 24000, but the platform's real
+   *  rate is what matters and was never stamped), null on the
+   *  element terminals where no context is in the heard chain.
+   *  Rendered as crate= next to the assumed erate=. */
+  ctxRate?: number | null;
+  /** The TERMINAL element's playbackRate at stamp time. No code
+   *  in src/ ever sets it, so anything other than 1.00 is the
+   *  platform's own doing — a smoking gun, stamped as prate=.
+   *  Null when the terminal has no element (context/none). */
+  elementPlaybackRate?: number | null;
+  /** Rate witness aggregate (lib/rateWitness.ts): min / max /
+   *  last of fed-seconds ÷ terminal-clock-seconds over the
+   *  session's completed utterances on THIS terminal (≈1.00 is
+   *  healthy; the factor itself when a terminal mis-rates).
+   *  Null when the terminal has completed no utterance yet —
+   *  rendered rw=- so the record shows the witness exists. */
+  rateMin?: number | null;
+  rateMax?: number | null;
+  rateLast?: number | null;
 }
 
 export interface PlayoutDiagSnapshot {
@@ -105,6 +126,11 @@ export interface PlayoutDiagSnapshot {
    *  by GeminiConversation, which owns the local terminals;
    *  SimliAvatar snapshots leave it undefined. */
   terminal?: PlayoutTerminalDiag;
+  /** The media tap's AudioContext ACTUAL sample rate (Publish
+   *  #54 rate witness): PairedPlayout creates its context at the
+   *  device default (44100/48000) and nothing ever stamped it.
+   *  Null when no tap context exists. Rendered as tcrate=. */
+  tapCtxRate?: number | null;
 }
 
 /**
@@ -125,6 +151,12 @@ export function playoutDiagDetail(s: PlayoutDiagSnapshot): string {
     `out=${s.playoutPaused ? "paused" : "playing"}`,
     `gain=${s.gain === null ? "-" : s.gain}`,
   ];
+  // Rate witness (Publish #54): the tap context's ACTUAL rate,
+  // appended only when the snapshot carries the field, so
+  // pre-witness snapshots keep their exact shape.
+  if (s.tapCtxRate !== undefined) {
+    parts.push(`tcrate=${s.tapCtxRate ?? "-"}`);
+  }
   if (s.terminal) {
     parts.push(
       `term=${s.terminal.sink}`,
@@ -133,6 +165,18 @@ export function playoutDiagDetail(s: PlayoutDiagSnapshot): string {
       `ctxchain=${s.terminal.ctxInChain ? 1 : 0}`,
       `trail=${s.terminal.trailSec === null ? "-" : s.terminal.trailSec.toFixed(2)}`,
     );
+    // Rate witness (Publish #54): the heard chain's ACTUAL rates
+    // next to the assumed ones — the sink context's real
+    // sampleRate (crate=, beside erate= below) and the terminal
+    // element's playbackRate (prate=; 1.00 unless the platform
+    // itself moved it). Appended only when the fields are
+    // present, so older snapshot shapes stay byte-identical.
+    if (s.terminal.ctxRate !== undefined) {
+      parts.push(`crate=${s.terminal.ctxRate ?? "-"}`);
+    }
+    if (s.terminal.elementPlaybackRate !== undefined) {
+      parts.push(`prate=${s.terminal.elementPlaybackRate === null ? "-" : s.terminal.elementPlaybackRate.toFixed(2)}`);
+    }
     // Round 4 engine proof (see PlayoutTerminalDiag): which state
     // the media-element engine is in, why it failed if it did,
     // which encoder rate the platform accepted, and the terminal
@@ -148,6 +192,16 @@ export function playoutDiagDetail(s: PlayoutDiagSnapshot): string {
         // '-' when no engine exists to count them.
         `stalls=${s.terminal.stalls ?? "-"}`,
         `rec=${s.terminal.recoveries ?? "-"}`,
+      );
+    }
+    // Rate witness aggregate (Publish #54): rw=min..max over the
+    // terminal's completed utterances, rwl= the last one. '-'
+    // when the terminal has completed none yet — the record
+    // still proves the witness was running.
+    if (s.terminal.rateMin !== undefined) {
+      parts.push(
+        `rw=${s.terminal.rateMin === null ? "-" : `${s.terminal.rateMin.toFixed(2)}..${(s.terminal.rateMax ?? s.terminal.rateMin).toFixed(2)}`}`,
+        `rwl=${s.terminal.rateLast === null || s.terminal.rateLast === undefined ? "-" : s.terminal.rateLast.toFixed(2)}`,
       );
     }
   }

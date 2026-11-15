@@ -124,7 +124,7 @@ describe("media-element heard engine contracts (volume-speaker fix, 2026-11-14)"
     expect(conversation).toContain("applyCaptureProcessing(false)");
   });
 
-  it("every session stamps the diag — go-live (first connect AND reconnect), first chunk, engine transitions", () => {
+  it("every session stamps the diag — go-live (first connect AND reconnect), first chunk, engine transitions, witness drain", () => {
     // The helper pulls the avatar handle's live snapshot when one
     // answers (the reconnect case: the face never went away) and
     // falls back to a local-path snapshot otherwise.
@@ -143,7 +143,12 @@ describe("media-element heard engine contracts (volume-speaker fix, 2026-11-14)"
     const chunk = sliceBetween(conversation, "const playPcmChunk = useCallback", "// Interrupt: drop all queued playback instantly");
     expect(chunk).toContain("diagChunkStampRef.current = true;");
     expect(chunk).toContain("stampPlayoutDiag();");
-    expect(count(conversation, "stampPlayoutDiag();")).toBe(4);
+    // Five direct call sites: go-live, engine-ready, engine-fatal,
+    // first chunk — plus (Publish #54) the graph rate-witness
+    // drain, which stamps the fresh rw= aggregate the moment an
+    // utterance completes. (The teardown END stamp goes through
+    // stampPlayoutDiagRef and is not counted here.)
+    expect(count(conversation, "stampPlayoutDiag();")).toBe(5);
   });
 
   it("the paired-mode kill switch is untouched by the engine switch", () => {
