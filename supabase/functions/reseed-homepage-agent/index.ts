@@ -1,7 +1,7 @@
 // One-off maintenance: refresh the homepage agent's stored knowledge from the
 // reviewed reference in _shared/homepage-knowledge.ts. Admin-only.
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { HOMEPAGE_GREETING, HOMEPAGE_KNOWLEDGE, HOMEPAGE_SALES_PROMPT } from '../_shared/homepage-knowledge.ts';
+import { HOMEPAGE_GREETING, HOMEPAGE_GREETING_VARIANTS, HOMEPAGE_KNOWLEDGE, HOMEPAGE_SALES_LAYER, HOMEPAGE_SALES_PROMPT } from '../_shared/homepage-knowledge.ts';
 import { SALES_ACTION_POLICY } from '../_shared/demo-sales.ts';
 
 const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' };
@@ -19,7 +19,7 @@ Deno.serve(async (req) => {
 
     const { data: agent, error: findErr } = await db.from('voice_agents').select('id,draft,published').eq('slug', 'aspen-homepage').single();
     if (findErr || !agent) throw findErr ?? new Error('homepage agent not found');
-    const patch = (cfg: Record<string, unknown> | null) => cfg ? { ...cfg, greeting: HOMEPAGE_GREETING, knowledge: HOMEPAGE_KNOWLEDGE, systemPrompt: `${HOMEPAGE_SALES_PROMPT}\n${SALES_ACTION_POLICY}` } : cfg;
+    const patch = (cfg: Record<string, unknown> | null) => cfg ? { ...cfg, greeting: HOMEPAGE_GREETING, greetings: [...HOMEPAGE_GREETING_VARIANTS], knowledge: HOMEPAGE_KNOWLEDGE, systemPrompt: `${HOMEPAGE_SALES_PROMPT}\n${SALES_ACTION_POLICY}\n${HOMEPAGE_SALES_LAYER}` } : cfg;
     const { error: upErr } = await db.from('voice_agents').update({ draft: patch(agent.draft), published: patch(agent.published) }).eq('id', agent.id);
     if (upErr) throw upErr;
     return new Response(JSON.stringify({ ok: true, agentId: agent.id }), { headers: { ...cors, 'Content-Type': 'application/json' } });

@@ -925,8 +925,18 @@ Deno.serve(async (req) => {
             audio: { data: msg.data, mimeType: 'audio/pcm;rate=16000' },
           },
         }))
-      } else if (msg.type === 'idle_prompt' && (config.homepageSales === true || config.simulation === true) && !preview && (msg.stage === 'checkin' || msg.stage === 'goodbye' || (msg.stage === 'continue' && config.homepageSales === true) || (msg.stage === 'bridge' && config.simulation === true))) {
-        const text = msg.stage === 'bridge'
+      } else if (msg.type === 'idle_prompt' && (config.homepageSales === true || config.simulation === true) && !preview && (msg.stage === 'checkin' || msg.stage === 'goodbye' || (msg.stage === 'continue' && config.homepageSales === true) || (msg.stage === 'bridge' && (config.simulation === true || config.homepageSales === true)))) {
+        const text = msg.stage === 'bridge' && config.homepageSales === true && config.simulation !== true
+          // SALES SILENCE BRIDGE (owner-directed 2026-11-15): on a
+          // homepage SALES session the visitor has now stayed silent
+          // through the check-in as well. Per the silence protocol in
+          // the SALES CONVERSATION ARC: never ask if they are there a
+          // second time — acknowledge lightly, bridge with ONE
+          // approved statistic framed as social proof, surface the
+          // price anchor early (silence often means price worry), and
+          // continue the pitch, ending on ONE easy question.
+          ? 'The visitor has stayed silent through your check-in as well. Follow the silence protocol from your instructions: do NOT ask if they are still there again. Acknowledge lightly in one short phrase, then share ONE approved statistic framed as what businesses like theirs report — for example "Surveys of businesses like yours tell us…" — bring the $99-a-month Premium anchor in early if you have not yet (silence often means they are picturing a much bigger price), and continue with the next part of your pitch. End with ONE easy yes-or-no or either-or question, then wait. Keep the whole turn under six sentences.'
+          : msg.stage === 'bridge'
           // NO-DEAD-AIR BRIDGE (Scalone batch Item 6a): the persona
           // handoff this session announced is still connecting and
           // the visitor has heard silence for several seconds (the

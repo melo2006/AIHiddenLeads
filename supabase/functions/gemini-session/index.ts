@@ -14,7 +14,7 @@ import { avatarSwapEnabled, teamIntroEnabled, isPresenterPersona, personaFor, pe
 import { fetchPersonaVoiceOverride, resolvePersonaVoice } from '../_shared/persona-voice-overrides.ts';
 import { examplePresenterForSlug } from '../_shared/realtor-example-pinned-leads.ts';
 import { TEAM_INTRO_TEACHING, isIntroBoundary, teamIntroGreetingFor } from '../_shared/team-intro.ts';
-import { realtorLandingApplies, stampRealtorLanding } from '../_shared/homepage-knowledge.ts';
+import { realtorLandingApplies, stampHomepageSales, stampRealtorLanding } from '../_shared/homepage-knowledge.ts';
 import { buildExampleListingsLayer, examplePackBySlug, examplePackForSiteUrl, stampExampleListings } from '../_shared/realtor-example-listings.ts';
 import { PUBLIC_PATHS } from '../_shared/report-context.ts';
 import { normalizeUiLocale, startingLanguageForUiLocale } from '../_shared/conversation-language.ts';
@@ -412,6 +412,19 @@ Deno.serve(async req=>{
     // agents addressed by id on this same path keep exactly the
     // snapshot they published.
     config={...(agent.published as Record<string,unknown>), homepageSales:agent.slug==='aspen-homepage', ...(agent.slug==='aspen-homepage' ? {platformFollowup:true} : {})}; agentId=agent.id; orgId=agent.organization_id;
+    // HOMEPAGE SALES STAMP (owner-approved sales-script rebuild,
+    // 2026-11-15): the homepage agent opens with the three-opener
+    // greeting rotation and carries the SALES CONVERSATION ARC layer
+    // (pain discovery → cost in their numbers → fit → price → close,
+    // plus the silence protocol and gated implementation answers) —
+    // same assembly-time pattern as the realtor stamp below: the
+    // stored snapshot is never edited, tenant agents addressed by id
+    // keep exactly the snapshot they published, and a re-authorization
+    // re-applies the stamp to a fresh config so nothing stacks. Runs
+    // BEFORE the team-intro and realtor stamps: team-intro still maps
+    // every rotated greeting, and the realtor stamp still replaces
+    // the rotation wholesale for realtor-landing sessions.
+    if(agent.slug==='aspen-homepage') stampHomepageSales(config);
     // TEAM INTRO PARENT STAMP (design §4.2/§7): the homepage agent's
     // explainer session earns the team-intro parent class ONLY when both
     // flags are on AND the request's page context is the demo page —

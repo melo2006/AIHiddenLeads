@@ -155,7 +155,7 @@ describe('route scoping in gemini-session', () => {
   const knowledge = read('supabase/functions/_shared/homepage-knowledge.ts');
 
   it('gemini-session applies the shared stamp helper; the helper owns the swap', () => {
-    expect(src).toContain("import { realtorLandingApplies, stampRealtorLanding } from '../_shared/homepage-knowledge.ts';");
+    expect(src).toContain("import { realtorLandingApplies, stampHomepageSales, stampRealtorLanding } from '../_shared/homepage-knowledge.ts';");
     expect(knowledge).toContain('config.realtorLanding = true;');
     expect(knowledge).toContain('config.greeting = REALTOR_GREETING_VARIANTS[0];');
     expect(knowledge).toContain('config.greetings = [...REALTOR_GREETING_VARIANTS];');

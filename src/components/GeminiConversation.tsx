@@ -900,7 +900,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   }, []);
   const walkthroughRef = useRef({ text: '', continued: false });
   const homepageWalkthroughRef = useRef(false);
-  const idleRef = useRef({ enabled: false, stage: 'waiting' as VoiceIdleStage, quietSince: 0, generating: false, requestedAt: 0 });
+  const idleRef = useRef({ enabled: false, stage: 'waiting' as VoiceIdleStage, quietSince: 0, generating: false, requestedAt: 0, sales: false });
   useEffect(() => {
     const timer = window.setInterval(() => {
       const idle = idleRef.current;
@@ -919,8 +919,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         return;
       }
       if (idle.stage === 'goodbye') { wsRef.current?.send(JSON.stringify({type:'end_session',reason:'silence_timeout'})); stopEverything(); setStatus(voiceDisconnectMessage(1000,'silence_timeout')); return; }
-      const action = voiceIdleAction(idle.stage, idle.quietSince, Date.now());
-      if ((action === 'checkin' || action === 'goodbye') && wsRef.current?.readyState === WebSocket.OPEN) {
+      const action = voiceIdleAction(idle.stage, idle.quietSince, Date.now(), idle.sales);
+      if ((action === 'checkin' || action === 'bridge' || action === 'goodbye') && wsRef.current?.readyState === WebSocket.OPEN) {
         idle.stage = action;
         idle.generating = true;
         idle.requestedAt = Date.now();
@@ -1762,7 +1762,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     faceTakeoverBusyRef.current = false;
     attemptSessionRef.current = {};
     walkthroughRef.current = {text:'', continued:false};
-    idleRef.current = { enabled: false, stage: 'waiting', quietSince: 0, generating: false, requestedAt: 0 };
+    idleRef.current = { enabled: false, stage: 'waiting', quietSince: 0, generating: false, requestedAt: 0, sales: false };
     setPendingAction(null);
     deadlineRef.current = 0;
     setRemainingSeconds(null);
@@ -1857,7 +1857,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
    * state all survive for the incoming segment. */
   const partialTeardownForSwap = useCallback(() => {
     walkthroughRef.current = {text:'', continued:false};
-    idleRef.current = { enabled: false, stage: 'waiting', quietSince: 0, generating: false, requestedAt: 0 };
+    idleRef.current = { enabled: false, stage: 'waiting', quietSince: 0, generating: false, requestedAt: 0, sales: false };
     setPendingAction(null);
     deadlineRef.current = 0;
     setRemainingSeconds(null);
@@ -2746,7 +2746,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         onPersonaChangeRef.current?.({ id: presenterPersona, displayName: PERSONAS[presenterPersona].displayName });
       }
       homepageWalkthroughRef.current = authorized.homepageSales === true;
-      idleRef.current = { enabled: (authorized.idleChecks === true || authorized.homepageSales === true) && !preview, stage: 'waiting', quietSince: Date.now(), generating: true, requestedAt: 0 };
+      idleRef.current = { enabled: (authorized.idleChecks === true || authorized.homepageSales === true) && !preview, stage: 'waiting', quietSince: Date.now(), generating: true, requestedAt: 0, sales: authorized.homepageSales === true };
       setHandoffToken(authorized.handoffToken || null);
       const ws = new WebSocket(`${voiceProxyWsUrl()}?token=${encodeURIComponent(authorized.token)}&capture=${captureMode}${warm ? '&hold=1' : ''}`);
       wsRef.current = ws;
