@@ -38,6 +38,19 @@ import {
 // consent_banner_seen=true after every scan of that pin, including
 // scans that recorded nothing.
 //
+// A third pinned fact is re-asserted the same unconditional way
+// (Ray Miramontes fix, 2026-11-15): forceCoveredView
+// (ray-miramontes only). His site refuses to load in a real browser
+// iframe (verified HTTP 403 / ERR_BLOCKED_BY_RESPONSE) even though
+// the embed probe's server-side fetch succeeds, so no probe or scan
+// can ever record the refusal — the pin is the record of it. The
+// refresh re-asserts force_covered_view=true after every scan of
+// that pin, so DemoSite presents the covered screenshot view
+// instead of the browser error page the refused iframe lands on.
+// It is a presentation fact only: this assertion never touches the
+// consent columns, and pins without the flag never touch
+// force_covered_view here.
+//
 // Invocation shape: POST { slug } or { leadId } refreshes ONE pinned
 // lead (a single scan can take ~1-2 minutes, so the schedule fires
 // one call per lead). POST {} refreshes every pinned lead
@@ -140,6 +153,22 @@ Deno.serve(async (req) => {
         .eq('id', target.leadId);
       consentBannerSeenPinned = !consentError;
     }
+    // PINNED FORCED COVERED VIEW (Ray Miramontes fix, 2026-11-15):
+    // only for pins whose site is verified to refuse real browser
+    // framing (today: ray-miramontes only). The embed probe's
+    // server-side fetch succeeds for his site, so no scan or probe
+    // can ever record the refusal; the pin is the record. Idempotent
+    // — writing true over true is a no-op in effect. Pins without
+    // the flag never touch force_covered_view here, and this write
+    // never touches the consent columns.
+    let forceCoveredViewPinned: boolean | null = null;
+    if (target.forceCoveredView) {
+      const { error: forceError } = await db
+        .from('leads')
+        .update({ force_covered_view: true })
+        .eq('id', target.leadId);
+      forceCoveredViewPinned = !forceError;
+    }
     // PINNED SERVICE AREA (Martinez pins fix, 2026-11-14): rewrite
     // the SERVICE AREA line(s) in the knowledge the scan just stored
     // to the pin's recorded area. Read AFTER the scan (the scan
@@ -174,6 +203,7 @@ Deno.serve(async (req) => {
       ok: scanOk,
       websiteUrlPreserved,
       consentBannerSeenPinned,
+      forceCoveredViewPinned,
       serviceAreaPinned,
     };
     if (scanHttpStatus !== null) refreshEntry.httpStatus = scanHttpStatus;

@@ -26,6 +26,18 @@ export interface DemoLeadData {
    */
   consentBannerSeen?: boolean;
   /**
+   * The stored forced-covered-view pin (Ray Miramontes fix,
+   * 2026-11-15): this lead's site is verified to refuse real browser
+   * framing even though the embed probe's server-side fetch succeeds,
+   * so the demo presents the covered screenshot view from the start
+   * and never renders the raw iframe (which lands on a browser error
+   * page whose load event would otherwise disarm the fallback).
+   * Asserted onto the record from the pinned map by
+   * refresh-example-leads. A PRESENTATION fact only — unrelated to
+   * the consent flags. Undefined = not pinned.
+   */
+  forceCoveredView?: boolean;
+  /**
    * The language the scanned website itself is published in, detected by
    * scan-website from the site's own content and stored on the lead row
    * (Publish #66): 'en' | 'es' | 'pt-BR' (Portuguese is always Brazilian —

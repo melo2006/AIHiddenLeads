@@ -51,6 +51,28 @@ export interface RealtorExamplePinnedLead {
    * been human-verified. SERVER-ONLY, like serviceArea.
    */
   consentBannerVerified?: boolean;
+  /**
+   * Forced covered view (Ray Miramontes fix, 2026-11-15). TRUE only
+   * where the site refuses to load in a real browser iframe even
+   * though check-iframe-embed's server-side fetch succeeds:
+   * mira-realestate.com answers the probe's fetch with a 200 and no
+   * framing headers, so the probe reports embeddable — but actual
+   * browser navigation is refused (verified 2026-11-15: HTTP 403 /
+   * ERR_BLOCKED_BY_RESPONSE in desktop and mobile contexts). The
+   * error page fires the iframe's load event, which disarms
+   * DemoSite's blocked watchdog and blocks the screenshot fallback,
+   * so every visitor saw a browser error page instead of the site.
+   * This pin is a PRESENTATION fact, not a consent fact — it asserts
+   * nothing about banners, and it never touches the consent columns.
+   * It is stored on the lead (force_covered_view),
+   * refresh-example-leads re-asserts it after every refresh of a
+   * flagged pin, and DemoSite reads it from the record and presents
+   * the covered screenshot view from the start: the raw iframe is
+   * never rendered for a flagged lead. Set this only for a pin whose
+   * browser-side refusal has been verified in a real browser.
+   * SERVER-ONLY, like serviceArea.
+   */
+  forceCoveredView?: boolean;
 }
 
 export const REALTOR_EXAMPLE_PINNED_LEADS: RealtorExamplePinnedLead[] = [
@@ -64,7 +86,7 @@ export const REALTOR_EXAMPLE_PINNED_LEADS: RealtorExamplePinnedLead[] = [
   { slug: "paul-saperstein", domain: "paulsapersteinhomes.com", url: "https://paulsapersteinhomes.com/", leadId: "8db3a00c-b24c-4c5c-a371-67db376c28ef", serviceArea: "Palm Beach County, FL" },
   { slug: "baldemar-deleon", domain: "baldemardeleon.com", url: "https://www.baldemardeleon.com/", leadId: "4a65957b-72c1-4055-9f4f-d63dd098d14e", serviceArea: "Dallas, TX" },
   { slug: "logan-walter", domain: "loganwalter.com", url: "https://loganwalter.com/", leadId: "c9c202be-35c7-4ba7-b016-1dff9a35517b", serviceArea: "Dallas, TX" },
-  { slug: "ray-miramontes", domain: "mira-realestate.com", url: "https://mira-realestate.com/", leadId: "0d9883e5-8ca9-44a9-b9bb-6d248178ab64", serviceArea: "Los Angeles, CA" },
+  { slug: "ray-miramontes", domain: "mira-realestate.com", url: "https://mira-realestate.com/", leadId: "0d9883e5-8ca9-44a9-b9bb-6d248178ab64", serviceArea: "Los Angeles, CA", forceCoveredView: true },
   { slug: "danielle-lazier", domain: "daniellelazier.com", url: "https://daniellelazier.com/", leadId: "7dc878df-5559-4d0a-bada-06d5aac62c48", serviceArea: "San Francisco, CA" },
   { slug: "richard-steinberg", domain: "therichardsteinbergteam.com", url: "https://www.therichardsteinbergteam.com/", leadId: "51353057-8b1d-4e89-828b-ae12287efb3c", serviceArea: "New York, NY" },
   { slug: "gian-sexsmith", domain: "sexsmithrealty.com", url: "https://sexsmithrealty.com/", leadId: "335785bd-c994-4d13-9a6d-4d38d84fc11e", serviceArea: "Salt Lake City, UT" },
@@ -86,6 +108,11 @@ export function pinnedServiceAreaForLeadId(leadId: string | undefined | null): s
 /** TRUE only for pins whose consent banner a human has verified (see the field doc). */
 export function pinnedConsentBannerVerifiedForLeadId(leadId: string | undefined | null): boolean {
   return pinnedExampleLeadForLeadId(leadId)?.consentBannerVerified === true;
+}
+
+/** TRUE only for pins whose site is verified to refuse real browser framing (see the field doc). */
+export function pinnedForceCoveredViewForLeadId(leadId: string | undefined | null): boolean {
+  return pinnedExampleLeadForLeadId(leadId)?.forceCoveredView === true;
 }
 
 /**
