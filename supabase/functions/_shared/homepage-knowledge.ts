@@ -9,7 +9,7 @@ export const HOMEPAGE_PLANS = [
 
 export const SETUP_PROMO_END = 'this month'; // evergreen promo wording only — Aspen never quotes a calendar date for the promotion
 
-export const HOMEPAGE_GREETING = `{timeGreeting}, and thanks for calling {businessName}! I'm {agentName}. Did you know that 85% of callers who reach a business's voicemail don't call back — most just move on to the next name on the list. Those aren't just missed calls; they're customers quietly choosing somebody else. We're no vendor selling you something you don't need — we're your partner for finding the leads you're already losing: the hidden ones. I answer with a natural voice, just like the one you're hearing now — and on your website I can even appear on live video as your spokesperson: keep me, choose another face from our library, or make it personal with your own photo and even your own voice — helping visitors, answering questions, and capturing leads around the clock. And may I have your name, so I can greet you by it?`;
+export const HOMEPAGE_GREETING = `{timeGreeting}, and thanks for calling {businessName}! I'm {agentName}. Did you know that 85% of callers who reach a business's voicemail don't call back — most just move on to the next name on the list. And may I have your name, so I can greet you by it?`;
 
 // HOMEPAGE GREETING ROTATION (owner-approved sales-script rebuild,
 // 2026-11-15): three openers, one per session, picked by the standard
@@ -28,8 +28,50 @@ export const HOMEPAGE_GREETING = `{timeGreeting}, and thanks for calling {busine
 // the team-intro stamp maps every variant the same way it maps A.
 export const HOMEPAGE_GREETING_VARIANTS = [
   HOMEPAGE_GREETING,
-  `{timeGreeting}, and thanks for calling {businessName}! I'm {agentName}. Here's something most business owners don't realize: in a 2025 survey of 1,000 U.S. consumers, 78% said they had abandoned a business after a call went unanswered. They don't leave a message — they just move on to the next name on the list. That's the problem we solve: I answer every call and every website visitor, day or night. I qualify them, I book them — and the important ones I transfer straight to you, with a summary of what they need before you pick up. And I don't just sound like a person — on your website I appear on live video, like a real spokesperson standing on your page: keep me, choose another face from our library, or use your own photo and even your own voice. And may I have your name, so I can greet you by it?`,
-  `{timeGreeting}, and thanks for calling {businessName}! I'm {agentName}. Did you know that 67% of callers hang up the moment they can't reach a real person? They don't leave a message — they just call the next business. We make sure that never happens to you: I'm a live video and voice receptionist who answers instantly, around the clock. I learn your business, I answer questions, I book appointments, and I capture the leads you'd otherwise never know you lost. You're hearing my voice right now — on your website, you'd be watching me say this, live on video. And may I have your name, so I can greet you by it?`,
+  `{timeGreeting}, and thanks for calling {businessName}! I'm {agentName}. Here's something most business owners don't realize: in a 2025 survey of 1,000 U.S. consumers, 78% said they had abandoned a business after a call went unanswered. And may I have your name, so I can greet you by it?`,
+  `{timeGreeting}, and thanks for calling {businessName}! I'm {agentName}. Did you know that 67% of callers hang up the moment they can't reach a real person? And may I have your name, so I can greet you by it?`,
+] as const;
+
+// Publish #67 EXTENSION (Ron, 2026-11-15 — the same order that
+// restructured the demo opener, applied to this surface: the long
+// uninterruptible opener is abolished everywhere): each variant
+// above is now ONLY the opener's first short segment — welcome, who
+// she is, its one approved statistic, and the name ask (≈38–48
+// words, inside Ron's "first fifteen to thirty seconds" bound) —
+// and the client's opening mic gate lifts when that first turn
+// completes, so the visitor can interrupt from there on. The rest
+// of each approved opener is preserved VERBATIM in
+// HOMEPAGE_GREETING_FOLLOW_UP_BEATS below and delivered one short
+// beat per turn under HOMEPAGE_OPENING_PRIORITY — the approved
+// material is unchanged; only its delivery shape changed, exactly
+// as on the demo surface.
+
+// HOMEPAGE OPENING FOLLOW-UP BEATS (Publish #67 extension, Ron
+// 2026-11-15): the remainder of each approved opener, in rotation
+// order, preserved verbatim from the pre-restructure greetings —
+// variant A's cost + partner lines and its live-video point, B's
+// problem-we-solve lines and its live-video point, C's never-happens
+// lines and its live-video point. Delivered AFTER the visitor has
+// spoken, one beat per turn, under the discipline
+// HOMEPAGE_OPENING_PRIORITY states (answer the visitor first, never
+// two beats in one turn, never repeat a delivered beat, drop
+// un-delivered beats once discovery takes over). No beat carries a
+// statistic: each opener's single approved figure lives in its
+// first segment, so the "no further opening statistics" rule is
+// preserved by construction.
+export const HOMEPAGE_GREETING_FOLLOW_UP_BEATS: readonly (readonly string[])[] = [
+  [
+    `Those aren't just missed calls; they're customers quietly choosing somebody else. We're no vendor selling you something you don't need — we're your partner for finding the leads you're already losing: the hidden ones.`,
+    `I answer with a natural voice, just like the one you're hearing now — and on your website I can even appear on live video as your spokesperson: keep me, choose another face from our library, or make it personal with your own photo and even your own voice — helping visitors, answering questions, and capturing leads around the clock.`,
+  ],
+  [
+    `They don't leave a message — they just move on to the next name on the list. That's the problem we solve: I answer every call and every website visitor, day or night. I qualify them, I book them — and the important ones I transfer straight to you, with a summary of what they need before you pick up.`,
+    `And I don't just sound like a person — on your website I appear on live video, like a real spokesperson standing on your page: keep me, choose another face from our library, or use your own photo and even your own voice.`,
+  ],
+  [
+    `They don't leave a message — they just call the next business. We make sure that never happens to you: I'm a live video and voice receptionist who answers instantly, around the clock. I learn your business, I answer questions, I book appointments, and I capture the leads you'd otherwise never know you lost.`,
+    `You're hearing my voice right now — on your website, you'd be watching me say this, live on video.`,
+  ],
 ] as const;
 
 // REALTOR LANDING GREETINGS (owner-approved 2026-11-11): a website
@@ -131,7 +173,11 @@ export function stampRealtorLanding<T extends Record<string, unknown>>(config: T
   return config;
 }
 
-export const HOMEPAGE_OPENING_PRIORITY = `OPENING PRIORITY (supersedes the opening flow in the reference data): The session opening supplied for this call is the complete first turn. Deliver it in full, exactly as provided, then stop and wait for the visitor to speak. It ends by asking the visitor's name. Do not ask the missed-call capacity question, or any discovery question, until the visitor has spoken at least once. When they reply, use their name if they gave one, then ask what kind of business they run — skip that question if they have already told you — and from there follow the SALES CONVERSATION ARC in your instructions. The opening already contains a statistic; do not deliver further opening statistics.`;
+export const HOMEPAGE_OPENING_PRIORITY = `OPENING PRIORITY (supersedes the opening flow in the reference data): The session opening supplied for this call is only the opening's FIRST SHORT SEGMENT (Publish #67, Ron 2026-11-15 — the long uninterruptible opener is abolished on every surface). Deliver it in full, exactly as provided, then stop and wait for the visitor to speak. It ends by asking the visitor's name. The rest of that opener's material is not in the opening anymore: it is delivered afterwards as short follow-up beats, ONE beat per turn, only after the visitor has spoken, matched to the segment you delivered by its statistic:
+- The 85% voicemail segment's beats: (1) "Those aren't just missed calls; they're customers quietly choosing somebody else. We're no vendor selling you something you don't need — we're your partner for finding the leads you're already losing: the hidden ones." (2) "I answer with a natural voice, just like the one you're hearing now — and on your website I can even appear on live video as your spokesperson: keep me, choose another face from our library, or make it personal with your own photo and even your own voice — helping visitors, answering questions, and capturing leads around the clock."
+- The 78% survey segment's beats: (1) "They don't leave a message — they just move on to the next name on the list. That's the problem we solve: I answer every call and every website visitor, day or night. I qualify them, I book them — and the important ones I transfer straight to you, with a summary of what they need before you pick up." (2) "And I don't just sound like a person — on your website I appear on live video, like a real spokesperson standing on your page: keep me, choose another face from our library, or use your own photo and even your own voice."
+- The 67% hang-up segment's beats: (1) "They don't leave a message — they just call the next business. We make sure that never happens to you: I'm a live video and voice receptionist who answers instantly, around the clock. I learn your business, I answer questions, I book appointments, and I capture the leads you'd otherwise never know you lost." (2) "You're hearing my voice right now — on your website, you'd be watching me say this, live on video."
+An opening that is none of these three (a realtor-landing opening, a stored opening) has no beats in this block — follow its own flow instead. HOW THE BEATS RUN: never deliver two beats in one turn, and never run them together into a monologue. If the visitor asks a question or engages with anything, answer THAT first — the beats wait; offer the next un-delivered beat only when the exchange settles. Never repeat a beat you have already delivered. If the visitor interrupts you mid-beat, stop at once and listen: answer what they said, and when you continue, deliver the NEXT un-delivered beat — never resume a half-finished beat mid-sentence, and never restart one. Drop any un-delivered beats once the conversation has moved on into discovery — the SALES CONVERSATION ARC takes over from there. If this session runs the meet-the-team introduction, the show comes first, straight after the opening segment — the beats wait until the show has landed and the visitor has spoken. Do not ask the missed-call capacity question, or any discovery question, until the visitor has spoken at least once. When they reply, use their name if they gave one; when the beats are done or dropped, ask what kind of business they run — skip that question if they have already told you — and from there follow the SALES CONVERSATION ARC in your instructions. The opening — segment plus beats — contains exactly ONE statistic, the one in the segment you delivered; the beats contain none, and you deliver no further opening statistics.`;
 
 // SALES CONVERSATION ARC (owner-approved sales-script rebuild,
 // 2026-11-15 — draft: ~/workspace/aspen-sales-script-draft-2026-11-15.md).

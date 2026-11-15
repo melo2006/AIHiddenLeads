@@ -3,8 +3,10 @@ import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
 import {
   HOMEPAGE_GREETING,
+  HOMEPAGE_GREETING_FOLLOW_UP_BEATS,
   HOMEPAGE_GREETING_VARIANTS,
   HOMEPAGE_KNOWLEDGE,
+  HOMEPAGE_OPENING_PRIORITY,
   HOMEPAGE_SALES_LAYER,
   TEAM_FACTS,
   stampHomepageSales,
@@ -37,6 +39,61 @@ describe('homepage greeting rotation (owner-approved 2026-11-15)', () => {
       expect(greeting).not.toContain('go with the business that answers');
     }
     expect(HOMEPAGE_SALES_LAYER).not.toContain('first-responder');
+  });
+});
+
+describe('Publish #67 extension — homepage opener restructured (Ron 2026-11-15)', () => {
+  const words = (s: string) => s.trim().split(/\s+/).length;
+
+  test('every variant is a SHORT first segment (the 15-30 second bound, Ron 2026-11-15)', () => {
+    for (const greeting of HOMEPAGE_GREETING_VARIANTS) {
+      expect(words(greeting)).toBeLessThanOrEqual(55);
+      expect(words(greeting)).toBeGreaterThanOrEqual(30);
+    }
+  });
+
+  test('each segment carries ONLY its own statistic — the other two never appear', () => {
+    expect(HOMEPAGE_GREETING_VARIANTS[0]).not.toContain('78%');
+    expect(HOMEPAGE_GREETING_VARIANTS[0]).not.toContain('67%');
+    expect(HOMEPAGE_GREETING_VARIANTS[1]).not.toContain('85%');
+    expect(HOMEPAGE_GREETING_VARIANTS[1]).not.toContain('67%');
+    expect(HOMEPAGE_GREETING_VARIANTS[2]).not.toContain('85%');
+    expect(HOMEPAGE_GREETING_VARIANTS[2]).not.toContain('78%');
+  });
+
+  test('the rest of each approved opener survives verbatim as follow-up beats', () => {
+    expect(HOMEPAGE_GREETING_FOLLOW_UP_BEATS).toHaveLength(3);
+    for (const beats of HOMEPAGE_GREETING_FOLLOW_UP_BEATS) expect(beats).toHaveLength(2);
+    const [a, b, c] = HOMEPAGE_GREETING_FOLLOW_UP_BEATS;
+    expect(a[0]).toContain('partner for finding the leads you\'re already losing: the hidden ones');
+    expect(a[1]).toContain('live video as your spokesperson');
+    expect(a[1]).toContain('capturing leads around the clock');
+    expect(b[0]).toContain('That\'s the problem we solve');
+    expect(b[0]).toContain('transfer straight to you, with a summary of what they need before you pick up');
+    expect(b[1]).toContain('like a real spokesperson standing on your page');
+    expect(c[0]).toContain('We make sure that never happens to you');
+    expect(c[0]).toContain('capture the leads you\'d otherwise never know you lost');
+    expect(c[1]).toContain('watching me say this, live on video');
+    // No beat carries a statistic — the segment's figure is the opener's only one.
+    for (const beats of HOMEPAGE_GREETING_FOLLOW_UP_BEATS) {
+      for (const beat of beats) expect(beat).not.toMatch(/\d+%/);
+    }
+  });
+
+  test('opening priority delivers the beats one per turn, visitor first, and quotes them verbatim', () => {
+    expect(HOMEPAGE_OPENING_PRIORITY).toContain('only the opening\'s FIRST SHORT SEGMENT');
+    expect(HOMEPAGE_OPENING_PRIORITY).not.toContain('complete first turn');
+    expect(HOMEPAGE_OPENING_PRIORITY).toContain('ONE beat per turn');
+    expect(HOMEPAGE_OPENING_PRIORITY).toContain('never resume a half-finished beat mid-sentence');
+    expect(HOMEPAGE_OPENING_PRIORITY).toContain('answer THAT first');
+    expect(HOMEPAGE_OPENING_PRIORITY).toContain('exactly ONE statistic');
+    // The meet-the-team show still goes first on team-intro sessions.
+    expect(HOMEPAGE_OPENING_PRIORITY).toContain('meet-the-team introduction, the show comes first');
+    // A non-rotation opening (realtor landing, stored) earns no beats here.
+    expect(HOMEPAGE_OPENING_PRIORITY).toContain('has no beats in this block');
+    for (const beats of HOMEPAGE_GREETING_FOLLOW_UP_BEATS) {
+      for (const beat of beats) expect(HOMEPAGE_OPENING_PRIORITY).toContain(beat);
+    }
   });
 });
 

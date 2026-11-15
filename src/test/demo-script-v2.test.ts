@@ -56,6 +56,11 @@ test('C1b: the entry sequence runs the beats in order (incl. the no-disclaimer-i
   expect(SIMULATION_PROMPT).toContain('thanks for calling. How can I help you?');
   expect(SIMULATION_PROMPT).toContain('never a bare opening on its own');
   expect(SIMULATION_PROMPT).toContain('30 to 45 second overview');
+  // Publish #67 extension (Ron, 2026-11-15): the overview no longer
+  // rides in the greeting's turn — it is a separate beat delivered
+  // after the visitor has spoken, on every entry path.
+  expect(SIMULATION_PROMPT).toContain('NEVER IN THE GREETING\'S TURN');
+  expect(SIMULATION_PROMPT).not.toContain('immediately after the greeting, in the same turn');
   expect(SIMULATION_PROMPT).toContain('skip this ask entirely if the visitor\'s name is already known');
   expect(SIMULATION_PROMPT).toContain('Is there anything specific you would like to find out about {businessName}?');
   // The old conflicting choreography is gone (audit C-4).

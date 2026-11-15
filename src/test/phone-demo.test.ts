@@ -286,10 +286,16 @@ describe('PHONE_GREETING (phone opening trim, polish batch)', () => {
     // Ends with the name ask.
     expect(PHONE_GREETING.trim().endsWith('May I have your name?')).toBe(true);
   });
-  test('is ~75-85 words and shorter than HOMEPAGE_GREETING', () => {
+  test('is ~75-85 words (its own approved shape, unchanged)', () => {
     expect(words(PHONE_GREETING)).toBeGreaterThanOrEqual(75);
     expect(words(PHONE_GREETING)).toBeLessThanOrEqual(85);
-    expect(words(PHONE_GREETING)).toBeLessThan(words(HOMEPAGE_GREETING));
+    // The polish batch's original second clause — "shorter than
+    // HOMEPAGE_GREETING" — pinned the phone trim against the old
+    // ~142-word homepage monologue. Publish #67's extension (Ron,
+    // 2026-11-15) shortened the homepage greeting itself to a
+    // ~48-word first segment, so the comparison no longer holds and
+    // is deliberately retired: PHONE_GREETING keeps its own
+    // owner-approved 2026-11-12 shape on the telephony surface.
   });
 });
 

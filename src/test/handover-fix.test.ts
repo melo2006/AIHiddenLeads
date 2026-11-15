@@ -259,4 +259,13 @@ describe('6 — Sara overview conditioning (defense in depth)', () => {
     expect(opening).toContain('confirm in ONE line that the site on their screen is the business');
     expect(opening).toContain('the host deliberately did not ask this');
   });
+  test('Publish #67 extension: her first turn is the greeting plus that ONE line — the overview is a follow-up beat', () => {
+    expect(opening).toContain('That is your whole first turn: the greeting plus that one line, nothing more');
+    expect(opening).toContain('Do NOT continue into the overview, the name ask or any further question in this turn');
+    expect(opening).not.toContain('then straight to the overview');
+    // The overview still exists — as its own turn, after the visitor speaks.
+    expect(opening).toContain('THE OVERVIEW IS A FOLLOW-UP BEAT NOW');
+    expect(opening).toContain('as its OWN turn, once the visitor has spoken, never in the greeting\'s turn');
+    expect(opening).toContain('never resume the overview mid-sentence');
+  });
 });
