@@ -46,11 +46,13 @@ FUNCTIONS_SRC="${REPO_ROOT}/supabase/functions"
 # this box, so it is deliberately NOT in the closure.)
 # deno cache (step 4) is the authority: a missing file fails the deploy.
 SHARED_CLOSURE=(
+  alex-guide.ts
   booking-confirm.ts
   booking-slots.ts
   booking-tools.ts
   browser-handoff.ts
   call-review.ts
+  carrier-guides.ts
   contact-save.ts
   conversation-language.ts
   conversation-records.ts
@@ -66,6 +68,7 @@ SHARED_CLOSURE=(
   live-models.ts
   manager-transfer.ts
   overage-facts.ts
+  personas.ts
   phone-demo.ts
   platform-calendar.ts
   recording-audio.ts
@@ -73,6 +76,7 @@ SHARED_CLOSURE=(
   session-resumption.ts
   team-intro.ts
   twilio-sms.ts
+  usage-ledger.ts
   visitor-followup.ts
   voice-config.ts
   voice-usage.ts
