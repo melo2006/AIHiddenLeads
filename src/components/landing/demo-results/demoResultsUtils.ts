@@ -25,6 +25,15 @@ export interface DemoLeadData {
    * that could not witness the page) — the live probe decides.
    */
   consentBannerSeen?: boolean;
+  /**
+   * The language the scanned website itself is published in, detected by
+   * scan-website from the site's own content and stored on the lead row
+   * (Publish #66): 'en' | 'es' | 'pt-BR' (Portuguese is always Brazilian —
+   * the product's only Portuguese). Undefined/null = never recorded. When
+   * the visitor has NOT explicitly picked a language with the site
+   * switch, the demo runs in this language; an explicit pick always wins.
+   */
+  websiteLanguage?: string;
   colors?: DemoBrandColors;
   logo?: string;
   secondaryUrls?: string[];

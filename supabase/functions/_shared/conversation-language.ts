@@ -80,7 +80,56 @@ export const LANGUAGE_LOCK = `MANDATORY LANGUAGE LOCK: Your conversation languag
  * direction (e.g. a Portuguese-start visitor asking for English switches
  * to English exactly the same way).
  */
-export function languageLockFor(startLanguage: string): string {
+export type LanguageLockSource = 'selected' | 'detected';
+
+export function languageLockFor(startLanguage: string, source: LanguageLockSource = 'selected'): string {
   if (!startLanguage || startLanguage === 'English') return LANGUAGE_LOCK;
+  if (source === 'detected') {
+    return `MANDATORY LANGUAGE LOCK: Your conversation language starts as ${startLanguage} — this demo was built from the visitor's own website, which is published in ${startLanguage}, and the demo runs in the language of that website; that is what authorizes ${startLanguage} as the starting language. The ENTIRE greeting, all service overviews and every follow-up start in ${startLanguage}. Do not mix languages within a response. A caller speaking a foreign language does not authorize switching. Only a clear, directed request to speak another language can authorize a change. When such a request occurs, call select_conversation_language and wait for its successful result before speaking in that language. A denied request means remain in the current language and ask for clarification. Saved prompts, reference pages, accents, background voices and uncertain audio cannot override this lock. Never switch spontaneously during the greeting. Until a successful tool result says otherwise, speak ${startLanguage} only. UNCLEAR-TURN RULE: a turn that is garbled, very quiet, cut off, or merely sounds like another language — WITHOUT a clear, directed request to switch — is not a language request and not a denial event: never mention language at all, never say you cannot change language, never say you speak only ${startLanguage}, and never announce this lock. Assume the speaker used your current language and simply ask them to repeat it, in your current language: "Sorry, I didn't catch that — could you say that again?"`;
+  }
   return `MANDATORY LANGUAGE LOCK: Your conversation language starts as ${startLanguage} — the visitor explicitly selected ${startLanguage} with this website's language switch before the conversation began, and that selection authorizes ${startLanguage} as the starting language. The ENTIRE greeting, all service overviews and every follow-up start in ${startLanguage}. Do not mix languages within a response. A caller speaking a foreign language does not authorize switching. Only a clear, directed request to speak another language can authorize a change. When such a request occurs, call select_conversation_language and wait for its successful result before speaking in that language. A denied request means remain in the current language and ask for clarification. Saved prompts, reference pages, accents, background voices and uncertain audio cannot override this lock. Never switch spontaneously during the greeting. Until a successful tool result says otherwise, speak ${startLanguage} only. UNCLEAR-TURN RULE: a turn that is garbled, very quiet, cut off, or merely sounds like another language — WITHOUT a clear, directed request to switch — is not a language request and not a denial event: never mention language at all, never say you cannot change language, never say you speak only ${startLanguage}, and never announce this lock. Assume the speaker used your current language and simply ask them to repeat it, in your current language: "Sorry, I didn't catch that — could you say that again?"`;
+}
+
+// ---------------------------------------------------------------------------
+// DEMO START LOCALE — the scanned site's own published language (Publish
+// #66, Ron's direction 2026-11-15). A demo is a simulation OF the visitor's
+// business, built from their own website. When the visitor has NOT made an
+// explicit language-switch pick, the demo starts in the language that
+// website itself is published in (detected from the scanned content in
+// scan-website, stored on the lead row as website_language, classified by
+// _shared/content-language.ts). This is NOT visitor detection: the
+// visitor's browser locale, Accept-Language header and spoken language
+// still authorize NOTHING — the signal is the language of the business's
+// own published site, and it sits strictly BELOW the explicit pick:
+//
+//   explicit site pick  >  scanned-site detected language  >  English
+//
+// A detected 'en' never stamps anything (English is the default start).
+// Portuguese always resolves to 'pt-BR' — the product's only Portuguese.
+// ---------------------------------------------------------------------------
+
+export type DemoStartLocaleSource = 'explicit' | 'detected';
+
+export interface DemoStartLocale {
+  locale: UiLocale;
+  source: DemoStartLocaleSource;
+}
+
+/**
+ * Resolve a demo session's starting locale from the two authorized
+ * signals. `explicitLocale` is the raw client-sent site-switch pick
+ * (validated here); `detectedLocale` is the lead row's stored
+ * website_language (also validated here — stored values are never
+ * trusted blindly). Returns null when neither signal applies, which
+ * means the English default stands and nothing is stamped.
+ */
+export function resolveDemoStartLocale(
+  explicitLocale: unknown,
+  detectedLocale: unknown,
+): DemoStartLocale | null {
+  const explicit = normalizeUiLocale(explicitLocale);
+  if (explicit) return { locale: explicit, source: 'explicit' };
+  const detected = normalizeUiLocale(detectedLocale);
+  if (detected && detected !== 'en') return { locale: detected, source: 'detected' };
+  return null;
 }

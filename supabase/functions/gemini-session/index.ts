@@ -17,7 +17,8 @@ import { TEAM_INTRO_TEACHING, isIntroBoundary, teamIntroGreetingFor } from '../_
 import { realtorLandingApplies, stampHomepageSales, stampRealtorLanding } from '../_shared/homepage-knowledge.ts';
 import { buildExampleListingsLayer, examplePackBySlug, examplePackForSiteUrl, stampExampleListings } from '../_shared/realtor-example-listings.ts';
 import { PUBLIC_PATHS } from '../_shared/report-context.ts';
-import { normalizeUiLocale, startingLanguageForUiLocale } from '../_shared/conversation-language.ts';
+import { normalizeUiLocale, resolveDemoStartLocale, startingLanguageForUiLocale, type UiLocale } from '../_shared/conversation-language.ts';
+import { voiceForLocaleSession } from '../_shared/locale-voices.ts';
 import { buildTranscriptRecap } from '../_shared/recap-builder.ts';
 const personaSegmentSchema=z.object({persona:z.enum(['aspen','sara','alex','frank','latina','black-professional-lady']),boundary:z.enum(['doorway','stepout','meet-alex','return','summon-aspen','intro-sara','intro-return-1','intro-alex','intro-return-2']),parentSessionId:z.string().uuid(),swapRecap:z.string().max(8000),drops:z.number().int().min(0).max(99).default(0),dropRecovery:z.boolean().default(false),manualResume:z.boolean().default(false),swap:z.boolean().default(false),teamIntroSeen:z.boolean().default(false)});
 // SWAP DIAG (voice-first batch, 2026-11-10): the client posts a doorway
@@ -141,6 +142,13 @@ Deno.serve(async req=>{
   // below; intro segment requests are refused unless the parent carries it.
   const teamIntroOn=teamIntroEnabled((n)=>Deno.env.get(n));
   let segmentParentId: string | null = null;
+  // DETECTED SITE LOCALE (Publish #66): set by the lead/prospect branch
+  // when the demo's own website language (leads.website_language, written
+  // by scan-website) supplies the session start because the visitor made
+  // NO explicit language-switch pick. The final assembly stamps it as the
+  // session uiLocale with languageSource 'detected'; an explicit pick
+  // always outranks it (resolveDemoStartLocale).
+  let detectedSiteLocale: UiLocale | null = null;
   if(b.personaSegment) {
     // PERSONA SEGMENT (avatar swap Stage 1): a continuation of an existing
     // demo session under a (possibly different) persona. Honored ONLY when
@@ -186,7 +194,13 @@ Deno.serve(async req=>{
     // (admin Demo Voices tab) wins over the registry voice for segment
     // sessions too; no row / any read problem → persona.voiceName,
     // byte-identical to before. Fail-safe inside the resolver.
-    const segVoice=(await resolvePersonaVoice(db, persona.id)).voice;
+    const segVoiceResolved=(await resolvePersonaVoice(db, persona.id)).voice;
+    // SEGMENT LOCALE VOICE (Publish #66): a segment inherits the parent's
+    // session language (its stamped uiLocale — explicit pick or detected
+    // site language); a non-English parent means the segment persona also
+    // speaks with its voice from that language's curated set.
+    const segParentLocale=normalizeUiLocale(parent.uiLocale);
+    const segVoice=segParentLocale && segParentLocale!=='en' ? voiceForLocaleSession(segVoiceResolved, persona.id, segParentLocale) : segVoiceResolved;
     const businessName=String(parent.businessName || '');
     if(introRequest) {
       // TEAM INTRO SEGMENT: the prompt pack lives in team-intro.ts via
@@ -303,8 +317,8 @@ Deno.serve(async req=>{
     if(b.voice) config.voice=b.voice;
   } else if(b.leadId || b.prospectId) {
     if(b.leadId && b.prospectId) { const {data:p}=await db.from('prospects').select('website_url').eq('id',b.prospectId).maybeSingle(); const {data:l}=await db.from('leads').select('website_url').eq('id',b.leadId).maybeSingle(); if(!p || !l || p.website_url!==l.website_url) return json({error:'Prospect and demo website do not match'},400); }
-    let knowledge='', businessName=''; let visitorContact: Record<string,unknown> = {}; let leadInviteArrivedAt: unknown = null; let siteUrl='';
-    if(b.leadId) { const {data:lead}=await db.from('leads').select('business_name,website_url,website_content,scan_status,full_name,email,phone,invite_arrived_at').eq('id',b.leadId).maybeSingle(); if(!lead || !lead.website_content || !['completed','enriched','scanning'].includes(lead.scan_status) || lead.website_content.length<200) return json({error:'This business demo has not finished learning its website. Please wait for the scan.'},409); knowledge=lead.website_content; businessName=lead.business_name; siteUrl=lead.website_url || ''; visitorContact={name:sanitizeVisitorName(lead.full_name),email:lead.email || '',phone:lead.phone || ''}; leadInviteArrivedAt=lead.invite_arrived_at; }
+    let knowledge='', businessName=''; let visitorContact: Record<string,unknown> = {}; let leadInviteArrivedAt: unknown = null; let siteUrl=''; let leadWebsiteLanguage: unknown = null;
+    if(b.leadId) { const {data:lead}=await db.from('leads').select('business_name,website_url,website_content,scan_status,full_name,email,phone,invite_arrived_at').eq('id',b.leadId).maybeSingle(); if(!lead || !lead.website_content || !['completed','enriched','scanning'].includes(lead.scan_status) || lead.website_content.length<200) return json({error:'This business demo has not finished learning its website. Please wait for the scan.'},409); knowledge=lead.website_content; businessName=lead.business_name; siteUrl=lead.website_url || ''; visitorContact={name:sanitizeVisitorName(lead.full_name),email:lead.email || '',phone:lead.phone || ''}; leadInviteArrivedAt=lead.invite_arrived_at; const {data:langRow}=await db.from('leads').select('website_language').eq('id',b.leadId).maybeSingle(); leadWebsiteLanguage=langRow?.website_language ?? null; }
     else { const {data:p}=await db.from('prospects').select('business_name,business_data,ai_analysis,website_url').eq('id',b.prospectId).maybeSingle(); if(!p) return json({error:'Demo business not found'},404); knowledge=JSON.stringify(p.business_data || {}); businessName=p.business_name; siteUrl=p.website_url || ''; if(knowledge.length<20) return json({error:'Prepare this prospect website demo before starting a call.'},409); }
     const {data:aspen}=await db.from('voice_agents').select('published').eq('slug','aspen-homepage').maybeSingle();
     const published=aspen?.published as Record<string,unknown>|undefined;
@@ -396,6 +410,15 @@ Deno.serve(async req=>{
     // match alone earns nothing, and every non-sample simulation stays
     // byte-identical.
     if(examplePack) stampExampleListings(config, examplePack, presenter ? { presenter: true } : undefined);
+    // DEMO START LANGUAGE (Publish #66): explicit site pick > the scanned
+    // site's own detected language > English. A detected start is recorded
+    // on detectedSiteLocale so the final assembly stamps it (with
+    // languageSource 'detected'); either way, a non-English demo start
+    // speaks with the persona's voice from that language's curated set
+    // (Brazilian Portuguese set for pt-BR — never a European variant).
+    const demoStart=resolveDemoStartLocale(b.locale, leadWebsiteLanguage);
+    if(demoStart?.source==='detected') detectedSiteLocale=demoStart.locale;
+    if(demoStart && demoStart.locale!=='en') config.voice=voiceForLocaleSession(String(config.voice || ''), presenter ? presenter.id : 'aspen', demoStart.locale);
   } else {
     let query=db.from('voice_agents').select('*'); query=b.agentId?query.eq('id',b.agentId):query.eq('slug','aspen-homepage');
     const {data:agent}=await query.maybeSingle(); if(!agent?.published) return json({error:'Voice agent is not published yet'},409);
@@ -616,7 +639,7 @@ Deno.serve(async req=>{
     } catch { /* synthesis is best-effort: the client's recap stands */ }
   }
 
-  config={...config,visitorKeyHash,timeZone:effectiveTimeZone,...(uiLocale ? {uiLocale, startLanguage: startingLanguageForUiLocale(uiLocale)} : {}),quotaClass:segmentParentId?'persona_segment':b.share?'visitor':voiceQuotaClass(role?.role==='admin',b.preview),model:requestedModel || DEFAULT_LIVE_MODEL,opening:openingFor(config,greetingHour,greetingName),preview:b.preview,resumeContext:b.preview?undefined:(segmentParentId?String(config.resumeContext || ''):effectiveResumeContext),reconnect:segmentParentId?false:!b.preview&&b.reconnect,campaign:b.campaign || (segmentParentId?(config.campaign ?? null):null),recordTranscript:segmentParentId?config.recordTranscript===true:!b.preview && transcriptAllowed(false,false,b.consent),recordAudio:segmentParentId?config.recordAudio===true:!b.preview && b.consent};
+  config={...config,visitorKeyHash,timeZone:effectiveTimeZone,...(uiLocale ? {uiLocale, startLanguage: startingLanguageForUiLocale(uiLocale)} : detectedSiteLocale ? {uiLocale: detectedSiteLocale, startLanguage: startingLanguageForUiLocale(detectedSiteLocale), languageSource: 'detected'} : {}),quotaClass:segmentParentId?'persona_segment':b.share?'visitor':voiceQuotaClass(role?.role==='admin',b.preview),model:requestedModel || DEFAULT_LIVE_MODEL,opening:openingFor(config,greetingHour,greetingName),preview:b.preview,resumeContext:b.preview?undefined:(segmentParentId?String(config.resumeContext || ''):effectiveResumeContext),reconnect:segmentParentId?false:!b.preview&&b.reconnect,campaign:b.campaign || (segmentParentId?(config.campaign ?? null):null),recordTranscript:segmentParentId?config.recordTranscript===true:!b.preview && transcriptAllowed(false,false,b.consent),recordAudio:segmentParentId?config.recordAudio===true:!b.preview && b.consent};
   // DEMO-SITE OPENING RENDER (2026-11-12 late — live retest of the
   // Scalone batch, session 96d54121): openingFor returned the picked
   // demo rotation variant VERBATIM, and the demo-site variants are

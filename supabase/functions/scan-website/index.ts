@@ -24,6 +24,7 @@ import {
   shouldKeepStoredScreenshot,
 } from '../_shared/screenshot-banner-guard.ts';
 import { rehostScreenshotUrlWith } from '../_shared/screenshot-rehost.ts';
+import { detectContentLanguage } from '../_shared/content-language.ts';
 import { REALTOR_EXAMPLE_PINNED_LEADS } from '../_shared/realtor-example-pinned-leads.ts';
 import { B2B_EXAMPLE_PINNED_LEADS } from '../_shared/b2b-example-pinned-leads.ts';
 
@@ -1809,6 +1810,26 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Best-effort DETECTED SITE LANGUAGE (Publish #66), in its OWN update
+    // for the same reason as screenshot_provider above: the
+    // website_language column lands via migration
+    // 20261115120000_leads_website_language, which may not be applied yet —
+    // a missing column must never break the scan, it just logs. Detected
+    // from the homepage copy the scan already holds; the fuller all-pages
+    // verdict is written again before the final save below and may refine
+    // this one. A null verdict writes nothing (no stamp = English default).
+    const earlyDetectedLanguage = detectContentLanguage(
+      [previewTitle || '', previewDescription || '', homepageMarkdown].join('\n'),
+    );
+    if (earlyDetectedLanguage) {
+      const languagePreviewWrite = await supabase.from('leads').update({
+        website_language: earlyDetectedLanguage,
+      }).eq('id', leadId);
+      if (languagePreviewWrite.error) {
+        console.warn('Could not save detected website language (column may not be applied yet):', languagePreviewWrite.error.message);
+      }
+    }
+
     // === PHASE 2: Sub-pages (skip if running out of time) ===
     // Learn directly linked menu/product pages; depth 2 adds links discovered on those pages.
     let successfulPages: { url: string; title: string; summary: string; markdown: string }[] = [];
@@ -2077,6 +2098,24 @@ Deno.serve(async (req) => {
       }).eq('id', leadId);
       if (consentWrite.error) {
         console.warn('Could not save consent banner flags (columns may not be applied yet):', consentWrite.error.message);
+      }
+    }
+
+    // DETECTED SITE LANGUAGE, full-sample verdict (Publish #66): the
+    // early write above classified the homepage alone; this one classifies
+    // every page the scan read and may refine it. Best-effort in its OWN
+    // update (the website_language column lands via migration
+    // 20261115120000_leads_website_language, which may not be applied yet).
+    // A null verdict writes nothing — it never erases an earlier verdict.
+    const detectedLanguage = detectContentLanguage(allTextForExtraction);
+    if (detectedLanguage) {
+      const languageWrite = await supabase.from('leads').update({
+        website_language: detectedLanguage,
+      }).eq('id', leadId);
+      if (languageWrite.error) {
+        console.warn('Could not save detected website language (column may not be applied yet):', languageWrite.error.message);
+      } else {
+        console.log('Detected website language:', detectedLanguage, 'for lead', leadId);
       }
     }
 

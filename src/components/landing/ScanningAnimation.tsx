@@ -88,6 +88,14 @@ interface ScanningAnimationProps {
   onComplete: () => void;
   onCancel?: () => void;
   mode?: "timed" | "continuous";
+  /**
+   * Detected site language (Publish #66): when the demo's scanned site
+   * is published in a language the visitor did NOT explicitly pick with
+   * the site switch, the caller passes it here and every scan/build
+   * message renders in that language (e.g. "pt-BR" for a Brazilian
+   * site). Undefined = render in the UI locale, exactly as before.
+   */
+  language?: string;
 }
 
 const getWebsiteLabel = (websiteUrl: string) => {
@@ -111,8 +119,14 @@ const ScanningAnimation = ({
   onComplete,
   onCancel,
   mode = "timed",
+  language,
 }: ScanningAnimationProps) => {
   const { t } = useTranslation();
+  // Every message goes through tt so the optional detected language
+  // applies uniformly; with language undefined, lng is ignored and the
+  // rendering is the UI locale, byte-identical to before Publish #66.
+  const tt = (key: string, options?: Record<string, unknown>) =>
+    t(key, { ...options, lng: language });
   const [currentStep, setCurrentStep] = useState(0);
   const [progress, setProgress] = useState(0);
   const [currentBenefit, setCurrentBenefit] = useState(0);
@@ -203,7 +217,7 @@ const ScanningAnimation = ({
           transition={{ delay: 0.2 }}
           className="text-lg font-bold text-foreground sm:text-xl"
         >
-          {firstName ? t("scan.greetingWithName", { name: firstName }) : t("scan.greeting")}
+          {firstName ? tt("scan.greetingWithName", { name: firstName }) : tt("scan.greeting")}
         </motion.p>
         <motion.p
           initial={{ opacity: 0 }}
@@ -211,9 +225,9 @@ const ScanningAnimation = ({
           transition={{ delay: 0.4 }}
           className="mt-1 text-xs leading-relaxed text-muted-foreground sm:text-sm"
         >
-          {t("scan.buildingPrefix")} {" "}
-          <span className="font-semibold text-foreground">{displayName}</span> {t("scan.withAi")}
-          {t("scan.buildingSuffix")}
+          {tt("scan.buildingPrefix")} {" "}
+          <span className="font-semibold text-foreground">{displayName}</span> {tt("scan.withAi")}
+          {tt("scan.buildingSuffix")}
         </motion.p>
       </div>
 
@@ -225,7 +239,7 @@ const ScanningAnimation = ({
         <div className="relative flex flex-col items-center text-center">
           {/* Eyebrow */}
           <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-primary sm:text-[10px]">
-            {t("scan.eyebrow")}
+            {tt("scan.eyebrow")}
           </p>
 
           {/* Business name */}
@@ -280,12 +294,12 @@ const ScanningAnimation = ({
               className="mt-3"
             >
               <p className="text-sm font-semibold text-foreground sm:text-base">
-                {isComplete ? t("scan.readyTitle") : t(`scan.steps.${activeStep.key}.label`)}
+                {isComplete ? tt("scan.readyTitle") : tt(`scan.steps.${activeStep.key}.label`)}
               </p>
               <p className="mt-1 text-xs leading-relaxed text-muted-foreground sm:text-sm">
                 {isComplete
-                  ? t("scan.readyDetail")
-                  : t(`scan.steps.${activeStep.key}.detail`)}
+                  ? tt("scan.readyDetail")
+                  : tt(`scan.steps.${activeStep.key}.detail`)}
               </p>
             </motion.div>
           </AnimatePresence>
@@ -301,7 +315,7 @@ const ScanningAnimation = ({
               />
             </div>
             <p className="mt-1.5 text-[10px] font-medium text-muted-foreground">
-              {isComplete ? t("scan.complete") : t("scan.progress", { progress: Math.round(progress) })}
+              {isComplete ? tt("scan.complete") : tt("scan.progress", { progress: Math.round(progress) })}
             </p>
           </div>
 
@@ -311,7 +325,7 @@ const ScanningAnimation = ({
               onClick={onCancel}
               className="mt-4 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2"
             >
-              {t("scan.stop")}
+              {tt("scan.stop")}
             </button>
           )}
         </div>
@@ -332,9 +346,9 @@ const ScanningAnimation = ({
               <BenefitIcon className="h-4 w-4 text-primary" />
             </div>
             <div className="text-left">
-              <p className="text-sm font-semibold text-foreground">{t(`scan.benefits.${activeBenefit.key}.headline`)}</p>
+              <p className="text-sm font-semibold text-foreground">{tt(`scan.benefits.${activeBenefit.key}.headline`)}</p>
               <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-                {t(`scan.benefits.${activeBenefit.key}.body`)}
+                {tt(`scan.benefits.${activeBenefit.key}.body`)}
               </p>
             </div>
           </motion.div>
@@ -348,9 +362,9 @@ const ScanningAnimation = ({
         transition={{ delay: 1 }}
         className="text-center text-[10px] text-muted-foreground/70 sm:text-xs"
       >
-        {t("scan.questionsPrefix")} {" "}
-        <span className="font-semibold text-primary">{t("scan.transferSpecialist")}</span>{" "}
-        {t("scan.questionsSuffix")}
+        {tt("scan.questionsPrefix")} {" "}
+        <span className="font-semibold text-primary">{tt("scan.transferSpecialist")}</span>{" "}
+        {tt("scan.questionsSuffix")}
       </motion.p>
     </motion.div>
   );
