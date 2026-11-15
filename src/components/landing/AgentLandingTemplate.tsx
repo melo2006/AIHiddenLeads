@@ -69,12 +69,28 @@ import exampleThumbRayMiramontes from "@/assets/realtor-example-ray-miramontes.w
 import exampleThumbDanielleLazier from "@/assets/realtor-example-danielle-lazier.webp";
 import exampleThumbRichardSteinberg from "@/assets/realtor-example-richard-steinberg.webp";
 import exampleThumbGianSexsmith from "@/assets/realtor-example-gian-sexsmith.webp";
+import exampleThumbMobileAureliaPerez from "@/assets/realtor-example-aurelia-perez-mobile.webp";
+import exampleThumbMobileAnnChamberlain from "@/assets/realtor-example-ann-chamberlain-mobile.webp";
+import exampleThumbMobileJulieMelrose from "@/assets/realtor-example-julie-melrose-mobile.webp";
+import exampleThumbMobileAshleyCusack from "@/assets/realtor-example-ashley-cusack-mobile.webp";
+import exampleThumbMobileMauricioBarba from "@/assets/realtor-example-mauricio-barba-mobile.webp";
+import exampleThumbMobileMichaelMartinez from "@/assets/realtor-example-michael-martinez-mobile.webp";
+import exampleThumbMobileJeanLucAndriot from "@/assets/realtor-example-jean-luc-andriot-mobile.webp";
+import exampleThumbMobilePaulSaperstein from "@/assets/realtor-example-paul-saperstein-mobile.webp";
+import exampleThumbMobileBaldemarDeLeon from "@/assets/realtor-example-baldemar-deleon-mobile.webp";
+import exampleThumbMobileLoganWalter from "@/assets/realtor-example-logan-walter-mobile.webp";
+import exampleThumbMobileRayMiramontes from "@/assets/realtor-example-ray-miramontes-mobile.webp";
+import exampleThumbMobileDanielleLazier from "@/assets/realtor-example-danielle-lazier-mobile.webp";
+import exampleThumbMobileRichardSteinberg from "@/assets/realtor-example-richard-steinberg-mobile.webp";
+import exampleThumbMobileGianSexsmith from "@/assets/realtor-example-gian-sexsmith-mobile.webp";
 import type { AgentVertical } from "@/data/agentVerticals";
 
-// Example-grid thumbnails (Batch 2, 2026-11-12): one per demo example,
-// keyed by the option's slug in the vertical data. Each image is a real
-// capture of that agent's own website with Aspen open on it (see
-// batch2-build-report-2026-11-12.md for how they were produced).
+// Example-grid thumbnails (Batch 2, 2026-11-12; refreshed by the
+// 2026-11-15 gallery re-shoot): one per demo example, keyed by the
+// option's slug in the vertical data. Each image is a real capture of
+// that agent's own website with Aspen open on it (see
+// batch2-build-report-2026-11-12.md for how the first set was
+// produced, and the 2026-11-15 re-shoot records for the current set).
 const EXAMPLE_THUMBNAILS: Record<string, string> = {
   "aurelia-perez": exampleThumbAureliaPerez,
   "ann-chamberlain": exampleThumbAnnChamberlain,
@@ -90,6 +106,28 @@ const EXAMPLE_THUMBNAILS: Record<string, string> = {
   "danielle-lazier": exampleThumbDanielleLazier,
   "richard-steinberg": exampleThumbRichardSteinberg,
   "gian-sexsmith": exampleThumbGianSexsmith,
+};
+
+// Mobile companions to EXAMPLE_THUMBNAILS (gallery rebuild,
+// 2026-11-15): the same live capture session on a phone viewport, so
+// each card can show the desktop and mobile views side by side. Same
+// provenance rule — real captures of the agent's own website with the
+// presenter open on it, never redrawn.
+const EXAMPLE_THUMBNAILS_MOBILE: Record<string, string> = {
+  "aurelia-perez": exampleThumbMobileAureliaPerez,
+  "ann-chamberlain": exampleThumbMobileAnnChamberlain,
+  "julie-melrose": exampleThumbMobileJulieMelrose,
+  "ashley-cusack": exampleThumbMobileAshleyCusack,
+  "mauricio-barba": exampleThumbMobileMauricioBarba,
+  "michael-martinez": exampleThumbMobileMichaelMartinez,
+  "jean-luc-andriot": exampleThumbMobileJeanLucAndriot,
+  "paul-saperstein": exampleThumbMobilePaulSaperstein,
+  "baldemar-deleon": exampleThumbMobileBaldemarDeLeon,
+  "logan-walter": exampleThumbMobileLoganWalter,
+  "ray-miramontes": exampleThumbMobileRayMiramontes,
+  "danielle-lazier": exampleThumbMobileDanielleLazier,
+  "richard-steinberg": exampleThumbMobileRichardSteinberg,
+  "gian-sexsmith": exampleThumbMobileGianSexsmith,
 };
 
 /**
@@ -720,13 +758,16 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
         </div>
       </section>
 
-      {/* Examples grid (Batch 2, 2026-11-12) — directly below the hero
-          demo form: what Aspen looks like answering on real agents'
-          websites. Honest framing: these are example simulations, NOT
-          customers. The frame shows two rows at a time; the rest scroll
-          INSIDE the frame so the page never grows a 14-card strip.
-          Clicking a card runs the live demo on that site immediately —
-          the same /demo sample handoff as the hero dropdown. */}
+      {/* Examples grid (Batch 2, 2026-11-12; rebuilt 2026-11-15) —
+          directly below the hero demo form: what Aspen looks like
+          answering on real agents' websites. Honest framing: these
+          are example simulations, NOT customers. The frame shows two
+          rows at a time; the rest scroll INSIDE the frame so the page
+          never grows a 14-card strip. Each card shows BOTH captures —
+          desktop and mobile — and clicking either view (the whole
+          card is one button) runs the live demo on that site
+          immediately, the same /demo sample handoff as the hero
+          dropdown. */}
       {vertical.demoExamples && (
         <section
           data-agent-example-grid
@@ -742,6 +783,10 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
                 our customers — each with Aspen answering on it. Click any
                 one and the demo starts live on that site. On your site,
                 she leads with your listings first.
+              </p>
+              <p className="text-muted-foreground text-base sm:text-lg mt-3">
+                The demos can be viewed on a mobile phone, desktop, or
+                tablet — every card shows the desktop and phone views.
               </p>
             </div>
             <div className="max-w-5xl mx-auto rounded-2xl border border-border bg-card p-3 sm:p-4">
@@ -759,12 +804,20 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
                       aria-label={`Run the live demo on ${option.agent}'s website`}
                       className="group block w-full text-left rounded-xl border border-border bg-background overflow-hidden shadow-sm transition-colors hover:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                     >
-                      <img
-                        src={EXAMPLE_THUMBNAILS[option.slug]}
-                        alt={`${option.agent}'s website with Aspen answering on it`}
-                        loading="lazy"
-                        className="aspect-[16/10] w-full object-cover object-top"
-                      />
+                      <span className="flex items-stretch gap-2 p-2 pb-0">
+                        <img
+                          src={EXAMPLE_THUMBNAILS[option.slug]}
+                          alt={`${option.agent}'s website with Aspen answering on it — desktop view`}
+                          loading="lazy"
+                          className="aspect-[16/10] min-w-0 flex-1 rounded-lg object-cover object-top"
+                        />
+                        <img
+                          src={EXAMPLE_THUMBNAILS_MOBILE[option.slug]}
+                          alt={`${option.agent}'s website with Aspen answering on it — mobile view`}
+                          loading="lazy"
+                          className="w-[23%] shrink-0 rounded-lg object-cover object-top"
+                        />
+                      </span>
                       <span className="flex items-center justify-between gap-2 px-3 py-2.5">
                         <span className="min-w-0">
                           <span className="block truncate text-sm font-semibold text-foreground">
