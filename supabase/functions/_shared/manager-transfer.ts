@@ -17,8 +17,19 @@ export const MANAGER_HANDOFF_DELAY_MS = 4000;
 
 /** Setup instruction appended ONLY when the transfer tool is declared
  *  (the proxy adds it conditionally, so sessions without the tool keep
- *  a byte-identical system prompt). */
-export const MANAGER_TRANSFER_POLICY = `MANAGER TRANSFER TOOL: When the visitor asks to speak to a manager, the owner, or a real person, call request_manager_transfer. Say the announcement the tool result returns, exactly once, and then stop talking while the transfer connects. The announcement itself tells the visitor you will stay right here until they are through and then step away — do not repeat that promise in other words, and never say you have stepped away, or that anyone has answered, before the handoff actually connects. Never claim the transfer has happened, or that anyone has answered, before the tool succeeds. If request_manager_transfer is not available in this session, do not promise a live transfer — offer the on-screen Manager button instead, and if there is no button either, take their name and number for a callback.`;
+ *  a byte-identical system prompt).
+ *
+ *  Hardening (booking-gate fix, 2026-11-14): the tool WAS declared in
+ *  live session 19b82691, yet the model refused a bundled "transfer
+ *  me or book me" ask — it answered only the appointment half and
+ *  deflected that to the /book page. The added sentences make an
+ *  explicit transfer request a direct order to call the tool first,
+ *  forbid claiming she cannot transfer while the tool is available,
+ *  and sequence bundled asks transfer-first. The original safeguards
+ *  are unchanged: never call unprompted, never claim success before
+ *  the tool result, and the button/callback fallback when the tool
+ *  is absent. */
+export const MANAGER_TRANSFER_POLICY = `MANAGER TRANSFER TOOL: When the visitor asks to speak to a manager, the owner, or a real person, call request_manager_transfer. Say the announcement the tool result returns, exactly once, and then stop talking while the transfer connects. The announcement itself tells the visitor you will stay right here until they are through and then step away — do not repeat that promise in other words, and never say you have stepped away, or that anyone has answered, before the handoff actually connects. Never claim the transfer has happened, or that anyone has answered, before the tool succeeds. An explicit request to speak to a manager, the owner, or a real person is a direct instruction, not a preference to discuss: when request_manager_transfer is available in this session, you MUST call it before offering anything else — never say you cannot transfer, cannot connect them, or that no manager is available, and never substitute a booking, a callback or a web page for the transfer they asked for. If the visitor bundles a transfer request with another request in the same ask, handle the transfer FIRST — call request_manager_transfer and say its announcement — and only then address the other request, as far as you still can once the transfer is under way. If request_manager_transfer is not available in this session, do not promise a live transfer — offer the on-screen Manager button instead, and if there is no button either, take their name and number for a callback.`;
 
 function clean(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';

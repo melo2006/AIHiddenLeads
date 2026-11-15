@@ -50,6 +50,27 @@ export const ASPEN_SLOT_OFFER_METHOD = `BOOKING THE IMPLEMENTATION CALL — RON'
 CONTACT RULE: book with the name, email and phone already collected on this call — never re-ask for details you already have. The texting permission for the confirmation text is the answer already recorded for the follow-up text; if it was never asked, ask it once, in the same breath as the confirmation: "I'll text the confirmation to this number — is that the best one?" A no means email only, and that is completely fine.`;
 
 /**
+ * PLATFORM BOOKING INSTRUCTION for the Gemini Live proxy's setup
+ * message (booking-gate fix, 2026-11-14): the platform-follow-up
+ * scope note + PLATFORM BOOKING POLICY + the slot-offer method with
+ * the website confirmation path filled in. Returned ONLY under the
+ * exact condition that also declares the platform booking tools in
+ * the proxy setup (config.platformFollowup && !preview), so the
+ * prompt can never again promise booking a session cannot perform —
+ * before this fix the text was injected unconditionally while the
+ * tools were gated, and homepage Aspen deflected a booking ask to
+ * the /book page because she had no tools (session 19b82691). When
+ * the gate is on, the returned text is byte-identical to the block
+ * the proxy previously inlined in its setup message. The phone host
+ * policy below embeds its own copy of the slot-offer method and is
+ * unaffected.
+ */
+export function platformBookingInstruction(platformFollowup: unknown, preview: boolean): string {
+  if (!platformFollowup || preview) return '';
+  return ` Platform follow-up tools, if supplied, act only for AI Hidden Leads, not this demo business.\nPLATFORM BOOKING POLICY (overrides older booking instructions): Invite interested visitors naturally: "Would you have 15 to 20 minutes for a quick introductory meeting with one of our sales specialists or directors of sales to go over your questions, the main features, and getting you set up?" Do not pitch an hour-long meeting. Explain the calendar reserves a full 30-minute slot when confirming; the conversation itself runs 15 to 20 minutes. Use platform_availability before discussing real openings. If a visitor asks for a specific time, resolve the date/time in Eastern unless they explicitly give another zone, and pass requestedSlot with its actual ISO offset. If requestedAvailable is false, say that time is unavailable and offer the two returned alternatives conversationally, including the date and Eastern time, not simply "no". Do not disclose private event details. Default appointments are weekdays 8 AM–6 PM Eastern over the next 14 days. Temporary owner travel or the visitor's timezone must not change these hours. Greetings can use visitor-local time; bookings remain Eastern, with an optional clearly labeled visitor-local equivalent. All-day travel does not block slots; timed busy events and existing reservations do. Never override conflicts to make a test available. Offer the first two available days. Only when the tool reports nextThreeDaysFull may you say the next three days are fully booked; then offer nextAvailable, not a refusal. If no slots remain in 14 days, offer sales follow-up rather than inventing availability. Evening requests at 7 or 8 PM can be discussed with the sales team by arrangement, not confirmed outside returned slots.\n${ASPEN_SLOT_OFFER_METHOD.replace('[path]', 'Ask the visitor to confirm the exact slot on screen (request_platform_appointment) once their contact details are confirmed through request_platform_followup — the website never books without that on-screen confirmation. If the visitor will not use the screen, use get_availability, check_time and book_call with the details already confirmed on this session; in book_call, smsConsent is the stored answer from the demo form when the tool result carries one, otherwise ask the permission line first and pass their answer.')}`;
+}
+
+/**
  * Render a website URL, email address or phone number for a letter-by-letter
  * spoken read-back. Dictation errors are the #1 failure point of verbal
  * intake, so the backend composes the read-back deterministically and Aspen

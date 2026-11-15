@@ -377,7 +377,19 @@ Deno.serve(async req=>{
     let query=db.from('voice_agents').select('*'); query=b.agentId?query.eq('id',b.agentId):query.eq('slug','aspen-homepage');
     const {data:agent}=await query.maybeSingle(); if(!agent?.published) return json({error:'Voice agent is not published yet'},409);
     if(!(await workspaceAccess(db,agent.organization_id))) return json({error:'This assistant subscription is not active'},403);
-    config={...(agent.published as Record<string,unknown>), homepageSales:agent.slug==='aspen-homepage'}; agentId=agent.id; orgId=agent.organization_id;
+    // PLATFORM FOLLOW-UP STAMP (booking-gate fix, 2026-11-14): the
+    // homepage agent's sessions ARE the platform sales sessions, and
+    // the proxy declares the platform booking/follow-up tools only
+    // when config.platformFollowup is true — but the published
+    // snapshot never carried it, so homepage Aspen was told by the
+    // proxy's injected booking policy that she could book while
+    // holding no booking tools (live proof: session 19b82691, where
+    // she deflected a booking ask to the /book page). Stamp it
+    // code-side for the homepage agent only, mirroring the
+    // business-demo stamp on the lead/prospect path above; tenant
+    // agents addressed by id on this same path keep exactly the
+    // snapshot they published.
+    config={...(agent.published as Record<string,unknown>), homepageSales:agent.slug==='aspen-homepage', ...(agent.slug==='aspen-homepage' ? {platformFollowup:true} : {})}; agentId=agent.id; orgId=agent.organization_id;
     // TEAM INTRO PARENT STAMP (design §4.2/§7): the homepage agent's
     // explainer session earns the team-intro parent class ONLY when both
     // flags are on AND the request's page context is the demo page —

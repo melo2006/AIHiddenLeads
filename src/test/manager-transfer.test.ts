@@ -94,6 +94,17 @@ describe('the transfer policy + timing constants', () => {
     expect(MANAGER_TRANSFER_POLICY).toContain('on-screen Manager button');
     expect(MANAGER_TRANSFER_POLICY).toContain('stay right here until they are through');
   });
+
+  it('hardening (2026-11-14): an explicit ask is a direct order, refusal is forbidden while the tool exists, bundled asks go transfer-first', () => {
+    // Session 19b82691: the tool was available, yet a bundled
+    // "transfer me or book me" ask got only a /book deflection.
+    expect(MANAGER_TRANSFER_POLICY).toContain('a direct instruction, not a preference to discuss');
+    expect(MANAGER_TRANSFER_POLICY).toContain('you MUST call it before offering anything else');
+    expect(MANAGER_TRANSFER_POLICY).toContain('never say you cannot transfer, cannot connect them, or that no manager is available');
+    expect(MANAGER_TRANSFER_POLICY).toContain('never substitute a booking, a callback or a web page for the transfer they asked for');
+    expect(MANAGER_TRANSFER_POLICY).toContain('handle the transfer FIRST');
+    expect(MANAGER_TRANSFER_POLICY).toContain('only then address the other request');
+  });
 });
 
 describe('proxy wiring — declaration, gate and dispatch', () => {
