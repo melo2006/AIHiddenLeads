@@ -371,7 +371,7 @@ describe('Item 8 — swap recap truncates at turn boundaries, never mid-sentence
       { role: 'assistant' as const, text: closing },
     ];
     const recap = buildSwapRecap(turns, { visitorName: 'John', businessName: 'Jean-Luc Andriot Realty', facts: [] }, 'sara');
-    expect(recap.length).toBeLessThanOrEqual(2400);
+    expect(recap.length).toBeLessThanOrEqual(8000);
     // Aspen's closing turn — the one the old slice severed at
     // "Let me know if" — arrives COMPLETE.
     expect(recap).toContain(`Assistant: ${closing}`);
@@ -389,9 +389,9 @@ describe('Item 8 — swap recap truncates at turn boundaries, never mid-sentence
   });
 
   it('a single oversized turn is shortened only at a sentence boundary, marked', () => {
-    const huge = `Assistant-grade monologue. ${'Another full sentence follows here. '.repeat(90)}`;
+    const huge = `Assistant-grade monologue. ${'Another full sentence follows here. '.repeat(300)}`;
     const recap = buildSwapRecap([{ role: 'assistant', text: huge }], { businessName: 'Business', facts: [] }, 'sara');
-    expect(recap.length).toBeLessThanOrEqual(2400);
+    expect(recap.length).toBeLessThanOrEqual(8000);
     expect(recap.endsWith('…')).toBe(true);
     // The visible cut lands right after a sentence end.
     expect(recap).toMatch(/\.…$/);

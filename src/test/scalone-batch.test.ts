@@ -214,6 +214,11 @@ describe('Item 2 — summon-aspen (F3)', () => {
 
   it('goodbye handling (addendum): Sara can always end the call — the refusal is untaught', () => {
     expect(SIMULATION_RECEPTIONIST_SEGMENT).toContain('GOODBYES — YOU CAN ALWAYS END THE CALL');
+    // Publish #63: the goodbye rule carries its transfer carve-out —
+    // a transfer request is not a goodbye and outranks the close.
+    expect(SIMULATION_RECEPTIONIST_SEGMENT).toContain('A TRANSFER REQUEST IS NOT A GOODBYE, AND IT OUTRANKS THIS RULE');
+    expect(SIMULATION_RECEPTIONIST_SEGMENT).toContain('never answer a transfer request with a farewell');
+    expect(SIMULATION_RECEPTIONIST_SEGMENT).toContain('when the two collide, the transfer wins, every time');
     expect(SIMULATION_RECEPTIONIST_SEGMENT).toContain('never say you are unable to hang up or end the line from your side');
     const built = personaSegmentPrompt('sara', 'doorway', 'Biz', 'PARENT PROMPT');
     expect(built.systemPrompt).toContain('GOODBYES — YOU CAN ALWAYS END THE CALL');

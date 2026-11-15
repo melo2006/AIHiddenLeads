@@ -104,7 +104,9 @@ test('C2: proxy opening — host-phase branch precedes the simulation branch; ol
 test('C3: GeminiConversation clears the visit-memory bucket on the pending→verified flip', () => {
   const convo = read('src/components/GeminiConversation.tsx');
   expect(convo).toContain("prevVerificationRef.current === 'pending' && verification === 'verified'");
-  expect(convo).toContain("visitMemory.delete(agentId || 'homepage')");
+  // Publish #63: the delete routes through visitMemoryDelete, which
+  // clears the Map bucket AND its sessionStorage mirror.
+  expect(convo).toContain("visitMemoryDelete(agentId || 'homepage')");
 });
 
 test('C5: on-screen unlock line sets up the new doorway', () => {

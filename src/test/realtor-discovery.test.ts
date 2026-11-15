@@ -742,3 +742,21 @@ describe("realtor discovery — the no-match move (Publish #62, 2026-11-15)", ()
     expect(layer).toContain("The no-match turn itself carries NO capture ask");
   });
 });
+
+describe("realtor discovery — criteria accumulate + transfer beats the close (Publish #63, 2026-11-15)", () => {
+  it("criteria accumulate: a new area ADDS, a correction swaps only the corrected item", () => {
+    expect(layer).toContain("CRITERIA ACCUMULATE — THE RUNNING LIST ONLY GROWS");
+    expect(layer).toContain("ADDS to the list — it never replaces");
+    expect(layer).toContain("swap ONLY that item");
+    expect(layer).toContain("read the FULL accumulated list");
+    // The evidence case: Deerfield + Pompano must survive Lauderhill arriving.
+    expect(layer).toContain("Deerfield Beach and Pompano Beach and then adds Lauderhill is looking in THREE areas");
+  });
+
+  it("an explicit transfer request outranks the close and is never answered with a goodbye", () => {
+    expect(layer).toContain("TRANSFER BEATS THE CLOSE");
+    expect(layer).toContain("outranks every other beat");
+    expect(layer).toContain("never answer a transfer request with a recap, a promise or a goodbye");
+    expect(layer).toContain("is the request still standing, not a wrap-up signal");
+  });
+});
