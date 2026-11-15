@@ -42,6 +42,7 @@ export const SEO_ROUTES = [
       "AI voice agents and chat widgets help answer visitor questions and capture inquiries. Appointment booking and telephone transfers require configuration for each business.",
       "Our services include B2B prospect generation, database reactivation, automated outreach and Google review management. Google Maps Boost and AI Search Optimization help improve local and AI-driven search visibility. Our 25-point Google Maps audit checks neighborhood search positions; homepage before-and-after maps are illustrative, not measured results or ranking guarantees.",
     ],
+    faqHeading: "Common questions",
     faq: [
       {
         q: "What is the best AI receptionist for a small business?",
@@ -80,6 +81,7 @@ export const SEO_ROUTES = [
       "Aspen reads your public website, greets visitors by voice and chat, answers questions from your own content, and can capture inquiries and book appointments once configured. The demo preserves your website's appearance and is a simulation based on its public information, not a full business implementation.",
       "From this page you can also run the free 25-point Google Maps rank check to see where your business shows up across 25 neighborhood search points.",
     ],
+    faqHeading: "Common questions",
     faq: [
       {
         q: "What happens in the free demo?",
@@ -114,6 +116,7 @@ export const SEO_ROUTES = [
       "A Aspen lê seu site público, atende os visitantes por voz e chat, responde perguntas a partir do seu próprio conteúdo e pode captar consultas e agendar compromissos depois de configurada. A demo preserva a aparência do seu site e é uma simulação baseada nas informações públicas dele, não uma implementação completa da sua empresa.",
       "Nesta página você também pode executar a verificação gratuita de classificação no Google Maps com 25 pontos para ver onde sua empresa aparece em 25 pontos de busca do bairro.",
     ],
+    faqHeading: "Perguntas frequentes",
     faq: [
       {
         q: "O que acontece na demo gratuita?",
@@ -159,6 +162,7 @@ export const SEO_ROUTES = [
       "You stay in control: your phone rings first, and only if you do not answer does Aspen pick up. Hot leads are transferred straight back to you with a summary; other callers are booked onto your calendar. After every call you get the summary and the full transcript.",
       "Plans start at $99/mo with 400 voice minutes included; a lip-synced video avatar of Aspen for your website is an optional add-on. Aspen greets callers in your name, answers basic listing questions from the details you give her, and checks buyer pre-approval and timeline before you call back.",
     ],
+    faqHeading: "Common questions",
     faq: [
       {
         q: "How much does an AI receptionist for real estate agents cost?",
@@ -194,6 +198,10 @@ const escapeHtml = (s) =>
 // The route's keyword Q&A as a no-JS fallback section: the exact questions
 // as headings, the exact answers as paragraphs — the same text the page
 // shows visibly and the FAQPage schema declares (schema == visible rule).
+// The section heading is the route's OWN localized string (route.faqHeading,
+// carried with the route's other localized fields) — never a hardcoded
+// English literal: /demo/br's Portuguese Q&A sits under "Perguntas
+// frequentes", not "Common questions".
 export function seoFaqSectionHtml(route) {
   if (!route.faq || route.faq.length === 0) return "";
   const items = route.faq
@@ -201,7 +209,7 @@ export function seoFaqSectionHtml(route) {
     .join("\n");
   return `
         <section>
-          <h2>Common questions</h2>
+          <h2>${escapeHtml(route.faqHeading)}</h2>
 ${items}
         </section>`;
 }

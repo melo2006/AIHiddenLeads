@@ -21,6 +21,7 @@ interface RouteHead {
   ogDescription: string;
   heading: string;
   summary: string[];
+  faqHeading?: string;
   faq?: { q: string; a: string }[];
 }
 const routes = SEO_ROUTES as RouteHead[];
@@ -218,6 +219,27 @@ describe("keyword Q&A (FAQPage schema + fallback + visible copy parity)", () => 
       for (const homeItem of faqOf("/")) expect(html).not.toContain(homeItem.q);
     });
   }
+
+  it("FAQ section heading comes from each route's own data (never hardcoded English)", () => {
+    // Every route with a Q&A set carries its own localized section heading,
+    // and the prerendered fallback prints exactly that string.
+    for (const r of routes.filter((x) => (x.faq?.length ?? 0) > 0)) {
+      expect(r.faqHeading?.length).toBeGreaterThan(0);
+      const html = buildRouteHtml(indexHtml, r) as string;
+      expect(html).toContain(`<h2>${r.faqHeading}</h2>`);
+    }
+    // The bug this pins: /demo/br's Portuguese Q&A used to sit under the
+    // English heading "Common questions" in the prerendered page.
+    expect(byPath("/demo/br").faqHeading).toBe("Perguntas frequentes");
+    const brHtml = buildRouteHtml(indexHtml, byPath("/demo/br")) as string;
+    expect(brHtml).toContain("<h2>Perguntas frequentes</h2>");
+    expect(brHtml).not.toContain("Common questions");
+    // English routes keep the English heading.
+    expect(byPath("/demo").faqHeading).toBe("Common questions");
+    expect(byPath("/").faqHeading).toBe("Common questions");
+    // The client mirror carries the same heading per route.
+    for (const r of routes) expect(seoHeadForPath(r.path)?.faqHeading).toBe(r.faqHeading ?? "");
+  });
 
   it("/book: prerender strips the homepage FAQPage block and declares none of its own", () => {
     const html = buildRouteHtml(indexHtml, byPath("/book")) as string;
