@@ -510,6 +510,16 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const avatarLiveRef = useRef(false);
   const avatarRequestedRef = useRef(false);
   const [pendingAction, setPendingAction] = useState<VoiceAction | null>(null);
+  // FORM RE-PRESENTATION (Publish #68): a confirmation card the
+  // visitor dismissed unsubmitted — our X, Not now, an outside tap,
+  // or a provider cancellation — leaves a persistent chip in the
+  // panel ("Form waiting — tap to open"); one tap asks the proxy to
+  // re-issue the SAME card, so a dismissed form is never one-shot
+  // again. The ref mirrors the live card so the socket handlers can
+  // move it into the waiting slot when a cancellation lands.
+  const [waitingAction, setWaitingAction] = useState<VoiceAction | null>(null);
+  const pendingActionRef = useRef<VoiceAction | null>(null);
+  const trackPendingAction = (action: VoiceAction | null) => { pendingActionRef.current = action; setPendingAction(action); };
   const [actionNotice, setActionNotice] = useState('');
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
   const deadlineRef = useRef(0);
@@ -1968,7 +1978,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     attemptSessionRef.current = {};
     walkthroughRef.current = {text:'', continued:false};
     idleRef.current = { enabled: false, stage: 'waiting', quietSince: 0, generating: false, requestedAt: 0, sales: false };
-    setPendingAction(null);
+    trackPendingAction(null);
+    setWaitingAction(null);
     deadlineRef.current = 0;
     setRemainingSeconds(null);
     // Handoff-leg recovery (2026-11-14): a teardown that lands
@@ -2069,7 +2080,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const partialTeardownForSwap = useCallback(() => {
     walkthroughRef.current = {text:'', continued:false};
     idleRef.current = { enabled: false, stage: 'waiting', quietSince: 0, generating: false, requestedAt: 0, sales: false };
-    setPendingAction(null);
+    // Publish #68: the card (and its waiting chip) belonged to the
+    // socket being torn down — the successor session re-issues from
+    // the durable captured facts if the visitor asks, never from a
+    // chip pointing at a dead session's form.
+    trackPendingAction(null);
+    setWaitingAction(null);
     deadlineRef.current = 0;
     setRemainingSeconds(null);
     setHandoffToken(null);
@@ -3111,10 +3127,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             break;
           }
           case "confirm_action":
-            setPendingAction(msg as unknown as VoiceAction);
+            trackPendingAction(msg as unknown as VoiceAction);
+            setWaitingAction(null);
             break;
           case "cancel_action":
-            setPendingAction(null);
+            if (pendingActionRef.current) setWaitingAction(pendingActionRef.current);
+            trackPendingAction(null);
             break;
           case "action_result":
             setActionNotice(msg.error ? String(msg.error) : msg.calendarConfirmed ? "Appointment confirmed on the AI Hidden Leads sales calendar." : msg.saved ? "Your confirmed follow-up details are saved." : "No action taken.");
@@ -3521,8 +3539,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           if (plan) onRecommendedPlan?.(plan);
           break;
         }
-        case "confirm_action": setPendingAction(msg as unknown as VoiceAction); break;
-        case "cancel_action": setPendingAction(null); break;
+        case "confirm_action": trackPendingAction(msg as unknown as VoiceAction); setWaitingAction(null); break;
+        case "cancel_action": if (pendingActionRef.current) setWaitingAction(pendingActionRef.current); trackPendingAction(null); break;
         case "action_result":
           setActionNotice(msg.error ? String(msg.error) : msg.calendarConfirmed ? "Appointment confirmed on the AI Hidden Leads sales calendar." : msg.saved ? "Your confirmed follow-up details are saved." : "No action taken.");
           break;
@@ -4546,7 +4564,17 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       if (socketOpen) handoffReturnRef.current = null;
     }
   };
-  const confirmation = pendingAction ? <VoiceActionConfirmation key={pendingAction.id} action={pendingAction} onAnswer={(approved, contact) => { wsRef.current?.send(JSON.stringify({type:'confirm_action',id:pendingAction.id,approved,contact})); setPendingAction(null); }}/> : null;
+  const confirmation = pendingAction ? <VoiceActionConfirmation key={pendingAction.id} action={pendingAction} onAnswer={(approved, contact) => { wsRef.current?.send(JSON.stringify({type:'confirm_action',id:pendingAction.id,approved,contact})); if (approved) setWaitingAction(null); else setWaitingAction(pendingAction); trackPendingAction(null); }}/> : null;
+  // Publish #68: the dismissed form's way back. One tap sends
+  // reopen_action; the proxy re-issues the same card (a fresh
+  // confirm_action lands and the card renders above). Rendered only
+  // while no card is up — a fresh card, a completed confirm and
+  // session teardown all retire it.
+  const formWaitingChip = !pendingAction && waitingAction ? (
+    <button type="button" onClick={() => { wsRef.current?.send(JSON.stringify({ type: 'reopen_action' })); setWaitingAction(null); }} className="inline-flex items-center gap-1.5 self-start rounded-full border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/20">
+      Form waiting — tap to open
+    </button>
+  ) : null;
   const transferControl = phase === 'live' && handoffToken ? <BrowserVoiceHandoff token={handoffToken} onActive={onHandoffActive} onEnded={onHandoffEnded} microphone={microphone} startSignal={handoffStartSignal}/> : null;
   // Compact panel (2026-11-11 rearrangement; Batch 1 move, 2026-11-12):
   // the same handoff, same live + token gate, rendered as the compact
@@ -4997,6 +5025,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         </div>
 
         {confirmation}
+        {formWaitingChip}
         {actionNotice && <p role="status" className="text-xs text-primary">{actionNotice}</p>}
         {swapNotice && <p role="status" className="text-xs text-primary">{swapNotice}</p>}
         {videoFallback && <p role="status" className="text-[11px] text-muted-foreground">{t("voice.videoFallback", { name: speakerName })}</p>}
@@ -5137,6 +5166,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         {stagedAvatarView}
         <Card className="p-4 space-y-3">
           {confirmation}
+          {formWaitingChip}
         {actionNotice && <p role="status" className="text-xs text-primary">{actionNotice}</p>}
         {swapNotice && <p role="status" className="text-xs text-primary">{swapNotice}</p>}
         {videoFallback && <p role="status" className="text-xs text-muted-foreground">{t("voice.videoFallback", { name: speakerName })}</p>}

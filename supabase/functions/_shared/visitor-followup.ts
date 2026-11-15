@@ -1,5 +1,32 @@
 export const CONTACT_READBACK_POLICY = `CONTACT CONFIRMATION POLICY (overrides older contact instructions): Before requesting platform follow-up, ask the visitor to spell their first and last name, even when supplied on the form. Read the name spelling back letter by letter at a brisk but intelligible pace, and ask if correct. Spell the email address back, saying at, dot, hyphen and underscore explicitly. Read the phone number digit by digit if offered; never require an optional phone. Wait for the visitor's verbal confirmation or corrections; do not infer agreement from silence. Correct and repeat any changed details before continuing. Then show the on-screen confirmation so the visitor can check what they heard and explicitly consent. Verbal approval alone never saves details, and a button click never replaces the verbal readback. Never claim saving succeeded before the successful tool result.`;
 
+/** CAPTURE RITUAL (Publish #68, 2026-11-15 — Ron's Frank test: the
+ *  email was disclosed only after he challenged the presenter twice
+ *  and spelled out a session late; the mobile was read back in one
+ *  session and "not on file" two sessions later). The readback the
+ *  CONTACT CONFIRMATION POLICY stages before the platform card is
+ *  too late and too narrow: EVERY capture moment — in role for the
+ *  simulated business or out of role for AI Hidden Leads — confirms
+ *  back at the moment of capture, and the texting ask rides that
+ *  same moment instead of surfacing (or not) at booking time. The
+ *  record_captured_contact call is what makes the capture durable
+ *  (see _shared/captured-contact.ts): a detail that was only ever
+ *  spoken lives in a transcript window and can be elided out of a
+ *  successor's memory; a recorded one is stamped as a fact. */
+export const CAPTURE_RITUAL_POLICY = `CAPTURE RITUAL — THE MOMENT A DETAIL IS GIVEN (Publish #68): the instant the visitor gives you an email address or a phone number — in role or out of it, for the business or for AI Hidden Leads — confirm it back in that same exchange, before anything else moves on: spell the email letter by letter (saying at, dot, hyphen and underscore), read the phone back in its natural spoken groups (area code, then the next three digits, then the last four), and ask one short question: "Did I get that right?" Wait for their answer. If they correct anything, take the correction, read the corrected detail back once, and only then continue. Never let a captured detail pass unconfirmed in the moment, and never leave its read-back for later or for another session. THE TEXTING ASK RIDES THE SAME MOMENT: when a mobile number is captured and texting consent has not already been given or declined, ask right then — in role, the way the business would ("May we text you on this number?"); out of role, for AI Hidden Leads the same plain ask — and take the answer as it lands: a spoken yes is consent, a no is final for this visit, and neither is ever re-asked. RECORD THE CAPTURE AT ONCE: when the visitor has confirmed the read-back, call record_captured_contact with the confirmed details and the texting answer — that is what makes the capture stick across reconnects. Recording never claims a real-world save, booking or message: in role it notes the details for this visit, and platform saves still require the on-screen confirmation exactly as the contact confirmation policy states.`;
+
+/** FORM RE-PRESENTATION (Publish #68, 2026-11-15 — Ron's Frank test:
+ *  he dismissed the contact card with an outside tap, then asked
+ *  three times to "put the form back on" and the presenter had no
+ *  way to re-issue it — the card was one-shot, and the close's
+ *  never-ask-again discipline read his explicit ask as a refusal to
+ *  argue with). A dismissal is not a refusal, and the visitor's own
+ *  request to see the form again is the one thing that always
+ *  re-opens it. The proxy backs this with the
+ *  re_present_confirmation_card tool, which re-issues the SAME card
+ *  with the SAME details — no detail is ever re-asked. */
+export const CARD_REPRESENT_POLICY = `FORM RE-PRESENTATION (Publish #68): closing the on-screen confirmation form is NOT a refusal — visitors close it by accident, to look at something first, or because it covered what they were reading. If the visitor asks, in any words, to see the form again — "put the form back on", "show me the form", "I closed it", "I wasn't finished", "bring it back" — call re_present_confirmation_card at once: the same form returns with the same details already in it. Never re-ask for a detail they already gave, never make them repeat anything, and never treat the earlier closing as a no. Only the visitor's own ask re-opens the form: never re-present it unprompted, and if they decline the follow-up or the booking itself — as opposed to closing its form — accept that warmly and do not raise the form again unless they ask.`;
+
 export function contactReadback(contact: { name: string; email: string; phone: string }) {
   return {
     name: contact.name.trim().split(/\s+/).map(part => Array.from(part).join(' - ')).join(' / '),

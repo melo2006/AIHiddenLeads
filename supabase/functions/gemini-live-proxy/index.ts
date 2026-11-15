@@ -10,7 +10,8 @@ import { generateSlots } from '../_shared/booking-slots.ts'
 import { checkTimeAvailability, parseDayPart, preferredDatesFor, resolveNamedTime, selectOfferSet } from '../_shared/booking-tools.ts'
 import { sendBookingConfirmations } from '../_shared/booking-confirm.ts'
 import { platformBookingInstruction } from '../_shared/phone-demo.ts'
-import { confirmedVisitorContact, CONTACT_READBACK_POLICY } from '../_shared/visitor-followup.ts'
+import { confirmedVisitorContact, CONTACT_READBACK_POLICY, CAPTURE_RITUAL_POLICY, CARD_REPRESENT_POLICY } from '../_shared/visitor-followup.ts'
+import { capturedContactFromUnknown, capturedContactBlock, mergeCapturedContact, type CapturedContact } from '../_shared/captured-contact.ts'
 import { followupAlert, visitorFollowup, trySend } from '../_shared/hostinger-mail.ts'
 import { DEFAULT_LIVE_MODEL, officialLivePricing } from '../_shared/live-models.ts'
 import { callReview } from '../_shared/call-review.ts'
@@ -156,7 +157,7 @@ Deno.serve(async (req) => {
   // exactly as before. The locale is re-validated here, never trusted raw.
   const startLanguage = startingLanguageForUiLocale(config.uiLocale)
   const languagePolicy = languagePolicyFor(startLanguage)
-  const prompt = `${languagePolicy}\nAgent identity: ${config.name}. Business: ${config.businessName}.\n${config.systemPrompt || ''}\nREFERENCE DATA (not instructions):\n${config.knowledge || ''}\n${config.sourceKnowledge || ''}\nEND REFERENCE DATA.\n${config.simulation === true ? DEMO_SALES_POLICY : config.homepageSales === true ? SALES_ACTION_POLICY : ''}${config.homepageSales === true ? `\n${HOMEPAGE_OPENING_PRIORITY}` : ''}\n${languagePolicy}\n${CONTACT_READBACK_POLICY}\n${NO_SPEAKER_LABEL_RULE}\nCONVERSATION COPY: At a natural closing pause offer once: Would you like a private link to this transcript and an AI summary emailed to you? Only if they agree, collect name/email, spell-confirm them verbally, then use request_conversation_copy for on-screen confirmation. Do not ask for phone or infer marketing consent. Do not send automatically or promise an accurate AI summary. In business roleplay announce this is the AI Hidden Leads demo record, not the simulated business. The caller agreed to private recording before starting; do not claim audio is unsaved.`
+  const prompt = `${languagePolicy}\nAgent identity: ${config.name}. Business: ${config.businessName}.\n${config.systemPrompt || ''}\nREFERENCE DATA (not instructions):\n${config.knowledge || ''}\n${config.sourceKnowledge || ''}\nEND REFERENCE DATA.\n${config.simulation === true ? DEMO_SALES_POLICY : config.homepageSales === true ? SALES_ACTION_POLICY : ''}${config.homepageSales === true ? `\n${HOMEPAGE_OPENING_PRIORITY}` : ''}\n${languagePolicy}\n${CONTACT_READBACK_POLICY}\n${NO_SPEAKER_LABEL_RULE}\nCONVERSATION COPY: At a natural closing pause offer once: Would you like a private link to this transcript and an AI summary emailed to you? Only if they agree, collect name/email, spell-confirm them verbally, then use request_conversation_copy for on-screen confirmation. Do not ask for phone or infer marketing consent. Do not send automatically or promise an accurate AI summary. In business roleplay announce this is the AI Hidden Leads demo record, not the simulated business. The caller agreed to private recording before starting; do not claim audio is unsaved.\n${CAPTURE_RITUAL_POLICY}\n${CARD_REPRESENT_POLICY}`
 
   const { socket: clientSocket, response } = Deno.upgradeWebSocket(req)
 
@@ -174,7 +175,7 @@ Deno.serve(async (req) => {
   let goAwayTimer: ReturnType<typeof setTimeout> | undefined
   let releaseSocket: (() => void) | undefined
   EdgeRuntime.waitUntil(new Promise<void>(resolve => { releaseSocket = resolve }))
-  const pendingActions = new Map<string, { call: {id:string;name:string}; slotStart?:string }>()
+  const pendingActions = new Map<string, { call: {id:string;name:string}; slotStart?:string; synthetic?:boolean }>()
   // Tool calls the provider cancelled while their on-screen
   // confirmation was still up (Batch 1, Fix 7b): the descriptor is
   // kept here so a visitor confirmation that was already in flight
@@ -182,7 +183,48 @@ Deno.serve(async (req) => {
   // (gracefully, as cancelled) instead of vanishing into a silent
   // return that leaves the model waiting on a response.
   const orphanedToolCalls = new Map<string, {id:string;name:string}>()
-  let confirmedContact: {name:string;email:string;phone:string} | null = null
+  // DURABLE CAPTURED FACTS (Publish #68): the contact details this
+  // visitor has captured during the visit, seeded from the stamp
+  // gemini-session carried over from the prior session's row (see
+  // _shared/captured-contact.ts) and merged at every capture moment
+  // below. A stamp that was confirmed on screen in an earlier
+  // session of this same visit seeds confirmedContact too — it WAS
+  // browser-confirmed; the confirmation is a property of the visit,
+  // not of one socket.
+  let capturedContact: CapturedContact | null = capturedContactFromUnknown(config.capturedContact)
+  let confirmedContact: {name:string;email:string;phone:string} | null =
+    capturedContact?.confirmed ? { name: capturedContact.name, email: capturedContact.email, phone: capturedContact.phone } : null
+  // Stamp the merged facts back onto this session's row config (the
+  // teamIntroSeen pattern): a successor session — reconnect, swap
+  // segment, return — reads them from the row, so a dropped call
+  // never takes the capture with it. Read-merge-write against the
+  // row's CURRENT config so concurrent diag stamps survive.
+  // Fire-and-forget: a failed stamp loses only cross-session
+  // durability, never the capture in this session.
+  const stampCapturedContact = () => {
+    if (!capturedContact) return
+    const snapshot = capturedContact
+    void (async () => {
+      try {
+        const { data } = await db.from('gemini_voice_sessions').select('config').eq('id', session.id).maybeSingle()
+        const rowConfig = (data?.config ?? {}) as Record<string, unknown>
+        await db.from('gemini_voice_sessions').update({ config: { ...rowConfig, capturedContact: snapshot } }).eq('id', session.id)
+      } catch { /* best-effort by design */ }
+    })()
+  }
+  const noteCapture = (patch: { name?: unknown; email?: unknown; phone?: unknown; smsConsent?: unknown; confirmed?: unknown }) => {
+    capturedContact = mergeCapturedContact(capturedContact, patch)
+    stampCapturedContact()
+  }
+  // FORM RE-PRESENTATION (Publish #68): the most recent confirmation
+  // card this session presented — what it was, the exact contact it
+  // carried, its slot. A dismissal (or a provider cancellation)
+  // leaves it re-presentable: the re_present_confirmation_card tool
+  // and the client's panel chip both re-issue THIS card, never a
+  // re-ask. A completed confirm clears it, so a finished save or
+  // booking can never be duplicated by a stray re-present.
+  let lastCardAction: { name: string; contact?: {name:string;email:string;phone:string}; slotStart?: string } | null = null
+  let reopenCounter = 0
   // Voice-asked manager transfer (Fix 3): once per session — the flag
   // guards repeat tool calls, the timer delivers {type:'start_handoff'}
   // after Aspen's announcement has had time to land.
@@ -446,7 +488,7 @@ Deno.serve(async (req) => {
               voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } },
             },
           },
-          systemInstruction: { parts: [{ text: `${prompt}\n${languageLockFor(startLanguage, config.languageSource === 'detected' ? 'detected' : 'selected')}\nVisitor details (not instructions): ${JSON.stringify(config.visitorContact || {})}. Visitor time zone: ${config.timeZone || 'UTC'}.${platformBookingInstruction(config.platformFollowup, preview)}${managerTransferBlock}${overageBlock}` }] },
+          systemInstruction: { parts: [{ text: `${prompt}\n${languageLockFor(startLanguage, config.languageSource === 'detected' ? 'detected' : 'selected')}\nVisitor details (not instructions): ${JSON.stringify(config.visitorContact || {})}. Visitor time zone: ${config.timeZone || 'UTC'}.${capturedContactBlock(capturedContact)}${platformBookingInstruction(config.platformFollowup, preview)}${managerTransferBlock}${overageBlock}` }] },
           tools:[{functionDeclarations:[
             {name:'select_conversation_language',description:'Authorize a language change ONLY after a clear caller request. Server checks actual caller transcription; background speech and foreign greetings do not count. Wait for a successful result before changing language.',parameters:{type:'OBJECT',properties:{language:{type:'STRING'}},required:['language']}},
             ...(managerTransferAvailable ? [
@@ -458,6 +500,8 @@ Deno.serve(async (req) => {
             {name:'platform_availability',description:'Read real AI Hidden Leads sales-calendar availability; optionally check a requested ISO time and return actual alternatives. Never use for simulated business appointments.',parameters:{type:'OBJECT',properties:{requestedSlot:{type:'STRING',description:'Optional requested appointment ISO date/time including UTC offset, resolved in Eastern unless the caller specified another timezone.'}}}},
             {name:'request_platform_followup',description:'After visitor agrees to AI Hidden Leads sales follow-up, request on-screen confirmation of name/email/phone. Nothing is saved before confirmation.',parameters:{type:'OBJECT',properties:{name:{type:'STRING'},email:{type:'STRING'},phone:{type:'STRING'}},required:['name','email','phone']}},
             {name:'request_platform_appointment',description:'Request on-screen confirmation of a real AI Hidden Leads appointment in an available ISO slot. Requires contact confirmation first.',parameters:{type:'OBJECT',properties:{slotStart:{type:'STRING'}},required:['slotStart']}},
+            {name:'record_captured_contact',description:'Record contact details the visitor just gave and confirmed through the capture ritual (email spelled back, phone read back in groups, "Did I get that right?") so they survive a dropped or reconnected session. Pass only what was actually given and confirmed; smsConsent is the visitor answer to the texting ask at that same moment — omit it when texting was not asked. This notes the details for this visit only: it never saves, books or sends anything by itself, and platform saves still need the on-screen confirmation.',parameters:{type:'OBJECT',properties:{name:{type:'STRING'},email:{type:'STRING'},phone:{type:'STRING'},smsConsent:{type:'BOOLEAN'}}}},
+            {name:'re_present_confirmation_card',description:'Put the most recent on-screen confirmation form (follow-up, appointment or conversation copy) back on the visitor screen with the same details, when the visitor asks to see it again after closing it. Never re-ask for details they already gave. Errors when no form was shown yet in this session or one is already on screen.'},
             {name:'get_availability',description:'Read real AI Hidden Leads sales-calendar availability for the slot-offer close. Returns the raw slots plus an offer set of up to 3 real slots (each with spokenLabel; one marked recommended) picked for the visitor preference. Offer ONLY slots from a tool result; never invent a time.',parameters:{type:'OBJECT',properties:{day:{type:'STRING',enum:['today','tomorrow','day_after'],description:"The visitor's stated day preference from the preference-first ask."},dayPart:{type:'STRING',enum:['morning','midday','afternoon','evening'],description:"The visitor's stated part of day, if any."}}}},
             {name:'check_time',description:'Check the exact time the visitor named for an AI Hidden Leads appointment. Returns bookable true with the slot, or bookable false with a reason and nearest real alternatives.',parameters:{type:'OBJECT',properties:{date:{type:'STRING',description:'ET calendar date the visitor named, YYYY-MM-DD.'},time:{type:'STRING',description:'ET wall time the visitor named, e.g. "2:30 PM".'},iso:{type:'STRING',description:'Full ISO datetime instead of date+time, when known.'}}}},
             {name:'book_call',description:'Book the AI Hidden Leads implementation call server-side in an exact slot from get_availability or check_time, using contact details ALREADY confirmed on this session (request_platform_followup) — never re-ask for them. Use ONLY when the visitor will not use the on-screen confirmation. The result reports per-channel confirmation outcomes; claim only what it confirms.',parameters:{type:'OBJECT',properties:{slotStart:{type:'STRING'},smsConsent:{type:'BOOLEAN',description:"The visitor's answer to the confirmation-text permission ask; omit when the demo form already recorded one (the server then uses the stored answer)."}},required:['slotStart']}},
@@ -596,13 +640,18 @@ Deno.serve(async (req) => {
               if (!slotStart || !Number.isFinite(Date.parse(slotStart))) { respond({error:'Choose a valid ISO appointment time from availability.'}); continue; }
               try {
                 // SMS consent: the visitor's in-flow answer when given;
-                // otherwise the demo form's stored answer on the lead —
-                // never re-ask for what the form already recorded.
+                // otherwise the durable captured-facts store (Publish
+                // #68 — the capture-moment answer, this session's or a
+                // prior session's of this visit); otherwise the demo
+                // form's stored answer on the lead — never re-ask for
+                // what was already answered anywhere.
                 let smsConsent = typeof call.args?.smsConsent === 'boolean' ? call.args.smsConsent : undefined;
+                if (smsConsent === undefined && capturedContact?.smsConsent !== undefined) smsConsent = capturedContact.smsConsent;
                 if (smsConsent === undefined && session.lead_id) {
                   const { data: leadRow } = await db.from('leads').select('sms_consent').eq('id', session.lead_id).maybeSingle();
                   if (leadRow && typeof leadRow.sms_consent === 'boolean') smsConsent = leadRow.sms_consent;
                 }
+                if (typeof call.args?.smsConsent === 'boolean') noteCapture({ smsConsent: call.args.smsConsent });
                 const booked = await bookPlatformCall(db, { ...confirmedContact, businessName: String(config.businessName), slotStart, smsConsent: smsConsent === true });
                 if (!(booked as { ok?: boolean }).ok) { respond({ error: 'That time could not be booked.' }); continue; }
                 const { confirmationSms, emailSent } = await sendBookingConfirmations(db, booked, { ...confirmedContact, businessName: String(config.businessName), slotStart, smsConsent: smsConsent === true });
@@ -613,6 +662,29 @@ Deno.serve(async (req) => {
               if (requestedSlot !== undefined && (typeof requestedSlot !== 'string' || requestedSlot.length > 100 || !/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(requestedSlot) || !Number.isFinite(Date.parse(requestedSlot)))) { respond({error:'Provide a valid requested ISO date and time with its UTC offset.'}); continue; }
               try { respond(voiceAvailability(await platformAvailability(db), new Date(), requestedSlot)); }
               catch(e) { respond({error:e instanceof Error?e.message:'Availability unavailable',slots:[]}); }
+            } else if (call.name === 'record_captured_contact') {
+              // CAPTURE RITUAL (Publish #68): the presenter confirmed
+              // the details back in the moment (spelled email, grouped
+              // phone, "Did I get that right?") and records them here
+              // so the capture survives a drop. Notes the visit only —
+              // no save, no booking, no message is claimed or made.
+              noteCapture({ name: call.args?.name, email: call.args?.email, phone: call.args?.phone, smsConsent: call.args?.smsConsent });
+              respond({recorded:true,note:'Details noted for this visit and carried across reconnects. This is not a save or a booking: platform saves still need the on-screen confirmation.'});
+            } else if (call.name === 're_present_confirmation_card') {
+              // FORM RE-PRESENTATION (Publish #68): the visitor asked
+              // for the dismissed form back. The tool call itself is
+              // answered at once (the form is on its way back); the
+              // re-issued card is registered as a SYNTHETIC pending
+              // action — its confirm performs the original action and
+              // reports the outcome by injection, exactly like the
+              // panel chip's reopen, so no tool response is ever owed
+              // for a call that already completed.
+              if (pendingActions.size > 0) { respond({error:'A visitor confirmation is already on screen.'}); continue; }
+              if (!lastCardAction) { respond({error:'No confirmation form has been shown yet in this session, so there is nothing to bring back. Offer the follow-up or booking first and show its form in the usual way.'}); continue; }
+              const reopenId = `reopen-${++reopenCounter}`;
+              pendingActions.set(reopenId,{call:{id:reopenId,name:lastCardAction.name},slotStart:lastCardAction.slotStart,synthetic:true});
+              clientSocket.send(JSON.stringify({type:'confirm_action',id:reopenId,action:lastCardAction.name,contact:lastCardAction.contact,slotStart:lastCardAction.slotStart}));
+              respond({presented:true,action:lastCardAction.name,instruction:'The form is back on the visitor screen with the same details. Wait for them to confirm or close it there; do not re-ask for any detail.'});
             } else if (call.name === 'request_platform_followup' || call.name === 'request_platform_appointment' || call.name === 'request_conversation_copy') {
               if (pendingActions.size > 0) { respond({error:'A visitor confirmation is already pending.'}); continue; }
               if (call.name === 'request_platform_appointment' && !confirmedContact) { respond({error:'Ask the visitor to confirm contact details first.'}); continue; }
@@ -620,6 +692,12 @@ Deno.serve(async (req) => {
               if (call.name === 'request_platform_appointment' && (!slotStart || !Number.isFinite(Date.parse(slotStart)))) { respond({error:'Choose a valid ISO appointment time from availability.'}); continue; }
               pendingActions.set(call.id,{call:{id:call.id,name:call.name},slotStart});
               const contact = call.name !== 'request_platform_appointment' ? {name: typeof call.args?.name === 'string' ? call.args.name.slice(0,100) : '',email: typeof call.args?.email === 'string' ? call.args.email.slice(0,255) : '',phone: typeof call.args?.phone === 'string' ? call.args.phone.slice(0,30) : ''} : confirmedContact;
+              // Publish #68: remember the card for re-presentation,
+              // and record the verbally captured details behind it —
+              // the args ARE the capture the ritual just confirmed,
+              // so a dismissal or a drop from here loses nothing.
+              lastCardAction = { name: call.name, contact: contact as {name:string;email:string;phone:string}, slotStart };
+              if (call.name !== 'request_platform_appointment') noteCapture(contact);
               clientSocket.send(JSON.stringify({type:'confirm_action',id:call.id,action:call.name,contact,slotStart}));
             } else respond({error:'Unsupported action.'});
           }
@@ -877,6 +955,10 @@ Deno.serve(async (req) => {
             const contact=confirmedVisitorContact(msg.contact);await recordReady;if(!recordId)throw new Error('Conversation recording unavailable.');
             const {error}=await db.from('conversation_records').update({recipient_name:contact.name,recipient_email:contact.email,copy_requested_at:new Date().toISOString()}).eq('id',recordId);
             if(error)throw new Error('Copy request could not be saved.');response={requested:true,sendAfterCall:true,marketingConsent:false};
+            // Publish #68: a completed card confirm is a capture —
+            // record it durably and retire the card from
+            // re-presentation (a finished request never re-issues).
+            noteCapture({name:contact.name,email:contact.email,confirmed:true}); lastCardAction=null;
           }
           else if (action.call.name === 'request_platform_followup') {
             const contact=confirmedVisitorContact(msg.contact);
@@ -900,6 +982,9 @@ Deno.serve(async (req) => {
               clientResult={saved:false,keptInCallRecord:true,error:CONTACT_SAVE_CLIENT_ERROR};
             } else {
               confirmedContact=contact; response={saved:true,platform:'AI Hidden Leads'};
+              // Publish #68: the on-screen confirmation makes this
+              // the visit's durable, confirmed capture.
+              noteCapture({...contact,confirmed:true}); lastCardAction=null;
               const mailContact={...contact,businessName:String(config.businessName||'')};
               void trySend(followupAlert(mailContact)); void trySend(visitorFollowup({...mailContact,screenshot:saved.lead?.website_screenshot ?? undefined,didDemo:!!session.prospect_id}));
             }
@@ -923,12 +1008,23 @@ Deno.serve(async (req) => {
             // and card bookings NEVER texted (NULL stamp, zero
             // delivery-log rows — the three Nov 16 test bookings).
             let smsConsent = typeof msg.contact?.smsConsent === 'boolean' ? msg.contact.smsConsent : undefined;
+            // Publish #68: the durable captured-facts store outranks
+            // the lead row — it holds the answer given at the capture
+            // moment, in this session or an earlier one of this visit.
+            if (smsConsent === undefined && capturedContact?.smsConsent !== undefined) smsConsent = capturedContact.smsConsent;
             if (smsConsent === undefined && session.lead_id) {
               const { data: leadRow } = await db.from('leads').select('sms_consent').eq('id', session.lead_id).maybeSingle();
               if (leadRow && typeof leadRow.sms_consent === 'boolean') smsConsent = leadRow.sms_consent;
             }
             const booked=await bookPlatformCall(db,{...cardContact,businessName:String(config.businessName),slotStart:action.slotStart,smsConsent:smsConsent === true});
             response=booked;
+            // Publish #68: the card just confirmed these details on
+            // screen (and its texting answer, when the payload or the
+            // store carried one) — record them as the visit's durable
+            // confirmed capture. A completed booking retires the card
+            // from re-presentation; a failed one stays re-presentable.
+            noteCapture({name:cardContact.name,email:cardContact.email,phone:cardContact.phone,confirmed:true,...(typeof smsConsent === 'boolean' ? {smsConsent} : {})});
+            if((booked as {ok?:boolean}).ok) lastCardAction=null;
             // Same confirmation machinery as every booking path (emails
             // + .ics invite + consented SMS), via the shared helper.
             // Fire-and-forget as before: the visitor sees action_result
@@ -937,7 +1033,38 @@ Deno.serve(async (req) => {
           }
         } catch(e) {response={error:e instanceof Error?e.message:'Action failed'};}
         clientSocket.send(JSON.stringify({type:'action_result',id:msg.id,...(clientResult ?? response)}));
-        geminiWs.send(JSON.stringify({toolResponse:{functionResponses:[{...action.call,response}]}}));
+        if (action.synthetic) {
+          // Publish #68: a re-issued card (panel chip or the
+          // re_present tool) has no live tool call waiting — its
+          // tool, if any, already completed. A completed confirm is
+          // reported to the model as an injected turn instead, so
+          // the presenter can acknowledge it; a re-dismissal needs
+          // no report (nothing was promised), and an armed farewell
+          // owns the close, so nothing is injected over it.
+          if (msg.approved === true && !(response as {error?:unknown}).error && !farewellTimer) {
+            const note = action.call.name === 'request_platform_appointment'
+              ? 'The visitor reopened the appointment form from the panel and confirmed it — the appointment is booked. Confirm the day and time briefly, then continue naturally.'
+              : action.call.name === 'request_conversation_copy'
+                ? 'The visitor reopened the form from the panel and confirmed it — their conversation copy will be emailed to them after the call. Thank them briefly and continue.'
+                : 'The visitor reopened the follow-up form from the panel and confirmed it — their details are saved. Thank them briefly and continue.';
+            geminiWs.send(JSON.stringify({clientContent:{turns:[{role:'user',parts:[{text:note}]}],turnComplete:true}}));
+          }
+        } else {
+          geminiWs.send(JSON.stringify({toolResponse:{functionResponses:[{...action.call,response}]}}));
+        }
+      } else if (msg.type === 'reopen_action') {
+        // FORM RE-PRESENTATION, client half (Publish #68): the
+        // visitor tapped the panel's "Form waiting" chip. Re-issue
+        // the remembered card as a synthetic pending action — its
+        // confirm runs the original action and reports by injection
+        // (see the confirm handler). No remembered card, or one
+        // already on screen: the tap is simply inert.
+        if (lastCardAction && pendingActions.size === 0) {
+          const reopenId = `reopen-${++reopenCounter}`;
+          pendingActions.set(reopenId,{call:{id:reopenId,name:lastCardAction.name},slotStart:lastCardAction.slotStart,synthetic:true});
+          clientSocket.send(JSON.stringify({type:'confirm_action',id:reopenId,action:lastCardAction.name,contact:lastCardAction.contact,slotStart:lastCardAction.slotStart}));
+        }
+        return;
       } else if (msg.type === 'audio'  && typeof msg.data === 'string' && msg.data.length <= 48000 && /^[A-Za-z0-9+/=]+$/.test(msg.data)) {
         inputAudioSeconds += pcmSeconds(msg.data, 16000)
         captureAudio('caller',msg.data);

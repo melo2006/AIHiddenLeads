@@ -20,6 +20,7 @@ import { PUBLIC_PATHS } from '../_shared/report-context.ts';
 import { normalizeUiLocale, resolveDemoStartLocale, startingLanguageForUiLocale, type UiLocale } from '../_shared/conversation-language.ts';
 import { voiceForLocaleSession } from '../_shared/locale-voices.ts';
 import { buildTranscriptRecap } from '../_shared/recap-builder.ts';
+import { capturedContactFromConfig, type CapturedContact } from '../_shared/captured-contact.ts';
 const personaSegmentSchema=z.object({persona:z.enum(['aspen','sara','alex','frank','latina','black-professional-lady']),boundary:z.enum(['doorway','stepout','meet-alex','return','summon-aspen','intro-sara','intro-return-1','intro-alex','intro-return-2']),parentSessionId:z.string().uuid(),swapRecap:z.string().max(8000),drops:z.number().int().min(0).max(99).default(0),dropRecovery:z.boolean().default(false),manualResume:z.boolean().default(false),swap:z.boolean().default(false),teamIntroSeen:z.boolean().default(false)});
 // SWAP DIAG (voice-first batch, 2026-11-10): the client posts a doorway
 // attempt's RESOLUTION (gate-abort, fallback, forced-execute,
@@ -592,9 +593,30 @@ Deno.serve(async req=>{
   // are untouched.
   const visitorKeyHash = await hash(b.visitorKey);
   let effectiveResumeContext = b.resumeContext;
+  // DURABLE CAPTURED FACTS (Publish #68): the same prior-row lookup
+  // that synthesizes the recap also recovers the captured-contact
+  // stamp (see _shared/captured-contact.ts) — contact facts are
+  // recovered independently of the transcript, because a capture is
+  // a fact, not a transcript line: a prior session whose transcript
+  // was never stored (or whose recap window elided the capture turn)
+  // still hands its captured name/email/mobile/consent forward.
+  // Unlike the recap, segment rows are legitimate sources here (a
+  // capture taken inside Sara's segment is stamped on HER row), so
+  // the scan takes the newest stamped row from either lookup,
+  // segment or not. The stamp lands on the new config in the final
+  // assembly below; persona segments inherit it from the parent
+  // row's config spread instead.
+  let priorCaptured: CapturedContact | null = null;
   if (!b.personaSegment && !b.preview && !b.draft && !b.share && !b.guide
     && (b.reconnect === true || !b.resumeContext || b.resumeContext.trim().length < 200)) {
     try {
+      const scanCaptured = (rows: unknown[] | null | undefined) => {
+        if (priorCaptured) return;
+        for (const row of rows || []) {
+          const found = capturedContactFromConfig((row as { config?: unknown }).config);
+          if (found) { priorCaptured = found; return; }
+        }
+      };
       const priorSince = new Date(Date.now() - 30 * 60_000).toISOString();
       const priorVisitorHash = await hash(`${b.visitorKey}|${req.headers.get('x-forwarded-for')?.split(',')[0] || ''}`);
       let priorQuery = db.from('gemini_voice_sessions')
@@ -607,6 +629,7 @@ Deno.serve(async req=>{
       else if (b.prospectId) priorQuery = priorQuery.eq('prospect_id', b.prospectId);
       else priorQuery = priorQuery.eq('agent_id', agentId);
       const { data: priorRows } = await priorQuery;
+      scanCaptured(priorRows);
       const usablePrior = (row: unknown) => {
         const priorConfig = (row as { config?: Record<string, unknown> }).config || {};
         return !priorConfig.personaSegment && priorConfig.preview !== true
@@ -630,6 +653,7 @@ Deno.serve(async req=>{
         else if (b.prospectId) fallbackQuery = fallbackQuery.eq('prospect_id', b.prospectId);
         else fallbackQuery = fallbackQuery.eq('agent_id', agentId);
         const { data: fallbackRows } = await fallbackQuery;
+        scanCaptured(fallbackRows);
         prior = (fallbackRows || []).find(usablePrior);
       }
       const synthesized = prior ? buildTranscriptRecap((prior as { transcript?: unknown }).transcript) : undefined;
@@ -638,8 +662,57 @@ Deno.serve(async req=>{
       }
     } catch { /* synthesis is best-effort: the client's recap stands */ }
   }
+  // Publish #68, second chance: a reconnect carrying a FULL client
+  // recap skips the synthesis block above (its gate is recap-shaped),
+  // but captured facts are not recap-shaped — the capture turn can
+  // sit in the recap's elided middle while the fact itself must
+  // survive. On a reconnect with no stamp recovered yet, run the
+  // same two lookups config-only and take the newest stamp.
+  if (!priorCaptured && !b.personaSegment && !b.preview && !b.draft && !b.share && !b.guide && b.reconnect === true) {
+    try {
+      const capturedSince = new Date(Date.now() - 30 * 60_000).toISOString();
+      const capturedHash = await hash(`${b.visitorKey}|${req.headers.get('x-forwarded-for')?.split(',')[0] || ''}`);
+      const scanRows = (rows: unknown[] | null | undefined) => {
+        for (const row of rows || []) {
+          const found = capturedContactFromConfig((row as { config?: unknown }).config);
+          if (found) return found;
+        }
+        return null;
+      };
+      let capturedQuery = db.from('gemini_voice_sessions')
+        .select('config,created_at')
+        .eq('visitor_hash', capturedHash)
+        .gte('created_at', capturedSince)
+        .order('created_at', { ascending: false })
+        .limit(5);
+      if (b.leadId) capturedQuery = capturedQuery.eq('lead_id', b.leadId);
+      else if (b.prospectId) capturedQuery = capturedQuery.eq('prospect_id', b.prospectId);
+      else capturedQuery = capturedQuery.eq('agent_id', agentId);
+      const { data: capturedRows } = await capturedQuery;
+      priorCaptured = scanRows(capturedRows);
+      if (!priorCaptured) {
+        let capturedFallback = db.from('gemini_voice_sessions')
+          .select('config,created_at')
+          .eq('config->>visitorKeyHash', visitorKeyHash)
+          .gte('created_at', capturedSince)
+          .order('created_at', { ascending: false })
+          .limit(5);
+        if (b.leadId) capturedFallback = capturedFallback.eq('lead_id', b.leadId);
+        else if (b.prospectId) capturedFallback = capturedFallback.eq('prospect_id', b.prospectId);
+        else capturedFallback = capturedFallback.eq('agent_id', agentId);
+        const { data: capturedFallbackRows } = await capturedFallback;
+        priorCaptured = scanRows(capturedFallbackRows);
+      }
+    } catch { /* captured recovery is best-effort, like the synthesis */ }
+  }
 
   config={...config,visitorKeyHash,timeZone:effectiveTimeZone,...(uiLocale ? {uiLocale, startLanguage: startingLanguageForUiLocale(uiLocale)} : detectedSiteLocale ? {uiLocale: detectedSiteLocale, startLanguage: startingLanguageForUiLocale(detectedSiteLocale), languageSource: 'detected'} : {}),quotaClass:segmentParentId?'persona_segment':b.share?'visitor':voiceQuotaClass(role?.role==='admin',b.preview),model:requestedModel || DEFAULT_LIVE_MODEL,opening:openingFor(config,greetingHour,greetingName),preview:b.preview,resumeContext:b.preview?undefined:(segmentParentId?String(config.resumeContext || ''):effectiveResumeContext),reconnect:segmentParentId?false:!b.preview&&b.reconnect,campaign:b.campaign || (segmentParentId?(config.campaign ?? null):null),recordTranscript:segmentParentId?config.recordTranscript===true:!b.preview && transcriptAllowed(false,false,b.consent),recordAudio:segmentParentId?config.recordAudio===true:!b.preview && b.consent};
+  // Publish #68: the recovered captured-contact stamp lands on the
+  // assembled config (kept out of the assembly line itself, which is
+  // pinned byte-exact by the #64 tests). Segments never reach this:
+  // priorCaptured is only set by the non-segment synthesis above,
+  // and a segment's own inheritance rides the parent spread.
+  if (priorCaptured) config.capturedContact = priorCaptured;
   // DEMO-SITE OPENING RENDER (2026-11-12 late — live retest of the
   // Scalone batch, session 96d54121): openingFor returned the picked
   // demo rotation variant VERBATIM, and the demo-site variants are
