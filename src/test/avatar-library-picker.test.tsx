@@ -41,9 +41,9 @@ describe("AvatarLibraryGrid", () => {
       "Choose face Aspen",
       "Choose face Frank",
       "Choose face Monica",
-      "Choose face Black Professional Lady",
-      "Choose face Executive",
-      "Choose face Middle-Aged Pro",
+      "Choose face Denise",
+      "Choose face Andy",
+      "Choose face Daniel",
       "Choose face Sara",
       "Choose face Alex",
     ]);
@@ -95,20 +95,20 @@ describe("AvatarSettings — library pick wiring", () => {
     expect(onNameChange).toHaveBeenCalledWith("Monica");
   });
 
-  it("picking Executive sets face + matched voice but never a name", () => {
+  it("picking Andy sets face + matched voice AND his settled name", () => {
     const { onChange, onVoiceChange, onNameChange } = renderSettings();
-    fireEvent.click(screen.getByRole("button", { name: "Choose face Executive" }));
+    fireEvent.click(screen.getByRole("button", { name: "Choose face Andy" }));
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ faceId: EXECUTIVE_D_FACE_ID }));
     expect(onVoiceChange).toHaveBeenCalledTimes(1);
-    expect(onNameChange).not.toHaveBeenCalled();
+    expect(onNameChange).toHaveBeenCalledWith("Andy");
   });
 
-  it("picking Middle-Aged Pro sets face + matched voice but never a name", () => {
+  it("picking Daniel sets face + matched voice AND his settled name", () => {
     const { onChange, onVoiceChange, onNameChange } = renderSettings();
-    fireEvent.click(screen.getByRole("button", { name: "Choose face Middle-Aged Pro" }));
+    fireEvent.click(screen.getByRole("button", { name: "Choose face Daniel" }));
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ faceId: MIDDLE_AGED_PRO_FACE_ID }));
     expect(onVoiceChange).toHaveBeenCalledWith("Rasalgethi");
-    expect(onNameChange).not.toHaveBeenCalled();
+    expect(onNameChange).toHaveBeenCalledWith("Daniel");
   });
 
   it("picking a Simli preset sets only the face", () => {

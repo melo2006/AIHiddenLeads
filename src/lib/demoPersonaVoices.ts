@@ -9,11 +9,11 @@
  * `defaultVoice` below is the CODE default each persona falls back to
  * with no override row. For the six registry personas it mirrors
  * supabase/functions/_shared/personas.ts (Aspen=Kore, Sara=Leda,
- * Alex=Puck, Frank=Schedar, Monica=Sulafat, Black Professional
- * Lady=Despina); Executive and Middle-Aged Pro have no server persona
- * (they are library faces — they front no demo session today), so
- * their default is the avatar library's matched voice and an override
- * saved for them is stored/displayed, ready for any future resolver.
+ * Alex=Puck, Frank=Schedar, Monica=Sulafat, Denise=Despina); Andy and
+ * Daniel have no server persona (they are library faces — they front
+ * no demo session today), so their default is the avatar library's
+ * matched voice and an override saved for them is stored/displayed,
+ * ready for any future resolver.
  * A test pins this table against both sources so they cannot drift.
  *
  * The customer setup wizard's library defaults are NOT read from here
@@ -43,9 +43,9 @@ export const DEMO_PERSONA_VOICE_ROWS: DemoPersonaVoiceRow[] = [
   { persona: "alex", libraryKey: "alex", label: "Alex", defaultVoice: "Puck", sessionResolved: true },
   { persona: "frank", libraryKey: "frank", label: "Frank", defaultVoice: "Schedar", sessionResolved: true },
   { persona: "latina", libraryKey: "latina", label: "Monica", defaultVoice: "Sulafat", sessionResolved: true },
-  { persona: "black-professional-lady", libraryKey: "black-professional-lady", label: "Black Professional Lady", defaultVoice: "Despina", sessionResolved: true },
-  { persona: "executive", libraryKey: "executive", label: "Executive", defaultVoice: "Sadaltager", sessionResolved: false },
-  { persona: "middle-aged-pro", libraryKey: "middle-aged-pro", label: "Middle-Aged Pro", defaultVoice: "Rasalgethi", sessionResolved: false },
+  { persona: "black-professional-lady", libraryKey: "black-professional-lady", label: "Denise", defaultVoice: "Despina", sessionResolved: true },
+  { persona: "executive", libraryKey: "executive", label: "Andy", defaultVoice: "Sadaltager", sessionResolved: false },
+  { persona: "middle-aged-pro", libraryKey: "middle-aged-pro", label: "Daniel", defaultVoice: "Rasalgethi", sessionResolved: false },
 ];
 
 export type PersonaVoiceOverrides = Record<string, string>;

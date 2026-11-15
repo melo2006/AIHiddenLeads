@@ -62,7 +62,7 @@ describe("FAIL 2 — rendered presenter stills are the transparent cutouts", () 
     expect(bubbleImgSrc(container)).toContain("b3f85f7f-57ea-4f24-b1f6-a57229b4fae1-cutout");
   });
 
-  it("Black Professional Lady (Ann Chamberlain demo) renders her cutout", () => {
+  it("Denise (Ann Chamberlain demo) renders her cutout", () => {
     const { container } = render(
       <AspenDemoWidget {...baseProps} leadId="1b68b94a-45fa-446c-9395-7f182cb60abd" />,
     );

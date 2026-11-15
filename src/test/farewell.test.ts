@@ -207,7 +207,7 @@ describe('farewellSpeakerName — the banner thanks the session\'s own speaker',
   it('presenter demos thank the presenter, by persona', () => {
     expect(farewellSpeakerName({ name: 'Frank', demoPresenter: 'frank' })).toBe('Frank');
     expect(farewellSpeakerName({ name: 'Monica', demoPresenter: 'latina' })).toBe('Monica');
-    expect(farewellSpeakerName({ name: 'Black Professional Lady', demoPresenter: 'black-professional-lady' })).toBe('Black Professional Lady');
+    expect(farewellSpeakerName({ name: 'Denise', demoPresenter: 'black-professional-lady' })).toBe('Denise');
   });
 
   it('the presenter stamp outranks a stale or Aspen name field', () => {
@@ -217,7 +217,7 @@ describe('farewellSpeakerName — the banner thanks the session\'s own speaker',
     expect(farewellSpeakerName({ name: 'Aspen', demoPresenter: 'frank' })).toBe('Frank');
     expect(farewellSpeakerName({ name: 'Aspen', demoPresenter: 'latina' })).toBe('Monica');
     expect(farewellSpeakerName({ demoPresenter: 'frank' })).toBe('Frank');
-    expect(farewellSpeakerName({ name: '', demoPresenter: 'black-professional-lady' })).toBe('Black Professional Lady');
+    expect(farewellSpeakerName({ name: '', demoPresenter: 'black-professional-lady' })).toBe('Denise');
   });
 
   it('persona segments thank the persona who was live (name field, no stamp)', () => {

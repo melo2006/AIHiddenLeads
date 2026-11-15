@@ -45,17 +45,17 @@ describe("avatar library — data integrity", () => {
     expect(AVATAR_LIBRARY).toHaveLength(SIMLI_FACE_CATALOG.length + 1);
   });
 
-  it("carries settled names only for Aspen, Frank, Monica, Sara and Alex", () => {
+  it("carries settled names only for our named models (Denise, Andy and Daniel settled by Ron 2026-11-15)", () => {
     const settled = AVATAR_LIBRARY.filter((e) => e.nameSettled);
-    expect(settled.map((e) => e.suggestedName).sort()).toEqual(["Alex", "Aspen", "Frank", "Monica", "Sara"]);
+    expect(settled.map((e) => e.suggestedName).sort()).toEqual(["Alex", "Andy", "Aspen", "Daniel", "Denise", "Frank", "Monica", "Sara"]);
     for (const e of settled) expect(e.suggestedName).toBe(e.label);
   });
 
-  it("labels Executive D descriptively — no settled name, no name pre-fill", () => {
+  it("labels Executive D with his settled name Andy — picking his tile pre-fills it", () => {
     const exec = avatarLibraryEntryByFaceId(EXECUTIVE_D_FACE_ID);
-    expect(exec?.label).toBe("Executive");
-    expect(exec?.nameSettled).toBe(false);
-    expect(exec?.suggestedName).toBeUndefined();
+    expect(exec?.label).toBe("Andy");
+    expect(exec?.nameSettled).toBe(true);
+    expect(exec?.suggestedName).toBe("Andy");
   });
 
   it("labels Monica with her settled name — picking her tile pre-fills it", () => {
@@ -65,15 +65,15 @@ describe("avatar library — data integrity", () => {
     expect(monica?.suggestedName).toBe("Monica");
   });
 
-  it("labels Black Professional Lady and Middle-Aged Pro descriptively — working labels, no name pre-fill", () => {
+  it("labels Denise and Daniel with their settled names — picking their tiles pre-fills them", () => {
     const lady = avatarLibraryEntryByFaceId(BLACK_PROFESSIONAL_LADY_FACE_ID);
-    expect(lady?.label).toBe("Black Professional Lady");
-    expect(lady?.nameSettled).toBe(false);
-    expect(lady?.suggestedName).toBeUndefined();
+    expect(lady?.label).toBe("Denise");
+    expect(lady?.nameSettled).toBe(true);
+    expect(lady?.suggestedName).toBe("Denise");
     const pro = avatarLibraryEntryByFaceId(MIDDLE_AGED_PRO_FACE_ID);
-    expect(pro?.label).toBe("Middle-Aged Pro");
-    expect(pro?.nameSettled).toBe(false);
-    expect(pro?.suggestedName).toBeUndefined();
+    expect(pro?.label).toBe("Daniel");
+    expect(pro?.nameSettled).toBe(true);
+    expect(pro?.suggestedName).toBe("Daniel");
   });
 
   it("pairs our models with real Gemini Live voices", () => {
@@ -101,7 +101,7 @@ describe("avatar library — data integrity", () => {
   });
 
   it("does not include faces whose Simli generation has not completed", () => {
-    // Monica's face, the Black Professional Lady and Middle-Aged Pro
+    // Monica's face, Denise's and Daniel's faces
     // landed once their face ids existed (they are catalog faces,
     // listed as own models above). Latino Techie stays absent until
     // its face id exists; nothing beyond the catalog + Executive D
@@ -117,12 +117,9 @@ describe("avatar library — pick behavior (pure)", () => {
     expect(avatarLibraryPick(frank)).toEqual({ faceId: FRANK_FACE_ID, voice: "Schedar", suggestedName: "Frank" });
   });
 
-  it("picking Executive applies face + matched voice but NO name", () => {
+  it("picking Andy (Executive D) applies face + matched voice AND his settled name", () => {
     const exec = avatarLibraryEntryByFaceId(EXECUTIVE_D_FACE_ID)!;
-    const pick = avatarLibraryPick(exec);
-    expect(pick.faceId).toBe(EXECUTIVE_D_FACE_ID);
-    expect(pick.voice).toBe(exec.matchedVoice);
-    expect("suggestedName" in pick).toBe(false);
+    expect(avatarLibraryPick(exec)).toEqual({ faceId: EXECUTIVE_D_FACE_ID, voice: "Sadaltager", suggestedName: "Andy" });
   });
 
   it("picking Monica applies her face, the Sulafat voice AND her settled name", () => {
@@ -130,11 +127,11 @@ describe("avatar library — pick behavior (pure)", () => {
     expect(avatarLibraryPick(monica)).toEqual({ faceId: LATINA_FACE_ID, voice: "Sulafat", suggestedName: "Monica" });
   });
 
-  it("picking Black Professional Lady or Middle-Aged Pro applies face + matched voice but NO name", () => {
+  it("picking Denise or Daniel applies face + matched voice AND their settled names", () => {
     const lady = avatarLibraryEntryByFaceId(BLACK_PROFESSIONAL_LADY_FACE_ID)!;
-    expect(avatarLibraryPick(lady)).toEqual({ faceId: BLACK_PROFESSIONAL_LADY_FACE_ID, voice: "Despina" });
+    expect(avatarLibraryPick(lady)).toEqual({ faceId: BLACK_PROFESSIONAL_LADY_FACE_ID, voice: "Despina", suggestedName: "Denise" });
     const pro = avatarLibraryEntryByFaceId(MIDDLE_AGED_PRO_FACE_ID)!;
-    expect(avatarLibraryPick(pro)).toEqual({ faceId: MIDDLE_AGED_PRO_FACE_ID, voice: "Rasalgethi" });
+    expect(avatarLibraryPick(pro)).toEqual({ faceId: MIDDLE_AGED_PRO_FACE_ID, voice: "Rasalgethi", suggestedName: "Daniel" });
   });
 
   it("picking a preset applies only the face — voice and name untouched", () => {

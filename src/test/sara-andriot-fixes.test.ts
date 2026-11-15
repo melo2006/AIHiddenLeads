@@ -45,11 +45,11 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { personaSegmentPrompt } from '../../supabase/functions/_shared/personas';
 import {
-  DEMO_SITE_GREETING_VARIANTS, DEMO_SITE_SARA_INTRO, SIMULATION_HOST_SEGMENT,
+  DEMO_SITE_FOLLOW_UP_BEATS, DEMO_SITE_GREETING_VARIANTS, DEMO_SITE_SARA_INTRO, SIMULATION_HOST_SEGMENT,
   SIMULATION_PROMPT, SIMULATION_RECEPTIONIST_SEGMENT, SWAP_HOST_YIELD_BAR,
   renderOpeningTemplate,
 } from '../../supabase/functions/_shared/voice-config';
-import { DEMO_INVITE_GREETING_VARIANTS } from '../../supabase/functions/_shared/demo-sales';
+import { DEMO_INVITE_GREETING_VARIANTS, DEMO_INVITE_OPENING_SWAP } from '../../supabase/functions/_shared/demo-sales';
 import { openingText, personaResumeInstruction, swapOpeningInstruction } from '../../supabase/functions/_shared/session-opening';
 import {
   REALTOR_EXAMPLE_PACKS, REALTOR_EXAMPLE_SIMULATION_SCRIPT, buildExampleListingsLayer,
@@ -166,9 +166,13 @@ describe('Bug 3 — Aspen\'s handoff line ends with the explicit transfer questi
     expect(DEMO_SITE_SARA_INTRO.endsWith('Can I transfer you to Sara now?')).toBe(true);
   });
 
-  it('every demo greeting variant — standard and invite — ends with the question', () => {
-    for (const v of DEMO_SITE_GREETING_VARIANTS) expect(v.endsWith('Can I transfer you to Sara now?')).toBe(true);
-    for (const v of DEMO_INVITE_GREETING_VARIANTS) expect(v.endsWith('Can I transfer you to Sara now?')).toBe(true);
+  it('the greeting segment ends with its inviting question; the Sara introduction — now the last follow-up beat — ends with the transfer question (Publish #67)', () => {
+    for (const v of DEMO_SITE_GREETING_VARIANTS) expect(v.endsWith('Shall we get started?')).toBe(true);
+    for (const v of DEMO_INVITE_GREETING_VARIANTS) expect(v.endsWith('{nameConfirm}')).toBe(true);
+    // The transfer question still closes the opening — as the last
+    // beat on both compositions, not inside the greeting.
+    expect(DEMO_SITE_FOLLOW_UP_BEATS).toContain(DEMO_SITE_SARA_INTRO);
+    expect(DEMO_INVITE_OPENING_SWAP).toContain(DEMO_SITE_SARA_INTRO);
   });
 
   it('the host yield beats make her wait for the answer before the handoff proceeds', () => {
@@ -306,10 +310,16 @@ describe('Bug 6 — Sara chroma-key profile', () => {
 });
 
 describe('Forensics 1 — the segment opening CONFIG is her own in-role line (proven Bug 2 root cause)', () => {
-  it('the parent sales template the segment used to inherit is raw: placeholders, stat, meet-Sara', () => {
-    const rawParent = DEMO_SITE_GREETING_VARIANTS.find(v => v.includes('78%')) ?? DEMO_SITE_GREETING_VARIANTS[0];
+  it('the parent opening template is raw: placeholders in the greeting, stat + meet-Sara in its follow-up beats', () => {
+    const rawParent = DEMO_SITE_GREETING_VARIANTS[0];
     expect(rawParent).toContain('{timeGreeting}');
-    expect(rawParent).toContain('meet Sara');
+    // Publish #67: the greeting itself no longer carries the pitch —
+    // the statistic and the Sara introduction live in the follow-up
+    // beats, which are exactly the material a segment opening must
+    // never inherit (the original forensic point stands).
+    expect(rawParent).not.toContain('meet Sara');
+    expect(DEMO_SITE_FOLLOW_UP_BEATS).toContain('78%');
+    expect(DEMO_SITE_FOLLOW_UP_BEATS).toContain('meet Sara');
   });
 
   it('what gemini-session stamps AS the segment opening is fully substituted and in role', () => {

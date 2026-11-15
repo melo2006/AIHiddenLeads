@@ -28,6 +28,7 @@ import {
 import {
   DEMO_INVITE_GREETING,
   DEMO_INVITE_OPENING,
+  DEMO_INVITE_OPENING_SWAP,
 } from '../../supabase/functions/_shared/demo-sales';
 
 describe('invite slug normalization', () => {
@@ -193,7 +194,7 @@ describe('resolve response parsing', () => {
 });
 
 describe('invite opening copy (Aspen host phase)', () => {
-  test('greeting: pre-built, no waiting, partner pitch + Sara intro; the spoken disclaimer is the host\'s, once, at the beginning (owner, 2026-11-15)', () => {
+  test('greeting: pre-built, no waiting, short first segment; the spoken disclaimer is the host\'s, once, at the beginning (owner, 2026-11-15; Publish #67)', () => {
     expect(DEMO_INVITE_GREETING).toContain('{timeGreeting}');
     expect(DEMO_INVITE_GREETING).toContain('{visitorFirstName}');
     expect(DEMO_INVITE_GREETING).toContain('{businessName}');
@@ -201,8 +202,13 @@ describe('invite opening copy (Aspen host phase)', () => {
     expect(DEMO_INVITE_GREETING).toContain('already loaded on your website');
     expect(DEMO_INVITE_GREETING).toContain('no waiting');
     expect(DEMO_INVITE_GREETING).toContain('Thanks for accepting the invitation');
-    expect(DEMO_INVITE_GREETING).toContain('your partner for growth');
-    expect(DEMO_INVITE_GREETING).toContain('meet Sara');
+    // Publish #67: the partner pitch and the Sara introduction no
+    // longer ride in the greeting — they are follow-up beats in the
+    // swap opening, delivered one short turn at a time.
+    expect(DEMO_INVITE_GREETING).not.toContain('your partner for growth');
+    expect(DEMO_INVITE_GREETING).not.toContain('meet Sara');
+    expect(DEMO_INVITE_OPENING_SWAP).toContain('your partner for growth');
+    expect(DEMO_INVITE_OPENING_SWAP).toContain('meet Sara');
     // The scripted not-touched line lives in Aspen's greeting — said
     // ONCE, at the very beginning (owner, 2026-11-15); the longer
     // legacy-slim mock-up sentences stay out of this variant.
@@ -261,7 +267,10 @@ describe('invite opening copy (Aspen host phase)', () => {
     expect(DEMO_INVITE_OPENING).toContain('anti-transfer rule');
     expect(DEMO_INVITE_OPENING).toContain('Set expectations, once');
     expect(DEMO_INVITE_OPENING).toContain('Alex, once');
-    expect(DEMO_INVITE_GREETING).toContain('onboarding engineer, Alex');
+    // Publish #67: the Alex comfort line moved out of the greeting
+    // into the swap opening's comfort beat.
+    expect(DEMO_INVITE_GREETING).not.toContain('onboarding engineer, Alex');
+    expect(DEMO_INVITE_OPENING_SWAP).toContain('onboarding engineer, Alex');
   });
 });
 

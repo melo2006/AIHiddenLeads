@@ -8,28 +8,32 @@
 import { expect, test } from 'vitest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { SIMULATION_GREETING, SIMULATION_PROMPT } from '../../supabase/functions/_shared/voice-config';
+import { DEMO_SITE_FOLLOW_UP_BEATS, SIMULATION_GREETING, SIMULATION_PROMPT } from '../../supabase/functions/_shared/voice-config';
 import { DEMO_SALES_POLICY } from '../../supabase/functions/_shared/demo-sales';
 import { PHONE_DEMO_HOST_POLICY } from '../../supabase/functions/_shared/phone-demo';
 import { GATE_LINES } from '../lib/demoVerification';
 
 const read = (rel: string) => fs.readFileSync(path.join(__dirname, '..', '..', rel), 'utf8');
 
-test('C1a: simulation greeting is the demo-site opening — welcome, disclaimer once, partner pitch, Alex comfort, Sara intro (owner revision 2026-11-09; disclaimer placement 2026-11-15)', () => {
+test('C1a: simulation greeting is the demo-site opening FIRST SEGMENT — welcome, disclaimer once, inviting question; pitch, Alex comfort and Sara intro run as follow-up beats (owner revision 2026-11-09; disclaimer placement 2026-11-15; Publish #67)', () => {
   // Disclaimer placement (owner, 2026-11-15, superseding the same-day
   // 2026-11-09 ownership decision): Aspen's greeting carries the
   // not-touched line ONCE, at the very beginning of the demo; the
   // in-role honesty-note repeat at the entry was removed. The longer
   // mock-up explanation sentences stay out of this variant.
   expect(SIMULATION_GREETING).toContain('thanks for trying the demo I built for {businessName}');
-  expect(SIMULATION_GREETING).toContain('your partner for growth');
-  expect(SIMULATION_GREETING).toContain("you're about to see exactly that");
-  expect(SIMULATION_GREETING).toContain('our onboarding engineer, Alex, walks you through everything personally');
-  expect(SIMULATION_GREETING).toContain('meet Sara');
-  expect(SIMULATION_GREETING).not.toContain('I read the public pages of {businessName} the way any visitor would');
   expect(SIMULATION_GREETING).toContain("haven't touched your website or your server");
-  expect(SIMULATION_GREETING).not.toContain('Your own calendar and warm transfers require setup');
   expect(SIMULATION_GREETING).toContain('{timeGreeting}, {visitorFirstName}.');
+  expect(SIMULATION_GREETING.endsWith('Shall we get started?')).toBe(true);
+  expect(SIMULATION_GREETING).not.toContain('I read the public pages of {businessName} the way any visitor would');
+  expect(SIMULATION_GREETING).not.toContain('Your own calendar and warm transfers require setup');
+  // Publish #67: the sales material moved to the follow-up beats.
+  expect(SIMULATION_GREETING).not.toContain('your partner for growth');
+  expect(SIMULATION_GREETING).not.toContain('meet Sara');
+  expect(DEMO_SITE_FOLLOW_UP_BEATS).toContain('your partner for growth');
+  expect(DEMO_SITE_FOLLOW_UP_BEATS).toContain("you're about to see exactly that");
+  expect(DEMO_SITE_FOLLOW_UP_BEATS).toContain('our onboarding engineer, Alex, walks you through everything personally');
+  expect(DEMO_SITE_FOLLOW_UP_BEATS).toContain('meet Sara');
 });
 
 test('C1b: the entry sequence runs the beats in order (incl. the no-disclaimer-in-role rule, 2026-11-15)', () => {

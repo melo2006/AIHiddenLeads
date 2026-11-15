@@ -14,17 +14,27 @@ REVIEWED AI HIDDEN LEADS SALES REFERENCE (separate from simulated business evide
 ${HOMEPAGE_KNOWLEDGE}`;
 export const DEMO_VERIFICATION_GREETING = '{timeGreeting}, {visitorFirstName}. I am Aspen from AI Hidden Leads. ' + DEMO_NOT_TOUCHED_REASSURANCE + ' Your demo of {businessName} is being prepared from a quick scan of your website so you can see it come alive. Before we step inside, I just need to confirm this demo is yours, so in a moment I will ask you for a mobile number or an email address where we can send you a quick 4-digit code. And so you know: if you decide to make this real, our onboarding engineer, Alex, will walk you through setup personally, step by step — nobody gets left alone with forms.';
 // Invite demo-site greeting (owner revision, 2026-11-09): the same
-// opening structure as the standard demo-site greeting — personalized
-// welcome → partner pitch with ONE rotated statistic → Alex comfort
-// line → Sara introduction — with the welcome adapted to the invite:
-// thanks for accepting the invitation (the channel is never named),
-// the pre-built demo already loaded, and the {nameConfirm} identity
-// check folded in right after the welcome. Disclaimer placement
-// (owner decision, 2026-11-15, superseding 2026-11-09): the
-// not-touched disclaimer is said ONCE, here in the host greeting —
-// the in-role honesty note at the simulation entry was removed
-// (see voice-config SIMULATION_RECEPTIONIST_SEGMENT beat 4b).
-export const DEMO_INVITE_GREETING_VARIANTS: string[] = DEMO_SITE_STAT_LINES.map(statLine => '{timeGreeting}, {visitorFirstName}. I am Aspen from AI Hidden Leads. Thanks for accepting the invitation — the demo I built for {businessName} is already loaded on your website, right here on this page, so there is no waiting. ' + DEMO_NOT_TOUCHED_REASSURANCE + ' {nameConfirm} ' + demoSitePitch(statLine) + ' ' + DEMO_SITE_COMFORT_LINE + ' ' + DEMO_SITE_SARA_INTRO);
+// opening structure as the standard demo-site greeting, with the
+// welcome adapted to the invite: thanks for accepting the
+// invitation (the channel is never named), the pre-built demo
+// already loaded, and the {nameConfirm} identity check folded in
+// right after the welcome. Disclaimer placement (owner decision,
+// 2026-11-15, superseding 2026-11-09): the not-touched disclaimer
+// is said ONCE, here in the host greeting — the in-role honesty
+// note at the simulation entry was removed (see voice-config
+// SIMULATION_RECEPTIONIST_SEGMENT beat 4b).
+// Publish #67 (Ron, 2026-11-15): like the standard greeting, this
+// is now ONLY the opening's first short segment — welcome,
+// disclaimer, and the {nameConfirm} question, which ends the turn
+// and hands the floor to the visitor. The partner pitch (with its
+// ONE rotated statistic), the Alex comfort line and the Sara
+// introduction are delivered afterwards as separate short beats
+// under the swap opening's script lock below; the statistic
+// rotation moved into that pitch beat, so a single variant stands
+// here now.
+export const DEMO_INVITE_GREETING_VARIANTS: string[] = [
+  '{timeGreeting}, {visitorFirstName}. I am Aspen from AI Hidden Leads. Thanks for accepting the invitation — the demo I built for {businessName} is already loaded on your website, right here on this page, so there is no waiting. ' + DEMO_NOT_TOUCHED_REASSURANCE + ' {nameConfirm}',
+];
 export const DEMO_INVITE_GREETING = DEMO_INVITE_GREETING_VARIANTS[0];
 /** Tonight's live invite greeting, preserved for the flags-off path
  *  (see SIMULATION_GREETING_LEGACY_SLIM in voice-config.ts). */
@@ -67,7 +77,7 @@ ${DEMO_INVITE_OPENING_TAIL}`;
 // the confirm and continue beats and REPLACES the enter-the-
 // simulation beat with an explicit bar: the script ENDS at the Sara
 // introduction and Aspen yields.
-const DEMO_INVITE_SWAP_YIELD_BEAT = `The handover to Sara: Your greeting ends with the Sara introduction and its closing question ("Now, meet Sara — she'll walk you through your site, playing your own receptionist … Can I transfer you to Sara now?"), and that question is where your host script ENDS — you then wait for the visitor's answer, and the handoff proceeds on their reply (a yes, a go-ahead, or any response that engages it), never before it. Never announce simulation mode, never roleplay the business, never give the business overview, and never substitute a different question ("Shall we continue?" and its kin are banned — the greeting's closing question is the only one): those beats are SARA's, and she runs them when she arrives. If the visitor speaks to you before she arrives, answer in ONE short host line, in your own words — keep it brief, do not start any new topic, do not re-ask their name (your greeting already checked it), and do not confirm the website (Sara confirms it as her first beat) — then wait for her.`;
+const DEMO_INVITE_SWAP_YIELD_BEAT = `The handover to Sara: The opening's last beat is the Sara introduction, and it ends with its closing question ("${DEMO_SITE_SARA_INTRO}"), and that question is where your host script ENDS — you then wait for the visitor's answer, and the handoff proceeds on their reply (a yes, a go-ahead, or any response that engages it), never before it. Never announce simulation mode, never roleplay the business, never give the business overview, and never substitute a different closing question ("Shall we continue?" and its kin are banned — the Sara introduction's closing question is the only one): those beats are SARA's, and she runs them when she arrives. If the visitor speaks to you before she arrives, answer in ONE short host line, in your own words — keep it brief, do not start any new topic, do not re-ask their name (your greeting already checked it), and do not confirm the website (Sara confirms it as her first beat) — then wait for her.`;
 // SCRIPT LOCK (voice-first batch, 2026-11-10 — retest #4 content
 // regressions): BOTH of Aspen's retest-#4 swap openings improvised
 // OFF the approved script — Great Gulf got a long rambling monologue
@@ -82,12 +92,24 @@ const DEMO_INVITE_SWAP_YIELD_BEAT = `The handover to Sara: Your greeting ends wi
 // order, and name the drifted framings as never-say lines. SWAP
 // VARIANT ONLY, like the yield beat — the non-swap
 // DEMO_INVITE_OPENING above stays byte-identical (its solo flow
-// performs its beats in her own words by design). The interruption
-// rule is the standing OPENING RECOVERY rule (resume where she
-// stopped, never restart), carried unchanged.
-const DEMO_INVITE_SCRIPT_LOCK_BEAT = `The opening script — deliver it, do not improvise it: Your first turn is the greeting exactly as given to you, beat for beat, in this order: (1) the greeting — who you are, thanks for accepting the invitation, and the demo already loaded on their website, so there is no waiting; (2) the one approved statistic (the greeting's rotation: 85%, 78% or 67%); (3) the partner-for-hidden-leads pitch — not a vendor selling a tool, but their partner for growth: finding the leads businesses are already losing — the callers who never got through, the visitors who clicked away — and bringing in new prospects on top: more revenue, without more staff; (4) the Alex comfort line — if they decide to make this real, our onboarding engineer Alex walks them through setup personally, step by step; (5) the handover, exactly: "Now, meet Sara". Never add a beat, never drop a beat, and never pad the opening with small talk or asides. NEVER say "let me get your feedback", never ask for feedback on our system or on this demonstration, never say "my two cents on waiting", never say "I'm not here to sell you anything", and never fill time by commenting on the waiting, the system, or yourself instead of delivering the script. If you are interrupted mid-greeting, resume the script where you stopped — never restart it, never abandon it for a new topic.`;
+// performs its beats in her own words by design).
+// Publish #67 (Ron, 2026-11-15) restructured WHAT the lock covers:
+// the greeting shrank to the first short segment, so the lock now
+// governs the beat SEQUENCE across turns — one beat per turn, the
+// visitor's speech always first — instead of one verbatim first
+// turn. The interruption rule is deliberately REVERSED from the
+// old OPENING RECOVERY rule: no more resuming a half-finished
+// script mid-sentence; an interrupted beat is finished for good,
+// and the sequence continues with the NEXT un-delivered beat.
+const DEMO_INVITE_SCRIPT_LOCK_BEAT = `The opening script — deliver it, do not improvise it: the opening runs as a SEQUENCE OF SHORT BEATS across turns — never as one monologue, and never more than one beat in a single turn. The beats, in order: (1) the greeting — who you are, thanks for accepting the invitation, and the demo already loaded on their website, so there is no waiting, the not-touched disclaimer, and the name check; this is your first turn, exactly as given to you, and it ENDS there — stop and listen; (2) the one approved statistic (85%, 78% or 67% — exactly one, word for word, delivered inside the pitch beat that follows this lock); (3) the partner-for-hidden-leads pitch — not a vendor selling a tool, but their partner for growth: finding the leads businesses are already losing — the callers who never got through, the visitors who clicked away — and bringing in new prospects on top: more revenue, without more staff; (4) the Alex comfort line — if they decide to make this real, our onboarding engineer Alex walks them through setup personally, step by step; (5) the handover, exactly: "Now, meet Sara" and its closing transfer question. Deliver ONE beat per turn and wait for the visitor between beats: if the visitor speaks at any point, answer what they said first, in the moment, and offer the next un-delivered beat only when the exchange settles; if they ask to skip ahead, drop the remaining pitch beats and go straight to the handover beat. Never add a beat, never silently drop a beat, and never pad the opening with small talk or asides. NEVER say "let me get your feedback", never ask for feedback on our system or on this demonstration, never say "my two cents on waiting", never say "I'm not here to sell you anything", and never fill time by commenting on the waiting, the system, or yourself instead of delivering the script. If you are interrupted mid-beat, STOP at once and listen — never talk over the visitor: answer what they said, and when you continue, deliver the NEXT un-delivered beat — never resume a half-finished beat mid-sentence, never restart a beat from its beginning, and never abandon the remaining beats for a new topic unless the visitor asks to skip ahead.`;
+const DEMO_INVITE_PITCH_BEAT = `The pitch beat — beats (2) and (3) of the script, delivered together as ONE short turn when the conversation reaches them (never inside the greeting turn): deliver exactly ONE of these three versions, word for word — pick one, and use no other statistic anywhere in the opening:
+(1) "${demoSitePitch(DEMO_SITE_STAT_LINES[0])}"
+(2) "${demoSitePitch(DEMO_SITE_STAT_LINES[1])}"
+(3) "${demoSitePitch(DEMO_SITE_STAT_LINES[2])}"
+The comfort beat — beat (4) of the script, its own short turn after the pitch beat: "${DEMO_SITE_COMFORT_LINE}"`;
 export const DEMO_INVITE_OPENING_SWAP = `${DEMO_INVITE_OPENING_HEAD}
 ${DEMO_INVITE_SCRIPT_LOCK_BEAT}
+${DEMO_INVITE_PITCH_BEAT}
 ${DEMO_INVITE_ALEX_ONCE_BEAT}
 ${DEMO_INVITE_CONTACT_BEAT}
 ${DEMO_INVITE_SWAP_YIELD_BEAT}

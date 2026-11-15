@@ -1,7 +1,7 @@
 // REALTOR DISCOVERY FLOW (presenter realtor mode — Ron designed and
 // approved this conversation on 2026-11-14, across three messages the
 // same morning): how a PRESENTER-fronted example demo (Frank, Monica,
-// the Black Professional Lady — the solo hosts of the pinned realtor
+// Denise — the solo hosts of the pinned realtor
 // examples) talks with a caller who has a real estate inquiry. The
 // goal of the whole conversation is a captured lead, earned the way a
 // real, trusted realtor earns it: a warm human opening, ONE simple

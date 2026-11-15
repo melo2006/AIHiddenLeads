@@ -28,7 +28,7 @@ describe('item 1 — layering: the widget always stacks above page content', () 
 });
 
 describe('item 2 — transparent backgrounds for the new personas', () => {
-  it('cutout assets exist for Frank, Monica and Black Professional Lady', () => {
+  it('cutout assets exist for Frank, Monica and Denise', () => {
     for (const id of [FRANK, MONICA_FACE, BLACK_LADY]) {
       expect(fs.existsSync(path.join(__dirname, '..', 'assets', 'simli', `${id}-cutout.webp`))).toBe(true);
       expect(PRESENTER_CUTOUTS[id]).toBeTruthy();

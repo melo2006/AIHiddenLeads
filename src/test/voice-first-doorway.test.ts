@@ -227,7 +227,11 @@ describe('7 — script guardrails (prompt pins)', () => {
     expect(DEMO_INVITE_OPENING_SWAP).toContain('NEVER say "let me get your feedback"');
     expect(DEMO_INVITE_OPENING_SWAP).toContain('never say "my two cents on waiting"');
     expect(DEMO_INVITE_OPENING_SWAP).toContain("I'm not here to sell you anything");
-    expect(DEMO_INVITE_OPENING_SWAP).toContain('resume the script where you stopped');
+    // Publish #67 REVERSED the old resume-where-you-stopped rule:
+    // an interrupted beat is never resumed mid-sentence — the
+    // sequence continues with the NEXT un-delivered beat.
+    expect(DEMO_INVITE_OPENING_SWAP).toContain('deliver the NEXT un-delivered beat');
+    expect(DEMO_INVITE_OPENING_SWAP).not.toContain('resume the script where you stopped');
   });
   test('the script lock is swap-only: the non-swap opening carries none of it', () => {
     expect(DEMO_INVITE_OPENING).not.toContain('do not improvise it');

@@ -12,11 +12,11 @@
  *
  * `suggestedName` is the name that pre-fills the assistant-name field when
  * the tile is picked. It is only set where the name is a real name of the
- * face: our settled product names (Aspen, Frank, Sara, Alex). Descriptive
- * tiles (e.g. "Executive") and Simli presets carry NO suggested name —
- * picking them never renames the assistant and never invents a name.
- * Editing the assistant name afterwards renames THEIR assistant only; the
- * library entry itself is never mutated.
+ * face: our settled product names (Aspen, Frank, Monica, Denise, Andy,
+ * Daniel, Sara, Alex). Descriptive tiles and Simli presets carry NO
+ * suggested name — picking them never renames the assistant and never
+ * invents a name. Editing the assistant name afterwards renames THEIR
+ * assistant only; the library entry itself is never mutated.
  *
  * `matchedVoice` is the Gemini Live voice paired with our own models. It is
  * applied when the tile is picked; the customer can change it right after
@@ -36,7 +36,8 @@ export interface AvatarLibraryEntry {
   label: string;
   /** Name pre-filled into the assistant-name field on pick, when the face has one. */
   suggestedName?: string;
-  /** True only for our settled product names (Aspen, Frank, Sara, Alex). */
+  /** True only for our settled product names (Aspen, Frank, Monica,
+   *  Denise, Andy, Daniel, Sara, Alex). */
   nameSettled: boolean;
   /** Gemini Live voice applied on pick (our own models only). */
   matchedVoice?: string;
@@ -68,8 +69,9 @@ export const ALEX_FACE_ID = "a36d66df-a23d-4569-996b-d0e990019857";
  *
  * ⚠️ EXECUTIVE voice choice (flagged for Ron's ear-check, 2026-11-13):
  * Executive D's matched voice is "Sadaltager" (Knowledgeable · Male) — a
- * mature, authoritative read for an early-40s executive. It is a proposal,
- * not settled; same status as his unapproved product name.
+ * mature, authoritative read for an early-40s executive. The VOICE is
+ * still a proposal, not settled; his NAME is settled now — "Andy",
+ * settled by Ron 2026-11-15 (Publish #67).
  */
 const OWN_MODELS: AvatarLibraryEntry[] = [
   {
@@ -125,11 +127,17 @@ const OWN_MODELS: AvatarLibraryEntry[] = [
   {
     key: "black-professional-lady",
     faceId: BLACK_PROFESSIONAL_LADY_FACE_ID,
-    // Working label only — unlike Monica above, no settled name yet. Matched voice is her demo
-    // presenter pairing (personas.ts BLACK_PROFESSIONAL_LADY_VOICE),
-    // flagged for Ron's ear-check 2026-11-13.
-    label: "Black Professional Lady",
-    nameSettled: false,
+    // Settled name: "Denise", settled by Ron 2026-11-15 (Publish #67;
+    // she shipped under the working label "Black Professional Lady"),
+    // so the tile presents her name and picking it pre-fills it, like
+    // Monica's tile above. Matched voice is her demo presenter pairing
+    // (personas.ts BLACK_PROFESSIONAL_LADY_VOICE), flagged for Ron's
+    // ear-check 2026-11-13. (The entry key stays
+    // "black-professional-lady" — an internal identifier keyed to her
+    // persona id, never shown.)
+    label: "Denise",
+    suggestedName: "Denise",
+    nameSettled: true,
     matchedVoice: "Despina",
     image: catalogImage(BLACK_PROFESSIONAL_LADY_FACE_ID),
     category: "Your face",
@@ -139,11 +147,14 @@ const OWN_MODELS: AvatarLibraryEntry[] = [
   {
     key: "executive",
     faceId: EXECUTIVE_D_FACE_ID,
-    // Descriptive label only: this face's product name is an UNAPPROVED
-    // proposal, so the tile must not present a settled name and picking it
-    // pre-fills no name.
-    label: "Executive",
-    nameSettled: false,
+    // Settled name: "Andy", settled by Ron 2026-11-15 (Publish #67;
+    // the tile shipped under the descriptive label "Executive"), so
+    // the tile presents his name and picking it pre-fills it. The
+    // matched voice stays a proposal (see the ⚠️ note above
+    // OWN_MODELS).
+    label: "Andy",
+    suggestedName: "Andy",
+    nameSettled: true,
     matchedVoice: "Sadaltager",
     image: executiveTile,
     category: "Your face",
@@ -153,14 +164,15 @@ const OWN_MODELS: AvatarLibraryEntry[] = [
   {
     key: "middle-aged-pro",
     faceId: MIDDLE_AGED_PRO_FACE_ID,
-    // Working label only — no settled product name (the rule in the
-    // working-label entries above), so
-    // picking this tile pre-fills no name. Matched voice "Rasalgethi"
-    // (mature, gravelly male — distinct from Frank's Schedar and the
-    // Executive's Sadaltager) is Muse's pick, flagged for Ron's
-    // ear-check 2026-11-14.
-    label: "Middle-Aged Pro",
-    nameSettled: false,
+    // Settled name: "Daniel", settled by Ron 2026-11-15 (Publish #67;
+    // the tile shipped under the working label "Middle-Aged Pro"), so
+    // the tile presents his name and picking it pre-fills it. Matched
+    // voice "Rasalgethi" (mature, gravelly male — distinct from
+    // Frank's Schedar and Andy's Sadaltager) is Muse's pick, flagged
+    // for Ron's ear-check 2026-11-14.
+    label: "Daniel",
+    suggestedName: "Daniel",
+    nameSettled: true,
     matchedVoice: "Rasalgethi",
     image: catalogImage(MIDDLE_AGED_PRO_FACE_ID),
     category: "Your face",

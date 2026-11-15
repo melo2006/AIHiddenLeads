@@ -109,16 +109,18 @@ export const LATINA_VOICE = 'Sulafat';
  *  name is the binding's displayName below). */
 export const LATINA_FACE_ID = 'e0d7b128-40a7-4d03-ac84-ef4c54b92450';
 
-/** Black Professional Lady's voice. ONE named constant: Despina —
- *  the smooth, polished professional female in the Gemini Live set
- *  (Google's descriptor: "Smooth"), distinct from Kore/Leda/Sulafat.
- *  ⚠️ MUSE'S PICK (2026-11-13), not Ron-settled; a future change is
- *  a one-line edit here and nowhere else. */
+/** Denise's voice (the presenter created under the working label
+ *  "Black Professional Lady"; Ron settled her name 2026-11-15).
+ *  ONE named constant: Despina — the smooth, polished professional
+ *  female in the Gemini Live set (Google's descriptor: "Smooth"),
+ *  distinct from Kore/Leda/Sulafat. ⚠️ MUSE'S PICK (2026-11-13),
+ *  not Ron-settled; a future change is a one-line edit here and
+ *  nowhere else. */
 export const BLACK_PROFESSIONAL_LADY_VOICE = 'Despina';
-/** The custom Trinity-2 "Black Professional Lady" face, created
- *  2026-11-13 (Simli auto-name "Unpleasant Lemur" — never shown to
- *  customers; the customer-facing name is the binding's displayName
- *  below). */
+/** Denise's custom Trinity-2 face, created 2026-11-13 under the
+ *  creation label "Black Professional Lady" (Simli auto-name
+ *  "Unpleasant Lemur" — neither is shown to customers; the
+ *  customer-facing name is the binding's displayName below). */
 export const BLACK_PROFESSIONAL_LADY_FACE_ID = '9344d4c1-6b69-43e7-a73f-ddc15d1a3f75';
 
 export const PERSONAS: Record<PersonaId, PersonaBinding> = {
@@ -181,12 +183,15 @@ export const PERSONAS: Record<PersonaId, PersonaBinding> = {
   },
   'black-professional-lady': {
     // EXAMPLE PRESENTER (Ladies batch, 2026-11-13): same whole-demo
-    // presenter shape as Frank and Monica. ⚠️ Her displayName here
-    // is the DESCRIPTIVE WORKING LABEL ("Black Professional Lady"),
-    // not a Ron-settled name — one config place, one-line change
-    // when he settles it, same as her voice pick above.
+    // presenter shape as Frank and Monica. Her displayName here is
+    // her SETTLED name — "Denise", settled by Ron 2026-11-15 (she
+    // shipped under the descriptive working label "Black
+    // Professional Lady"); the name lives in exactly this one
+    // config place, same as her voice pick above. (Her persona id
+    // stays 'black-professional-lady' — it is a stored wire key,
+    // not a shown name.)
     id: 'black-professional-lady',
-    displayName: 'Black Professional Lady',
+    displayName: 'Denise',
     voiceName: BLACK_PROFESSIONAL_LADY_VOICE,
     faceId: BLACK_PROFESSIONAL_LADY_FACE_ID,
     portraitFaceId: BLACK_PROFESSIONAL_LADY_FACE_ID,
@@ -488,16 +493,14 @@ export function isPresenterPersona(id: PersonaId): boolean {
  *  2026-11-14): his hand-back line names the presenter, and the
  *  client's presenter matcher arms the return on the same phrase
  *  ("bring <name> back" — kept in step with PRESENTER_HAND_BACK in
- *  src/lib/personaSwap.ts). The Black Professional Lady's display
- *  name is a descriptive working label, not a name to speak, so her
- *  chain addresses her as "your host" instead. */
+ *  src/lib/personaSwap.ts). Every presenter now carries a settled
+ *  spoken name — Denise's was the last, settled by Ron 2026-11-15;
+ *  before that her chain addressed her as "your host" because her
+ *  display name was still a descriptive working label. */
 export function presenterAlexGuestPrompt(presenter: PersonaId): string {
-  const named = presenter !== 'black-professional-lady';
   const name = PERSONAS[presenter].displayName;
-  const example = named
-    ? `Let me bring ${name} back for the plans side — ${presenter === 'frank' ? 'he' : 'she'} has all of that.`
-    : 'Let me bring your host back for the plans side — she has all of that.';
-  return alexPresenterGuestPrompt(named ? name : 'Your host', named ? name : 'your host', example);
+  const example = `Let me bring ${name} back for the plans side — ${presenter === 'frank' ? 'he' : 'she'} has all of that.`;
+  return alexPresenterGuestPrompt(name, name, example);
 }
 
 /** ONE CLOSE, TOTAL (farewell-double-close fix, 2026-11-14; live

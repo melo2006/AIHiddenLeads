@@ -172,7 +172,7 @@ describe('client: no Aspen boundary can arm on a presenter chain', () => {
   test('the Alex anchors are exactly as built in #45/#47', () => {
     expect(PRESENTER_HAND_BACK_ANCHORS.frank).toEqual(['bring frank back']);
     expect(PRESENTER_HAND_BACK_ANCHORS.latina).toEqual(['bring monica back']);
-    expect(PRESENTER_HAND_BACK_ANCHORS['black-professional-lady']).toEqual(['bring your host back', 'bring our host back']);
+    expect(PRESENTER_HAND_BACK_ANCHORS['black-professional-lady']).toEqual(['bring denise back']);
     expect(MEET_ALEX_STRONG_ANCHORS).toContain('alex — say hello');
     expect(MEET_ALEX_STRONG_ANCHORS).toContain('this is alex — our onboarding engineer');
     expect(BOUNDARY_ANCHORS['meet-alex']).toEqual(['this is alex', 'alex — say hello', 'alex - say hello']);

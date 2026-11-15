@@ -389,7 +389,7 @@ function formatListingLine(l: ExampleListing): string {
  * PRESENTER VARIANT (presenter-owns-close, 2026-11-14): the script's
  * closing ASKING FOR A PERSON BY NAME paragraph orders the stock
  * bring-Aspen-back line — correct for Sara on the standard chain,
- * but a presenter parent (Frank / Monica / Black Professional Lady
+ * but a presenter parent (Frank / Monica / Denise
  * fronting the example solo) has no Aspen handoff to give: the
  * paragraph is rewritten to the solo answer (Aspen is a colleague;
  * the visitor has the presenter; never impersonate, never promise

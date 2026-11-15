@@ -87,9 +87,9 @@ describe('ladies registry bindings', () => {
     expect(PERSONAS.latina).toBe(latina);
   });
 
-  test('black professional lady binds the descriptive label, the smooth Despina voice and her face', () => {
+  test('denise binds her settled name, the smooth Despina voice and her face', () => {
     const lady = personaFor('black-professional-lady');
-    expect(lady.displayName).toBe('Black Professional Lady');
+    expect(lady.displayName).toBe('Denise');
     expect(lady.voiceName).toBe('Despina');
     expect(BLACK_PROFESSIONAL_LADY_VOICE).toBe('Despina');
     expect(lady.faceId).toBe('9344d4c1-6b69-43e7-a73f-ddc15d1a3f75');
@@ -181,7 +181,7 @@ describe('presenter simulation prompt', () => {
 });
 
 describe('ladies presenter prompts', () => {
-  for (const [id, name] of [['latina', 'Monica'], ['black-professional-lady', 'Black Professional Lady']] as const) {
+  for (const [id, name] of [['latina', 'Monica'], ['black-professional-lady', 'Denise']] as const) {
     test(`${name} fronts solo: the rewrites carry her name`, () => {
       const prompt = presenterSimulationPrompt(personaFor(id));
       expect(prompt).not.toContain('Can I transfer you to Sara now?');

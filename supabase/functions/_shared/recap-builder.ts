@@ -60,12 +60,44 @@ export function formatRecapLine(turn: RecapTurn): string {
   return `${turn.role === "user" ? "Visitor" : "Assistant"}: ${turn.text}`;
 }
 
+/** Persona names a spoken label prefix can carry (Publish #67). */
+const SPOKEN_LABEL_NAMES = 'Aspen|Sara|Alex|Frank|Monica|Denise|Daniel|Andy|James|Diego';
+
+/**
+ * Strip a leaked persona-label prefix from one formatted recap line
+ * (Publish #67, 2026-11-15 — Ron's Frank test: a spoken reply began
+ * with the literal prefix "Aspen:"). Every recap line is formatted
+ * "Visitor: …" / "Assistant: …" for the model's READING; when the
+ * model generalizes that format and fills the label slot with a
+ * persona name, its own line comes back as "Assistant: Aspen: …" —
+ * and once stored, the label is re-fed in every later recap, so the
+ * leak echoes. This sanitizer runs at the one chokepoint every recap
+ * producer passes through (windowRecapLines), so a leaked label can
+ * never survive into a successor session's memory: an inner persona
+ * label after the role prefix is removed, and a raw line that opens
+ * with a persona label of its own is re-homed under "Assistant:".
+ * Genuine content is untouched — a name only strips when it sits in
+ * the label slot, immediately followed by a colon.
+ */
+export function stripSpokenLabelPrefix(line: string): string {
+  if (line === RECAP_ELISION_LINE) return line;
+  const labeled = line.match(/^(Visitor|Assistant):\s+/);
+  if (labeled) {
+    const rest = line.slice(labeled[0].length).replace(new RegExp(`^(?:${SPOKEN_LABEL_NAMES}|Assistant|Visitor)\\s*:\\s+`, 'i'), '');
+    return `${labeled[1]}: ${rest}`;
+  }
+  const raw = line.match(new RegExp(`^(?:${SPOKEN_LABEL_NAMES})\\s*:\\s+`, 'i'));
+  if (raw) return `Assistant: ${line.slice(raw[0].length)}`;
+  return line;
+}
+
 /**
  * Window already-formatted recap lines to the first+last contract
  * under `maxChars`. See the module header for the drop discipline.
  */
-export function windowRecapLines(lines: string[], maxChars: number = RECAP_MAX_CHARS): string[] {
-  if (!lines.length) return [];
+export function windowRecapLines(inputLines: string[], maxChars: number = RECAP_MAX_CHARS): string[] {
+  if (!inputLines.length) return [];
+  const lines = inputLines.map(stripSpokenLabelPrefix);
   let out: string[];
   // Index of the first line of the "recent" block inside `out`:
   // lines are dropped from there, so the opening survives longest.

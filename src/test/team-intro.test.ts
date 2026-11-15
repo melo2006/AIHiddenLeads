@@ -40,7 +40,7 @@ import {
   TEAM_INTRO_HOST_SEGMENT, TEAM_INTRO_TEACHING, isIntroBoundary,
 } from '../../supabase/functions/_shared/team-intro';
 import {
-  DEMO_NOT_TOUCHED_REASSURANCE, DEMO_SITE_COMFORT_LINE, DEMO_SITE_GREETING_VARIANTS, DEMO_SITE_SARA_INTRO,
+  DEMO_NOT_TOUCHED_REASSURANCE, DEMO_SITE_COMFORT_LINE, DEMO_SITE_FOLLOW_UP_BEATS, DEMO_SITE_GREETING_VARIANTS, DEMO_SITE_SARA_INTRO,
   DEMO_SITE_STAT_LINES, SIMULATION_CLOSE_SEGMENT, SIMULATION_GREETING, SIMULATION_RECEPTIONIST_SEGMENT,
   businessDemoConfig,
 } from '../../supabase/functions/_shared/voice-config';
@@ -131,54 +131,81 @@ describe('segment routing', () => {
 });
 
 describe('demo-site opening (revised delta a, owner 2026-11-09 20:58–21:00; disclaimer placement superseded by owner 2026-11-15)', () => {
-  test('three standard variants rotate exactly one approved statistic each', () => {
-    expect(DEMO_SITE_GREETING_VARIANTS).toHaveLength(3);
+  test('the standard greeting is one short segment; the three approved statistics live in the pitch beat (Publish #67)', () => {
+    // Publish #67 (Ron, 2026-11-15): the greeting no longer carries a
+    // statistic at all — it is the short first segment only. The
+    // rotation moved into DEMO_SITE_FOLLOW_UP_BEATS' pitch beat,
+    // where each approved line appears exactly once and the model
+    // delivers exactly one of them. Approved framings survive: the
+    // 78% line keeps its survey scope and SAID framing; no publisher
+    // is named in any opening material.
+    expect(DEMO_SITE_GREETING_VARIANTS).toHaveLength(1);
     expect(DEMO_SITE_STAT_LINES).toHaveLength(3);
-    DEMO_SITE_GREETING_VARIANTS.forEach((greeting, i) => {
-      expect(greeting).toContain(DEMO_SITE_STAT_LINES[i]);
-      DEMO_SITE_STAT_LINES.forEach((stat, j) => { if (j !== i) expect(greeting).not.toContain(stat); });
-      // Approved framings survive: the 78% line keeps its survey scope
-      // and SAID framing; no publisher is named in any opening.
+    for (const greeting of DEMO_SITE_GREETING_VARIANTS) {
+      for (const stat of DEMO_SITE_STAT_LINES) expect(greeting).not.toContain(stat);
       expect(greeting).not.toContain('Facebook');
-    });
+    }
+    for (const stat of DEMO_SITE_STAT_LINES) {
+      expect(DEMO_SITE_FOLLOW_UP_BEATS.split(stat).length - 1).toBe(1);
+    }
+    expect(DEMO_SITE_FOLLOW_UP_BEATS).toContain('deliver exactly ONE of these three versions');
+    expect(DEMO_SITE_FOLLOW_UP_BEATS).toContain('use no other statistic anywhere in the opening');
     expect(DEMO_SITE_STAT_LINES[0]).toContain("85% of callers who hit a business's voicemail don't call back");
     expect(DEMO_SITE_STAT_LINES[1]).toContain('78% of 1,000 U.S. consumers said they had abandoned a business');
     expect(DEMO_SITE_STAT_LINES[2]).toContain("67% of callers hang up the moment they can't reach a real person");
   });
-  test('every standard variant: welcome → disclaimer ONCE → pitch → comfort → Sara intro LAST (owner, 2026-11-15)', () => {
+  test('the standard greeting: welcome → disclaimer ONCE → inviting question; pitch → comfort → Sara intro run as follow-up beats (owner 2026-11-15; Publish #67)', () => {
     for (const greeting of DEMO_SITE_GREETING_VARIANTS) {
       expect(greeting).toContain('thanks for trying the demo I built for {businessName}');
-      expect(greeting).toContain('your partner for growth');
-      expect(greeting).toContain('bread and butter');
-      expect(greeting).toContain('more revenue, without more staff');
-      expect(greeting).toContain('a live avatar just like me can be on your website');
-      expect(greeting).toContain(DEMO_SITE_COMFORT_LINE);
-      expect(greeting.endsWith(DEMO_SITE_SARA_INTRO)).toBe(true);
       // The disclaimer is the host's, said once, at the very beginning.
       expect(greeting).toContain(DEMO_NOT_TOUCHED_REASSURANCE);
       expect(greeting).toContain("haven't touched your website or your server");
       expect(greeting.split(DEMO_NOT_TOUCHED_REASSURANCE).length - 1).toBe(1);
-      // No Alex cameo in the opening: his name appears only in the comfort line.
-      expect(greeting.split('Alex').length - 1).toBe(1);
+      // The segment is SHORT and ends by handing the floor to the visitor.
+      expect(greeting.endsWith('Shall we get started?')).toBe(true);
+      expect(greeting.split(/\s+/).length).toBeLessThanOrEqual(60);
+      // None of the sales material rides in the first segment anymore.
+      expect(greeting).not.toContain('your partner for growth');
+      expect(greeting).not.toContain(DEMO_SITE_COMFORT_LINE);
+      expect(greeting).not.toContain('meet Sara');
+      expect(greeting).not.toContain('Alex');
     }
     expect(SIMULATION_GREETING).toBe(DEMO_SITE_GREETING_VARIANTS[0]);
+    // The beats carry the approved material, in order, one per turn.
+    const beats = DEMO_SITE_FOLLOW_UP_BEATS;
+    expect(beats).toContain('your partner for growth');
+    expect(beats).toContain('bread and butter');
+    expect(beats).toContain('more revenue, without more staff');
+    expect(beats).toContain('a live avatar just like me can be on your website');
+    expect(beats).toContain(DEMO_SITE_COMFORT_LINE);
+    expect(beats).toContain(DEMO_SITE_SARA_INTRO);
+    expect(beats.indexOf('BEAT 1')).toBeLessThan(beats.indexOf('BEAT 2'));
+    expect(beats.indexOf('BEAT 2')).toBeLessThan(beats.indexOf('BEAT 3'));
+    expect(beats).toContain('ONE beat per turn');
+    expect(beats).toContain('NEXT un-delivered beat');
+    // No Alex cameo in the beats either: his name appears only in the
+    // comfort line (the BEAT 2 header is uppercase and does not count).
+    expect(beats.split('Alex').length - 1).toBe(1);
   });
-  test('invite variants mirror the structure with the invitation welcome and the name check', () => {
-    expect(DEMO_INVITE_GREETING_VARIANTS).toHaveLength(3);
-    DEMO_INVITE_GREETING_VARIANTS.forEach((greeting, i) => {
-      expect(greeting).toContain(DEMO_SITE_STAT_LINES[i]);
+  test('invite variant mirrors the short-segment structure with the invitation welcome and the name check (Publish #67)', () => {
+    expect(DEMO_INVITE_GREETING_VARIANTS).toHaveLength(1);
+    for (const greeting of DEMO_INVITE_GREETING_VARIANTS) {
       expect(greeting).toContain('Thanks for accepting the invitation');
       expect(greeting).toContain('already loaded on your website');
       expect(greeting).toContain('{nameConfirm}');
-      expect(greeting).toContain('your partner for growth');
-      expect(greeting.endsWith(DEMO_SITE_SARA_INTRO)).toBe(true);
+      // The name check is the segment's closing question — the turn
+      // ends on it and the floor passes to the visitor.
+      expect(greeting.endsWith('{nameConfirm}')).toBe(true);
       expect(greeting).toContain(DEMO_NOT_TOUCHED_REASSURANCE);
       expect(greeting.split(DEMO_NOT_TOUCHED_REASSURANCE).length - 1).toBe(1);
-      // The channel is never named (word-boundary: "voicemail" in the
-      // 85% statistic is obviously not the channel).
+      // The sales material no longer rides in the first segment.
+      for (const stat of DEMO_SITE_STAT_LINES) expect(greeting).not.toContain(stat);
+      expect(greeting).not.toContain('your partner for growth');
+      expect(greeting).not.toContain('meet Sara');
+      // The channel is never named.
       expect(greeting).not.toContain('Facebook');
       expect(greeting.toLowerCase()).not.toMatch(/\bemail\b/);
-    });
+    }
     expect(DEMO_INVITE_GREETING).toBe(DEMO_INVITE_GREETING_VARIANTS[0]);
   });
   test('businessDemoConfig wires the rotation: snapshot simulationGreetings win, code variants are the fallback', () => {

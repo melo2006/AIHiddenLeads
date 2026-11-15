@@ -74,9 +74,11 @@ describe('presenter chain: the Alex handoff actually arms', () => {
     // Frank's chain, his line
     const frankGuest = presenterState({ phase: 'alex-guest', persona: 'alex', presenter: 'frank', done: ['meet-alex'] });
     expect(boundaryForAssistantLine('Let me bring Frank back for the plans side — he has all of that.', frankGuest)).toBe('return');
-    // the Black Professional Lady's chain hands back to "your host"
+    // Denise's chain hands back to her by name (settled 2026-11-15;
+    // the retired "your host" phrasing arms nothing on her chain now)
     const bplGuest = presenterState({ phase: 'alex-guest', persona: 'alex', presenter: 'black-professional-lady', done: ['meet-alex'] });
-    expect(boundaryForAssistantLine('Let me bring your host back for the plans side — she has all of that.', bplGuest)).toBe('return');
+    expect(boundaryForAssistantLine('Let me bring Denise back for the plans side — she has all of that.', bplGuest)).toBe('return');
+    expect(boundaryForAssistantLine('Let me bring your host back for the plans side — she has all of that.', bplGuest)).toBeNull();
     // the stock Aspen anchor still arms it if he reaches for her name
     expect(boundaryForAssistantLine('Let me bring Aspen back for the plans side.', guest)).toBe('return');
     // an ordinary Alex answer arms nothing
@@ -177,7 +179,7 @@ describe('presenter segment builds (server)', () => {
     expect(cfg.systemPrompt).toContain('This is Frank from AI Hidden Leads again');
   });
 
-  test("the Black Professional Lady's return segment names her", () => {
+  test("Denise's return segment names her", () => {
     const cfg = personaSegmentPrompt('black-professional-lady', 'return', 'Chamberlain Realty', 'PARENT PROMPT');
     expect(cfg.systemPrompt).toContain(`This is ${PERSONAS['black-professional-lady'].displayName} from AI Hidden Leads again`);
   });
@@ -203,11 +205,12 @@ describe("Alex's guest prompt names the presenter host on a presenter chain", ()
     expect(prompt).toContain('the session returns to Frank.');
   });
 
-  test("the Black Professional Lady's variant says 'your host', never her working label", () => {
+  test("Denise's variant names her (settled by Ron 2026-11-15 — the 'your host' workaround is retired)", () => {
     const prompt = presenterAlexGuestPrompt('black-professional-lady');
-    expect(prompt).toContain('Let me bring your host back for the plans side — she has all of that.');
-    expect(prompt).toContain('the session returns to your host.');
-    expect(prompt).not.toContain('Black Professional Lady has just introduced you');
+    expect(prompt).toContain('Denise has just introduced you');
+    expect(prompt).toContain('Let me bring Denise back for the plans side — she has all of that.');
+    expect(prompt).toContain('the session returns to Denise.');
+    expect(prompt).not.toContain('bring your host back');
   });
 });
 

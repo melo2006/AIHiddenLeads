@@ -23,6 +23,21 @@ export const DEMO_NOT_TOUCHED_REASSURANCE = 'Before we start: this is a mock-up 
 // exactly once each, and the receptionist segment contains no
 // disclaimer at all. DEMO_NOT_TOUCHED_REASSURANCE also remains in
 // the verification gate's Act 1 greeting (demo-sales.ts).
+//
+// Publish #67 (Ron, 2026-11-15 — after his live test, where the
+// opening ran about two minutes and he could not get a word in):
+// the greeting is now ONLY the first short segment — welcome, who
+// she is, the business name, the disclaimer, one inviting question
+// (roughly twenty seconds of speech, inside Ron's "first fifteen
+// to thirty seconds" bound) — and the client's opening mic gate
+// lifts when that first turn completes, so the visitor can
+// interrupt from there on. The pitch, the comfort line and the
+// Sara introduction moved to DEMO_SITE_FOLLOW_UP_BEATS (below),
+// delivered one short beat per turn, driven by the conversation,
+// on the compositions that carry the host opening. The approved
+// material is unchanged — same statistic lines, same pitch, same
+// comfort line, same Sara introduction — only its delivery shape
+// changed.
 // ---------------------------------------------------------------------------
 /** The three approved statistic lines, in rotation order. Framings are
  *  the approved ones: 85% voicemail-never-call-back (homepage greeting
@@ -47,12 +62,42 @@ export const DEMO_SITE_COMFORT_LINE = `And you wouldn't face setup alone — our
 /** The Sara introduction that ENDS Aspen's demo-site greeting: Sara
  *  named, her walkthrough role stated; the doorway swap follows. */
 export const DEMO_SITE_SARA_INTRO = `Now, meet Sara — she'll walk you through your site, playing your own receptionist, so you can hear how she greets your visitors and handles their questions. Can I transfer you to Sara now?`;
-/** The standard (public / verified) demo-site greeting, one variant
- *  per statistic. openingFor() rotates config.greetings per session;
- *  businessDemoConfig fills that array from the snapshot's
- *  simulationGreetings when present, else from these. */
-export const DEMO_SITE_GREETING_VARIANTS: string[] = DEMO_SITE_STAT_LINES.map(statLine => '{timeGreeting}, {visitorFirstName}. I am {agentName} from AI Hidden Leads — welcome, and thanks for trying the demo I built for {businessName}. ' + DEMO_NOT_TOUCHED_REASSURANCE + ' ' + demoSitePitch(statLine) + ' ' + DEMO_SITE_COMFORT_LINE + ' ' + DEMO_SITE_SARA_INTRO);
+/** The standard (public / verified) demo-site greeting — since
+ *  Publish #67 this is ONLY the opening's first short segment:
+ *  welcome + who she is + the business name + the not-touched
+ *  disclaimer (owner decision 2026-11-15: said once, at the very
+ *  beginning of the demo) + one inviting question, then the floor
+ *  is the visitor's. The per-session statistic rotation that used
+ *  to pick between three full-monologue variants moved into the
+ *  follow-up pitch beat (DEMO_SITE_FOLLOW_UP_BEATS below), so a
+ *  single variant stands here now. openingFor() picks from
+ *  config.greetings per session; businessDemoConfig fills that
+ *  array from the snapshot's simulationGreetings when present,
+ *  else from these. */
+export const DEMO_SITE_GREETING_VARIANTS: string[] = [
+  '{timeGreeting}, {visitorFirstName}. I am {agentName} from AI Hidden Leads — welcome, and thanks for trying the demo I built for {businessName}. ' + DEMO_NOT_TOUCHED_REASSURANCE + ' Shall we get started?',
+];
 export const SIMULATION_GREETING = DEMO_SITE_GREETING_VARIANTS[0];
+/** THE OPENING'S FOLLOW-UP BEATS (Publish #67, Ron 2026-11-15):
+ *  the sales material the demo-site greeting used to recite as one
+ *  uninterruptible monologue — the partner pitch with ONE approved
+ *  statistic, the Alex comfort line, the Sara introduction — now
+ *  delivered as SHORT conversational turns after the greeting's
+ *  first segment, one beat per turn. Composed into the swap-parent
+ *  prompt below; the invite swap opening (demo-sales.ts) carries
+ *  the same discipline in its own script lock. The approved wording
+ *  is preserved verbatim by construction: the pitch versions are
+ *  built by demoSitePitch from DEMO_SITE_STAT_LINES, and the
+ *  comfort line and Sara introduction interpolate the shared
+ *  constants, so the beats can never drift from the approved text. */
+export const DEMO_SITE_FOLLOW_UP_BEATS = `THE OPENING CONTINUES IN SHORT BEATS — ONE PER TURN: your greeting was only the opening's first short segment, and it ended with a question — from here the visitor can interrupt you freely, and anything they say comes first. The rest of the opening is delivered as separate short turns, ONE beat per turn, in this order, waiting for the visitor between beats:
+BEAT 1 — WHO WE ARE (the partner pitch): deliver exactly ONE of these three versions — pick one, deliver it as this turn's whole beat, and use no other statistic anywhere in the opening:
+(1) "${demoSitePitch(DEMO_SITE_STAT_LINES[0])}"
+(2) "${demoSitePitch(DEMO_SITE_STAT_LINES[1])}"
+(3) "${demoSitePitch(DEMO_SITE_STAT_LINES[2])}"
+BEAT 2 — THE ALEX COMFORT LINE: "${DEMO_SITE_COMFORT_LINE}"
+BEAT 3 — MEET SARA (the last opening beat): "${DEMO_SITE_SARA_INTRO}"
+HOW THE BEATS RUN: one beat per turn — never deliver two beats in a single turn, and never run the beats together into a monologue. If the visitor speaks — a question, a comment, any response — answer THAT first, in the moment; offer the next un-delivered beat only when the exchange settles. If the visitor asks to skip ahead (they ask for Sara, ask to start the demo, or tell you to get on with it), drop the remaining pitch beats and go straight to BEAT 3. Never repeat a beat you have already delivered. If the visitor interrupts you mid-beat, stop at once and listen: answer what they said, and when you continue, deliver the NEXT un-delivered beat — never resume a half-finished beat mid-sentence, and never restart a beat from its beginning.`;
 /** Tonight's live greeting shape (the disclaimer-slim text), preserved
  *  for the flags-off path: gemini-session serves this instead of the
  *  pitch variants whenever the team-intro flag family is off, so a
@@ -123,7 +168,10 @@ export const SIMULATION_PROMPT = `${SIMULATION_HOST_SEGMENT}${SIMULATION_RECEPTI
 // SIMULATION_RECEPTIONIST_SEGMENT (beats 4–6 — Sara owns them via her
 // segment prompt, personaSegmentPrompt). It keeps the shared business
 // preamble (in businessDemoConfigSwapParent, mirroring
-// businessDemoConfig's shape), the swap yield bar, and the CLOSE
+// businessDemoConfig's shape), the swap yield bar, the opening's
+// follow-up beats (Publish #67 — the pitch / comfort line / Sara
+// introduction that used to ride inside the greeting itself, now
+// delivered one short beat per turn), and the CLOSE
 // segment — the parent still carries the step-out/close knowledge and
 // the standing visitor-asks-for-Alex rule, exactly as the legacy
 // composition does. The yield bar is needed because the close
@@ -132,14 +180,24 @@ export const SIMULATION_PROMPT = `${SIMULATION_HOST_SEGMENT}${SIMULATION_RECEPTI
 // enters the simulation at all. The flags-off composition
 // (businessDemoConfig + SIMULATION_PROMPT) is untouched and stays
 // byte-identical — pinned by the parity tests.
-export const SWAP_HOST_YIELD_BAR = `PERSONA HANDOVER — YOU NEVER ENTER THE SIMULATION: In this session a persona handover is armed. You host only: you never announce simulation mode, never roleplay the business, never give the business overview, and never speak the business's in-role greeting. The receptionist segment (Sara) owns the simulation entry — its announcement, its in-role greeting, its overview — and Aspen segments own the close after the step-out. Your greeting's closing introduction ends by asking "Can I transfer you to Sara now?" — that question is the last thing you say, and you then wait for their answer: the handover proceeds on their reply (a yes, a go-ahead, or any response that engages it), never before it. After the question, yield: if the visitor speaks before the incoming persona arrives, answer in ONE short host line and wait. If the visitor's name is still not known in this session and they do speak to you before the handover completes, that one short host line may be the name ask — "Before we start — who do I have the pleasure of speaking with?" — thanked warmly and used from then on; if they brush it off, accept it at once and never ask again in this phase. The simulation instructions that follow are the OTHER personas' material, carried here as shared knowledge of how the demo runs — they are not beats for you to perform.
+export const SWAP_HOST_YIELD_BAR = `PERSONA HANDOVER — YOU NEVER ENTER THE SIMULATION: In this session a persona handover is armed. You host only: you never announce simulation mode, never roleplay the business, never give the business overview, and never speak the business's in-role greeting. The receptionist segment (Sara) owns the simulation entry — its announcement, its in-role greeting, its overview — and Aspen segments own the close after the step-out. Your spoken opening is SHORT (Publish #67): your first turn is the greeting segment alone — it ends with its inviting question, and then you STOP and listen; from that point the visitor can interrupt you freely. The rest of the opening material is NOT part of the greeting: it follows as the short follow-up beats below (the partner pitch, the Alex comfort line, and finally the Sara introduction), one beat per turn, driven by the conversation — never recited as one script. The Sara introduction is the last beat: it ends by asking "Can I transfer you to Sara now?" — that question is the last thing you say before the handover, and you then wait for their answer: the handover proceeds on their reply (a yes, a go-ahead, or any response that engages it), never before it. After that question, yield: if the visitor speaks before the incoming persona arrives, answer in ONE short host line and wait. If the visitor's name is still not known in this session and they do speak to you before the handover completes, that one short host line may be the name ask — "Before we start — who do I have the pleasure of speaking with?" — thanked warmly and used from then on; if they brush it off, accept it at once and never ask again in this phase. The simulation instructions that follow are the OTHER personas' material, carried here as shared knowledge of how the demo runs — they are not beats for you to perform.
 `;
-export const SIMULATION_PROMPT_SWAP_PARENT = `${SWAP_HOST_YIELD_BAR}${SIMULATION_CLOSE_SEGMENT}`;
+export const SIMULATION_PROMPT_SWAP_PARENT = `${SWAP_HOST_YIELD_BAR}${DEMO_SITE_FOLLOW_UP_BEATS}
+${SIMULATION_CLOSE_SEGMENT}`;
 /** SOUND COMPLAINTS (Ron, 2026-11-14 — after a presenter told a
  *  visitor his phone's buttons were the problem and suggested a
  *  restart, when the fault was our own audio route): every demo
  *  prompt carries this rule. The sound path is ours, never theirs. */
 export const SOUND_COMPLAINT_RULE = 'SOUND COMPLAINTS: if the visitor says they cannot hear you, that you are too loud or too quiet, or that their volume or speaker buttons are not working, apologize ONCE briefly, say you will note it for the team, and carry on helping them. NEVER blame the visitor\'s device, buttons, settings or connection, NEVER say you cannot control their phone, and NEVER suggest they restart their phone or change any setting — the sound path is ours, not theirs.';
+/** NO SPEAKER LABELS (Publish #67, 2026-11-15 — Ron's Frank test:
+ *  one of Frank's spoken replies began with the literal prefix
+ *  "Aspen:", a persona label bleeding out of the labeled-line recap
+ *  format the model reads in its instructions). Appended to every
+ *  session prompt in the proxy, beside CONTACT_READBACK_POLICY; the
+ *  format-layer half of the guard lives in recap-builder.ts
+ *  (stripSpokenLabelPrefix), which strips a leaked label before a
+ *  recap can re-feed it. */
+export const NO_SPEAKER_LABEL_RULE = 'NO SPEAKER LABELS IN SPEECH: speak in first person, as yourself, always. Never begin a reply — or any sentence in it — with a speaker label or name tag: never say "Aspen:", "Sara:", "Alex:", "Frank:", "Monica:", "Denise:", "Assistant:", "Visitor:" or any other name followed by a colon before your words. The conversation summaries and recaps in your instructions label turns that way for your READING only — those labels are never spoken, never quoted, and never repeated back to the visitor.';
 export const DEFAULT_AGENT = {
   name: 'Aspen', businessName: 'AI Hidden Leads', voice: 'Kore', avatarPath: '',
   greeting: '{timeGreeting}! I am {agentName} from {businessName}. {nameQuestion}',

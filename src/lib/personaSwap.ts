@@ -28,8 +28,8 @@ export interface SwapState {
   phase: SwapPhase;
   persona: PersonaId;
   /** PRESENTER CHAIN (Alex handoff fix, 2026-11-14): set ONLY on a
-   *  whole-demo presenter chain (Frank / Monica / Black Professional
-   *  Lady fronting an example demo) — the presenter persona the chain
+   *  whole-demo presenter chain (Frank / Monica / Denise fronting
+   *  an example demo) — the presenter persona the chain
    *  belongs to. While set, boundaryForAssistantLine runs the
    *  presenter rule set INSTEAD of the standard one: the presenter
    *  fronts the demo solo, so the doorway/step-out/summon anchors in
@@ -273,13 +273,14 @@ export const MEET_ALEX_STRONG_ANCHORS = [
 /** Alex's hand-back phrases on a PRESENTER chain, keyed by presenter —
  *  the distinctive middle of the example line his presenter-parent
  *  guest prompt teaches him (presenterAlexGuestPrompt in
- *  _shared/personas.ts; keep the two in step). The Black Professional
- *  Lady's display name is a working label, not a spoken name, so her
- *  chain hands back to "your host". */
+ *  _shared/personas.ts; keep the two in step). Every presenter now
+ *  carries a settled spoken name — Denise's was the last, settled by
+ *  Ron 2026-11-15; before that her chain handed back to "your host"
+ *  because her display name was still a working label. */
 export const PRESENTER_HAND_BACK_ANCHORS: Partial<Record<PersonaId, string[]>> = {
   frank: ['bring frank back'],
   latina: ['bring monica back'],
-  'black-professional-lady': ['bring your host back', 'bring our host back'],
+  'black-professional-lady': ['bring denise back'],
 };
 
 export function boundaryForAssistantLine(text: string, state: SwapState): PersonaBoundary | null {

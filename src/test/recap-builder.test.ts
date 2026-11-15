@@ -5,11 +5,12 @@ import {
   RECAP_ELISION_LINE,
   RECAP_MAX_CHARS,
   buildTranscriptRecap,
+  stripSpokenLabelPrefix,
   windowRecapLines,
   windowRecapText,
   type RecapTurn,
 } from "../../supabase/functions/_shared/recap-builder";
-import { RECAP_FACTS_RULE, resumeInstruction } from "../../supabase/functions/_shared/voice-config";
+import { NO_SPEAKER_LABEL_RULE, RECAP_FACTS_RULE, resumeInstruction } from "../../supabase/functions/_shared/voice-config";
 import {
   dropReconnectInstruction,
   personaDropInstruction,
@@ -183,5 +184,50 @@ describe("gemini-session wiring — caps raised + server-side synthesis", () => 
     const fallbackIndex = sessionSource.indexOf(".eq('config->>visitorKeyHash', visitorKeyHash)");
     expect(gateIndex).toBeGreaterThan(-1);
     expect(fallbackIndex).toBeGreaterThan(gateIndex);
+  });
+});
+
+describe("persona-label leak guard (Publish #67, 2026-11-15)", () => {
+  // Ron's Frank test: one of Frank's spoken replies began with the
+  // literal prefix "Aspen:" — the model generalized the recap's
+  // labeled-line format and filled the label slot with a persona
+  // name. The format layer strips the label at the recap chokepoint
+  // so a leaked label can never be stored and re-fed.
+  it("strips an inner persona label after the role prefix", () => {
+    expect(stripSpokenLabelPrefix("Assistant: Aspen: Let me check that for you.")).toBe("Assistant: Let me check that for you.");
+    expect(stripSpokenLabelPrefix("Assistant: Frank: Of course — one moment.")).toBe("Assistant: Of course — one moment.");
+    expect(stripSpokenLabelPrefix("Visitor: Aspen: that is not my name")).toBe("Visitor: that is not my name");
+    expect(stripSpokenLabelPrefix("Assistant: Assistant: doubled label")).toBe("Assistant: doubled label");
+  });
+
+  it("re-homes a raw line that opens with a persona label of its own", () => {
+    expect(stripSpokenLabelPrefix("Aspen: Welcome in.")).toBe("Assistant: Welcome in.");
+    expect(stripSpokenLabelPrefix("denise: Happy to help.")).toBe("Assistant: Happy to help.");
+  });
+
+  it("leaves genuine content untouched — a name only strips in the label slot", () => {
+    expect(stripSpokenLabelPrefix("Assistant: Aspen is my colleague on the team.")).toBe("Assistant: Aspen is my colleague on the team.");
+    expect(stripSpokenLabelPrefix("Visitor: I asked for Frank: he helped me before")).toBe("Visitor: I asked for Frank: he helped me before");
+    expect(stripSpokenLabelPrefix("Assistant: The 3:30 slot is open.")).toBe("Assistant: The 3:30 slot is open.");
+    expect(stripSpokenLabelPrefix(RECAP_ELISION_LINE)).toBe(RECAP_ELISION_LINE);
+  });
+
+  it("windowRecapLines and buildTranscriptRecap sanitize every line they emit", () => {
+    const lines = windowRecapLines(["Assistant: Aspen: First line.", "Visitor: Hi there."]);
+    expect(lines[0]).toBe("Assistant: First line.");
+    const recap = buildTranscriptRecap([
+      { role: "assistant", text: "Aspen: Here is the answer." },
+      { role: "caller", text: "Thanks." },
+    ]);
+    expect(recap).toContain("Assistant: Here is the answer.");
+    expect(recap).not.toContain("Aspen:");
+  });
+
+  it("the instruction layer forbids spoken labels, and the proxy carries it in every session prompt", () => {
+    expect(NO_SPEAKER_LABEL_RULE).toContain("NO SPEAKER LABELS IN SPEECH");
+    expect(NO_SPEAKER_LABEL_RULE).toContain('never say "Aspen:"');
+    expect(NO_SPEAKER_LABEL_RULE).toContain("never spoken, never quoted");
+    const proxySource = readFileSync(new URL("../../supabase/functions/gemini-live-proxy/index.ts", import.meta.url), "utf8");
+    expect(proxySource).toContain("${CONTACT_READBACK_POLICY}\\n${NO_SPEAKER_LABEL_RULE}\\nCONVERSATION COPY:");
   });
 });

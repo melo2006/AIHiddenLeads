@@ -41,6 +41,7 @@ import {
   topExampleListings,
 } from '../../supabase/functions/_shared/realtor-example-listings';
 import {
+  DEMO_SITE_FOLLOW_UP_BEATS,
   DEMO_SITE_GREETING_VARIANTS,
   DEMO_SITE_STAT_LINES,
   SIMULATION_RECEPTIONIST_SEGMENT,
@@ -396,13 +397,18 @@ describe('Item 7 + drive-by — examples count and greeting-variant assembly', (
     expect(examplePackBySlug('alexa-scalone')).toBeNull();
   });
 
-  it('the CODE greeting variants assemble whole — the stored seam is snapshot data, not this template', () => {
-    expect(DEMO_SITE_GREETING_VARIANTS).toHaveLength(3);
+  it('the CODE greeting assembles whole — a short first segment; the sales material lives in the follow-up beats (Publish #67)', () => {
+    expect(DEMO_SITE_GREETING_VARIANTS).toHaveLength(1);
     for (const variant of DEMO_SITE_GREETING_VARIANTS) {
       expect(variant).toContain('thanks for trying the demo I built for {businessName}.');
       expect(variant).not.toContain('thanks for trying the demo is');
-      expect(DEMO_SITE_STAT_LINES.some((s) => variant.includes(s))).toBe(true);
-      expect(variant).toContain('meet Sara');
+      // No statistic and no Sara introduction in the first segment —
+      // both moved to DEMO_SITE_FOLLOW_UP_BEATS.
+      expect(DEMO_SITE_STAT_LINES.some((s) => variant.includes(s))).toBe(false);
+      expect(variant).not.toContain('meet Sara');
+      expect(variant.endsWith('Shall we get started?')).toBe(true);
     }
+    for (const stat of DEMO_SITE_STAT_LINES) expect(DEMO_SITE_FOLLOW_UP_BEATS).toContain(stat);
+    expect(DEMO_SITE_FOLLOW_UP_BEATS).toContain('meet Sara');
   });
 });

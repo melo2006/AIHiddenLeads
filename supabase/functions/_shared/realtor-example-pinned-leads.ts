@@ -119,12 +119,13 @@ export function applyPinnedServiceArea(
  * here run the standard Aspen→Sara flow. A listed example is fronted
  * SOLO by the named presenter persona (see personas.ts
  * presenterSimulationPrompt): the Senior Owner ("Frank") fronts the
- * three MALE agents' examples; Monica and the Black Professional
- * Lady front two FEMALE agents' examples each (Ladies batch,
+ * three MALE agents' examples; Monica and Denise
+ * front two FEMALE agents' examples each (Ladies batch,
  * 2026-11-13 — Ron approved the build the same night; Monica's
- * name was settled by Ron 2026-11-14, the Black Professional
- * Lady's name in personas.ts is still a working label, and both
- * voices are Muse's picks, not Ron-settled). This map is the
+ * name was settled by Ron 2026-11-14 and Denise's by Ron
+ * 2026-11-15 — she shipped under the working label "Black
+ * Professional Lady" — and both voices are Muse's picks, not
+ * Ron-settled). This map is the
  * server-known source of
  * truth — gemini-session stamps the presenter onto the demo parent
  * only when the request is a marked sample whose lead's stored site
