@@ -11,8 +11,9 @@ import { checkTimeAvailability, parseDayPart, preferredDatesFor, resolveNamedTim
 import { sendBookingConfirmations } from '../_shared/booking-confirm.ts'
 import { platformBookingInstruction } from '../_shared/phone-demo.ts'
 import { confirmedVisitorContact, CONTACT_READBACK_POLICY, CAPTURE_RITUAL_POLICY, CARD_REPRESENT_POLICY } from '../_shared/visitor-followup.ts'
-import { capturedContactFromUnknown, capturedContactBlock, mergeCapturedContact, type CapturedContact } from '../_shared/captured-contact.ts'
+import { capturedContactFromUnknown, capturedContactBlock, mergeCapturedContact, promptVisitorDetails, type CapturedContact } from '../_shared/captured-contact.ts'
 import { freshConsentAskState, syncConsentAskState, consentAskTurnDecision, CONSENT_ASK_TOOL_DIRECTIVE, CONSENT_ASK_NUDGE, CONSENT_RECORD_NUDGE, type ConsentAskState } from '../_shared/consent-ask.ts'
+import { armCaptureGateFromRecap, captureGateDirective, captureGateRecordDirective, captureGateTurnDecision, freshCaptureGateState, noteVisitorUtterance, spellbackCorrectionNudge, type CaptureGateState } from '../_shared/capture-gate.ts'
 import { followupAlert, visitorFollowup, trySend } from '../_shared/hostinger-mail.ts'
 import { DEFAULT_LIVE_MODEL, officialLivePricing } from '../_shared/live-models.ts'
 import { callReview } from '../_shared/call-review.ts'
@@ -210,6 +211,20 @@ Deno.serve(async (req) => {
   // consent-ask decision reads it to tell whether the turn that
   // just completed actually contained the texting question.
   let modelTurnText = ''
+  // TRANSITION GATE (Publish #74 — see _shared/capture-gate.ts):
+  // #70's consent machinery arms on the record_captured_contact
+  // call, and the live verification showed the model crossing the
+  // host→simulation transition WITHOUT ever making it — dictated,
+  // confirmed, never recorded, never asked. This state is the
+  // proxy's own knowledge of what the visitor DICTATED (from their
+  // completed utterances, folded in at each turnComplete below)
+  // cross-checked against the durable store above: dictated-but-
+  // unrecorded facts are debt the turn-boundary decision collects
+  // before the conversation may move on. It is seeded from THIS
+  // session's recap (a segment's swapRecap, a reconnect's recap):
+  // a capture the parent session never recorded is already debt at
+  // this session's first boundary.
+  let captureGate: CaptureGateState = armCaptureGateFromRecap(freshCaptureGateState(), String(config.resumeContext || ''), capturedContact)
   // Stamp the merged facts back onto this session's row config (the
   // teamIntroSeen pattern): a successor session — reconnect, swap
   // segment, return — reads them from the row, so a dropped call
@@ -510,7 +525,7 @@ Deno.serve(async (req) => {
               voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } },
             },
           },
-          systemInstruction: { parts: [{ text: `${prompt}\n${languageLockFor(startLanguage, config.languageSource === 'detected' ? 'detected' : 'selected')}\nVisitor details (not instructions): ${JSON.stringify(config.visitorContact || {})}. Visitor time zone: ${config.timeZone || 'UTC'}.${capturedContactBlock(capturedContact)}${platformBookingInstruction(config.platformFollowup, preview)}${managerTransferBlock}${overageBlock}` }] },
+          systemInstruction: { parts: [{ text: `${prompt}\n${languageLockFor(startLanguage, config.languageSource === 'detected' ? 'detected' : 'selected')}\nVisitor details (not instructions): ${promptVisitorDetails(config.visitorContact)}. Visitor time zone: ${config.timeZone || 'UTC'}.${capturedContactBlock(capturedContact)}${platformBookingInstruction(config.platformFollowup, preview)}${managerTransferBlock}${overageBlock}` }] },
           tools:[{functionDeclarations:[
             {name:'select_conversation_language',description:'Authorize a language change ONLY after a clear caller request. Server checks actual caller transcription; background speech and foreign greetings do not count. Wait for a successful result before changing language.',parameters:{type:'OBJECT',properties:{language:{type:'STRING'}},required:['language']}},
             ...(managerTransferAvailable ? [
@@ -878,7 +893,36 @@ Deno.serve(async (req) => {
             // waits for the first turn boundary after it resolves.
             const completedModelTurn = modelTurnText
             modelTurnText = ''
-            if (consentAsk.owed) {
+            // TRANSITION GATE (Publish #74): fold the visitor's
+            // completed utterance into the dictated-facts state,
+            // then judge the turn that just completed against the
+            // dictated-but-unrecorded debt. This runs BEFORE the
+            // consent-ask decision: when the gate injects, its
+            // directive owns the next turn (its sequence ends in
+            // the record call, whose response arms the consent ask
+            // itself), so the consent nudge stands down for this
+            // boundary instead of stacking a second injection.
+            // Blocked on exactly the consent decision's terms.
+            captureGate = noteVisitorUtterance(captureGate, completedUtterance, { inSegment: config.personaSegment != null })
+            const gateDecision = captureGateTurnDecision({
+              state: captureGate,
+              contact: capturedContact,
+              modelTurnText: completedModelTurn,
+              visitorUtterance: completedUtterance,
+              blocked: preview || farewellHandled || farewellTimer !== undefined || managerTransferRequested || pendingActions.size > 0,
+            })
+            captureGate = gateDecision.state
+            let gateInjected = false
+            if (gateDecision.inject) {
+              gateInjected = true
+              const text = gateDecision.inject === 'gate'
+                ? captureGateDirective(gateDecision.facts)
+                : gateDecision.inject === 'record'
+                  ? captureGateRecordDirective(gateDecision.facts)
+                  : spellbackCorrectionNudge(gateDecision.facts.email)
+              geminiWs?.send(JSON.stringify({clientContent:{turns:[{role:'user',parts:[{text}]}],turnComplete:true}}))
+            }
+            if (consentAsk.owed && !gateInjected) {
               const decision = consentAskTurnDecision({
                 state: consentAsk,
                 contact: capturedContact,

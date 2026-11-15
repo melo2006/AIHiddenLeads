@@ -319,7 +319,18 @@ Deno.serve(async req=>{
   } else if(b.leadId || b.prospectId) {
     if(b.leadId && b.prospectId) { const {data:p}=await db.from('prospects').select('website_url').eq('id',b.prospectId).maybeSingle(); const {data:l}=await db.from('leads').select('website_url').eq('id',b.leadId).maybeSingle(); if(!p || !l || p.website_url!==l.website_url) return json({error:'Prospect and demo website do not match'},400); }
     let knowledge='', businessName=''; let visitorContact: Record<string,unknown> = {}; let leadInviteArrivedAt: unknown = null; let siteUrl=''; let leadWebsiteLanguage: unknown = null;
-    if(b.leadId) { const {data:lead}=await db.from('leads').select('business_name,website_url,website_content,scan_status,full_name,email,phone,invite_arrived_at').eq('id',b.leadId).maybeSingle(); if(!lead || !lead.website_content || !['completed','enriched','scanning'].includes(lead.scan_status) || lead.website_content.length<200) return json({error:'This business demo has not finished learning its website. Please wait for the scan.'},409); knowledge=lead.website_content; businessName=lead.business_name; siteUrl=lead.website_url || ''; visitorContact={name:sanitizeVisitorName(lead.full_name),email:lead.email || '',phone:lead.phone || ''}; leadInviteArrivedAt=lead.invite_arrived_at; const {data:langRow}=await db.from('leads').select('website_language').eq('id',b.leadId).maybeSingle(); leadWebsiteLanguage=langRow?.website_language ?? null; }
+    // Publish #74: visitorContact carries the lead's NAME only. The
+    // lead row's email/phone are the demo-form submitter's contact
+    // (the lead owner's), NOT the current visitor's captured facts —
+    // copying them here composed them into every session on the
+    // lead, and the #70 verification caught the presenter reciting
+    // the owner's own email as the visitor's address "on file".
+    // A visitor's on-file facts come only from their own captured-
+    // contact store (#68) and their own transcript; the name stays
+    // because the greeting/invite personalization addresses the
+    // person the demo was made for (and the invite flow asks them
+    // to confirm it), never as an asserted captured fact.
+    if(b.leadId) { const {data:lead}=await db.from('leads').select('business_name,website_url,website_content,scan_status,full_name,email,phone,invite_arrived_at').eq('id',b.leadId).maybeSingle(); if(!lead || !lead.website_content || !['completed','enriched','scanning'].includes(lead.scan_status) || lead.website_content.length<200) return json({error:'This business demo has not finished learning its website. Please wait for the scan.'},409); knowledge=lead.website_content; businessName=lead.business_name; siteUrl=lead.website_url || ''; visitorContact={name:sanitizeVisitorName(lead.full_name)}; leadInviteArrivedAt=lead.invite_arrived_at; const {data:langRow}=await db.from('leads').select('website_language').eq('id',b.leadId).maybeSingle(); leadWebsiteLanguage=langRow?.website_language ?? null; }
     else { const {data:p}=await db.from('prospects').select('business_name,business_data,ai_analysis,website_url').eq('id',b.prospectId).maybeSingle(); if(!p) return json({error:'Demo business not found'},404); knowledge=JSON.stringify(p.business_data || {}); businessName=p.business_name; siteUrl=p.website_url || ''; if(knowledge.length<20) return json({error:'Prepare this prospect website demo before starting a call.'},409); }
     const {data:aspen}=await db.from('voice_agents').select('published').eq('slug','aspen-homepage').maybeSingle();
     const published=aspen?.published as Record<string,unknown>|undefined;

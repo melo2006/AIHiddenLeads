@@ -119,6 +119,33 @@ export function mergeCapturedContact(
 }
 
 /**
+ * The ONLY rendering of a session's visitorContact that may reach
+ * a prompt (Publish #74, 2026-11-15). visitorContact originates on
+ * the demo-lead row: its email/phone are the DEMO FORM SUBMITTER's
+ * details (the lead owner's own contact), stamped into every
+ * session authorized against that lead — while the person actually
+ * visiting may be someone else entirely. The #70 verification
+ * caught the consequence live: on a fresh reconnect the presenter
+ * cited the lead owner's own email (melo4000@gmail.com) as the
+ * VISITOR's email "on file", because the proxy rendered the whole
+ * object as "Visitor details" and the model recited it as a
+ * captured fact. The visitor's on-file facts live in ONE place —
+ * the captured-contact store above, keyed to THIS visitor — and a
+ * recap may draw only from that store and the session's own
+ * transcript. So this projection keeps the NAME (the greeting and
+ * invite personalization address the person the demo was made
+ * for, and the invite flow asks them to CONFIRM it — it is never
+ * asserted as a captured fact) and drops email/phone structurally,
+ * whatever a stored config happens to carry.
+ */
+export function promptVisitorDetails(visitorContact: unknown): string {
+  const name = visitorContact && typeof visitorContact === 'object'
+    ? cleanField((visitorContact as Record<string, unknown>).name, 100)
+    : '';
+  return JSON.stringify({ name });
+}
+
+/**
  * The prompt block a session carrying captured facts is stamped
  * with. This is the regression surface for the Frank defect: the
  * facts are stated as HELD, with the standing order that they are
