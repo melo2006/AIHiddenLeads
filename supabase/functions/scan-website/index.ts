@@ -19,6 +19,10 @@ import {
   shouldKeepStoredContent,
   type ContentOverwriteSignals,
 } from '../_shared/content-overwrite-guard.ts';
+import {
+  guardedScreenshotValue,
+  shouldKeepStoredScreenshot,
+} from '../_shared/screenshot-banner-guard.ts';
 import { rehostScreenshotUrlWith } from '../_shared/screenshot-rehost.ts';
 import { REALTOR_EXAMPLE_PINNED_LEADS } from '../_shared/realtor-example-pinned-leads.ts';
 import { B2B_EXAMPLE_PINNED_LEADS } from '../_shared/b2b-example-pinned-leads.ts';
@@ -1732,11 +1736,50 @@ Deno.serve(async (req) => {
     const screenshotProvider = browserlessScreenshotResult ? 'browserless' : (firecrawlScreenshotResult ? 'firecrawl' : 'generated');
     console.log('Screenshot provider used:', screenshotProvider, '| tablet:', !!browserlessResults.tablet, '| mobile:', !!browserlessResults.mobile);
 
+    // SCREENSHOT BANNER GUARD (Publish #63, 2026-11-15; see
+    // _shared/screenshot-banner-guard.ts): a stored screenshot may
+    // only be replaced by a capture taken AFTER a successful banner
+    // dismissal. This scan's consent witness is settled HERE —
+    // before the first screenshot write below — so the preview save
+    // and the final save share one verdict: when the witness saw a
+    // banner this scan did not dismiss, this scan's captures are
+    // presumed to carry it, and the previously stored screenshots
+    // are kept (the content-overwrite guard's keep-stored
+    // philosophy, applied to screenshots). The 2026-11-15 Martinez
+    // re-scan stored a banner-carrying screenshot over the clean
+    // one precisely because nothing connected the witness to the
+    // write. The probe promise never rejects; a null witness means
+    // unrecorded, and every write proceeds exactly as before.
+    const witnessedConsentFlags = (await consentProbePromise) ??
+      consentScanFlagsFromEvidence(firecrawlFallback?.consentEvidence);
+    const { data: storedScreenshotRow } = await supabase
+      .from('leads')
+      .select('website_screenshot, screenshot_tablet, screenshot_mobile')
+      .eq('id', leadId)
+      .maybeSingle();
+    const storedScreenshots = {
+      desktop: storedScreenshotRow?.website_screenshot ?? null,
+      tablet: storedScreenshotRow?.screenshot_tablet ?? null,
+      mobile: storedScreenshotRow?.screenshot_mobile ?? null,
+    };
+    const keepStoredScreenshots = shouldKeepStoredScreenshot({
+      storedScreenshot: storedScreenshots.desktop,
+      nextProvider: screenshotProvider,
+      bannerSeen: witnessedConsentFlags?.seen,
+      bannerDismissed: witnessedConsentFlags?.dismissed,
+    });
+    if (keepStoredScreenshots) {
+      console.log(`[ScreenshotGuard] kept stored screenshots over a banner-carrying capture (banner seen, not dismissed) for lead ${leadId}`);
+    }
+    const guardedPreviewScreenshot = guardedScreenshotValue(storedScreenshots.desktop, previewScreenshot, keepStoredScreenshots);
+    const guardedPreviewTablet = guardedScreenshotValue(storedScreenshots.tablet, browserlessResults.tablet || null, keepStoredScreenshots);
+    const guardedPreviewMobile = guardedScreenshotValue(storedScreenshots.mobile, browserlessResults.mobile || null, keepStoredScreenshots);
+
     const previewUpdate = await supabase.from('leads').update({
       ...websiteUrlWriteFor(isPinnedExampleLead, formattedUrl),
-      website_screenshot: previewScreenshot,
-      screenshot_tablet: browserlessResults.tablet || null,
-      screenshot_mobile: browserlessResults.mobile || null,
+      website_screenshot: guardedPreviewScreenshot,
+      screenshot_tablet: guardedPreviewTablet,
+      screenshot_mobile: guardedPreviewMobile,
       brand_colors: branding.colors || null,
       brand_logo: branding.images?.logo || branding.logo || null,
       brand_fonts: branding.fonts || branding.typography || null,
@@ -1755,11 +1798,15 @@ Deno.serve(async (req) => {
     // yet — a missing column must never break the scan, it just logs.
     // (Before this column, a generated placeholder was indistinguishable
     // from a real capture in the row itself.)
-    const providerPreviewWrite = await supabase.from('leads').update({
-      screenshot_provider: screenshotProvider,
-    }).eq('id', leadId);
-    if (providerPreviewWrite.error) {
-      console.warn('Could not save screenshot provider (column may not be applied yet):', providerPreviewWrite.error.message);
+    // Skipped when the banner guard kept the stored screenshots:
+    // their provenance is the earlier scan's provider, not this one's.
+    if (!keepStoredScreenshots) {
+      const providerPreviewWrite = await supabase.from('leads').update({
+        screenshot_provider: screenshotProvider,
+      }).eq('id', leadId);
+      if (providerPreviewWrite.error) {
+        console.warn('Could not save screenshot provider (column may not be applied yet):', providerPreviewWrite.error.message);
+      }
     }
 
     // === PHASE 2: Sub-pages (skip if running out of time) ===
@@ -1989,8 +2036,8 @@ Deno.serve(async (req) => {
     // has recorded one, a later scan whose capture didn't render it
     // must not erase the record, so the write merges against the
     // row's current flags (read best-effort, same warn-only pattern).
-    const witnessedConsentFlags = (await consentProbePromise) ??
-      consentScanFlagsFromEvidence(firecrawlFallback?.consentEvidence);
+    // (witnessedConsentFlags was settled before the preview save
+    // above — the screenshot banner guard needed the same verdict.)
     let consentFlags = witnessedConsentFlags;
     if (consentFlags) {
       const existingConsent = await supabase.from('leads')
@@ -2007,6 +2054,16 @@ Deno.serve(async (req) => {
           },
           consentFlags,
         ) ?? consentFlags;
+      }
+      // HONEST DISMISSAL STATE (Publish #63): `seen` is a property
+      // of the site and stays sticky, but `dismissed` describes
+      // THIS capture — when this scan witnessed a banner it did not
+      // dismiss, the row must not keep claiming an earlier scan's
+      // dismissal: the latest capture did not perform one (and the
+      // screenshot guard above kept the stored screenshot for
+      // exactly that reason).
+      if (witnessedConsentFlags?.seen === true && witnessedConsentFlags?.dismissed !== true) {
+        consentFlags = { ...consentFlags, dismissed: false };
       }
       console.log(
         'Consent banner at scan time — seen:', consentFlags.seen,
@@ -2051,9 +2108,9 @@ Deno.serve(async (req) => {
       brand_colors: branding.colors || null,
       brand_logo: branding.images?.logo || branding.logo || null,
       brand_fonts: branding.fonts || branding.typography || null,
-      website_screenshot: storedScreenshot,
-      screenshot_tablet: browserlessResults.tablet || null,
-      screenshot_mobile: browserlessResults.mobile || null,
+      website_screenshot: guardedScreenshotValue(storedScreenshots.desktop, storedScreenshot, keepStoredScreenshots),
+      screenshot_tablet: guardedScreenshotValue(storedScreenshots.tablet, browserlessResults.tablet || null, keepStoredScreenshots),
+      screenshot_mobile: guardedScreenshotValue(storedScreenshots.mobile, browserlessResults.mobile || null, keepStoredScreenshots),
       ...(keepStoredContent ? {} : { website_content: initialContent || null }),
       website_title: title || null,
       website_description: description || null,
@@ -2071,11 +2128,13 @@ Deno.serve(async (req) => {
 
     // Same best-effort provenance write as the preview save (see above) —
     // separate update, warn-only, safe before the migration lands.
-    const providerFinalWrite = await supabase.from('leads').update({
-      screenshot_provider: screenshotProvider,
-    }).eq('id', leadId);
-    if (providerFinalWrite.error) {
-      console.warn('Could not save screenshot provider on final write (column may not be applied yet):', providerFinalWrite.error.message);
+    if (!keepStoredScreenshots) {
+      const providerFinalWrite = await supabase.from('leads').update({
+        screenshot_provider: screenshotProvider,
+      }).eq('id', leadId);
+      if (providerFinalWrite.error) {
+        console.warn('Could not save screenshot provider on final write (column may not be applied yet):', providerFinalWrite.error.message);
+      }
     }
 
     console.log('Scan completed for lead:', leadId, '— content length:', initialContent.length);
