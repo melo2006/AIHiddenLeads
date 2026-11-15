@@ -100,6 +100,12 @@ describe('detectDictatedEmail — typed and spoken forms, nothing murkier', () =
     expect(detectDictatedEmail('ron dot melo at gmail dot com')).toBe('ron.melo@gmail.com');
   });
 
+  it('Publish #78 (defect 4): "period" and "point" are separators too — the whole address, never a fragment', () => {
+    expect(detectDictatedEmail('my email is tony period test at example dot com')).toBe('tony.test@example.com');
+    expect(detectDictatedEmail('it is tony point test at example dot com')).toBe('tony.test@example.com');
+    expect(detectDictatedEmail('tony period test at example period com')).toBe('tony.test@example.com');
+  });
+
   it('rejects phrases that merely contain "at" or a fragment', () => {
     expect(detectDictatedEmail('Meet me at noon by the office.')).toBe('');
     expect(detectDictatedEmail('send it to me at gmail dot com')).toBe('');
@@ -224,6 +230,20 @@ describe('read-back rendering detection — spelled, segmented, or not a read-ba
     expect(emailRenderingInTurn('your email is tony.test@example.com, right?', 'tony.test@example.com')).toBe('segmented');
   });
 
+  it('Publish #78 (defect 4): a "period" rendering is segmented — the #74 verification session-A read-back verbatim', () => {
+    // Before the fix this classified as null (not a read-back at
+    // all): neither sequence contains "period", so no correction
+    // fired and the capture stood on the segmented confirmation.
+    expect(emailRenderingInTurn('That is tony period test at example dot com, and your number is 954 555 0142. Did I get that right?', 'tony.test@example.com')).toBe('segmented');
+    expect(emailRenderingInTurn('your email is tony point test at example dot com', 'tony.test@example.com')).toBe('segmented');
+    expect(emailRenderingInTurn('your email is tony period test at example period com', 'tony.test@example.com')).toBe('segmented');
+  });
+
+  it('Publish #78 (defect 4): a true spell-back spoken with "period" separators is spelled — never corrected', () => {
+    expect(emailRenderingInTurn('your email is t-o-n-y period t-e-s-t at e-x-a-m-p-l-e dot c-o-m', 'tony.test@example.com')).toBe('spelled');
+    expect(emailRenderingInTurn('your email is t o n y period t e s t at e x a m p l e period c o m', 'tony.test@example.com')).toBe('spelled');
+  });
+
   it('a turn that does not render the address is not a read-back', () => {
     expect(emailRenderingInTurn(TRANSITION_TURN, 'tony.test@example.com')).toBeNull();
     expect(emailRenderingInTurn('Tony, let me show you the first listing.', 'tony.test@example.com')).toBeNull();
@@ -315,6 +335,38 @@ describe('SIMULATION — the #70 defect sequence, replayed through the proxy cal
     // the same session earns nothing more.
     contact = withContact({ email: 'tony.test@example.com', phone: '954-555-0142' });
     turn = boundary(state, contact, SEGMENTED_READBACK, '');
+    expect(turn.inject).toBeNull();
+  });
+
+  it('Publish #78 (defect 4): the #74 verification session A — the "period" read-back earns the same correction, and the corrected re-read follows', () => {
+    // Verbatim from publish74-verification-2026-11-15.md, Check 1/3:
+    // the dictate-turn read-back rendered the email with "period".
+    const PERIOD_READBACK = 'Thank you, Tony. I want to confirm those details. That is tony period test at example dot com, and your number is 954 555 0142. Did I get that right?';
+    let contact: CapturedContact | null = null;
+    let turn = boundary(freshCaptureGateState(), contact, PERIOD_READBACK, DICTATE);
+    let state = turn.state;
+    // The same one-time correction the "dot" form earns — with the
+    // exact letter-by-letter sequence — and the grouped form's
+    // confirmation is void (the email read-back does not count).
+    expect(turn.inject).toBe('spellback');
+    expect(state.spellbackCorrected).toBe(true);
+    expect(state.emailReadback).toBe(false);
+    expect(state.phoneReadback).toBe(true);
+
+    // The corrected letter-by-letter re-read follows; the visitor's
+    // fresh confirmation is still owed before any record-order.
+    turn = boundary(state, contact, SPELLED_READBACK, "Yes, that's right.");
+    state = turn.state;
+    expect(turn.inject).toBeNull();
+    expect(state.emailReadback).toBe(true);
+
+    // The visitor confirms the corrected read-back; the model
+    // transitions without recording → the record is ordered, and
+    // the correction stays one-time.
+    turn = boundary(state, contact, TRANSITION_TURN, "Yes, that's right.");
+    state = turn.state;
+    expect(turn.inject).toBe('record');
+    turn = boundary(state, contact, PERIOD_READBACK, '');
     expect(turn.inject).toBeNull();
   });
 
