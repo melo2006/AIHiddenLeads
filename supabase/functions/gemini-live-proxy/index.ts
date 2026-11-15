@@ -1050,7 +1050,7 @@ Deno.serve(async (req) => {
                 const text = salesDecision.inject === 'early-ask'
                   ? earlyAskDirective(salesGate.earlyAskCorrections >= 2)
                   : salesDecision.inject === 'end-ask'
-                    ? endAskDirective()
+                    ? endAskDirective(salesGate.endAskRepeat)
                     : noRepeatDirective(salesGate.repeatCorrections >= 2)
                 geminiWs?.send(JSON.stringify({clientContent:{turns:[{role:'user',parts:[{text}]}],turnComplete:true}}))
               }

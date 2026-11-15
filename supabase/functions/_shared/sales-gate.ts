@@ -40,16 +40,49 @@
 //      before any interest signal or close: capture is end-timed,
 //      and the ask is withdrawn back into the conversation.
 //   3. THE END-ASK — interest has landed, no contact is held or
-//      volunteered, and the model's answering turn did not make
-//      the framed ask: order it once, in Ron's framing. If the
-//      order goes undelivered and a genuine close arrives later,
-//      it may be ordered once more there — never a third time. A
-//      close with no interest behind it arms nothing: no interest
-//      signal, no ask at all.
+//      volunteered, and the framed ask has not been made: order
+//      it, in Ron's framing.
+//
+// Publish #81 (2026-11-15) — the order PERSISTS until complied
+// with. The #79 verification showed the affirmative half failing
+// live, twice, with one shape: the interest turn ("what does it
+// cost per month, and how would I get started?") was answered
+// with pricing closing on a MEETING-BOOKING offer, the framed
+// send-offer was never spoken, and the only collection that
+// occurred was the booking form's own ask ("spell your first
+// and last name and provide your email address?") — which the
+// ask detector could not even see. A one-shot order gets
+// displaced exactly like that (the same lesson Publish #80
+// taught the discovery gate), so now:
+//   - the end-ask order re-fires ONCE, sterner, at the next
+//     boundary if the framed ask still has not landed — whatever
+//     the model did instead, the booking offer included; the
+//     sterner order states plainly that the send-offer is owed
+//     BEFORE anything else is collected, and that the booking
+//     offer may follow it, never replace it or go first;
+//   - a capture ask WITHOUT the send-offer framing (a bare ask,
+//     or the booking form's name-led collection) while the
+//     end-ask is owed does NOT satisfy it — it draws that same
+//     sterner order on the spot. Once the framed ask HAS been
+//     made, booking-form collection proceeds unimpeded: it is
+//     the legitimate booking flow, not a repeat;
+//   - fires are capped at 2 per interest episode and
+//     SALES_GATE_END_ASK_TOTAL_FIRES per session; a fresh
+//     interest signal after an episode's fires run out re-arms
+//     a new episode. A close with no interest behind it still
+//     arms nothing: no interest signal, no ask at all.
 
 import { detectDictatedContact } from './capture-gate.ts';
 
-export const SALES_GATE_MAX_FIRES = 3;
+export const SALES_GATE_MAX_FIRES = 5;
+
+/** End-ask order fires across the whole session (Publish #81):
+ * two per interest episode, at most two episodes — the arming
+ * order plus its sterner repeat, twice over, and no more. (The
+ * session-wide SALES_GATE_MAX_FIRES sits one above this so a
+ * correction can still land alongside a full two-episode arc;
+ * each directive family keeps its own tighter cap regardless.) */
+export const SALES_GATE_END_ASK_TOTAL_FIRES = 4;
 
 // ---------------------------------------------------------------------------
 // Detectors
@@ -78,9 +111,103 @@ export function turnAsksForContact(text: string): boolean {
     /can i (have|get|take) your (e-?mail|phone|mobile|cell|number)/i.test(t) ||
     /could i (have|get) your (e-?mail|phone|mobile|cell|number)/i.test(t) ||
     /(give|share|tell|drop|leave) me your (e-?mail|phone|mobile|cell|number)/i.test(t) ||
+    /(provide|enter) your (e-?mail|phone|mobile|cell)/i.test(t) ||
     /i'?ll need your (e-?mail|phone|mobile|cell|number)/i.test(t) ||
-    /where (should|can) i (send|text|e-?mail) (it|that|this|them)/i.test(t)
+    /where (should|can) i (send|text|e-?mail) (it|that|this|them)/i.test(t) ||
+    // Publish #81: the booking form's name-led collection IS a
+    // capture ask for gate purposes — it was invisible before,
+    // and it is the path that actually collected an email in the
+    // #79 verification while the end-ask stood owed.
+    turnCollectsBookingContact(t)
   );
+}
+
+const BOOKING_COLLECTION_PATTERNS: RegExp[] = [
+  /spell (me )?your (first|last|full)\b/i,
+  /spell (me )?(your |the )?(first and last|full) name/i,
+  /(first and last name|full name)[^.?!]{0,80}(e-?mail|phone number|mobile|cell)/i,
+  /(e-?mail|phone number|mobile|cell)[^.?!]{0,80}(first and last name|full name)/i,
+];
+
+/**
+ * Is this turn the BOOKING FORM's collection — a name-led ask
+ * tied to scheduling ("To get that introductory meeting
+ * scheduled, could you please spell your first and last name and
+ * provide your email address?")? It is a capture ask, but it is
+ * not the framed end-ask: while the end-ask is owed it is the
+ * violation shape, and once the end-ask has been made it is the
+ * legitimate booking flow proceeding.
+ */
+export function turnCollectsBookingContact(text: string): boolean {
+  return bookingCollectionIndexInTurn(text) >= 0;
+}
+
+/** The earliest character index of a booking-collection pattern
+ * in the turn, or -1 — used to judge whether the send-offer LED
+ * a turn that contains both. */
+export function bookingCollectionIndexInTurn(text: string): number {
+  const t = text || '';
+  let best = -1;
+  for (const p of BOOKING_COLLECTION_PATTERNS) {
+    const m = p.exec(t);
+    if (m && (best === -1 || m.index < best)) best = m.index;
+  }
+  return best;
+}
+
+const SEND_OFFER_PATTERNS: RegExp[] = [
+  /copy of (this|our|the) conversation/i,
+  /pass (it|this|that|them) (along |over )?to (your |their |a )?(manager|colleague|colleagues|owner|boss|partner)/i,
+  /something (you|they) can (pass|share|show|send)/i,
+  /(send|text|e-?mail) you (the |a |that |this |your )?(demo |booking )?(link|copy|follow-?up|recap|transcript)/i,
+  /follow-?up from (the|our) team/i,
+  /show (it|this|that|them) to (your |a )?(manager|colleague|colleagues|owner|boss|partner)/i,
+  /so (you|they) can (replay|share|show) (it|this|that|them)/i,
+];
+
+/** The earliest character index of send-offer framing in the
+ * turn, or -1: the demo link to replay, a copy of this
+ * conversation, a follow-up from the team, the share angle. */
+export function sendOfferIndexInTurn(text: string): number {
+  const t = text || '';
+  let best = -1;
+  for (const p of SEND_OFFER_PATTERNS) {
+    const m = p.exec(t);
+    if (m && (best === -1 || m.index < best)) best = m.index;
+  }
+  return best;
+}
+
+/** Does this turn carry the SEND-OFFER framing — the offer to
+ * send something useful (with the share angle) that makes a
+ * capture ask the framed end-ask rather than a bare collection? */
+export function turnMakesSendOffer(text: string): boolean {
+  return sendOfferIndexInTurn(text) >= 0;
+}
+
+export type ModelAskKind = 'framed' | 'booking' | 'bare' | 'none';
+
+/**
+ * Classify a model turn's capture ask (Publish #81):
+ *  - 'framed'  — an ask carrying the send-offer framing: the
+ *    end-ask itself. If a turn also collects for a booking, the
+ *    send-offer must LEAD (appear first) for the turn to count
+ *    as framed; a collection that goes first is 'booking'.
+ *  - 'booking' — the booking form's name-led collection with no
+ *    leading send-offer.
+ *  - 'bare'    — any other contact ask, unframed.
+ *  - 'none'    — no capture ask at all.
+ */
+export function classifyModelAsk(text: string): ModelAskKind {
+  if (!turnAsksForContact(text)) return 'none';
+  const sendIdx = sendOfferIndexInTurn(text);
+  if (sendIdx >= 0) {
+    const bookIdx = bookingCollectionIndexInTurn(text);
+    if (bookIdx >= 0 && bookIdx < sendIdx) return 'booking';
+    return 'framed';
+  }
+  if (turnCollectsBookingContact(text)) return 'booking';
+  return 'bare';
 }
 
 /**
@@ -168,9 +295,21 @@ export interface SalesGateState {
   earlyAskCorrections: number;
   /** Repeat-ask corrections injected (cap 2). */
   repeatCorrections: number;
-  /** End-ask orders injected (cap 2: the arming order, plus one
-   * re-order at a genuine close if the first went undelivered). */
+  /** End-ask orders injected in the CURRENT interest episode
+   * (Publish #81: cap 2 — the arming order plus one sterner
+   * repeat; the order persists until the framed ask observably
+   * lands. A fresh interest signal after the cap runs out
+   * re-arms a new episode and resets this to 0). */
   endAskFires: number;
+  /** End-ask orders injected across the whole session
+   * (Publish #81: the re-arm bound — never more than
+   * SALES_GATE_END_ASK_TOTAL_FIRES). */
+  endAskTotalFires: number;
+  /** The most recent end-ask fire was the sterner repeat (a
+   * second fire in its episode, or a fire answering a collection
+   * that jumped the queue) — the proxy picks the sterner
+   * directive variant from it. Reset by every standard fire. */
+  endAskRepeat: boolean;
   /** Total directives injected this session. */
   fires: number;
 }
@@ -187,6 +326,8 @@ export const freshSalesGateState = (): SalesGateState => ({
   earlyAskCorrections: 0,
   repeatCorrections: 0,
   endAskFires: 0,
+  endAskTotalFires: 0,
+  endAskRepeat: false,
   fires: 0,
 });
 
@@ -245,12 +386,20 @@ export function earlyAskDirective(second: boolean): string {
 }
 
 /**
- * The end-ask order: interest or a close has landed, nothing is
- * held or volunteered, and the model's last turn did not make the
- * ask. Orders the ONE framed ask in the next turn, at the next
- * natural pause — never as an interruption of an answer in flight.
+ * The end-ask order: interest has landed, nothing is held or
+ * volunteered, and the framed ask has not been made. Orders the
+ * ONE framed ask in the next turn, at the next natural pause —
+ * never as an interruption of an answer in flight. The `repeat`
+ * variant (Publish #81) is the sterner re-firing: the send-offer
+ * is still owed and comes BEFORE anything else is collected —
+ * before a meeting is booked and before any name or email is
+ * taken to schedule one; the booking offer may follow it in the
+ * same turn, never replace it or go first.
  */
-export function endAskDirective(): string {
+export function endAskDirective(repeat = false): string {
+  if (repeat) {
+    return `The framed send-offer is STILL owed — it has not been made, and it comes BEFORE anything else is collected: before a meeting is booked, and before any name or email is taken to schedule one. Make it now, leading your next turn, exactly once: ${END_ASK_FRAMING}. Ask for the email address or the mobile number that send should go to. Only after that offer is made may the booking conversation continue — the meeting offer may follow the send-offer in the same turn, but it never replaces it and never goes first. If they say yes to the send, collect the detail through the normal capture ritual — read it back, spell the email, confirm the number, and ask the texting permission before any text is promised. If they decline or wave it off, accept it in one warm line and NEVER ask again in this session.`;
+  }
   return `The visitor has shown interest, and the one capture ask of this sales conversation is now earned — make it in your next turn, at the next natural pause, as a SEND offer, exactly once: ${END_ASK_FRAMING}. Ask for the email address or the mobile number that send should go to. If they say yes, collect the detail through the normal capture ritual — read it back, spell the email, confirm the number, and ask the texting permission before any text is promised. If they decline or wave it off, accept it in one warm line and NEVER ask again in this session. Do not stack the ask on top of an unfinished answer: finish the thought you owe them first, then make the offer as its own beat.`;
 }
 
@@ -308,8 +457,21 @@ export function salesGateTurnDecision(input: {
   if (visitorUtterance) {
     const dictated = detectDictatedContact(visitorUtterance);
     if (dictated.email || dictated.phone) state = { ...state, volunteered: true };
-    if (!state.interestSeen && detectInterestSignal(visitorUtterance)) {
-      state = { ...state, interestSeen: true };
+    if (detectInterestSignal(visitorUtterance)) {
+      if (!state.interestSeen) {
+        state = { ...state, interestSeen: true };
+      } else if (
+        // Publish #81: a FRESH interest signal after the current
+        // episode's orders ran out re-arms the debt — a new
+        // episode with its own two fires, still bounded by the
+        // session total. Interest alone, with fires remaining,
+        // changes nothing: the outstanding order simply persists.
+        state.endAskFires >= 2
+        && state.endAskTotalFires < SALES_GATE_END_ASK_TOTAL_FIRES
+        && !state.askDelivered && !state.askDeclined
+      ) {
+        state = { ...state, endAskFires: 0, endAskRepeat: false };
+      }
     }
     if (!state.closeSeen && detectCloseSignal(visitorUtterance)) {
       state = { ...state, closeSeen: true };
@@ -320,24 +482,70 @@ export function salesGateTurnDecision(input: {
   }
 
   // ---- OBSERVE the model turn that just completed ---------------------
-  const asked = turnAsksForContact(modelTurnText);
+  // Publish #81: the turn's capture ask is CLASSIFIED, not just
+  // detected. Only the FRAMED ask — a capture ask carrying the
+  // send-offer framing, leading any booking collection in the
+  // same turn — counts as the end-ask made. A bare ask or the
+  // booking form's collection while the framed ask is owed and
+  // unmade is the violation shape: the order persists.
+  const askKind = classifyModelAsk(modelTurnText);
+  const asked = askKind !== 'none';
   const modelClose = turnBeginsClose(modelTurnText);
-  const askFiredAtEntry = state.askFired;
   const wasAwaitingDelivery = state.awaitingDelivery;
   let repeatCandidate = false;
   let earlyCandidate = false;
+  let violationCandidate = false;
   if (state.awaitingDelivery) state = { ...state, awaitingDelivery: false };
   if (asked) {
-    if (wasAwaitingDelivery) {
-      // The ordered end-ask, delivered. Compliance, not a repeat.
-      state = { ...state, askDelivered: true };
-    } else if (askFiredAtEntry) {
+    if (state.askDeclined) {
+      // ANY capture ask after the visitor declined the one ask —
+      // bare, framed or booking-form — is a repeat.
       repeatCandidate = true;
-    } else if (state.interestSeen || state.closeSeen || modelClose) {
-      // The model made the end-ask itself, on time: it is spent.
-      state = { ...state, askFired: true, askDelivered: true };
+    } else if (askKind === 'framed') {
+      if (state.askDelivered) {
+        repeatCandidate = true;
+      } else if (state.interestSeen || state.closeSeen || modelClose || wasAwaitingDelivery) {
+        // The framed send-offer ask, made: compliance with an
+        // outstanding order (whenever it lands), the model's own
+        // on-time ask, or its one close offer. The ask is spent,
+        // delivered — the debt is discharged.
+        state = { ...state, askFired: true, askDelivered: true };
+      } else {
+        // A framed send-offer ask during qualification is still
+        // an early ask: capture before value + interest.
+        earlyCandidate = true;
+      }
+    } else if (askKind === 'booking') {
+      if (state.askDelivered) {
+        // The framed ask was made; the booking flow collecting
+        // its scheduling details afterwards is legitimate and
+        // proceeds unimpeded — not a repeat, not a violation.
+      } else if (state.interestSeen) {
+        // Collection jumped the queue: the framed send-offer is
+        // owed and unmade, and the booking form collected first.
+        violationCandidate = true;
+      } else {
+        earlyCandidate = true;
+      }
     } else {
-      earlyCandidate = true;
+      // A bare, unframed ask.
+      if (state.askDelivered) {
+        repeatCandidate = true;
+      } else if (state.interestSeen) {
+        // An unframed ask while the framed end-ask is owed does
+        // not satisfy it (Publish #81) — the order persists and
+        // the sterner repeat answers this turn. (If the visitor
+        // answers the bare ask, their dictation stands the gate
+        // down at the next fold and the #68/#74 ritual owns it.)
+        violationCandidate = true;
+      } else if (state.closeSeen || modelClose) {
+        // #79's judgment, preserved: the model's own ask inside
+        // its close-flavored turn, with no interest behind it, is
+        // its one final offer — spent, not corrected.
+        state = { ...state, askFired: true, askDelivered: true };
+      } else {
+        earlyCandidate = true;
+      }
     }
   }
 
@@ -366,24 +574,34 @@ export function salesGateTurnDecision(input: {
       inject: 'early-ask',
     };
   }
-  // 3. THE END-ASK — interest has landed, the ask is unspent, and
-  //    the model's answering turn did not make it. Ordered once;
-  //    if that order goes undelivered, a genuine close may
-  //    re-order it once — never a third time. A close WITHOUT
-  //    interest never arms the order (rule 3: no interest signal,
-  //    no ask at all) — the close only re-arms an ask that
-  //    interest already earned.
-  if (!state.askFired && !state.askDeclined && !asked
-    && state.interestSeen && state.endAskFires < 1) {
+  // 3. THE END-ASK — owed while interest stands behind it and the
+  //    FRAMED ask has neither landed nor been declined. Its order
+  //    PERSISTS until complied with (Publish #81): it fires at
+  //    the boundary where interest lands and the answering turn
+  //    made no framed ask; if the framed ask still has not landed
+  //    at the next boundary — whatever the model did instead, the
+  //    meeting-booking offer included — it re-fires ONCE, sterner;
+  //    and a collection that jumped the queue (a bare ask, or the
+  //    booking form's name-led collection) draws that sterner
+  //    order on the spot. Caps: 2 fires per interest episode,
+  //    SALES_GATE_END_ASK_TOTAL_FIRES per session; a fresh
+  //    interest signal after an episode runs out re-arms (fold).
+  //    A close WITHOUT interest never arms the order (rule 3:
+  //    no interest signal, no ask at all).
+  if (!state.askDelivered && !state.askDeclined && state.interestSeen
+    && state.endAskFires < 2 && state.endAskTotalFires < SALES_GATE_END_ASK_TOTAL_FIRES
+    && (violationCandidate || !asked)) {
+    const repeat = violationCandidate || state.endAskFires >= 1;
     return {
-      state: { ...state, askFired: true, awaitingDelivery: true, endAskFires: state.endAskFires + 1, fires: state.fires + 1 },
-      inject: 'end-ask',
-    };
-  }
-  if (state.askFired && !state.askDelivered && !state.askDeclined && !asked
-    && state.closeSeen && state.endAskFires < 2) {
-    return {
-      state: { ...state, awaitingDelivery: true, endAskFires: state.endAskFires + 1, fires: state.fires + 1 },
+      state: {
+        ...state,
+        askFired: true,
+        awaitingDelivery: true,
+        endAskFires: state.endAskFires + 1,
+        endAskTotalFires: state.endAskTotalFires + 1,
+        endAskRepeat: repeat,
+        fires: state.fires + 1,
+      },
       inject: 'end-ask',
     };
   }

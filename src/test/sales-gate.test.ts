@@ -25,8 +25,10 @@
 import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
+  SALES_GATE_END_ASK_TOTAL_FIRES,
   SALES_GATE_MAX_FIRES,
   armSalesGateFromRecap,
+  classifyModelAsk,
   detectAskDecline,
   detectCloseSignal,
   detectInterestSignal,
@@ -37,6 +39,8 @@ import {
   salesGateTurnDecision,
   turnAsksForContact,
   turnBeginsClose,
+  turnCollectsBookingContact,
+  turnMakesSendOffer,
   type SalesGateState,
 } from '../../supabase/functions/_shared/sales-gate';
 import {
@@ -79,6 +83,21 @@ const END_ASK_MODEL = "Before you go — I can send you the link to this demo so
 const DECLINE_VISITOR = 'No thanks — not right now.';
 const VOLUNTEER_VISITOR = 'Actually, just take my email now — it is tony dot test at example dot com.';
 const VOLUNTEER_MODEL = "Perfect, let me read that back: t, o, n, y, dot, t, e, s, t, at example dot com. Did I get that right?";
+// Publish #81 fixtures — VERBATIM from the #79 live verification
+// (publish79-verification-2026-11-15.md, check S2, both runs):
+// the interest turn and the two model turns that displaced the
+// end-ask — the meeting-booking offer, and the booking form's
+// name-led collection the #79 detector could not see.
+const S2_INTEREST_VISITOR = 'Okay — what does it cost per month, and how would I get started?';
+const S2_BOOKING_OFFER_RUN1 = 'Premium is ninety nine dollars a month, and the setup fee is waived right now. Alex, our onboarding engineer, walks you through the setup step by step — the self-setup takes most people about fifteen to thirty minutes with him guiding you, though done-for-you setup is also available if you\'d rather hand it over. Would you have fifteen to twenty minutes for a quick introductory meeting with one of our sales specialists to go over your questions and the main features?';
+const S2_BOOKING_OFFER_RERUN = 'Premium is $99 a month and includes 400 browser voice minutes and up to 50 B2B prospects per month. The live video avatar is free for your first month, and then $79 a month if you choose to keep it. Most businesses are live the same day — you can set it up yourself in 15 to 30 minutes with Alex, our onboarding engineer, or we do it with you on a call. Would you have 15 to 20 minutes for a quick introductory meeting to go over your questions, the main features, and getting you set up?';
+const S2_SLOT_CHOICE_MODEL = 'What works best for you — later today, tomorrow morning, or would the next day be better?';
+const S2_BOOKING_COLLECTION_MODEL = 'Perfect. To get that introductory meeting scheduled, could you please spell your first and last name and provide your email address?';
+// The same-turn pair for the lead-order rule: the send-offer
+// leading (the ask counts as made) vs the collection leading
+// (it does not).
+const SEND_THEN_BOOK_MODEL = "Let me send you the demo link and a copy of this conversation — something you can pass to your manager, a colleague, or the owner. What's the best email for that? And if you'd like to get that introductory meeting scheduled too, could you spell your first and last name and provide your email address?";
+const BOOK_THEN_SEND_MODEL = 'Perfect — to get that introductory meeting scheduled, could you please spell your first and last name and provide your email address? I can also send you the demo link and a copy of this conversation afterward.';
 
 describe('Publish #79 — detectors: what counts as a capture ask', () => {
   it('catches the ask shapes, including the old demo-bridge and claim-rule forms', () => {
@@ -176,6 +195,7 @@ describe('Publish #79 — (b) the end-ask fires on interest/close, framed as a s
     expect(r.inject).toBe('end-ask');
     expect(r.state.askFired).toBe(true);
     expect(r.state.endAskFires).toBe(1);
+    expect(r.state.endAskRepeat).toBe(false); // the standard variant fires first
     // The ordered delivery on the next turn is compliance, not a repeat.
     const delivered = boundary(r.state, 'Sure.', END_ASK_MODEL);
     expect(delivered.inject).toBeNull();
@@ -189,16 +209,40 @@ describe('Publish #79 — (b) the end-ask fires on interest/close, framed as a s
     expect(r.state.askDelivered).toBe(true);
   });
 
-  it('an undelivered order may be re-ordered once at a genuine close — never a third time', () => {
+  // Publish #81 REWRITE (in place, justified): #79 allowed the
+  // re-order only at a genuine close — and its live verification
+  // showed exactly how that stranded the ask: the interest turn
+  // was answered with a meeting-booking offer, no close ever
+  // arrived, and the framed end-ask was never spoken in either
+  // session. The order now PERSISTS (the #80 lesson): it
+  // re-fires once, sterner, at the very next boundary; the
+  // episode cap is 2 fires; a fresh interest signal after the
+  // episode runs out re-arms a new one; the session total is
+  // SALES_GATE_END_ASK_TOTAL_FIRES.
+  it('an undelivered order re-fires once, sterner, at the NEXT boundary — then the episode is spent; a fresh interest signal re-arms', () => {
     let s = freshSalesGateState();
-    s = boundary(s, INTEREST_VISITOR, PRICE_ANSWER_MODEL).state; // end-ask ordered
+    s = boundary(s, INTEREST_VISITOR, PRICE_ANSWER_MODEL).state; // end-ask ordered (fire 1)
     let r = boundary(s, 'Okay.', 'And the setup itself takes about fifteen minutes with Alex.');
-    expect(r.inject).toBeNull(); // no close yet — no re-order
-    r = boundary(r.state, "That's all I needed — thanks!", 'Happy to help.');
-    expect(r.inject).toBe('end-ask');
+    expect(r.inject).toBe('end-ask'); // the sterner repeat — no close needed anymore
     expect(r.state.endAskFires).toBe(2);
-    const third = boundary(r.state, 'Bye.', 'Anything else I can do?');
-    expect(third.inject).toBeNull();
+    expect(r.state.endAskRepeat).toBe(true);
+    expect(endAskDirective(true)).toContain('STILL owed');
+    expect(endAskDirective(true)).toContain('BEFORE anything else is collected');
+    expect(endAskDirective(false)).not.toContain('STILL owed');
+    r = boundary(r.state, 'Okay.', 'Anything else I can do?');
+    expect(r.inject).toBeNull(); // episode spent — no third fire
+    // A fresh interest signal re-arms a new episode.
+    r = boundary(r.state, 'Actually — how do I get started?', 'Let me walk you through it.');
+    expect(r.inject).toBe('end-ask');
+    expect(r.state.endAskFires).toBe(1);
+    expect(r.state.endAskRepeat).toBe(false);
+    expect(r.state.endAskTotalFires).toBe(3);
+    r = boundary(r.state, 'Okay.', 'Anything else?');
+    expect(r.inject).toBe('end-ask');
+    expect(r.state.endAskTotalFires).toBe(SALES_GATE_END_ASK_TOTAL_FIRES);
+    // The session total is the hard bound: no third episode.
+    r = boundary(r.state, 'And what are the next steps?', 'Right this way.');
+    expect(r.inject).toBeNull();
   });
 
   it('no interest signal → no ask is ever ordered, not even at the goodbye (rule 3)', () => {
@@ -397,5 +441,133 @@ describe('Publish #79 — wiring: the proxy arms the gate on homepage-sales sess
     const captureBlock = proxySource.slice(captureAt, captureAt + 400);
     expect(captureBlock).toContain('blocked: preview || farewellHandled || farewellTimer !== undefined || managerTransferRequested || pendingActions.size > 0,');
     expect(captureBlock).not.toContain('salesInjected');
+  });
+
+  it('Publish #81: the proxy picks the sterner end-ask variant from the ledger\'s repeat flag', () => {
+    expect(proxySource).toContain('endAskDirective(salesGate.endAskRepeat)');
+  });
+});
+
+describe('Publish #81 — detectors: the gate can now SEE the booking form, and judge the framing', () => {
+  it('the booking form\'s name-led collection is a capture ask (verbatim from the #79 verification)', () => {
+    expect(turnCollectsBookingContact(S2_BOOKING_COLLECTION_MODEL)).toBe(true);
+    expect(turnAsksForContact(S2_BOOKING_COLLECTION_MODEL)).toBe(true);
+    expect(turnAsksForContact('Could you spell your full name and give me your phone number to schedule?')).toBe(true);
+    expect(turnAsksForContact('Please provide your email address so we can confirm.')).toBe(true);
+  });
+
+  it('the meeting-booking OFFER itself is not a capture ask — nothing is collected yet', () => {
+    expect(turnAsksForContact(S2_BOOKING_OFFER_RUN1)).toBe(false);
+    expect(turnAsksForContact(S2_BOOKING_OFFER_RERUN)).toBe(false);
+    expect(classifyModelAsk(S2_BOOKING_OFFER_RUN1)).toBe('none');
+    expect(classifyModelAsk(S2_BOOKING_OFFER_RERUN)).toBe('none');
+  });
+
+  it('classification: framed needs the send-offer, LEADING any collection in the same turn', () => {
+    expect(turnMakesSendOffer(END_ASK_MODEL)).toBe(true);
+    expect(turnMakesSendOffer(S2_BOOKING_OFFER_RERUN)).toBe(false);
+    expect(classifyModelAsk(END_ASK_MODEL)).toBe('framed');
+    expect(classifyModelAsk(S2_BOOKING_COLLECTION_MODEL)).toBe('booking');
+    expect(classifyModelAsk("What's your email address?")).toBe('bare');
+    expect(classifyModelAsk(SEND_THEN_BOOK_MODEL)).toBe('framed'); // the send-offer leads
+    expect(classifyModelAsk(BOOK_THEN_SEND_MODEL)).toBe('booking'); // the collection leads — the offer did not
+    expect(classifyModelAsk(QUALIFYING_MODEL)).toBe('none');
+  });
+});
+
+describe('Publish #81 — the #79 verification failure (S2), replayed turn for turn', () => {
+  it('run 1: the booking offer answers interest → the order fires; the slot-choice turn still draws the sterner repeat', () => {
+    let s = freshSalesGateState();
+    s = boundary(s, QUALIFYING_VISITOR, QUALIFYING_MODEL).state;
+    let r = boundary(s, S2_INTEREST_VISITOR, S2_BOOKING_OFFER_RUN1);
+    expect(r.state.interestSeen).toBe(true);
+    expect(r.inject).toBe('end-ask');
+    expect(r.state.endAskRepeat).toBe(false);
+    expect(r.state.askDelivered).toBe(false);
+    // Run 1's next model turn stayed in the booking path (slot
+    // choice). Pre-#81 the order was stranded here — the only
+    // re-order path required a close that never arrived.
+    r = boundary(r.state, 'Email is best — go ahead.', S2_SLOT_CHOICE_MODEL);
+    expect(r.inject).toBe('end-ask');
+    expect(r.state.endAskRepeat).toBe(true);
+    expect(r.state.endAskFires).toBe(2);
+    expect(r.state.askDelivered).toBe(false);
+  });
+
+  it('rerun: the booking form collects while the end-ask stands owed → the sterner order fires on the spot; the ask is NOT spent', () => {
+    let s = freshSalesGateState();
+    s = boundary(s, S2_INTEREST_VISITOR, S2_BOOKING_OFFER_RERUN).state; // order fired at the interest boundary
+    const r = boundary(s, 'Email is best — go ahead.', S2_BOOKING_COLLECTION_MODEL);
+    expect(r.inject).toBe('end-ask');
+    expect(r.state.endAskRepeat).toBe(true);
+    expect(r.state.askDelivered).toBe(false);
+    // Compliance after the sterner order discharges the debt.
+    const delivered = boundary(r.state, 'Sure.', END_ASK_MODEL);
+    expect(delivered.inject).toBeNull();
+    expect(delivered.state.askDelivered).toBe(true);
+  });
+
+  it('the collection in the SAME turn as interest lands draws the sterner order immediately', () => {
+    const r = boundary(freshSalesGateState(), S2_INTEREST_VISITOR, S2_BOOKING_COLLECTION_MODEL);
+    expect(r.inject).toBe('end-ask');
+    expect(r.state.endAskRepeat).toBe(true);
+    expect(r.state.askDelivered).toBe(false);
+  });
+
+  it('a bare ask on the interest turn does not spend the end-ask either — the framing is the ask', () => {
+    const r = boundary(freshSalesGateState(), INTEREST_VISITOR, "Great — what's your email address?");
+    expect(r.inject).toBe('end-ask');
+    expect(r.state.endAskRepeat).toBe(true);
+    expect(r.state.askDelivered).toBe(false);
+  });
+
+  it('once the framed ask HAS been made, booking-form collection proceeds unimpeded', () => {
+    let s = freshSalesGateState();
+    s = boundary(s, INTEREST_VISITOR, END_ASK_MODEL).state; // the model's own framed ask
+    expect(s.askDelivered).toBe(true);
+    const r = boundary(s, "Yes — send it over, and let's book the meeting too.", S2_BOOKING_COLLECTION_MODEL);
+    expect(r.inject).toBeNull();
+  });
+
+  it('when the send-offer leads and the booking collection follows in the same turn, the ask counts as made', () => {
+    const r = boundary(freshSalesGateState(), INTEREST_VISITOR, SEND_THEN_BOOK_MODEL);
+    expect(r.inject).toBeNull();
+    expect(r.state.askDelivered).toBe(true);
+  });
+
+  it('when the collection leads and the send-offer trails in the same turn, the sterner order answers', () => {
+    const r = boundary(freshSalesGateState(), INTEREST_VISITOR, BOOK_THEN_SEND_MODEL);
+    expect(r.inject).toBe('end-ask');
+    expect(r.state.endAskRepeat).toBe(true);
+    expect(r.state.askDelivered).toBe(false);
+  });
+});
+
+describe('Publish #81 — the full S3 sequence, exercised through the persisted-order machinery', () => {
+  it('interest → gate order → framed ask made → decline → no repeat; a later booking collection earns the no-repeat order', () => {
+    let s = freshSalesGateState();
+    s = boundary(s, S2_INTEREST_VISITOR, S2_BOOKING_OFFER_RERUN).state; // the gate's order, fired over the booking offer
+    expect(s.askFired).toBe(true);
+    expect(s.askDelivered).toBe(false);
+    s = boundary(s, 'Sure.', END_ASK_MODEL).state; // the ask, made at last
+    expect(s.askDelivered).toBe(true);
+    let r = boundary(s, DECLINE_VISITOR, 'Of course — no problem at all.');
+    expect(r.inject).toBeNull();
+    expect(r.state.askDeclined).toBe(true);
+    // After a decline, not even the booking form may collect.
+    r = boundary(r.state, 'What about the video avatar part?', S2_BOOKING_COLLECTION_MODEL);
+    expect(r.inject).toBe('no-repeat');
+    // And no fresh interest signal resurrects an order.
+    const again = boundary(r.state, 'Actually that sounds good, how do I get started?', 'Great — let me walk you through it.');
+    expect(again.inject).toBeNull();
+  });
+
+  it('interest → the model\'s own framed ask → decline → the question stays closed', () => {
+    let s = freshSalesGateState();
+    s = boundary(s, INTEREST_VISITOR, END_ASK_MODEL).state;
+    s = boundary(s, DECLINE_VISITOR, 'No problem at all — happy to keep going without it.').state;
+    expect(s.askDeclined).toBe(true);
+    const r = boundary(s, 'Tell me more about the dashboard.', "Sure — and what's your email so I can send that over?");
+    expect(r.inject).toBe('no-repeat');
   });
 });
