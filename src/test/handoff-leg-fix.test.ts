@@ -18,6 +18,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   clearRetainedHandoffMic,
+  fitHandoffRecap,
   handoffDiagDetail,
   handoffDiagPayload,
   handoffDiagSignature,
@@ -155,6 +156,34 @@ describe('no announcement replay — the return recap is built without the say-i
   });
 });
 
+describe('fitHandoffRecap — the fact rides without eating the opening (Publish #63)', () => {
+  const fact = handoffVisitFact('completed');
+
+  it('appends the fact untouched when the recap fits', () => {
+    const recap = 'Visitor: My name is Tony Miller\nAssistant: Nice to meet you, Tony.';
+    expect(fitHandoffRecap(recap, fact)).toBe(`${recap}\n${fact}`);
+  });
+
+  it('an over-budget recap drops whole lines from the middle — the opening and the newest lines survive', () => {
+    const lines = [
+      'Visitor: My name is Tony Miller',
+      'Assistant: Nice to meet you, Tony.',
+      ...Array.from({ length: 30 }, (_, i) => `Assistant: Filler line number ${i} ${'with some padding words '.repeat(30)}`),
+      'Visitor: The last thing I said',
+      'Assistant: The last reply',
+    ];
+    const out = fitHandoffRecap(lines.join('\n'), fact, 4_000);
+    expect(out.length).toBeLessThanOrEqual(4_000);
+    expect(out).toContain('Visitor: My name is Tony Miller');
+    expect(out).toContain('Visitor: The last thing I said');
+    expect(out).toContain('Assistant: The last reply');
+    expect(out.endsWith(fact)).toBe(true);
+    // No line was cut in half: every surviving recap line is whole.
+    const whole = new Set(lines);
+    for (const line of out.split('\n').slice(0, -1)) expect(whole.has(line)).toBe(true);
+  });
+});
+
 describe('handoffDiag stamp — the leg leaves a trace on the session record', () => {
   it('renders the compact k=v line, one fact per key', () => {
     expect(handoffDiagDetail({ event: 'announced', outcome: '-', mic: 'live' })).toBe('ev=announced;out=-;mic=live');
@@ -206,10 +235,14 @@ describe('client wiring — GeminiConversation', () => {
     expect(src).toContain('if (isHandoffAnnouncement(stored[i].text)) { handoffAnnouncementRef.current = stored[i].text; return; }');
   });
 
-  it('the return recap strips the announcement and appends the visit fact, inside the 1600-char cap', () => {
+  it('the return recap strips the announcement and appends the visit fact, inside the raised cap', () => {
     expect(src).toContain('stripHandoffAnnouncement(memoryTurns, handoffAnnouncementRef.current)');
     expect(src).toContain('handoffVisitFact(handoffReturnRef.current.outcome)');
-    expect(src).toContain('resumeContext.slice(-(1600 - fact.length - 1))');
+    // Publish #63: the old 1600-char tail-slice (which cut the
+    // conversation's opening out of the return session's memory) is
+    // gone; fitHandoffRecap appends the fact under the 16,000 cap.
+    expect(src).toContain('resumeContext = fitHandoffRecap(resumeContext, fact);');
+    expect(src).not.toContain('1600 - fact.length');
   });
 
   it('every leg transition stamps: announced, leg-started, ended, return-ok', () => {

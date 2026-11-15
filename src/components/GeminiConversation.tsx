@@ -49,7 +49,8 @@ import PlaybackCaption from '@/components/PlaybackCaption';
 import { voiceSessionHeaders } from '@/lib/voiceSessionAuth';
 import { shouldShowMicHint } from '@/lib/micAudibility';
 import { createMicFlowState, MIC_MUTED_START_GRACE_MS, micDiagPayload, micDiagSignature, micDiagStamp, micInputSeconds, micTrackStartVerdict, noteMicFrame, noteMicSessionLive, noteMicWatchdogFired, shouldShowMicWatchdog, type MicDiagEvent, type MicTrackState } from '@/lib/micWatchdog';
-import { clearRetainedHandoffMic, handoffDiagPayload, handoffDiagSignature, handoffVisitFact, isHandoffAnnouncement, micStreamIsLive, retainHandoffMic, reusableMicStream, stripHandoffAnnouncement, takeRetainedHandoffMic, type HandoffDiagEvent, type HandoffDiagMic, type HandoffDiagOutcome } from '@/lib/handoffRecovery';
+import { clearRetainedHandoffMic, fitHandoffRecap, handoffDiagPayload, handoffDiagSignature, handoffVisitFact, isHandoffAnnouncement, micStreamIsLive, retainHandoffMic, reusableMicStream, stripHandoffAnnouncement, takeRetainedHandoffMic, type HandoffDiagEvent, type HandoffDiagMic, type HandoffDiagOutcome } from '@/lib/handoffRecovery';
+import { windowRecapLines } from '../../supabase/functions/_shared/recap-builder';
 import { createMediaSink, mediaPlaybackNode, type MediaSink } from '@/lib/mediaSink';
 import { clampPlaybackVolume, effectivePlaybackLevel, loadPlaybackVolume, savePlaybackVolume } from '@/lib/playbackVolume';
 import { applySinkIdToElement, audioContextSetSinkIdSupported, buildSpeakerMenuOptions, listSpeakerOutputs, pickDefaultSpeakerOutput, type SpeakerMenuOption, type SpeakerOutputDevice } from '@/lib/speakerOutput';
@@ -83,6 +84,57 @@ const VOICES = [
 type Turn = { role: "user" | "assistant" | "divider"; text: string; speaker?: PersonaId };
 // Same-page-visit memory so pressing play again after Stop resumes instead of re-greeting.
 const visitMemory = new Map<string, Turn[]>();
+/** sessionStorage mirror of visitMemory (Publish #63, 2026-11-15):
+ * the in-page Map alone dies with the page, so a visitor who
+ * reloaded — or whose dropped call reopened the demo — arrived at a
+ * successor session whose recap was EMPTY while the UI still
+ * offered to "pick up right where we left off" (Ron's retest: the
+ * return session knew neither his name nor his criteria). The Map
+ * stays the runtime store, with identical keying and behavior; the
+ * storage mirror is written through on every mutation and read back
+ * lazily on the first access, so a reload inside the same tab keeps
+ * the conversation. Best-effort by design: quota or privacy-mode
+ * failures lose only the mirror, never the call. The persisted copy
+ * keeps the most recent turns per key (the recap window needs the
+ * opening + the last 30; the chat restore shows the rest). */
+const VISIT_MEMORY_STORAGE_KEY = "aspen-visit-memory-v1";
+const VISIT_MEMORY_PERSISTED_TURNS = 120;
+let visitMemoryHydrated = false;
+function persistVisitMemory() {
+  try {
+    const stored: Record<string, Turn[]> = {};
+    visitMemory.forEach((turns, key) => { stored[key] = turns.slice(-VISIT_MEMORY_PERSISTED_TURNS); });
+    sessionStorage.setItem(VISIT_MEMORY_STORAGE_KEY, JSON.stringify(stored));
+  } catch { /* memory is best-effort */ }
+}
+function hydrateVisitMemory() {
+  if (visitMemoryHydrated) return;
+  visitMemoryHydrated = true;
+  try {
+    const raw = sessionStorage.getItem(VISIT_MEMORY_STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    for (const [key, value] of Object.entries(parsed)) {
+      if (!Array.isArray(value) || visitMemory.has(key)) continue;
+      const turns = value.filter((t): t is Turn => !!t && typeof t === "object"
+        && ((t as Turn).role === "user" || (t as Turn).role === "assistant" || (t as Turn).role === "divider")
+        && typeof (t as Turn).text === "string");
+      if (turns.length) visitMemory.set(key, turns);
+    }
+  } catch { /* memory is best-effort */ }
+}
+function visitMemoryGet(key: string): Turn[] {
+  hydrateVisitMemory();
+  return visitMemory.get(key) || [];
+}
+function visitMemorySet(key: string, turns: Turn[]) {
+  visitMemory.set(key, turns);
+  persistVisitMemory();
+}
+function visitMemoryDelete(key: string) {
+  visitMemory.delete(key);
+  persistVisitMemory();
+}
 /** Persona-chain stash across a manual stop / Stage-3 suspend, kept for
  * the length of the page visit (same lifetime as visitMemory). A full
  * teardown used to DELETE the swap chain, so a restart mid-Sara was
@@ -93,7 +145,12 @@ const visitMemory = new Map<string, Turn[]>();
 const visitChainStash = new Map<string, ChainStash>();
 export function resumeRecap(turns: Turn[]) {
   if (!turns.some(t => t.role === "assistant")) return undefined;
-  return turns.filter(t => t.role !== "divider").slice(-8).map(t => `${t.role === "user" ? "Visitor" : "Assistant"}: ${t.text}`).join("\n").slice(-1500);
+  // Publish #63 windowing (_shared/recap-builder.ts): the FIRST 6
+  // turns plus the LAST 30, an elision line where the middle was
+  // dropped, hard-capped — never the old last-8-turns tail-slice
+  // that forgot the visitor's name and first criteria by design.
+  const lines = turns.filter(t => t.role !== "divider").map(t => `${t.role === "user" ? "Visitor" : "Assistant"}: ${t.text}`);
+  return windowRecapLines(lines).join("\n");
 }
 type Phase = "idle" | "connecting" | "live" | "preview";
 
@@ -151,7 +208,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const prevVerificationRef = useRef(verification);
   useEffect(() => {
     if (prevVerificationRef.current === 'pending' && verification === 'verified') {
-      visitMemory.delete(agentId || 'homepage');
+      visitMemoryDelete(agentId || 'homepage');
       visitChainStash.delete(agentId || 'homepage');
     }
     prevVerificationRef.current = verification;
@@ -168,9 +225,9 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       teamIntroSeenMemoryRef.current = true;
       try {
         const key = agentId || 'homepage';
-        const existing = visitMemory.get(key) || [];
+        const existing = visitMemoryGet(key);
         if (!existing.some(t => t.text.includes('teamIntroSeen'))) {
-          visitMemory.set(key, [...existing, { role: 'user', text: '[visit fact] teamIntroSeen: the visitor watched the meet-the-team introduction on the demo page.' }]);
+          visitMemorySet(key, [...existing, { role: 'user', text: '[visit fact] teamIntroSeen: the visitor watched the meet-the-team introduction on the demo page.' }]);
         }
       } catch { /* memory is best-effort */ }
     }
@@ -1212,7 +1269,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       // the outgoing line BEFORE the state moves, so it is stamped with
       // the persona who actually spoke it.
       const speaker = role === "assistant" && swapEnabledRef.current ? swapStateRef.current.persona : undefined;
-      setTurns((prev) => { const next = [...prev, { role, text, ...(speaker ? { speaker } : {}) }]; if (!isPreviewRef.current) visitMemory.set(agentId || "homepage", next); return next; });
+      setTurns((prev) => { const next = [...prev, { role, text, ...(speaker ? { speaker } : {}) }]; if (!isPreviewRef.current) visitMemorySet(agentId || "homepage", next); return next; });
     }
     ref.current = "";
     if (role === "user") setPartialUser(""); else setPartialAspen("");
@@ -1225,7 +1282,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
    * from visitMemory — flushLine keeps it current — plus this turn's
    * unflushed lines). */
   const currentSwapRecap = useCallback((incoming: PersonaId) => {
-    const stored = visitMemory.get(agentId || "homepage") || [];
+    const stored = visitMemoryGet(agentId || "homepage");
     const extra: Turn[] = [];
     if (userLineRef.current.trim()) extra.push({ role: "user", text: userLineRef.current.trim() });
     if (aspenLineRef.current.trim()) extra.push({ role: "assistant", text: aspenLineRef.current.trim() });
@@ -1575,7 +1632,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // carrying the announcement's invariant opening is captured —
   // anything else leaves a previous capture untouched.
   const noteHandoffAnnouncement = useCallback(() => {
-    const stored = visitMemory.get(agentId || "homepage") || [];
+    const stored = visitMemoryGet(agentId || "homepage");
     for (let i = stored.length - 1; i >= 0; i--) {
       if (stored[i].role !== "assistant") continue;
       if (isHandoffAnnouncement(stored[i].text)) { handoffAnnouncementRef.current = stored[i].text; return; }
@@ -2646,16 +2703,20 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     // said once, word for word; a return session that re-speaks it
     // as its opening was tonight's Round A defect) and carries a
     // [visit fact] line recording that the transfer already
-    // happened and how the leg ended. The combined context stays
-    // inside gemini-session's 1600-char cap: the fact rides last,
-    // so the recap keeps its most recent lines. Visits with no
+    // happened and how the leg ended. Publish #63: the combined
+    // context fits under gemini-session's 16,000-char resumeContext
+    // cap (the recap itself caps at 14,000), and fitHandoffRecap
+    // trims whole lines from the recap's MIDDLE if it ever does
+    // not — the old 1,600 budget tail-sliced the recap, cutting
+    // the conversation's opening (the visitor's name, the first
+    // criteria) out of the return session's memory. Visits with no
     // handoff build the recap exactly as before.
-    const memoryTurns = visitMemory.get(agentId || "homepage") || [];
+    const memoryTurns = visitMemoryGet(agentId || "homepage");
     const recapTurns = handoffAnnouncementRef.current ? stripHandoffAnnouncement(memoryTurns, handoffAnnouncementRef.current) : memoryTurns;
     let resumeContext = preview ? undefined : resumeRecap(recapTurns);
     if (!preview && resumeContext && handoffReturnRef.current) {
       const fact = handoffVisitFact(handoffReturnRef.current.outcome);
-      resumeContext = `${resumeContext.slice(-(1600 - fact.length - 1))}\n${fact}`;
+      resumeContext = fitHandoffRecap(resumeContext, fact);
     }
     setTurns([]);
     setPartialUser("");
@@ -3356,7 +3417,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     userLineRef.current = "";
     setPartialUser("");
     setPartialAspen("");
-    setTurns([...(visitMemory.get(agentId || "homepage") || [])]);
+    setTurns([...visitMemoryGet(agentId || "homepage")]);
     sessionStartedAtRef.current = Date.now();
     const ws = new WebSocket(`${voiceProxyWsUrl()}?token=${encodeURIComponent(token)}&capture=${captureMode}`);
     wsRef.current = ws;
@@ -4001,7 +4062,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       // Transcript divider (owner transition spec): the transcript is
       // never cleared at a handoff; a centered divider row marks where
       // the incoming persona took over, under the last flushed line.
-      setTurns(prev => { const next = [...prev, { role: "divider" as const, text: "", speaker: incoming }]; if (!isPreviewRef.current) visitMemory.set(agentId || "homepage", next); return next; });
+      setTurns(prev => { const next = [...prev, { role: "divider" as const, text: "", speaker: incoming }]; if (!isPreviewRef.current) visitMemorySet(agentId || "homepage", next); return next; });
       // 4) Open the incoming segment's socket on the pre-authorized token.
       //    The connect ctx gives a pre-ready death of this socket ONE
       //    retry with a fresh authorization (the drop-recovery class:

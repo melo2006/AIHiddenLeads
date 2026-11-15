@@ -10,6 +10,21 @@ describe("same-visit resume", () => {
   it("recaps once the greeting has played", () => {
     expect(resumeRecap([{ role: "assistant", text: "Good morning!" }])).toContain("Assistant: Good morning!");
   });
+  it("keeps the first turns and the freshest turns, with an elision between (Publish #63)", () => {
+    const turns = [
+      { role: "assistant" as const, text: "Good morning! I'm Aspen." },
+      { role: "user" as const, text: "My name is Tony Miller." },
+      ...Array.from({ length: 50 }, (_, i) => ({ role: (i % 2 ? "user" : "assistant") as "user" | "assistant", text: `Exchange ${i}.` })),
+    ];
+    const recap = resumeRecap(turns)!;
+    expect(recap).toContain("Visitor: My name is Tony Miller.");
+    expect(recap).toContain("Exchange 49.");
+    expect(recap).toContain("[... middle of the conversation omitted ...]");
+    expect(recap.length).toBeLessThanOrEqual(14000);
+  });
+  it("the recap-facts rule rides in the resume instruction (Publish #63)", () => {
+    expect(resumeInstruction("Assistant: Good morning!")).toContain("RECAP FACTS ARE KNOWN, NOT MISSING");
+  });
   it("tells Aspen not to repeat the greeting", () => {
     const text = resumeInstruction("Assistant: Good morning!");
     expect(text).toContain("Do NOT repeat the opening greeting");

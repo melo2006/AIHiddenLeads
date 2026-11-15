@@ -18,7 +18,8 @@ import { realtorLandingApplies, stampHomepageSales, stampRealtorLanding } from '
 import { buildExampleListingsLayer, examplePackBySlug, examplePackForSiteUrl, stampExampleListings } from '../_shared/realtor-example-listings.ts';
 import { PUBLIC_PATHS } from '../_shared/report-context.ts';
 import { normalizeUiLocale, startingLanguageForUiLocale } from '../_shared/conversation-language.ts';
-const personaSegmentSchema=z.object({persona:z.enum(['aspen','sara','alex','frank','latina','black-professional-lady']),boundary:z.enum(['doorway','stepout','meet-alex','return','summon-aspen','intro-sara','intro-return-1','intro-alex','intro-return-2']),parentSessionId:z.string().uuid(),swapRecap:z.string().max(2400),drops:z.number().int().min(0).max(99).default(0),dropRecovery:z.boolean().default(false),manualResume:z.boolean().default(false),swap:z.boolean().default(false),teamIntroSeen:z.boolean().default(false)});
+import { buildTranscriptRecap } from '../_shared/recap-builder.ts';
+const personaSegmentSchema=z.object({persona:z.enum(['aspen','sara','alex','frank','latina','black-professional-lady']),boundary:z.enum(['doorway','stepout','meet-alex','return','summon-aspen','intro-sara','intro-return-1','intro-alex','intro-return-2']),parentSessionId:z.string().uuid(),swapRecap:z.string().max(8000),drops:z.number().int().min(0).max(99).default(0),dropRecovery:z.boolean().default(false),manualResume:z.boolean().default(false),swap:z.boolean().default(false),teamIntroSeen:z.boolean().default(false)});
 // SWAP DIAG (voice-first batch, 2026-11-10): the client posts a doorway
 // attempt's RESOLUTION (gate-abort, fallback, forced-execute,
 // voice-first cut-over, face takeover, watchdog action…) against the
@@ -45,7 +46,7 @@ const micDiagSchema=z.object({sessionId:z.string().uuid(),detail:z.string().max(
 // left no handoff trace at all. Same channel, same ownership, same
 // shape as micDiag; sessions with no handoff never stamp.
 const handoffDiagSchema=z.object({sessionId:z.string().uuid(),detail:z.string().max(400),at:z.number().optional()});
-const schema=z.object({ visitorKey:z.string().min(16).max(100), model:z.string().max(100).optional(), agentId:z.string().uuid().optional(), leadId:z.string().uuid().optional(), prospectId:z.string().uuid().optional(), draft:z.boolean().default(false), preview:z.boolean().default(false), voice:z.enum(VOICES as [string,...string[]]).optional(), hour:z.number().int().min(0).max(23).optional(), visitorName:z.string().max(100).default(''), timeZone:z.string().max(100).default('UTC'), locale:z.string().max(10).optional(), campaign:z.object({visitId:z.string().uuid(),source:z.string().max(100),campaign:z.string().max(100),entryPath:z.enum(PUBLIC_PATHS).optional()}).nullable().optional(), consent:z.boolean().default(false), verification:z.enum(['pending','verified']).optional(), invite:z.boolean().optional(), sample:z.boolean().optional(), guide:z.enum(['alex']).optional(), share:z.string().max(100).optional(), resumeContext:z.string().max(1600).optional(), reconnect:z.boolean().default(false), prewarm:z.boolean().default(false), personaSegment:personaSegmentSchema.optional(), swapDiag:swapDiagSchema.optional(), playoutDiag:playoutDiagSchema.optional(), micDiag:micDiagSchema.optional(), handoffDiag:handoffDiagSchema.optional() });
+const schema=z.object({ visitorKey:z.string().min(16).max(100), model:z.string().max(100).optional(), agentId:z.string().uuid().optional(), leadId:z.string().uuid().optional(), prospectId:z.string().uuid().optional(), draft:z.boolean().default(false), preview:z.boolean().default(false), voice:z.enum(VOICES as [string,...string[]]).optional(), hour:z.number().int().min(0).max(23).optional(), visitorName:z.string().max(100).default(''), timeZone:z.string().max(100).default('UTC'), locale:z.string().max(10).optional(), campaign:z.object({visitId:z.string().uuid(),source:z.string().max(100),campaign:z.string().max(100),entryPath:z.enum(PUBLIC_PATHS).optional()}).nullable().optional(), consent:z.boolean().default(false), verification:z.enum(['pending','verified']).optional(), invite:z.boolean().optional(), sample:z.boolean().optional(), guide:z.enum(['alex']).optional(), share:z.string().max(100).optional(), resumeContext:z.string().max(16000).optional(), reconnect:z.boolean().default(false), prewarm:z.boolean().default(false), personaSegment:personaSegmentSchema.optional(), swapDiag:swapDiagSchema.optional(), playoutDiag:playoutDiagSchema.optional(), micDiag:micDiagSchema.optional(), handoffDiag:handoffDiagSchema.optional() });
 const json=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
 export async function hash(value:string) { return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)))).map(b=>b.toString(16).padStart(2,'0')).join(''); }
 Deno.serve(async req=>{
@@ -536,7 +537,51 @@ Deno.serve(async req=>{
   const effectiveTimeZone=segmentParentId?segmentTimeZone((parentRowRef as {config?:Record<string,unknown>}|undefined)?.config,b.timeZone):b.timeZone;
   const greetingHour=hourInTimeZone(new Date(),effectiveTimeZone) ?? b.hour;
   const greetingName=sanitizeVisitorName(b.visitorName || String((config.visitorContact as Record<string,unknown>|undefined)?.name || ''));
-  config={...config,timeZone:effectiveTimeZone,...(uiLocale ? {uiLocale, startLanguage: startingLanguageForUiLocale(uiLocale)} : {}),quotaClass:segmentParentId?'persona_segment':b.share?'visitor':voiceQuotaClass(role?.role==='admin',b.preview),model:requestedModel || DEFAULT_LIVE_MODEL,opening:openingFor(config,greetingHour,greetingName),preview:b.preview,resumeContext:b.preview?undefined:(segmentParentId?String(config.resumeContext || ''):b.resumeContext),reconnect:segmentParentId?false:!b.preview&&b.reconnect,campaign:b.campaign || (segmentParentId?(config.campaign ?? null):null),recordTranscript:segmentParentId?config.recordTranscript===true:!b.preview && transcriptAllowed(false,false,b.consent),recordAudio:segmentParentId?config.recordAudio===true:!b.preview && b.consent};
+  // SERVER-SIDE RECAP SYNTHESIS (Publish #63, 2026-11-15): the
+  // client-side recap lives in the page's visit memory; a reload (or
+  // a dropped call that reopens the demo) arrives with NO recap at
+  // all, or with only the fragment since the reload — while the
+  // session is still authorized as a resume and the opening still
+  // offers to pick up where the visitor left off. When that happens
+  // on a NON-segment authorization, rebuild the recap here from the
+  // PRIOR session's stored transcript (same visitor_hash, same
+  // lead/prospect — or the same homepage agent — created within the
+  // last 30 minutes) with the shared first+last windowing, and use
+  // it when it is the fuller record. Only a transcript the prior
+  // session actually stored is read: recordTranscript/consent
+  // already decided whether one exists, so a session that stored
+  // nothing synthesizes nothing. Never for previews, drafts, shares
+  // or guides; never for persona segments (they carry swapRecap).
+  let effectiveResumeContext = b.resumeContext;
+  if (!b.personaSegment && !b.preview && !b.draft && !b.share && !b.guide
+    && (b.reconnect === true || !b.resumeContext || b.resumeContext.trim().length < 200)) {
+    try {
+      const priorSince = new Date(Date.now() - 30 * 60_000).toISOString();
+      const priorVisitorHash = await hash(`${b.visitorKey}|${req.headers.get('x-forwarded-for')?.split(',')[0] || ''}`);
+      let priorQuery = db.from('gemini_voice_sessions')
+        .select('config,transcript,created_at')
+        .eq('visitor_hash', priorVisitorHash)
+        .gte('created_at', priorSince)
+        .order('created_at', { ascending: false })
+        .limit(5);
+      if (b.leadId) priorQuery = priorQuery.eq('lead_id', b.leadId);
+      else if (b.prospectId) priorQuery = priorQuery.eq('prospect_id', b.prospectId);
+      else priorQuery = priorQuery.eq('agent_id', agentId);
+      const { data: priorRows } = await priorQuery;
+      const prior = (priorRows || []).find((row) => {
+        const priorConfig = (row as { config?: Record<string, unknown> }).config || {};
+        return !priorConfig.personaSegment && priorConfig.preview !== true
+          && Array.isArray((row as { transcript?: unknown }).transcript)
+          && ((row as { transcript?: unknown[] }).transcript as unknown[]).length > 0;
+      });
+      const synthesized = prior ? buildTranscriptRecap((prior as { transcript?: unknown }).transcript) : undefined;
+      if (synthesized && synthesized.length > (effectiveResumeContext || '').length) {
+        effectiveResumeContext = synthesized;
+      }
+    } catch { /* synthesis is best-effort: the client's recap stands */ }
+  }
+
+  config={...config,timeZone:effectiveTimeZone,...(uiLocale ? {uiLocale, startLanguage: startingLanguageForUiLocale(uiLocale)} : {}),quotaClass:segmentParentId?'persona_segment':b.share?'visitor':voiceQuotaClass(role?.role==='admin',b.preview),model:requestedModel || DEFAULT_LIVE_MODEL,opening:openingFor(config,greetingHour,greetingName),preview:b.preview,resumeContext:b.preview?undefined:(segmentParentId?String(config.resumeContext || ''):effectiveResumeContext),reconnect:segmentParentId?false:!b.preview&&b.reconnect,campaign:b.campaign || (segmentParentId?(config.campaign ?? null):null),recordTranscript:segmentParentId?config.recordTranscript===true:!b.preview && transcriptAllowed(false,false,b.consent),recordAudio:segmentParentId?config.recordAudio===true:!b.preview && b.consent};
   // DEMO-SITE OPENING RENDER (2026-11-12 late — live retest of the
   // Scalone batch, session 96d54121): openingFor returned the picked
   // demo rotation variant VERBATIM, and the demo-site variants are

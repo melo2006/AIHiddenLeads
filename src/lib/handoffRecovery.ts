@@ -42,6 +42,8 @@
  *     records stay byte-identical.
  */
 
+import { RECAP_ELISION_LINE } from "../../supabase/functions/_shared/recap-builder";
+
 /* ------------------------------------------------------------------ */
 /* 1 — retained microphone stream (page-visit scope).                  */
 /* ------------------------------------------------------------------ */
@@ -159,6 +161,32 @@ export function stripHandoffAnnouncement<T extends RecapTurnLike>(turns: T[], an
 }
 
 export type HandoffOutcomeFact = "completed" | "unavailable" | "unknown";
+
+/**
+ * The combined budget for a handoff-return resumeContext (recap +
+ * visit fact): Publish #63 raised gemini-session's resumeContext
+ * cap to 16,000, and the recap itself now caps at 14,000
+ * (_shared/recap-builder.ts), so the fact rides appended without
+ * trimming in practice. The old 1,600 budget TAIL-SLICED the recap
+ * to make room — structurally cutting the conversation's opening
+ * (the visitor's name, the first criteria) out of the return
+ * session's memory. This fit is the safety net for an over-budget
+ * recap: whole lines drop from the MIDDLE (just before the elision
+ * marker when one is present, else the middle line), so the
+ * opening and the freshest exchanges are the last things to go.
+ */
+export const HANDOFF_RECAP_MAX_CHARS = 15_900;
+
+export function fitHandoffRecap(recap: string, fact: string, maxChars: number = HANDOFF_RECAP_MAX_CHARS): string {
+  if (`${recap}\n${fact}`.length <= maxChars) return `${recap}\n${fact}`;
+  const lines = recap.split("\n");
+  while (lines.length > 4 && `${lines.join("\n")}\n${fact}`.length > maxChars) {
+    const marker = lines.indexOf(RECAP_ELISION_LINE);
+    const idx = marker > 0 ? marker - 1 : Math.floor(lines.length / 2);
+    lines.splice(idx, 1);
+  }
+  return `${lines.join("\n")}\n${fact}`;
+}
 
 /** The [visit fact] line appended to a return session's recap
  *  (the teamIntroSeen pattern in GeminiConversation): data for

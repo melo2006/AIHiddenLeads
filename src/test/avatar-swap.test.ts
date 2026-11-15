@@ -220,7 +220,7 @@ describe('client swap state machine units', () => {
   test('recap is bounded and framed as an ongoing demo', () => {
     const turns = Array.from({ length: 40 }, (_, i) => ({ role: (i % 2 ? 'user' : 'assistant') as 'user' | 'assistant', text: `Line ${i} `.repeat(20) }));
     const recap = buildSwapRecap(turns, { visitorName: 'Dana', businessName: 'Durgin Electric', facts: [] }, 'sara');
-    expect(recap.length).toBeLessThanOrEqual(2400);
+    expect(recap.length).toBeLessThanOrEqual(8000); // Publish #63: swapRecap cap raised 2400 -> 8000
     expect(recap).toContain('Persona handoff inside one ongoing demo');
     expect(recap).toContain('Dana');
   });

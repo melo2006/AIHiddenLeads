@@ -95,6 +95,12 @@ describe('the transfer policy + timing constants', () => {
     expect(MANAGER_TRANSFER_POLICY).toContain('stay right here until they are through');
   });
 
+  it('Publish #63: a transfer request outranks every farewell and is never answered with a goodbye', () => {
+    expect(MANAGER_TRANSFER_POLICY).toContain('A TRANSFER REQUEST OUTRANKS EVERY FAREWELL');
+    expect(MANAGER_TRANSFER_POLICY).toContain('never answered with a closing line, a goodbye');
+    expect(MANAGER_TRANSFER_POLICY).toContain('the transfer wins and is handled first');
+  });
+
   it('hardening (2026-11-14): an explicit ask is a direct order, refusal is forbidden while the tool exists, bundled asks go transfer-first', () => {
     // Session 19b82691: the tool was available, yet a bundled
     // "transfer me or book me" ask got only a /book deflection.
