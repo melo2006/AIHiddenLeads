@@ -157,8 +157,17 @@
      p-1.5 bordered box (12px padding + 2px border), so 62px always fits
      2 FULL lines. The old min-height: 0 let viewport pressure crush the
      region to a single half-cut line; the floor makes that impossible —
-     past it, the shell's children wrapper scrolls instead. */
-  .aspen-voice-panel > .aspen-caption-region { flex: 0 1 auto; min-height: 62px; flex-shrink: 1; display: flex; flex-direction: column; overflow: hidden; }
+     past it, the shell's children wrapper scrolls instead.
+     FLOOR RAISED 62px → 86px (2026-11-15, Ron's combined-test
+     screenshot): the region's only face-first child is the caption
+     home (.aspen-caption-space, height: 86px = 3 full lines + padding
+     + border, on the SAME element), so a 62px floor still let viewport
+     pressure squeeze the region 24px below the caption's own height —
+     the lower half of the caption line clipped at the panel's bottom
+     edge, exactly what Ron photographed. The floor now equals the
+     caption home's full height: the caption can never be squeezed at
+     all; pressure goes to the shell's children wrapper instead. */
+  .aspen-voice-panel > .aspen-caption-region { flex: 0 1 auto; min-height: 86px; flex-shrink: 1; display: flex; flex-direction: column; overflow: hidden; }
   /* Stage 3 (minimized while talking) keeps a safe-area clearance at the
      bottom edge on top of DraggableFloating's visual-viewport fit. (Resolves
      to 0 today — the page meta does not opt into viewport-fit=cover — and

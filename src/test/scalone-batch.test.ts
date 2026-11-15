@@ -364,7 +364,13 @@ describe('Item 6 — swap-gap hardening (F1: the forced-execute run)', () => {
   });
 
   it('the bridge rides the proxy idle_prompt channel, simulation-gated, and the client sends it from the watchdog', () => {
-    expect(proxySource).toContain("msg.stage === 'bridge' && config.simulation === true");
+    // Gate widened 2026-11-15: 'bridge' is ALSO admitted on homepage
+    // SALES sessions (config.homepageSales) — the sales silence bridge.
+    // The simulation bridge text stays simulation-only: the sales text
+    // is selected only when homepageSales && simulation !== true.
+    expect(proxySource).toContain("(msg.stage === 'bridge' && (config.simulation === true || config.homepageSales === true))");
+    expect(proxySource).toContain("msg.stage === 'bridge' && config.homepageSales === true && config.simulation !== true");
+    expect(proxySource).toContain('SALES SILENCE BRIDGE');
     expect(proxySource).toContain('bridging line');
     expect(conversationSource).toContain("type: 'idle_prompt', stage: 'bridge'");
     expect(conversationSource).toContain('swapBridgeDue({');

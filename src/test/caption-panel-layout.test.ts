@@ -40,9 +40,13 @@ describe("caption panel — caption space has a fixed 3-line home and a 2-line f
     expect(css).not.toContain(".aspen-caption-space { height: 72px");
   });
 
-  it("the caption region may shrink only to 62px (2 full lines), never to 0", () => {
+  it("the caption region may shrink only to 86px (the caption home's full height), never below it", () => {
+    // Floor raised 62px → 86px on 2026-11-15: the region's face-first
+    // child IS the 86px caption home, so a 62px floor still let the
+    // region squeeze 24px into the caption and clip its lower line —
+    // Ron's combined-test screenshot. The floor now equals the home.
     const region = rule(".aspen-voice-panel > .aspen-caption-region {");
-    expect(region).toContain("min-height: 62px");
+    expect(region).toContain("min-height: 86px");
     expect(region).not.toContain("min-height: 0");
     expect(region).toContain("overflow: hidden");
   });
