@@ -100,12 +100,26 @@ describe("realtor discovery — opener, then early capture (steps 1–2)", () =>
     expect(layer).toContain("the link by text message");
   });
 
-  it("capture is asked once, decline is final until the one close re-offer, and never a third ask", () => {
+  it("the capture ask is made once — at the close, after the gate — and never a second time", () => {
+    // Publish #72 pin change (justified): Publish #69's live
+    // verification caught the step-2 early ask riding in on a
+    // volunteered purpose — purpose alone banked, no discovery
+    // pass, no recap, no gate, and the capture already underway.
+    // Publish #72 therefore re-sequenced the arc: step 2 sets the
+    // FRAME and the reason only, and the one contact ask moved to
+    // the close, after the confirm gate. The old accounting pins
+    // ("the only other time you may raise it is once at the
+    // close", "never a third time in any form", "the ONE re-offer
+    // from step 2") described the two-ask design and are retired
+    // with it; the discipline they protected — one ask, a decline
+    // is final — is preserved and tightened: one ask total.
     expect(layer).toContain("Ask ONCE");
     expect(layer).toContain("No problem at all");
-    expect(layer).toContain("the only other time you may raise it is once at the close");
-    expect(layer).toContain("never a third time in any form");
-    expect(layer).toContain("the ONE re-offer from step 2");
+    expect(layer).toContain("THE ASK, WHEN IT COMES, IS MADE ONCE");
+    expect(layer).toContain("never a second time in any form");
+    expect(layer).toContain("THE CAPTURE ASK");
+    expect(layer).not.toContain("the ONE re-offer from step 2");
+    expect(layer).not.toContain("make the one early ask");
   });
 });
 
@@ -445,18 +459,24 @@ describe("realtor discovery — verbal capture confirmation (2026-11-14, Ron: a 
     );
   });
 
-  it("the close promise names only consented channels, and a declined send is never re-offered", () => {
+  it("the close promise names only consented channels, and a declined send is never asked again", () => {
     expect(layer).toContain(
       "The promise names only the channels they actually said yes to",
     );
     expect(layer).toContain(
       "a channel they declined is never promised as if it were happening",
     );
+    // Publish #72 pin change (justified): the close ask is no
+    // longer a "re-offer" of a step-2 ask — Publish #72 deferred
+    // the one ask to the close itself (see the steps 1–2 pin
+    // change above), so the wording follows the mechanism: a
+    // declined send is NOT asked again, and details dictated at
+    // this ask go through the same verbal capture confirmation.
     expect(layer).toContain(
-      "a caller who gave details but declined the send itself is NOT re-offered it",
+      "a caller who gave details but declined the send itself is NOT asked again",
     );
     expect(layer).toContain(
-      "details dictated at this re-offer go through the same verbal capture confirmation",
+      "details dictated at this ask go through the same verbal capture confirmation",
     );
   });
 
@@ -688,15 +708,20 @@ describe("realtor discovery — round 2: arc discipline (2026-11-14, session 4f1
     expect(closeSlice).toContain("answer honestly with the channel you have, then make the one ask");
   });
 
-  it("the text ask is coordinated: verbal confirmation first, a decline final, never stacked on the re-offer", () => {
+  it("the text ask is coordinated: verbal confirmation first, a decline final, never stacked on the capture ask", () => {
     expect(closeSlice).toContain(
       "goes through the verbal capture confirmation above — the digit-group read-back, what happens next, the spoken yes — before any text is promised on it",
     );
     expect(closeSlice).toContain(
       "the number is never asked again in this call",
     );
+    // Publish #72 pin change (justified): the coordination now
+    // names the step 5 capture ask — the step-2 "re-offer" it used
+    // to name no longer exists (the ask itself moved to step 5;
+    // see the steps 1–2 pin change above). The discipline — the
+    // two asks never stack — is unchanged.
     expect(closeSlice).toContain(
-      "it is NOT the step 2 re-offer (that one is only for a caller who gave no details at all), the two never stack",
+      "it is NOT the step 5 capture ask (that one is only for a caller who gave no details at all), the two never stack",
     );
     expect(closeSlice).toContain(
       "it never applies to a caller who declined the send itself",
@@ -741,7 +766,16 @@ describe("realtor discovery — round 2: arc discipline (2026-11-14, session 4f1
 describe("realtor discovery — the no-match move (Publish #62, 2026-11-15)", () => {
   it("a no-match is answered with the proactive yes, never a defense or a passive watch", () => {
     expect(layer).toContain("THE NO-MATCH MOVE");
-    expect(layer).toContain("I'll search the broader market for exactly that and put the list together for you");
+    // Publish #72 pin change (justified): the yes used to carry
+    // the list promise itself ("…and put the list together for
+    // you") — the #69 live verification caught that phrasing
+    // surfacing mid-pass, before the confirm gate. The yes is now
+    // a search commitment only; the promise's words are reserved
+    // for after the gate (see the Publish #72 block below).
+    expect(layer).toContain("I'll search the broader market for exactly that.");
+    expect(layer).not.toContain(
+      "I'll search the broader market for exactly that and put the list together for you",
+    );
     expect(layer).toContain("never offer to \"keep an eye out\"");
     expect(layer).toContain("do not defend the no: repeat the yes");
   });
@@ -1001,5 +1035,192 @@ describe("realtor discovery — criteria accumulate + transfer beats the close (
     expect(layer).toContain("outranks every other beat");
     expect(layer).toContain("never answer a transfer request with a recap, a promise or a goodbye");
     expect(layer).toContain("is the request still standing, not a wrap-up signal");
+  });
+});
+
+describe("realtor discovery — Publish #72: the discovery entry (2026-11-15, the #69 live verification)", () => {
+  const step0At = layer.indexOf("0) THE WARM OPENING");
+  const step1Slice = layer.slice(
+    layer.indexOf("1) THE OPENER"),
+    layer.indexOf("2) EARLY CAPTURE"),
+  );
+  const step2Slice = layer.slice(
+    layer.indexOf("2) EARLY CAPTURE"),
+    layer.indexOf("3) DISCOVERY"),
+  );
+  const seqSlice = layer.slice(
+    layer.indexOf("THE DISCOVERY SEQUENCE"),
+    layer.indexOf("BUYING — FIRST, THE PURPOSE"),
+  );
+  const closeSlice = layer.slice(layer.indexOf("5) THE CLOSE"));
+  const noMatchSlice = layer.slice(
+    layer.indexOf("THE NO-MATCH MOVE"),
+    layer.indexOf("TRANSFER BEATS THE CLOSE"),
+  );
+
+  it("the greeting happens once: an inquiry already on the table is answered, not re-greeted", () => {
+    expect(layer).toContain("THE GREETING HAPPENS ONCE");
+    expect(layer).toContain(
+      "Never greet the caller a second time inside this conversation",
+    );
+    expect(layer).toContain(
+      "a caller who has already said what they are calling about is never left standing behind a bare greeting",
+    );
+    // the rule sits inside step 0, ahead of the opener it protects
+    const at = layer.indexOf("THE GREETING HAPPENS ONCE");
+    expect(at).toBeGreaterThan(step0At);
+    expect(at).toBeLessThan(layer.indexOf("1) THE OPENER"));
+  });
+
+  it("the first discovery move: purpose unbanked → the purpose choice is the very next question", () => {
+    expect(step1Slice).toContain("THE FIRST DISCOVERY MOVE");
+    expect(step1Slice).toContain(
+      "IF PURPOSE IS NOT YET BANKED, your very next question is the PURPOSE CHOICE",
+    );
+    // nothing takes that turn first — not the frame, not an area
+    expect(step1Slice).toContain(
+      "before areas, before property type, before any number, before the step-2 frame",
+    );
+    // a generic opening line sorts the road but banks no purpose
+    expect(step1Slice).toContain("A GENERIC OPENING LINE IS NOT A PURPOSE ANSWER");
+    expect(step1Slice).toContain(
+      "purpose is UNBANKED and the purpose question is owed",
+    );
+  });
+
+  it("purpose banked — host phase included — opens the pass at the first unbanked step, never re-asked", () => {
+    expect(step1Slice).toContain("IF PURPOSE IS ALREADY BANKED");
+    expect(step1Slice).toContain(
+      "volunteered during the host phase before the segment began",
+    );
+    expect(step1Slice).toContain(
+      "the pass opens at the FIRST UNBANKED STEP of the sequence instead",
+    );
+    expect(step1Slice).toContain("do NOT ask it again");
+  });
+
+  it("step 2 sets the frame and the reason — and asks for nothing", () => {
+    expect(step2Slice).toContain(
+      "THE FRAME AND THE REASON NOW; THE ASK ITSELF WAITS FOR THE GATE",
+    );
+    expect(step2Slice).toContain("and ask for NOTHING yet");
+    // the ask is named only as a future beat, after the read-back
+    expect(step2Slice).toContain("only then will you ask for the way to send it");
+    // the old early-ask instruction is gone from the step
+    expect(step2Slice).not.toContain("make the one early ask");
+    // volunteered details remain the caller's move: confirmed, banked,
+    // and never a shortcut past the pass or the gate
+    expect(step2Slice).toContain("that is their move, not your ask");
+    expect(step2Slice).toContain(
+      "A detail volunteered early never shortens the discovery pass and never skips the gate",
+    );
+  });
+
+  it("question and why-line are one scripted unit, delivered together every time", () => {
+    expect(seqSlice).toContain("QUESTION AND WHY-LINE ARE ONE SCRIPTED UNIT");
+    expect(seqSlice).toContain(
+      "the two halves are delivered TOGETHER, in that order, in the same turn, every time the question is asked",
+    );
+    expect(seqSlice).toContain("a sequence question asked bare");
+    expect(seqSlice).toContain("is a half-asked question");
+    // the unit rule adds no why-lines of its own: still exactly one
+    // pinned why-line per question
+    expect(occurrences(seqSlice, "Why-line:")).toBe(8);
+  });
+
+  it("no promise, no capture, before the gate — the bar binds at the entry, mid-pass and every search answer", () => {
+    expect(layer).toContain("NO PROMISE, NO CAPTURE, BEFORE THE GATE (hard rule");
+    expect(layer).toContain(
+      "the confirm gate (step 5) is the only door to the promise and the capture",
+    );
+    expect(layer).toContain(
+      "a purpose volunteered in the first breath releases the PASS, never the promise",
+    );
+    // the rule sits inside discovery, after the core-four gate it
+    // twins, before the mini-arc it also governs
+    const at = layer.indexOf("NO PROMISE, NO CAPTURE, BEFORE THE GATE (hard rule");
+    expect(at).toBeGreaterThan(layer.indexOf("THE CORE FOUR — AND NO EARLY PROMISE"));
+    expect(at).toBeLessThan(layer.indexOf("A SECOND SEARCH IS A NEW SEARCH"));
+  });
+
+  it("the short gate: volunteering everything or pushing to skip earns a short gate, never a skipped one", () => {
+    expect(layer).toContain("THE SHORT GATE — WHEN THE CALLER SHORT-CIRCUITS THE PASS");
+    expect(layer).toContain(
+      "they volunteer everything the pass would have asked",
+    );
+    expect(layer).toContain("or they push to skip ahead");
+    expect(layer).toContain(
+      "A caller in a hurry is owed a SHORT gate, never a SKIPPED one",
+    );
+    // step 5 carries the same gate, shortened — never skipped
+    expect(closeSlice).toContain("THE SHORT GATE IS THIS SAME GATE, SHORTER");
+    expect(closeSlice).toContain("Shortened, never skipped.");
+    // and the core-four wrap-up override now routes through it
+    expect(layer).toContain("the pass ends, but the gate itself is never skipped");
+  });
+
+  it("the no-match yes is a search commitment — the promise's words are reserved for after the gate", () => {
+    expect(noMatchSlice).toContain(
+      "The broader-market yes is a SEARCH commitment, not the list promise",
+    );
+    expect(noMatchSlice).toContain(
+      "are the close's words, reserved until the confirm gate has run",
+    );
+    expect(noMatchSlice).not.toContain("put the list together for you");
+    // capture after a no-match still lives only at the gated close
+    expect(noMatchSlice).toContain(
+      "capture lives at the close (step 5) only, after the gate",
+    );
+  });
+
+  it("the listings layer's flow paragraph is rewritten for presenters only; the standard layer keeps it", () => {
+    const pack = examplePackBySlug("michael-martinez")!;
+    const presenterLayer = buildExampleListingsLayer(pack, { presenter: true });
+    expect(presenterLayer).not.toContain(
+      "then capture the search: confirm the criteria back, offer that Michael Martinez will search and call them back",
+    );
+    expect(presenterLayer).toContain(
+      "commit to searching the broader market for exactly those criteria",
+    );
+    expect(presenterLayer).toContain("no capture and no list promise on that turn");
+    const standardLayer = buildExampleListingsLayer(pack);
+    expect(standardLayer).toContain(
+      "then capture the search: confirm the criteria back, offer that Michael Martinez will search and call them back, and take their name and best callback number if you do not already have them.",
+    );
+    expect(standardLayer).not.toContain("no capture and no list promise on that turn");
+  });
+
+  it("the composed presenter layer carries each Publish #72 rule exactly once; the standard layer carries none", () => {
+    const pack = examplePackBySlug("michael-martinez")!;
+    const presenterLayer = buildExampleListingsLayer(pack, { presenter: true });
+    for (const marker of [
+      "THE GREETING HAPPENS ONCE — AN INQUIRY ALREADY ON THE TABLE IS ANSWERED, NOT RE-GREETED (hard rule",
+      "THE FIRST DISCOVERY MOVE — PURPOSE, ASKED, THE MOMENT THE ROAD IS CHOSEN (hard rule",
+      "QUESTION AND WHY-LINE ARE ONE SCRIPTED UNIT",
+      "NO PROMISE, NO CAPTURE, BEFORE THE GATE (hard rule",
+      "THE SHORT GATE — WHEN THE CALLER SHORT-CIRCUITS THE PASS",
+    ]) {
+      expect(occurrences(presenterLayer, marker)).toBe(1);
+    }
+    const standardLayer = buildExampleListingsLayer(pack);
+    for (const marker of [
+      "THE GREETING HAPPENS ONCE",
+      "THE FIRST DISCOVERY MOVE",
+      "ONE SCRIPTED UNIT",
+      "NO PROMISE, NO CAPTURE",
+      "SHORT GATE",
+      "THE CAPTURE ASK",
+    ]) {
+      expect(standardLayer).not.toContain(marker);
+    }
+  });
+
+  it("every presenter-fronted example inherits the Publish #72 entry rules", () => {
+    for (const slug of Object.keys(REALTOR_EXAMPLE_PRESENTERS)) {
+      const pack = examplePackBySlug(slug)!;
+      const presenterLayer = buildExampleListingsLayer(pack, { presenter: true });
+      expect(presenterLayer).toContain("THE FIRST DISCOVERY MOVE");
+      expect(presenterLayer).toContain("NO PROMISE, NO CAPTURE, BEFORE THE GATE");
+    }
   });
 });
