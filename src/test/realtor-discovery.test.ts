@@ -175,7 +175,15 @@ describe("realtor discovery — conversation rules and close (steps 4–5)", () 
     const promiseAt = layer.indexOf("Second, THE PROMISE");
     expect(recapAt).toBeGreaterThan(-1);
     expect(promiseAt).toBeGreaterThan(recapAt);
-    expect(layer).toContain("did I get that right?");
+    // Publish #69 pin change (justified): the recap's closing
+    // question was "did I get that right?" — it is now the
+    // confirm-gate question, asked about ALL banked criteria, and
+    // the promise waits for the caller's yes (see the Publish #69
+    // describe block below). The pin's intent — the recap asks the
+    // caller to confirm before the promise — is preserved and
+    // strengthened; the old wording survives only as the verbal
+    // capture beat's per-detail "Did I get that right?".
+    expect(layer).toContain("Did I capture that all correctly?");
     expect(layer).toContain("Use THEIR criteria, never a template");
     expect(layer).toContain("send it to your email");
     expect(layer).toContain("text you the link");
@@ -740,6 +748,241 @@ describe("realtor discovery — the no-match move (Publish #62, 2026-11-15)", ()
 
   it("the no-match turn itself carries no capture ask", () => {
     expect(layer).toContain("The no-match turn itself carries NO capture ask");
+  });
+});
+
+describe("realtor discovery — Publish #69: the Alex-pattern upgrade (2026-11-15, Ron's Frank test)", () => {
+  const seqAt = layer.indexOf("THE DISCOVERY SEQUENCE");
+  const seqSlice = layer.slice(seqAt, layer.indexOf("BUYING — FIRST, THE PURPOSE"));
+  const guessSlice = layer.slice(
+    layer.indexOf("NEVER BANK A GUESS"),
+    seqAt,
+  );
+  const budgetSlice = layer.slice(
+    layer.indexOf("A STATED BUDGET IS NEVER RE-ASKED (hard rule"),
+    layer.indexOf("THE MONEY — SOFTLY, LAST"),
+  );
+  const noMatchSlice = layer.slice(
+    layer.indexOf("THE NO-MATCH MOVE"),
+    layer.indexOf("TRANSFER BEATS THE CLOSE"),
+  );
+  const closeSlice = layer.slice(layer.indexOf("5) THE CLOSE"));
+
+  it("the sequence sits inside discovery: after the banking rules, before the purpose prose", () => {
+    expect(seqAt).toBeGreaterThan(layer.indexOf("CRITERIA ACCUMULATE"));
+    expect(seqAt).toBeGreaterThan(layer.indexOf("3) DISCOVERY"));
+    expect(seqAt).toBeLessThan(layer.indexOf("3S) SELLING"));
+    // the pass is a structure, not a form: step 4's manner still governs
+    expect(seqSlice).toContain("never a form read aloud");
+    expect(seqSlice).toContain("react first, one or two questions at a time");
+  });
+
+  it("the eight questions run in the task's order: purpose → areas → type → views → condition → garage/transport → price → down payment", () => {
+    const marks = [
+      "Q1 PURPOSE",
+      "Q2 AREAS",
+      "Q3 PROPERTY TYPE",
+      "Q4 VIEWS AND SETTING",
+      "Q5 CONDITION",
+      "Q6 GARAGE AND TRANSPORT",
+      "Q7 PRICE BALLPARK",
+      "Q8 DOWN PAYMENT",
+    ];
+    const ats = marks.map((m) => seqSlice.indexOf(m));
+    for (const at of ats) expect(at).toBeGreaterThan(-1);
+    for (let i = 1; i < ats.length; i++) expect(ats[i]).toBeGreaterThan(ats[i - 1]);
+    // purpose is the FIRST discovery question — before any area, before any number
+    expect(seqSlice).toContain(
+      "the first discovery question of the pass, before any area and before any number",
+    );
+  });
+
+  it("purpose is asked as the Alex choice: live in it / fix up and flip / long-term hold", () => {
+    expect(seqSlice).toContain(
+      "Is this a home to live in, one to fix up and flip, or a long-term hold to rent out?",
+    );
+  });
+
+  it("every question is a choice and carries exactly one why-line", () => {
+    expect(occurrences(seqSlice, "Why-line:")).toBe(8);
+    // the choices are named options a caller can simply pick from
+    expect(seqSlice).toContain("A single-family home, a townhouse, or a condo?");
+    expect(seqSlice).toContain("Waterfront, an ocean view, a golf view");
+    expect(seqSlice).toContain(
+      "Move-in ready, a light refresh, a fixer-upper you'd enjoy, or a full remodel?",
+    );
+    expect(seqSlice).toContain("one car, two cars, or is it a nice-to-have?");
+    expect(seqSlice).toContain("ten percent, twenty, more?");
+    // and the why-lines are practitioner reasoning, not filler
+    expect(seqSlice).toContain(
+      "Three-plus bedrooms gives you the strongest pool",
+    );
+    expect(seqSlice).toContain(
+      "A must-have garage rules out whole streets of otherwise-perfect homes",
+    );
+  });
+
+  it("condition is the presenter's question to ask — never left for the caller to volunteer", () => {
+    expect(seqSlice).toContain(
+      "Never wait for the caller to volunteer their condition criteria",
+    );
+    expect(seqSlice).toContain("this question is yours to ask, every pass");
+  });
+
+  it("a stall earns a labelled default — banked only on acceptance, never dressed as their answer", () => {
+    expect(seqSlice).toContain("WHEN THEY STALL, OFFER A DEFAULT");
+    expect(seqSlice).toContain("Most buyers start with three beds and two baths");
+    expect(seqSlice).toContain("banked only when they accept it");
+    expect(seqSlice).toContain(
+      "never dressed up as an answer they gave",
+    );
+  });
+
+  it("never bank a guess: an unclear answer is clarified before it can enter the list, a search or a recap", () => {
+    // the discipline sits with the banking rules, ahead of the sequence
+    expect(layer.indexOf("NEVER BANK A GUESS")).toBeGreaterThan(
+      layer.indexOf("CRITERIA ACCUMULATE"),
+    );
+    expect(layer.indexOf("NEVER BANK A GUESS")).toBeLessThan(seqAt);
+    expect(guessSlice).toContain(
+      "it never enters the running list, it never drives a search, and it never appears in a recap",
+    );
+    // the clarification shape: best understanding named as a question
+    expect(guessSlice).toContain(
+      "I want to make sure I heard that right — did you say Pompano Beach?",
+    );
+    // places and numbers get the strictest reading — no rounding a
+    // half-heard figure into a bracket, no sound-alike substitutions
+    expect(guessSlice).toContain("PLACES AND NUMBERS GET THE STRICTEST READING");
+    expect(guessSlice).toContain(
+      "never round a half-heard figure up into a bracket",
+    );
+    expect(guessSlice).toContain(
+      "never let a similar-sounding place stand in for the one they said",
+    );
+  });
+
+  it("the Fort Lauderdale evidence is named: a city banked from a fragment the caller never said", () => {
+    expect(guessSlice).toContain(
+      'banked "Fort Lauderdale" as a search area from a fragment the caller never said',
+    );
+    expect(guessSlice).toContain(
+      "a guessed fact in the list is worse than a missing one",
+    );
+    // a correction of the clarification is the confirmed item, banked warmly
+    expect(guessSlice).toContain("no, Lauderhill, not Lauderdale");
+    expect(guessSlice).toContain("bank the correction warmly and move on");
+  });
+
+  it("a stated budget is never re-asked: the $400k → 'closer to a million?' regression is banned by name", () => {
+    expect(budgetSlice).toContain(
+      "the moment a caller names a figure or picks a bracket",
+    );
+    expect(budgetSlice).toContain("that number is BANKED, and the money question is closed");
+    // the failure shape itself, quoted so the model recognises it
+    expect(budgetSlice).toContain(
+      'asking a caller who just told you four hundred thousand whether he means "four hundred thousand, or closer to a million?"',
+    );
+    expect(budgetSlice).toContain("tells him you were not listening");
+    // the bracket offer survives ONLY for a caller who named nothing
+    expect(budgetSlice).toContain(
+      "exists ONLY for a caller who has named no number at all",
+    );
+    // …and the approved bracket line itself still stands for that caller
+    expect(layer).toContain("up to about five hundred, or closer to a million?");
+    // the rule lands before the money paragraph it constrains
+    expect(layer.indexOf("A STATED BUDGET IS NEVER RE-ASKED")).toBeLessThan(
+      layer.indexOf("THE MONEY — SOFTLY, LAST"),
+    );
+  });
+
+  it("the confirm gate: the recap ends with the gate question and the promise waits for a yes", () => {
+    expect(closeSlice).toContain("THE CONFIRM GATE (hard rule");
+    // the example recap itself now ends on the gate question
+    expect(closeSlice).toContain(
+      "up to about 400. Did I capture that all correctly?",
+    );
+    expect(closeSlice).toContain("THE RECAP IS A GATE, NOT A RITUAL");
+    expect(closeSlice).toContain("and WAIT for the answer");
+    expect(closeSlice).toContain(
+      "The promise (the second beat below) is barred until they say yes",
+    );
+    // a correction is the gate working: it updates the running list,
+    // is read back once, and the gate question is asked once more
+    expect(closeSlice).toContain("a corrected item swaps, a new one adds");
+    expect(closeSlice).toContain(
+      "read the corrected items back once, and ask the gate question once more",
+    );
+    expect(closeSlice).toContain("only their yes releases the promise");
+  });
+
+  it("the gate covers everything banked — a quietly dropped garage or backyard is a failed recap", () => {
+    expect(closeSlice).toContain("THE GATE COVERS EVERYTHING BANKED");
+    expect(closeSlice).toContain(
+      "a recap that quietly drops something they asked for, the two-car garage or the backyard, is a failed recap",
+    );
+    // two searches are each gated on their own terms
+    expect(closeSlice).toContain("each is recapped on its own terms");
+  });
+
+  it("the gate confirms criteria, not contact details — the two confirmations never substitute", () => {
+    expect(closeSlice).toContain("THE GATE CONFIRMS CRITERIA, NOT CONTACT DETAILS");
+    expect(closeSlice).toContain(
+      "criteria confirmed is not consent to send, and details confirmed is not criteria confirmed",
+    );
+  });
+
+  it("the no-match path rests on confirmed criteria too: the gate runs before the promise there as well", () => {
+    expect(noMatchSlice).toContain(
+      "the capture that eventually follows a no-match rests on confirmed criteria only",
+    );
+    expect(noMatchSlice).toContain("Did I capture that all correctly?");
+    expect(noMatchSlice).toContain(
+      "still runs before the promise, exactly as it does on a matched search",
+    );
+    // and the no-match turn itself still carries no capture ask
+    expect(noMatchSlice).toContain("The no-match turn itself carries NO capture ask");
+  });
+
+  it("the composed presenter layer carries each Publish #69 rule exactly once; the standard layer carries none", () => {
+    const pack = examplePackBySlug("michael-martinez")!;
+    const presenterLayer = buildExampleListingsLayer(pack, { presenter: true });
+    // each rule's heading lands exactly once (Q2 and Q7 cross-refer
+    // to two of the rules by name inside the sequence — those are
+    // references, not second copies of the rules)
+    for (const marker of [
+      "THE DISCOVERY SEQUENCE — CHOICE QUESTIONS",
+      "NEVER BANK A GUESS — AN UNCLEAR ANSWER IS CLARIFIED",
+      "A STATED BUDGET IS NEVER RE-ASKED (hard rule",
+      "THE CONFIRM GATE (hard rule",
+    ]) {
+      expect(occurrences(presenterLayer, marker)).toBe(1);
+    }
+    expect(presenterLayer).toContain(
+      "a vague or half-heard one is clarified under NEVER BANK A GUESS",
+    );
+    expect(presenterLayer).toContain(
+      "ONLY when the caller has named no figure yet (A STATED BUDGET IS NEVER RE-ASKED, below)",
+    );
+    const standardLayer = buildExampleListingsLayer(pack);
+    for (const marker of [
+      "THE DISCOVERY SEQUENCE",
+      "NEVER BANK A GUESS",
+      "A STATED BUDGET IS NEVER RE-ASKED",
+      "CONFIRM GATE",
+      "Did I capture that all correctly?",
+    ]) {
+      expect(standardLayer).not.toContain(marker);
+    }
+  });
+
+  it("every presenter-fronted example inherits the Publish #69 rules", () => {
+    for (const slug of Object.keys(REALTOR_EXAMPLE_PRESENTERS)) {
+      const pack = examplePackBySlug(slug)!;
+      const presenterLayer = buildExampleListingsLayer(pack, { presenter: true });
+      expect(presenterLayer).toContain("THE DISCOVERY SEQUENCE");
+      expect(presenterLayer).toContain("Did I capture that all correctly?");
+    }
   });
 });
 
