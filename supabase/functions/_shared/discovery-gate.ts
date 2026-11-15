@@ -110,7 +110,59 @@
 // it, on a separate state, and its stand-down rule is what keeps
 // the two from ever competing for a turn.
 
+// PUBLISH #80 (2026-11-15) — the #78 verification
+// (~/workspace/publish78-verification-2026-11-15.md) proved the
+// design CAN execute (check B2's second push ran the gate
+// verbatim, promise-then-capture in order) but the gate missed
+// its TRIGGERS in three states, all of the same family: every
+// #78 order was ONE-SHOT — fired once, marked spent, and never
+// verified against the model's next turn. Four trigger fixes:
+//
+//  1. B (banked) still failed with the pre-#78 shape: the
+//     short-gate order fired at the push, the model's answering
+//     turn was the bundled capture ask, the visitor's "Yes,
+//     that's right" was then read as a DECLINE of that ask — and
+//     the spent order never landed. (The verification's guess
+//     that purpose had not banked does not reproduce: banking is
+//     a fold over the visitor's own words, model-independent,
+//     and the script's line banks. The miss was the one-shot
+//     order.) FIX: orders PERSIST until observably complied
+//     with — the short-gate order re-fires once, sterner, at the
+//     next boundary where the gate still has not run (cap 2 per
+//     push, mirroring the name-release discipline), and a fresh
+//     push re-arms as before.
+//  2. D: the gate recap ran with the banked $300–400k budget
+//     MISSING. The #78 completeness correction did fire at the
+//     recap boundary — but the observe step had already marked
+//     the gate SATISFIED (gateAsked set, debt cleared) on the
+//     strength of the question alone, so the visitor's confirm
+//     boundary had nothing left to fire and the yes was accepted
+//     on a void recap. FIX: a gate recap is judged COMPLETE or
+//     VOID on the recap turn itself, against the folded ledger —
+//     a banked headline criterion dropped (budget, purpose), or
+//     a specific view asserted that the visitor never stated,
+//     VOIDS the recap: the debt stands, the visitor's answer to
+//     it cannot discharge it, and the completeness correction
+//     fires (and re-fires once) until a complete recap runs.
+//     Also: an in-flow acknowledgment that collapses a stated
+//     RANGE to its top end ("that four hundred thousand dollar
+//     ballpark") earns its own one-time correction — a range is
+//     repeated as a range.
+//  3. B2 push-1: with nothing banked, the push landed DURING the
+//     host beats and the answering turn was the simulation-entry
+//     transition — the purpose keystone order fired into a turn
+//     that structurally could not obey it and was spent. FIX
+//     (the #74 capture-gate family pattern): an order whose
+//     answering turn signals the simulation entry is CARRIED —
+//     it does not consume a fire — and re-fires at the first
+//     post-transition boundary if the owed move still has not
+//     happened. And when the model's own turn asks the purpose
+//     question with nothing banked, the keystone counts as
+//     DELIVERED: no injection, the order marked counted.
+//  4. (In capture-gate.ts) the hybrid spell-back — see there.
+
 import { sanitizeVisitorName } from './voice-config.ts';
+import { turnSignalsSimulationEntry } from './capture-gate.ts';
 
 /** Total discovery-gate directives one session will inject. */
 export const DISCOVERY_GATE_MAX_FIRES = 6;
@@ -222,10 +274,24 @@ export function detectRecapAsk(text: string): boolean {
 }
 
 /** Purpose stated, in the caller's own words (any of the shapes
- * the discovery layer names as banking purpose). */
+ * the discovery layer names as banking purpose). Banking is a
+ * fold over the visitor's words ONLY — whether the model re-asks
+ * the purpose question over a volunteered statement can never
+ * un-bank it (Publish #80, defect 1: the ledger, not the model's
+ * behavior, is the truth). */
 export function detectPurposeStated(text: string): boolean {
   if (!text) return false;
-  return /\b(to live in|live in it|for (myself|ourselves|my family|us)|primary (home|residence)|move in|relocat|flip|rent (it )?out|landlord|investment|invest(ing|or)?|second home|vacation home|retire|downsiz|upsiz)/i.test(text);
+  return /\b(to live in|live in it|live there|for (myself|ourselves|my family|us)|primary (home|residence)|move in|moving in|relocat|flip|rent (it )?out|landlord|investment|invest(ing|or)?|second home|vacation home|retire|downsiz|upsiz)/i.test(text);
+}
+
+/**
+ * A specific view / setting the visitor stated as a criterion
+ * (Publish #80): banked so the gate's recap judgment can tell a
+ * stated view from an inserted one. Visitor utterances only.
+ */
+export function detectStatedView(text: string): boolean {
+  if (!text) return false;
+  return /(waterfront|ocean view|water view|golf view|lake view|canal view|river view|bay view|intracoastal)/i.test(text);
 }
 
 /** Property type / feature signals — the content half of "anything
@@ -301,6 +367,61 @@ export function budgetMentionedInTurn(turnText: string, budget: string): boolean
   return false;
 }
 
+/** The individual amounts inside a banked budget phrase, in
+ * order ("three hundred to four hundred thousand" → ["three
+ * hundred", "four hundred thousand"]). */
+export function budgetAmounts(budget: string): string[] {
+  if (!budget) return [];
+  return [...budget.toLowerCase().matchAll(AMOUNT)].map((m) => m[0].trim()).filter(Boolean);
+}
+
+/**
+ * Does this turn mention ONE specific amount (word form, digit
+ * form, or digit equivalent)? The per-amount companion of
+ * budgetMentionedInTurn, which keeps its own pinned semantics
+ * (it judges the phrase by its last amount).
+ */
+export function amountMentionedInTurn(turnText: string, amount: string): boolean {
+  if (!turnText || !amount) return false;
+  const turn = turnText.toLowerCase();
+  const phrase = amount.toLowerCase().trim();
+  const digits = (phrase.match(/\d[\d,]*/g) || []).map((d) => d.replace(/,/g, ''));
+  const turnDigits = turn.replace(/,/g, '');
+  if (digits.some((d) => d.length >= 2 && turnDigits.includes(d))) return true;
+  if (phrase && turn.includes(phrase)) return true;
+  const words = phrase.split(/\s+/);
+  const lead = NUMBER_WORD_DIGITS[words[0]];
+  if (lead && words.includes('hundred') && turnDigits.includes(`${lead}00`)) return true;
+  if (lead && words.includes('thousand') && turnDigits.includes(`${lead}000`)) return true;
+  return false;
+}
+
+/**
+ * Does this turn carry the banked budget IN FULL — every amount
+ * of it? The recap judgment's standard (Publish #80): a recap
+ * that names only one end of a stated range has not carried the
+ * budget, whichever end it named.
+ */
+export function budgetFullyMentionedInTurn(turnText: string, budget: string): boolean {
+  const amounts = budgetAmounts(budget);
+  if (!amounts.length) return budgetMentionedInTurn(turnText, budget);
+  return amounts.every((a) => amountMentionedInTurn(turnText, a));
+}
+
+/**
+ * Did this turn COLLAPSE a stated range — naming its last (top)
+ * amount while dropping the first? The live D acknowledgment:
+ * budget "three hundred to four hundred thousand" answered with
+ * "that four hundred thousand dollar ballpark". A turn that
+ * carries the full range, or neither end, is not a collapse.
+ */
+export function budgetRangeCollapsedInTurn(turnText: string, budget: string): boolean {
+  const amounts = budgetAmounts(budget);
+  if (amounts.length < 2) return false;
+  return amountMentionedInTurn(turnText, amounts[amounts.length - 1])
+    && !amountMentionedInTurn(turnText, amounts[0]);
+}
+
 // ---------------------------------------------------------------------------
 // Model-turn detectors
 // ---------------------------------------------------------------------------
@@ -347,6 +468,60 @@ export function turnOffersBracket(text: string): boolean {
   return /(up to about five hundred|closer to a million|up to five hundred)/i.test(text || '');
 }
 
+/**
+ * Does this model turn MENTION the purpose (for the recap
+ * completeness judgment)? Wider than the banking detector: a
+ * recap may phrase the purpose loosely ("living in it", "for
+ * yourself") and still carry it. Judged only on gate-question
+ * turns.
+ */
+export function turnMentionsPurpose(text: string): boolean {
+  if (!text) return false;
+  if (detectPurposeStated(text)) return true;
+  return /\b(living in|live in|for yourself|long[- ]term hold)\b/i.test(text);
+}
+
+/**
+ * Does this model turn ASSERT a specific view as the caller's
+ * criterion (for the recap completeness judgment)? The mirror
+ * image of a dropped criterion (Publish #80, check C's
+ * softness): a recap that presents a view the visitor never
+ * chose. A negated mention ("no water view needed") and a view
+ * named as still open are not assertions. Judged only on
+ * gate-question turns.
+ */
+export function turnAssertsSpecificView(text: string): boolean {
+  if (!text) return false;
+  const shape = /(waterfront|ocean view|water view|golf view|lake view|canal view|river view|bay view|intracoastal)/gi;
+  for (const m of text.matchAll(shape)) {
+    const at = m.index ?? 0;
+    const before = text.slice(0, at).toLowerCase().split(/[^a-z']+/).filter(Boolean).slice(-5);
+    if (before.some((w) => ['no', 'not', 'without', 'never', "isn't", "aren't", "don't", 'nope'].includes(w))) continue;
+    const after = text.slice(at + m[0].length).toLowerCase().split(/[^a-z']+/).filter(Boolean).slice(0, 3);
+    if (after.includes('still') && after.includes('open')) continue;
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Does this model turn ask the PURPOSE question — the choice the
+ * nothing-banked keystone order exists to elicit (Publish #80,
+ * defect 3)? Conservative shapes: the sell-or-buy choice, the
+ * live-in/flip/rent choice, "what the home is for". When the
+ * gate is owed with nothing banked and this turn asks it, the
+ * keystone counts as delivered.
+ */
+export function turnAsksPurposeQuestion(text: string): boolean {
+  if (!text) return false;
+  const t = text.toLowerCase();
+  return /(selling|sell)\b[^.?!]{0,80}\b(buy|buying)\b/.test(t)
+    || /\b(buy|buying)\b[^.?!]{0,80}\b(selling|sell)\b/.test(t)
+    || /what (the|is your) (home|house|property) is for/.test(t)
+    || /\blive in\b[^.?!]{0,60}\b(flip|rent|invest)/.test(t)
+    || /\bpurpose\b[^.?!]{0,40}\?/.test(t);
+}
+
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
@@ -377,18 +552,55 @@ export interface DiscoveryGateState {
   /** Any criterion content at all (type / feature signals). */
   contentBanked: boolean;
   /** A push to skip or a read-back request is outstanding: the
-   * gate is owed and has not yet run. */
+   * gate is owed and has not yet validly run. */
   gateOwed: boolean;
-  /** The short-gate order has fired for the outstanding push.
-   * A fresh push renews it (the fold resets this), so the order
-   * fires at most once per push, never once per session. */
-  gateOrderFired: boolean;
-  /** The gate question has been asked at least once. */
+  /** Short-gate order fires for the outstanding push (Publish
+   * #80: the order PERSISTS until the gate observably runs —
+   * cap 2 per push, the initial fire plus one sterner repeat. A
+   * fresh push renews it: the fold resets this to 0). */
+  gateOrderFires: number;
+  /** The outstanding order fired on a turn that signaled the
+   * simulation entry and so does not count (Publish #80, defect
+   * 3): it is carried across the segment boundary and re-fires
+   * at the first post-transition boundary. */
+  gateOrderCarried: boolean;
+  /** A model turn has announced the simulation entry. */
+  simulationEntered: boolean;
+  /** The most recent short-gate fire was a repeat (a prior fire
+   * or a carried order) — the proxy picks the sterner directive
+   * variant from it. Reset by every non-repeat fire. */
+  shortGateRepeat: boolean;
+  /** The gate question has been asked AND its recap judged
+   * complete at least once. (Publish #80: asking the question
+   * over an incomplete recap no longer sets this — the recap is
+   * void; see recapVoided.) */
   gateAsked: boolean;
+  /** The visitor stated a specific view / setting as a
+   * criterion (Publish #80) — the ledger half of the recap
+   * judgment's inserted-view check. */
+  viewBanked: boolean;
   /** The one-time bracket correction has been spent. */
   budgetBracketCorrected: boolean;
-  /** The one-time budget-recap correction has been spent. */
+  /** A budget-involving recap-completeness correction has
+   * fired (Publish #80: set by the void mechanism, which
+   * replaces the one-shot #78 budget-recap rule). */
   budgetRecapCorrected: boolean;
+  /** The one-time range-collapse correction has been spent
+   * (Publish #80). */
+  budgetRangeCorrected: boolean;
+  /** The last gate recap was judged INCOMPLETE (Publish #80):
+   * it is void, the gate debt stands, and the visitor's answer
+   * to it cannot discharge the gate. */
+  recapVoided: boolean;
+  /** What the voided recap dropped — 'budget' and/or 'purpose'
+   * — named by the completeness directive. */
+  recapMissing: string[];
+  /** The voided recap asserted a specific view the visitor
+   * never stated. */
+  recapInsertedView: boolean;
+  /** Completeness-correction fires for the current void
+   * episode (cap 2 — the correction persists like the order). */
+  recapCorrectionFires: number;
   /** Total directives injected this session. */
   fires: number;
 }
@@ -405,10 +617,19 @@ export const freshDiscoveryGateState = (): DiscoveryGateState => ({
   budgetBanked: '',
   contentBanked: false,
   gateOwed: false,
-  gateOrderFired: false,
+  gateOrderFires: 0,
+  gateOrderCarried: false,
+  simulationEntered: false,
+  shortGateRepeat: false,
   gateAsked: false,
+  viewBanked: false,
   budgetBracketCorrected: false,
   budgetRecapCorrected: false,
+  budgetRangeCorrected: false,
+  recapVoided: false,
+  recapMissing: [],
+  recapInsertedView: false,
+  recapCorrectionFires: 0,
   fires: 0,
 });
 
@@ -455,6 +676,7 @@ export function armDiscoveryGate(
       if (name) out = { ...out, visitorName: name };
     }
     if (!out.purposeBanked && detectPurposeStated(utterance)) out = { ...out, purposeBanked: true };
+    if (!out.viewBanked && detectStatedView(utterance)) out = { ...out, viewBanked: true };
     if (!out.budgetBanked) {
       const budget = detectStatedBudget(utterance);
       if (budget) out = { ...out, budgetBanked: budget };
@@ -482,20 +704,30 @@ export function bankedSummary(state: DiscoveryGateState): string {
  * The short-gate order (defect B): the caller pushed to skip (or
  * asked for the read-back) and the answering turn ran no gate.
  * Orders the gate — recap of the banked, gate question, wait —
- * ahead of any promise and any contact ask.
+ * ahead of any promise and any contact ask. The `repeat` variant
+ * (Publish #80) is the sterner second firing: the order already
+ * fired once and the gate STILL has not run, so whatever the
+ * caller said yes to in between was not a yes to a recap.
  */
-export function shortGateDirective(state: DiscoveryGateState): string {
-  return `STOP — the caller asked to skip ahead, and your last turn answered with something else instead of the gate. No promise and no contact ask may come before the gate. Run the SHORT GATE now, in this order: (1) recap ONLY what the caller has banked so far — ${bankedSummary(state)} — naming anything never covered as still open, never filling it in; (2) end the recap with exactly: "Did I capture that all correctly?" and WAIT for their answer. Only after their yes to THAT recap may you promise the list in their channel — and only then make the one capture ask, if no details were ever given. A yes the caller gave to anything else was not a yes to a recap they never heard.`;
+export function shortGateDirective(state: DiscoveryGateState, repeat = false): string {
+  const base = `STOP — the caller asked to skip ahead, and your last turn answered with something else instead of the gate. No promise and no contact ask may come before the gate. Run the SHORT GATE now, in this order: (1) recap ONLY what the caller has banked so far — ${bankedSummary(state)} — naming anything never covered as still open, never filling it in; (2) end the recap with exactly: "Did I capture that all correctly?" and WAIT for their answer. Only after their yes to THAT recap may you promise the list in their channel — and only then make the one capture ask, if no details were ever given. A yes the caller gave to anything else was not a yes to a recap they never heard.`;
+  if (!repeat) return base;
+  return `${base} This order has already been given once and the recap-and-confirm step STILL has not happened. A "yes" the caller said since then was an answer to something else — it was not a confirmation of a recap, and it was not a refusal of anything. Do not treat it as either. Run the gate now.`;
 }
 
 /**
  * The nothing-banked skip order (defect B, second shape): the
  * caller pushed to skip before banking anything at all. The one
  * missing keystone is purpose — asked once, briefly — and a
- * contact ask at this moment is barred outright.
+ * contact ask at this moment is barred outright. The `repeat`
+ * variant (Publish #80) is the sterner re-firing — including the
+ * order carried across the simulation-entry boundary, whose
+ * first firing the transition consumed.
  */
-export function shortGatePurposeDirective(): string {
-  return `STOP — the caller wants to skip ahead, but they have not yet given you the one keystone: what the home is FOR. Do NOT ask for contact details and do not promise anything. Ask the PURPOSE choice once, briefly — a home to live in, one to fix up and flip, or a long-term hold to rent out — with its why-line: "The same condo is a different search for each." When they answer, run the short gate on what is then banked: recap it, end with "Did I capture that all correctly?", take their yes — and only then the promise, and the one capture ask if no details were ever given.`;
+export function shortGatePurposeDirective(repeat = false): string {
+  const base = `STOP — the caller wants to skip ahead, but they have not yet given you the one keystone: what the home is FOR. Do NOT ask for contact details and do not promise anything. Ask the PURPOSE choice once, briefly — a home to live in, one to fix up and flip, or a long-term hold to rent out — with its why-line: "The same condo is a different search for each." When they answer, run the short gate on what is then banked: recap it, end with "Did I capture that all correctly?", take their yes — and only then the promise, and the one capture ask if no details were ever given.`;
+  if (!repeat) return base;
+  return `${base} This order has already been given once and the purpose question STILL has not been asked. Ask it now, before anything else — it is the one move this conversation is waiting on.`;
 }
 
 /**
@@ -540,6 +772,44 @@ export function budgetRecapDirective(budget: string): string {
 }
 
 /**
+ * The range-collapse correction (Publish #80, defect D's other
+ * half): an acknowledgment repeated a stated RANGE as its top
+ * end alone. A stated range is repeated as a range, exactly as
+ * given, every time it comes up.
+ */
+export function budgetRangeDirective(budget: string): string {
+  return `STOP — the caller stated their budget as a range: ${budget}. Your last turn repeated it as a single figure — one end of the range — which is not what they said. A stated range is repeated AS the range, exactly as given, every time it comes up: ${budget}. Correct it naturally as you continue, and when the recap comes, the budget goes into it as the full range.`;
+}
+
+/**
+ * The recap-completeness correction (Publish #80, defect D's
+ * mechanism): the gate recap was judged VOID on its own turn —
+ * it dropped banked criteria (named here from the ledger) and/or
+ * asserted a view the caller never stated. The recap does not
+ * count, its answer does not count, and the complete recap is
+ * delivered instead. (When the budget is among the missing, the
+ * decision fires the budget-recap kind and its directive above;
+ * this builder serves the remaining shapes.)
+ */
+export function recapCompletenessDirective(state: DiscoveryGateState): string {
+  const missing: string[] = [];
+  if (state.recapMissing.includes('budget')) {
+    missing.push(state.budgetBanked
+      ? `their stated budget — ${state.budgetBanked} — exactly as the range they gave it, never collapsed to one end of it`
+      : 'their stated budget');
+  }
+  if (state.recapMissing.includes('purpose')) {
+    missing.push('what the home is for — their purpose');
+  }
+  const dropped = missing.length ? ` it left out ${missing.join(' and ')}.` : '';
+  let text = `STOP — the recap you just ran does NOT count:${dropped} The gate has not validly run, any answer the caller gives to that recap does not count, and the list promise is still blocked. Run the recap again NOW, complete — every criterion the caller has banked, nothing dropped — and end with exactly: "Did I capture that all correctly?" and wait for a fresh answer. Do not ask for contact details and do not promise to send anything until the caller confirms the COMPLETE recap.`;
+  if (state.recapInsertedView) {
+    text += ` One more thing: your recap also stated a specific view as the caller's criterion — they never chose one. Never present a view or setting as chosen unless the caller stated it; name it as still open instead.`;
+  }
+  return text;
+}
+
+/**
  * The greeting-once correction (defect A): a second in-role
  * greeting has been delivered. The count is the enforcement the
  * step-0 prose rule never had.
@@ -559,6 +829,8 @@ export type DiscoveryGateInjection =
   | 'name-release'
   | 'budget-bracket'
   | 'budget-recap'
+  | 'budget-range'
+  | 'recap-completeness'
   | 'greeting-once'
   | null;
 
@@ -600,15 +872,18 @@ export function discoveryGateTurnDecision(input: {
       const budget = detectStatedBudget(visitorUtterance);
       if (budget) state = { ...state, budgetBanked: budget };
     }
+    if (!state.viewBanked && detectStatedView(visitorUtterance)) {
+      state = { ...state, viewBanked: true };
+    }
     if (!state.contentBanked && detectTypeOrFeature(visitorUtterance)) {
       state = { ...state, contentBanked: true };
     }
     if (detectPushToSkip(visitorUtterance) || detectRecapAsk(visitorUtterance)) {
       // A push makes the gate owed — and a REPEATED push renews
       // the order even while the gate is still owed from the
-      // first one: the caller is insisting, and the one order the
+      // first one: the caller is insisting, and the order the
       // first push bought has already been spent unanswered.
-      state = { ...state, gateOwed: true, gateOrderFired: false };
+      state = { ...state, gateOwed: true, gateOrderFires: 0, gateOrderCarried: false };
     }
   }
 
@@ -620,8 +895,50 @@ export function discoveryGateTurnDecision(input: {
   }
   const greeted = turnIsInRoleGreeting(modelTurnText);
   if (greeted) state = { ...state, inRoleGreetings: state.inRoleGreetings + 1 };
+  if (!state.simulationEntered && turnSignalsSimulationEntry(modelTurnText)) {
+    state = { ...state, simulationEntered: true };
+  }
   const gateRan = turnAsksGateQuestion(modelTurnText);
-  if (gateRan) state = { ...state, gateAsked: true, gateOwed: false };
+  if (gateRan) {
+    // Publish #80 — THE RECAP IS JUDGED ON ITS OWN TURN. #78 set
+    // gateAsked and cleared the debt on the question alone, so a
+    // recap that dropped a banked criterion still "ran the gate"
+    // and the visitor's yes was accepted on it. Now the recap
+    // must CARRY the ledger: every banked headline criterion
+    // present (the budget in full — a range carried as a range),
+    // and no specific view asserted that the visitor never
+    // stated. Complete discharges the debt; anything else is a
+    // VOID recap — the debt stands and the answer cannot count.
+    const missing: string[] = [];
+    if (state.budgetBanked && !budgetFullyMentionedInTurn(modelTurnText, state.budgetBanked)) {
+      missing.push('budget');
+    }
+    if (state.purposeBanked && !turnMentionsPurpose(modelTurnText)) {
+      missing.push('purpose');
+    }
+    const insertedView = !state.viewBanked && turnAssertsSpecificView(modelTurnText);
+    if (missing.length === 0 && !insertedView) {
+      state = {
+        ...state,
+        gateAsked: true,
+        gateOwed: false,
+        gateOrderFires: 0,
+        gateOrderCarried: false,
+        recapVoided: false,
+        recapMissing: [],
+        recapInsertedView: false,
+        recapCorrectionFires: 0,
+      };
+    } else {
+      state = {
+        ...state,
+        gateOwed: true,
+        recapVoided: true,
+        recapMissing: missing,
+        recapInsertedView: insertedView,
+      };
+    }
+  }
   const offeredBracket = turnOffersBracket(modelTurnText);
   state = { ...state, prevTurnAskedName: askedName };
 
@@ -630,13 +947,59 @@ export function discoveryGateTurnDecision(input: {
 
   const anythingBanked = state.purposeBanked || state.budgetBanked !== '' || state.contentBanked;
 
-  // 1. THE SHORT GATE AT THE SKIP — the gate is owed, the answering
-  //    turn did not run it, and the order has not fired for this push.
-  if (state.gateOwed && !gateRan && !state.gateOrderFired) {
-    return {
-      state: { ...state, gateOrderFired: true, fires: state.fires + 1 },
-      inject: anythingBanked ? 'short-gate' : 'short-gate-purpose',
-    };
+  // 1. THE GATE FAMILY — while the gate is owed and has not
+  //    validly run, its orders persist until observably complied
+  //    with (Publish #80: the one-shot #78 order is what stranded
+  //    the debt in checks B and D).
+  if (state.gateOwed && !state.gateAsked) {
+    // 1a. A VOID RECAP's completeness correction — it outranks
+    //     the generic order because it names what was dropped,
+    //     and it re-fires once while the void stands, so a
+    //     confirm that arrives against the void recap meets the
+    //     correction instead of discharging the gate.
+    if (state.recapVoided && state.recapCorrectionFires < 2) {
+      const budgetKind = state.recapMissing.includes('budget');
+      return {
+        state: {
+          ...state,
+          recapCorrectionFires: state.recapCorrectionFires + 1,
+          budgetRecapCorrected: state.budgetRecapCorrected || budgetKind,
+          fires: state.fires + 1,
+        },
+        inject: budgetKind ? 'budget-recap' : 'recap-completeness',
+      };
+    }
+    // 1b. THE KEYSTONE DELIVERED: nothing banked, the gate owed,
+    //     and the model's own turn asked the purpose question —
+    //     the owed move happened. No injection; the order counts
+    //     as delivered and any carry clears.
+    if (!anythingBanked && !gateRan && turnAsksPurposeQuestion(modelTurnText)) {
+      state = {
+        ...state,
+        gateOrderFires: Math.max(state.gateOrderFires, 1),
+        gateOrderCarried: false,
+      };
+    } else if (!gateRan && state.gateOrderFires < 2) {
+      // 1c. THE SHORT-GATE ORDER — fires at every boundary where
+      //     the gate is still owed and unrun, up to twice per
+      //     push: the initial fire and one sterner repeat. An
+      //     answering turn that signals the simulation entry
+      //     cannot obey an in-role order, so that fire is
+      //     CARRIED, not counted (defect 3): it re-fires at the
+      //     first post-transition boundary.
+      const repeat = state.gateOrderFires >= 1 || state.gateOrderCarried;
+      const entered = turnSignalsSimulationEntry(modelTurnText);
+      return {
+        state: {
+          ...state,
+          gateOrderFires: entered ? state.gateOrderFires : state.gateOrderFires + 1,
+          gateOrderCarried: entered,
+          shortGateRepeat: repeat,
+          fires: state.fires + 1,
+        },
+        inject: anythingBanked ? 'short-gate' : 'short-gate-purpose',
+      };
+    }
   }
   // 2. A BANKED NAME IS NEVER RE-ASKED.
   if (state.visitorName && askedName && state.nameKnownFires < 2) {
@@ -654,21 +1017,28 @@ export function discoveryGateTurnDecision(input: {
       inject: 'name-release',
     };
   }
-  // 4a. A STATED BUDGET IS NEVER RE-OPENED by the bracket offer.
+  // 4a. A STATED RANGE IS REPEATED AS A RANGE (Publish #80): an
+  //     acknowledgment that collapses the range to its top end
+  //     earns the one-time correction.
+  if (state.budgetBanked && !state.budgetRangeCorrected
+    && budgetRangeCollapsedInTurn(modelTurnText, state.budgetBanked)) {
+    return {
+      state: { ...state, budgetRangeCorrected: true, fires: state.fires + 1 },
+      inject: 'budget-range',
+    };
+  }
+  // 4b. A STATED BUDGET IS NEVER RE-OPENED by the bracket offer.
   if (state.budgetBanked && offeredBracket && !state.budgetBracketCorrected) {
     return {
       state: { ...state, budgetBracketCorrected: true, fires: state.fires + 1 },
       inject: 'budget-bracket',
     };
   }
-  // 4b. THE GATE'S RECAP MUST CARRY THE STATED BUDGET.
-  if (state.budgetBanked && gateRan && !state.budgetRecapCorrected
-    && !budgetMentionedInTurn(modelTurnText, state.budgetBanked)) {
-    return {
-      state: { ...state, budgetRecapCorrected: true, fires: state.fires + 1 },
-      inject: 'budget-recap',
-    };
-  }
+  // (The #78 rule 4b — the one-shot budget-recap correction — is
+  // gone: Publish #80's void judgment in the observe step above
+  // and rule 1a replace it. A recap that drops the budget is now
+  // void BEFORE its answer is accepted, and the correction
+  // persists until a complete recap runs.)
   // 5. THE GREETING HAPPENS ONCE.
   if (greeted && state.inRoleGreetings >= 2 && !state.greetingCorrected) {
     return {

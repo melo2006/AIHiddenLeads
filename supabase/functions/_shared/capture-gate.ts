@@ -297,10 +297,12 @@ export function turnReadsBackPhone(text: string, phoneDigits: string): boolean {
  * How does this model turn render the given email — as a true
  * letter-by-letter spell-back ('spelled'), as whole-word chunks
  * ('segmented' — including reciting the literal address), or not
- * at all (null)? The test is an exact token-sequence match against
- * the two renderings of THIS address, dotted or dotless, so a turn
- * that merely mentions other words can never be misread as a
- * read-back of this email.
+ * at all (null)? The test is an exact chunk-wise token match
+ * against THIS address, dotted or dotless, so a turn that merely
+ * mentions other words can never be misread as a read-back of
+ * this email. (Publish #80: chunk-wise — see the HYBRID note in
+ * the body. A read-back is spelled only when every chunk of the
+ * local part is letter-by-letter.)
  *
  * SEPARATOR WORDS (Publish #78, defect 4 — the #74 verification's
  * session A): the model's read-back rendered the address's first
@@ -323,30 +325,49 @@ export function emailRenderingInTurn(text: string, email: string): 'spelled' | '
   if (!localWords.length || domainWords.length < 2) return null;
   const tokens = text.toLowerCase().replace(/@/g, ' at ').replace(/-/g, ' ').split(/[^a-z0-9]+/).filter(Boolean)
     .map((t) => (t === 'period' || t === 'point' ? 'dot' : t));
-  const containsSequence = (seq: string[]) => {
-    if (!seq.length || seq.length > tokens.length) return false;
-    outer: for (let i = 0; i + seq.length <= tokens.length; i++) {
-      for (let j = 0; j < seq.length; j++) if (tokens[i + j] !== seq[j]) continue outer;
-      return true;
+  // Publish #80 — THE CLASSIFIER IS CHUNK-WISE. #78 matched two
+  // fixed sequences (fully spelled / fully segmented); the #78
+  // verification's period check produced a HYBRID — "t-o-n-y
+  // test at example dot com", first chunk letter-by-letter, tail
+  // whole-word — which matched NEITHER and classified as not a
+  // read-back at all, so the capture stood uncorrected again.
+  // The rule now: the address is a sequence of chunks (local
+  // words, "at", domain words; a spoken "dot" separator before
+  // each dotted chunk is optional, as before). Each chunk is
+  // consumed in whichever form the turn used — its letters as
+  // consecutive tokens, or the whole word. The rendering counts
+  // as SPELLED only if EVERY chunk of the LOCAL part was
+  // consumed letter-by-letter; any whole-word local chunk makes
+  // it SEGMENTED and earns the correction nudge. The domain
+  // side's form does not decide the class, exactly as before.
+  type Chunk = { word: string; local: boolean; dottedBefore: boolean };
+  const chunks: Chunk[] = [];
+  localWords.forEach((word, i) => chunks.push({ word, local: true, dottedBefore: i > 0 }));
+  chunks.push({ word: 'at', local: false, dottedBefore: false });
+  domainWords.forEach((word, i) => chunks.push({ word, local: false, dottedBefore: i > 0 }));
+  const matchChunk = (i: number, word: string): { form: 'spelled' | 'whole'; next: number } | null => {
+    const letters = word.split('');
+    let spelled = i + letters.length <= tokens.length;
+    for (let j = 0; spelled && j < letters.length; j++) {
+      if (tokens[i + j] !== letters[j]) spelled = false;
     }
-    return false;
+    if (spelled) return { form: 'spelled', next: i + letters.length };
+    if (tokens[i] === word) return { form: 'whole', next: i + 1 };
+    return null;
   };
-  const spelled: string[] = [];
-  const segmented: string[] = [];
-  const pushPart = (words: string[]) => {
-    words.forEach((word, i) => {
-      if (i > 0) { spelled.push('dot'); segmented.push('dot'); }
-      spelled.push(...word.split(''));
-      segmented.push(word);
-    });
-  };
-  pushPart(localWords);
-  spelled.push('at'); segmented.push('at');
-  pushPart(domainWords);
-  if (containsSequence(spelled)) return 'spelled';
-  if (containsSequence(spelled.filter((t) => t !== 'dot'))) return 'spelled';
-  if (containsSequence(segmented)) return 'segmented';
-  if (containsSequence(segmented.filter((t) => t !== 'dot'))) return 'segmented';
+  for (let start = 0; start < tokens.length; start++) {
+    let i = start;
+    const localForms: ('spelled' | 'whole')[] = [];
+    let ok = true;
+    for (const chunk of chunks) {
+      if (chunk.dottedBefore && tokens[i] === 'dot') i++;
+      const m = matchChunk(i, chunk.word);
+      if (!m) { ok = false; break; }
+      if (chunk.local) localForms.push(m.form);
+      i = m.next;
+    }
+    if (ok) return localForms.every((f) => f === 'spelled') ? 'spelled' : 'segmented';
+  }
   // Reciting the literal address ("tony.test@example.com") is a
   // chunked rendering too — it is never a letter-by-letter spell.
   if (text.toLowerCase().includes(email.toLowerCase())) return 'segmented';
