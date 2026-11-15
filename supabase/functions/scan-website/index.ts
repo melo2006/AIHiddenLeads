@@ -10,10 +10,15 @@ import { buildCookieConsentDismissalScript } from '../_shared/cookie-consent-dis
 import {
   consentScanFlagsFromEvidence,
   extractConsentEvidenceFromFirecrawlPayload,
+  looksLikeBotWall,
   mergeConsentBannerFlags,
   probeConsentBannerViaBrowserless,
   type ConsentBannerScanFlags,
 } from '../_shared/consent-scan-probe.ts';
+import {
+  shouldKeepStoredContent,
+  type ContentOverwriteSignals,
+} from '../_shared/content-overwrite-guard.ts';
 import { rehostScreenshotUrlWith } from '../_shared/screenshot-rehost.ts';
 import { REALTOR_EXAMPLE_PINNED_LEADS } from '../_shared/realtor-example-pinned-leads.ts';
 import { B2B_EXAMPLE_PINNED_LEADS } from '../_shared/b2b-example-pinned-leads.ts';
@@ -1379,6 +1384,7 @@ async function backgroundEnrich(
   homepageSummary: string,
   pageSummaries: string[],
   formattedUrl: string,
+  contentGuardSignals: ContentOverwriteSignals,
 ) {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -1474,10 +1480,35 @@ async function backgroundEnrich(
       160000,
     );
 
-    await supabase.from('leads').update({
-      website_content: fullContent,
-      scan_status: 'enriched',
-    }).eq('id', leadId);
+    // CONTENT-OVERWRITE GUARD (2026-11-14): this write is the one
+    // that destroyed the Martinez lead's rich scrape — when the
+    // scan starved, existingContent is empty and fullContent is
+    // research-only, so landing it would replace substantial
+    // stored knowledge with confabulated research. Read the row's
+    // current content and keep it when the guard fires; the
+    // scan_status transition to 'enriched' still happens exactly
+    // as before, only the website_content field is held back.
+    const { data: storedRow, error: storedRowError } = await supabase
+      .from('leads')
+      .select('website_content')
+      .eq('id', leadId)
+      .maybeSingle();
+    if (storedRowError) {
+      console.warn('Background enrichment: could not read stored website_content for the overwrite guard:', storedRowError.message);
+    }
+    const storedContent = storedRow?.website_content ?? null;
+
+    if (shouldKeepStoredContent(storedContent, fullContent, contentGuardSignals)) {
+      console.log(`[ContentGuard] kept stored content (${storedContent!.length} chars) over starved scan (${fullContent.length} chars) for lead ${leadId}`);
+      await supabase.from('leads').update({
+        scan_status: 'enriched',
+      }).eq('id', leadId);
+    } else {
+      await supabase.from('leads').update({
+        website_content: fullContent,
+        scan_status: 'enriched',
+      }).eq('id', leadId);
+    }
 
     console.log('Background enrichment: completed for lead', leadId);
   } catch (err) {
@@ -1923,7 +1954,7 @@ Deno.serve(async (req) => {
 
     const { data: existingLead, error: existingLeadError } = await supabase
       .from('leads')
-      .select('phone, email')
+      .select('phone, email, website_content')
       .eq('id', leadId)
       .maybeSingle();
 
@@ -1933,6 +1964,12 @@ Deno.serve(async (req) => {
 
     const existingLeadPhone = cleanText(existingLead?.phone);
     const existingLeadEmail = cleanText(existingLead?.email);
+    // Stored knowledge BEFORE this scan's saves (the preview writes
+    // above never touch website_content) — the overwrite guard below
+    // compares against it. Null when the read failed or the lead has
+    // no stored content yet; the guard treats both as "nothing to
+    // protect" and the save proceeds exactly as before.
+    const storedWebsiteContent = existingLead?.website_content ?? null;
 
     console.log('Extracted contact info — phones:', extractedPhones, 'emails:', extractedEmails);
 
@@ -1986,6 +2023,26 @@ Deno.serve(async (req) => {
       }
     }
 
+    // CONTENT-OVERWRITE GUARD (2026-11-14, see
+    // _shared/content-overwrite-guard.ts): a starved scan — the
+    // capture bot-walled or the scrape returned ~nothing — must
+    // never replace substantial stored knowledge with its thin
+    // research-only output. The signals are this scan's own:
+    // how much real website content it actually read, whether the
+    // scraped homepage text is a bot-wall interstitial, and
+    // whether any real screenshot capture happened. When the
+    // guard fires, ONLY the website_content field is held back
+    // from the save below; every other field writes as usual.
+    const contentGuardSignals: ContentOverwriteSignals = {
+      scrapeLength: homepageMarkdown.length + combinedPageContent.length + secondaryContent.length,
+      botWall: looksLikeBotWall(homepageMarkdown),
+      screenshotProvider,
+    };
+    const keepStoredContent = shouldKeepStoredContent(storedWebsiteContent, initialContent, contentGuardSignals);
+    if (keepStoredContent) {
+      console.log(`[ContentGuard] kept stored content (${storedWebsiteContent!.length} chars) over starved scan (${initialContent.length} chars) for lead ${leadId}`);
+    }
+
     // Save initial results immediately so the demo can load
     const updateResult = await supabase.from('leads').update({
       business_name: profile.businessName,
@@ -1997,7 +2054,7 @@ Deno.serve(async (req) => {
       website_screenshot: storedScreenshot,
       screenshot_tablet: browserlessResults.tablet || null,
       screenshot_mobile: browserlessResults.mobile || null,
-      website_content: initialContent || null,
+      ...(keepStoredContent ? {} : { website_content: initialContent || null }),
       website_title: title || null,
       website_description: description || null,
       scan_status: 'completed',
@@ -2038,6 +2095,7 @@ Deno.serve(async (req) => {
         homepageSummary,
         successfulPages.map((p) => p.summary).filter(Boolean).slice(0, 6),
         formattedUrl,
+        contentGuardSignals,
       ).catch((err) => {
         console.error('Background enrichment error:', err);
       })
