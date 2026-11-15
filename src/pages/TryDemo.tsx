@@ -32,6 +32,7 @@ import DemoIntakePanel, {
   type DemoIntakeReady,
 } from "@/components/landing/DemoIntakePanel";
 import DemoReassuranceStrip from "@/components/landing/DemoReassuranceStrip";
+import BrazilExamples from "@/components/landing/BrazilExamples";
 import TeamSection from "@/components/landing/TeamSection";
 import aspenPortrait from "@/assets/aspen-video-frame-final.webp";
 import { rankAuditExamples, type RankAuditExample } from "@/lib/rankAuditExamples";
@@ -59,7 +60,7 @@ const perks = [
 
 const steps = ["stepEnter", "stepLearn", "stepTalk"] as const;
 
-const TryDemo = () => {
+const TryDemo = ({ variant = "default" }: { variant?: "default" | "br" }) => {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -178,7 +179,7 @@ const TryDemo = () => {
             type="button"
             onClick={() => navigate("/")}
             className="inline-flex items-center gap-2 hover:opacity-80 transition-opacity"
-            aria-label="Back to home"
+            aria-label={t("tryDemo.backToHome")}
           >
             <img src="/favicon.png" alt="AI Hidden Leads" className="w-6 h-6" />
             <span className="text-sm font-extrabold tracking-tight text-foreground">
@@ -192,7 +193,7 @@ const TryDemo = () => {
               onClick={() => navigate(-1)}
               className="h-8 px-2 text-xs gap-1"
             >
-              <ArrowLeft className="w-3.5 h-3.5" /> Back
+              <ArrowLeft className="w-3.5 h-3.5" /> {t("tryDemo.back")}
             </Button>
             <Button
               variant="ghost"
@@ -200,7 +201,7 @@ const TryDemo = () => {
               onClick={() => navigate("/")}
               className="h-8 px-2 text-xs gap-1"
             >
-              <Home className="w-3.5 h-3.5" /> Home
+              <Home className="w-3.5 h-3.5" /> {t("tryDemo.home")}
             </Button>
             <LanguageSwitcher variant="full" className="h-8 border border-border/60 bg-card/60" />
           </div>
@@ -223,19 +224,19 @@ const TryDemo = () => {
             role="status"
           >
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-foreground">Welcome back — your demo is saved</p>
+              <p className="text-sm font-semibold text-foreground">{t("tryDemo.resumeTitle")}</p>
               <p className="truncate text-xs text-muted-foreground">
-                Pick up right where you left off with {extractBusinessName(resume.websiteUrl)}.
+                {t("tryDemo.resumeBody", { name: extractBusinessName(resume.websiteUrl) })}
               </p>
             </div>
             <Button size="sm" onClick={continueResume} className="shrink-0 gap-1">
-              Continue my demo <ArrowRight className="w-3.5 h-3.5" />
+              {t("tryDemo.resumeContinue")} <ArrowRight className="w-3.5 h-3.5" />
             </Button>
             <button
               type="button"
               onClick={dismissResume}
               className="shrink-0 text-muted-foreground hover:text-foreground"
-              aria-label="Dismiss saved demo"
+              aria-label={t("tryDemo.resumeDismiss")}
             >
               <X className="w-4 h-4" />
             </button>
@@ -267,7 +268,7 @@ const TryDemo = () => {
             <div className="flex items-center gap-3 text-left sm:gap-4">
               <img
                 src={aspenPortrait}
-                alt="Aspen, your AI spokesperson"
+                alt={t("tryDemo.aspenPortraitAlt")}
                 width={512}
                 height={512}
                 decoding="async"
@@ -303,8 +304,11 @@ const TryDemo = () => {
             </div>
           </motion.div>
 
-          {/* Demo-mode intake (the widget-style form + verification code send) */}
+          {/* Demo-mode intake (the widget-style form + verification code send).
+              On the /demo/br variant the six ready-made Brazilian examples
+              sit directly above the form (Publish #71). */}
           <div id="demo-intake" className="scroll-mt-20">
+            {variant === "br" && <BrazilExamples />}
             <DemoIntakePanel
               url={url}
               onUrlChange={(value) => { setUrl(value); setSelectedExample(null); }}
@@ -362,6 +366,11 @@ const TryDemo = () => {
             </ol>
           </section>
 
+          {/* The US ready-made examples and the US rank grid are
+              /demo-only: the /demo/br variant carries the Brazilian
+              examples above the form instead (Publish #71). */}
+          {variant !== "br" && (
+          <>
           {/* Ready-made examples — collapsed by default; holds up to 10.
               Adding an example = one more entry in rankAuditExamples plus
               one more button here; the grid simply wraps. */}
@@ -389,7 +398,7 @@ const TryDemo = () => {
                   ))}
                 </div>
                 <p className="mt-2 text-[11px] text-muted-foreground">
-                  Public examples, not customers or verified rankings. Website access and Google listings may change.
+                  {t("tryDemo.examplesDisclaimer")}
                 </p>
                 {selectedExample && (
                   <a
@@ -398,7 +407,7 @@ const TryDemo = () => {
                     target="_blank"
                     rel="noreferrer"
                   >
-                    View business location source
+                    {t("tryDemo.viewLocationSource")}
                   </a>
                 )}
               </AccordionContent>
@@ -409,13 +418,16 @@ const TryDemo = () => {
           <section aria-labelledby="audit-title" className="mt-8 border-t border-border pt-6 text-left">
             <h2 id="audit-title" className="text-base font-bold">{t("tryDemo.rankTitle")}</h2>
             <div className="mt-4 space-y-3">
-              <div><label htmlFor="demo-audit-name" className="mb-1 block text-xs font-medium">Business / branch name</label><Input id="demo-audit-name" value={auditBusiness} onChange={e => setAuditBusiness(e.target.value)} placeholder="Exact Google business name" maxLength={200} /></div>
-              <div><label htmlFor="demo-audit-location" className="mb-1 block text-xs font-medium">Local branch address or city + state</label><Input id="demo-audit-location" value={auditLocation} onChange={e => setAuditLocation(e.target.value)} placeholder="Optional for nationwide Google search" maxLength={100} /></div>
-              <div><label htmlFor="demo-audit-keyword" className="mb-1 block text-xs font-medium">Customer search keyword</label><Input id="demo-audit-keyword" value={auditKeyword} onChange={e => setAuditKeyword(e.target.value)} placeholder="e.g. plumber, custom manufacturing, industrial supplies" maxLength={150} /></div>
+              <div><label htmlFor="demo-audit-name" className="mb-1 block text-xs font-medium">{t("tryDemo.auditNameLabel")}</label><Input id="demo-audit-name" value={auditBusiness} onChange={e => setAuditBusiness(e.target.value)} placeholder={t("tryDemo.auditNamePlaceholder")} maxLength={200} /></div>
+              <div><label htmlFor="demo-audit-location" className="mb-1 block text-xs font-medium">{t("tryDemo.auditLocationLabel")}</label><Input id="demo-audit-location" value={auditLocation} onChange={e => setAuditLocation(e.target.value)} placeholder={t("tryDemo.auditLocationPlaceholder")} maxLength={100} /></div>
+              <div><label htmlFor="demo-audit-keyword" className="mb-1 block text-xs font-medium">{t("tryDemo.auditKeywordLabel")}</label><Input id="demo-audit-keyword" value={auditKeyword} onChange={e => setAuditKeyword(e.target.value)} placeholder={t("tryDemo.auditKeywordPlaceholder")} maxLength={150} /></div>
             </div>
             <div className="mt-3"><RankAuditPanel businessName={auditBusiness || extractBusinessName(url)} city={auditLocation} websiteUrl={url} initialKeyword={auditKeyword} initialMode={auditMode} /></div>
-            <p className="mt-2 text-xs text-muted-foreground">Ranking audit and website demo run separately. Local Maps checks one branch; nationwide mode checks 25 Google buyer searches, not AI citations.</p>
+            <p className="mt-2 text-xs text-muted-foreground">{t("tryDemo.auditSeparateNote")}</p>
           </section>
+
+          </>
+          )}
 
           {/* Demo disclaimer */}
           <motion.div
@@ -458,7 +470,7 @@ const TryDemo = () => {
               <span>·</span>
               <span>{t("tryDemo.noSignup")}</span>
               <span>·</span>
-              <span>{t('tryDemo.free')} live demo</span>
+              <span>{t('tryDemo.free')} {t("tryDemo.liveDemoSuffix")}</span>
             </div>
           </motion.div>
 

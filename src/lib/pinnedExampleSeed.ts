@@ -1,5 +1,6 @@
 import { REALTOR_EXAMPLE_PINNED_LEADS } from "@/data/realtorExamplePinnedLeads";
 import { B2B_EXAMPLE_PINNED_LEADS } from "@/data/b2bExamplePinnedLeads";
+import { BRAZIL_EXAMPLES } from "@/data/brazilExamplePinnedLeads";
 
 /**
  * Synchronous seed for a pinned one-click example demo.
@@ -24,6 +25,14 @@ const seedByLeadId = new Map<string, PinnedExampleSeed>([
     (entry) => [entry.leadId, { businessName: entry.agent, websiteUrl: entry.url }] as const,
   ),
   ...B2B_EXAMPLE_PINNED_LEADS.map(
+    (entry) => [entry.leadId, { businessName: entry.business, websiteUrl: entry.url }] as const,
+  ),
+  // Brazil examples (Publish #71): only entries whose site has been
+  // scanned in advance carry a leadId — the rest open through a fresh
+  // scan and never reach this map.
+  ...BRAZIL_EXAMPLES.filter(
+    (entry): entry is typeof entry & { leadId: string } => Boolean(entry.leadId),
+  ).map(
     (entry) => [entry.leadId, { businessName: entry.business, websiteUrl: entry.url }] as const,
   ),
 ]);

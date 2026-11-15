@@ -10,12 +10,12 @@ export const rankAuditExamples: RankAuditExample[] = [
 ];
 
 export function validateAuditInputs(mode: RankAuditMode, name: string, location: string, keyword: string, website: string) {
-  if (!name.trim()) return "Enter the exact business or branch name.";
-  if (!keyword.trim()) return "Enter a service buyers search for, such as commercial cleaning or CNC machining.";
-  if (mode === "maps" && !location.trim()) return "Enter the branch address or city and state for the local map audit.";
+  if (!name.trim()) return "rankAudit.errName";
+  if (!keyword.trim()) return "rankAudit.errKeyword";
+  if (mode === "maps" && !location.trim()) return "rankAudit.errLocation";
   if (mode === "nationwide") {
     try { const url = new URL(website.startsWith("http") ? website : `https://${website}`); if (!url.hostname.includes(".")) throw new Error(); }
-    catch { return "Enter the business website for the nationwide domain search."; }
+    catch { return "rankAudit.errWebsite"; }
   }
   return null;
 }

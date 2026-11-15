@@ -96,6 +96,40 @@ export const SEO_ROUTES = [
     ],
   },
   {
+    // Publish #71: the fully-Portuguese demo route. The head (and the
+    // link-preview card a recipient sees before the page even opens)
+    // is Brazilian Portuguese, mirroring /demo's facts with no new
+    // claims.
+    path: "/demo/br",
+    canonical: "https://aihiddenleads.com/demo/br",
+    title: "Demo ao Vivo | Veja a Aspen trabalhando no seu próprio site — AI Hidden Leads",
+    description:
+      "Digite o endereço do seu site e veja a Aspen — nossa agente de voz com IA e avatar em vídeo ao vivo — apresentar sua empresa em cerca de 2 minutos. Grátis, sem precisar se cadastrar para olhar.",
+    ogTitle: "Demo ao Vivo | Veja a Aspen trabalhando no seu próprio site — AI Hidden Leads",
+    ogDescription:
+      "Digite o endereço do seu site e veja nossa agente de voz com IA e avatar em vídeo apresentar sua empresa ao vivo em cerca de 2 minutos — grátis.",
+    heading: "Experimente seu site com a Aspen",
+    summary: [
+      "Digite o site da sua empresa e veja a Aspen — a agente de voz da AI Hidden Leads com avatar em vídeo ao vivo e sincronização labial — apresentar sua empresa em cerca de 2 minutos, grátis.",
+      "A Aspen lê seu site público, atende os visitantes por voz e chat, responde perguntas a partir do seu próprio conteúdo e pode captar consultas e agendar compromissos depois de configurada. A demo preserva a aparência do seu site e é uma simulação baseada nas informações públicas dele, não uma implementação completa da sua empresa.",
+      "Nesta página você também pode executar a verificação gratuita de classificação no Google Maps com 25 pontos para ver onde sua empresa aparece em 25 pontos de busca do bairro.",
+    ],
+    faq: [
+      {
+        q: "O que acontece na demo gratuita?",
+        a: "Você digita o endereço do seu site e a Aspen monta uma simulação ao vivo sobre uma prévia do seu site de verdade: ela atende os visitantes por voz e chat, responde perguntas a partir das suas próprias páginas e mostra como captaria consultas e agendaria compromissos para a sua empresa. Nada é instalado e nada no seu site muda — é uma maquete montada a partir das suas páginas públicas.",
+      },
+      {
+        q: "Quanto tempo leva a demo?",
+        a: "Cerca de 2 minutos para ver a Aspen ao vivo no seu site. A montagem da simulação completa a partir das páginas do seu site leva em torno de 10 minutos, e a Aspen usa esse tempo para aprender sobre a sua empresa e responder às suas perguntas.",
+      },
+      {
+        q: "Vocês alteram ou invadem meu site?",
+        a: "Não. É uma maquete de demonstração — seu site fica intacto, nada no seu servidor é alterado. A demo roda sobre uma cópia de prévia montada a partir das suas páginas públicas, então seu site ao vivo continua exatamente como está.",
+      },
+    ],
+  },
+  {
     path: "/book",
     canonical: "https://aihiddenleads.com/book",
     title: "Book a Call | AI Hidden Leads",

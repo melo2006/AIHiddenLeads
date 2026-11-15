@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useTranslation } from "react-i18next";
 import GeminiConversation, { type GeminiShellControls, type GeminiShellState } from './GeminiConversation';
 import DraggableFloating from '@/components/landing/demo-results/DraggableFloating';
 import { preloadVoiceIdentity } from '@/lib/voicePreload';
@@ -23,6 +24,7 @@ const latinaPortrait = presenterPortraitImage(LATINA_FACE_ID);
 const blackProfessionalLadyPortrait = presenterPortraitImage(BLACK_PROFESSIONAL_LADY_FACE_ID);
 const alexVideoAvatar: VideoAvatar = { enabled: true, provider: 'simli', faceId: ALEX_FACE_ID, position: 'bottom-right', size: 200, shape: 'circle' };
 export default function GeminiAgentWidget({ agentId, leadId, prospectId, businessName, callerName, onClose, floating = false, autoStart = false, guide }: Props) {
+ const { t } = useTranslation();
  const isGuide = guide === 'alex';
  const [open,setOpen]=useState(!floating);
  const [hasOpened,setHasOpened]=useState(!floating);
@@ -77,7 +79,7 @@ export default function GeminiAgentWidget({ agentId, leadId, prospectId, busines
  const mounted = hasOpened || canPrewarm;
  const content=<>
   <FloatingPersonFrame name={displayName} avatarUrl={displayFaceUrl} open={open} minimized={minimized} mode={mode} onOpen={openWidget} onMinimize={()=>{setOpen(false);setMinimized(true);}} onClose={closeAssistant} onMode={changeMode} keepRendered={canPrewarm} stage3={stage3} focus={shellState?.focus ?? false}>
-   {hasOpened && mode==='voice' && !identityReady && <div className="aspen-voice-panel relative z-10 flex flex-col gap-1 rounded-lg border border-primary/40 bg-card p-2 shadow-lg ring-1 ring-foreground/10"><AspenWindowControls onMinimize={()=>{setOpen(false);setMinimized(true);}} onClose={closeAssistant} /><div className="flex shrink-0 items-start gap-1 py-0.5"><div aria-hidden className="flex-1" /><div className="flex shrink-0 justify-center"><AspenModeToggle mode={mode} onMode={changeMode} /></div><div className="flex min-w-0 flex-1 flex-col items-end" /></div><p role="status" className="text-xs text-muted-foreground">Connecting…</p></div>}
+   {hasOpened && mode==='voice' && !identityReady && <div className="aspen-voice-panel relative z-10 flex flex-col gap-1 rounded-lg border border-primary/40 bg-card p-2 shadow-lg ring-1 ring-foreground/10"><AspenWindowControls onMinimize={()=>{setOpen(false);setMinimized(true);}} onClose={closeAssistant} /><div className="flex shrink-0 items-start gap-1 py-0.5"><div aria-hidden className="flex-1" /><div className="flex shrink-0 justify-center"><AspenModeToggle mode={mode} onMode={changeMode} /></div><div className="flex min-w-0 flex-1 flex-col items-end" /></div><p role="status" className="text-xs text-muted-foreground">{t("panel.connecting")}</p></div>}
    {mounted && mode==='voice' && identityReady && <GeminiConversation compact faceFirst avatarUrl={displayFaceUrl} autoStart={clickedOpen || autoStart} consentOnOpen={clickedOpen} prewarm={canPrewarm} agentId={isGuide ? undefined : identity.id || agentId} leadId={leadId} prospectId={prospectId} name={identity.name} visitorName={callerName} onRecommendedPlan={setRecommendedPlan} videoAvatar={isGuide ? identity.videoAvatar : agentId ? identity.videoAvatar : matchingAspenVideo(identity.videoAvatar)} guide={guide} avatarInline shellControlsRef={shellControlsRef} onShellState={setShellState} onPersonaChange={handlePersonaChange} belowAvatar={<AspenModeToggle mode={mode} onMode={changeMode} />} windowControls={<AspenWindowControls onMinimize={()=>{setOpen(false);setMinimized(true);}} onClose={closeAssistant} />} />}
    {chatVisited && <div className={mode==='chat'?'aspen-panel min-h-80 overflow-hidden rounded-lg border border-border bg-card':'hidden'}><div className="aspen-chat-content"><ChatWidget embedded active={open && mode==='chat'} businessName={businessName || identity.businessName} businessNiche="general" websiteUrl={window.location.origin} businessInfo="AI Hidden Leads provides AI voice and chat assistants, B2B lead generation and search growth services. Refer visitors to the current homepage for pricing and package details." callerName={callerName} leadId={leadId} prospectId={prospectId} /></div></div>}
    {open && isGuide && <p className="aspen-guide-label text-center text-xs font-semibold text-muted-foreground">{ALEX_GUIDE_LABEL}</p>}

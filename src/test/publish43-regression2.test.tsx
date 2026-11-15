@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import en from "../i18n/locales/en.json";
 import { render, screen, waitFor, act } from "@testing-library/react";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 
@@ -66,7 +67,28 @@ vi.mock("@/lib/demoVerification", () => ({
 }));
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (key: string) => key,
+    // Publish #71: demo-path components read copy from i18next now;
+    // resolve against the real en locale instead of echoing keys.
+    t: (key: string, options?: Record<string, unknown>) => {
+      const value = key.split(".").reduce<unknown>(
+        (acc, part) =>
+          acc && typeof acc === "object" ? (acc as Record<string, unknown>)[part] : undefined,
+        en as unknown,
+      );
+      let out =
+        typeof value === "string"
+          ? value
+          : typeof options?.defaultValue === "string"
+            ? (options.defaultValue as string)
+            : key;
+      if (options) {
+        for (const [k, v] of Object.entries(options)) {
+          if (k !== "defaultValue" && (typeof v === "string" || typeof v === "number"))
+            out = out.split(`{{${k}}}`).join(String(v));
+        }
+      }
+      return out;
+    },
     i18n: { language: "en", resolvedLanguage: "en", changeLanguage: vi.fn(async () => {}) },
   }),
 }));

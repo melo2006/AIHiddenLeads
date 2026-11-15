@@ -677,13 +677,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     return () => window.clearTimeout(timer);
   }, [phase, captions]);
   const [aspenSpeaking, setAspenSpeaking] = useState(false);
-  const [status, setStatus] = useState(
-    "Pick a voice and press Start — then just talk, like a real phone call. You can interrupt her."
+  const [status, setStatus] = useState(() =>
+    t("panel.initialStatus")
   );
   const [error, setError] = useState<string | null>(null);
   const [audioNeedsTap, setAudioNeedsTap] = useState(false);
   const [limitReached, setLimitReached] = useState(false);
-  const signInAction = limitReached && error ? <a href={`/account?next=${encodeURIComponent(window.location.pathname + window.location.search)}`} className="inline-flex w-fit items-center rounded-md border border-primary px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/10">Sign in as administrator to keep testing</a> : null;
+  const signInAction = limitReached && error ? <a href={`/account?next=${encodeURIComponent(window.location.pathname + window.location.search)}`} className="inline-flex w-fit items-center rounded-md border border-primary px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/10">{t("panel.signInAdmin")}</a> : null;
   const [endedByVisitor, setEndedByVisitor] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   // LAYOUT REFINEMENT (Scalone batch Item 8b): a wide landscape panel
@@ -2235,7 +2235,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       playTimeRef.current = 0;
     }
     const ctx = playCtxRef.current;
-    if (ctx.state === "suspended" && !captureRef.current.paused) void ctx.resume().catch(() => setError("Audio is paused. End the call and press Start again to enable sound."));
+    if (ctx.state === "suspended" && !captureRef.current.paused) void ctx.resume().catch(() => setError(t("panel.audioPaused")));
     const binary = atob(base64);
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
@@ -2746,7 +2746,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       if (warm) { if (generation === generationRef.current && silentWarm() && !warmState?.ok) failWarm(); return; }
       if (generation === generationRef.current && !liveRef.current) {
         stopEverything();
-        setError("Starting the voice assistant took too long. Check microphone permission and try again.");
+        setError(t("panel.startTimeout"));
       }
     }, 30000);
 
@@ -4572,7 +4572,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // session teardown all retire it.
   const formWaitingChip = !pendingAction && waitingAction ? (
     <button type="button" onClick={() => { wsRef.current?.send(JSON.stringify({ type: 'reopen_action' })); setWaitingAction(null); }} className="inline-flex items-center gap-1.5 self-start rounded-full border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/20">
-      Form waiting — tap to open
+      {t("panel.formWaiting")}
     </button>
   ) : null;
   const transferControl = phase === 'live' && handoffToken ? <BrowserVoiceHandoff token={handoffToken} onActive={onHandoffActive} onEnded={onHandoffEnded} microphone={microphone} startSignal={handoffStartSignal}/> : null;
@@ -5041,8 +5041,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             keeps its freed height for captions (2–3 lines). */}
         {showMicHint && phase === "live" && (
           <div role="status" className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/60 p-2 text-[11px] text-foreground">
-            <span>I can’t hear you — your microphone may be muted or set to the wrong one.</span>
-            <Button size="sm" variant="outline" className="aspen-panel-btn h-7 text-[11px] hover:bg-muted hover:text-foreground" onClick={() => setShowSettings(true)}>Check microphone</Button>
+            <span>{t("panel.micMuted", { defaultValue: "I can’t hear you — your microphone may be muted or set to the wrong one." })}</span>
+            <Button size="sm" variant="outline" className="aspen-panel-btn h-7 text-[11px] hover:bg-muted hover:text-foreground" onClick={() => setShowSettings(true)}>{t("panel.checkMicrophone")}</Button>
           </div>
         )}
         {/* Zero-input guard: persistent until audio actually flows
@@ -5050,12 +5050,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             button re-acquires the microphone in one tap. */}
         {showMicWatchdog && phase === "live" && (
           <div role="alert" className="flex flex-wrap items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-2 text-[11px] text-foreground">
-            <span>I can't hear you — your microphone isn't sending sound. Tap the mic button, or allow microphone access in your browser.</span>
-            <Button size="sm" variant="outline" className="aspen-panel-btn h-7 text-[11px] hover:bg-muted hover:text-foreground" onClick={() => void recoverMicrophone()}>Reconnect microphone</Button>
+            <span>{t("panel.micNoSound")}</span>
+            <Button size="sm" variant="outline" className="aspen-panel-btn h-7 text-[11px] hover:bg-muted hover:text-foreground" onClick={() => void recoverMicrophone()}>{t("panel.reconnectMicrophone")}</Button>
           </div>
         )}
         {phase === "live" && captureMode === "hold" && (
-          <p role="status" className="w-fit rounded-full border border-border bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-foreground">Hold to talk is ON — hold the button while you speak</p>
+          <p role="status" className="w-fit rounded-full border border-border bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-foreground">{t("panel.holdToTalk", { defaultValue: "Hold to talk is ON — hold the button while you speak" })}</p>
         )}
         {audioNeedsTap && <p role="status" className="text-[11px] text-muted-foreground">{t("voice.audioTapNeeded")}</p>}
         {error && (micFailureKind === "mic-denied-embedded" ? <EmbeddedMicrophoneNotice compact name={personaLabelName} /> : <p className="text-[11px] font-semibold text-destructive">{error}</p>)}
@@ -5119,9 +5119,9 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
               </Select>
             </div>
             <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-              <span>Mic level</span>
-              <meter min="0" max="100" value={micLevel} aria-label="Microphone level" className="h-2 w-24" />
-              <span>{micLevel > 3 ? "Sound — your voice is registering" : "Quiet — speak and watch this move"}</span>
+              <span>{t("panel.micLevelShort")}</span>
+              <meter min="0" max="100" value={micLevel} aria-label={t("panel.micLevel")} className="h-2 w-24" />
+              <span>{micLevel > 3 ? t("panel.micSound") : t("panel.micQuiet")}</span>
             </div>
             {/* Speaker volume (2026-11-13): the guaranteed in-panel level
                 for BOTH playback paths — on Android the hardware keys
@@ -5285,13 +5285,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           </div>
           {showMicHint && phase === "live" && (
             <div role="status" className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/60 p-2 text-xs text-foreground">
-              <span>I can’t hear you — your microphone may be muted or set to the wrong one. Check the Microphone setting, and watch the level meter just below while you speak — it should move with your voice.</span>
+              <span>{t("panel.micMutedLong")}</span>
             </div>
           )}
           {showMicWatchdog && phase === "live" && (
             <div role="alert" className="flex flex-wrap items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-2 text-xs text-foreground">
-              <span>I can't hear you — your microphone isn't sending sound. Tap the mic button, or allow microphone access in your browser.</span>
-              <Button size="sm" variant="outline" className="aspen-panel-btn h-7 text-[11px] hover:bg-muted hover:text-foreground" onClick={() => void recoverMicrophone()}>Reconnect microphone</Button>
+              <span>{t("panel.micNoSound")}</span>
+              <Button size="sm" variant="outline" className="aspen-panel-btn h-7 text-[11px] hover:bg-muted hover:text-foreground" onClick={() => void recoverMicrophone()}>{t("panel.reconnectMicrophone")}</Button>
             </div>
           )}
           {phase === "live" && <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -5299,7 +5299,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             <span>{micLevel > 3 ? t("voice.soundDetected") : t("voice.quiet")}</span>
           </div>}
           {phase === "live" && captureMode === "hold" && (
-            <p role="status" className="w-fit rounded-full border border-border bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-foreground">Hold to talk is ON — hold the button while you speak</p>
+            <p role="status" className="w-fit rounded-full border border-border bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-foreground">{t("panel.holdToTalk", { defaultValue: "Hold to talk is ON — hold the button while you speak" })}</p>
           )}
           {audioNeedsTap && <p role="status" className="text-xs text-muted-foreground">{t("voice.audioTapNeeded")}</p>}
           {error && (micFailureKind === "mic-denied-embedded" ? <EmbeddedMicrophoneNotice name={personaLabelName} /> : <p className="text-xs text-destructive font-semibold">{error}</p>)}

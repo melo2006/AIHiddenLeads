@@ -53,7 +53,7 @@ export default function DemoReassuranceStrip({ compact = false }: { compact?: bo
   return (
     <div
       role="note"
-      aria-label="Website safety reassurance"
+      aria-label={t("tryDemo.reassuranceAria")}
       data-expanded={expanded}
       className="relative text-left text-foreground"
     >

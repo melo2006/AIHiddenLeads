@@ -1,4 +1,5 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import {
   Globe,
@@ -88,18 +89,19 @@ export const extractBusinessName = (url: string): string => {
   }
 };
 
-const formSchema = z.object({
-  fullName: z.string().trim().min(1, "Enter your name"),
-  phone: z.string().trim().max(30).optional().or(z.literal("")),
-  email: z.string().trim().email("Enter a valid email"),
-  url: z
-    .string()
-    .trim()
-    .min(1, "Enter your website URL")
-    .max(255)
-    .refine((v) => looksLikeDomain(v), { message: "Enter a valid domain (e.g. mybusiness.com)" })
-    .transform(normalizeDemoUrl),
-});
+const buildFormSchema = (t: (key: string) => string) =>
+  z.object({
+    fullName: z.string().trim().min(1, t("intake.errName")),
+    phone: z.string().trim().max(30).optional().or(z.literal("")),
+    email: z.string().trim().email(t("intake.errEmail")),
+    url: z
+      .string()
+      .trim()
+      .min(1, t("intake.errUrlRequired"))
+      .max(255)
+      .refine((v) => looksLikeDomain(v), { message: t("intake.errUrlInvalid") })
+      .transform(normalizeDemoUrl),
+  });
 
 export interface DemoIntakeReady {
   leadData: DemoLeadData;
@@ -117,6 +119,8 @@ interface Props {
 }
 
 export default function DemoIntakePanel({ url, onUrlChange, auditBusinessName, onReady }: Props) {
+  const { t } = useTranslation();
+  const formSchema = useMemo(() => buildFormSchema(t), [t]);
   const { toast } = useToast();
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
@@ -141,11 +145,11 @@ export default function DemoIntakePanel({ url, onUrlChange, auditBusinessName, o
     const incoming = Array.from(e.target.files || []);
     const valid = incoming.filter((f) => {
       if (!ALLOWED_FILE_TYPES.includes(f.type)) {
-        toast({ title: "Unsupported file", description: `${f.name} must be a PDF, Word doc or text file.`, variant: "destructive" });
+        toast({ title: t("intake.toastUnsupportedTitle"), description: t("intake.toastUnsupportedDesc", { name: f.name }), variant: "destructive" });
         return false;
       }
       if (f.size > MAX_FILE_SIZE) {
-        toast({ title: "File too large", description: `${f.name} is over 10 MB.`, variant: "destructive" });
+        toast({ title: t("intake.toastTooLargeTitle"), description: t("intake.toastTooLargeDesc", { name: f.name }), variant: "destructive" });
         return false;
       }
       return true;
@@ -176,8 +180,8 @@ export default function DemoIntakePanel({ url, onUrlChange, auditBusinessName, o
     if (!parsed.success) {
       const first = parsed.error.issues[0];
       toast({
-        title: "Almost there",
-        description: first?.message || "Please check the highlighted fields.",
+        title: t("intake.toastAlmostTitle"),
+        description: first?.message || t("intake.toastAlmostDesc"),
         variant: "destructive",
       });
       return;
@@ -200,7 +204,7 @@ export default function DemoIntakePanel({ url, onUrlChange, auditBusinessName, o
         _secondary_url: secondaryUrl.trim() ? normalizeDemoUrl(secondaryUrl) : null,
       });
       if (error) throw error;
-      if (!leadId) throw new Error("Demo lead was not created");
+      if (!leadId) throw new Error(t("intake.leadNotCreated"));
 
       // Record the SMS checkbox choice on the lead (leads.sms_consent —
       // the follow-up pack column). Best-effort like the uploads attach
@@ -242,8 +246,8 @@ export default function DemoIntakePanel({ url, onUrlChange, auditBusinessName, o
         if (codeResult.ok === false) {
           throw new Error(
             codeResult.error === "resend_cooldown"
-              ? "A code was just sent — check your inbox in a moment."
-              : "We could not send your verification code. Please check the email address and try again.",
+              ? t("intake.codeResendCooldown")
+              : t("intake.codeSendFailed"),
           );
         }
         sentMaskedTarget = codeResult.ok === true ? codeResult.maskedTarget : null;
@@ -267,8 +271,8 @@ export default function DemoIntakePanel({ url, onUrlChange, auditBusinessName, o
     } catch (err) {
       console.error("Demo intake error:", err);
       toast({
-        title: "Something went wrong",
-        description: err instanceof Error ? err.message : "Please try again.",
+        title: t("intake.toastErrorTitle"),
+        description: err instanceof Error ? err.message : t("intake.toastErrorDesc"),
         variant: "destructive",
       });
     } finally {
@@ -283,7 +287,7 @@ export default function DemoIntakePanel({ url, onUrlChange, auditBusinessName, o
       transition={{ duration: 0.5, delay: 0.3 }}
       onSubmit={handleSubmit}
       className="w-full space-y-2.5 rounded-[1.75rem] border border-border bg-card/80 p-3.5 shadow-xl backdrop-blur-sm sm:space-y-3 sm:p-5"
-      aria-label="Start your live demo"
+      aria-label={t("intake.formAria")}
     >
       {/* Aspen heads the intake, like the expanded widget. The portrait is a
           plain img of the approved still: PersonPortrait's shared widget CSS
@@ -304,9 +308,9 @@ export default function DemoIntakePanel({ url, onUrlChange, auditBusinessName, o
           />
         </div>
         <div className="min-w-0 text-left">
-          <p className="text-[13px] font-bold text-foreground sm:text-sm">Hi, I&rsquo;m Aspen</p>
+          <p className="text-[13px] font-bold text-foreground sm:text-sm">{t("intake.greetingTitle")}</p>
           <p className="text-[11px] leading-snug text-muted-foreground sm:text-xs">
-            Tell me where to look and I&rsquo;ll bring your website to life — then prove it&rsquo;s really you with a quick 4-digit code.
+            {t("intake.greetingBody")}
           </p>
         </div>
       </div>
@@ -315,24 +319,24 @@ export default function DemoIntakePanel({ url, onUrlChange, auditBusinessName, o
         <div className="relative">
           <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Your name *"
+            placeholder={t("intake.namePlaceholder")}
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
             className="h-11 rounded-xl border-border bg-card pl-9 text-sm focus-visible:ring-primary sm:h-12"
             disabled={isSubmitting}
-            aria-label="Your name"
+            aria-label={t("intake.nameAria")}
           />
         </div>
         <div className="relative">
           <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="(954) 555-1234 (optional)"
+            placeholder={t("intake.phonePlaceholder")}
             type="tel"
             value={phone}
             onChange={(e) => setPhone(formatPhoneNumber(e.target.value))}
             className="h-11 rounded-xl border-border bg-card pl-9 text-sm focus-visible:ring-primary sm:h-12"
             disabled={isSubmitting}
-            aria-label="Phone (optional)"
+            aria-label={t("intake.phoneAria")}
           />
         </div>
       </div>
@@ -341,7 +345,7 @@ export default function DemoIntakePanel({ url, onUrlChange, auditBusinessName, o
         <div className="relative">
           <Globe className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="mybusiness.com *"
+            placeholder={t("intake.urlPlaceholder")}
             value={url}
             onChange={(e) => onUrlChange(sanitizeUrlInput(e.target.value))}
             onBlur={() => {
@@ -352,26 +356,26 @@ export default function DemoIntakePanel({ url, onUrlChange, auditBusinessName, o
             }}
             className="h-11 rounded-xl border-border bg-card pl-9 text-sm focus-visible:ring-primary sm:h-12"
             disabled={isSubmitting}
-            aria-label="Your website"
+            aria-label={t("intake.urlAria")}
           />
         </div>
         <div className="relative">
           <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Email for your demo code *"
+            placeholder={t("intake.emailPlaceholder")}
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className="h-11 rounded-xl border-border bg-card pl-9 text-sm focus-visible:ring-primary sm:h-12"
             disabled={isSubmitting}
-            aria-label="Email for your verification code"
+            aria-label={t("intake.emailAria")}
           />
         </div>
       </div>
 
       {/* Verification channel choice — one channel only (pointless while the TEST-ONLY toggle skips verification, so hidden then) */}
       {verifyDemo && (
-      <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="How should we send your code?">
+      <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label={t("intake.channelAria")}>
         <button
           type="button"
           role="radio"
@@ -382,9 +386,9 @@ export default function DemoIntakePanel({ url, onUrlChange, auditBusinessName, o
           }`}
         >
           <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-            <Mail className="h-3.5 w-3.5 text-primary" /> Email me a code
+            <Mail className="h-3.5 w-3.5 text-primary" /> {t("intake.channelEmailTitle")}
           </span>
-          <span className="mt-0.5 block text-[10px] text-muted-foreground">Fast — check spam just in case</span>
+          <span className="mt-0.5 block text-[10px] text-muted-foreground">{t("intake.channelEmailHint")}</span>
         </button>
         <button
           type="button"
@@ -393,16 +397,16 @@ export default function DemoIntakePanel({ url, onUrlChange, auditBusinessName, o
           disabled={!SMS_VERIFICATION_ENABLED}
           onClick={() => SMS_VERIFICATION_ENABLED && setChannel("sms")}
           className="rounded-xl border border-border bg-card/40 px-3 py-2.5 text-left opacity-70"
-          title={SMS_VERIFICATION_ENABLED ? undefined : "Text codes are coming soon"}
+          title={SMS_VERIFICATION_ENABLED ? undefined : t("intake.channelSmsTitleAttr")}
         >
           <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-            <MessageSquareText className="h-3.5 w-3.5 text-primary" /> Text me a code
+            <MessageSquareText className="h-3.5 w-3.5 text-primary" /> {t("intake.channelSmsTitle")}
             {!SMS_VERIFICATION_ENABLED && (
-              <span className="rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-muted-foreground">Soon</span>
+              <span className="rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-muted-foreground">{t("intake.channelSmsSoon")}</span>
             )}
           </span>
           <span className="mt-0.5 block text-[10px] text-muted-foreground">
-            {SMS_VERIFICATION_ENABLED ? "Sent to your mobile" : "Coming soon — email works today"}
+            {SMS_VERIFICATION_ENABLED ? t("intake.channelSmsSentHint") : t("intake.channelSmsSoonHint")}
           </span>
         </button>
       </div>
@@ -417,7 +421,7 @@ export default function DemoIntakePanel({ url, onUrlChange, auditBusinessName, o
         >
           <span className="flex items-center gap-2">
             <FileText className="h-3.5 w-3.5 text-primary" />
-            Teach Aspen more (optional): extra page, deeper crawl, documents
+            {t("intake.advancedTitle")}
           </span>
           <ChevronDown className={`h-4 w-4 transition-transform ${showAdvanced ? "rotate-180" : ""}`} />
         </button>
@@ -426,7 +430,7 @@ export default function DemoIntakePanel({ url, onUrlChange, auditBusinessName, o
             <div className="relative">
               <Globe className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Additional page or second website (optional)"
+                placeholder={t("intake.secondaryUrlPlaceholder")}
                 value={secondaryUrl}
                 onChange={(e) => setSecondaryUrl(sanitizeUrlInput(e.target.value))}
                 className="h-11 rounded-xl border-border bg-card pl-9 text-sm focus-visible:ring-primary"
@@ -434,11 +438,11 @@ export default function DemoIntakePanel({ url, onUrlChange, auditBusinessName, o
               />
             </div>
             <div>
-              <p className="mb-1.5 text-[11px] font-semibold text-foreground/80">How deep should we learn?</p>
+              <p className="mb-1.5 text-[11px] font-semibold text-foreground/80">{t("intake.depthTitle")}</p>
               <div className="grid grid-cols-2 gap-2">
                 {[
-                  { value: 1 as const, label: "Level 1 — page & menu", hint: "Up to 20 linked pages" },
-                  { value: 2 as const, label: "Level 2 — add submenus", hint: "Up to 40 linked pages" },
+                  { value: 1 as const, label: t("intake.depth1Label"), hint: t("intake.depth1Hint") },
+                  { value: 2 as const, label: t("intake.depth2Label"), hint: t("intake.depth2Hint") },
                 ].map((opt) => (
                   <button
                     key={opt.value}
@@ -464,7 +468,7 @@ export default function DemoIntakePanel({ url, onUrlChange, auditBusinessName, o
                 disabled={isSubmitting || files.length >= MAX_FILES}
                 className="h-9 gap-1.5 rounded-xl text-xs"
               >
-                <Upload className="h-3.5 w-3.5" /> Upload PDF / doc / text (max {MAX_FILES}, 10 MB each)
+                <Upload className="h-3.5 w-3.5" /> {t("intake.uploadButton", { max: MAX_FILES })}
               </Button>
               {files.length > 0 && (
                 <ul className="mt-2 space-y-1">
@@ -475,7 +479,7 @@ export default function DemoIntakePanel({ url, onUrlChange, auditBusinessName, o
                         type="button"
                         onClick={() => setFiles((prev) => prev.filter((_, i) => i !== index))}
                         className="text-muted-foreground hover:text-destructive"
-                        aria-label={`Remove ${file.name}`}
+                        aria-label={t("intake.removeFile", { name: file.name })}
                       >
                         <X className="h-3.5 w-3.5" />
                       </button>
@@ -492,14 +496,14 @@ export default function DemoIntakePanel({ url, onUrlChange, auditBusinessName, o
       {DEMO_TEST_TOGGLE && (
         <div className="flex items-center justify-between px-1">
           <label htmlFor="demo-verify-toggle" className="text-[11px] font-medium text-muted-foreground">
-            Verify demo <span className="text-muted-foreground/70">(test only — off skips the code step)</span>
+            {t("intake.verifyToggleLabel")} <span className="text-muted-foreground/70">{t("intake.verifyToggleHint")}</span>
           </label>
           <Switch
             id="demo-verify-toggle"
             checked={verifyDemoChoice}
             onCheckedChange={setVerifyDemoChoice}
             disabled={isSubmitting}
-            aria-label="Verify demo (test toggle)"
+            aria-label={t("intake.verifyToggleAria")}
           />
         </div>
       )}
@@ -514,11 +518,11 @@ export default function DemoIntakePanel({ url, onUrlChange, auditBusinessName, o
           checked={smsConsent}
           onCheckedChange={(value) => setSmsConsent(value === true)}
           disabled={isSubmitting}
-          aria-label="Optional: text me my demo link and results by SMS"
+          aria-label={t("intake.smsConsentAria")}
           className="mt-0.5"
         />
         <label htmlFor="demo-sms-consent" className="cursor-pointer text-[11px] leading-snug text-muted-foreground">
-          {DEMO_SMS_CONSENT_LABEL}
+          {t("consent.smsLabel", { defaultValue: DEMO_SMS_CONSENT_LABEL })}
         </label>
       </div>
 
@@ -528,18 +532,18 @@ export default function DemoIntakePanel({ url, onUrlChange, auditBusinessName, o
         disabled={isSubmitting || !url.trim() || !fullName.trim() || !email.trim()}
         className="h-12 w-full rounded-xl bg-primary text-base font-bold text-primary-foreground shadow-[0_0_30px_-5px_hsl(var(--primary)/0.4)] transition-all hover:bg-primary/90 hover:shadow-[0_0_40px_-5px_hsl(var(--primary)/0.6)] sm:h-14"
       >
-        {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : "Show me my talking website"}
+        {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : t("intake.submit", { defaultValue: "Show me my talking website" })}
       </Button>
 
       {/* Consent disclosure — directly at the action; texts are governed by the optional checkbox above, never by continuing */}
       <p className="flex items-start gap-1.5 px-1 text-left text-[10px] leading-relaxed text-muted-foreground">
         <ShieldCheck className="mt-0.5 h-3 w-3 shrink-0 text-primary" />
-        <span>{DEMO_CONSENT_DISCLOSURE}</span>
+        <span>{t("consent.disclosure", { defaultValue: DEMO_CONSENT_DISCLOSURE })}</span>
       </p>
 
       {/* Trust line under the action: the demo costs nothing and never touches the live site */}
       <p className="text-center text-[11px] font-medium text-muted-foreground">
-        Free · No credit card · Your site is never changed
+        {t("intake.trustLine", { defaultValue: "Free · No credit card · Your site is never changed" })}
       </p>
     </motion.form>
   );
