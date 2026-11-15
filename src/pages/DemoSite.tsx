@@ -18,6 +18,7 @@ import { preloadVoiceIdentity } from "@/lib/voicePreload";
 import { linkCampaignLead } from "@/lib/campaignTracking";
 import { canPresentRawIframe, isCapturedCopyPreview, resolveConsentCoveredRoute, shouldHoldLoadingOverlay, shouldStartLiveView, shouldWaitForFreshLeadData, SCREENSHOT_LOAD_TIMEOUT_MS, LIVE_VIEW_LOAD_TIMEOUT_MS, PINNED_REVEAL_DEADLINE_MS } from "@/lib/demoStartup";
 import { pinnedExampleSeedForLeadId } from "@/lib/pinnedExampleSeed";
+import { explicitUiLocale, normalizeUiLocale } from "@/lib/uiLocale";
 import DemoVerificationGate from "@/components/landing/demo-results/DemoVerificationGate";
 import DemoReassuranceStrip from "@/components/landing/DemoReassuranceStrip";
 import {
@@ -141,9 +142,14 @@ interface DemoLoadingStateProps {
   websiteUrl: string;
   businessName?: string;
   overlay?: boolean;
+  /** Detected site language (Publish #66): renders the scan/build
+   *  messages in the language the scanned site is published in. Only
+   *  passed when the visitor made no explicit language-switch pick —
+   *  the pick (the UI locale) always wins. Undefined = UI locale. */
+  language?: string;
 }
 
-const DemoLoadingState = ({ websiteUrl, businessName, overlay = false }: DemoLoadingStateProps) => (
+const DemoLoadingState = ({ websiteUrl, businessName, overlay = false, language }: DemoLoadingStateProps) => (
   <div
     className={`flex w-full items-center justify-center overflow-hidden px-4 py-4 text-center ${
       overlay ? "absolute inset-0 bg-background/92 backdrop-blur-sm" : "h-[100dvh] bg-background"
@@ -154,6 +160,7 @@ const DemoLoadingState = ({ websiteUrl, businessName, overlay = false }: DemoLoa
       businessName={businessName}
       onComplete={() => {}}
       mode="continuous"
+      language={language}
     />
   </div>
 );
@@ -208,6 +215,7 @@ type DemoLeadRecord = Partial<{
   brand_logo: string;
   consent_banner_seen: boolean | null;
   consent_banner_dismissed: boolean | null;
+  website_language: string | null;
 }>;
 
 const asBrandColors = (value: unknown) =>
@@ -244,6 +252,10 @@ const mergeLeadRecordIntoDemoData = (record: DemoLeadRecord, current: DemoLeadDa
   // not carry the column yet (pre-migration RPC) simply leaves the
   // current value alone.
   consentBannerSeen: record.consent_banner_seen === true || current.consentBannerSeen || undefined,
+  // Detected site language (Publish #66): first recorded verdict wins for
+  // the session; a record without the column (pre-migration RPC) leaves
+  // the current value alone.
+  websiteLanguage: record.website_language || current.websiteLanguage,
   colors: asBrandColors(record.brand_colors) || current.colors || {},
   logo: record.brand_logo || current.logo || "",
 });
@@ -1231,6 +1243,13 @@ const DemoSite = () => {
   const isScanPreviewReady =
     (!isScanning || pinnedStoredContentReady) && !isPreviewAvailable && hasGeneratedPreviewData;
   const hasAnyPreview = !isPreviewLoading && (isPreviewAvailable || isScanPreviewReady);
+  // Detected site language for this demo (Publish #66): the language the
+  // scanned site itself is published in, used for the loading messages
+  // and the typed chat ONLY when the visitor has not explicitly picked a
+  // language with the site switch — the explicit pick always wins. (The
+  // voice session resolves the same priority server-side in
+  // gemini-session from the lead row.)
+  const detectedSiteLocale = !explicitUiLocale() ? normalizeUiLocale(leadData.websiteLanguage) : null;
   // Mirrors for the pinned reveal deadline (declared with the hooks
   // above, which cannot read these render-scope values at fire time).
   previewRevealedRef.current = hasAnyPreview;
@@ -1451,7 +1470,7 @@ const DemoSite = () => {
 
         </div>
 
-        {shouldHoldLoadingOverlay(isPreviewLoading, hasAnyPreview, assistantReady, isPinnedExample) && <DemoLoadingState websiteUrl={homepageUrl} businessName={siteName} overlay />}
+        {shouldHoldLoadingOverlay(isPreviewLoading, hasAnyPreview, assistantReady, isPinnedExample) && <DemoLoadingState websiteUrl={homepageUrl} businessName={siteName} overlay language={detectedSiteLocale ?? undefined} />}
 
         {/* ===== Local Google Maps Geo-Grid Blind-Spot Diagnostic ===== */}
         {hasAnyPreview && (
@@ -1488,6 +1507,7 @@ const DemoSite = () => {
           sample={sampleRequested}
           onUserTranscript={gateRequested ? handleGateTranscript : undefined}
           gateWaiting={gateWaiting}
+          detectedSiteLanguage={detectedSiteLocale ?? undefined}
         />}
 
         {/* Verified Demo Gate — the reveal-moment code card, bright over the blurred site */}

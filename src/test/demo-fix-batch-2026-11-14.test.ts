@@ -64,7 +64,9 @@ describe('item 3 — presenter name everywhere', () => {
   });
   it('the typed chat threads presenterName into its greeting, consent card and composer', () => {
     const chat = read('src/components/landing/demo-results/ChatWidget.tsx');
-    expect(chat).toContain('t("chat.greetingBody", { businessName, name: presenterDisplayName })');
+    // Publish #66: the greeting call also carries the effective chat
+    // locale (explicit pick, else the demo site's detected language).
+    expect(chat).toContain('t("chat.greetingBody", { businessName, name: presenterDisplayName, lng: effectiveChatLocale })');
     expect(chat).toContain('t("chat.consentTitle", { name: presenterDisplayName })');
     expect(chat).toContain('presenterName?: string;');
     expect(read('src/components/landing/demo-results/AspenDemoWidget.tsx')).toContain('presenterName={presenterName}');

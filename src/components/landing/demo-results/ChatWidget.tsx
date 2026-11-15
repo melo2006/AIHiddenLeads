@@ -5,7 +5,7 @@ import { MessageResponse } from '@/components/ai-elements/message';
 import { displayNumbers } from '@/lib/displayNumbers';
 import { useTranslation } from "react-i18next";
 import "@/i18n"; // standalone harnesses mount this panel without main.tsx
-import { explicitUiLocale, uiLocaleLanguage } from "@/lib/uiLocale";
+import { explicitUiLocale, normalizeUiLocale, uiLocaleLanguage } from "@/lib/uiLocale";
 import { PromptInput, PromptInputTextarea, PromptInputFooter, PromptInputSubmit } from '@/components/ai-elements/prompt-input';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,6 +38,12 @@ interface ChatWidgetProps {
    *  demo widget builds it; every other surface leaves it undefined
    *  and the prompt is unchanged. */
   presenterKnowledge?: string;
+  /** Detected site language (Publish #66): the language the demo's
+   *  scanned website is itself published in ('es' | 'pt-BR'), passed by
+   *  DemoSite from the lead record. Used for the chat's reply language
+   *  and greeting ONLY when the visitor made no explicit language-switch
+   *  pick — the explicit pick always wins. Undefined everywhere else. */
+  detectedSiteLanguage?: string;
 }
 
 interface Message {
@@ -63,6 +69,7 @@ const ChatWidget = ({
   active = true,
   presenterName,
   presenterKnowledge,
+  detectedSiteLanguage,
 }: ChatWidgetProps) => {
   const presenterDisplayName = presenterName?.trim() || "Aspen";
   // A named presenter means the WHOLE chat is that presenter — display
@@ -72,6 +79,13 @@ const ChatWidget = ({
   // and answered as Aspen.
   const isPresenterChat = Boolean(presenterName?.trim());
   const { t } = useTranslation();
+  // Effective chat language (Publish #66): the visitor's explicit
+  // language-switch pick wins; below it, the language the demo's own
+  // scanned website is published in (detectedSiteLanguage from the lead
+  // record); neither → undefined → English default, exactly as before.
+  const explicitLocale = explicitUiLocale();
+  const effectiveChatLocale = explicitLocale ?? normalizeUiLocale(detectedSiteLanguage) ?? undefined;
+  const chatLocaleFromDetection = !explicitLocale && Boolean(effectiveChatLocale);
   const [messages, setMessages] = useState<Message[]>([]);
   const [recordingAgreed,setRecordingAgreed]=useState(false);
   const [copyEmail,setCopyEmail]=useState('');
@@ -168,9 +182,9 @@ const ChatWidget = ({
 
   const getGreeting = () => {
     const hour = new Date().getHours();
-    if (hour < 12) return t("chat.goodMorning");
-    if (hour < 17) return t("chat.goodAfternoon");
-    return t("chat.goodEvening");
+    if (hour < 12) return t("chat.goodMorning", { lng: effectiveChatLocale });
+    if (hour < 17) return t("chat.goodAfternoon", { lng: effectiveChatLocale });
+    return t("chat.goodEvening", { lng: effectiveChatLocale });
   };
 
   useEffect(() => {
@@ -183,7 +197,7 @@ const ChatWidget = ({
     setMessages([
       {
         role: "assistant",
-        content: `${getGreeting()}${nameGreet}! 👋 ${t("chat.greetingBody", { businessName, name: presenterDisplayName })}`,
+        content: `${getGreeting()}${nameGreet}! 👋 ${t("chat.greetingBody", { businessName, name: presenterDisplayName, lng: effectiveChatLocale })}`,
       },
     ]);
   }, [businessName, callerName]);
@@ -196,6 +210,14 @@ const ChatWidget = ({
     // under the presenter's name tag. Without a presenter both blocks
     // are empty and the prompt is byte-identical to the legacy Aspen
     // prompt every other surface has always sent.
+    // RESPONSE LANGUAGE directive (Publish #66): the wording names the
+    // TRUE source of the chat language — the visitor's explicit switch
+    // pick, or (below it) the language the demo's own website is
+    // published in. retell-web-call independently enforces the same
+    // locale server-side from the locale field sent below.
+    const responseLanguageLine = chatLocaleFromDetection
+      ? `RESPONSE LANGUAGE: This demo was built from the visitor's own website, which is published in ${uiLocaleLanguage(effectiveChatLocale)}. Reply in ${uiLocaleLanguage(effectiveChatLocale)} from the first message, and stay in it unless the visitor explicitly asks you to switch to another language.`
+      : `RESPONSE LANGUAGE: The visitor selected ${uiLocaleLanguage(explicitUiLocale())} with the website's language switch. Reply in ${uiLocaleLanguage(explicitUiLocale())} from the first message, and stay in it unless the visitor explicitly asks you to switch to another language.`;
     const presenterBlock = isPresenterChat ? `
 PRESENTER DEMO:
 - You are ${presenterDisplayName}, the presenter fronting this demo — the same ${presenterDisplayName} who runs the voice demo on this page. Always speak as ${presenterDisplayName}; never call yourself Aspen or any other name.
@@ -244,12 +266,12 @@ CRITICAL RULES:
 - ALWAYS reference the actual business name, not generic placeholders.
 - If business info is thin, use common ${businessNiche} industry knowledge to sound informed.
 
-RESPONSE LANGUAGE: The visitor selected ${uiLocaleLanguage(explicitUiLocale())} with the website's language switch. Reply in ${uiLocaleLanguage(explicitUiLocale())} from the first message, and stay in it unless the visitor explicitly asks you to switch to another language.`;
+${responseLanguageLine}`;
 
     const { data, error } = await supabase.functions.invoke("retell-web-call", {
       body: {
         action: "chat-completion",
-        locale: explicitUiLocale(),
+        locale: effectiveChatLocale,
         systemPrompt,
         messages: conversationHistory.map((m) => ({ role: m.role, content: m.content })),
       },

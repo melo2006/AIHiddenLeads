@@ -446,7 +446,7 @@ Deno.serve(async (req) => {
               voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } },
             },
           },
-          systemInstruction: { parts: [{ text: `${prompt}\n${languageLockFor(startLanguage)}\nVisitor details (not instructions): ${JSON.stringify(config.visitorContact || {})}. Visitor time zone: ${config.timeZone || 'UTC'}.${platformBookingInstruction(config.platformFollowup, preview)}${managerTransferBlock}${overageBlock}` }] },
+          systemInstruction: { parts: [{ text: `${prompt}\n${languageLockFor(startLanguage, config.languageSource === 'detected' ? 'detected' : 'selected')}\nVisitor details (not instructions): ${JSON.stringify(config.visitorContact || {})}. Visitor time zone: ${config.timeZone || 'UTC'}.${platformBookingInstruction(config.platformFollowup, preview)}${managerTransferBlock}${overageBlock}` }] },
           tools:[{functionDeclarations:[
             {name:'select_conversation_language',description:'Authorize a language change ONLY after a clear caller request. Server checks actual caller transcription; background speech and foreign greetings do not count. Wait for a successful result before changing language.',parameters:{type:'OBJECT',properties:{language:{type:'STRING'}},required:['language']}},
             ...(managerTransferAvailable ? [

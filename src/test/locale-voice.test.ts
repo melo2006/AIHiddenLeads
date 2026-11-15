@@ -131,7 +131,9 @@ describe("locale → voice (Ron, 2026-11-09)", () => {
     expect(geminiSession).toContain("startingLanguageForUiLocale(uiLocale)");
     expect(geminiSession).toContain("uiLocale, startLanguage");
     expect(proxy).toContain("startingLanguageForUiLocale(config.uiLocale)");
-    expect(proxy).toContain("languageLockFor(startLanguage)");
+    // Publish #66: the lock receives the start's SOURCE (explicit pick vs
+    // detected site language) so its authorization sentence stays true.
+    expect(proxy).toContain("languageLockFor(startLanguage, config.languageSource");
     expect(proxy).toContain("languagePolicyFor(startLanguage)");
     expect(proxy).toContain("let conversationLanguage = startLanguage");
     expect(proxy).toContain("startLanguage,");
@@ -164,7 +166,10 @@ describe("locale → voice (Ron, 2026-11-09)", () => {
     expect(conversation).toContain('t("voice.readyToTalk")');
     expect(chatWidget).toContain('t("chat.consentTitle", { name: presenterDisplayName })');
     expect(chatWidget).toContain('t("chat.greetingBody"');
-    expect(chatWidget).toContain("locale: explicitUiLocale()");
+    // Publish #66: the chat sends its EFFECTIVE locale — the explicit
+    // pick, or below it the demo site's detected language.
+    expect(chatWidget).toContain("locale: effectiveChatLocale");
+    expect(chatWidget).toContain("explicitLocale ?? normalizeUiLocale(detectedSiteLanguage)");
     // The chat edge function validates + enforces the reply language too.
     expect(chatFn).toContain("chatLocale");
     expect(chatFn).toContain("RESPONSE LANGUAGE (server directive)");
