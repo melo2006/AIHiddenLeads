@@ -14,6 +14,7 @@ import { confirmedVisitorContact, CONTACT_READBACK_POLICY, CAPTURE_RITUAL_POLICY
 import { capturedContactFromUnknown, capturedContactBlock, mergeCapturedContact, promptVisitorDetails, type CapturedContact } from '../_shared/captured-contact.ts'
 import { freshConsentAskState, syncConsentAskState, consentAskTurnDecision, CONSENT_ASK_TOOL_DIRECTIVE, CONSENT_ASK_NUDGE, CONSENT_RECORD_NUDGE, type ConsentAskState } from '../_shared/consent-ask.ts'
 import { armCaptureGateFromRecap, captureGateDirective, captureGateRecordDirective, captureGateTurnDecision, freshCaptureGateState, noteVisitorUtterance, spellbackCorrectionNudge, type CaptureGateState } from '../_shared/capture-gate.ts'
+import { armDiscoveryGate, budgetBracketDirective, budgetRecapDirective, discoveryGateTurnDecision, freshDiscoveryGateState, greetingOnceDirective, nameKnownDirective, nameReleaseDirective, seedNameFromFacts, shortGateDirective, shortGatePurposeDirective, type DiscoveryGateState } from '../_shared/discovery-gate.ts'
 import { followupAlert, visitorFollowup, trySend } from '../_shared/hostinger-mail.ts'
 import { DEFAULT_LIVE_MODEL, officialLivePricing } from '../_shared/live-models.ts'
 import { callReview } from '../_shared/call-review.ts'
@@ -135,6 +136,11 @@ Deno.serve(async (req) => {
   // gate below keys on this so Aspen-fronted and persona-segment
   // sessions keep byte-identical proxy behavior.
   const presenterFarewellSession = hasPresenterStamp(config)
+  // DISCOVERY GATE scope (Publish #78 — see _shared/discovery-gate.ts):
+  // the same presenter stamp, and never a persona segment — a
+  // segment is a continuation fronted by another persona, while the
+  // discovery arc (and its gate) belongs to the presenter parent.
+  const presenterDiscoverySession = presenterFarewellSession && config.personaSegment == null
   // Voice-asked manager transfer (Batch 1, Fix 3): available on exactly
   // the sessions gemini-session issues a browser-handoff capability
   // for — a valid saved transfer destination, not a preview, not a
@@ -225,6 +231,26 @@ Deno.serve(async (req) => {
   // a capture the parent session never recorded is already debt at
   // this session's first boundary.
   let captureGate: CaptureGateState = armCaptureGateFromRecap(freshCaptureGateState(), String(config.resumeContext || ''), capturedContact)
+  // DISCOVERY GATE (Publish #78 — see _shared/discovery-gate.ts):
+  // on presenter realtor sessions the proxy keeps its own ledger
+  // of the discovery arc's settled state — the banked name, the
+  // banked criteria (purpose, a stated budget), the delivered
+  // in-role greeting, the owed confirm gate — because the #72
+  // verification rerun showed the model dropping exactly that
+  // state at the host→receptionist beat boundary inside the
+  // composed presenter prompt: a name re-asked after it was given
+  // (check A), a name loop that starved a clearly stated budget
+  // (check D), and a contact ask where the short gate was owed
+  // (check B). Seeded from this session's recap and seed facts,
+  // exactly like the capture gate above; inert on every session
+  // presenterDiscoverySession does not cover.
+  let discoveryGate: DiscoveryGateState = armDiscoveryGate(freshDiscoveryGateState(), {
+    recapText: String(config.resumeContext || ''),
+    seedName: seedNameFromFacts({
+      capturedName: capturedContact?.name,
+      visitorContactName: (config.visitorContact as { name?: unknown } | null | undefined)?.name,
+    }),
+  })
   // Stamp the merged facts back onto this session's row config (the
   // teamIntroSeen pattern): a successor session — reconnect, swap
   // segment, return — reads them from the row, so a dropped call
@@ -922,6 +948,7 @@ Deno.serve(async (req) => {
                   : spellbackCorrectionNudge(gateDecision.facts.email)
               geminiWs?.send(JSON.stringify({clientContent:{turns:[{role:'user',parts:[{text}]}],turnComplete:true}}))
             }
+            let consentInjected = false
             if (consentAsk.owed && !gateInjected) {
               const decision = consentAskTurnDecision({
                 state: consentAsk,
@@ -932,7 +959,42 @@ Deno.serve(async (req) => {
               })
               consentAsk = decision.state
               if (decision.inject) {
+                consentInjected = true
                 const text = decision.inject === 'ask' ? CONSENT_ASK_NUDGE : CONSENT_RECORD_NUDGE
+                geminiWs?.send(JSON.stringify({clientContent:{turns:[{role:'user',parts:[{text}]}],turnComplete:true}}))
+              }
+            }
+            // DISCOVERY GATE (Publish #78): judge the completed
+            // turn against the discovery arc's settled state. This
+            // runs AFTER the capture gate and the consent ask, on
+            // its own state, and changes nothing they decide: the
+            // fold and the observations land at every boundary on
+            // presenter sessions, while the injection stands down
+            // on any boundary that is blocked on the capture gate's
+            // terms OR where the capture gate or the consent ask
+            // already injected — directives never stack.
+            if (presenterDiscoverySession) {
+              const discoveryDecision = discoveryGateTurnDecision({
+                state: discoveryGate,
+                visitorUtterance: completedUtterance,
+                modelTurnText: completedModelTurn,
+                blocked: preview || farewellHandled || farewellTimer !== undefined || managerTransferRequested || pendingActions.size > 0 || gateInjected || consentInjected,
+              })
+              discoveryGate = discoveryDecision.state
+              if (discoveryDecision.inject) {
+                const text = discoveryDecision.inject === 'short-gate'
+                  ? shortGateDirective(discoveryGate)
+                  : discoveryDecision.inject === 'short-gate-purpose'
+                    ? shortGatePurposeDirective()
+                    : discoveryDecision.inject === 'name-known'
+                      ? nameKnownDirective(discoveryGate.visitorName)
+                      : discoveryDecision.inject === 'name-release'
+                        ? nameReleaseDirective(discoveryGate.nameReleaseFires >= 2)
+                        : discoveryDecision.inject === 'budget-bracket'
+                          ? budgetBracketDirective(discoveryGate.budgetBanked)
+                          : discoveryDecision.inject === 'budget-recap'
+                            ? budgetRecapDirective(discoveryGate.budgetBanked)
+                            : greetingOnceDirective()
                 geminiWs?.send(JSON.stringify({clientContent:{turns:[{role:'user',parts:[{text}]}],turnComplete:true}}))
               }
             }
