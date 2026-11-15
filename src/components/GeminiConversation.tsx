@@ -39,7 +39,8 @@ import { PersonPortrait, PersonaNameLabel } from '@/components/FloatingPersonFra
 import { assistantOutput, pairedAudioShouldDegrade, pairedCaptionDelaySec, voiceChunkStartAt, PAIRED_CAPTION_DELAY_SEC } from '@/lib/avatarAudioTransition';
 import { resolvePairedAudibleMode, resolveHeardEngine, PAIRED_AUDIBLE_STORAGE_KEY, HEARD_ENGINE_STORAGE_KEY, type PairedAudibleMode, type HeardEngine } from '@/lib/pairedAudible';
 import { playoutDiagPayload, playoutDiagSignature, type PlayoutDiagSnapshot, type PlayoutTerminalDiag } from '@/lib/playoutDiag';
-import { MediaElementPlayout, MEDIA_ELEMENT_PIPELINE_SEC } from '@/lib/mediaElementPlayout';
+import { MediaElementPlayout, MEDIA_ELEMENT_PIPELINE_SEC, type HeardElementEngine } from '@/lib/mediaElementPlayout';
+import { BlobElementPlayout } from '@/lib/blobElementPlayout';
 import { PlaybackCaptions, type PlaybackCaption as Caption } from '@/lib/playbackCaptions';
 import { displayNumbers } from '@/lib/displayNumbers';
 import PlaybackCaption from '@/components/PlaybackCaption';
@@ -213,16 +214,21 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     }
     return pairedAudibleModeRef.current;
   };
-  // Heard-engine structure (volume-speaker fix, 2026-11-14): which
-  // engine carries the LOCAL path's audible voice — 'element'
-  // (default) is the media-element engine (a plain media element
-  // playing an MSE media resource; no WebAudio in the heard chain),
+  // Heard-engine structure (volume-speaker fix, 2026-11-14;
+  // re-pointed by Publish #54): which engine carries the LOCAL
+  // path's audible voice — 'blob' (the #54 default) is the
+  // blob/file media-element engine (a plain media element playing
+  // whole WebM files; no WebAudio and no MediaSource in the heard
+  // chain), 'element' is the MediaSource media-element engine,
+  // reachable only via the explicit ?heardEngine=element opt-in
+  // after its stall ladder went 0-for-7 in the #53 retest, and
   // 'sink' is the Publish #48 media-sink graph, restored with
   // ?heardEngine=sink for A/B on the same phone. The engine is
-  // feature-detected per session: where WebCodecs/MSE opus is
+  // feature-detected per session: where WebCodecs opus is
   // unavailable, chunks simply keep routing to the sink graph —
   // the exact #48 behaviour — so this preference can never
-  // silence a call by itself. See lib/mediaElementPlayout.ts.
+  // silence a call by itself. See lib/blobElementPlayout.ts and
+  // lib/mediaElementPlayout.ts.
   const heardEngineRef = useRef<HeardEngine | null>(null);
   const heardEngine = (): HeardEngine => {
     if (!heardEngineRef.current) {
@@ -232,7 +238,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     }
     return heardEngineRef.current;
   };
-  const mediaElementRef = useRef<MediaElementPlayout | null>(null);
+  const mediaElementRef = useRef<HeardElementEngine | null>(null);
   const mediaElementStateRef = useRef<'idle' | 'starting' | 'ready' | 'failed'>('idle');
   // Round 4 (volume round 4, 2026-11-14): the engine's start
   // failure reason, mirrored from the engine instance so the
@@ -642,15 +648,20 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // Publish #48. When it becomes ready it inherits the session's
   // current level and speaker-output choice, and the mic track is
   // re-requested without echo cancellation (applyCaptureProcessing).
-  const ensureMediaElement = (): MediaElementPlayout | null => {
-    if (heardEngine() !== 'element') return null;
+  const ensureMediaElement = (): HeardElementEngine | null => {
+    if (heardEngine() === 'sink') return null;
     if (mediaElementStateRef.current === 'failed') return null;
     let engine = mediaElementRef.current;
     if (engine) return engine;
     mediaElementStateRef.current = 'starting';
     mediaElementFailureRef.current = null;
     engineHoldReleasedRef.current = false;
-    engine = new MediaElementPlayout(undefined, (reason) => {
+    // Publish #54: the blob/file engine is the default terminal;
+    // the MediaSource engine is constructed only when the
+    // ?heardEngine=element opt-in selected it. Both implement
+    // HeardElementEngine, so the lifecycle below (fatal flip,
+    // hold drain, level inheritance) is shared verbatim.
+    const onEngineFatal = (reason: string) => {
       // The engine died (encoder/MSE/stall): the session falls
       // back to the sink graph for every later chunk, and the mic
       // gets its echo cancellation back — the raw-capture request
@@ -669,7 +680,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       // delays it, it does not drop it. (Start failures drain
       // empty: nothing was ever accepted.)
       playDrainedSamples(mediaElementRef.current?.drainPendingPcm() ?? []);
-    });
+    };
+    engine = heardEngine() === 'blob'
+      ? new BlobElementPlayout(undefined, onEngineFatal)
+      : new MediaElementPlayout(undefined, onEngineFatal);
     mediaElementRef.current = engine;
     void engine.start().then((ok) => {
       if (mediaElementRef.current !== engine) return;
@@ -784,7 +798,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     // record none of this existed, so "the engine never carried
     // the voice" could not be told apart from "it failed".
     const proof = {
-      engineState: heardEngine() !== 'element' ? 'off' : mediaElementStateRef.current,
+      engineState: heardEngine() === 'sink' ? 'off' : mediaElementStateRef.current,
       engineFailure: mediaElementFailureRef.current ?? engine?.failureReason ?? null,
       encoderRate: engine?.encoderRate ?? null,
       // Round 5: the engine's stall counters ride every terminal
@@ -796,7 +810,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     };
     if (engine && mediaElementStateRef.current === 'ready' && !engine.failed) {
       const state = engine.diagState();
-      return { sink: 'media-element', paused: state.paused, readyState: state.readyState, ctxInChain: false, trailSec: engine.trailSec(), ...proof, elementMuted: state.muted, elementVolume: state.volume };
+      // Publish #54: the terminal names the engine that is
+      // actually carrying the voice — 'blob-element' for the
+      // blob/file engine (the default), 'media-element' for the
+      // MediaSource engine behind its opt-in — so the record
+      // proves which one ran.
+      return { sink: engine.kind === 'blob' ? 'blob-element' : 'media-element', paused: state.paused, readyState: state.readyState, ctxInChain: false, trailSec: engine.trailSec(), ...proof, elementMuted: state.muted, elementVolume: state.volume };
     }
     const sink = mediaSinkRef.current?.sink;
     if (sink) {
@@ -1755,7 +1774,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     // holds, and the hold self-releases on the engine settling,
     // on its deadline, or at its size cap (see holdChunkForEngine).
     if (!engineHoldReleasedRef.current && !captureRef.current.paused
-      && pairedAudibleMode() !== 'stream' && heardEngine() === 'element'
+      && pairedAudibleMode() !== 'stream' && heardEngine() !== 'sink'
       && mediaElementStateRef.current === 'starting') {
       holdChunkForEngine(base64, reserved);
       return;
@@ -1850,9 +1869,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     // schedule (voiceChunkStartAt applies it at a drained queue; a
     // running queue chains from the already-shifted playTimeRef).
     const startAt = voiceChunkStartAt(now, playTimeRef.current, pairedLocal ? PAIRED_CAPTION_DELAY_SEC : 0);
-    // MEDIA-ELEMENT ENGINE (volume-speaker fix, 2026-11-14): a
-    // local chunk is offered FIRST to the media-element engine — a
-    // plain media element playing an MSE media resource, the route
+    // MEDIA-ELEMENT ENGINE (volume-speaker fix, 2026-11-14;
+    // Publish #54 re-point): a local chunk is offered FIRST to the
+    // heard-element engine — since #54 the blob/file engine by
+    // default (a plain media element playing whole WebM files;
+    // the MSE engine behind ?heardEngine=element) — the route
     // whose hardware-key behaviour is proven on Ron's phone. The
     // engine accepts only once ready; every chunk it refuses
     // (engine starting, unsupported platform, engine failed) plays
@@ -1898,7 +1919,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     // is really heard. Engine-routed chunks are heard later than
     // the schedule by the engine's trail + pipeline, so their
     // caption window shifts by that measured delay instead.
-    const engineDelay = engineRouted ? (mediaElementRef.current?.trailSec() ?? 0) + MEDIA_ELEMENT_PIPELINE_SEC : 0;
+    const engineDelay = engineRouted ? (mediaElementRef.current?.trailSec() ?? 0) + (mediaElementRef.current?.pipelineSec ?? MEDIA_ELEMENT_PIPELINE_SEC) : 0;
     const captionDelay = pairedCaptionDelaySec(pairedVideo, pairedAudibleMode());
     captionClockRef.current.audio(startAt + captionDelay + engineDelay, playTimeRef.current + captionDelay + engineDelay, captionRun);
     setAspenSpeaking(true);

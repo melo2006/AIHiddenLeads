@@ -133,6 +133,25 @@ describe("playoutDiagDetail — round 4 engine proof", () => {
   });
 });
 
+describe("playoutDiagDetail — blob-element terminal (Publish #54)", () => {
+  it("a blob/file terminal stamps term=blob-element, distinctly from the MSE engine's term=media-element", () => {
+    const detail = playoutDiagDetail({
+      ...localSettled,
+      terminal: {
+        sink: "blob-element", paused: false, readyState: 4, ctxInChain: false, trailSec: 0.4,
+        engineState: "ready", engineFailure: null, encoderRate: 24000, elementMuted: false, elementVolume: 1,
+        stalls: 1, recoveries: 1,
+      },
+    });
+    expect(detail).toContain("term=blob-element");
+    expect(detail).not.toContain("term=media-element");
+    expect(detail).toContain("eng=ready");
+    expect(detail).toContain("stalls=1");
+    expect(detail).toContain("rec=1");
+    expect(detail).toContain("trail=0.40");
+  });
+});
+
 describe("playoutDiagDetail — round 5 stall counters", () => {
   it("a media-element terminal reports stall episodes opened and recovered in place", () => {
     const detail = playoutDiagDetail({

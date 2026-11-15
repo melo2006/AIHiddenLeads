@@ -23,12 +23,18 @@ export type PlayoutPath = "local" | "tap" | "direct" | "none";
  * reads the route from the record instead of from assumptions.
  *  - 'media-element': the media-element engine's element playing an
  *    MSE media resource (no AudioContext in the heard chain).
+ *    Since Publish #54 this engine runs only behind the explicit
+ *    ?heardEngine=element opt-in.
+ *  - 'blob-element': the blob/file media-element engine's element
+ *    playing whole WebM files (Publish #54's default terminal) —
+ *    stamped distinctly so a session record proves WHICH element
+ *    engine ran, never lumped in with the MSE engine's history.
  *  - 'media-stream': the #48 media sink — an element rendering a
  *    WebAudio MediaStreamDestination stream.
  *  - 'context': the bare AudioContext destination.
  *  - 'none': no local terminal exists (no local chunk yet).
  */
-export type PlayoutTerminalSink = "media-element" | "media-stream" | "context" | "none";
+export type PlayoutTerminalSink = "media-element" | "blob-element" | "media-stream" | "context" | "none";
 
 export interface PlayoutTerminalDiag {
   sink: PlayoutTerminalSink;

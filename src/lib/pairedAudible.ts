@@ -75,26 +75,38 @@ export function resolvePairedAudibleMode(
 /**
  * Which engine carries the LOCAL path's audible voice (voice-only
  * sessions, replay, and local-mode paired chunks) — the
- * volume-speaker fix (2026-11-14, Ron's fifth report).
+ * volume-speaker fix (2026-11-14, Ron's fifth report), re-pointed
+ * by Publish #54.
  *
- * 'element' (the default): the media-element engine
- * (lib/mediaElementPlayout.ts) — a plain media element playing an
- * MSE media resource, no WebAudio graph in the heard chain. Still
- * feature-detected per session: a platform without WebCodecs/MSE
+ * 'blob' (the default since #54): the blob/file media-element
+ * engine (lib/blobElementPlayout.ts) — a plain media element
+ * playing whole WebM files (one object URL per sealed segment),
+ * no WebAudio graph and no MediaSource in the heard chain. The
+ * MSE engine's stall-recovery ladder went 0-for-7 in the #53
+ * phone retest (7 stalls, 0 recoveries, every stalled session
+ * flipping to the sink and taking the hardware volume keys with
+ * it); the #53 report's own named trigger — stalls ≫ recoveries
+ * — retired MediaSource from the default path. Still
+ * feature-detected per session: a platform without WebCodecs
  * opus falls back to 'sink' behaviour automatically.
  *
+ * 'element': the MediaSource media-element engine
+ * (lib/mediaElementPlayout.ts) — kept reachable ONLY as the
+ * explicit A/B opt-in ?heardEngine=element (or the stored
+ * 'heard-engine' preference), never as a default or a fallback.
+ *
  * 'sink': Publish #48 behaviour — the WebAudio graph into the
- * MediaStreamDestination media sink. Kept as the A/B switch for the
- * phone retest: ?heardEngine=sink restores the exact #48 structure
- * without touching the paired-mode switch above.
+ * MediaStreamDestination media sink. Kept as the A/B switch for
+ * the phone retest: ?heardEngine=sink restores the exact #48
+ * structure without touching the paired-mode switch above.
  */
-export type HeardEngine = "element" | "sink";
+export type HeardEngine = "blob" | "element" | "sink";
 
 export const HEARD_ENGINE_STORAGE_KEY = "heard-engine";
 export const HEARD_ENGINE_PARAM = "heardEngine";
 
 const asEngine = (value: string | null | undefined): HeardEngine | null =>
-  value === "element" || value === "sink" ? value : null;
+  value === "blob" || value === "element" || value === "sink" ? value : null;
 
 export function resolveHeardEngine(
   search: string | null | undefined,
@@ -108,5 +120,5 @@ export function resolveHeardEngine(
       fromParam = null;
     }
   }
-  return asEngine(fromParam) ?? asEngine(stored) ?? "element";
+  return asEngine(fromParam) ?? asEngine(stored) ?? "blob";
 }

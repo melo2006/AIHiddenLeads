@@ -64,21 +64,41 @@ describe("pairedCaptionDelaySec — the caption shift exists only on the stream 
   });
 });
 
-describe("resolveHeardEngine — the local path's heard engine (volume-speaker fix)", () => {
-  it("defaults to the media-element engine", () => {
-    expect(resolveHeardEngine("", null)).toBe("element");
-    expect(resolveHeardEngine(null, null)).toBe("element");
-    expect(resolveHeardEngine(undefined, undefined)).toBe("element");
+describe("resolveHeardEngine — the local path's heard engine (volume-speaker fix; #54 re-point)", () => {
+  it("defaults to the blob/file media-element engine (Publish #54)", () => {
+    expect(resolveHeardEngine("", null)).toBe("blob");
+    expect(resolveHeardEngine(null, null)).toBe("blob");
+    expect(resolveHeardEngine(undefined, undefined)).toBe("blob");
+  });
+
+  it("the MediaSource engine engages ONLY under its explicit opt-in", () => {
+    expect(resolveHeardEngine("?heardEngine=element", null)).toBe("element");
+    expect(resolveHeardEngine("?heardEngine=element", "blob")).toBe("element");
+    expect(resolveHeardEngine("", "element")).toBe("element");
+    // Nothing implicit ever selects it: silence, other params and
+    // bogus values all land on the blob default.
+    expect(resolveHeardEngine("?demo=1", null)).toBe("blob");
+    expect(resolveHeardEngine("?heardEngine=bogus", "bogus")).toBe("blob");
   });
 
   it("?heardEngine=sink restores the Publish #48 media-sink graph and wins over storage", () => {
     expect(resolveHeardEngine("?heardEngine=sink", "element")).toBe("sink");
-    expect(resolveHeardEngine("?heardEngine=element", "sink")).toBe("element");
+    expect(resolveHeardEngine("?heardEngine=blob", "sink")).toBe("blob");
     expect(resolveHeardEngine("?demo=1&heardEngine=sink", null)).toBe("sink");
   });
 
-  it("the stored preference applies when the URL is silent; bogus values fall through", () => {
+  it("the stored preference applies when the URL is silent", () => {
     expect(resolveHeardEngine("", "sink")).toBe("sink");
-    expect(resolveHeardEngine("?heardEngine=bogus", "bogus")).toBe("element");
+    expect(resolveHeardEngine("", "blob")).toBe("blob");
+  });
+
+  it("the paired-mode kill switch is independent of the engine switch", () => {
+    // ?pairedAudible=stream bypasses BOTH element engines (the
+    // local branch becomes a silent clock); resolving the engine
+    // never changes the paired mode and vice versa.
+    expect(resolvePairedAudibleMode("?pairedAudible=stream&heardEngine=blob", null)).toBe("stream");
+    expect(resolvePairedAudibleMode("?pairedAudible=stream&heardEngine=element", null)).toBe("stream");
+    expect(resolveHeardEngine("?pairedAudible=stream", null)).toBe("blob");
+    expect(resolveHeardEngine("?pairedAudible=stream&heardEngine=element", null)).toBe("element");
   });
 });

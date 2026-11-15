@@ -151,3 +151,40 @@ describe("media-element heard engine contracts (volume-speaker fix, 2026-11-14)"
     expect(count(conversation, "streamAudio={pairedAudibleMode() === 'local' ? 'muted' : 'audible'}")).toBe(3);
   });
 });
+
+describe("blob/file heard engine contracts (Publish #54)", () => {
+  it("the default construction is the blob engine; the MSE engine is built only in the opt-in branch", () => {
+    const ensure = sliceBetween(conversation, "const ensureMediaElement", "const applyCaptureProcessing");
+    expect(ensure).toContain("heardEngine() === 'blob'");
+    expect(ensure).toContain("new BlobElementPlayout(undefined, onEngineFatal)");
+    expect(ensure).toContain("new MediaElementPlayout(undefined, onEngineFatal)");
+    // The blob construction comes FIRST in the selection — it is
+    // the default the resolver falls through to.
+    expect(ensure.indexOf("new BlobElementPlayout")).toBeLessThan(ensure.indexOf("new MediaElementPlayout"));
+    // 'sink' constructs no element engine at all.
+    expect(ensure).toContain("if (heardEngine() === 'sink') return null;");
+  });
+
+  it("the engine-first hold arms for both element engines and never for the sink", () => {
+    const chunk = sliceBetween(conversation, "const playPcmChunk = useCallback", "// Interrupt: drop all queued playback instantly");
+    expect(chunk).toContain("pairedAudibleMode() !== 'stream' && heardEngine() !== 'sink'");
+  });
+
+  it("the diag terminal names the engine that is actually running (kind → sink)", () => {
+    const diag = sliceBetween(conversation, "const localTerminalDiag", "const wsRef");
+    expect(diag).toContain("engine.kind === 'blob' ? 'blob-element' : 'media-element'");
+    expect(diag).toContain("heardEngine() === 'sink' ? 'off' : mediaElementStateRef.current");
+  });
+
+  it("the paired-stream kill switch still wins over BOTH element engines", () => {
+    // In stream mode a paired chunk never reaches the local
+    // branch at all (pairedLocal is only set in local mode), so
+    // neither element engine can become audible — the engine
+    // routing stays inside the same !pairedVideo || pairedLocal
+    // branch the #48/#52 contracts pinned.
+    const chunk = sliceBetween(conversation, "const playPcmChunk = useCallback", "// Interrupt: drop all queued playback instantly");
+    expect(chunk).toContain("} else if (pairedAudibleMode() === 'local') {");
+    expect(chunk).toContain("if (!pairedVideo || pairedLocal) {");
+    expect(chunk.indexOf("if (!pairedVideo || pairedLocal) {")).toBeLessThan(chunk.indexOf("engine.enqueuePcm16"));
+  });
+});

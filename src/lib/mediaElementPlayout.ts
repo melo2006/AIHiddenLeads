@@ -174,7 +174,7 @@ export interface OpusEncoderConfigLike {
  *  which preserves the media timeline exactly). */
 export const OPUS_ENCODER_RATES: readonly number[] = [MEDIA_ELEMENT_INPUT_RATE, 48000];
 
-const opusEncoderConfig = (sampleRate: number): OpusEncoderConfigLike => ({
+export const opusEncoderConfig = (sampleRate: number): OpusEncoderConfigLike => ({
   codec: "opus",
   sampleRate,
   numberOfChannels: 1,
@@ -316,13 +316,57 @@ export interface HeardLevel {
   volume: number;
 }
 
+/**
+ * The heard-element engine contract (Publish #54): the surface
+ * GeminiConversation drives, whichever element engine carries the
+ * local path's audible voice — this module's MediaSource engine
+ * ('mse', behind the ?heardEngine=element opt-in since #54) or the
+ * blob/file engine in blobElementPlayout.ts ('blob', the #54
+ * default). Both engines share the semantics the caller relies
+ * on: a chunk is accepted only once ready and is never dropped
+ * silently, fail() hands accepted-but-unplayed PCM back through
+ * drainPendingPcm, trailSec() reports the heard delay the caption
+ * shift is computed from, and the diag stamps (eng= via kind,
+ * efail=, erate=, stalls=/rec=) stay comparable across engines.
+ */
+export interface HeardElementEngine {
+  readonly element: HTMLAudioElement;
+  /** Which engine this is — the playout diag's terminal name. */
+  readonly kind: "mse" | "blob";
+  /** Nominal encode + delivery + decode latency, seconds — the
+   *  constant the caller's caption shift adds to trailSec(). */
+  readonly pipelineSec: number;
+  ready: boolean;
+  failed: boolean;
+  encoderRate: number | null;
+  failureReason: string | null;
+  stallCount: number;
+  recoveryCount: number;
+  start: () => Promise<boolean>;
+  enqueuePcm16: (samples: Int16Array, trailTargetSec: number) => boolean;
+  drainPendingPcm: () => Int16Array[];
+  trailSec: () => number;
+  setLevel: (level: HeardLevel) => void;
+  setPaused: (paused: boolean) => void;
+  flush: () => void;
+  diagState: () => { paused: boolean; readyState: number; muted: boolean; volume: number; stalls: number; recoveries: number };
+  dispose: () => void;
+}
+
 interface HeldChunk {
   samples: Int16Array;
   trailTargetSec: number;
 }
 
-export class MediaElementPlayout {
+export class MediaElementPlayout implements HeardElementEngine {
   readonly element: HTMLAudioElement;
+  /** HeardElementEngine identity (Publish #54): the MediaSource
+   *  engine — since #54 it runs only behind the explicit
+   *  ?heardEngine=element opt-in; the blob/file engine is the
+   *  default. Its nominal pipeline latency is the constant the
+   *  caller has always used. */
+  readonly kind = "mse" as const;
+  readonly pipelineSec = MEDIA_ELEMENT_PIPELINE_SEC;
   /** True once the element is attached to a live MSE stream and
    *  play() has been accepted — the caller may route chunks here. */
   ready = false;
