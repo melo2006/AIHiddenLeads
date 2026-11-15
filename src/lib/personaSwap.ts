@@ -425,9 +425,45 @@ const ALEX_INTENT_PHRASES = [
   'someone from your staff', 'somebody from your staff', 'anyone from your staff', 'anybody from your staff',
   'someone from your team', 'somebody from your team', 'anyone from your team', 'anybody from your team',
 ];
+/** Visitor DECLINE of the Alex handoff (Publish #62, 2026-11-15):
+ *  a refusal must never arm the swap it refuses. The intent match
+ *  above keys on the bare name "Alex", so Ron's own decline in his
+ *  2026-11-15 presenter test — "No hay que ver esa Alex" ("no need
+ *  to see that Alex") — ARMED meet-alex, and the swap executed on
+ *  the presenter's next line over his objection. The guard is
+ *  deliberately narrow — explicit refusal shapes only, checked
+ *  BEFORE the intent match, and a decline in a line suppresses only
+ *  THAT line's arming (a later genuine ask still arms normally):
+ *  - a negation verb governing the name in the same clause
+ *    ("don't bring Alex", "do not want Alex", "never Alex");
+ *  - the Spanish refusal idioms Ron actually used, with the name
+ *    ("no hay que … Alex", "no quiero … Alex");
+ *  - a refusal AFTER the name ("Alex? No thanks", "Alex, not now");
+ *  - explicit skip phrases ("skip Alex", "not Alex") and a general
+ *    meeting refusal ("don't want to meet"). */
+const ALEX_DECLINE_PATTERNS: readonly RegExp[] = [
+  /\b(?:don't|do not|dont|never)\b[^.!?]*\balex\b/,
+  /\bno hay que\b[^.!?]*\balex\b/,
+  /\bno quiero\b[^.!?]*\balex\b/,
+  /\balex\b[^.!]*\bno thanks\b/,
+  /\balex\b[^.!]*\bnot now\b/,
+];
+const ALEX_DECLINE_PHRASES = [
+  'skip alex', 'not alex', "don't want to meet", 'do not want to meet',
+];
+export function visitorDeclinesAlex(text: string): boolean {
+  const line = normalize(text);
+  if (!line) return false;
+  if (ALEX_DECLINE_PATTERNS.some(p => p.test(line))) return true;
+  return ALEX_DECLINE_PHRASES.some(p => line.includes(p));
+}
+
 export function visitorRequestsAlex(text: string): boolean {
   const line = normalize(text);
   if (!line) return false;
+  // A decline wins over intent in the same line (Publish #62): the
+  // bare-name match below cannot tell "bring Alex" from "no Alex".
+  if (visitorDeclinesAlex(line)) return false;
   if (ALEX_NAME_WORD.test(line)) return true;
   return ALEX_INTENT_PHRASES.some(a => line.includes(a));
 }
@@ -1143,6 +1179,13 @@ export interface SwapDiagEntry {
     // pending face later attached mid-segment via the takeover
     // watcher (deferred audio sync + routing flip).
     | 'voice-first-cutover' | 'face-takeover'
+    // Publish #62 (2026-11-15): a voice-first takeover whose audio
+    // sync reported the face not-live — the attach refusal that used
+    // to return silently, stranding the segment voice-over-portrait
+    // with no trace in any record (the presenter meet-Alex failure:
+    // Alex spoke two segments behind Frank's face and no record
+    // anywhere said why).
+    | 'face-attach-failed'
     // Scalone batch (2026-11-12): the no-dead-air bridging line was
     // requested on the outgoing session while a swap hold outlasted
     // SWAP_BRIDGE_AFTER_MS (client-trace only — never persisted).
@@ -1184,7 +1227,7 @@ export function resetSwapDiagnostics(): void {
 export const SWAP_DIAG_PERSIST_EVENTS: readonly SwapDiagEntry['event'][] = [
   'gate-abort', 'fallback', 'retry-scheduled', 'token-stale',
   'stage-watchdog', 'forced-execute',
-  'cutover', 'voice-first-cutover', 'face-takeover',
+  'cutover', 'voice-first-cutover', 'face-takeover', 'face-attach-failed',
 ];
 /** The failure-class resolutions: gemini-session stamps the failed
  *  row's last_error for these when the row was never consumed. */

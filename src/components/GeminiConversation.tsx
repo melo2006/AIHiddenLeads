@@ -3569,7 +3569,19 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         try { faceLive = (await handle.activate()) !== false; }
         catch (e) { if (e instanceof Error && e.message === SOUND_BLOCKED) setAudioNeedsTap(true); }
       }
-      if (!faceLive) return;
+      if (!faceLive) {
+        // Publish #62: the attach refusal is a swap RESOLUTION —
+        // trace it in the ring buffer AND on the segment's own
+        // session row (persistSwapDiag), so a face that never
+        // attaches explains itself in the record instead of
+        // vanishing. The 2026-11-15 presenter test stranded Alex
+        // voice-over-portrait for two whole segments through this
+        // exact silent return. The pending stays in place (a later
+        // live report may retry the attach), as before.
+        recordSwapDiag({ event: 'face-attach-failed', boundary: pending.boundary, persona: pending.persona, detail: 'sync-not-live' });
+        persistSwapDiagRef.current({ event: 'face-attach-failed', boundary: pending.boundary, persona: pending.persona, reason: 'sync-not-live', faceState: 'not-live' });
+        return;
+      }
       // Re-validate after the await: the segment may have ended or
       // handed over while the sync ran.
       if (segmentFacePendingRef.current !== pending) return;

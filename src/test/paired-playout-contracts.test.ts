@@ -37,10 +37,13 @@ describe("paired playout contracts", () => {
   it("activate() records the sound request before the live guard can return false", () => {
     const activate = sliceBetween(simli, "activate: async", "soundArmed:");
     expect(activate.indexOf("wantSoundRef.current = true;")).toBeLessThan(
-      activate.indexOf("if (!liveRef.current || !audio.srcObject)"),
+      activate.indexOf("faceActivationReady"),
     );
-    // The dead-face contract itself is unchanged (paired-audio guard).
-    expect(activate).toContain("if (!liveRef.current || !audio.srcObject) { unlockMediaElements(video, audio); return false; }");
+    // The dead-face contract itself is unchanged (paired-audio guard):
+    // a not-live face resolves false. Publish #62 made the verdict
+    // mode-aware (a starved local-mode face has no srcObject BY
+    // DESIGN), so the pin names the helper call.
+    expect(activate).toContain("if (!faceActivationReady({ live: liveRef.current, streamMuted: streamMuted(), hasAudioSource: !!audio.srcObject })) { unlockMediaElements(video, audio); return false; }");
   });
 
   it("the silent start completes a recorded sound request when the face goes live", () => {

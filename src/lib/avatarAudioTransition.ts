@@ -2,6 +2,33 @@ export function avatarAudioReady(pending: boolean, queuedLocalChunks: number): b
   return pending && queuedLocalChunks === 0;
 }
 
+/**
+ * Whether a silently pre-staged face may be activated / taken over —
+ * the paired-audio guard's liveness verdict (SimliAvatar's activate
+ * and cutoverAudioSync). A face that is not live is never ready, in
+ * any mode. In STREAM mode the returned audio rides the element, so
+ * a live face must also carry its audio stream: a missing stream
+ * (hasAudioSource false) means the client is dead. In LOCAL-FIRST
+ * mode (streamMuted — the default paired structure since the
+ * 2026-11-14 volume-stream fix) the returned audio is deliberately
+ * UNSUBSCRIBED the moment the face goes live (the starve), and
+ * LiveKit detaches the track — which nulls the element's srcObject
+ * when its last track leaves. A missing audio source is therefore
+ * the DESIGNED steady state of a healthy local-mode face, and
+ * liveness alone decides: the audible voice rides the caller's
+ * local path, never this element. Judging a local-mode face by
+ * srcObject condemned every swap's incoming face as "dead": the
+ * face-first cut-over demoted to voice-first and the takeover's
+ * sync refused forever, so the segment ran voice-over-portrait
+ * for its whole life (the 2026-11-15 presenter test — Alex spoke
+ * two full segments behind Frank's face).
+ */
+export function faceActivationReady(input: { live: boolean; streamMuted: boolean; hasAudioSource: boolean }): boolean {
+  if (!input.live) return false;
+  if (input.streamMuted) return true;
+  return input.hasAudioSource;
+}
+
 /** Preserve contiguous PCM scheduling; add jitter headroom only at a drained queue. */
 export function nextVoiceChunkStart(now: number, queuedUntil: number): number {
   return queuedUntil > now ? queuedUntil : now + 0.12;

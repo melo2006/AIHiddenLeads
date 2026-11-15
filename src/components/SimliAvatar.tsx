@@ -11,6 +11,7 @@ import { startChromaKey, SARA_CHROMA_KEY_PROFILE } from "@/lib/chromaKey";
 import { clampPlaybackVolume } from "@/lib/playbackVolume";
 import { applySinkIdToElement } from "@/lib/speakerOutput";
 import { PairedPlayout, pairedSoundAudible, type PairedPlaybackLevel } from "@/lib/pairedPlayout";
+import { faceActivationReady } from "@/lib/avatarAudioTransition";
 import { starveSimliStreamAudio, simliAudioTrackState, type SimliStreamAudioOutcome } from "@/lib/simliStreamAudio";
 import type { PlayoutDiagSnapshot, PlayoutPath } from "@/lib/playoutDiag";
 
@@ -739,7 +740,12 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
       activatedRef.current = true;
       const audio = audioRef.current, video = videoRef.current;
       if (!audio || !video) return false;
-      if (!liveRef.current || !audio.srcObject) { unlockMediaElements(video, audio); return false; }
+      // The verdict is mode-aware (faceActivationReady): in
+      // local-first mode the returned audio is starved BY DESIGN
+      // and its element's srcObject is null on a healthy live face,
+      // so liveness alone decides there; stream mode keeps the
+      // srcObject requirement (a missing stream = a dead client).
+      if (!faceActivationReady({ live: liveRef.current, streamMuted: streamMuted(), hasAudioSource: !!audio.srcObject })) { unlockMediaElements(video, audio); return false; }
       if (streamMuted()) {
         // Local-first activation: the face is live and its returned
         // audio stays muted + starved; the caller's local path is
@@ -810,8 +816,14 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
       // SILENTLY here, so the swap completed onto a face that could
       // never speak and the first PCM chunk killed the segment call.
       // Report not-live honestly — the caller aborts the cut-over
-      // BEFORE the outgoing socket closes.
-      if (!liveRef.current || !audio.srcObject) { unlockMediaElements(video, audio); return false; }
+      // BEFORE the outgoing socket closes. The verdict is
+      // mode-aware (faceActivationReady): in local-first mode the
+      // starve has already unsubscribed this face's audio track
+      // (srcObject null on a healthy live face — the 2026-11-15
+      // presenter failure, where this check read a live Alex as
+      // dead at every takeover attempt), so liveness alone decides
+      // there; stream mode keeps the srcObject requirement.
+      if (!faceActivationReady({ live: liveRef.current, streamMuted: streamMuted(), hasAudioSource: !!audio.srcObject })) { unlockMediaElements(video, audio); return false; }
       if (streamMuted()) {
         // Local-first cut-over: this face takes over audibly via the
         // caller's local path; its own returned stream stays muted

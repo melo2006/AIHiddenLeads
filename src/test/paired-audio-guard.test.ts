@@ -191,10 +191,15 @@ describe('3 — cut-over on a dead incoming face: DEMOTED to voice-first (source
   // never strand or kill the segment.
   test('SimliAvatar reports liveness honestly: dead face resolves false from BOTH cutoverAudioSync and activate', () => {
     const cutover = simli.slice(simli.indexOf('cutoverAudioSync: async'), simli.indexOf('sendPcm24k:', simli.indexOf('cutoverAudioSync: async')));
-    expect(cutover).toContain('if (!liveRef.current || !audio.srcObject) { unlockMediaElements(video, audio); return false; }');
+    // Publish #62: the verdict is mode-aware (faceActivationReady) —
+    // in local-first mode a healthy live face's srcObject is null BY
+    // DESIGN (the starve unsubscribed its audio track), so the old
+    // srcObject pin read every local-mode face as dead and no swap
+    // face could ever attach. A NOT-LIVE face still resolves false.
+    expect(cutover).toContain('if (!faceActivationReady({ live: liveRef.current, streamMuted: streamMuted(), hasAudioSource: !!audio.srcObject })) { unlockMediaElements(video, audio); return false; }');
     expect(cutover).toContain('return true;');
     const activate = simli.slice(simli.indexOf('activate: async'), simli.indexOf('stop,', simli.indexOf('activate: async')));
-    expect(activate).toContain('if (!liveRef.current || !audio.srcObject) { unlockMediaElements(video, audio); return false; }');
+    expect(activate).toContain('if (!faceActivationReady({ live: liveRef.current, streamMuted: streamMuted(), hasAudioSource: !!audio.srcObject })) { unlockMediaElements(video, audio); return false; }');
     expect(activate).toContain('return true;');
     // Bug 1 (2026-11-13): the sync now also carries the in-panel volume.
     expect(simli).toContain('cutoverAudioSync?: (sync: { muted: boolean; deviceId: string | null; volume?: number }) => Promise<boolean>;');
