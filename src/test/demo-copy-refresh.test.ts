@@ -23,8 +23,18 @@ import pt from "../i18n/locales/pt-BR.json";
  * (6) ready in under two minutes. The retired cards and claims must
  * never come back.
  *
+ * Publish #77 (same day) changed the PRESENTATION again, on the
+ * owner's phone test of #73: he rejected the grid (too many cards,
+ * too much text, past one screen) and ordered the cards back into a
+ * rotation — "one big card one page at any given time… like a hero
+ * page." So the deck is once more one-at-a-time, now as a big
+ * rotating hero with dots + arrows. The six cards, their order and
+ * their copy are the #73 set (two longest bodies lightly trimmed so
+ * a big card stays readable, pinned phrases kept); only the old
+ * deck's state names (benefitMessages / currentBenefit) stay retired.
+ *
  * Presenter-neutral rule, one deliberate exception: card copy names no
- * presenter — the grid also shows during Frank / Monica / Denise
+ * presenter — the deck also shows during Frank / Monica / Denise
  * demos — EXCEPT the video card's avatar row, which names the avatar
  * LIBRARY (Aspen / Frank / Sara + more) because choosing your face is
  * the feature being sold there. Names may appear ONLY in
@@ -146,7 +156,7 @@ describe("demo build-wait feature deck (scan.benefits)", () => {
     expect(b.readyFast.body).toContain("under two minutes");
   });
 
-  it("ScanningAnimation shows the same 6 keys in the same order, as a grid", () => {
+  it("ScanningAnimation shows the same 6 keys in the same order, as a rotating hero", () => {
     const block = scanningAnimation.slice(
       scanningAnimation.indexOf("const featureCards"),
       scanningAnimation.indexOf("] as const;", scanningAnimation.indexOf("const featureCards")),
@@ -156,9 +166,13 @@ describe("demo build-wait feature deck (scan.benefits)", () => {
     for (const retired of RETIRED_KEYS) {
       expect(scanningAnimation).not.toContain(`key: "${retired}"`);
     }
-    // The rotation is gone: no single-card benefit carousel remains.
+    // Publish #77: the presentation is a one-card-at-a-time rotating
+    // hero (owner's correction of the #73 grid) — but the OLD deck's
+    // implementation names stay retired; the rotator is new code, not
+    // a resurrection of the pre-#73 benefit carousel.
     expect(scanningAnimation).not.toContain("benefitMessages");
     expect(scanningAnimation).not.toContain("currentBenefit");
+    expect(scanningAnimation).toContain("FEATURE_ROTATE_DURATION");
   });
 });
 

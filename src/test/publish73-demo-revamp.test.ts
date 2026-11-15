@@ -8,15 +8,27 @@ import pt from "../i18n/locales/pt-BR.json";
 /**
  * Publish #73 (owner directive, 2026-11-15): the demo revamp.
  *
- * (a) The ~2-minute scan wait SELLS: ScanningAnimation shows SIX
- * feature cards at once in a grid (bigger icons, avatar-library row on
- * the video card) while the scanner card keeps reporting the TRUTHFUL
- * progress — real steps, real percentage, visually separate from the
- * sell. No fake progress, no hidden rotation.
+ * (a) The ~2-minute scan wait SELLS: ScanningAnimation sells the six
+ * features (bigger icons, avatar-library row on the video card) while
+ * the progress block keeps reporting the TRUTHFUL progress — real
+ * steps, real percentage, visually separate from the sell. No fake
+ * progress.
  * (b) /demo and /demo/br are ONE screen: hero + form + one perks strip
  * + disclaimer; every duplicated section is gone.
  * (c) Full EN / PT-BR parity for everything new (es kept in parity
  * too, per the repo's three-locale standard).
+ *
+ * SUPERSEDED IN PART by Publish #77 (same day): #73 presented the six
+ * features as an all-at-once GRID; the owner tested it on his phone
+ * and rejected the grid — too many cards, too much text, the scan
+ * screen ran far past one screen and forced scrolling. #77 presents
+ * the same six features, same copy, as a ROTATING HERO: one big card
+ * at a time, auto-rotating, dots + arrows to browse. The grid pins
+ * below were rewritten for the rotator (same file, justification
+ * inline); everything else from #73 — the deck, the truthful-progress
+ * separation, the one-screen demo page — is unchanged. Behavioral
+ * rotator pins (one card at a time, rotation advances, pause on
+ * interaction) live in publish77-scan-hero.test.tsx.
  */
 
 const scanning = readFileSync(
@@ -45,18 +57,36 @@ const SHORT_PERKS = [
 
 const LOCALES = [["en", en], ["es", es], ["pt-BR", pt]] as const;
 
-describe("Publish #73 — scan-wait feature grid", () => {
-  it("renders all six feature cards at once in a responsive grid", () => {
+describe("Publish #73 — scan-wait feature deck (presentation: Publish #77 rotator)", () => {
+  it("renders ONE feature card at a time in a rotating hero — the #73 grid is gone", () => {
+    // JUSTIFICATION (Publish #77): this pin asserted the #73 grid
+    // (all six cards at once, lg:grid-cols-3, h-11 icon tiles, a
+    // highlight cycling over mounted cards). The owner rejected that
+    // presentation on his phone — too many cards, too much text,
+    // past one screen — and ordered a rotating hero instead: one big
+    // card at a time. The six features and their copy are unchanged.
     expect(scanning).toContain("const featureCards");
-    expect(scanning).toContain("lg:grid-cols-3");
-    expect(scanning).toContain("featureCards.map");
-    // Bigger visual weight than the old deck: large icon tiles.
-    expect(scanning).toContain("h-11 w-11");
-    expect(scanning).toContain("h-6 w-6");
-    // The highlight cycles; cards are never swapped out of the DOM.
     expect(scanning).toContain("activeFeature");
+    // Only the active card is rendered…
+    expect(scanning).toContain("featureCards[activeFeature]");
+    expect(scanning).toContain("scan.benefits.${activeCard.key}.headline");
+    expect(scanning).toContain('data-testid="scan-feature-card"');
+    // …in a fixed-height shell, so nothing below it ever jumps.
+    expect(scanning).toContain("h-[320px]");
+    // The grid is gone, and so is the old one-card deck's state name.
+    expect(scanning).not.toContain("grid-cols-3");
     expect(scanning).not.toContain("currentBenefit");
-    expect(scanning).toContain("scan.benefits.${key}.headline");
+    // Bigger visual weight than the old deck: one large icon tile.
+    expect(scanning).toContain("h-14 w-14");
+    expect(scanning).toContain("sm:h-16 sm:w-16");
+    // Rotation machinery: auto-advance + pause-on-interaction.
+    expect(scanning).toContain("FEATURE_ROTATE_DURATION");
+    expect(scanning).toContain("FEATURE_RESUME_DELAY");
+    expect(scanning).toContain("pauseRotation");
+    // Browse controls: dots for every card + prev/next arrows.
+    expect(scanning).toContain('data-testid="scan-feature-dot"');
+    expect(scanning).toContain("scan.previousFeature");
+    expect(scanning).toContain("scan.nextFeature");
   });
 
   it("the video card carries the avatar-library row with the approved faces", () => {
@@ -74,7 +104,7 @@ describe("Publish #73 — scan-wait feature grid", () => {
     expect(scanning).toContain("pendingScanProgress");
     expect(scanning).toContain("scan.steps.${activeStep.key}.label");
     expect(scanning).toContain("scan.progress");
-    // …and the feature grid is headed as its own block.
+    // …and the feature hero is headed as its own block, below it.
     expect(scanning).toContain("scan.featuresTitle");
     expect(scanning.indexOf("scan.featuresTitle")).toBeGreaterThan(
       scanning.indexOf("scan.progress"),
@@ -91,10 +121,13 @@ describe("Publish #73 — scan-wait feature grid", () => {
     }
   });
 
-  it("has full catalog parity for the deck, the grid heading and the short perks", () => {
+  it("has full catalog parity for the deck, the hero heading and the short perks", () => {
     for (const [name, locale] of LOCALES) {
       expect(Object.keys(locale.scan.benefits), `${name}.scan.benefits`).toEqual([...FEATURE_KEYS]);
       expect(locale.scan.featuresTitle.trim().length, `${name}.scan.featuresTitle`).toBeGreaterThan(0);
+      // Publish #77: the rotator's prev/next arrow labels localize too.
+      expect(locale.scan.previousFeature.trim().length, `${name}.scan.previousFeature`).toBeGreaterThan(0);
+      expect(locale.scan.nextFeature.trim().length, `${name}.scan.nextFeature`).toBeGreaterThan(0);
       for (const key of FEATURE_KEYS) {
         const card = (locale.scan.benefits as unknown as Record<string, { headline: string; body: string }>)[key];
         expect(card.headline.trim().length, `${name}.${key}.headline`).toBeGreaterThan(0);
@@ -150,10 +183,22 @@ describe("Publish #73 — one-screen demo page", () => {
     }
   });
 
-  it("the scan loading screen can scroll on small screens instead of clipping", () => {
-    // The feature grid made the scan screen taller; DemoSite's loading
-    // shell must let mobile scroll it (desktop still fits one screen).
-    expect(demoSite).toContain("overflow-y-auto");
+  it("the scan loading screen fits ONE screen — no scrolling to see the wait", () => {
+    // JUSTIFICATION (Publish #77): this pin used to assert the
+    // opposite — that DemoSite's loading shell lets mobile SCROLL
+    // the scan screen, because the #73 feature grid made the screen
+    // taller than one phone screen. The owner rejected exactly that
+    // ("you're supposed to be scrolling like a hero page" — no: one
+    // big card at a time). With the rotating hero + the slimmed
+    // progress strip, the scan state is compact and fixed-height, so
+    // it fits a single phone AND desktop screen; the shell keeps its
+    // full-viewport height and the hero shell pins its own height.
     expect(demoSite).toContain("min-h-[100dvh] bg-background");
+    expect(scanning).toContain("h-[320px]");
+    expect(scanning).toContain("sm:h-[340px]");
+    // The progress half of the one-screen fit: a slim strip, not the
+    // old full-height scanner card with its 80px animated medallion.
+    expect(scanning).toContain('data-testid="scan-progress"');
+    expect(scanning).not.toContain("sm:h-20 sm:w-20");
   });
 });
