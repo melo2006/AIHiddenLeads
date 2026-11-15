@@ -42,6 +42,7 @@ import { playoutDiagPayload, playoutDiagSignature, type PlayoutDiagSnapshot, typ
 import { createRateWitness, noteRateUtterance, resetRateWitness, type RateWitnessState } from '@/lib/rateWitness';
 import { MediaElementPlayout, MEDIA_ELEMENT_PIPELINE_SEC, type HeardElementEngine } from '@/lib/mediaElementPlayout';
 import { BlobElementPlayout } from '@/lib/blobElementPlayout';
+import { combineEngineCounters, engineRearmDecision } from '@/lib/playoutRearm';
 import { PlaybackCaptions, type PlaybackCaption as Caption } from '@/lib/playbackCaptions';
 import { displayNumbers } from '@/lib/displayNumbers';
 import PlaybackCaption from '@/components/PlaybackCaption';
@@ -248,6 +249,21 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // engine died (or never settled) on Ron's phone and the record
   // carried no reason at all.
   const mediaElementFailureRef = useRef<string | null>(null);
+  // Publish #62 playout recovery guard (lib/playoutRearm.ts):
+  // when the blob engine dies on a stall, the session no longer
+  // settles on the media-stream sink for good — a FRESH blob
+  // engine is armed instead, a bounded number of times per
+  // conversation. engineCarryRef holds the stall counters of
+  // every retired engine, so the playout diag stamps the
+  // conversation's totals (a stall the guard recovered stays
+  // countable after the engine that suffered it is gone, and
+  // each successful re-arm adds one recovery). engineRearmRef is
+  // the budget: attempts spent, plus the pending flag a fatal
+  // sets so the fresh engine's settle can count its recovery.
+  // Both reset with the engine state in stopEverything, so a new
+  // conversation starts with a full budget and zeroed totals.
+  const engineCarryRef = useRef({ stalls: 0, recoveries: 0 });
+  const engineRearmRef = useRef({ attempts: 0, pending: false });
   // Round 4 engine-first hold: while the media-element engine is
   // still 'starting', local chunks are HELD (below) instead of
   // spilling onto the MediaStream sink — the sink is what Ron's
@@ -718,24 +734,96 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     // HeardElementEngine, so the lifecycle below (fatal flip,
     // hold drain, level inheritance) is shared verbatim.
     const onEngineFatal = (reason: string) => {
-      // The engine died (encoder/MSE/stall): the session falls
-      // back to the sink graph for every later chunk, and the mic
-      // gets its echo cancellation back — the raw-capture request
-      // only ever rides with the element engine. Round 4: the
-      // reason is KEPT (it is stamped as efail= — a silent death
-      // is what made Publish #51's failure unreadable), and any
-      // chunks held for the engine drain to the sink graph.
-      mediaElementStateRef.current = 'failed';
+      // The engine died. What happens next is the Publish #62
+      // recovery guard's decision (lib/playoutRearm.ts):
+      //  - 'rearm' (blob engine, stall-class death, budget left):
+      //    the dead engine is retired — its stall counters carry
+      //    into the conversation totals — and a FRESH blob engine
+      //    is constructed and started below. The sink graph
+      //    bridges only the stranded-speech drain and the new
+      //    engine's start window; it is never the settled
+      //    terminal again. This replaces the pre-#62 behaviour
+      //    under which ONE stall flipped the session to the
+      //    media-stream sink permanently (Ron's 2026-11-15 Frank
+      //    sessions: term=media-stream with the rate witness
+      //    sagging 0.85..0.96 for the rest of the call).
+      //  - 'reconnect' (stall-class death, budget spent): the
+      //    existing bounded session-reconnect path takes over
+      //    instead of the sink settling.
+      //  - 'settle' (everything else — platform/config deaths a
+      //    fresh instance cannot cure, and the MSE opt-in's
+      //    deaths): the pre-#62 behaviour verbatim, below.
+      // In the rearm/settle branches the mic gets its echo
+      // cancellation back (the raw-capture request only ever
+      // rides with a live element engine; a re-arm's settle
+      // re-requests it), and Round 4 stands: the reason is KEPT
+      // (it is stamped as efail= — a silent death is what made
+      // Publish #51's failure unreadable), and any chunks held
+      // for the engine drain to the sink graph.
+      const dying = mediaElementRef.current;
+      const decision = engineRearmDecision({
+        kind: dying?.kind ?? null,
+        reason,
+        rearmAttempts: engineRearmRef.current.attempts,
+      });
+      // A fatal from the re-arm engine itself consumes the
+      // pending flag: only a start that settles READY earns the
+      // recovery increment (in the settle handler below).
+      engineRearmRef.current.pending = false;
+      if (decision === 'reconnect' && liveRef.current) {
+        // The re-arm budget is spent and the element path keeps
+        // wedging: surface the existing reconnect path — the same
+        // bounded machinery the drop recovery uses — rather than
+        // settling on the sink. stopEverything resets the engine
+        // state, so the reconnected session constructs a fresh
+        // blob engine on its first chunk.
+        stopEverything();
+        if (reconnectRef.current.count < 3) {
+          reconnectRef.current = { pending: true, count: reconnectRef.current.count + 1 };
+          setStatus("Reconnecting…");
+          window.setTimeout(() => { void startConversationRef.current(); }, 400);
+        } else {
+          setError('The connection dropped and could not be restored. Press play to reconnect.');
+        }
+        return;
+      }
       mediaElementFailureRef.current = reason;
+      let stranded: Int16Array[];
+      if (decision === 'rearm' && dying) {
+        // Retire the dead engine: carry its counters into the
+        // conversation totals BEFORE disposing it, count the
+        // attempt, and mark the coming start as a re-arm so its
+        // settle can count the recovery. The drain is read before
+        // dispose — fail() captured the stranded PCM for exactly
+        // this hand-off.
+        engineCarryRef.current = {
+          stalls: engineCarryRef.current.stalls + dying.stallCount,
+          recoveries: engineCarryRef.current.recoveries + dying.recoveryCount,
+        };
+        engineRearmRef.current.attempts += 1;
+        engineRearmRef.current.pending = true;
+        stranded = dying.drainPendingPcm();
+        dying.dispose();
+        mediaElementRef.current = null;
+        mediaElementStateRef.current = 'idle';
+      } else {
+        mediaElementStateRef.current = 'failed';
+        stranded = dying?.drainPendingPcm() ?? [];
+      }
       applyCaptureProcessing(false);
       // The heard terminal changed materially — re-stamp the route.
       stampPlayoutDiag();
+      // A re-arm starts its fresh engine BEFORE the drains replay,
+      // so held chunks hold for IT (the engine-first hold) instead
+      // of spilling to the sink; the stranded-speech drain — the
+      // sink's one brief bridge — plays over the start.
+      if (decision === 'rearm') ensureMediaElement();
       drainEngineHold();
       // Round 5: speech the engine accepted but never played is
       // replayed through the sink graph, in order — the flip
       // delays it, it does not drop it. (Start failures drain
       // empty: nothing was ever accepted.)
-      playDrainedSamples(mediaElementRef.current?.drainPendingPcm() ?? []);
+      playDrainedSamples(stranded);
     };
     engine = heardEngine() === 'blob'
       ? new BlobElementPlayout(undefined, onEngineFatal)
@@ -746,8 +834,26 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       if (!ok) {
         // start() failed (its reason already landed via onFatal):
         // release anything held for the engine to the sink graph.
+        // A failed re-arm start earns no recovery increment (its
+        // fatal already consumed the pending flag in onFatal; this
+        // clear is the belt-and-braces for a start that resolved
+        // false without one).
+        engineRearmRef.current.pending = false;
         drainEngineHold();
         return;
+      }
+      // Publish #62: a re-arm whose fresh engine settles READY is
+      // the recovery the session record counts — rec increments
+      // exactly once per successful re-arm, into the carried
+      // totals the diag stamps (see localTerminalDiag). The
+      // re-stamp in this handler therefore shows the recovered
+      // blob terminal with the incremented count.
+      if (engineRearmRef.current.pending) {
+        engineRearmRef.current.pending = false;
+        engineCarryRef.current = {
+          stalls: engineCarryRef.current.stalls,
+          recoveries: engineCarryRef.current.recoveries + 1,
+        };
       }
       mediaElementStateRef.current = 'ready';
       engine.setLevel({ muted: speakerMutedRef.current, volume: playbackVolumeRef.current });
@@ -873,9 +979,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       // Round 5: the engine's stall counters ride every terminal
       // shape — after a flip, the sink terminal's stamp still
       // shows how many stalls preceded it and how many were
-      // recovered in place before it.
-      stalls: engine?.stallCount,
-      recoveries: engine?.recoveryCount,
+      // recovered in place before it. Publish #62: the stamped
+      // counters are the conversation's TOTALS — the carry from
+      // every engine the recovery guard retired, plus the live
+      // engine's own — so a stall a re-arm recovered (and the
+      // re-arm's recovery increment) stays countable after the
+      // engine that suffered it has been replaced.
+      ...combineEngineCounters(engineCarryRef.current, engine),
     };
     if (engine && mediaElementStateRef.current === 'ready' && !engine.failed) {
       const state = engine.diagState();
@@ -1864,6 +1974,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     engineHoldReleasedRef.current = false;
     if (engineHoldTimerRef.current !== null) { window.clearTimeout(engineHoldTimerRef.current); engineHoldTimerRef.current = null; }
     mediaElementFailureRef.current = null;
+    // Publish #62: the recovery guard's budget and counter carry
+    // belong to one conversation's engines — a fresh conversation
+    // starts with a full re-arm budget and zeroed totals, exactly
+    // as the engine state above resets to idle.
+    engineCarryRef.current = { stalls: 0, recoveries: 0 };
+    engineRearmRef.current = { attempts: 0, pending: false };
     captureRawRef.current = false;
     showMicHintRef.current = false;
     setShowMicHint(false);
