@@ -17,3 +17,19 @@ describe('caller-authorized language changes', () => {
     expect(requestedConversationLanguage('Parlez français')).toBe('French');
   });
 });
+describe('unclear-turn rule (Publish #62, 2026-11-15)', () => {
+  it('the English lock turns a garbled turn into a repeat request, never a language announcement', async () => {
+    const { LANGUAGE_LOCK } = await import('../../supabase/functions/_shared/conversation-language');
+    expect(LANGUAGE_LOCK).toContain('UNCLEAR-TURN RULE');
+    expect(LANGUAGE_LOCK).toContain('never say you cannot change language');
+    expect(LANGUAGE_LOCK).toContain('never say you speak only English');
+    expect(LANGUAGE_LOCK).toContain('Sorry, I didn\'t catch that — could you say that again?');
+  });
+
+  it('the non-English lock carries the same unclear-turn rule', async () => {
+    const { languageLockFor } = await import('../../supabase/functions/_shared/conversation-language');
+    const spanish = languageLockFor('Spanish');
+    expect(spanish).toContain('UNCLEAR-TURN RULE');
+    expect(spanish).toContain('never say you speak only Spanish');
+  });
+});

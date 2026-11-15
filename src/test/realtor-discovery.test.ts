@@ -729,3 +729,16 @@ describe("realtor discovery — round 2: arc discipline (2026-11-14, session 4f1
     expect(occurrences(presenterLayer, "DETAILS DICTATED BY VOICE ARE CONFIRMED OUT LOUD")).toBe(1);
   });
 });
+
+describe("realtor discovery — the no-match move (Publish #62, 2026-11-15)", () => {
+  it("a no-match is answered with the proactive yes, never a defense or a passive watch", () => {
+    expect(layer).toContain("THE NO-MATCH MOVE");
+    expect(layer).toContain("I'll search the broader market for exactly that and put the list together for you");
+    expect(layer).toContain("never offer to \"keep an eye out\"");
+    expect(layer).toContain("do not defend the no: repeat the yes");
+  });
+
+  it("the no-match turn itself carries no capture ask", () => {
+    expect(layer).toContain("The no-match turn itself carries NO capture ask");
+  });
+});

@@ -111,3 +111,18 @@ describe('Publish #61 fixes (live-test defects, 2026-11-15)', () => {
     expect(HOMEPAGE_KNOWLEDGE).toContain('15 to 30 minutes');
   });
 });
+
+describe('Publish #62 fixes (Ron live-test defects, 2026-11-15)', () => {
+  test('contact-claim rule: never claim a text/email send without holding the detail', () => {
+    // Ron's homepage test: Aspen said "I'll text you the booking link"
+    // holding no number at all. The claim is now gated on capture.
+    expect(HOMEPAGE_SALES_LAYER).toContain('CONTACT-CLAIM RULE');
+    expect(HOMEPAGE_SALES_LAYER).toContain('never say you will text or email the visitor anything');
+    expect(HOMEPAGE_SALES_LAYER).toContain('what\'s the best mobile number for that?');
+  });
+
+  test('leaving rule: one final offer after a goodbye signal, then end', () => {
+    expect(HOMEPAGE_SALES_LAYER).toContain('LEAVING RULE');
+    expect(HOMEPAGE_SALES_LAYER).toContain('never make the visitor say goodbye twice');
+  });
+});

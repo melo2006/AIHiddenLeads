@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, test } from 'vitest';
 import {
+  ASPEN_SLOT_OFFER_METHOD,
   PHONE_DEMO_DISCLOSURE_VERSION,
   PHONE_DEMO_HOST_POLICY,
   PHONE_DEMO_LINK,
@@ -348,5 +349,17 @@ describe('telephony-stream polish batch wiring (source pins)', () => {
     expect(endBlock).toContain("{ ok: true, ...(phoneDemoAudit ? { phone_demo_audit: phoneDemoAudit } : {}) }");
     // The existing transfer reconciliation stays intact ahead of the audit.
     expect(endBlock).toContain("transferObj.outcome === 'pending'");
+  });
+});
+
+describe('slot-offer step 5 — the texting claim is gated on holding a number (Publish #62, 2026-11-15)', () => {
+  test('the "I\'ll text you" exit line requires a confirmed number already held', () => {
+    // Ron's homepage test: the step-5 line was delivered verbatim to a
+    // website visitor who had never given a number. The line is now
+    // conditional; without a number the exit is an ask.
+    expect(ASPEN_SLOT_OFFER_METHOD).toContain('ONLY when a confirmed number is already held');
+    expect(ASPEN_SLOT_OFFER_METHOD).toContain('the "I\'ll text you" line is a false claim and it is BANNED');
+    expect(ASPEN_SLOT_OFFER_METHOD).toContain('what\'s the best mobile number for that?');
+    expect(ASPEN_SLOT_OFFER_METHOD).toContain('never promise a send to a number or an inbox you do not hold');
   });
 });
