@@ -552,6 +552,22 @@ Deno.serve(async req=>{
   // already decided whether one exists, so a session that stored
   // nothing synthesizes nothing. Never for previews, drafts, shares
   // or guides; never for persona segments (they carry swapRecap).
+  // Publish #64: when the visitor_hash lookup finds no usable prior
+  // (the forwarded address rotated), an identical second lookup
+  // matches on the IP-free visitorKeyHash stamped in the prior row
+  // config instead.
+  // IP-FREE VISITOR KEY HASH (Publish #64, 2026-11-15): visitor_hash
+  // mixes in the first x-forwarded-for entry, and that address rotates
+  // between requests behind the hosting proxy — three authorizations
+  // with the same visitorKey seconds apart produced three different
+  // visitor_hash values live, so the synthesis lookup below almost
+  // never matched the prior row. visitorKeyHash is the bare key hash:
+  // stable across requests from the same browser. It is stamped into
+  // every stored session config (see the config assembly below) and
+  // used ONLY as the synthesis fallback match; visitor_hash and all
+  // of its other uses (rate limiting, diag ownership, RPC stamping)
+  // are untouched.
+  const visitorKeyHash = await hash(b.visitorKey);
   let effectiveResumeContext = b.resumeContext;
   if (!b.personaSegment && !b.preview && !b.draft && !b.share && !b.guide
     && (b.reconnect === true || !b.resumeContext || b.resumeContext.trim().length < 200)) {
@@ -568,12 +584,31 @@ Deno.serve(async req=>{
       else if (b.prospectId) priorQuery = priorQuery.eq('prospect_id', b.prospectId);
       else priorQuery = priorQuery.eq('agent_id', agentId);
       const { data: priorRows } = await priorQuery;
-      const prior = (priorRows || []).find((row) => {
+      const usablePrior = (row: unknown) => {
         const priorConfig = (row as { config?: Record<string, unknown> }).config || {};
         return !priorConfig.personaSegment && priorConfig.preview !== true
           && Array.isArray((row as { transcript?: unknown }).transcript)
           && ((row as { transcript?: unknown[] }).transcript as unknown[]).length > 0;
-      });
+      };
+      let prior = (priorRows || []).find(usablePrior);
+      if (!prior) {
+        // FALLBACK (Publish #64): the visitor_hash match above misses
+        // whenever the forwarded address rotated between the prior
+        // session and this one. Retry the identical lookup — same
+        // scoping, same 30-minute window, same usable-row criteria —
+        // matched on the IP-free key hash in the prior row config.
+        let fallbackQuery = db.from('gemini_voice_sessions')
+          .select('config,transcript,created_at')
+          .eq('config->>visitorKeyHash', visitorKeyHash)
+          .gte('created_at', priorSince)
+          .order('created_at', { ascending: false })
+          .limit(5);
+        if (b.leadId) fallbackQuery = fallbackQuery.eq('lead_id', b.leadId);
+        else if (b.prospectId) fallbackQuery = fallbackQuery.eq('prospect_id', b.prospectId);
+        else fallbackQuery = fallbackQuery.eq('agent_id', agentId);
+        const { data: fallbackRows } = await fallbackQuery;
+        prior = (fallbackRows || []).find(usablePrior);
+      }
       const synthesized = prior ? buildTranscriptRecap((prior as { transcript?: unknown }).transcript) : undefined;
       if (synthesized && synthesized.length > (effectiveResumeContext || '').length) {
         effectiveResumeContext = synthesized;
@@ -581,7 +616,7 @@ Deno.serve(async req=>{
     } catch { /* synthesis is best-effort: the client's recap stands */ }
   }
 
-  config={...config,timeZone:effectiveTimeZone,...(uiLocale ? {uiLocale, startLanguage: startingLanguageForUiLocale(uiLocale)} : {}),quotaClass:segmentParentId?'persona_segment':b.share?'visitor':voiceQuotaClass(role?.role==='admin',b.preview),model:requestedModel || DEFAULT_LIVE_MODEL,opening:openingFor(config,greetingHour,greetingName),preview:b.preview,resumeContext:b.preview?undefined:(segmentParentId?String(config.resumeContext || ''):effectiveResumeContext),reconnect:segmentParentId?false:!b.preview&&b.reconnect,campaign:b.campaign || (segmentParentId?(config.campaign ?? null):null),recordTranscript:segmentParentId?config.recordTranscript===true:!b.preview && transcriptAllowed(false,false,b.consent),recordAudio:segmentParentId?config.recordAudio===true:!b.preview && b.consent};
+  config={...config,visitorKeyHash,timeZone:effectiveTimeZone,...(uiLocale ? {uiLocale, startLanguage: startingLanguageForUiLocale(uiLocale)} : {}),quotaClass:segmentParentId?'persona_segment':b.share?'visitor':voiceQuotaClass(role?.role==='admin',b.preview),model:requestedModel || DEFAULT_LIVE_MODEL,opening:openingFor(config,greetingHour,greetingName),preview:b.preview,resumeContext:b.preview?undefined:(segmentParentId?String(config.resumeContext || ''):effectiveResumeContext),reconnect:segmentParentId?false:!b.preview&&b.reconnect,campaign:b.campaign || (segmentParentId?(config.campaign ?? null):null),recordTranscript:segmentParentId?config.recordTranscript===true:!b.preview && transcriptAllowed(false,false,b.consent),recordAudio:segmentParentId?config.recordAudio===true:!b.preview && b.consent};
   // DEMO-SITE OPENING RENDER (2026-11-12 late — live retest of the
   // Scalone batch, session 96d54121): openingFor returned the picked
   // demo rotation variant VERBATIM, and the demo-site variants are
