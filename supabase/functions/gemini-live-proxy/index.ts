@@ -12,6 +12,7 @@ import { sendBookingConfirmations } from '../_shared/booking-confirm.ts'
 import { platformBookingInstruction } from '../_shared/phone-demo.ts'
 import { confirmedVisitorContact, CONTACT_READBACK_POLICY, CAPTURE_RITUAL_POLICY, CARD_REPRESENT_POLICY } from '../_shared/visitor-followup.ts'
 import { capturedContactFromUnknown, capturedContactBlock, mergeCapturedContact, type CapturedContact } from '../_shared/captured-contact.ts'
+import { freshConsentAskState, syncConsentAskState, consentAskTurnDecision, CONSENT_ASK_TOOL_DIRECTIVE, CONSENT_ASK_NUDGE, CONSENT_RECORD_NUDGE, type ConsentAskState } from '../_shared/consent-ask.ts'
 import { followupAlert, visitorFollowup, trySend } from '../_shared/hostinger-mail.ts'
 import { DEFAULT_LIVE_MODEL, officialLivePricing } from '../_shared/live-models.ts'
 import { callReview } from '../_shared/call-review.ts'
@@ -194,6 +195,21 @@ Deno.serve(async (req) => {
   let capturedContact: CapturedContact | null = capturedContactFromUnknown(config.capturedContact)
   let confirmedContact: {name:string;email:string;phone:string} | null =
     capturedContact?.confirmed ? { name: capturedContact.name, email: capturedContact.email, phone: capturedContact.phone } : null
+  // TEXTING-CONSENT ASK, mechanically driven (Publish #70 — see
+  // _shared/consent-ask.ts): #68's ritual policy alone did not make
+  // the presenter ask — in the live harness sessions the ask never
+  // fired when the visitor merely confirmed the read-back. This
+  // state tracks the debt across turns: a capture with a mobile and
+  // no texting answer arms it (syncConsentAskState inside
+  // noteCapture, and the record_captured_contact response below),
+  // and the turnComplete decision in the provider handler drives
+  // it to resolution — directive, then nudge, then record-order.
+  let consentAsk: ConsentAskState = freshConsentAskState()
+  // The spoken text of the model's current turn, accumulated from
+  // its output transcriptions and consumed at turnComplete: the
+  // consent-ask decision reads it to tell whether the turn that
+  // just completed actually contained the texting question.
+  let modelTurnText = ''
   // Stamp the merged facts back onto this session's row config (the
   // teamIntroSeen pattern): a successor session — reconnect, swap
   // segment, return — reads them from the row, so a dropped call
@@ -214,6 +230,12 @@ Deno.serve(async (req) => {
   }
   const noteCapture = (patch: { name?: unknown; email?: unknown; phone?: unknown; smsConsent?: unknown; confirmed?: unknown }) => {
     capturedContact = mergeCapturedContact(capturedContact, patch)
+    // Publish #70: every capture moment re-syncs the consent-ask
+    // debt against the merged facts — a boolean texting answer
+    // arriving by ANY path (the ritual tool, a book_call argument,
+    // a card payload) settles it at once, and a fresh mobile with
+    // no answer arms it.
+    consentAsk = syncConsentAskState(consentAsk, capturedContact)
     stampCapturedContact()
   }
   // FORM RE-PRESENTATION (Publish #68): the most recent confirmation
@@ -500,7 +522,7 @@ Deno.serve(async (req) => {
             {name:'platform_availability',description:'Read real AI Hidden Leads sales-calendar availability; optionally check a requested ISO time and return actual alternatives. Never use for simulated business appointments.',parameters:{type:'OBJECT',properties:{requestedSlot:{type:'STRING',description:'Optional requested appointment ISO date/time including UTC offset, resolved in Eastern unless the caller specified another timezone.'}}}},
             {name:'request_platform_followup',description:'After visitor agrees to AI Hidden Leads sales follow-up, request on-screen confirmation of name/email/phone. Nothing is saved before confirmation.',parameters:{type:'OBJECT',properties:{name:{type:'STRING'},email:{type:'STRING'},phone:{type:'STRING'}},required:['name','email','phone']}},
             {name:'request_platform_appointment',description:'Request on-screen confirmation of a real AI Hidden Leads appointment in an available ISO slot. Requires contact confirmation first.',parameters:{type:'OBJECT',properties:{slotStart:{type:'STRING'}},required:['slotStart']}},
-            {name:'record_captured_contact',description:'Record contact details the visitor just gave and confirmed through the capture ritual (email spelled back, phone read back in groups, "Did I get that right?") so they survive a dropped or reconnected session. Pass only what was actually given and confirmed; smsConsent is the visitor answer to the texting ask at that same moment — omit it when texting was not asked. This notes the details for this visit only: it never saves, books or sends anything by itself, and platform saves still need the on-screen confirmation.',parameters:{type:'OBJECT',properties:{name:{type:'STRING'},email:{type:'STRING'},phone:{type:'STRING'},smsConsent:{type:'BOOLEAN'}}}},
+            {name:'record_captured_contact',description:'Record contact details the visitor just gave and confirmed through the capture ritual (email spelled back, phone read back in groups, "Did I get that right?") so they survive a dropped or reconnected session. Pass only what was actually given and confirmed; smsConsent is the visitor answer to the texting ask at that same moment — omit it when texting was not asked. If the result carries consentAskRequired, the texting ask is still owed: your next spoken turn must be that question, and when the visitor answers it, call this tool again with smsConsent set to record the answer. This notes the details for this visit only: it never saves, books or sends anything by itself, and platform saves still need the on-screen confirmation.',parameters:{type:'OBJECT',properties:{name:{type:'STRING'},email:{type:'STRING'},phone:{type:'STRING'},smsConsent:{type:'BOOLEAN'}}}},
             {name:'re_present_confirmation_card',description:'Put the most recent on-screen confirmation form (follow-up, appointment or conversation copy) back on the visitor screen with the same details, when the visitor asks to see it again after closing it. Never re-ask for details they already gave. Errors when no form was shown yet in this session or one is already on screen.'},
             {name:'get_availability',description:'Read real AI Hidden Leads sales-calendar availability for the slot-offer close. Returns the raw slots plus an offer set of up to 3 real slots (each with spokenLabel; one marked recommended) picked for the visitor preference. Offer ONLY slots from a tool result; never invent a time.',parameters:{type:'OBJECT',properties:{day:{type:'STRING',enum:['today','tomorrow','day_after'],description:"The visitor's stated day preference from the preference-first ask."},dayPart:{type:'STRING',enum:['morning','midday','afternoon','evening'],description:"The visitor's stated part of day, if any."}}}},
             {name:'check_time',description:'Check the exact time the visitor named for an AI Hidden Leads appointment. Returns bookable true with the slot, or bookable false with a reason and nearest real alternatives.',parameters:{type:'OBJECT',properties:{date:{type:'STRING',description:'ET calendar date the visitor named, YYYY-MM-DD.'},time:{type:'STRING',description:'ET wall time the visitor named, e.g. "2:30 PM".'},iso:{type:'STRING',description:'Full ISO datetime instead of date+time, when known.'}}}},
@@ -669,7 +691,14 @@ Deno.serve(async (req) => {
               // so the capture survives a drop. Notes the visit only —
               // no save, no booking, no message is claimed or made.
               noteCapture({ name: call.args?.name, email: call.args?.email, phone: call.args?.phone, smsConsent: call.args?.smsConsent });
-              respond({recorded:true,note:'Details noted for this visit and carried across reconnects. This is not a save or a booking: platform saves still need the on-screen confirmation.'});
+              // Publish #70: a capture that lands a mobile with the
+              // texting answer still unknown does not get the plain
+              // receipt — the response itself orders the ask as the
+              // model's very next spoken turn (lever 1 of
+              // _shared/consent-ask.ts; the turnComplete decision
+              // below is the backstop when even this is skipped).
+              if (consentAsk.owed) respond({recorded:true,consentAskRequired:true,instruction:CONSENT_ASK_TOOL_DIRECTIVE});
+              else respond({recorded:true,note:'Details noted for this visit and carried across reconnects. This is not a save or a booking: platform saves still need the on-screen confirmation.'});
             } else if (call.name === 're_present_confirmation_card') {
               // FORM RE-PRESENTATION (Publish #68): the visitor asked
               // for the dismissed form back. The tool call itself is
@@ -738,6 +767,9 @@ Deno.serve(async (req) => {
           }
           if (sc.outputTranscription?.text && !gatePostFarewellOutput) {
             if (transcript.length < 2000) transcript.push({ role: 'assistant', text: sc.outputTranscription.text })
+            // Publish #70: the consent-ask decision at turnComplete
+            // reads this turn's spoken text (see modelTurnText).
+            modelTurnText += sc.outputTranscription.text
             clientSocket.send(JSON.stringify({ type: 'aspen_transcript', text: sc.outputTranscription.text }))
           }
           if (sc.inputTranscription?.text) {
@@ -836,6 +868,29 @@ Deno.serve(async (req) => {
               // return or a requested transfer means the conversation
               // deliberately continues — never re-arm over those.
               armFarewellEnd(FAREWELL_END_DELAY_MS, 'timer')
+            }
+            // TEXTING-CONSENT ASK (Publish #70): judge the turn that
+            // just completed against the ask debt. Blocked while a
+            // farewell owns the close (armed or delivered), while a
+            // manager transfer is connecting, and while a
+            // confirmation card is on screen — the card's own
+            // consent control owns that moment, and the debt simply
+            // waits for the first turn boundary after it resolves.
+            const completedModelTurn = modelTurnText
+            modelTurnText = ''
+            if (consentAsk.owed) {
+              const decision = consentAskTurnDecision({
+                state: consentAsk,
+                contact: capturedContact,
+                modelTurnText: completedModelTurn,
+                visitorUtterance: completedUtterance,
+                blocked: preview || farewellHandled || farewellTimer !== undefined || managerTransferRequested || pendingActions.size > 0,
+              })
+              consentAsk = decision.state
+              if (decision.inject) {
+                const text = decision.inject === 'ask' ? CONSENT_ASK_NUDGE : CONSENT_RECORD_NUDGE
+                geminiWs?.send(JSON.stringify({clientContent:{turns:[{role:'user',parts:[{text}]}],turnComplete:true}}))
+              }
             }
             if(config.transferPhone) EdgeRuntime.waitUntil((async()=>{
               const summary=transcript.filter(t=>t.role==='caller').map(t=>t.text).join(' ').slice(-1200);
