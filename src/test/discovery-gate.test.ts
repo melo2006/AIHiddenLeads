@@ -36,26 +36,36 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   DISCOVERY_GATE_MAX_FIRES,
+  amountMentionedInTurn,
   armDiscoveryGate,
   bareReplyName,
+  budgetAmounts,
   budgetBracketDirective,
+  budgetFullyMentionedInTurn,
   budgetMentionedInTurn,
+  budgetRangeCollapsedInTurn,
+  budgetRangeDirective,
   budgetRecapDirective,
   detectPurposeStated,
   detectPushToSkip,
   detectRecapAsk,
   detectStatedBudget,
   detectStatedName,
+  detectStatedView,
   discoveryGateTurnDecision,
   freshDiscoveryGateState,
   greetingOnceDirective,
   nameKnownDirective,
   nameReleaseDirective,
+  recapCompletenessDirective,
   seedNameFromFacts,
   shortGateDirective,
   shortGatePurposeDirective,
   turnAsksForNameStandalone,
+  turnAsksPurposeQuestion,
+  turnAssertsSpecificView,
   turnIsInRoleGreeting,
+  turnMentionsPurpose,
   type DiscoveryGateState,
 } from '../../supabase/functions/_shared/discovery-gate';
 import { buildRealtorDiscoveryLayer } from '../../supabase/functions/_shared/realtor-discovery';
@@ -206,19 +216,39 @@ describe('Publish #78 — check B replay: a push to skip with banked criteria ea
     expect(s.gateOwed).toBe(true);
   });
 
-  it('the order fires once per push — a second push re-arms it', () => {
+  it('Publish #80: the order PERSISTS until the gate runs — one sterner repeat per push, then silence; a second push re-arms it', () => {
+    // #78 pinned "fires once per push" here. The #78 live
+    // verification (check B) proved that one-shot shape is
+    // exactly what strands the debt: the order fired, the model
+    // answered with something else, and nothing ever landed.
+    // The order now re-fires once — sterner — at the next
+    // boundary where the gate still has not run, then goes
+    // silent (cap 2 per push, the name-release discipline).
     let s = freshDiscoveryGateState();
     s = boundary(s, "Hi, I'm looking for a home to live in.", 'Are you interested in houses or condos?').state;
     let r = boundary(s, "That's everything — just send me the list.", CAPTURE_ASK_TURN);
     expect(r.inject).toBe('short-gate');
+    expect(r.state.gateOrderFires).toBe(1);
+    expect(r.state.shortGateRepeat).toBe(false);
     s = r.state;
-    // The model carries on without the gate and without a new push:
+    // The model carries on without the gate and without a new
+    // push: the order re-fires, marked as the repeat.
+    r = boundary(s, 'Hello?', 'So, about those areas…');
+    expect(r.inject).toBe('short-gate');
+    expect(r.state.gateOrderFires).toBe(2);
+    expect(r.state.shortGateRepeat).toBe(true);
+    expect(shortGateDirective(r.state, true)).toContain('already been given once');
+    expect(shortGateDirective(r.state, true)).toContain('not a refusal of anything');
+    s = r.state;
+    // The cap is the discipline — a third non-gate turn is silent:
     r = boundary(s, 'Hello?', 'So, about those areas…');
     expect(r.inject).toBeNull();
     s = r.state;
     // A fresh push re-arms the order:
     r = boundary(s, 'I said just send me the list.', CAPTURE_ASK_TURN);
     expect(r.inject).toBe('short-gate');
+    expect(r.state.gateOrderFires).toBe(1);
+    expect(r.state.shortGateRepeat).toBe(false);
   });
 
   it('a gate that runs on the answering turn needs no order', () => {
@@ -456,5 +486,293 @@ describe('Publish #78 — wiring: the proxy arms the gate on presenter sessions 
     expect(layer).toContain('THE SHORT GATE');
     expect(layer).toContain('A STATED BUDGET IS NEVER RE-ASKED');
     expect(layer).toContain('THE GREETING HAPPENS ONCE');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Publish #80 — the #78 live verification's failing shapes, replayed
+// with the verification's own turns (~/workspace/p60-test/p78-B.log,
+// p78-D.log, p78-B2.log). Each replay fails on the pre-#80 code for
+// the same reason the live check failed; the pins name the boundary.
+// ---------------------------------------------------------------------------
+
+const B_IN_ROLE_GREETING = "Good afternoon, Michael Martinez Group — I'm Frank, thanks for calling. How can I help you?";
+const B_PURPOSE_REASK = "It's a great time to find the perfect place! Are you interested in selling, or are you looking to buy a home or a condo?";
+const B_BUNDLED_CAPTURE_ASK = 'Before we proceed, may I have your name, your email, and the best phone number for you?';
+const B_DECLINE_TURN = "No problem at all — I understand you'd prefer not to share those details. Without your contact information, I won't be able to send the list of properties to you.";
+
+const D_HOST_GREETING = "Good afternoon, welcome. I am Frank from AI Hidden Leads — welcome. Before we start: this is a mock-up layered over a copy of your site — we haven't touched your website or your server. Now, let us begin. Before we start — who do I have the pleasure of speaking with?";
+const D_COLLAPSED_ACK = 'Good afternoon, Michael Martinez — this is Frank, thanks for calling in. I really appreciate you speaking with me. So, finding a home to live in is exciting, and that four hundred thousand dollar ballpark gives us a clear focus. Tell me, which areas are you drawn to? Listings change block by block, so the areas steer everything else.';
+const D_AREAS_ACK = 'Pompano Beach and Deerfield Beach — got it. Now, are you picturing a single-family home, a townhouse, or a condo, and how many bedrooms and baths make it work? Three-plus bedrooms gives you the strongest pool — of buyers when you sell, of tenants when you rent.';
+const D_TYPE_ACK = 'A single-family house with three bedrooms and two bathrooms and a must-have two-car garage — got it. Now, are you looking for something that is move-in ready, a light refresh, or would you be open to a fixer-upper? Renovation appetite changes the budget as much as the search — a cosmetic refresh and a gut rehab are different hunts.';
+const D_VOID_RECAP = 'So, a single-family house in Pompano Beach and Deerfield Beach with three bedrooms, two bathrooms, and a two-car garage, with the condition still open. Did I capture that all correctly?';
+const D_CAPTURE_ASK = 'To proceed with sending you the list, may I have your name, your email address, and the best phone number to reach you on?';
+const D_COMPLETE_RECAP = 'So: a home to live in, in Pompano Beach and Deerfield Beach, a single-family house, three bedrooms and two bathrooms, a two-car garage — and your budget, three hundred to four hundred thousand dollars. Did I capture that all correctly?';
+
+const B2_TRANSITION_TURN = "Of course. Okay, now we're stepping into simulation mode. One thing to keep in mind: I learned this business from a quick scan of its public website. [PAUSE] Good afternoon, Michael Martinez Group — I am Frank, thanks for calling. How can I help you?";
+const B2_GATE_TURN = 'So: looking for a home to live in, with areas still open. Did I capture that all correctly?';
+const B2_PROMISE_TURN = "We'll put that list together and send it to you — and if you give me an email or a mobile number, we'll send that list straight to you — where's best?";
+
+describe('Publish #80 — defect 1: check B exact live replay — the order persists past the misread "yes"', () => {
+  it('purpose banks over the model\'s re-ask; the push fires the order; the decline boundary fires the sterner repeat', () => {
+    let s = freshDiscoveryGateState();
+    let r = boundary(s, '', OPENING_NAME_ASK);
+    expect(r.inject).toBeNull();
+    s = r.state;
+
+    r = boundary(s, "I'm Tony.", ANNOUNCEMENT_ONLY);
+    expect(r.inject).toBeNull();
+    s = r.state;
+
+    r = boundary(s, 'Okay, go ahead.', B_IN_ROLE_GREETING);
+    expect(r.inject).toBeNull();
+    s = r.state;
+
+    // The volunteered purpose statement, answered by Frank RE-ASKING
+    // the purpose question. Banking is a fold over the visitor's
+    // words: the re-ask cannot un-bank it. (Pre-#80 this also
+    // banked — the live failure was downstream, at the order.)
+    r = boundary(s, "Hi, I'm looking for a home to live in.", B_PURPOSE_REASK);
+    expect(r.inject).toBeNull();
+    expect(r.state.purposeBanked).toBe(true);
+    s = r.state;
+
+    // The push: Frank answers with the bundled capture ask; the
+    // order fires at the boundary.
+    r = boundary(s, "That's everything — just send me the list.", B_BUNDLED_CAPTURE_ASK);
+    expect(r.inject).toBe('short-gate');
+    expect(r.state.gateOrderFires).toBe(1);
+    expect(r.state.shortGateRepeat).toBe(false);
+    s = r.state;
+
+    // THE LIVE FAILURE BOUNDARY: the visitor's "Yes, that's right"
+    // is read as a DECLINE of the capture ask. Pre-#80 the spent
+    // order injected nothing here and the gate debt was stranded
+    // forever (gateOwed stayed true, unreachable). Post-#80 the
+    // sterner repeat fires — a yes to a capture ask is neither a
+    // recap confirmation nor a refusal.
+    r = boundary(s, "Yes, that's right.", B_DECLINE_TURN);
+    expect(r.inject).toBe('short-gate');
+    expect(r.state.shortGateRepeat).toBe(true);
+    expect(r.state.gateOrderFires).toBe(2);
+    expect(r.state.gateOwed).toBe(true);
+    expect(r.state.gateAsked).toBe(false);
+    s = r.state;
+
+    // The repeat elicits the gate; the complete recap discharges it.
+    r = boundary(s, '', 'So: looking for a home to live in, with the areas and property type still open. Did I capture that all correctly?');
+    expect(r.inject).toBeNull();
+    expect(r.state.gateAsked).toBe(true);
+    expect(r.state.gateOwed).toBe(false);
+    s = r.state;
+
+    // And only now does a yes attach to a recap actually heard.
+    r = boundary(s, "Yes, that's right.", "Wonderful — we'll put that list together and send it to you.");
+    expect(r.inject).toBeNull();
+  });
+});
+
+describe('Publish #80 — defect 2: check D exact live replay — range collapse, void recap, persistent correction', () => {
+  it('the collapsed acknowledgment earns the range correction; the budget-less recap is VOID and its confirm cannot discharge the gate', () => {
+    let s = freshDiscoveryGateState();
+    let r = boundary(s, '', D_HOST_GREETING);
+    expect(r.inject).toBeNull();
+    s = r.state;
+
+    // The volunteer turn banks purpose + the range; Frank's
+    // acknowledgment collapses the range to its top end.
+    // Pre-#80: null — nothing anywhere guarded the range.
+    r = boundary(s, "Hi, I'm looking for a home to live in. My budget is three hundred to four hundred thousand dollars.", D_COLLAPSED_ACK);
+    expect(r.state.budgetBanked).toBe('three hundred to four hundred thousand');
+    expect(r.inject).toBe('budget-range');
+    expect(budgetRangeDirective(r.state.budgetBanked)).toContain('stated their budget as a range');
+    expect(budgetRangeDirective(r.state.budgetBanked)).toContain('three hundred to four hundred thousand');
+    s = r.state;
+
+    r = boundary(s, 'Pompano Beach and Deerfield Beach.', D_AREAS_ACK);
+    expect(r.inject).toBeNull();
+    s = r.state;
+
+    r = boundary(s, 'A single-family house, three bedrooms and two bathrooms, with a two-car garage.', D_TYPE_ACK);
+    expect(r.inject).toBeNull();
+    s = r.state;
+
+    // The recap-ask: Frank's recap drops the budget (and the
+    // purpose). Pre-#80 the correction fired here too — but the
+    // observe step had already marked the gate SATISFIED, so the
+    // debt was gone. Post-#80 the recap is VOID: the debt stands.
+    r = boundary(s, "That's everything I have for now — can you read back the criteria you've got for me so far?", D_VOID_RECAP);
+    expect(r.inject).toBe('budget-recap');
+    expect(r.state.recapVoided).toBe(true);
+    expect(r.state.recapMissing).toEqual(['budget', 'purpose']);
+    expect(r.state.gateOwed).toBe(true);
+    expect(r.state.gateAsked).toBe(false);
+    s = r.state;
+
+    // THE LIVE FAILURE BOUNDARY: the visitor confirms the void
+    // recap and Frank goes straight to the capture ask. Pre-#80:
+    // null — the one-shot correction was spent and the yes was
+    // accepted. Post-#80 the completeness correction re-fires.
+    r = boundary(s, "Yes, that's right.", D_CAPTURE_ASK);
+    expect(r.inject).toBe('budget-recap');
+    expect(r.state.recapCorrectionFires).toBe(2);
+    expect(r.state.gateAsked).toBe(false);
+    s = r.state;
+
+    // The corrected, complete recap finally discharges the gate.
+    r = boundary(s, '', D_COMPLETE_RECAP);
+    expect(r.inject).toBeNull();
+    expect(r.state.gateAsked).toBe(true);
+    expect(r.state.gateOwed).toBe(false);
+    expect(r.state.recapVoided).toBe(false);
+    s = r.state;
+
+    r = boundary(s, "Yes, that's right.", D_CAPTURE_ASK);
+    expect(r.inject).toBeNull();
+  });
+
+  it('range arithmetic: amounts, full mention, and the collapse test itself', () => {
+    const budget = 'three hundred to four hundred thousand';
+    expect(budgetAmounts(budget)).toEqual(['three hundred', 'four hundred thousand']);
+    expect(amountMentionedInTurn(D_COLLAPSED_ACK, 'four hundred thousand')).toBe(true);
+    expect(amountMentionedInTurn(D_COLLAPSED_ACK, 'three hundred')).toBe(false);
+    expect(budgetRangeCollapsedInTurn(D_COLLAPSED_ACK, budget)).toBe(true);
+    // The full range repeated is not a collapse, and neither is silence:
+    expect(budgetRangeCollapsedInTurn('Your budget — three hundred to four hundred thousand — noted.', budget)).toBe(false);
+    expect(budgetRangeCollapsedInTurn('Which areas are you drawn to?', budget)).toBe(false);
+    // Digit forms collapse the same way:
+    expect(budgetRangeCollapsedInTurn('That $400,000 ballpark gives us a clear focus.', '$300,000 to $400,000')).toBe(true);
+    expect(budgetRangeCollapsedInTurn('The $300,000 to $400,000 range, noted.', '$300,000 to $400,000')).toBe(false);
+    // A single-figure budget can never be "collapsed":
+    expect(budgetRangeCollapsedInTurn('That four hundred thousand ballpark.', 'four hundred thousand')).toBe(false);
+    // Full mention requires EVERY amount — either end alone fails:
+    expect(budgetFullyMentionedInTurn(D_COMPLETE_RECAP, budget)).toBe(true);
+    expect(budgetFullyMentionedInTurn(D_COLLAPSED_ACK, budget)).toBe(false);
+    expect(budgetFullyMentionedInTurn('So: three hundred thousand and up. Did I capture that all correctly?', budget)).toBe(false);
+    expect(budgetFullyMentionedInTurn(D_VOID_RECAP, budget)).toBe(false);
+  });
+
+  it('a recap that drops only the purpose earns the recap-completeness kind, naming the purpose', () => {
+    let s = freshDiscoveryGateState();
+    s = boundary(s, "Hi, I'm looking for a home to live in. My budget is three hundred to four hundred thousand dollars.", 'Got it — noted.').state;
+    const r = boundary(s, "That's everything — just send me the list.",
+      'So: a single-family house in Pompano Beach, three hundred to four hundred thousand dollars. Did I capture that all correctly?');
+    expect(r.inject).toBe('recap-completeness');
+    expect(r.state.recapMissing).toEqual(['purpose']);
+    expect(r.state.gateAsked).toBe(false);
+    const directive = recapCompletenessDirective(r.state);
+    expect(directive).toContain('does NOT count');
+    expect(directive).toContain('what the home is for');
+  });
+
+  it('a recap that asserts a view the visitor never stated is VOID — and the same recap is complete when the visitor DID state it', () => {
+    // Check C's softness, caught where it counts: on a gate turn.
+    let s = freshDiscoveryGateState();
+    s = boundary(s, "Hi, I'm looking for a home to live in.", 'Got it, a home to live in.').state;
+    const insertedRecap = 'So: a home to live in, with a water view and a two-car garage. Did I capture that all correctly?';
+    let r = boundary(s, "That's everything — just send me the list.", insertedRecap);
+    expect(r.inject).toBe('recap-completeness');
+    expect(r.state.recapVoided).toBe(true);
+    expect(r.state.recapInsertedView).toBe(true);
+    expect(r.state.recapMissing).toEqual([]);
+    expect(r.state.gateAsked).toBe(false);
+    expect(recapCompletenessDirective(r.state)).toContain('they never chose one');
+
+    // The control: the visitor stated the view themselves.
+    s = freshDiscoveryGateState();
+    s = boundary(s, "Hi, I'm looking for a home to live in — a water view would be perfect.", 'Got it.').state;
+    expect(s.viewBanked).toBe(true);
+    r = boundary(s, "That's everything — just send me the list.", insertedRecap);
+    expect(r.inject).toBeNull();
+    expect(r.state.gateAsked).toBe(true);
+  });
+
+  it('view and purpose-mention detectors hold their false-positive discipline', () => {
+    expect(detectStatedView('I want a water view.')).toBe(true);
+    expect(detectStatedView('The setting is flexible.')).toBe(false);
+    expect(turnAssertsSpecificView('So: a home in Lauderhill with a water view and a two-car garage.')).toBe(true);
+    expect(turnAssertsSpecificView('So: a home in Lauderhill, with the water view still open.')).toBe(false);
+    expect(turnAssertsSpecificView('So: a home in Lauderhill, no water view.')).toBe(false);
+    expect(turnAssertsSpecificView('So: a home in Lauderhill with three bedrooms.')).toBe(false);
+    expect(turnMentionsPurpose('So: living in a single-family home in Pompano Beach.')).toBe(true);
+    expect(turnMentionsPurpose(D_VOID_RECAP)).toBe(false);
+    expect(detectPurposeStated("We'll live there.")).toBe(true);
+    expect(detectPurposeStated("We're moving in next spring.")).toBe(true);
+  });
+});
+
+describe('Publish #80 — defect 3: check B2 exact live replay — the keystone order survives the simulation entry', () => {
+  it('push-1 fires into the transition and is CARRIED; the first post-transition boundary re-fires it as the short gate', () => {
+    let s = freshDiscoveryGateState();
+    let r = boundary(s, '', D_HOST_GREETING);
+    expect(r.inject).toBeNull();
+    s = r.state;
+
+    // Push-1 lands during the host beats; the answering turn is
+    // the transition + in-role greeting. The bar held live (no
+    // contact ask) but the keystone was eaten: pre-#80 the order
+    // fired here and was SPENT (gateOrderFired), so the next
+    // boundary injected nothing. Post-#80 the fire is carried —
+    // it does not count against the push.
+    r = boundary(s, "That's everything — just send me the list.", B2_TRANSITION_TURN);
+    expect(r.inject).toBe('short-gate-purpose');
+    expect(r.state.gateOrderCarried).toBe(true);
+    expect(r.state.gateOrderFires).toBe(0);
+    expect(r.state.simulationEntered).toBe(true);
+    s = r.state;
+
+    // The visitor volunteers the purpose; Frank asks areas. The
+    // carried order lands HERE — the first post-transition
+    // boundary — now as the short gate (purpose is banked), in
+    // its sterner repeat form.
+    r = boundary(s, 'To live in.', 'To live in — got it. Which areas are you drawn to?');
+    expect(r.inject).toBe('short-gate');
+    expect(r.state.shortGateRepeat).toBe(true);
+    expect(r.state.gateOrderFires).toBe(1);
+    expect(r.state.gateOrderCarried).toBe(false);
+    s = r.state;
+
+    // Push-2: the model runs the gate itself (as it did live) —
+    // the complete recap discharges the debt with no injection.
+    r = boundary(s, "That's everything — just send me the list.", B2_GATE_TURN);
+    expect(r.inject).toBeNull();
+    expect(r.state.gateAsked).toBe(true);
+    expect(r.state.gateOwed).toBe(false);
+    s = r.state;
+
+    r = boundary(s, "Yes, that's right.", B2_PROMISE_TURN);
+    expect(r.inject).toBeNull();
+  });
+
+  it('when the model asks the purpose question itself, the keystone counts as delivered — no injection, the order marked counted', () => {
+    expect(turnAsksPurposeQuestion(B_PURPOSE_REASK)).toBe(true);
+    expect(turnAsksPurposeQuestion('To live in — got it. Which areas are you drawn to?')).toBe(false);
+    let s = freshDiscoveryGateState();
+    const r = boundary(s, 'Just send me the list.', B_PURPOSE_REASK);
+    expect(r.inject).toBeNull();
+    expect(r.state.gateOwed).toBe(true);
+    expect(r.state.gateOrderFires).toBe(1);
+    expect(r.state.gateOrderCarried).toBe(false);
+    s = r.state;
+    // The answer banks purpose; the still-owed gate recap earns
+    // the short-gate order at that boundary.
+    const r2 = boundary(s, 'To live in.', 'To live in — got it. Which areas are you drawn to?');
+    expect(r2.inject).toBe('short-gate');
+  });
+
+  it('the sterner purpose variant exists and the default is unchanged', () => {
+    expect(shortGatePurposeDirective()).toContain('what the home is FOR');
+    expect(shortGatePurposeDirective()).not.toContain('already been given once');
+    expect(shortGatePurposeDirective(true)).toContain('already been given once');
+    expect(shortGatePurposeDirective(true)).toContain('Ask it now, before anything else');
+  });
+});
+
+describe('Publish #80 — wiring: the proxy renders the new directive kinds', () => {
+  it('the switch covers budget-range and recap-completeness, and passes the repeat flag to both short-gate variants', () => {
+    expect(proxySource).toContain('budgetRangeDirective(discoveryGate.budgetBanked)');
+    expect(proxySource).toContain('recapCompletenessDirective(discoveryGate)');
+    expect(proxySource).toContain('shortGateDirective(discoveryGate, discoveryGate.shortGateRepeat)');
+    expect(proxySource).toContain('shortGatePurposeDirective(discoveryGate.shortGateRepeat)');
   });
 });

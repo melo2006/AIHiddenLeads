@@ -244,6 +244,40 @@ describe('read-back rendering detection — spelled, segmented, or not a read-ba
     expect(emailRenderingInTurn('your email is t o n y period t e s t at e x a m p l e period c o m', 'tony.test@example.com')).toBe('spelled');
   });
 
+  it('Publish #80 (defect 4, the hybrid): first chunk spelled, tail whole-word is SEGMENTED — the #78 verification period-check rendering verbatim', () => {
+    // Pre-#80 this classified as null (not a read-back at all):
+    // the classifier matched two fixed sequences — fully spelled
+    // or fully segmented — and the hybrid matched neither, so no
+    // correction fired and the capture stood. The rule now: a
+    // read-back is SPELLED only if EVERY chunk of the local part
+    // is letter-by-letter; any whole-word local chunk makes it
+    // segmented.
+    expect(emailRenderingInTurn('Thank you, Tony. Let me confirm your details. Your email is t-o-n-y test at example dot com, and your phone number is 954 555 0142. Did I get that right?', 'tony.test@example.com')).toBe('segmented');
+    expect(emailRenderingInTurn('your email is t o n y test at example com', 'tony.test@example.com')).toBe('segmented');
+    expect(emailRenderingInTurn('your email is t-o-n-y dot test at example dot com', 'tony.test@example.com')).toBe('segmented');
+  });
+
+  it('Publish #80 (defect 4): the domain side\'s form does not decide the class — the local part does', () => {
+    // Local fully spelled, domain whole-word: still a spell-back.
+    expect(emailRenderingInTurn('your email is t-o-n-y dot t-e-s-t at example dot com', 'tony.test@example.com')).toBe('spelled');
+    // Local whole-word, domain spelled out: still segmented.
+    expect(emailRenderingInTurn('your email is tony dot test at e-x-a-m-p-l-e dot c-o-m', 'tony.test@example.com')).toBe('segmented');
+  });
+
+  it('Publish #80 (defect 4): the hybrid read-back earns the spell-back correction at the decision level', () => {
+    // The session-B replay shape with the hybrid rendering in
+    // place of the segmented one: dictate + hybrid read-back in
+    // the answering turn → the one-time correction fires, and
+    // the hybrid does NOT count as a read-back (its confirmation
+    // is void). Pre-#80 the hybrid classified null and no
+    // 'spellback' injection was possible.
+    const hybrid = 'Thank you, Tony. Let me confirm your details. Your email is t-o-n-y test at example dot com, and your phone number is 954 555 0142. Did I get that right?';
+    const turn = boundary(freshCaptureGateState(), null, hybrid, DICTATE);
+    expect(turn.inject).toBe('spellback');
+    expect(turn.state.spellbackCorrected).toBe(true);
+    expect(turn.state.emailReadback).toBe(false);
+  });
+
   it('a turn that does not render the address is not a read-back', () => {
     expect(emailRenderingInTurn(TRANSITION_TURN, 'tony.test@example.com')).toBeNull();
     expect(emailRenderingInTurn('Tony, let me show you the first listing.', 'tony.test@example.com')).toBeNull();
