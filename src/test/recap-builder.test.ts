@@ -155,4 +155,33 @@ describe("gemini-session wiring — caps raised + server-side synthesis", () => 
     expect(sessionSource).toContain("!b.personaSegment && !b.preview && !b.draft && !b.share && !b.guide");
     expect(sessionSource).toContain("b.resumeContext.trim().length < 200");
   });
+
+  it("Publish #64: stamps an IP-free visitorKeyHash into every stored config", () => {
+    // The bare key hash — no forwarded address mixed in — computed
+    // from the request's visitorKey via the shared hash() helper.
+    expect(sessionSource).toContain("const visitorKeyHash = await hash(b.visitorKey);");
+    // Stamped at the single final config assembly the RPC stores, so
+    // every authorization's row carries it.
+    expect(sessionSource).toContain("...config,visitorKeyHash,timeZone:effectiveTimeZone");
+  });
+
+  it("Publish #64: falls back to the key-hash lookup only when the visitor_hash lookup found no usable prior", () => {
+    // The primary visitor_hash lookup stays exactly as #63 shipped it.
+    expect(sessionSource).toContain(".eq('visitor_hash', priorVisitorHash)");
+    expect(sessionSource).toContain("let prior = (priorRows || []).find(usablePrior);");
+    // The fallback matches the prior row by the key hash stamped in
+    // its stored config (jsonb text extraction), with the same
+    // scoping chain as the primary lookup.
+    expect(sessionSource).toContain(".eq('config->>visitorKeyHash', visitorKeyHash)");
+    expect(sessionSource).toContain("fallbackQuery = fallbackQuery.eq('lead_id', b.leadId);");
+    expect(sessionSource).toContain("fallbackQuery = fallbackQuery.eq('prospect_id', b.prospectId);");
+    expect(sessionSource).toContain("else fallbackQuery = fallbackQuery.eq('agent_id', agentId);");
+    // Ordering pin: the no-usable-prior gate opens before the
+    // fallback query is built, so the fallback can never run (or
+    // override the primary result) when the primary lookup matched.
+    const gateIndex = sessionSource.indexOf("if (!prior) {");
+    const fallbackIndex = sessionSource.indexOf(".eq('config->>visitorKeyHash', visitorKeyHash)");
+    expect(gateIndex).toBeGreaterThan(-1);
+    expect(fallbackIndex).toBeGreaterThan(gateIndex);
+  });
 });
