@@ -42,6 +42,12 @@ export const SEO_ROUTES = [
       "AI voice agents and chat widgets help answer visitor questions and capture inquiries. Appointment booking and telephone transfers require configuration for each business.",
       "Our services include B2B prospect generation, database reactivation, automated outreach and Google review management. Google Maps Boost and AI Search Optimization help improve local and AI-driven search visibility. Our 25-point Google Maps audit checks neighborhood search positions; homepage before-and-after maps are illustrative, not measured results or ranking guarantees.",
     ],
+    footerLinks: [
+      { href: "/demo", label: "Try the free website demo" },
+      { href: "/book", label: "Book a brief introductory call" },
+      { href: "/privacy", label: "Privacy policy" },
+      { href: "/terms", label: "Terms of service" },
+    ],
     faqHeading: "Common questions",
     faq: [
       {
@@ -81,6 +87,12 @@ export const SEO_ROUTES = [
       "Aspen reads your public website, greets visitors by voice and chat, answers questions from your own content, and can capture inquiries and book appointments once configured. The demo preserves your website's appearance and is a simulation based on its public information, not a full business implementation.",
       "From this page you can also run the free 25-point Google Maps rank check to see where your business shows up across 25 neighborhood search points.",
     ],
+    footerLinks: [
+      { href: "/demo", label: "Try the free website demo" },
+      { href: "/book", label: "Book a brief introductory call" },
+      { href: "/privacy", label: "Privacy policy" },
+      { href: "/terms", label: "Terms of service" },
+    ],
     faqHeading: "Common questions",
     faq: [
       {
@@ -116,6 +128,12 @@ export const SEO_ROUTES = [
       "A Aspen lê seu site público, atende os visitantes por voz e chat, responde perguntas a partir do seu próprio conteúdo e pode captar consultas e agendar compromissos depois de configurada. A demo preserva a aparência do seu site e é uma simulação baseada nas informações públicas dele, não uma implementação completa da sua empresa.",
       "Nesta página você também pode executar a verificação gratuita de classificação no Google Maps com 25 pontos para ver onde sua empresa aparece em 25 pontos de busca do bairro.",
     ],
+    footerLinks: [
+      { href: "/demo", label: "Experimente a demo gratuita do site" },
+      { href: "/book", label: "Agende uma breve ligação de apresentação" },
+      { href: "/privacy", label: "Política de Privacidade" },
+      { href: "/terms", label: "Termos de Uso" },
+    ],
     faqHeading: "Perguntas frequentes",
     faq: [
       {
@@ -146,6 +164,12 @@ export const SEO_ROUTES = [
       "Book a free 30-minute implementation call with the AiHiddenLeads team — one-on-one, weekdays 8 AM–6 PM Eastern Time, up to two weeks ahead. Most calls wrap up in 15–20 minutes.",
       "On the call we answer your questions about AI voice agents, website chat and B2B lead generation, and plan your setup. Pick a time on the booking calendar and you will receive a confirmation with a calendar invite; text confirmations are sent only with your permission.",
     ],
+    footerLinks: [
+      { href: "/demo", label: "Try the free website demo" },
+      { href: "/book", label: "Book a brief introductory call" },
+      { href: "/privacy", label: "Privacy policy" },
+      { href: "/terms", label: "Terms of service" },
+    ],
   },
   {
     path: "/agents/realtors",
@@ -161,6 +185,12 @@ export const SEO_ROUTES = [
       "Built for realtors: Aspen answers calls and website visitors 24/7, books the appointment, and sends you the summary — so a ready buyer or seller never lands in voicemail while you are at a showing, a closing, or driving between them.",
       "You stay in control: your phone rings first, and only if you do not answer does Aspen pick up. Hot leads are transferred straight back to you with a summary; other callers are booked onto your calendar. After every call you get the summary and the full transcript.",
       "Plans start at $99/mo with 400 voice minutes included; a lip-synced video avatar of Aspen for your website is an optional add-on. Aspen greets callers in your name, answers basic listing questions from the details you give her, and checks buyer pre-approval and timeline before you call back.",
+    ],
+    footerLinks: [
+      { href: "/demo", label: "Try the free website demo" },
+      { href: "/book", label: "Book a brief introductory call" },
+      { href: "/privacy", label: "Privacy policy" },
+      { href: "/terms", label: "Terms of service" },
     ],
     faqHeading: "Common questions",
     faq: [
@@ -218,8 +248,15 @@ ${items}
 // #root in the static variant. Mirrors the index.html fallback structure
 // (public-only content, hidden behind the themed startup once React mounts,
 // per repo AGENTS.md) — wording is a factual summary of the route's page.
+// The footer link labels are the route's OWN localized strings
+// (route.footerLinks, carried with the route's other localized fields) —
+// never hardcoded English literals: /demo/br's footer reads "Política de
+// Privacidade" / "Termos de Uso", not "Privacy policy" / "Terms of service".
 export function seoMainHtml(route) {
   const paragraphs = route.summary.map((p) => `          <p>${escapeHtml(p)}</p>`).join("\n");
+  const footerLinks = route.footerLinks
+    .map((link) => `<a href="${escapeHtml(link.href)}">${escapeHtml(link.label)}</a>`)
+    .join(" · ");
   return `      <main>
         <header>
           <img src="/logo.png" alt="AI Hidden Leads logo" width="160" height="160" />
@@ -229,7 +266,7 @@ export function seoMainHtml(route) {
 ${paragraphs}
         </section>${seoFaqSectionHtml(route)}
         <footer>
-          <a href="/demo">Try the free website demo</a> · <a href="/book">Book a brief introductory call</a> · <a href="/privacy">Privacy policy</a> · <a href="/terms">Terms of service</a>
+          ${footerLinks}
         </footer>
       </main>`;
 }
