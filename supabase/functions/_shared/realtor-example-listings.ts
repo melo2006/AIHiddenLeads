@@ -423,12 +423,14 @@ function formatListingLine(l: ExampleListing): string {
  * verification): the presenter variant ALSO rewrites the shared
  * flow paragraph's no-match capture sentence (confirm the criteria,
  * offer the callback, take name + number) — in presenter mode that
- * sentence is a pre-gate capture/promise leak in the listings
- * layer's own voice. The rewrite keeps the criteria confirmation
- * and swaps the callback capture for a broader-market search
- * commitment, handing what happens next to the discovery layer
- * (whose confirm gate now bars every promise and capture until it
- * has run). Standard builds are untouched.
+ * sentence works against the discovery layer twice over: it
+ * makes a callback — not the list — the outcome, and it takes a
+ * name and number on the no-match turn itself, the one turn that
+ * carries no capture ask in presenter mode. The rewrite keeps
+ * the criteria confirmation and swaps the callback capture for
+ * a broader-market search commitment, handing what happens next
+ * to the discovery layer (whose confirm gate bars the list
+ * promise until it has run). Standard builds are untouched.
  *
  * VERBAL CAPTURE CONFIRMATION (verbal-capture-confirm, 2026-11-14,
  * Ron-directed): the { verbalCapture: true } opt appends the verbal
@@ -472,9 +474,12 @@ ${script}Never invent listings, prices, beds, baths or features beyond this list
   // capture-the-search no-match close (confirm the criteria back,
   // offer that the agent will search and call back, take name +
   // callback number). In presenter mode that sentence is the
-  // listings layer's own pre-gate capture leak — the #69 live
-  // verification caught the layer's promise/capture phrasing
-  // surfacing mid-pass, before the confirm gate — so the presenter
+  // listings layer's own pre-gate promise leak, and a callback
+  // capture taken on the one turn that carries no capture ask in
+  // presenter mode (capture lives at the discovery layer's step 2
+  // and step 5) — the #69 live verification caught the layer's
+  // promise phrasing surfacing mid-pass, before the confirm gate —
+  // so the presenter
   // build rewrites it the same way it rewrites the script's
   // no-match capture sentence above: criteria confirmed back, a
   // broader-market search commitment, and the discovery layer
@@ -484,7 +489,7 @@ ${script}Never invent listings, prices, beds, baths or features beyond this list
   const flowLayer = opts?.presenter
     ? layer.replace(
       `then capture the search: confirm the criteria back, offer that ${pack.agentName} will search and call them back, and take their name and best callback number if you do not already have them.`,
-      `then confirm the criteria back and commit to searching the broader market for exactly those criteria — no capture and no list promise on that turn: in presenter mode the discovery layer below governs what happens next (discovery continues, and its confirm gate runs before any promise or capture).`,
+      `then confirm the criteria back and commit to searching the broader market for exactly those criteria — no capture and no list promise on that turn: in presenter mode the discovery layer below governs what happens next (discovery continues, and its confirm gate runs before the list promise).`,
     )
     : layer;
   // VERBAL CAPTURE CONFIRMATION (2026-11-14): a standard build that
@@ -499,10 +504,9 @@ ${script}Never invent listings, prices, beds, baths or features beyond this list
     : flowLayer;
   // REALTOR DISCOVERY (presenter-realtor-discovery, 2026-11-14): a
   // presenter-fronted example also carries the discovery layer — the
-  // warm opening, the buy-or-sell opener, the early frame with the
-  // capture's reason (the ask itself deferred to the close by
-  // Publish #72), the branching discovery and the recap-and-promise
-  // close (realtor-discovery.ts). Presenter builds only: Sara's segment
+  // warm opening, the buy-or-sell opener, the early capture with its
+  // reason, the branching discovery and the recap-and-promise close
+  // (realtor-discovery.ts). Presenter builds only: Sara's segment
   // build never passes the flag, so the standard layer stays
   // byte-identical to before.
   return opts?.presenter ? `${withVerbalCapture}\n${buildRealtorDiscoveryLayer(pack)}` : withVerbalCapture;
