@@ -130,7 +130,7 @@ describe('segment routing', () => {
   });
 });
 
-describe('demo-site opening (revised delta a + disclaimer ownership, owner 2026-11-09 20:58–21:00)', () => {
+describe('demo-site opening (revised delta a, owner 2026-11-09 20:58–21:00; disclaimer placement superseded by owner 2026-11-15)', () => {
   test('three standard variants rotate exactly one approved statistic each', () => {
     expect(DEMO_SITE_GREETING_VARIANTS).toHaveLength(3);
     expect(DEMO_SITE_STAT_LINES).toHaveLength(3);
@@ -145,7 +145,7 @@ describe('demo-site opening (revised delta a + disclaimer ownership, owner 2026-
     expect(DEMO_SITE_STAT_LINES[1]).toContain('78% of 1,000 U.S. consumers said they had abandoned a business');
     expect(DEMO_SITE_STAT_LINES[2]).toContain("67% of callers hang up the moment they can't reach a real person");
   });
-  test('every standard variant: welcome → pitch → comfort → Sara intro LAST, and NO spoken disclaimer from Aspen', () => {
+  test('every standard variant: welcome → disclaimer ONCE → pitch → comfort → Sara intro LAST (owner, 2026-11-15)', () => {
     for (const greeting of DEMO_SITE_GREETING_VARIANTS) {
       expect(greeting).toContain('thanks for trying the demo I built for {businessName}');
       expect(greeting).toContain('your partner for growth');
@@ -154,8 +154,10 @@ describe('demo-site opening (revised delta a + disclaimer ownership, owner 2026-
       expect(greeting).toContain('a live avatar just like me can be on your website');
       expect(greeting).toContain(DEMO_SITE_COMFORT_LINE);
       expect(greeting.endsWith(DEMO_SITE_SARA_INTRO)).toBe(true);
-      expect(greeting).not.toContain(DEMO_NOT_TOUCHED_REASSURANCE);
-      expect(greeting).not.toContain("haven't touched your website or your server");
+      // The disclaimer is the host's, said once, at the very beginning.
+      expect(greeting).toContain(DEMO_NOT_TOUCHED_REASSURANCE);
+      expect(greeting).toContain("haven't touched your website or your server");
+      expect(greeting.split(DEMO_NOT_TOUCHED_REASSURANCE).length - 1).toBe(1);
       // No Alex cameo in the opening: his name appears only in the comfort line.
       expect(greeting.split('Alex').length - 1).toBe(1);
     }
@@ -170,7 +172,8 @@ describe('demo-site opening (revised delta a + disclaimer ownership, owner 2026-
       expect(greeting).toContain('{nameConfirm}');
       expect(greeting).toContain('your partner for growth');
       expect(greeting.endsWith(DEMO_SITE_SARA_INTRO)).toBe(true);
-      expect(greeting).not.toContain(DEMO_NOT_TOUCHED_REASSURANCE);
+      expect(greeting).toContain(DEMO_NOT_TOUCHED_REASSURANCE);
+      expect(greeting.split(DEMO_NOT_TOUCHED_REASSURANCE).length - 1).toBe(1);
       // The channel is never named (word-boundary: "voicemail" in the
       // 85% statistic is obviously not the channel).
       expect(greeting).not.toContain('Facebook');
@@ -196,14 +199,15 @@ describe('demo-site opening (revised delta a + disclaimer ownership, owner 2026-
     expect(src).toContain('SIMULATION_GREETING_LEGACY_SLIM');
     expect(src).toContain('DEMO_INVITE_GREETING_LEGACY_SLIM');
   });
-  test("Sara's first in-simulation beat carries the disclaimer (all three clauses + public pages)", () => {
-    expect(SIMULATION_RECEPTIONIST_SEGMENT).toContain('THE HONESTY NOTE');
-    expect(SIMULATION_RECEPTIONIST_SEGMENT).toContain("this is a mock-up layered over a copy of your site — we haven't touched your website or your server");
-    expect(SIMULATION_RECEPTIONIST_SEGMENT).toContain('built only from your public pages');
-    // The doorway swap opening directs the same order: greeting → honesty note → overview.
+  test("Sara's in-simulation beats carry NO disclaimer — it was already given once by the host (owner, 2026-11-15)", () => {
+    expect(SIMULATION_RECEPTIONIST_SEGMENT).toContain('NO DISCLAIMER IN ROLE');
+    expect(SIMULATION_RECEPTIONIST_SEGMENT).not.toContain('THE HONESTY NOTE');
+    expect(SIMULATION_RECEPTIONIST_SEGMENT).not.toContain("quick honesty note: this is a mock-up layered over a copy of your site");
+    // The doorway swap opening directs the same order: greeting → site
+    // confirmation → overview, with the no-repeat rule named between.
     const doorway = swapOpeningInstruction({ to: 'sara', boundary: 'doorway' }, RECAP);
-    expect(doorway).toContain('honesty note');
-    expect(doorway.indexOf('honesty note')).toBeLessThan(doorway.indexOf('business overview'));
+    expect(doorway).toContain('NEVER repeat it in role');
+    expect(doorway.indexOf('NEVER repeat it in role')).toBeLessThan(doorway.indexOf('business overview'));
   });
   test('the close gains exactly one homepage invitation line', () => {
     const line = "visit aihiddenleads.com — there's more we can do to help you grow than one demo can show";

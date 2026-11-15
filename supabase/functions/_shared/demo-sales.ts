@@ -19,10 +19,12 @@ export const DEMO_VERIFICATION_GREETING = '{timeGreeting}, {visitorFirstName}. I
 // line → Sara introduction — with the welcome adapted to the invite:
 // thanks for accepting the invitation (the channel is never named),
 // the pre-built demo already loaded, and the {nameConfirm} identity
-// check folded in right after the welcome. Like the standard variant,
-// Aspen speaks NO not-touched disclaimer here anymore: Sara owns the
-// spoken honesty note at the simulation entry (voice-config beat 4b).
-export const DEMO_INVITE_GREETING_VARIANTS: string[] = DEMO_SITE_STAT_LINES.map(statLine => '{timeGreeting}, {visitorFirstName}. I am Aspen from AI Hidden Leads. Thanks for accepting the invitation — the demo I built for {businessName} is already loaded on your website, right here on this page, so there is no waiting. {nameConfirm} ' + demoSitePitch(statLine) + ' ' + DEMO_SITE_COMFORT_LINE + ' ' + DEMO_SITE_SARA_INTRO);
+// check folded in right after the welcome. Disclaimer placement
+// (owner decision, 2026-11-15, superseding 2026-11-09): the
+// not-touched disclaimer is said ONCE, here in the host greeting —
+// the in-role honesty note at the simulation entry was removed
+// (see voice-config SIMULATION_RECEPTIONIST_SEGMENT beat 4b).
+export const DEMO_INVITE_GREETING_VARIANTS: string[] = DEMO_SITE_STAT_LINES.map(statLine => '{timeGreeting}, {visitorFirstName}. I am Aspen from AI Hidden Leads. Thanks for accepting the invitation — the demo I built for {businessName} is already loaded on your website, right here on this page, so there is no waiting. ' + DEMO_NOT_TOUCHED_REASSURANCE + ' {nameConfirm} ' + demoSitePitch(statLine) + ' ' + DEMO_SITE_COMFORT_LINE + ' ' + DEMO_SITE_SARA_INTRO);
 export const DEMO_INVITE_GREETING = DEMO_INVITE_GREETING_VARIANTS[0];
 /** Tonight's live invite greeting, preserved for the flags-off path
  *  (see SIMULATION_GREETING_LEGACY_SLIM in voice-config.ts). */
