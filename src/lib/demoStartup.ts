@@ -135,6 +135,45 @@ export const resolveConsentCoveredRoute = (
   shouldUseConsentCoveredRoute(probeConsentDetected, requiresBrowserFallback, isWebsiteUnreachable);
 
 /**
+ * FORCED COVERED VIEW (Ray Miramontes fix, 2026-11-15).
+ *
+ * The consent-covered route exists for sites whose raw iframe WOULD
+ * load but must not be shown (an undismissable banner). One verified
+ * case fits neither that route nor the blocked chain:
+ * mira-realestate.com. check-iframe-embed's server-side fetch gets a
+ * 200 with no framing headers, so the probe reports the site
+ * EMBEDDABLE — but real browser navigation is refused (verified in
+ * desktop and mobile browser contexts: HTTP 403 /
+ * ERR_BLOCKED_BY_RESPONSE), the frame lands on the browser's error
+ * page, and Chrome fires the iframe's `load` event for that error
+ * page. DemoSite's onLoad therefore marks the iframe loaded, which
+ * disarms the 8-second blocked watchdog AND blocks the screenshot
+ * fallback (it requires `!hasIframeLoaded`) — every visitor saw the
+ * error page, indefinitely, with a real stored screenshot sitting
+ * unused on the lead.
+ *
+ * Like the consent route, the primary witness cannot be the live
+ * probe — the probe is exactly the thing that is wrong here. The
+ * witness is the stored pin: `force_covered_view` on the lead
+ * record, asserted from the pinned map by refresh-example-leads
+ * (forceCoveredView, ray-miramontes only). A stored TRUE outranks
+ * the probe ENTIRELY — the `probeEmbeddable` parameter is accepted
+ * precisely to pin that it can never outrank the record: embeddable
+ * is the verdict that caused the bug. When the stored flag is true,
+ * DemoSite never renders the raw iframe at all and presents the
+ * covered screenshot view from the start.
+ *
+ * This is a PRESENTATION pin, not a consent pin: it asserts nothing
+ * about banners, is stored in its own column, and never reads or
+ * writes the consent flags. With no stored TRUE, routing is exactly
+ * as before for every site.
+ */
+export const resolveForcedCoveredView = (
+  storedForceCoveredView: boolean,
+  probeEmbeddable: boolean,
+) => storedForceCoveredView === true;
+
+/**
  * Whether to start the Browserbase live view at all. The blocked /
  * mixed-content fallback keeps its screenshot cost rule
  * (shouldStartRemotePreview). The consent-covered route starts the

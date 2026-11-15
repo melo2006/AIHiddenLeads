@@ -16,7 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { preloadVoiceIdentity } from "@/lib/voicePreload";
 import { linkCampaignLead } from "@/lib/campaignTracking";
-import { canPresentRawIframe, isCapturedCopyPreview, resolveConsentCoveredRoute, shouldHoldLoadingOverlay, shouldStartLiveView, shouldWaitForFreshLeadData, SCREENSHOT_LOAD_TIMEOUT_MS, LIVE_VIEW_LOAD_TIMEOUT_MS, PINNED_REVEAL_DEADLINE_MS } from "@/lib/demoStartup";
+import { canPresentRawIframe, isCapturedCopyPreview, resolveConsentCoveredRoute, resolveForcedCoveredView, shouldHoldLoadingOverlay, shouldStartLiveView, shouldWaitForFreshLeadData, SCREENSHOT_LOAD_TIMEOUT_MS, LIVE_VIEW_LOAD_TIMEOUT_MS, PINNED_REVEAL_DEADLINE_MS } from "@/lib/demoStartup";
 import { pinnedExampleSeedForLeadId } from "@/lib/pinnedExampleSeed";
 import { explicitUiLocale, normalizeUiLocale } from "@/lib/uiLocale";
 import DemoVerificationGate from "@/components/landing/demo-results/DemoVerificationGate";
@@ -219,6 +219,7 @@ type DemoLeadRecord = Partial<{
   consent_banner_seen: boolean | null;
   consent_banner_dismissed: boolean | null;
   website_language: string | null;
+  force_covered_view: boolean | null;
 }>;
 
 const asBrandColors = (value: unknown) =>
@@ -255,6 +256,13 @@ const mergeLeadRecordIntoDemoData = (record: DemoLeadRecord, current: DemoLeadDa
   // not carry the column yet (pre-migration RPC) simply leaves the
   // current value alone.
   consentBannerSeen: record.consent_banner_seen === true || current.consentBannerSeen || undefined,
+  // Forced covered view (Ray Miramontes fix, 2026-11-15): sticky-true
+  // within a visit, same shape as the consent flag — once the stored
+  // record says this lead's site refuses real browser framing, the
+  // demo stays on the covered screenshot view; a record that does not
+  // carry the column yet (pre-migration RPC) simply leaves the current
+  // value alone. A presentation fact only; unrelated to consent.
+  forceCoveredView: record.force_covered_view === true || current.forceCoveredView || undefined,
   // Detected site language (Publish #66): first recorded verdict wins for
   // the session; a record without the column (pre-migration RPC) leaves
   // the current value alone.
@@ -899,8 +907,16 @@ const DemoSite = () => {
       requiresBrowserFallback,
       iframeFailureMode === "unreachable",
     );
+    // Forced covered view (Ray Miramontes fix, 2026-11-15): the raw
+    // iframe is never rendered for a flagged lead, so for the
+    // live-view cost rule the lead counts as needing the fallback —
+    // the stored screenshot still gates the start (a screenshot that
+    // exists and loads is enough, no session is spent), and only a
+    // failed/absent screenshot releases a Browserbase session, the
+    // same rule blocked sites follow.
+    const fallbackNeeded = requiresBrowserFallback || leadData?.forceCoveredView === true;
 
-    if (!shouldStartLiveView(requiresBrowserFallback, Boolean(screenshotSrc), hasScreenshotFailed, consentCoveredRoute) || liveViewUrl || liveViewFailed) return;
+    if (!shouldStartLiveView(fallbackNeeded, Boolean(screenshotSrc), hasScreenshotFailed, consentCoveredRoute) || liveViewUrl || liveViewFailed) return;
     if (liveViewInFlightRef.current === homepageUrl) return;
 
     liveViewInFlightRef.current = homepageUrl;
@@ -949,7 +965,7 @@ const DemoSite = () => {
     };
 
     void startLiveView();
-  }, [consentDetected, hasScreenshotFailed, iframeBlocked, iframeFailureMode, leadData?.consentBannerSeen, leadData?.websiteUrl, liveViewFailed, liveViewUrl, resolvedIframeUrl, screenshotSrc]);
+  }, [consentDetected, hasScreenshotFailed, iframeBlocked, iframeFailureMode, leadData?.consentBannerSeen, leadData?.forceCoveredView, leadData?.websiteUrl, liveViewFailed, liveViewUrl, resolvedIframeUrl, screenshotSrc]);
 
   // A live view session that was created but whose iframe never loads
   // (stalled Browserbase page, blocked third-party frame) must not
@@ -1035,12 +1051,17 @@ const DemoSite = () => {
     // scan flag — exempts the site: on the covered route the raw
     // iframe is deliberately unmounted while the covered view starts.
     if ((consentDetected || leadData?.consentBannerSeen === true) && iframeFailureMode === null) return;
+    // Forced covered view (Ray Miramontes fix, 2026-11-15): the raw
+    // iframe is deliberately never mounted for a flagged lead, so
+    // "iframe never loaded" is the expected state, not a slow iframe
+    // — the watchdog must not reclassify the site as probe-blocked.
+    if (leadData?.forceCoveredView === true) return;
     const timer = window.setTimeout(() => {
       setIframeBlocked(true);
       setIframeFailureMode("blocked");
     }, 8000);
     return () => window.clearTimeout(timer);
-  }, [consentDetected, leadData?.consentBannerSeen, isScanning, isIframeCheckPending, iframeBlocked, iframeFailureMode, hasIframeLoaded, resolvedIframeUrl]);
+  }, [consentDetected, leadData?.consentBannerSeen, leadData?.forceCoveredView, isScanning, isIframeCheckPending, iframeBlocked, iframeFailureMode, hasIframeLoaded, resolvedIframeUrl]);
 
   const maskGateEmail = (email?: string) => {
     if (!email) return "your email";
@@ -1156,8 +1177,20 @@ const DemoSite = () => {
     requiresBrowserFallback,
     isWebsiteUnreachable,
   );
+  // Forced covered view (Ray Miramontes fix, 2026-11-15): the stored
+  // pin outranks the embed probe entirely — even an "embeddable"
+  // verdict, which for mira-realestate.com only meant the probe's
+  // server-side fetch succeeded while real browsers are refused. On
+  // this route the raw iframe is never rendered (its error page
+  // would fire load and disarm the fallback) and the covered
+  // screenshot view is the presentation from the start. See
+  // resolveForcedCoveredView in demoStartup.ts.
+  const forceCoveredView = resolveForcedCoveredView(
+    leadData?.forceCoveredView === true,
+    iframeFailureMode === null && !iframeBlocked,
+  );
   const canRenderInlineIframe = Boolean(
-    resolvedIframeUrl && !isIframeCheckPending && !requiresBrowserFallback && !isWebsiteUnreachable,
+    resolvedIframeUrl && !isIframeCheckPending && !requiresBrowserFallback && !isWebsiteUnreachable && !forceCoveredView,
   ) && canPresentRawIframe(consentCoveredRoute, liveViewFailed);
   const isGeneratedScreenshot = typeof screenshotSrc === "string" && screenshotSrc.startsWith("data:image/svg+xml");
   const isLivePreviewReady = Boolean(liveViewUrl && hasLiveViewLoaded && !isGeneratedScreenshot);
@@ -1169,12 +1202,18 @@ const DemoSite = () => {
   // placeholder is generated by us, not a capture of their site.
   const showCapturedCopyNote = Boolean(
     !isGeneratedScreenshot &&
-    isCapturedCopyPreview(iframeFailureMode, Boolean(screenshotSrc), hasScreenshotFailed, isLivePreviewReady),
+    (isCapturedCopyPreview(iframeFailureMode, Boolean(screenshotSrc), hasScreenshotFailed, isLivePreviewReady) ||
+      // Forced covered view: the demo runs on the captured copy for
+      // the same reason (the site's security refuses a live replica
+      // in a real browser), so it earns the same honest note even
+      // though the probe never recorded a "blocked" verdict.
+      (forceCoveredView && Boolean(screenshotSrc) && !hasScreenshotFailed && !isLivePreviewReady)),
   );
   const hasScreenshotAsset = Boolean(screenshotSrc);
   const isStaticPreviewReady = hasScreenshotAsset && hasScreenshotLoaded;
-  const shouldShowScreenshotFallback = hasScreenshotAsset && (isWebsiteUnreachable || requiresBrowserFallback || !hasIframeLoaded);
+  const shouldShowScreenshotFallback = hasScreenshotAsset && (forceCoveredView || isWebsiteUnreachable || requiresBrowserFallback || !hasIframeLoaded);
   const isInlinePreviewLoading =
+    !forceCoveredView &&
     !requiresBrowserFallback &&
     !isWebsiteUnreachable &&
     (isIframeCheckPending || !hasIframeLoaded) && !isStaticPreviewReady;
@@ -1352,7 +1391,7 @@ const DemoSite = () => {
             live view fades in over it. Once the covered view has failed and
             the last-resort raw iframe has loaded, the container steps aside
             (!hasIframeLoaded) so no empty full-height block trails the page. */}
-        {(requiresBrowserFallback || shouldShowScreenshotFallback || (consentCoveredRoute && !hasIframeLoaded)) && (
+        {(requiresBrowserFallback || shouldShowScreenshotFallback || forceCoveredView || (consentCoveredRoute && !hasIframeLoaded)) && (
           <div className="relative min-h-[calc(100dvh-4.5rem)]">
             {shouldShowScreenshotFallback && screenshotSrc && (
               <div className="relative mx-auto w-full max-w-[1600px]">
@@ -1384,7 +1423,7 @@ const DemoSite = () => {
               </div>
             )}
 
-            {(requiresBrowserFallback || consentCoveredRoute) && liveViewUrl && !isGeneratedScreenshot && (consentCoveredRoute || !hasScreenshotAsset || hasScreenshotFailed) && (
+            {(requiresBrowserFallback || consentCoveredRoute || forceCoveredView) && liveViewUrl && !isGeneratedScreenshot && (consentCoveredRoute || !hasScreenshotAsset || hasScreenshotFailed) && (
               <iframe
                 src={liveViewUrl}
                 className={`absolute inset-0 h-full w-full border-0 transition-opacity duration-300 ${hasLiveViewLoaded ? "opacity-100" : "opacity-0"}`}
