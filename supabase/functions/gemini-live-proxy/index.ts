@@ -15,6 +15,7 @@ import { capturedContactFromUnknown, capturedContactBlock, mergeCapturedContact,
 import { freshConsentAskState, syncConsentAskState, consentAskTurnDecision, CONSENT_ASK_TOOL_DIRECTIVE, CONSENT_ASK_NUDGE, CONSENT_RECORD_NUDGE, type ConsentAskState } from '../_shared/consent-ask.ts'
 import { armCaptureGateFromRecap, captureGateDirective, captureGateRecordDirective, captureGateTurnDecision, freshCaptureGateState, noteVisitorUtterance, spellbackCorrectionNudge, type CaptureGateState } from '../_shared/capture-gate.ts'
 import { armDiscoveryGate, budgetBracketDirective, budgetRecapDirective, discoveryGateTurnDecision, freshDiscoveryGateState, greetingOnceDirective, nameKnownDirective, nameReleaseDirective, seedNameFromFacts, shortGateDirective, shortGatePurposeDirective, type DiscoveryGateState } from '../_shared/discovery-gate.ts'
+import { armSalesGateFromRecap, earlyAskDirective, endAskDirective, freshSalesGateState, noRepeatDirective, salesGateTurnDecision, type SalesGateState } from '../_shared/sales-gate.ts'
 import { followupAlert, visitorFollowup, trySend } from '../_shared/hostinger-mail.ts'
 import { DEFAULT_LIVE_MODEL, officialLivePricing } from '../_shared/live-models.ts'
 import { callReview } from '../_shared/call-review.ts'
@@ -141,6 +142,14 @@ Deno.serve(async (req) => {
   // segment is a continuation fronted by another persona, while the
   // discovery arc (and its gate) belongs to the presenter parent.
   const presenterDiscoverySession = presenterFarewellSession && config.personaSegment == null
+  // SALES CAPTURE GATE scope (Publish #79 — see _shared/sales-gate.ts):
+  // homepage-sales sessions only, and never a simulation — presenter
+  // discovery sessions are simulations (Frank's step-2 capture is
+  // Ron's approved design and out of scope), persona segments are
+  // continuations of one, and the demo step-out's capture timing is
+  // carried by DEMO_SALES_POLICY prose plus the close script's own
+  // one-ask discipline.
+  const salesGateSession = config.homepageSales === true && config.simulation !== true
   // Voice-asked manager transfer (Batch 1, Fix 3): available on exactly
   // the sessions gemini-session issues a browser-handoff capability
   // for — a valid saved transfer destination, not a preview, not a
@@ -251,6 +260,17 @@ Deno.serve(async (req) => {
       visitorContactName: (config.visitorContact as { name?: unknown } | null | undefined)?.name,
     }),
   })
+  // SALES CAPTURE GATE (Publish #79 — see _shared/sales-gate.ts):
+  // on homepage-sales sessions the proxy keeps its own ledger of
+  // the capture timing Ron set on 2026-11-15 — interest shown,
+  // close reached, the one end-ask spent or declined, contact
+  // already held — because the sales prompts alone let Aspen ask
+  // for email and phone during qualification (the demo bridge's
+  // old step 2) and at every send offer (the contact-claim rule's
+  // old same-breath ask). Seeded from this session's recap and the
+  // durable captured-contact store, exactly like the gates above;
+  // inert on every session salesGateSession does not cover.
+  let salesGate: SalesGateState = armSalesGateFromRecap(freshSalesGateState(), String(config.resumeContext || ''), capturedContact)
   // Stamp the merged facts back onto this session's row config (the
   // teamIntroSeen pattern): a successor session — reconnect, swap
   // segment, return — reads them from the row, so a dropped call
@@ -995,6 +1015,35 @@ Deno.serve(async (req) => {
                           : discoveryDecision.inject === 'budget-recap'
                             ? budgetRecapDirective(discoveryGate.budgetBanked)
                             : greetingOnceDirective()
+                geminiWs?.send(JSON.stringify({clientContent:{turns:[{role:'user',parts:[{text}]}],turnComplete:true}}))
+              }
+            }
+            // SALES CAPTURE GATE (Publish #79): judge the completed
+            // turn against the sales capture-timing ledger. This
+            // runs AFTER the capture gate and the consent ask, on
+            // its own state, and changes nothing they decide: the
+            // fold and the observations land at every boundary on
+            // sales sessions, while the injection stands down on
+            // any boundary that is blocked on the capture gate's
+            // terms OR where the capture gate or the consent ask
+            // already injected — directives never stack. (Presenter
+            // discovery sessions never reach this block: they are
+            // simulations, and salesGateSession excludes them.)
+            if (salesGateSession) {
+              const salesDecision = salesGateTurnDecision({
+                state: salesGate,
+                contact: capturedContact,
+                modelTurnText: completedModelTurn,
+                visitorUtterance: completedUtterance,
+                blocked: preview || farewellHandled || farewellTimer !== undefined || managerTransferRequested || pendingActions.size > 0 || gateInjected || consentInjected,
+              })
+              salesGate = salesDecision.state
+              if (salesDecision.inject) {
+                const text = salesDecision.inject === 'early-ask'
+                  ? earlyAskDirective(salesGate.earlyAskCorrections >= 2)
+                  : salesDecision.inject === 'end-ask'
+                    ? endAskDirective()
+                    : noRepeatDirective(salesGate.repeatCorrections >= 2)
                 geminiWs?.send(JSON.stringify({clientContent:{turns:[{role:'user',parts:[{text}]}],turnComplete:true}}))
               }
             }
