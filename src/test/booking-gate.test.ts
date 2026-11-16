@@ -23,6 +23,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   BOOKING_GATE_MAX_FIRES,
+  advanceDirective,
   bookingGateTurnDecision,
   commitmentDirective,
   completeDirective,
@@ -41,6 +42,7 @@ const base = {
   visitorUtterance: '',
   calendarChecked: false,
   bookingCompleted: false,
+  contactHeld: false,
   cardPresented: false,
   blocked: false,
 };
@@ -149,6 +151,30 @@ describe('bookingGateTurnDecision — the ledger at work', () => {
     expect(r.stern).toBe(true);
   });
 
+  it('orders the card chain when contact is held and no card was presented (the B1 stall)', () => {
+    let s = freshBookingGateState();
+    // Turn 1: the visitor asks to book — intent arms, no contact yet.
+    let r = run(s, { visitorUtterance: 'Can you call me tomorrow at 3?', modelTurnText: 'Of course!' });
+    expect(r.inject).toBe('intent');
+    s = r.state;
+    // Turn 2: details given and verbally confirmed — the card chain
+    // must start now.
+    r = run(s, { visitorUtterance: "Yes, that's all correct.", modelTurnText: 'Great, let me note that down.', contactHeld: true });
+    expect(r.inject).toBe('advance');
+    expect(r.stern).toBe(false);
+    s = r.state;
+    // Turn 3: still no card — sterner.
+    r = run(s, { modelTurnText: 'So, about the weather in Fort Lauderdale…', contactHeld: true });
+    expect(r.inject).toBe('advance');
+    expect(r.stern).toBe(true);
+  });
+
+  it('advance stands down once any card is presented', () => {
+    const armed = run(freshBookingGateState(), { visitorUtterance: 'Please book me a call.' }).state;
+    const r = run(armed, { modelTurnText: 'One moment.', contactHeld: true, cardPresented: true });
+    expect(r.inject).toBe(null);
+  });
+
   it('orders completion when a checked slot is accepted but not booked', () => {
     const r = run(freshBookingGateState(), {
       visitorUtterance: 'Yes, 3:30 works.',
@@ -197,6 +223,12 @@ describe('directives — orders, not advice', () => {
     expect(commitmentDirective(false)).toContain('Never state a time that did not come from a tool result');
     expect(completeDirective()).toContain('request_platform_appointment');
   });
+
+  it('the advance directive names the card chain', () => {
+    expect(advanceDirective(false)).toContain('request_platform_followup');
+    expect(advanceDirective(false)).toContain('request_platform_appointment');
+    expect(advanceDirective(true)).toContain('get_availability');
+  });
 });
 
 describe('proxy wiring — source pins', () => {
@@ -221,5 +253,6 @@ describe('proxy wiring — source pins', () => {
     expect(decisionAt).toBeGreaterThan(src.indexOf('salesGateTurnDecision({'));
     expect(src).toContain('salesGateInjected');
     expect(src).toContain('|| gateInjected || consentInjected || salesGateInjected,');
+    expect(src).toContain('contactHeld: Boolean(capturedContact?.email && capturedContact?.phone),');
   });
 });

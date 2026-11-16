@@ -23,7 +23,12 @@
 //   - lets a visitor's booking intent sit un-acted-on — no check,
 //     no booking, conversation drifting on ('intent'), or
 //   - hears the visitor accept a slot after a check but still does
-//     not complete the booking ('complete').
+//     not complete the booking ('complete'), or
+//   - holds the visitor's confirmed contact details with a booking
+//     intent outstanding but never starts the confirmation-card
+//     chain — the only route to a completed booking, since book_call
+//     itself needs the card-confirmed contact ('advance'; harness
+//     session ebe6ca96 stalled exactly here).
 // Directives never stack with the capture/sales/consent gates: the
 // proxy passes `blocked` when any of them already injected at the
 // same boundary, and the debt survives to the next boundary.
@@ -40,6 +45,7 @@ export const BOOKING_GATE_MAX_FIRES = 5;
 const COMMITMENT_FIRES_CAP = 3;
 const INTENT_FIRES_CAP = 3;
 const COMPLETE_FIRES_CAP = 2;
+const ADVANCE_FIRES_CAP = 3;
 
 export interface BookingGateState {
   /** The visitor asked to book / agreed to a callback or meeting
@@ -54,6 +60,9 @@ export interface BookingGateState {
   intentFires: number;
   /** 'complete' orders injected. */
   completeFires: number;
+  /** 'advance' orders injected (contact held, no card on screen —
+   * the B1 stall: the card chain never started). */
+  advanceFires: number;
   /** Total directives injected this session. */
   fires: number;
 }
@@ -64,6 +73,7 @@ export const freshBookingGateState = (): BookingGateState => ({
   commitmentFires: 0,
   intentFires: 0,
   completeFires: 0,
+  advanceFires: 0,
   fires: 0,
 });
 
@@ -129,21 +139,27 @@ export function detectSlotAcceptance(text: string): boolean {
 
 export function commitmentDirective(stern: boolean): string {
   return stern
-    ? 'BOOKING GATE — FINAL ORDER. You named or confirmed an appointment time AGAIN without checking the real calendar. No booking exists, and inventing times is the one thing you must never do. In your next turn, FIRST call get_availability — or check_time if the visitor named an exact time — and offer ONLY the slots it returns. Then complete the booking in that same flow: present the on-screen appointment card (request_platform_appointment) once the contact details are confirmed, or book_call if the visitor will not use the screen. Do not state any time that did not come from a tool result.'
-    : 'BOOKING GATE — STOP. You just named or confirmed an appointment time without checking the real calendar, so no booking exists. In your next turn, FIRST call get_availability — or check_time if the visitor named an exact time — and offer ONLY the slots it returns. Then complete the booking: present the on-screen appointment card (request_platform_appointment) once the contact details are confirmed, or book_call if the visitor will not use the screen. Never state a time that did not come from a tool result.';
+    ? 'BOOKING GATE — FINAL ORDER. You named or confirmed an appointment time AGAIN without checking the real calendar. No booking exists, and inventing times is the one thing you must never do. In your next turn, FIRST call get_availability — or check_time if the visitor named an exact time — and offer ONLY the slots it returns. Then finish the chain in the same flow: call request_platform_followup to put the contact confirmation card on screen with the details the visitor confirmed; when they confirm it, call request_platform_appointment with the slot they picked (or book_call if they will not use the screen). Do not state any time that did not come from a tool result.'
+    : 'BOOKING GATE — STOP. You just named or confirmed an appointment time without checking the real calendar, so no booking exists. In your next turn, FIRST call get_availability — or check_time if the visitor named an exact time — and offer ONLY the slots it returns. Then finish the chain: call request_platform_followup to put the contact confirmation card on screen with the details the visitor confirmed; when they confirm it, call request_platform_appointment with the slot they picked (or book_call if they will not use the screen). Never state a time that did not come from a tool result.';
 }
 
 export function intentDirective(stern: boolean): string {
   return stern
-    ? 'BOOKING GATE — FINAL ORDER. The visitor asked to book and the booking STILL has not been acted on: no calendar check, no booking. Do it now, in your next turn: call get_availability (check_time if they named an exact time), offer only the returned slots, and complete the booking with the on-screen appointment card or book_call. Do not change the subject and do not say goodbye while a booking the visitor asked for is unfinished.'
-    : 'BOOKING GATE: The visitor wants to book / agreed to a call. Do not discuss, offer or confirm ANY time from memory. In your next turn, call get_availability — or check_time if they named an exact time — offer only the slots it returns, and complete the booking with the on-screen appointment card (request_platform_appointment) once contact details are confirmed, or book_call if the visitor will not use the screen.';
+    ? 'BOOKING GATE — FINAL ORDER. The visitor asked to book and the booking STILL has not been acted on: no calendar check, no booking. Do it now, in your next turn: call get_availability (check_time if they named an exact time), offer only the returned slots, then put the confirmation card on screen with request_platform_followup and, once they confirm, request_platform_appointment with their slot (or book_call if they will not use the screen). Do not change the subject and do not say goodbye while a booking the visitor asked for is unfinished.'
+    : 'BOOKING GATE: The visitor wants to book / agreed to a call. Do not discuss, offer or confirm ANY time from memory. In your next turn, call get_availability — or check_time if they named an exact time — offer only the slots it returns, then put the confirmation card on screen with request_platform_followup; when they confirm it, call request_platform_appointment with their slot (or book_call if they will not use the screen).';
 }
 
 export function completeDirective(): string {
-  return 'BOOKING GATE: The visitor accepted that slot, but the booking is still not completed — accepting is not booking. In your next turn, complete it now: present the on-screen appointment card (request_platform_appointment) with that exact slot, or call book_call with it if the visitor will not use the screen. Confirm the booking to the visitor only after the tool or the card confirms it.';
+  return 'BOOKING GATE: The visitor accepted that slot, but the booking is still not completed — accepting is not booking. In your next turn, complete it now: if their contact details are not yet confirmed on screen, call request_platform_followup first; then present the appointment card (request_platform_appointment) with that exact slot, or call book_call with it once the contact is confirmed. Confirm the booking to the visitor only after the tool or the card confirms it.';
 }
 
-export type BookingGateInjection = 'commitment' | 'intent' | 'complete' | null;
+export function advanceDirective(stern: boolean): string {
+  return stern
+    ? 'BOOKING GATE — FINAL ORDER. The visitor gave and confirmed their contact details and is waiting to be booked, and there is STILL no confirmation card on their screen. The booking cannot finish without it. In your next turn: if you have not checked the real calendar yet, call get_availability FIRST (check_time if they named an exact time); then call request_platform_followup NOW to put the contact confirmation card on screen. When the visitor confirms it, immediately call request_platform_appointment with the slot they picked. Do not say goodbye while this is unfinished.'
+    : 'BOOKING GATE: The visitor has given and confirmed their contact details and wants the booking, but no confirmation card is on their screen — the booking cannot finish without it. In your next turn: if you have not checked the real calendar yet, call get_availability first (check_time if they named an exact time); then call request_platform_followup to put the contact confirmation card on screen with the details they confirmed. When they confirm it, immediately call request_platform_appointment with the slot they picked.';
+}
+
+export type BookingGateInjection = 'commitment' | 'intent' | 'complete' | 'advance' | null;
 
 export interface BookingGateTurnInput {
   state: BookingGateState;
@@ -157,6 +173,10 @@ export interface BookingGateTurnInput {
   /** A booking has completed (book_call ok, or the appointment card
    * was confirmed). */
   bookingCompleted: boolean;
+  /** The visit already holds a captured email AND phone (the durable
+   * captured-contact store), so the confirmation card can be put on
+   * screen immediately. */
+  contactHeld: boolean;
   /** The appointment card has been presented and is in play. */
   cardPresented: boolean;
   /** Another gate already injected at this boundary, or the turn is
@@ -204,6 +224,25 @@ export function bookingGateTurnDecision(input: BookingGateTurnInput): BookingGat
       state.commitmentFires += 1;
       state.fires += 1;
       return { state, inject: 'commitment', stern: state.commitmentFires >= 2 };
+    }
+    return { state, inject: null, stern: false };
+  }
+
+  // 1b) The card-chain stall (harness session ebe6ca96, 2026-11-16):
+  //     intent armed and the visitor's contact details are held and
+  //     verbally confirmed, but no card was ever presented — every
+  //     later turn went silent and nothing booked. The card chain is
+  //     the only route to a completed booking (book_call itself needs
+  //     the card-confirmed contact), so order it started.
+  if (state.intentArmed && input.contactHeld) {
+    if (
+      !input.blocked &&
+      state.advanceFires < ADVANCE_FIRES_CAP &&
+      state.fires < BOOKING_GATE_MAX_FIRES
+    ) {
+      state.advanceFires += 1;
+      state.fires += 1;
+      return { state, inject: 'advance', stern: state.advanceFires >= 2 };
     }
     return { state, inject: null, stern: false };
   }

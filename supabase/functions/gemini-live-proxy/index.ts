@@ -17,7 +17,7 @@ import { freshConsentAskState, syncConsentAskState, consentAskTurnDecision, CONS
 import { armCaptureGateFromRecap, captureGateDirective, captureGateRecordDirective, captureGateTurnDecision, freshCaptureGateState, noteVisitorUtterance, spellbackCorrectionNudge, type CaptureGateState } from '../_shared/capture-gate.ts'
 import { armDiscoveryGate, budgetBracketDirective, budgetRangeDirective, budgetRecapDirective, discoveryGateTurnDecision, freshDiscoveryGateState, gateViolationDirective, greetingOnceDirective, nameKnownDirective, namePreemptDirective, nameReleaseDirective, recapCompletenessDirective, seedNameFromFacts, shortGateDirective, shortGatePurposeDirective, type DiscoveryGateState } from '../_shared/discovery-gate.ts'
 import { armSalesGateFromRecap, bundledOfferDirective, earlyAskDirective, endAskDirective, endAskPreArmDirective, freshSalesGateState, noRepeatDirective, salesGatePreAnswerDecision, salesGateTurnDecision, salesSilenceHoldText, shareAngleCompletionDirective, type SalesGateState } from '../_shared/sales-gate.ts'
-import { bookingGateTurnDecision, commitmentDirective, completeDirective, freshBookingGateState, intentDirective, type BookingGateState } from '../_shared/booking-gate.ts'
+import { advanceDirective, bookingGateTurnDecision, commitmentDirective, completeDirective, freshBookingGateState, intentDirective, type BookingGateState } from '../_shared/booking-gate.ts'
 import { followupAlert, visitorFollowup, trySend } from '../_shared/hostinger-mail.ts'
 import { DEFAULT_LIVE_MODEL, officialLivePricing } from '../_shared/live-models.ts'
 import { callReview } from '../_shared/call-review.ts'
@@ -1137,6 +1137,7 @@ Deno.serve(async (req) => {
                 visitorUtterance: completedUtterance,
                 calendarChecked: bookingGateTools.calendarChecked,
                 bookingCompleted: bookingGateTools.bookingCompleted,
+                contactHeld: Boolean(capturedContact?.email && capturedContact?.phone),
                 cardPresented: bookingGateTools.cardPresented,
                 blocked: preview || farewellHandled || farewellTimer !== undefined || managerTransferRequested || pendingActions.size > 0 || gateInjected || consentInjected || salesGateInjected,
               })
@@ -1146,7 +1147,9 @@ Deno.serve(async (req) => {
                   ? commitmentDirective(bookingDecision.stern)
                   : bookingDecision.inject === 'intent'
                     ? intentDirective(bookingDecision.stern)
-                    : completeDirective()
+                    : bookingDecision.inject === 'advance'
+                      ? advanceDirective(bookingDecision.stern)
+                      : completeDirective()
                 geminiWs?.send(JSON.stringify({clientContent:{turns:[{role:'user',parts:[{text}]}],turnComplete:true}}))
               }
             }
