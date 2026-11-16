@@ -28,18 +28,25 @@ import {
   SALES_GATE_END_ASK_TOTAL_FIRES,
   SALES_GATE_MAX_FIRES,
   armSalesGateFromRecap,
+  bundledOfferDirective,
   classifyModelAsk,
   detectAskDecline,
   detectCloseSignal,
   detectInterestSignal,
+  detectOfferAcceptance,
   earlyAskDirective,
   endAskDirective,
+  endAskPreArmDirective,
   freshSalesGateState,
   noRepeatDirective,
+  salesGatePreAnswerDecision,
   salesGateTurnDecision,
+  salesSilenceHoldText,
+  shareAngleCompletionDirective,
   turnAsksForContact,
   turnBeginsClose,
   turnCollectsBookingContact,
+  turnHasShareAngle,
   turnMakesSendOffer,
   type SalesGateState,
 } from '../../supabase/functions/_shared/sales-gate';
@@ -80,6 +87,12 @@ const EARLY_ASK_MODEL = "While that loads, let me grab a couple of details — w
 const INTEREST_VISITOR = 'Okay, that sounds good. How much does it cost?';
 const PRICE_ANSWER_MODEL = 'Premium is $99 a month — 400 voice minutes included, and the video avatar is free for the first month.';
 const END_ASK_MODEL = "Before you go — I can send you the link to this demo so you can replay it, plus a copy of our conversation, something you can pass to your manager or the owner. What's the best email for that?";
+// Publish #84: the scripted step-6 offer STANDING ALONE — the
+// send-offer with the share angle and NO destination ask in the
+// turn. Under the offer → yes → collect sequence this, not
+// END_ASK_MODEL, is the compliant delivery shape.
+const PURE_OFFER_MODEL = "Before we talk calls and setup — let me send you something you can actually use: the link to this demo so you can replay it, a copy of this conversation, or a follow-up from the team — something you can pass to your manager, a colleague, or the owner.";
+const ACCEPT_VISITOR = 'Email is best — go ahead.';
 const DECLINE_VISITOR = 'No thanks — not right now.';
 const VOLUNTEER_VISITOR = 'Actually, just take my email now — it is tony dot test at example dot com.';
 const VOLUNTEER_MODEL = "Perfect, let me read that back: t, o, n, y, dot, t, e, s, t, at example dot com. Did I get that right?";
@@ -196,17 +209,43 @@ describe('Publish #79 — (b) the end-ask fires on interest/close, framed as a s
     expect(r.state.askFired).toBe(true);
     expect(r.state.endAskFires).toBe(1);
     expect(r.state.endAskRepeat).toBe(false); // the standard variant fires first
-    // The ordered delivery on the next turn is compliance, not a repeat.
-    const delivered = boundary(r.state, 'Sure.', END_ASK_MODEL);
+    // Publish #84 REWRITE (in place, justified): pre-#84 this pin
+    // treated END_ASK_MODEL — an offer and its destination ask in
+    // ONE turn — as the ordered delivery, discharged on the spot.
+    // Fix 3a redefines that shape: collection bundled into the
+    // offer turn, before any acceptance, is the bundled-offer
+    // violation class, and Ron's scripted sequence (Publish #83
+    // step 6) is offer → yes → collect. The ordered turn is now
+    // recorded as an outstanding BUNDLED offer — nothing injects
+    // at its own boundary (the correction waits for the visitor's
+    // response) and the end-ask is NOT discharged…
+    const bundled = boundary(r.state, 'Sure.', END_ASK_MODEL);
+    expect(bundled.inject).toBeNull();
+    expect(bundled.state.askDelivered).toBe(false);
+    expect(bundled.state.offerOutstanding).toBe(true);
+    expect(bundled.state.offerBundled).toBe(true);
+    // …until the visitor accepts and the collection follows as
+    // the ritual's first step: THAT is the delivery now.
+    const delivered = boundary(bundled.state, 'Email is best — go ahead.', "Perfect — what's the best email address for that?");
     expect(delivered.inject).toBeNull();
     expect(delivered.state.askDelivered).toBe(true);
+    expect(delivered.state.offerAccepted).toBe(false); // consumed by the delivery
   });
 
-  it('when the model makes the end-ask itself on interest, the gate spends it silently', () => {
+  // Publish #84 REWRITE (in place, justified): END_ASK_MODEL is an
+  // offer with its destination ask in the same turn. Pre-#84 the
+  // gate "spent it silently" as delivered; under fix 3a's
+  // bundled-offer class it is recorded as an outstanding bundled
+  // offer instead — unspent until the visitor accepts and the
+  // sequence completes (see the Publish #84 suites below).
+  it('when the model makes the end-ask itself on interest, the gate records the bundled offer silently', () => {
     const r = boundary(freshSalesGateState(), INTEREST_VISITOR, END_ASK_MODEL);
     expect(r.inject).toBeNull();
-    expect(r.state.askFired).toBe(true);
-    expect(r.state.askDelivered).toBe(true);
+    expect(r.state.askFired).toBe(false);
+    expect(r.state.askDelivered).toBe(false);
+    expect(r.state.offerOutstanding).toBe(true);
+    expect(r.state.offerBundled).toBe(true);
+    expect(r.state.offerAngleMissing).toBe(false); // END_ASK_MODEL carries the share angle
   });
 
   // Publish #81 REWRITE (in place, justified): #79 allowed the
@@ -269,10 +308,16 @@ describe('Publish #79 — (b) the end-ask fires on interest/close, framed as a s
 describe('Publish #79 — (c) decline → no repeat', () => {
   it('after the ask is declined, a re-ask earns the no-repeat order and no end-ask ever fires again', () => {
     let s = freshSalesGateState();
-    s = boundary(s, INTEREST_VISITOR, END_ASK_MODEL).state; // model asked on interest
-    expect(s.askFired).toBe(true);
+    // Publish #84: END_ASK_MODEL is a bundled offer now — the ask
+    // is not "fired" until the visitor's response settles it.
+    s = boundary(s, INTEREST_VISITOR, END_ASK_MODEL).state; // model offered (bundled) on interest
+    expect(s.offerBundled).toBe(true);
+    expect(s.askFired).toBe(false);
     let r = boundary(s, DECLINE_VISITOR, 'No problem at all — happy to keep going without it.');
     expect(r.inject).toBeNull();
+    // The decline of the offer spends the one ask (the offer IS
+    // the ask in substance): askFired lands HERE, at the decline.
+    expect(r.state.askFired).toBe(true);
     expect(r.state.askDeclined).toBe(true);
     s = r.state;
     r = boundary(s, 'What about the video avatar part?', "Sure — and quickly, what's your email so I can send that over?");
@@ -283,10 +328,19 @@ describe('Publish #79 — (c) decline → no repeat', () => {
     expect(again.inject).toBeNull();
   });
 
+  // Publish #84 REWRITE (in place, justified): the delivery in
+  // the setup now runs the scripted sequence — the offer
+  // standing alone, the visitor's acceptance, then the
+  // collection — because END_ASK_MODEL (offer + ask in one
+  // turn) is the bundled shape and no longer delivers. The
+  // pin's ruling is unchanged: a further ask after a completed
+  // ask is nagging and earns the no-repeat order.
   it('a repeat ask with no explicit decline is still nagging and earns the same order', () => {
     let s = freshSalesGateState();
     s = boundary(s, INTEREST_VISITOR, PRICE_ANSWER_MODEL).state; // gate ordered the end-ask
-    s = boundary(s, 'Sure.', END_ASK_MODEL).state; // delivered
+    s = boundary(s, 'Sure.', PURE_OFFER_MODEL).state; // the offer, standing alone
+    s = boundary(s, ACCEPT_VISITOR, "Perfect — what's the best email address for that?").state; // accepted → collected: delivered
+    expect(s.askDelivered).toBe(true);
     const r = boundary(s, 'Let me think about it.', "Of course — and what's the best mobile number, just so we can follow up?");
     expect(r.inject).toBe('no-repeat');
   });
@@ -501,8 +555,13 @@ describe('Publish #81 — the #79 verification failure (S2), replayed turn for t
     expect(r.inject).toBe('end-ask');
     expect(r.state.endAskRepeat).toBe(true);
     expect(r.state.askDelivered).toBe(false);
-    // Compliance after the sterner order discharges the debt.
-    const delivered = boundary(r.state, 'Sure.', END_ASK_MODEL);
+    // Publish #84: compliance after the sterner order now runs
+    // the scripted sequence — the offer standing alone, then
+    // the visitor's yes, then the collection discharges it.
+    const offered = boundary(r.state, 'Sure.', PURE_OFFER_MODEL);
+    expect(offered.inject).toBeNull();
+    expect(offered.state.offerOutstanding).toBe(true);
+    const delivered = boundary(offered.state, ACCEPT_VISITOR, "Perfect — what's the best email address for that?");
     expect(delivered.inject).toBeNull();
     expect(delivered.state.askDelivered).toBe(true);
   });
@@ -521,25 +580,60 @@ describe('Publish #81 — the #79 verification failure (S2), replayed turn for t
     expect(r.state.askDelivered).toBe(false);
   });
 
-  it('once the framed ask HAS been made, booking-form collection proceeds unimpeded', () => {
+  // Publish #84 REWRITE (in place, justified): the setup's
+  // END_ASK_MODEL is a bundled offer under fix 3a, so the
+  // unimpeded booking collection now flows through the
+  // visitor's ACCEPTANCE of that offer ("Yes — send it over")
+  // rather than through a same-turn delivery. The pin's ruling
+  // is unchanged and the outcome identical: once the offer
+  // stands accepted, the booking form collects with no gate
+  // interference at all.
+  it('once the framed ask HAS been made and accepted, booking-form collection proceeds unimpeded', () => {
     let s = freshSalesGateState();
-    s = boundary(s, INTEREST_VISITOR, END_ASK_MODEL).state; // the model's own framed ask
-    expect(s.askDelivered).toBe(true);
+    s = boundary(s, INTEREST_VISITOR, END_ASK_MODEL).state; // the model's own (bundled) offer
+    expect(s.offerBundled).toBe(true);
+    expect(s.askDelivered).toBe(false);
     const r = boundary(s, "Yes — send it over, and let's book the meeting too.", S2_BOOKING_COLLECTION_MODEL);
     expect(r.inject).toBeNull();
+    expect(r.state.askDelivered).toBe(true); // the accepted offer's collection discharges the end-ask
   });
 
-  it('when the send-offer leads and the booking collection follows in the same turn, the ask counts as made', () => {
+  // Publish #84 REWRITE (in place, justified): pre-#84 an
+  // offer-led same-turn pair "counted as made". Fix 3a's
+  // bundled class is defined on the turn's CONTENTS — a
+  // send-offer and a collection ask together, before any
+  // acceptance — not on their order: leading with the offer
+  // does not cure collecting in the same breath. The turn is
+  // recorded as an outstanding bundled offer; acceptance plus
+  // the ritual is what discharges the end-ask now.
+  it('when the send-offer leads and the booking collection follows in the same turn, the turn is bundled — not made', () => {
     const r = boundary(freshSalesGateState(), INTEREST_VISITOR, SEND_THEN_BOOK_MODEL);
     expect(r.inject).toBeNull();
-    expect(r.state.askDelivered).toBe(true);
+    expect(r.state.askDelivered).toBe(false);
+    expect(r.state.offerOutstanding).toBe(true);
+    expect(r.state.offerBundled).toBe(true);
+    const delivered = boundary(r.state, ACCEPT_VISITOR, "Perfect — what's the best email address for that?");
+    expect(delivered.inject).toBeNull();
+    expect(delivered.state.askDelivered).toBe(true);
   });
 
-  it('when the collection leads and the send-offer trails in the same turn, the sterner order answers', () => {
+  // Publish #84 REWRITE (in place, justified): the
+  // collection-led pair drew the sterner end-ask order under
+  // #81 because the trailing offer "did not count". The turn
+  // DOES carry a send-offer, so under fix 3a it belongs to the
+  // bundled class — its correction is the deferred clean
+  // re-put, not the sterner order, which remains the answer
+  // for collections with NO offer in the turn (the pins above).
+  it('when the collection leads and the send-offer trails in the same turn, the bundled class answers — not the sterner order', () => {
     const r = boundary(freshSalesGateState(), INTEREST_VISITOR, BOOK_THEN_SEND_MODEL);
-    expect(r.inject).toBe('end-ask');
-    expect(r.state.endAskRepeat).toBe(true);
+    expect(r.inject).toBeNull(); // no correction at the bundled turn's own boundary
     expect(r.state.askDelivered).toBe(false);
+    expect(r.state.offerBundled).toBe(true);
+    // The visitor ignores the bundled collection and answers
+    // something else: the clean re-put is earned at that boundary.
+    const reput = boundary(r.state, 'Tell me more about the dashboard first.', 'Sure — the dashboard shows every call, its summary and its transcript.');
+    expect(reput.inject).toBe('bundled-offer');
+    expect(reput.state.bundledCorrections).toBe(1);
   });
 });
 
@@ -549,8 +643,13 @@ describe('Publish #81 — the full S3 sequence, exercised through the persisted-
     s = boundary(s, S2_INTEREST_VISITOR, S2_BOOKING_OFFER_RERUN).state; // the gate's order, fired over the booking offer
     expect(s.askFired).toBe(true);
     expect(s.askDelivered).toBe(false);
-    s = boundary(s, 'Sure.', END_ASK_MODEL).state; // the ask, made at last
-    expect(s.askDelivered).toBe(true);
+    // Publish #84: the ordered turn (END_ASK_MODEL) is a bundled
+    // offer under fix 3a — the sequence's decline now lands on
+    // the OFFER, and the offer-decline fold is what spends the
+    // ask. The rest of the sequence is unchanged.
+    s = boundary(s, 'Sure.', END_ASK_MODEL).state; // the offer, made at last — bundled
+    expect(s.askDelivered).toBe(false);
+    expect(s.offerBundled).toBe(true);
     let r = boundary(s, DECLINE_VISITOR, 'Of course — no problem at all.');
     expect(r.inject).toBeNull();
     expect(r.state.askDeclined).toBe(true);
@@ -569,5 +668,332 @@ describe('Publish #81 — the full S3 sequence, exercised through the persisted-
     expect(s.askDeclined).toBe(true);
     const r = boundary(s, 'Tell me more about the dashboard.', "Sure — and what's your email so I can send that over?");
     expect(r.inject).toBe('no-repeat');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Publish #84 — the end-ask made reliable and complete. Fixtures
+// are VERBATIM from publish83-verification-2026-11-15.md (the
+// interest-path sessions, all on the exact S2 interest turn).
+// ---------------------------------------------------------------------------
+
+const S2_83_INTEREST_VISITOR = S2_INTEREST_VISITOR;
+// The failing S2 run's interest answer: pricing + setup + a
+// video note — NO send-offer, no share angle, no meeting offer.
+const S2_83_NO_OFFER_ANSWER = 'Premium is ninety-nine dollars a month, covering four hundred browser voice minutes. Most businesses are live the same day, and you can set it up yourself in fifteen to thirty minutes with Alex, our onboarding engineer, or we can do it with you on a call. Plus, I answer with a natural voice, and on your website I can appear on live video as your spokesperson.';
+// S3 run 1's interest answer: the send-offer FIRED, in the
+// scripted step-6 framing — but pure (no destination ask) and
+// WITHOUT the share angle.
+const S3_83_OFFER_RUN1 = 'Most businesses are live the same day — you can set it up yourself in 15 to 30 minutes with Alex, our onboarding engineer, or we do it with you on a call. Premium is $99 a month, which includes 400 voice minutes and up to 50 B2B prospects. Before we talk calls and setup, let me send you something useful, like the link to this demo or a recap of our conversation.';
+// S3 rerun's interest answer: the send-offer fired WITH its
+// collection bundled into the same turn, again angle-less.
+const S3_83_OFFER_RERUN = "Premium is $99 a month, which includes 400 browser voice minutes. The live video avatar is free for the first month, and setup fees are currently waived. Most businesses are live the same day — you can set it up together with Alex, our onboarding engineer. Before we continue, let me send you the link to this demo or a recap. What's the best mobile number for that?";
+const S3_83_DECLINE = "No thanks, I don't want anything sent.";
+const ANGLE_LINE_MODEL = "…and feel free to pass it along to your manager, a colleague, or the owner, if they'd want a look.";
+const SHORT_OFFER_NO_ANGLE_MODEL = 'Let me send you the link to this demo or a recap of our conversation.';
+const ANSWER_WITH_OFFER_MODEL = `Premium is ninety-nine dollars a month, covering four hundred browser voice minutes. Most businesses are live the same day, and you can set it up yourself in fifteen to thirty minutes with Alex, our onboarding engineer. ${PURE_OFFER_MODEL}`;
+
+/** One pre-answer decision, exactly as the proxy runs it on the
+ * text transport when a visitor utterance arrives. */
+const preAnswer = (
+  state: SalesGateState,
+  visitorUtterance: string,
+  opts: { blocked?: boolean; contact?: { email?: string | null; phone?: string | null } | null } = {},
+) => salesGatePreAnswerDecision({
+  state,
+  contact: opts.contact ?? null,
+  visitorUtterance,
+  blocked: opts.blocked ?? false,
+});
+
+describe('Publish #84 — detectors: the share angle, acceptance, and the step-6 phrasing family', () => {
+  it('the gate can now SEE the verbatim run-1 offer — and sees that it has no angle', () => {
+    expect(turnMakesSendOffer(S3_83_OFFER_RUN1)).toBe(true);
+    expect(turnHasShareAngle(S3_83_OFFER_RUN1)).toBe(false);
+    expect(turnAsksForContact(S3_83_OFFER_RUN1)).toBe(false); // a pure offer collects nothing
+  });
+
+  it('the share angle is present exactly where the framing carries it', () => {
+    expect(turnHasShareAngle(PURE_OFFER_MODEL)).toBe(true);
+    expect(turnHasShareAngle(END_ASK_MODEL)).toBe(true);
+    expect(turnHasShareAngle(S3_83_OFFER_RERUN)).toBe(false);
+    expect(turnHasShareAngle(SHORT_OFFER_NO_ANGLE_MODEL)).toBe(false);
+  });
+
+  it('a plain send confirmation is not a send-offer (the new pattern does not over-match)', () => {
+    expect(turnMakesSendOffer('We will send you a confirmation once it is booked.')).toBe(false);
+    expect(turnMakesSendOffer('Your invoice will be emailed to you each month.')).toBe(false);
+  });
+
+  it('acceptance is the yes that follows an offer — never a decline, never a subject change', () => {
+    expect(detectOfferAcceptance(ACCEPT_VISITOR)).toBe(true);
+    expect(detectOfferAcceptance("Yes — send it over, and let's book the meeting too.")).toBe(true);
+    expect(detectOfferAcceptance('Sure.')).toBe(true);
+    expect(detectOfferAcceptance(DECLINE_VISITOR)).toBe(false);
+    expect(detectOfferAcceptance(S3_83_DECLINE)).toBe(false);
+    expect(detectOfferAcceptance('Let me think about it.')).toBe(false);
+    expect(detectOfferAcceptance('What about the video avatar part?')).toBe(false);
+  });
+});
+
+describe('Publish #84 — fix 1: the pre-arm rides the interest turn itself', () => {
+  it('a fresh interest signal pre-arms the order onto its own exchange', () => {
+    const r = preAnswer(freshSalesGateState(), S2_83_INTEREST_VISITOR);
+    expect(r.inject).toBe('end-ask-prearm');
+    expect(r.state.interestSeen).toBe(true);
+    expect(r.state.askFired).toBe(true);
+    expect(r.state.awaitingDelivery).toBe(true);
+    expect(r.state.endAskFires).toBe(1);
+    expect(r.state.endAskRepeat).toBe(false); // the standard fire, one exchange earlier
+    // And the shaped answer — price in full, finishing with the
+    // offer standing alone — lands the offer as outstanding,
+    // with NO further order on top of it.
+    const answered = boundary(r.state, S2_83_INTEREST_VISITOR, ANSWER_WITH_OFFER_MODEL);
+    expect(answered.inject).toBeNull();
+    expect(answered.state.offerOutstanding).toBe(true);
+    expect(answered.state.askDelivered).toBe(false);
+    // Acceptance, then the collection: the sequence completes.
+    const delivered = boundary(answered.state, ACCEPT_VISITOR, "Perfect — what's the best email address for that?");
+    expect(delivered.inject).toBeNull();
+    expect(delivered.state.askDelivered).toBe(true);
+  });
+
+  it('when the shaped answer still carries no offer, the post-turn persistence is the second chance', () => {
+    const armed = preAnswer(freshSalesGateState(), S2_83_INTEREST_VISITOR).state;
+    const r = boundary(armed, S2_83_INTEREST_VISITOR, S2_83_NO_OFFER_ANSWER);
+    expect(r.inject).toBe('end-ask');
+    expect(r.state.endAskRepeat).toBe(true); // the sterner repeat — the pre-arm was fire 1
+    expect(r.state.endAskFires).toBe(2);
+    expect(r.state.askDelivered).toBe(false);
+  });
+
+  it('no pre-arm without a FRESH interest signal — qualification and continuations never arm it', () => {
+    expect(preAnswer(freshSalesGateState(), QUALIFYING_VISITOR).inject).toBeNull();
+    expect(preAnswer(freshSalesGateState(), 'Usually they just leave a voicemail.').inject).toBeNull();
+    // A second interest utterance inside an episode already
+    // being worked is not a fresh signal either.
+    const armed = preAnswer(freshSalesGateState(), S2_83_INTEREST_VISITOR).state;
+    const again = preAnswer(armed, 'And how do I get started?');
+    expect(again.inject).toBeNull();
+    expect(again.state.endAskFires).toBe(1); // unchanged — no second order stacked
+  });
+
+  it('no pre-arm when the end-ask is not owed: held contact, a declined ask, an offer already outstanding', () => {
+    const held = preAnswer(freshSalesGateState(), S2_83_INTEREST_VISITOR, { contact: { email: 'tony@example.com', phone: '' } });
+    expect(held.inject).toBeNull();
+    expect(held.state.contactHeld).toBe(true);
+    const declined = preAnswer({ ...freshSalesGateState(), askDeclined: true }, S2_83_INTEREST_VISITOR);
+    expect(declined.inject).toBeNull();
+    const outstanding = preAnswer({ ...freshSalesGateState(), offerOutstanding: true }, S2_83_INTEREST_VISITOR);
+    expect(outstanding.inject).toBeNull();
+    const dictated = preAnswer(freshSalesGateState(), 'How much does it cost? My email is tony dot test at example dot com.');
+    expect(dictated.inject).toBeNull();
+    expect(dictated.state.volunteered).toBe(true);
+  });
+
+  it('a blocked pre-arm still folds — the turn-boundary decision judges the debt fresh', () => {
+    const r = preAnswer(freshSalesGateState(), S2_83_INTEREST_VISITOR, { blocked: true });
+    expect(r.inject).toBeNull();
+    expect(r.state.interestSeen).toBe(true);
+    expect(r.state.endAskFires).toBe(0);
+    const judged = boundary(r.state, S2_83_INTEREST_VISITOR, PRICE_ANSWER_MODEL);
+    expect(judged.inject).toBe('end-ask');
+    expect(judged.state.endAskFires).toBe(1);
+  });
+
+  it('the pre-arm spends from the same episode budget — and a fresh signal after the episode re-arms it', () => {
+    let s = preAnswer(freshSalesGateState(), S2_83_INTEREST_VISITOR).state; // fire 1 (pre-arm)
+    s = boundary(s, S2_83_INTEREST_VISITOR, S2_83_NO_OFFER_ANSWER).state; // fire 2 (sterner repeat)
+    expect(s.endAskFires).toBe(2);
+    const spent = boundary(s, 'Okay.', 'Anything else I can do?');
+    expect(spent.inject).toBeNull(); // episode spent
+    const rearmed = preAnswer(spent.state, 'Actually — what are the next steps?');
+    expect(rearmed.inject).toBe('end-ask-prearm');
+    expect(rearmed.state.endAskFires).toBe(1);
+    expect(rearmed.state.endAskTotalFires).toBe(3);
+  });
+
+  it('the pre-arm directive orders the answer itself: full answer first, the offer as its finishing beat, no ask yet', () => {
+    const d = endAskPreArmDirective();
+    expect(d).toContain('Answer their question IN FULL first');
+    expect(d).toContain('finishing beat of THIS SAME answer');
+    expect(d).toContain('pass to their manager, a colleague, or the owner');
+    expect(d).toContain('do NOT ask for their email address or mobile number yet');
+    expect(d).toContain('NEVER ask again in this session');
+  });
+
+  it('wiring: the proxy runs the pre-answer decision in the text branch and sends directive + text as one clientContent', () => {
+    expect(proxySource).toContain('salesGatePreAnswerDecision({');
+    expect(proxySource).toContain("preArm.inject === 'end-ask-prearm'");
+    expect(proxySource).toContain('endAskPreArmDirective()');
+    expect(proxySource).toContain('if (!preArmed) geminiWs.send(JSON.stringify({ realtimeInput: { text: msg.text } }))');
+  });
+});
+
+describe('Publish #84 — fix 2: the share-angle completion beat', () => {
+  it('the verbatim run-1 offer earns the completion at its own boundary — then the decline closes it', () => {
+    const r = boundary(freshSalesGateState(), S2_83_INTEREST_VISITOR, S3_83_OFFER_RUN1);
+    expect(r.inject).toBe('share-angle');
+    expect(r.state.offerOutstanding).toBe(true);
+    expect(r.state.offerAngleMissing).toBe(true);
+    expect(r.state.angleCompletionFires).toBe(1);
+    expect(r.state.askDelivered).toBe(false);
+    // The completion turn itself: the angle line lands, the
+    // offer still stands, nothing further is ordered.
+    const completed = boundary(r.state, '', ANGLE_LINE_MODEL);
+    expect(completed.inject).toBeNull();
+    expect(completed.state.offerOutstanding).toBe(true);
+    // The decline (the #83 S3 wording) spends the ask for good.
+    const declined = boundary(completed.state, S3_83_DECLINE, 'I completely understand.');
+    expect(declined.inject).toBeNull();
+    expect(declined.state.askDeclined).toBe(true);
+    expect(declined.state.offerOutstanding).toBe(false);
+  });
+
+  it('no completion when the offer carries the angle — the offer simply stands', () => {
+    const r = boundary(freshSalesGateState(), INTEREST_VISITOR, PURE_OFFER_MODEL);
+    expect(r.inject).toBeNull();
+    expect(r.state.offerOutstanding).toBe(true);
+    expect(r.state.offerAngleMissing).toBe(false);
+    expect(r.state.angleCompletionFires).toBe(0);
+  });
+
+  it('the completion stands down once the visitor responds to the offer', () => {
+    // The offer observed at a BLOCKED boundary: folded and
+    // observed, but the completion could not fire there.
+    const observed = boundary(freshSalesGateState(), S2_83_INTEREST_VISITOR, S3_83_OFFER_RUN1, { blocked: true });
+    expect(observed.inject).toBeNull();
+    expect(observed.state.offerOutstanding).toBe(true);
+    expect(observed.state.angleCompletionFires).toBe(0);
+    // The visitor answers something else — the offer is
+    // resolved, and the completion must NOT fire after the fact.
+    const answered = boundary(observed.state, 'Tell me more about the dashboard first.', 'Sure — the dashboard shows every call, its summary and its transcript.');
+    expect(answered.inject).not.toBe('share-angle');
+    expect(answered.state.offerOutstanding).toBe(false);
+    expect(answered.state.angleCompletionFires).toBe(0);
+  });
+
+  it('cap: one completion per offer episode — a re-offer inside the same episode earns no second one', () => {
+    let s = boundary(freshSalesGateState(), S2_83_INTEREST_VISITOR, S3_83_OFFER_RUN1).state; // completion fired
+    expect(s.angleCompletionFires).toBe(1);
+    const reoffer = boundary(s, '', SHORT_OFFER_NO_ANGLE_MODEL); // still the same outstanding episode
+    expect(reoffer.inject).toBeNull();
+    expect(reoffer.state.angleCompletionFires).toBe(1);
+    // A NEW episode (a fresh offer after the previous resolved)
+    // resets the cap: hand-built settled state, one fresh offer.
+    const fresh = boundary(
+      { ...freshSalesGateState(), interestSeen: true, angleCompletionFires: 1 },
+      '',
+      SHORT_OFFER_NO_ANGLE_MODEL,
+    );
+    expect(fresh.inject).toBe('share-angle');
+    expect(fresh.state.angleCompletionFires).toBe(1);
+  });
+
+  it('the completion directive is a follow-up beat — not a correction, not a repeat, not a collection', () => {
+    const d = shareAngleCompletionDirective();
+    expect(d).toContain('missing the share angle');
+    expect(d).toContain('pass to their manager, a colleague, or the owner');
+    expect(d).toContain('Before anything else in your next turn');
+    expect(d).toContain('Do NOT repeat the offer itself');
+    expect(d).toContain('ask for an email address or a mobile number');
+  });
+});
+
+describe('Publish #84 — fix 3a: the bundled offer is its own violation class', () => {
+  it('the verbatim S3 rerun turn is bundled: recorded, unspent, and uncorrected at its own boundary', () => {
+    const r = boundary(freshSalesGateState(), S2_83_INTEREST_VISITOR, S3_83_OFFER_RERUN);
+    expect(r.inject).toBeNull();
+    expect(r.state.offerOutstanding).toBe(true);
+    expect(r.state.offerBundled).toBe(true);
+    expect(r.state.offerAngleMissing).toBe(true);
+    expect(r.state.askDelivered).toBe(false);
+  });
+
+  it('a visitor who answers the bundled collection anyway has accepted — the ritual proceeds untouched', () => {
+    let s = boundary(freshSalesGateState(), S2_83_INTEREST_VISITOR, S3_83_OFFER_RERUN).state;
+    const r = boundary(s, 'My mobile is 954 555 0142.', 'Let me read that back: 9 5 4, 5 5 5, 0 1 4 2. Did I get that right?');
+    expect(r.inject).toBeNull(); // no scolding, no walk-back, no correction of any kind
+    expect(r.state.volunteered).toBe(true); // the #68/#74 ritual owns it from here
+    expect(r.state.offerOutstanding).toBe(false);
+    expect(r.state.bundledCorrections).toBe(0);
+  });
+
+  it('a verbal yes to a bundled offer makes the collection that follows legitimate', () => {
+    let s = boundary(freshSalesGateState(), S2_83_INTEREST_VISITOR, S3_83_OFFER_RERUN).state;
+    const r = boundary(s, 'Yes, go ahead.', "Perfect — what's the best mobile number for that?");
+    expect(r.inject).toBeNull();
+    expect(r.state.askDelivered).toBe(true);
+    expect(r.state.offerAccepted).toBe(false); // consumed by the delivery
+  });
+
+  it('a visitor who ignores the bundled collection and answers something else earns the clean re-put', () => {
+    let s = boundary(freshSalesGateState(), S2_83_INTEREST_VISITOR, S3_83_OFFER_RERUN).state;
+    const r = boundary(s, 'What about the video avatar — how does that work?', 'The avatar appears right on your website, lip-synced to my voice, while I answer.');
+    expect(r.inject).toBe('bundled-offer');
+    expect(r.state.bundledCorrections).toBe(1);
+    expect(r.state.bundledAngleMissing).toBe(true); // the re-put must carry the angle this offer dropped
+    expect(r.state.offerBundled).toBe(false);
+    // And the re-put itself, when it lands clean, stands as the
+    // outstanding offer with nothing further owed.
+    const reput = boundary(r.state, '', PURE_OFFER_MODEL);
+    expect(reput.inject).toBeNull();
+    expect(reput.state.offerOutstanding).toBe(true);
+    expect(reput.state.offerBundled).toBe(false);
+  });
+
+  it('a speechless boundary earns the re-put too — the correction is not hostage to the visitor speaking', () => {
+    let s = boundary(freshSalesGateState(), S2_83_INTEREST_VISITOR, S3_83_OFFER_RERUN).state;
+    const r = boundary(s, '', "I'm still here whenever you're ready.");
+    expect(r.inject).toBe('bundled-offer');
+    expect(r.state.bundledAngleMissing).toBe(true);
+    expect(r.state.offerOutstanding).toBe(true); // the offer stands — the re-put renews it
+  });
+
+  it('a bundled shape during qualification is still an early ask — the class needs interest behind it', () => {
+    const r = boundary(freshSalesGateState(), QUALIFYING_VISITOR, "While that loads — I can send you the demo link. What's your email address?");
+    expect(r.inject).toBe('early-ask');
+    expect(r.state.offerBundled).toBe(false);
+  });
+
+  it('the re-put directive orders the offer to stand alone, and pre-answers the dictation continuation', () => {
+    const withAngle = bundledOfferDirective(true);
+    expect(withAngle).toContain('The offer must stand alone');
+    expect(withAngle).toContain('dropped the share angle');
+    expect(withAngle).toContain('pass to their manager, a colleague, or the owner');
+    expect(withAngle).toContain('that is a yes');
+    expect(withAngle).toContain('no apology and no walk-back');
+    const withoutAngle = bundledOfferDirective(false);
+    expect(withoutAngle).toContain('Re-put it with its full framing');
+    expect(withoutAngle).not.toContain('dropped the share angle');
+  });
+
+  it('wiring: the proxy speaks the completion and the re-put from the gate\'s own state', () => {
+    expect(proxySource).toContain("salesDecision.inject === 'share-angle'");
+    expect(proxySource).toContain('shareAngleCompletionDirective()');
+    expect(proxySource).toContain("salesDecision.inject === 'bundled-offer'");
+    expect(proxySource).toContain('bundledOfferDirective(salesGate.bundledAngleMissing)');
+  });
+});
+
+describe('Publish #84 — fix 3b: the silence ladder holds on an outstanding offer', () => {
+  it('every rung references the offer and forbids the pivot — no stat, no price, no meeting', () => {
+    for (const stage of ['checkin', 'bridge', 'continue', 'goodbye']) {
+      const text = salesSilenceHoldText(stage);
+      expect(text).toContain('send-offer');
+      expect(text).not.toContain('85%');
+      expect(text).not.toContain('introductory meeting');
+      expect(text.toLowerCase()).toContain('meeting');
+      expect(text).toMatch(/do not|do NOT/);
+    }
+    expect(salesSilenceHoldText('checkin')).toContain('still unanswered');
+    expect(salesSilenceHoldText('goodbye')).toContain('never answered');
+  });
+
+  it('wiring: the proxy composes the hold at the idle_prompt point whenever the gate holds an outstanding offer', () => {
+    expect(proxySource).toContain('salesGateSession && salesGate.offerOutstanding');
+    expect(proxySource).toContain('salesSilenceHoldText(msg.stage)');
+    // The ladder's own texts remain the default for every other state.
+    expect(proxySource).toContain(': ladderText;');
   });
 });

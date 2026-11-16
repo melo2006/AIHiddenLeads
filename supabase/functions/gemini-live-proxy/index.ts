@@ -16,7 +16,7 @@ import { capturedContactFromUnknown, capturedContactBlock, mergeCapturedContact,
 import { freshConsentAskState, syncConsentAskState, consentAskTurnDecision, CONSENT_ASK_TOOL_DIRECTIVE, CONSENT_ASK_NUDGE, CONSENT_RECORD_NUDGE, type ConsentAskState } from '../_shared/consent-ask.ts'
 import { armCaptureGateFromRecap, captureGateDirective, captureGateRecordDirective, captureGateTurnDecision, freshCaptureGateState, noteVisitorUtterance, spellbackCorrectionNudge, type CaptureGateState } from '../_shared/capture-gate.ts'
 import { armDiscoveryGate, budgetBracketDirective, budgetRangeDirective, budgetRecapDirective, discoveryGateTurnDecision, freshDiscoveryGateState, gateViolationDirective, greetingOnceDirective, nameKnownDirective, namePreemptDirective, nameReleaseDirective, recapCompletenessDirective, seedNameFromFacts, shortGateDirective, shortGatePurposeDirective, type DiscoveryGateState } from '../_shared/discovery-gate.ts'
-import { armSalesGateFromRecap, earlyAskDirective, endAskDirective, freshSalesGateState, noRepeatDirective, salesGateTurnDecision, type SalesGateState } from '../_shared/sales-gate.ts'
+import { armSalesGateFromRecap, bundledOfferDirective, earlyAskDirective, endAskDirective, endAskPreArmDirective, freshSalesGateState, noRepeatDirective, salesGatePreAnswerDecision, salesGateTurnDecision, salesSilenceHoldText, shareAngleCompletionDirective, type SalesGateState } from '../_shared/sales-gate.ts'
 import { followupAlert, visitorFollowup, trySend } from '../_shared/hostinger-mail.ts'
 import { DEFAULT_LIVE_MODEL, officialLivePricing } from '../_shared/live-models.ts'
 import { callReview } from '../_shared/call-review.ts'
@@ -1078,7 +1078,11 @@ Deno.serve(async (req) => {
                   ? earlyAskDirective(salesGate.earlyAskCorrections >= 2)
                   : salesDecision.inject === 'end-ask'
                     ? endAskDirective(salesGate.endAskRepeat)
-                    : noRepeatDirective(salesGate.repeatCorrections >= 2)
+                    : salesDecision.inject === 'share-angle'
+                      ? shareAngleCompletionDirective()
+                      : salesDecision.inject === 'bundled-offer'
+                        ? bundledOfferDirective(salesGate.bundledAngleMissing)
+                        : noRepeatDirective(salesGate.repeatCorrections >= 2)
                 geminiWs?.send(JSON.stringify({clientContent:{turns:[{role:'user',parts:[{text}]}],turnComplete:true}}))
               }
             }
@@ -1320,7 +1324,7 @@ Deno.serve(async (req) => {
           },
         }))
       } else if (msg.type === 'idle_prompt' && (config.homepageSales === true || config.simulation === true) && !preview && (msg.stage === 'checkin' || msg.stage === 'goodbye' || (msg.stage === 'continue' && config.homepageSales === true) || (msg.stage === 'bridge' && (config.simulation === true || config.homepageSales === true)))) {
-        const text = msg.stage === 'bridge' && config.homepageSales === true && config.simulation !== true
+        const ladderText = msg.stage === 'bridge' && config.homepageSales === true && config.simulation !== true
           // SALES SILENCE BRIDGE (owner-directed 2026-11-15): on a
           // homepage SALES session the visitor has now stayed silent
           // through the check-in as well. Per the silence protocol in
@@ -1344,6 +1348,20 @@ Deno.serve(async (req) => {
           : msg.stage === 'checkin'
           ? 'The caller has been quiet after playback. Briefly ask in the selected conversation language: Are you still there? Take your time, I am here if you would like to continue. Then wait for their answer.'
           : 'The caller remained silent after a check-in and reply grace period. Briefly say in the selected conversation language: I will let you go for now. You are welcome to start another conversation whenever you are ready. Take care. Do not ask another question.';
+        // OFFER-OUTSTANDING HOLD (Publish #84): while a sales
+        // session's framed send-offer stands made-but-unanswered,
+        // EVERY rung of the silence ladder holds on the offer —
+        // the #83 verification's S3 rerun pivoted to the meeting
+        // offer inside a silent listen window while exactly such
+        // an offer stood outstanding. The hold text replaces the
+        // ladder text wholesale for this state: a nudge may
+        // reference the outstanding offer, never the meeting,
+        // the pitch, or any new step. (The gate's offerOutstanding
+        // is only ever set on salesGateSession sessions, so
+        // simulation sessions can never take this branch.)
+        const text = salesGateSession && salesGate.offerOutstanding
+          ? salesSilenceHoldText(msg.stage)
+          : ladderText;
         // SINGLE-SOURCE FAREWELL (2026-11-14): while a visitor-goodbye
         // end is ARMED (farewellTimer pending), the model's closing
         // line and that end own the close — a silence check-in or
@@ -1375,7 +1393,45 @@ Deno.serve(async (req) => {
         geminiWs.send(JSON.stringify({clientContent:{turns:[{role:'user',parts:[{text:handoffReturnInstruction(outcome,{sales})}]}],turnComplete:true}}));
       } else if (msg.type === 'text' && typeof msg.text === 'string' && msg.text.length <= 4000) {
         callerLanguageRequest = requestedConversationLanguage(msg.text) || callerLanguageRequest
-        geminiWs.send(JSON.stringify({ realtimeInput: { text: msg.text } }))
+        // SALES PRE-ARM (Publish #84 — see _shared/sales-gate.ts):
+        // the text transport is the one place the proxy holds the
+        // visitor's COMPLETE utterance before the model sees it,
+        // so it is the one true pre-answer injection point in this
+        // architecture. On a fresh interest signal the pre-answer
+        // decision spends one end-ask order and the proxy sends
+        // the directive and the visitor's own text as ONE
+        // clientContent message — directive turn first, the
+        // visitor's words second — so the interest ANSWER itself
+        // is composed with the order already in context and can
+        // finish with the send-offer, instead of the order having
+        // to fight the following turn. When no pre-arm fires, the
+        // forward is the bare realtimeInput text exactly as
+        // before. (The audio transport has no equivalent hook:
+        // the utterance's content reaches the proxy only as the
+        // provider's own transcription, concurrent with the
+        // provider beginning generation at end-of-speech, and a
+        // clientContent turn interleaved into a VAD-managed audio
+        // turn risks the provider closing the visitor's turn
+        // mid-speech. Voice sessions keep the post-answer
+        // persistence machinery unchanged.)
+        let preArmed = false
+        if (salesGateSession) {
+          const preArm = salesGatePreAnswerDecision({
+            state: salesGate,
+            contact: capturedContact,
+            visitorUtterance: msg.text,
+            blocked: preview || farewellHandled || farewellTimer !== undefined || managerTransferRequested || pendingActions.size > 0,
+          })
+          salesGate = preArm.state
+          if (preArm.inject === 'end-ask-prearm') {
+            preArmed = true
+            geminiWs.send(JSON.stringify({ clientContent: { turns: [
+              { role: 'user', parts: [{ text: endAskPreArmDirective() }] },
+              { role: 'user', parts: [{ text: msg.text }] },
+            ], turnComplete: true } }))
+          }
+        }
+        if (!preArmed) geminiWs.send(JSON.stringify({ realtimeInput: { text: msg.text } }))
       } else if (manualActivity && msg.type === 'activity_start') {
         geminiWs.send(JSON.stringify({ realtimeInput: { activityStart: {} } }))
       } else if (manualActivity && msg.type === 'activity_end') {
