@@ -21,6 +21,41 @@ import {
 const read = (rel: string) => fs.readFileSync(path.join(__dirname, '..', '..', rel), 'utf8');
 const occurrences = (haystack: string, needle: string) => haystack.split(needle).length - 1;
 
+describe('managerTransferAnnouncement — platform sales title rule (Ron, 2026-11-16)', () => {
+  it('a platform sales session names the TITLE, never the stamped personal name', () => {
+    const text = managerTransferAnnouncement({ homepageSales: true, transferManagerName: 'Ron', businessName: 'AI Hidden Leads' });
+    expect(text).toContain('our sales director');
+    expect(text).not.toContain('Ron');
+  });
+
+  it('the Portuguese platform announcement uses diretor de vendas', () => {
+    const text = managerTransferAnnouncement({ homepageSales: true, transferManagerName: 'Ron', businessName: 'AI Hidden Leads' }, 'Portuguese');
+    expect(text).toContain('nosso diretor de vendas');
+    expect(text).not.toContain('Ron');
+    expect(text).not.toContain("I'll transfer you");
+  });
+
+  it('the Spanish platform announcement uses director de ventas', () => {
+    const text = managerTransferAnnouncement({ homepageSales: true, businessName: 'AI Hidden Leads' }, 'Spanish');
+    expect(text).toContain('nuestro director de ventas');
+  });
+
+  it('an explicit transferRole still wins on a platform session', () => {
+    const text = managerTransferAnnouncement({ homepageSales: true, transferRole: 'the owner', transferManagerName: 'Ron', businessName: 'AI Hidden Leads' });
+    expect(text).toContain('the owner');
+  });
+
+  it('a tenant session keeps the named-manager path (rule is platform-scoped)', () => {
+    const text = managerTransferAnnouncement({ transferManagerName: 'Sarah Chen', businessName: 'Bright Realty' });
+    expect(text).toContain('Sarah Chen');
+  });
+
+  it('the proxy passes the live conversation language to the announcement', () => {
+    const proxy = read('supabase/functions/gemini-live-proxy/index.ts');
+    expect(proxy).toContain('managerTransferAnnouncement(config, conversationLanguage)');
+  });
+});
+
 describe('managerTransferAnnouncement — the wording matrix', () => {
   it('transferRole wins over realtor, name and business defaults', () => {
     expect(managerTransferAnnouncement({ transferRole: 'the owner', realtorLanding: true, transferManagerName: 'Sarah Chen', businessName: 'Bright Realty' }))
@@ -138,7 +173,7 @@ describe('proxy wiring — declaration, gate and dispatch', () => {
   it('the tool answer carries transferring + the announcement + the say-it-once instruction', () => {
     expect(src).toContain('respond({transferring:true,announcement,instruction:');
     expect(src).toContain('Say the announcement exactly once, word for word');
-    expect(src).toContain('managerTransferAnnouncement(config)');
+    expect(src).toContain('managerTransferAnnouncement(config, conversationLanguage)');
   });
 
   it('repeats are guarded once per session and never re-schedule the handoff', () => {

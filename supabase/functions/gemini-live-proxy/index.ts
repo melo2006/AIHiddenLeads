@@ -730,7 +730,7 @@ Deno.serve(async (req) => {
               // destination + a handoff capability), and transfer
               // sessions may not carry platform follow-up at all.
               if (!managerTransferAvailable) { respond({error:'Live transfer is not available in this session. Offer the on-screen Manager button instead, or take a name and number for a callback.'}); continue; }
-              const announcement = managerTransferAnnouncement(config);
+              const announcement = managerTransferAnnouncement(config, conversationLanguage);
               if (managerTransferRequested) { respond({transferring:true,alreadyRequested:true,announcement,instruction:'The transfer is already being connected. Do not repeat the announcement or start another transfer.'}); continue; }
               managerTransferRequested = true;
               respond({transferring:true,announcement,instruction:'Say the announcement exactly once, word for word, and then stop talking while the transfer connects. Do not add anything after it.'});

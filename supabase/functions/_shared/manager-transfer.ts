@@ -55,14 +55,36 @@ function clean(value: unknown): string {
  * separate line, so the say-it-once + stop-talking contract and the
  * 4s handoff-start timing are unchanged.
  */
-export function managerTransferAnnouncement(config: Record<string, unknown>): string {
+export function managerTransferAnnouncement(config: Record<string, unknown>, language?: string): string {
   const role = clean(config.transferRole);
   const managerName = clean(config.transferManagerName);
   const businessName = clean(config.businessName);
   const from = businessName ? ` from ${businessName}` : '';
   const stay = (target: string) => `I'll transfer you to ${target}${from} now. I'll stay right here until you're through — then I'll step away, and you can talk to ${target} directly.`;
   if (role) return stay(role);
+  // PLATFORM SALES TITLE RULE (Ron, 2026-11-16): on AI Hidden Leads'
+  // own sales sessions the transfer target is a TITLE — "our sales
+  // director" — never the owner's personal name, whatever name the
+  // saved snapshot carries. The announcement is built in the session
+  // language because the model says it word for word (in a Portuguese
+  // session the English announcement used to be read out verbatim).
+  if (config.homepageSales === true) return platformSalesAnnouncement(businessName, language);
   if (config.realtorLanding) return stay('a realtor');
   if (managerName && managerName !== 'the manager') return stay(managerName);
   return stay('the manager');
+}
+
+/** The platform sales announcement, localized: EN "our sales
+ *  director", PT "nosso diretor de vendas", ES "nuestro director de
+ *  ventas" (Ron's wording, 2026-11-16). */
+function platformSalesAnnouncement(businessName: string, language?: string): string {
+  const from = businessName || 'AI Hidden Leads';
+  switch ((language || 'English').trim().toLowerCase()) {
+    case 'portuguese':
+      return `Vou transferir você agora para o nosso diretor de vendas da ${from}. Vou ficar bem aqui até a ligação completar — depois eu me retiro, e você fala diretamente com o nosso diretor de vendas.`;
+    case 'spanish':
+      return `Le transfiero ahora con nuestro director de ventas de ${from}. Me quedo aquí hasta que la llamada se complete — luego me retiro, y usted habla directamente con nuestro director de ventas.`;
+    default:
+      return `I'll transfer you to our sales director from ${from} now. I'll stay right here until you're through — then I'll step away, and you can talk to our sales director directly.`;
+  }
 }
