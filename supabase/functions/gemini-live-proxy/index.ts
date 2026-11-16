@@ -1533,6 +1533,19 @@ Deno.serve(async (req) => {
           },
         }))
       } else if (msg.type === 'idle_prompt' && (config.homepageSales === true || config.simulation === true) && !preview && (msg.stage === 'checkin' || msg.stage === 'goodbye' || (msg.stage === 'continue' && config.homepageSales === true) || (msg.stage === 'bridge' && (config.simulation === true || config.homepageSales === true)))) {
+        // SINGLE SILENCE OWNER (2026-11-16): on homepage SALES
+        // sessions the server-side silence ladder owns the check-in
+        // and the close, so the client's idle 'checkin'/'goodbye'
+        // stages are ignored here. Ron's PT retest: the client
+        // re-sent 'checkin' after every model turn and Aspen looped
+        // "Ainda está aí?" four times in 97 seconds while the ladder
+        // itself (correctly) fired once — two silence systems were
+        // competing. 'bridge'/'continue' still pass: they are
+        // continuations, not check-ins.
+        if (config.homepageSales === true && config.simulation !== true && (msg.stage === 'checkin' || msg.stage === 'goodbye')) {
+          console.log(JSON.stringify({ event: 'idle_prompt_ignored_sales', sessionId: session.id, stage: msg.stage }))
+          return
+        }
         const ladderText = msg.stage === 'bridge' && config.homepageSales === true && config.simulation !== true
           // SALES SILENCE BRIDGE (owner-directed 2026-11-15): on a
           // homepage SALES session the visitor has now stayed silent

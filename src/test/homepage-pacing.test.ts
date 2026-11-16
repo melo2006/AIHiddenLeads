@@ -48,6 +48,12 @@ describe('silenceLadderRung — the mechanical silence ladder (2026-11-16)', () 
     expect(proxy).toContain('Math.max(lastRealCallerTurnAt, lastModelTurnAt)');
   });
 
+  it('the client idle check-in/goodbye stages are ignored on sales sessions — the ladder is the single silence owner', () => {
+    const proxy = fs.readFileSync(path.join(__dirname, '..', '..', 'supabase/functions/gemini-live-proxy/index.ts'), 'utf8');
+    expect(proxy).toContain("event: 'idle_prompt_ignored_sales'");
+    expect(proxy).toContain("(msg.stage === 'checkin' || msg.stage === 'goodbye')");
+  });
+
   it('the episode resets only on a substantive completed turn — never on a raw fragment', () => {
     const proxy = fs.readFileSync(path.join(__dirname, '..', '..', 'supabase/functions/gemini-live-proxy/index.ts'), 'utf8');
     expect(proxy).toContain('substantiveCallerTurn(completedUtterance) || detectFarewell(completedUtterance)');
