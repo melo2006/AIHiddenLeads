@@ -6,8 +6,9 @@ export interface HeadlineSegment {
 }
 
 // The hero headline itself rotates through these seven lines, in order.
-// Hardcoded English, consistent with the rest of the hero (EN-only today;
-// PT/ES translations are a follow-up).
+// This is the ENGLISH set, kept as the default; HeroSection passes the
+// localized set for the visitor's language (homepageSalesCopy's
+// heroHeadlines — en / es / pt-BR) via the lines prop.
 export const HERO_HEADLINE_LINES: ReadonlyArray<ReadonlyArray<HeadlineSegment>> = [
   [
     { text: "85% of callers who hit " },
@@ -43,6 +44,8 @@ const DWELL_MS = 4500;
 interface HeroRotatingHeadlineProps {
   /** Pause cycling (e.g. while the visitor hovers the headline or uses the hero CTAs). */
   paused?: boolean;
+  /** The lines to rotate, in the visitor's language. Defaults to the English set. */
+  lines?: ReadonlyArray<ReadonlyArray<HeadlineSegment>>;
 }
 
 /**
@@ -53,7 +56,7 @@ interface HeroRotatingHeadlineProps {
  * rise (~600ms) instead of jump-cutting. Inactive lines are aria-hidden
  * (no aria-live); with prefers-reduced-motion the first line is static.
  */
-const HeroRotatingHeadline = ({ paused = false }: HeroRotatingHeadlineProps) => {
+const HeroRotatingHeadline = ({ paused = false, lines = HERO_HEADLINE_LINES }: HeroRotatingHeadlineProps) => {
   const [index, setIndex] = useState(0);
   const [reducedMotion] = useState(
     () =>
@@ -73,7 +76,7 @@ const HeroRotatingHeadline = ({ paused = false }: HeroRotatingHeadlineProps) => 
     const start = () => {
       stop();
       interval = window.setInterval(() => {
-        setIndex((current) => (current + 1) % HERO_HEADLINE_LINES.length);
+        setIndex((current) => (current + 1) % lines.length);
       }, DWELL_MS);
     };
     const onVisibilityChange = () => {
@@ -89,13 +92,13 @@ const HeroRotatingHeadline = ({ paused = false }: HeroRotatingHeadlineProps) => 
       stop();
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [reducedMotion, paused]);
+  }, [reducedMotion, paused, lines]);
 
   const activeIndex = reducedMotion ? 0 : index;
 
   return (
     <span className="grid">
-      {HERO_HEADLINE_LINES.map((segments, lineIndex) => {
+      {lines.map((segments, lineIndex) => {
         const active = lineIndex === activeIndex;
         return (
           <span

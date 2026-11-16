@@ -58,7 +58,7 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
               onMouseEnter={pauseRotation}
               onMouseLeave={resumeRotation}
             >
-              <HeroRotatingHeadline paused={rotationPaused} />
+              <HeroRotatingHeadline paused={rotationPaused} lines={copy.heroHeadlines} />
             </motion.h1>
 
             {/* Subheadline */}
@@ -68,7 +68,7 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
               transition={{ duration: 0.6, delay: 0.2 }}
               className="text-base sm:text-lg text-muted-foreground max-w-xl mx-auto lg:mx-0 mb-6"
             >
-              Aspen answers every call and every website visitor in seconds — and she's not a chat box. She's a live, lip-synced video avatar with a real face and a natural voice, greeting your customers by name. Almost nobody else can give you that.
+              {copy.heroSub}
             </motion.p>
 
             {/* CTAs */}

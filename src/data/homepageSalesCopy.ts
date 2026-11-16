@@ -1,7 +1,7 @@
 import { HOMEPAGE_SERVICE_AREAS, HOMEPAGE_STARTER } from '../../supabase/functions/_shared/homepage-services';
 
 type SalesService = { id: string; name: string; scope: string; benefits: readonly string[]; problem?: string; solution?: string };
-type SalesCopy = { badge: string; headline: string; headlineAccent: string; sub: string; start: string; trust: string; title: string; description: string; technology: string; demo: string; addons: string; scope: string; servicesClosing: string; services: ReadonlyArray<SalesService> };
+type SalesCopy = { badge: string; headline: string; headlineAccent: string; sub: string; heroSub: string; heroHeadlines: ReadonlyArray<ReadonlyArray<{ text: string; accent?: boolean }>>; start: string; trust: string; title: string; description: string; technology: string; demo: string; addons: string; scope: string; servicesClosing: string; services: ReadonlyArray<SalesService> };
 
 const english: SalesCopy = {
   badge: 'A live video avatar on your website — not just a voice · Never miss a call — or a lead — again · Find the leads you\'re already losing',
@@ -9,6 +9,16 @@ const english: SalesCopy = {
   headlineAccent: 'Don’t let the next lead slip away.',
   sub: 'Calls going to voicemail? Website visitors leaving with unanswered questions? Turn more inquiries into opportunities with natural, two-way AI voice, a website chat widget and optional live video. Answer website visitors today, and forward your existing business number so calls reach Aspen instead of voicemail.',
   start: `Start with voice + chat + ${HOMEPAGE_STARTER.leadsPerMonth} B2B prospects/month for $${HOMEPAGE_STARTER.monthlyUsd}/mo.`,
+  heroSub: "Aspen answers every call and every website visitor in seconds — and she's not a chat box. She's a live, lip-synced video avatar with a real face and a natural voice, greeting your customers by name. Almost nobody else can give you that.",
+  heroHeadlines: [
+    [{ text: "85% of callers who hit " }, { text: "voicemail", accent: true }, { text: " don't call back — most move on to the next name on the list." }],
+    [{ text: "Did you know? 67% of callers hang up the moment they can't reach a real person." }],
+    [{ text: "78% of customers abandoned a business after just one unanswered call." }],
+    [{ text: "Have you heard? Most owners are shocked to learn 78% of customers abandon a business after just ONE unanswered call." }],
+    [{ text: "Choose from dozens of live " }, { text: "spokespersons", accent: true }, { text: " — or put your own face on your website." }],
+    [{ text: "Never miss another call. Aspen answers in seconds — 24/7." }],
+    [{ text: "Start with voice + chat + up to 50 B2B prospects/month for " }, { text: "$99/mo", accent: true }, { text: "." }],
+  ],
   trust: 'Start with your website URL · Free live simulation · No credit card · Your site stays unchanged',
   title: 'We find the leads you\'re already losing — and bring you new ones.',
   description: 'You\'re paying for a website, a phone number and a Google listing — and leads are slipping past all three. AiHiddenLeads is your growth partner: we plug every leak, then open new taps. Get answered. Get found. Get chosen.',
@@ -32,7 +42,17 @@ const english: SalesCopy = {
 const spanish: SalesCopy = {
   badge: 'Un avatar de video en vivo en tu sitio web — no solo una voz · Nunca pierdas una llamada — ni un cliente potencial — otra vez · Encuentra los clientes que ya estás perdiendo', headline: 'AI Hidden Leads', headlineAccent: 'Convierte conversaciones en oportunidades.',
   sub: '¿Llamadas al buzón de voz? ¿Visitantes web con preguntas sin respuesta? Capta consultas con voz natural, chat web y video opcional mientras tu equipo atiende a sus clientes. Widgets disponibles ahora; atención telefónica y desvío de llamadas próximamente.',
-  start: `Empieza con voz + chat + ${HOMEPAGE_STARTER.leadsPerMonth} prospectos B2B/mes por US$${HOMEPAGE_STARTER.monthlyUsd}/mes.`, trust: 'Simulación web gratis · Tu nombre + sitio web · Sin tarjeta',
+  start: `Empieza con voz + chat + ${HOMEPAGE_STARTER.leadsPerMonth} prospectos B2B/mes por US$${HOMEPAGE_STARTER.monthlyUsd}/mes.`,
+  heroSub: "Aspen responde cada llamada y a cada visitante de tu sitio web en segundos — y no es un cuadro de chat. Es un avatar de video en vivo, sincronizado con los labios, con un rostro real y una voz natural, que saluda a tus clientes por su nombre. Casi nadie más puede darte eso.",
+  heroHeadlines: [
+    [{ text: "El 85% de las personas que llaman y llegan al " }, { text: "buzón de voz", accent: true }, { text: " no vuelven a llamar — la mayoría pasa al siguiente nombre de la lista." }],
+    [{ text: "¿Sabías que el 67% de las personas que llaman cuelgan en el momento en que no logran hablar con una persona real?" }],
+    [{ text: "El 78% de los clientes abandonó una empresa después de una sola llamada sin respuesta." }],
+    [{ text: "¿Ya lo oíste? A la mayoría de los empresarios les sorprende saber que el 78% de los clientes abandona una empresa después de solo UNA llamada sin respuesta." }],
+    [{ text: "Elige entre docenas de " }, { text: "portavoces", accent: true }, { text: " en vivo — o pon tu propio rostro en tu sitio web." }],
+    [{ text: "No pierdas ni una llamada más. Aspen responde en segundos — 24/7." }],
+    [{ text: "Empieza con voz + chat + hasta 50 prospectos B2B/mes por " }, { text: "US$99/mes", accent: true }, { text: "." }],
+  ], trust: 'Simulación web gratis · Tu nombre + sitio web · Sin tarjeta',
   title: 'Encontramos los clientes que ya estás perdiendo — y te traemos nuevos.', description: 'Estás pagando por un sitio web, un número de teléfono y una ficha de Google — y los clientes se escapan por los tres. AiHiddenLeads es tu socio de crecimiento: tapamos cada fuga y luego abrimos nuevas fuentes. Que te respondan. Que te encuentren. Que te elijan.',
   technology: 'Escucha la diferencia: voz conversacional en vivo, conocimiento de tu sitio y chat integrado; no un saludo de buzón pregrabado.',
   demo: 'Probar en mi sitio — gratis', addons: 'Ver paquetes adicionales',
@@ -53,7 +73,17 @@ const spanish: SalesCopy = {
 const portuguese: SalesCopy = {
   badge:'Um avatar de vídeo ao vivo no seu site — não apenas uma voz · Nunca perca uma chamada — nem um lead — de novo · Encontre os leads que você já está perdendo',headline:'AI Hidden Leads',headlineAccent:'Transforme conversas em oportunidades.',
   sub:'Chamadas na caixa postal? Visitantes do site com dúvidas sem resposta? Capture consultas com voz natural, chat e vídeo opcional enquanto sua equipe atende clientes. Widgets disponíveis agora; atendimento telefônico e encaminhamento em breve.',
-  start:`Comece com voz + chat + ${HOMEPAGE_STARTER.leadsPerMonth} prospects B2B/mês por US$${HOMEPAGE_STARTER.monthlyUsd}/mês.`,trust:'Simulação gratuita · Seu nome + site · Sem cartão',
+  start:`Comece com voz + chat + ${HOMEPAGE_STARTER.leadsPerMonth} prospects B2B/mês por US$${HOMEPAGE_STARTER.monthlyUsd}/mês.`,
+  heroSub:"A Aspen atende cada chamada e cada visitante do seu site em segundos — e ela não é uma caixa de chat. Ela é um avatar de vídeo ao vivo, com sincronização labial, rosto real e voz natural, que cumprimenta seus clientes pelo nome. Quase ninguém mais consegue te dar isso.",
+  heroHeadlines: [
+    [{ text: "85% de quem liga e cai na " }, { text: "caixa postal", accent: true }, { text: " não liga de volta — a maioria passa para o próximo nome da lista." }],
+    [{ text: "Você sabia? 67% de quem liga desliga no momento em que não consegue falar com uma pessoa de verdade." }],
+    [{ text: "78% dos clientes abandonaram uma empresa depois de uma única chamada não atendida." }],
+    [{ text: "Já ouviu falar? A maioria dos empresários se choca ao saber que 78% dos clientes abandonam uma empresa depois de apenas UMA chamada não atendida." }],
+    [{ text: "Escolha entre dezenas de " }, { text: "porta-vozes", accent: true }, { text: " ao vivo — ou coloque o seu próprio rosto no seu site." }],
+    [{ text: "Nunca mais perca uma chamada. A Aspen atende em segundos — 24/7." }],
+    [{ text: "Comece com voz + chat + até 50 prospects B2B/mês por " }, { text: "US$99/mês", accent: true }, { text: "." }],
+  ],trust:'Simulação gratuita · Seu nome + site · Sem cartão',
   title:'Encontramos os leads que você já está perdendo — e trazemos novos para você.',description:'Você paga por um site, um número de telefone e uma ficha no Google — e os leads escapam pelos três. A AiHiddenLeads é sua parceira de crescimento: fechamos cada vazamento e depois abrimos novas fontes. Seja atendido. Seja encontrado. Seja escolhido.',
   technology:'Ouça a diferença: voz conversacional ao vivo, conhecimento do seu site e chat integrado — não uma saudação gravada de caixa postal.',
   demo:'Testar no meu site — grátis',addons:'Ver pacotes adicionais',
