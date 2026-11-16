@@ -18,6 +18,7 @@ import { useTranslation } from "react-i18next";
 // locale resources exist wherever the panel mounts (same singleton in the app).
 import "@/i18n";
 import { explicitUiLocale } from "@/lib/uiLocale";
+import { clearDemoResume } from "@/lib/demoVerification";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { microphonePcm, shouldSendMicrophone, microphoneGate, microphoneAutoGain, initialCaptureMode, ambientLevelForFloor, createAmbientGateState, pushAmbientRms, type AmbientGateState, type NoiseFilter, type CaptureMode } from "@/lib/voiceLabAudio";
 
@@ -143,6 +144,27 @@ function visitMemoryDelete(key: string) {
  * the ACTIVE segment (personaResume opening — welcome-back, no apology);
  * only a fresh parent authorization (a genuinely new demo) clears it. */
 const visitChainStash = new Map<string, ChainStash>();
+/** START OVER AS A NEW VISITOR (Ron, 2026-11-16): the panel's small
+ * restart control. A returning browser is recognised — visitMemory
+ * (and its sessionStorage mirror) makes the next start open with a
+ * "continue where we left off" resume, the persona-chain stash
+ * re-authorises the active segment, and the demo pages keep their
+ * own resume record — which is right for a real returning visitor
+ * and wrong for a demo: Ron showing the site to a friend needs the
+ * next start to be a stranger's first visit. This wipes every
+ * client-side thread of the old visit: the conversation memory, the
+ * chain stash, the stored visitor key (the next start mints a fresh
+ * one anyway) and the demo resume record. Device PREFERENCES are
+ * not identity and survive on purpose: the captions choice, voice,
+ * noise filter and the voice-proxy override all stay. */
+export function resetVisitForNewVisitor(): void {
+  visitMemory.clear();
+  visitMemoryHydrated = true;
+  visitChainStash.clear();
+  try { sessionStorage.removeItem(VISIT_MEMORY_STORAGE_KEY); } catch { /* storage is best-effort */ }
+  try { localStorage.removeItem("gemini-visitor-key"); } catch { /* storage is best-effort */ }
+  clearDemoResume();
+}
 export function resumeRecap(turns: Turn[]) {
   if (!turns.some(t => t.role === "assistant")) return undefined;
   // Publish #63 windowing (_shared/recap-builder.ts): the FIRST 6
@@ -2122,6 +2144,26 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     setAudioNeedsTap(false);
     setEndedByVisitor(true);
   }, [stopEverything]);
+
+  /** START OVER (Ron, 2026-11-16): end whatever is live, wipe the
+   * visit's memory (see resetVisitForNewVisitor) and put the panel
+   * back to its first-visit state, so the next Start is a stranger's
+   * greeting — no resume offer, no recap, no carried-over persona. */
+  const restartAsNewVisitor = useCallback(() => {
+    stopEverything();
+    clearRetainedHandoffMic();
+    resetVisitForNewVisitor();
+    handoffAnnouncementRef.current = null;
+    handoffReturnRef.current = null;
+    setTurns([]);
+    setPartialUser("");
+    setPartialAspen("");
+    setError(null);
+    setAudioNeedsTap(false);
+    setLimitReached(false);
+    setEndedByVisitor(false);
+    setStatus(t("panel.initialStatus"));
+  }, [stopEverything, t]);
 
   /** MANUAL-STOP SEGMENT RESUME: startConversation calls this when a
    * chain stash exists for this page visit. It runs AFTER the fresh
@@ -4980,6 +5022,16 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             )}
             {shownPhase !== "live" && (shownPhase === "idle" ? t("voice.readyToTalk") : faceWaiting ? t("voice.connecting") : status)}
           </p>
+          {/* START OVER (Ron, 2026-11-16): a deliberately small, quiet
+              control at the end of the status row — two chasing arrows —
+              that ends the visit and wipes its memory so the next Start
+              treats this browser as a brand-new visitor. Built for
+              demoing (show a friend a fresh first visit on a browser
+              that remembers you); a real visitor who taps it simply
+              starts over. */}
+          <button type="button" data-testid="aspen-start-over" onClick={restartAsNewVisitor} title={t("voice.startOver")} aria-label={t("voice.startOver")} className="shrink-0 rounded-full p-1 text-muted-foreground/50 transition-colors hover:text-foreground">
+            <RefreshCw className="h-3.5 w-3.5" />
+          </button>
           {remainingSeconds !== null && <span data-testid="demo-timer-pill" title={`${t("voice.demoTimeRemaining")}: ${Math.floor(remainingSeconds/60)}:${String(remainingSeconds%60).padStart(2,'0')}`} aria-label={`${t("voice.demoTimeRemaining")}: ${Math.floor(remainingSeconds/60)}:${String(remainingSeconds%60).padStart(2,'0')}`} className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-background/95 px-2 py-0.5 text-[11px] leading-tight text-muted-foreground"><Timer className="h-3 w-3" />{Math.floor(remainingSeconds/60)}:{String(remainingSeconds%60).padStart(2,'0')}</span>}
           {/* Captions toggle (2026-11-14): a word pill labelled
               "Captions" — Ron picked the word over the up/down

@@ -671,6 +671,7 @@
     "stop": "Detener",
     "startConversation": "Iniciar conversación",
     "endConversation": "Terminar conversación",
+    "startOver": "Empezar de nuevo como un visitante nuevo",
     "playToConnect": "Pulsa para conectar con {{name}}",
     "unmuteMic": "Activar el micrófono",
     "muteMic": "Silenciar el micrófono",

@@ -915,6 +915,7 @@
     "stop": "Stop",
     "startConversation": "Start conversation",
     "endConversation": "End conversation",
+    "startOver": "Start over as a new visitor",
     "playToConnect": "Play to connect to {{name}}",
     "unmuteMic": "Unmute microphone",
     "muteMic": "Mute microphone",

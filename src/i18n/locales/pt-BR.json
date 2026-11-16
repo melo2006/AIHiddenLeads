@@ -889,6 +889,7 @@
     "stop": "Parar",
     "startConversation": "Iniciar conversa",
     "endConversation": "Encerrar conversa",
+    "startOver": "Recomeçar como um novo visitante",
     "playToConnect": "Reproduzir para conectar com {{name}}",
     "unmuteMic": "Ativar o microfone",
     "muteMic": "Silenciar o microfone",
