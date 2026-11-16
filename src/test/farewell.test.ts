@@ -314,7 +314,7 @@ describe('double-close gate — one closing line is spoken, presenter path', () 
   });
 
   it('does not let a tool call lift an armed presenter farewell (the eliciting path)', () => {
-    expect(src).toContain('if (!farewellGateActive()) cancelFarewellEnd();');
+    expect(src).toContain('if (!farewellGateActive() && farewellRepeats === 0) cancelFarewellEnd();');
     // The tool response itself is still sent — only the cancel is
     // stood down, so the provider session stays protocol-valid and
     // the follow-up turn is generated into the gate, not the room.
