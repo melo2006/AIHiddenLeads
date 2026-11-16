@@ -495,30 +495,24 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const [faceLive, setFaceLive] = useState(false);
   // Captions on/off doubles as the FOCUS VIEW switch (2026-11-14):
   // captions off = focus view (the presenter floats frameless, panel
-  // becomes the bottom dock). DEFAULT CHANGED (owner-directed
-  // 2026-11-15): a brand-new visitor now starts with captions OFF —
-  // the animated avatar is the showpiece, and the one-time tip card
-  // (below) points them at the Captions button. An explicit Captions
-  // choice is remembered across visits in localStorage, written ONLY
-  // by the toggle buttons (chooseCaptions); the session-level memory
-  // (sessionStorage) still tracks the live state as before, so
-  // reopening the widget never silently restores captions they
-  // turned off, and a mute-forced captions-on never overwrites the
-  // visitor's stored preference.
+  // becomes the bottom dock). DEFAULT (owner-directed 2026-11-15,
+  // strengthened 2026-11-16): captions are OFF at the start of EVERY
+  // session — the animated avatar is the showpiece, and the one-time
+  // tip card (below) points at the Captions button. A cross-visit
+  // preference no longer auto-applies: a visitor who turned captions
+  // on last week still starts OFF today and toggles them on in one
+  // tap. Within a visit, the sessionStorage mirror keeps the live
+  // choice, so reopening the widget mid-visit never silently
+  // restores captions they turned off; a mute-forced captions-on is
+  // session-only, exactly as before.
   const [captions, setCaptions] = useState(() => {
-    try {
-      const saved = localStorage.getItem("aspen-widget-captions");
-      if (saved === "on") return true;
-      if (saved === "off") return false;
-      return sessionStorage.getItem("aspen-widget-captions") === "on";
-    } catch { return false; }
+    try { return sessionStorage.getItem("aspen-widget-captions") === "on"; } catch { return false; }
   });
   useEffect(() => {
     try { sessionStorage.setItem("aspen-widget-captions", captions ? "on" : "off"); } catch { /* storage is best-effort */ }
   }, [captions]);
   const chooseCaptions = useCallback((next: boolean) => {
     setCaptions(next);
-    try { localStorage.setItem("aspen-widget-captions", next ? "on" : "off"); } catch { /* storage is best-effort */ }
   }, []);
   // CAPTIONS TIP CARD (owner-directed 2026-11-15): with the new
   // captions-off default, a first-time visitor gets ONE semi-

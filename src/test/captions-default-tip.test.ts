@@ -4,23 +4,21 @@ import { describe, expect, test } from 'vitest';
 
 const conv = readFileSync(new URL('../components/GeminiConversation.tsx', import.meta.url), 'utf8');
 
-describe('captions default + tip card (owner-directed 2026-11-15)', () => {
-  test('a brand-new visitor starts with captions OFF (avatar is the showpiece)', () => {
-    // Preference order: stored localStorage choice, then the legacy
-    // session memory, then the new default — OFF.
-    expect(conv).toContain('const saved = localStorage.getItem("aspen-widget-captions");');
-    expect(conv).toContain('if (saved === "on") return true;');
-    expect(conv).toContain('if (saved === "off") return false;');
+describe('captions default + tip card (owner-directed 2026-11-15, strengthened 2026-11-16)', () => {
+  test('EVERY session starts with captions OFF — no cross-visit preference auto-applies', () => {
+    // Ron's 2026-11-16 rule: OFF from the start of a session, always.
+    // Only the same-visit sessionStorage mirror can start captions
+    // on (reopening the widget mid-visit keeps the live choice).
     expect(conv).toContain('return sessionStorage.getItem("aspen-widget-captions") === "on";');
+    expect(conv).not.toContain('localStorage.getItem("aspen-widget-captions")');
+    expect(conv).not.toContain('localStorage.setItem("aspen-widget-captions"');
   });
 
-  test('only the explicit toggle writes the cross-visit preference', () => {
+  test('the toggle flips the live state only', () => {
     expect(conv).toContain('const chooseCaptions = useCallback((next: boolean) => {');
-    expect(conv).toContain('localStorage.setItem("aspen-widget-captions", next ? "on" : "off");');
     expect(conv).toContain('onClick={() => chooseCaptions(true)}');
     expect(conv).toContain('onClick={() => chooseCaptions(!captions)}');
-    // Muting still forces captions on for the session WITHOUT
-    // overwriting the stored preference.
+    // Muting still forces captions on for the session.
     expect(conv).toContain('if (next) setCaptions(true);');
   });
 

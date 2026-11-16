@@ -76,9 +76,9 @@ function stubBrowser() {
   vi.stubGlobal('WebSocket', Socket);
   vi.stubGlobal('AudioContext', Context);
   vi.stubGlobal('navigator', { mediaDevices: { addEventListener: vi.fn(), removeEventListener: vi.fn(), getUserMedia: async () => ({ getTracks: () => [{ stop: vi.fn() }], getAudioTracks: () => [] }), enumerateDevices: async () => [] } });
-  // These tests exercise caption DISPLAY; captions-off became the
-  // new-visitor default on 2026-11-15, so seed the preference ON.
-  localStorage.setItem('aspen-widget-captions', 'on');
+  // These tests exercise caption DISPLAY; every session starts
+  // captions-off (2026-11-16), so seed the same-visit mirror ON.
+  sessionStorage.setItem('aspen-widget-captions', 'on');
 }
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); Context.now = 0; Context.sources = []; Socket.current = undefined; vi.clearAllMocks(); });

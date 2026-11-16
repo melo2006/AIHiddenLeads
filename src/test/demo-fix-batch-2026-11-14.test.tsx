@@ -90,10 +90,10 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); sessio
 describe('focus view (item 5b)', () => {
   it('the Captions pill switches the panel to the dock layout and reports focus to the shell', async () => {
     stubBrowser();
-    // Captions-off became the new-visitor default on 2026-11-15; this
-    // test exercises the toggle FROM the captions-on layout, so seed
-    // the stored preference ON first.
-    localStorage.setItem('aspen-widget-captions', 'on');
+    // Every session starts captions-off (2026-11-16); this test
+    // exercises the toggle FROM the captions-on layout, so seed the
+    // same-visit mirror ON first.
+    sessionStorage.setItem('aspen-widget-captions', 'on');
     const onShellState = vi.fn();
     const view = render(<GeminiConversation compact faceFirst consentOnOpen videoAvatar={videoAvatar} onShellState={onShellState} />);
     await waitFor(() => expect(view.getByText('Ready to talk')).toBeTruthy());
@@ -113,13 +113,14 @@ describe('focus view (item 5b)', () => {
     expect(view.container.querySelector('.aspen-person-livebox [data-testid="persona-name-label"]')).toBeNull();
     expect(onShellState).toHaveBeenCalledWith(expect.objectContaining({ focus: true }));
     expect(sessionStorage.getItem('aspen-widget-captions')).toBe('off');
-    expect(localStorage.getItem('aspen-widget-captions')).toBe('off');
+    // No cross-visit preference is written anymore (2026-11-16).
+    expect(localStorage.getItem('aspen-widget-captions')).toBeNull();
 
     // The dock toggle brings captions (and the standard layout) back.
     fireEvent.click(dock.querySelector('[aria-label="Show captions"]')!);
     await waitFor(() => expect(view.queryByTestId('aspen-focus-dock')).toBeNull());
     expect(sessionStorage.getItem('aspen-widget-captions')).toBe('on');
-    expect(localStorage.getItem('aspen-widget-captions')).toBe('on');
+    expect(localStorage.getItem('aspen-widget-captions')).toBeNull();
   });
 
   it("remembers the visitor's captions choice for the session", async () => {
