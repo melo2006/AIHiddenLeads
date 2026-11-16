@@ -1,12 +1,12 @@
-import { useState, useRef, useEffect, useMemo, useCallback } from "react";
-import { Bot, User, Maximize2, Minimize2, X, ExternalLink } from "lucide-react";
+import { useState, useRef, useEffect, useMemo, useCallback, type ChangeEvent } from "react";
+import { Bot, User, Maximize2, Minimize2, X, ExternalLink, Mic, Square, AudioLines, Send, Plus, Camera, Image as ImageIcon, FolderOpen, FileText, Volume2, Copy, Check, ThumbsUp, ThumbsDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { MessageResponse } from '@/components/ai-elements/message';
 import { displayNumbers } from '@/lib/displayNumbers';
 import { useTranslation } from "react-i18next";
 import "@/i18n"; // standalone harnesses mount this panel without main.tsx
 import { explicitUiLocale, normalizeUiLocale, uiLocaleLanguage } from "@/lib/uiLocale";
-import { PromptInput, PromptInputTextarea, PromptInputFooter, PromptInputSubmit } from '@/components/ai-elements/prompt-input';
+import { visitMemoryAppend, visitMemoryGet } from "@/lib/visitMemory";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -44,11 +44,156 @@ interface ChatWidgetProps {
    *  and greeting ONLY when the visitor made no explicit language-switch
    *  pick — the explicit pick always wins. Undefined everywhere else. */
   detectedSiteLanguage?: string;
+  /** ONE CONTINUOUS CONVERSATION (Ron, 2026-11-16): the visit-memory
+   *  key the voice panel uses for this surface (the conversation's
+   *  agentId, or 'homepage'). When set, the typed thread is seeded
+   *  from — and appended back to — the SAME visit store the voice
+   *  sessions write, so Voice ⇄ Type shows one thread: spoken lines
+   *  appear here, typed lines ride the voice session's resume recap.
+   *  Undefined on standalone surfaces, which keep their local thread. */
+  memoryKey?: string;
+  /** Switch the shell to the live voice conversation (the composer's
+   *  voice-mode button, Gemini-style). Undefined where the surface has
+   *  no voice mode to switch to — the button then does not render. */
+  onVoiceMode?: () => void;
+}
+
+/** A file the visitor attached in the composer. PHOTOS are seen by
+ *  the chat brain (Ron, 2026-11-16): an image is downscaled on the
+ *  device (see prepareImagePayload) and rides the send as an inline
+ *  image part, so Aspen replies about what she sees. Every other
+ *  kind stays local: the thread shows the chip (name / type / size,
+ *  image preview when local) and the message carries a bracketed
+ *  note naming the attachment — never a faked upload. */
+export interface ChatAttachmentMeta {
+  name: string;
+  type: string;
+  size: number;
+  previewUrl?: string;
 }
 
 interface Message {
   role: "assistant" | "user";
   content: string;
+  attachment?: ChatAttachmentMeta;
+}
+
+export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+const ATTACHMENT_ACCEPT_ALL = "image/*,audio/*,video/*,.pdf,.doc,.docx,.odt,.rtf,.txt,.md,.csv";
+const ATTACHMENT_MIME_TYPES = ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.oasis.opendocument.text", "application/rtf", "text/plain", "text/markdown", "text/csv"];
+
+export function attachmentSupported(file: { name: string; type: string }): boolean {
+  if (file.type.startsWith("image/") || file.type.startsWith("audio/") || file.type.startsWith("video/")) return true;
+  if (ATTACHMENT_MIME_TYPES.includes(file.type)) return true;
+  return /\.(pdf|doc|docx|odt|rtf|txt|md|csv)$/i.test(file.name);
+}
+
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/** The bracketed note that rides the text payload (and the visit
+ *  memory) for a message with an attachment, so the conversation —
+ *  and any later voice resume — knows a file was shared. */
+export function attachmentNote(attachment: ChatAttachmentMeta): string {
+  return `[Attached file: ${attachment.name} (${attachment.type || "file"}, ${formatFileSize(attachment.size)})]`;
+}
+
+/** Photo vision (Ron, 2026-11-16): before a photo is sent it is
+ *  downscaled ON THE DEVICE — long edge capped at 1568px, re-encoded
+ *  as JPEG — and the encoded payload is capped at 4 MB, so a phone
+ *  camera shot reaches the model at a sane size. One photo per
+ *  message (the composer stages a single attachment). */
+export const MAX_IMAGE_EDGE_PX = 1568;
+export const MAX_IMAGE_PAYLOAD_BYTES = 4 * 1024 * 1024;
+export type ImagePrepResult = { image: { data: string; mimeType: string } } | { error: "too-large" | "unreadable" } | null;
+
+export async function prepareImagePayload(file: File): Promise<ImagePrepResult> {
+  if (!file.type.startsWith("image/")) return null;
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error("image decode failed"));
+      el.src = url;
+    });
+    const srcW = img.naturalWidth || img.width;
+    const srcH = img.naturalHeight || img.height;
+    if (!srcW || !srcH) return { error: "unreadable" };
+    const scale = Math.min(1, MAX_IMAGE_EDGE_PX / Math.max(srcW, srcH));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(srcW * scale));
+    canvas.height = Math.max(1, Math.round(srcH * scale));
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return { error: "unreadable" };
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob | null>((resolve) => {
+      if (typeof canvas.toBlob === "function") canvas.toBlob((b) => resolve(b), "image/jpeg", 0.85);
+      else resolve(null);
+    });
+    let dataUrl: string;
+    let byteSize: number;
+    if (blob) {
+      byteSize = blob.size;
+      dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error("image read failed"));
+        reader.readAsDataURL(blob);
+      });
+    } else {
+      dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+      byteSize = Math.floor((dataUrl.length - dataUrl.indexOf(",") - 1) * 0.75);
+    }
+    const data = dataUrl.slice(dataUrl.indexOf(",") + 1);
+    if (!data) return { error: "unreadable" };
+    if (byteSize > MAX_IMAGE_PAYLOAD_BYTES) return { error: "too-large" };
+    return { image: { data, mimeType: "image/jpeg" } };
+  } catch {
+    return { error: "unreadable" };
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+/** The displayable thread stored in the visit memory under `key`:
+ *  both sides in order, dividers and synthetic [visit fact] records
+ *  filtered out (those are recap plumbing, not conversation). */
+export function threadFromVisitMemory(key: string): Message[] {
+  return visitMemoryGet(key)
+    .filter((turn) => turn.role !== "divider" && !turn.text.startsWith("[visit fact]"))
+    .map((turn) => ({ role: turn.role as "user" | "assistant", content: turn.text }));
+}
+
+/** BCP-47 tag for dictation + read-aloud, from the chat's effective
+ *  locale ('en' | 'es' | 'pt-BR' | undefined). */
+export function speechLangFor(locale: string | undefined): string {
+  if (locale === "pt-BR") return "pt-BR";
+  if (locale === "es") return "es";
+  return "en-US";
+}
+
+interface SpeechRecognitionResultLike { isFinal: boolean; 0: { transcript: string } }
+interface SpeechRecognitionEventLike { results: ArrayLike<SpeechRecognitionResultLike> }
+interface SpeechRecognitionLike {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onend: (() => void) | null;
+  onerror: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+}
+type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
+function speechRecognitionCtor(): SpeechRecognitionCtor | undefined {
+  if (typeof window === "undefined") return undefined;
+  const w = window as unknown as { SpeechRecognition?: SpeechRecognitionCtor; webkitSpeechRecognition?: SpeechRecognitionCtor };
+  return w.SpeechRecognition ?? w.webkitSpeechRecognition;
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -70,6 +215,8 @@ const ChatWidget = ({
   presenterName,
   presenterKnowledge,
   detectedSiteLanguage,
+  memoryKey,
+  onVoiceMode,
 }: ChatWidgetProps) => {
   const presenterDisplayName = presenterName?.trim() || "Aspen";
   // A named presenter means the WHOLE chat is that presenter — display
@@ -102,6 +249,31 @@ const ChatWidget = ({
   const mounted = useRef(true);
   const sessionId = useRef(crypto.randomUUID()+crypto.randomUUID());
   const recordQueue=useRef(Promise.resolve());
+  // Gemini-style composer (Ron, 2026-11-16): staged attachment,
+  // dictation, per-reply actions.
+  const [attachment, setAttachment] = useState<ChatAttachmentMeta | null>(null);
+  // The picked File itself (the meta above is display-only); a photo
+  // is downscaled from it at send time. Cleared wherever the staged
+  // chip is cleared.
+  const attachmentFileRef = useRef<File | null>(null);
+  const [attachError, setAttachError] = useState("");
+  const [attachMenuOpen, setAttachMenuOpen] = useState(false);
+  const [dictating, setDictating] = useState(false);
+  const [ratings, setRatings] = useState<Record<number, "up" | "down">>({});
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [speakingIndex, setSpeakingIndex] = useState<number | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const photosInputRef = useRef<HTMLInputElement>(null);
+  const filesInputRef = useRef<HTMLInputElement>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const dictationBaseRef = useRef("");
+  const objectUrlsRef = useRef<string[]>([]);
+  const [speechSupported] = useState(() => Boolean(speechRecognitionCtor()));
+  // Visit-memory sync bookkeeping (memoryKey surfaces only): how many
+  // raw visit turns `messages` already reflects, and whether a reply
+  // is mid-stream (a sync must never fight the streaming line).
+  const consumedTurnsRef = useRef(0);
+  const streamingRef = useRef(false);
 
   const ownerLabel = ownerName?.trim() || callerName?.trim() || "the business owner";
   const isBusy = isThinking || isStreaming;
@@ -131,6 +303,10 @@ const ChatWidget = ({
     mounted.current = true;
     return () => {
       mounted.current = false;
+      recognitionRef.current?.abort();
+      try { window.speechSynthesis?.cancel(); } catch { /* no speech synthesis */ }
+      objectUrlsRef.current.forEach((url) => { try { URL.revokeObjectURL(url); } catch { /* already gone */ } });
+      objectUrlsRef.current = [];
     };
   }, []);
 
@@ -191,18 +367,53 @@ const ChatWidget = ({
     if (initialized.current) return;
     initialized.current = true;
 
+    // ONE THREAD (memoryKey surfaces): if the visit already has a
+    // conversation — spoken on the voice side, typed earlier, or both
+    // — the chat OPENS on that thread instead of a fresh greeting.
+    if (memoryKey) {
+      const existing = threadFromVisitMemory(memoryKey);
+      if (existing.length) {
+        consumedTurnsRef.current = visitMemoryGet(memoryKey).length;
+        setMessages(existing);
+        return;
+      }
+    }
+
     const firstName = callerName?.split(" ")[0]?.trim();
     const nameGreet = firstName ? `, ${firstName}` : "";
+    const greeting = `${getGreeting()}${nameGreet}! 👋 ${t("chat.greetingBody", { businessName, name: presenterDisplayName, lng: effectiveChatLocale })}`;
 
-    setMessages([
-      {
-        role: "assistant",
-        content: `${getGreeting()}${nameGreet}! 👋 ${t("chat.greetingBody", { businessName, name: presenterDisplayName, lng: effectiveChatLocale })}`,
-      },
-    ]);
+    setMessages([{ role: "assistant", content: greeting }]);
+    if (memoryKey) {
+      // The greeting joins the shared thread, so a later switch to
+      // voice resumes from the whole conversation, greeting included.
+      visitMemoryAppend(memoryKey, { role: "assistant", text: greeting });
+      consumedTurnsRef.current = visitMemoryGet(memoryKey).length;
+    }
   }, [businessName, callerName]);
 
-  const sendToAI = async (conversationHistory: Message[]) => {
+  // Re-sync on (re)activation: while the visitor was on the voice
+  // side, spoken turns landed in the visit store; when the chat
+  // becomes active again they join the thread — and if the store was
+  // wiped meanwhile (start-over), the thread rebuilds from it.
+  const syncFromVisitMemory = useCallback(() => {
+    if (!memoryKey || isBusy || streamingRef.current) return;
+    const raw = visitMemoryGet(memoryKey);
+    if (raw.length === consumedTurnsRef.current) return;
+    if (raw.length > consumedTurnsRef.current) {
+      const fresh = raw.slice(consumedTurnsRef.current)
+        .filter((turn) => turn.role !== "divider" && !turn.text.startsWith("[visit fact]"))
+        .map((turn) => ({ role: turn.role as "user" | "assistant", content: turn.text }));
+      consumedTurnsRef.current = raw.length;
+      if (fresh.length) setMessages((prev) => [...prev, ...fresh]);
+      return;
+    }
+    consumedTurnsRef.current = raw.length;
+    setMessages(threadFromVisitMemory(memoryKey));
+  }, [memoryKey, isBusy]);
+  useEffect(() => { if (active) syncFromVisitMemory(); }, [active, syncFromVisitMemory]);
+
+  const sendToAI = async (conversationHistory: Message[], image?: { data: string; mimeType: string }) => {
     // Presenter brain (2026-11-14): on a presenter demo the identity
     // line names the presenter and a PRESENTER DEMO block pins the
     // role, so the chat thinks as Frank/Latina — the same presenter
@@ -273,7 +484,13 @@ ${responseLanguageLine}`;
         action: "chat-completion",
         locale: effectiveChatLocale,
         systemPrompt,
-        messages: conversationHistory.map((m) => ({ role: m.role, content: m.content })),
+        // A message with an attachment carries the bracketed note as
+        // its payload suffix (the thread itself shows the chip, not
+        // the note). A PHOTO additionally rides as `image` — the
+        // downscaled JPEG the endpoint attaches to the last user
+        // message as an image part, so the model sees it too.
+        messages: conversationHistory.map((m) => ({ role: m.role, content: m.attachment ? `${m.content} ${attachmentNote(m.attachment)}`.trim() : m.content })),
+        ...(image ? { image } : {}),
       },
     });
 
@@ -285,6 +502,7 @@ ${responseLanguageLine}`;
   };
 
   const typeAssistantResponse = useCallback(async (response: string) => {
+    streamingRef.current = true;
     setIsStreaming(true);
     setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
 
@@ -309,28 +527,66 @@ ${responseLanguageLine}`;
       await sleep(delay);
     }
 
+    streamingRef.current = false;
     if (mounted.current) {
+      // The completed reply joins the shared visit thread BEFORE the
+      // busy flag drops, so the activation sync can never duplicate it.
+      if (memoryKey) {
+        visitMemoryAppend(memoryKey, { role: "assistant", text: response });
+        consumedTurnsRef.current = visitMemoryGet(memoryKey).length;
+      }
       setIsStreaming(false);
       logChatMessage("assistant", response);
     }
-  }, [logChatMessage]);
+  }, [logChatMessage, memoryKey]);
 
   const handleSend = useCallback(async (prefill?: string) => {
     const userMsg = (prefill ?? input).trim();
-    if (!userMsg || isBusy || !recordingAgreed) return;
+    // A staged attachment can carry a message on its own (no text).
+    const staged = prefill ? null : attachment;
+    if ((!userMsg && !staged) || isBusy || !recordingAgreed) return;
+
+    // PHOTO VISION (Ron, 2026-11-16): a staged photo is downscaled
+    // here, before the composer clears, so she actually receives it.
+    // Still too large after downscaling → keep the chip staged, show
+    // the friendly error, and do NOT send a message she can't see.
+    // Undecodable in this browser → the message still sends with the
+    // chip + note, as every attachment did before.
+    let imagePayload: { data: string; mimeType: string } | undefined;
+    const stagedFile = prefill ? null : attachmentFileRef.current;
+    if (staged && stagedFile && staged.type.startsWith("image/")) {
+      setIsThinking(true);
+      const prep = await prepareImagePayload(stagedFile);
+      if (!mounted.current) return;
+      if (prep && "error" in prep && prep.error === "too-large") {
+        setIsThinking(false);
+        setAttachError(t("chat.attachTooLarge", { size: "4 MB" }));
+        return;
+      }
+      if (prep && "image" in prep) imagePayload = prep.image;
+    }
 
     if (!prefill) {
       setInput("");
+      setAttachment(null);
+      attachmentFileRef.current = null;
+      setAttachError("");
     }
 
-    const updated = [...messages, { role: "user" as const, content: userMsg }];
+    const userMessage: Message = { role: "user", content: userMsg, ...(staged ? { attachment: staged } : {}) };
+    const updated = [...messages, userMessage];
     followLatest.current = true;
     setMessages(updated);
     setIsThinking(true);
-    logChatMessage("user", userMsg);
+    const loggedText = staged ? `${userMsg} ${attachmentNote(staged)}`.trim() : userMsg;
+    logChatMessage("user", loggedText);
+    if (memoryKey) {
+      visitMemoryAppend(memoryKey, { role: "user", text: loggedText });
+      consumedTurnsRef.current = visitMemoryGet(memoryKey).length;
+    }
 
     try {
-      const response = await sendToAI(updated);
+      const response = await sendToAI(updated, imagePayload);
       if (!mounted.current) return;
 
       await sleep(350);
@@ -344,7 +600,103 @@ ${responseLanguageLine}`;
       const fallback = t("chat.fallback", { owner: ownerLabel });
       await typeAssistantResponse(fallback);
     }
-  }, [input, isBusy, messages, ownerLabel, typeAssistantResponse,recordingAgreed]);
+  }, [input, isBusy, messages, ownerLabel, typeAssistantResponse, recordingAgreed, attachment, memoryKey]);
+
+  // Dictation (Gemini-style mic inside the composer): tap to start,
+  // tap the square stop state to end. Interim results update the
+  // field live while recording; the recognized speech lands as TEXT
+  // IN THE FIELD and is NEVER auto-sent — the visitor reviews, taps
+  // in and edits (recognition errors, TV noise, accents), mixes in
+  // typed corrections, and sends only by tapping Send. The button
+  // only exists when the browser offers the SpeechRecognition API.
+  const toggleDictation = useCallback(() => {
+    if (dictating) {
+      recognitionRef.current?.stop();
+      return;
+    }
+    const Ctor = speechRecognitionCtor();
+    if (!Ctor) return;
+    const recognition = new Ctor();
+    recognition.lang = speechLangFor(effectiveChatLocale);
+    recognition.interimResults = true;
+    recognition.continuous = false;
+    dictationBaseRef.current = input;
+    recognition.onresult = (event) => {
+      let transcript = "";
+      for (let i = 0; i < event.results.length; i++) transcript += event.results[i][0].transcript;
+      const base = dictationBaseRef.current;
+      setInput(base ? `${base.replace(/\s+$/, "")} ${transcript}` : transcript);
+    };
+    recognition.onend = () => { setDictating(false); recognitionRef.current = null; };
+    recognition.onerror = () => { setDictating(false); recognitionRef.current = null; };
+    recognitionRef.current = recognition;
+    setDictating(true);
+    try { recognition.start(); } catch { setDictating(false); recognitionRef.current = null; }
+  }, [dictating, input, effectiveChatLocale]);
+
+  // Attachment picking: one handler for the Camera / Photos / Files
+  // inputs — same guardrails (type allow-list, 10 MB cap) and the
+  // same staged chip whichever entry the visitor used.
+  const handleFilePicked = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    setAttachMenuOpen(false);
+    if (!file) return;
+    if (!attachmentSupported(file)) {
+      setAttachError(t("chat.attachUnsupported"));
+      return;
+    }
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      setAttachError(t("chat.attachTooLarge", { size: "10 MB" }));
+      return;
+    }
+    setAttachError("");
+    attachmentFileRef.current = file;
+    const previewUrl = file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined;
+    if (previewUrl) objectUrlsRef.current.push(previewUrl);
+    setAttachment({ name: file.name, type: file.type, size: file.size, ...(previewUrl ? { previewUrl } : {}) });
+  }, [t]);
+
+  // Per-reply actions: read-aloud (device speech synthesis, in the
+  // chat's language) and copy. Thumbs are a local visual toggle only.
+  const speakReply = useCallback((index: number, text: string) => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    if (speakingIndex === index) {
+      window.speechSynthesis.cancel();
+      setSpeakingIndex(null);
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = speechLangFor(effectiveChatLocale);
+    utterance.onend = () => setSpeakingIndex(null);
+    utterance.onerror = () => setSpeakingIndex(null);
+    setSpeakingIndex(index);
+    window.speechSynthesis.speak(utterance);
+  }, [speakingIndex, effectiveChatLocale]);
+  const copyReply = useCallback(async (index: number, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedIndex(index);
+      window.setTimeout(() => setCopiedIndex((current) => (current === index ? null : current)), 1500);
+    } catch { /* clipboard unavailable — the button simply does nothing */ }
+  }, []);
+  const toggleRating = useCallback((index: number, value: "up" | "down") => {
+    setRatings((prev) => {
+      const next = { ...prev };
+      if (next[index] === value) delete next[index];
+      else next[index] = value;
+      return next;
+    });
+  }, []);
+
+  // Composer auto-grow: one line at rest, up to ~4 lines while typing.
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 96)}px`;
+  }, [input]);
 
   const userHasMessaged = messages.some((m) => m.role === "user");
   const lastAssistantMessage = [...messages].reverse().find((m) => m.role === "assistant")?.content;
@@ -396,7 +748,15 @@ ${responseLanguageLine}`;
         </div>
       ) : (
       <>
-      <div aria-label={t("chat.messagesAria", { name: presenterDisplayName })} role="region" onScroll={event => { const panel = event.currentTarget; followLatest.current = panel.scrollHeight - panel.scrollTop - panel.clientHeight < 48; }} className={`${embedded ? 'min-h-0 flex-1 max-h-[35dvh]' : 'max-h-[22rem]'} overflow-y-auto overscroll-contain touch-pan-y p-3 space-y-2.5`}>
+      {/* KEYBOARD FIT (2026-11-16): embedded, the list is a pure flex
+          child (min-h-0 flex-1) with NO dvh-based height cap — dvh
+          does not shrink when the on-screen keyboard opens, so the
+          old 35dvh cap held the list at its full height and the
+          shell clipped the composer below the fold (Ron's phone
+          test: the input field completely hidden behind the
+          keyboard). Flex lets the list absorb the whole squeeze
+          while the composer stays pinned. */}
+      <div aria-label={t("chat.messagesAria", { name: presenterDisplayName })} role="region" onScroll={event => { const panel = event.currentTarget; followLatest.current = panel.scrollHeight - panel.scrollTop - panel.clientHeight < 48; }} className={`${embedded ? 'min-h-0 flex-1' : 'max-h-[22rem]'} overflow-y-auto overscroll-contain touch-pan-y p-3 space-y-2.5`}>
         {messages.map((msg, i) => (
           <div key={i} className={`flex gap-2 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
             <div
@@ -410,12 +770,38 @@ ${responseLanguageLine}`;
                 <User className="h-3.5 w-3.5 text-primary" />
               )}
             </div>
-            <div
-              className={`max-w-[80%] rounded-xl px-3 py-2 text-xs leading-relaxed whitespace-pre-line ${
-                msg.role === "assistant" ? "text-foreground" : "bg-primary text-primary-foreground"
-              }`}
-            >
-              <MessageResponse>{msg.role === "assistant" ? displayNumbers(msg.content) : msg.content}</MessageResponse>
+            <div className={`flex max-w-[80%] flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}>
+              {/* TWO-SIDE COLOURS (Ron, 2026-11-16): the visitor's
+                  bubbles wear the emerald primary; Aspen's wear a
+                  violet accent tint with a soft border — the same two
+                  treatments as the voice transcript, so the thread
+                  reads identically in both modes. */}
+              <div
+                data-side={msg.role}
+                data-testid="chat-message-bubble"
+                className={`rounded-xl px-3 py-2 text-xs leading-relaxed whitespace-pre-line ${
+                  msg.role === "assistant" ? "border border-accent/25 bg-accent/15 text-foreground shadow-sm" : "bg-primary text-primary-foreground"
+                }`}
+              >
+                {msg.attachment && (
+                  <div data-testid="chat-message-attachment" className="mb-1.5 flex items-center gap-2 rounded-lg bg-background/30 px-2 py-1.5">
+                    {msg.attachment.previewUrl ? <img src={msg.attachment.previewUrl} alt="" className="h-9 w-9 shrink-0 rounded-md object-cover" /> : <FileText className="h-4 w-4 shrink-0" />}
+                    <span className="min-w-0">
+                      <span className="block truncate text-[11px] font-semibold">{msg.attachment.name}</span>
+                      <span className="block text-[10px] opacity-80">{formatFileSize(msg.attachment.size)}</span>
+                    </span>
+                  </div>
+                )}
+                <MessageResponse>{msg.role === "assistant" ? displayNumbers(msg.content) : msg.content}</MessageResponse>
+              </div>
+              {msg.role === "assistant" && msg.content.trim() && !(isStreaming && i === messages.length - 1) && (
+                <div data-testid="chat-message-actions" className="mt-1 flex items-center gap-0.5">
+                  <button type="button" aria-label={t("chat.listen")} title={t("chat.listen")} aria-pressed={speakingIndex === i} onClick={() => speakReply(i, msg.content)} className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"><Volume2 className="h-3.5 w-3.5" /></button>
+                  <button type="button" aria-label={copiedIndex === i ? t("chat.copied") : t("chat.copyReply")} title={copiedIndex === i ? t("chat.copied") : t("chat.copyReply")} onClick={() => void copyReply(i, msg.content)} className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">{copiedIndex === i ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}</button>
+                  <button type="button" aria-label={t("chat.rateGood")} title={t("chat.rateGood")} aria-pressed={ratings[i] === "up"} onClick={() => toggleRating(i, "up")} className={`flex h-7 w-7 items-center justify-center rounded-full transition-colors hover:bg-muted ${ratings[i] === "up" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground"}`}><ThumbsUp className="h-3.5 w-3.5" /></button>
+                  <button type="button" aria-label={t("chat.rateBad")} title={t("chat.rateBad")} aria-pressed={ratings[i] === "down"} onClick={() => toggleRating(i, "down")} className={`flex h-7 w-7 items-center justify-center rounded-full transition-colors hover:bg-muted ${ratings[i] === "down" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground"}`}><ThumbsDown className="h-3.5 w-3.5" /></button>
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -453,26 +839,60 @@ ${responseLanguageLine}`;
 
       <div className="shrink-0 p-3 border-t border-border">
        {messages.some(m=>m.role==='user') && <div className="mb-2 space-y-2"><Button size="sm" variant="ghost" onClick={()=>setCopyOpen(v=>!v)}>{t("chat.emailTranscript")}</Button>{copyOpen&&<form className="space-y-2" onSubmit={async e=>{e.preventDefault();await recordQueue.current;const {error}=await supabase.functions.invoke('conversation-records',{body:{action:'chatCopy',capability:sessionId.current,email:copyEmail,consent:true}});setCopyStatus(error?t("chat.copyUnavailable"):t("chat.copyRequested"));}}><Input aria-label={t("chat.copyEmailAria")} type="email" required value={copyEmail} onChange={e=>setCopyEmail(e.target.value)} placeholder={t("chat.copyEmailPlaceholder")}/><Button type="submit" size="sm">{t("chat.confirmCopy")}</Button><p className="text-xs text-muted-foreground">{t("chat.copyNote")}</p></form>}{copyStatus&&<p role="status" className="text-xs">{copyStatus}</p>}</div>}
-       <PromptInput onSubmit={() => { void handleSend(); }}>
-        <PromptInputTextarea
+       {/* GEMINI-STYLE COMPOSER (Ron, 2026-11-16, from his annotated
+           Gemini app screenshot): ONE rounded bar — the "+" attach
+           menu at the left (Camera / Photos / Files, exactly three
+           entries), the text field, an in-field dictation mic, the
+           voice-mode switch (waveform), and a send button that
+           appears once there is something to send. Enter sends,
+           Shift+Enter keeps the newline, as before. */}
+       {attachment && (
+        <div data-testid="chat-attachment-chip" className="mb-2 flex items-center gap-2 rounded-xl border border-border bg-secondary px-2.5 py-1.5">
+          {attachment.previewUrl ? <img src={attachment.previewUrl} alt="" className="h-8 w-8 shrink-0 rounded-md object-cover" /> : <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />}
+          <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-foreground">{attachment.name}</span>
+          <span className="shrink-0 text-[10px] text-muted-foreground">{formatFileSize(attachment.size)}</span>
+          <button type="button" onClick={() => { setAttachment(null); attachmentFileRef.current = null; }} aria-label={t("chat.removeAttachment")} title={t("chat.removeAttachment")} className="shrink-0 rounded-full p-1 text-muted-foreground transition-colors hover:text-foreground"><X className="h-3.5 w-3.5" /></button>
+        </div>
+       )}
+       {attachError && <p role="alert" className="mb-2 text-[11px] font-medium text-destructive">{attachError}</p>}
+       <div data-testid="chat-composer" className="flex items-end gap-0.5 rounded-[1.75rem] border border-border bg-background px-1.5 py-1.5 shadow-sm transition-colors focus-within:border-primary/60">
+        <div className="relative shrink-0">
+          <button type="button" aria-label={t("chat.attach")} title={t("chat.attach")} aria-haspopup="menu" aria-expanded={attachMenuOpen} onClick={() => setAttachMenuOpen((open) => !open)} className="flex h-9 w-9 items-center justify-center rounded-full text-foreground transition-colors hover:bg-muted"><Plus className="h-5 w-5" /></button>
+          {attachMenuOpen && (
+            <>
+              <div aria-hidden="true" className="fixed inset-0 z-40 cursor-default" onClick={() => setAttachMenuOpen(false)} />
+              <div role="menu" aria-label={t("chat.attach")} className="absolute bottom-full left-0 z-50 mb-1.5 w-44 overflow-hidden rounded-xl border border-border bg-card p-1 shadow-lg">
+                <button type="button" role="menuitem" onClick={() => { setAttachMenuOpen(false); cameraInputRef.current?.click(); }} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-foreground transition-colors hover:bg-muted"><Camera className="h-4 w-4 shrink-0 text-muted-foreground" />{t("chat.attachCamera")}</button>
+                <button type="button" role="menuitem" onClick={() => { setAttachMenuOpen(false); photosInputRef.current?.click(); }} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-foreground transition-colors hover:bg-muted"><ImageIcon className="h-4 w-4 shrink-0 text-muted-foreground" />{t("chat.attachPhotos")}</button>
+                <button type="button" role="menuitem" onClick={() => { setAttachMenuOpen(false); filesInputRef.current?.click(); }} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-foreground transition-colors hover:bg-muted"><FolderOpen className="h-4 w-4 shrink-0 text-muted-foreground" />{t("chat.attachFiles")}</button>
+              </div>
+            </>
+          )}
+        </div>
+        <textarea
           ref={inputRef}
           aria-label={t("chat.messageAria", { name: presenterDisplayName })}
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void handleSend(); } }}
           placeholder={t("chat.placeholder", { name: presenterDisplayName })}
-          rows={2}
-          className="h-14 min-h-14 max-h-20 flex-none w-full min-w-0 py-2 text-base"
+          rows={1}
+          className="max-h-24 min-h-9 w-full min-w-0 flex-1 resize-none bg-transparent px-1.5 py-2 text-base leading-snug outline-none placeholder:text-muted-foreground"
           disabled={isBusy}
         />
-        <PromptInputFooter className="justify-end px-2 pb-2 pt-0">
-        <PromptInputSubmit
-          disabled={!input.trim() || isBusy}
-          status={isThinking ? 'submitted' : isStreaming ? 'streaming' : 'ready'}
-          aria-label={t("chat.sendAria", { name: presenterDisplayName })}
-          className="h-9 w-9 shrink-0"
-        />
-        </PromptInputFooter>
-       </PromptInput>
+        {speechSupported && (
+          <button type="button" data-testid="chat-dictate-button" aria-label={dictating ? t("chat.dictateStop") : t("chat.dictate")} title={dictating ? t("chat.dictateStop") : t("chat.dictate")} aria-pressed={dictating} onClick={toggleDictation} className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors ${dictating ? "bg-destructive/15 text-destructive" : "text-foreground hover:bg-muted"}`}>{dictating ? <Square className="h-4 w-4 animate-pulse fill-current" /> : <Mic className="h-5 w-5" />}</button>
+        )}
+        {onVoiceMode && (
+          <button type="button" aria-label={t("chat.voiceMode")} title={t("chat.voiceMode")} onClick={onVoiceMode} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-foreground transition-colors hover:bg-muted"><AudioLines className="h-5 w-5" /></button>
+        )}
+        {(input.trim() || attachment) && (
+          <button type="button" aria-label={t("chat.sendAria", { name: presenterDisplayName })} title={t("chat.sendAria", { name: presenterDisplayName })} disabled={isBusy} onClick={() => void handleSend()} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"><Send className="h-4 w-4" /></button>
+        )}
+       </div>
+       <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" aria-hidden="true" tabIndex={-1} onChange={handleFilePicked} />
+       <input ref={photosInputRef} type="file" accept="image/*,video/*" className="hidden" aria-hidden="true" tabIndex={-1} onChange={handleFilePicked} />
+       <input ref={filesInputRef} type="file" accept={ATTACHMENT_ACCEPT_ALL} className="hidden" aria-hidden="true" tabIndex={-1} onChange={handleFilePicked} />
       </div>
 
       {/* CTA Banner */}

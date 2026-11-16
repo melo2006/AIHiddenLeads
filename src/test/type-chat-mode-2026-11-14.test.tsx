@@ -179,9 +179,18 @@ describe('control row containment + focus view — source pins', () => {
     expect(source).toContain('min-w-[12.5rem] flex-1 justify-center');
   });
 
-  it('focus view hides (never unmounts) the toggle/Manager row, per the approved mockup', () => {
+  it('focus view hides (never unmounts) the Manager row, but the Voice/Type toggle stays visible (Ron, 2026-11-16)', () => {
     const source = read('components/GeminiConversation.tsx');
+    // The row still hides rather than unmounting (a live Manager leg
+    // inside it is never torn down)…
     expect(source).toContain("focusView ? 'hidden' : 'contents'");
+    // …but the toggle itself moves to its own visible focus row —
+    // in the 2026-11-16 phone test the switch to Type was unfindable
+    // with captions off. Exactly one instance mounts: the hidden
+    // row's slot renders null in focus, the landscape row skips it.
+    expect(source).toContain('data-testid="aspen-focus-mode-toggle"');
+    expect(source).toContain('{focusView ? null : belowAvatar}');
+    expect(source).toContain('{belowAvatar && !focusView &&');
   });
 
   it('the demo panel rhythm is tightened without touching the caption space', () => {

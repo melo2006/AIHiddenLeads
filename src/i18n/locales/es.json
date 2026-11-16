@@ -770,6 +770,24 @@
     "goodAfternoon": "Buenas tardes",
     "goodEvening": "Buenas noches",
     "greetingBody": "Soy {{name}}, tu asistente de IA de {{businessName}}. Esta es una demostración en vivo de cómo el chat con IA y la voz con IA pueden funcionar en tu sitio web para responder preguntas, captar clientes potenciales y reservar citas.\n\nToca una sugerencia de abajo o pregúntame lo que quieras.",
-    "fallback": "Buena pregunta. Puedo ayudarte con eso y también organizar una llamada de vuelta o una demostración de 15 minutos con {{owner}}."
+    "fallback": "Buena pregunta. Puedo ayudarte con eso y también organizar una llamada de vuelta o una demostración de 15 minutos con {{owner}}.",
+    "dictate": "Dictar mensaje",
+    "dictateStop": "Detener dictado",
+    "voiceMode": "Cambiar a conversación por voz",
+    "attach": "Adjuntar un archivo",
+    "attachCamera": "Cámara",
+    "attachPhotos": "Fotos",
+    "attachFiles": "Archivos",
+    "removeAttachment": "Quitar archivo adjunto",
+    "attachTooLarge": "Ese archivo es demasiado grande: el límite es {{size}}.",
+    "attachUnsupported": "Ese tipo de archivo no es compatible. Prueba con una imagen, audio, video, PDF o documento.",
+    "listen": "Escuchar esta respuesta",
+    "copyReply": "Copiar respuesta",
+    "copied": "Copiado",
+    "rateGood": "Buena respuesta",
+    "rateBad": "Mala respuesta"
+  },
+  "frame": {
+    "voiceView": "Vista de voz"
   }
 }

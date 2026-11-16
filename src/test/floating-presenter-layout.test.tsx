@@ -78,18 +78,18 @@ describe('chat mode: presenter seated on ONE dock, portrait truly transparent', 
     expect(dock.className).toContain('border-primary/40');
   });
 
-  it('the portrait floats flat ABOVE the dock (never inside it, never gradient-backed)', () => {
+  it('chat mode: NO big portrait — she collapses to the small round avatar in the dock header strip (2026-11-16)', () => {
     const view = render(<FloatingPersonFrame {...frameProps} open mode="chat">{chatSurface}</FloatingPersonFrame>);
     const dock = view.getByTestId('aspen-chat-dock');
-    const img = view.container.querySelector('img.aspen-person-portrait');
-    expect(img).toBeTruthy();
-    expect(img!.classList.contains('aspen-person-portrait-flat')).toBe(true);
-    expect(dock.contains(img)).toBe(false);
-    // Portrait ends at the dock's top border: it precedes the dock.
-    expect(img!.compareDocumentPosition(dock) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    // The name badge still rides the portrait (Publish #38: no control
-    // overlaps the face — the badge is a label, not a control).
-    expect(view.getByTestId('persona-name-label').textContent).toBe('Frank');
+    // The big portrait is gone from chat mode so the thread gets the
+    // panel's full height and width (Ron's ask); the small avatar and
+    // her name live in the strip at the top of the dock instead.
+    expect(view.container.querySelector('img.aspen-person-portrait')).toBeNull();
+    expect(view.queryByTestId('persona-name-label')).toBeNull();
+    const strip = view.getByTestId('aspen-chat-header');
+    expect(dock.contains(strip)).toBe(true);
+    expect(strip.textContent).toContain('Frank');
+    expect(view.getByTestId('aspen-chat-avatar').querySelector('img')).toBeTruthy();
   });
 
   it('the chat surface and window controls render exactly once (no double-mounted children)', () => {
