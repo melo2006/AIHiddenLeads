@@ -3,7 +3,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { z } from 'npm:zod@3';
 import twilio from 'npm:twilio@5';
 import { acceptsManager, escapeXml, ownerOutcome, sha256 } from '../_shared/browser-handoff.ts';
-import { HANDOFF_BRIEFING_BUCKET, handoffBriefingPath, managerBriefingText, synthesizeBriefingWav } from '../_shared/handoff-briefing-voice.ts';
+import { briefingLanguageFrom, briefingSayLanguage, HANDOFF_BRIEFING_BUCKET, handoffBriefingPath, handoffConnectingLine, handoffStayLine, managerBriefingText, synthesizeBriefingWav, type BriefingLanguage } from '../_shared/handoff-briefing-voice.ts';
 
 const json=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
 const xml=(body:string)=>new Response(`<?xml version="1.0" encoding="UTF-8"?><Response>${body}</Response>`,{headers:{...corsHeaders,'Content-Type':'text/xml'}});
@@ -28,6 +28,17 @@ Deno.serve(async req=>{
  async function advance(id:string,expected:string[],next:string,error:string|null=null){
   const {data,error:err}=await db.rpc('advance_browser_handoff',{_id:id,_expected:expected,_next:next,_error:error});
   if(err) throw err;return data;
+ }
+ async function sessionBriefingLanguage(h:{session_id?:string|null}): Promise<BriefingLanguage>{
+  // The whisper language = the voice session's own language
+  // (startLanguage / uiLocale stamped into its config by
+  // gemini-session). English on any miss.
+  try{
+   if(!h?.session_id)return 'en';
+   const {data}=await db.from('gemini_voice_sessions').select('config').eq('id',h.session_id).maybeSingle();
+   const cfg=(data?.config??{}) as Record<string,unknown>;
+   return briefingLanguageFrom({startLanguage:cfg.startLanguage,uiLocale:cfg.uiLocale});
+  }catch{return 'en';}
  }
  async function stopLegs(h:{browser_call_sid:string|null;owner_call_sid:string|null}){
   await Promise.all([h.browser_call_sid,h.owner_call_sid].filter((sid):sid is string=>Boolean(sid)).map(async sid=>{try{await api(`/Calls/${encodeURIComponent(sid)}.json`,new URLSearchParams({Status:'completed'}));}catch(e){console.error('Could not end transfer leg',e instanceof Error?e.message:'error');}}));
@@ -54,7 +65,8 @@ Deno.serve(async req=>{
     if(!await advance(handoff.id,['not_requested'],'queued'))return xml('<Hangup/>');
     const {error}=await db.from('browser_voice_handoffs').update({browser_call_sid:params.CallSid}).eq('id',handoff.id);if(error)throw error;
     const conference=`browser-handoff-${handoff.id}`;
-    return xml(`<Say>Please stay here — I'll stay on until you're connected with the manager, then I'll step away.</Say><Dial><Conference startConferenceOnEnter="false" endConferenceOnExit="true" beep="false" statusCallback="${escapeXml(callback('conference',handoff.id))}" statusCallbackEvent="join leave end">${conference}</Conference></Dial>`);
+    const stayLang=await sessionBriefingLanguage(handoff);
+    return xml(`<Say language="${briefingSayLanguage(stayLang)}">${escapeXml(handoffStayLine(stayLang))}</Say><Dial><Conference startConferenceOnEnter="false" endConferenceOnExit="true" beep="false" statusCallback="${escapeXml(callback('conference',handoff.id))}" statusCallbackEvent="join leave end">${conference}</Conference></Dial>`);
    }
    if(!id.success)return xml('<Hangup/>');
    const {data}=await db.from('browser_voice_handoffs').select('*').eq('id',id.data).maybeSingle();handoff=data;
@@ -72,7 +84,7 @@ Deno.serve(async req=>{
       // fallback.
       EdgeRuntime.waitUntil((async()=>{
        try{
-        const wav=await synthesizeBriefingWav(managerBriefingText(handoff),{apiKey:Deno.env.get('GOOGLE_API_KEY')||''});
+        const wav=await synthesizeBriefingWav(managerBriefingText(handoff,await sessionBriefingLanguage(handoff)),{apiKey:Deno.env.get('GOOGLE_API_KEY')||''});
         if(!wav)return;
         const {error:upErr}=await db.storage.from(HANDOFF_BRIEFING_BUCKET).upload(handoffBriefingPath(handoff.id),wav,{contentType:'audio/wav',upsert:true});
         if(upErr)console.error('handoff briefing upload failed',upErr.message);
@@ -99,7 +111,8 @@ Deno.serve(async req=>{
     if(handoff.owner_call_sid&&params.CallSid!==handoff.owner_call_sid)return xml('<Hangup/>');
     await db.from('browser_voice_handoffs').update({owner_call_sid:params.CallSid}).eq('id',handoff.id);
     await advance(handoff.id,['dialing_owner'],'awaiting_owner');
-    const briefing=managerBriefingText(handoff);
+    const briefingLang=await sessionBriefingLanguage(handoff);
+    const briefing=managerBriefingText(handoff,briefingLang);
     // Aspen-voice briefing (Handoff improvement batch, 2026-11-12):
     // if the synthesized briefing landed in storage during the ring,
     // the manager hears Aspen's own voice inside the same press-1
@@ -107,13 +120,14 @@ Deno.serve(async req=>{
     // failed) falls back to the Twilio <Say> briefing, unchanged.
     let briefingAudio='';
     try{const {data:signed}=await db.storage.from(HANDOFF_BRIEFING_BUCKET).createSignedUrl(handoffBriefingPath(handoff.id),600);if(signed?.signedUrl)briefingAudio=signed.signedUrl;}catch{/* <Say> fallback below */}
-    const gatherInner=briefingAudio?`<Play>${escapeXml(briefingAudio)}</Play>`:`<Say>${escapeXml(briefing)}</Say>`;
+    const gatherInner=briefingAudio?`<Play>${escapeXml(briefingAudio)}</Play>`:`<Say language="${briefingSayLanguage(briefingLang)}">${escapeXml(briefing)}</Say>`;
     return xml(`<Gather input="dtmf" numDigits="1" timeout="15" actionOnEmptyResult="true" action="${escapeXml(callback('accept',handoff.id))}" method="POST">${gatherInner}</Gather><Hangup/>`);
    }
    if(action==='accept'){
     if(params.CallSid!==handoff.owner_call_sid||handoff.status!=='awaiting_owner')return xml('<Hangup/>');
     if(!acceptsManager(params.Digits||'')){await advance(handoff.id,['awaiting_owner'],'failed','Manager did not accept');await stopLegs({browser_call_sid:handoff.browser_call_sid,owner_call_sid:null});return xml('<Hangup/>');}
-    return xml(`<Say>Connecting you now.</Say><Dial><Conference startConferenceOnEnter="true" endConferenceOnExit="true" beep="false">browser-handoff-${handoff.id}</Conference></Dial>`);
+    const acceptLang=await sessionBriefingLanguage(handoff);
+    return xml(`<Say language="${briefingSayLanguage(acceptLang)}">${escapeXml(handoffConnectingLine(acceptLang))}</Say><Dial><Conference startConferenceOnEnter="true" endConferenceOnExit="true" beep="false">browser-handoff-${handoff.id}</Conference></Dial>`);
    }
    if(action==='owner-status'){
     if(handoff.owner_call_sid&&params.CallSid!==handoff.owner_call_sid)return json({ok:true});

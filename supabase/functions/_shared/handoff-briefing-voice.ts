@@ -36,14 +36,51 @@ export function handoffBriefingPath(handoffId: string): string {
   return `handoff-briefings/${handoffId}.wav`;
 }
 
+/** Briefing language (2026-11-16, Ron's ruling): the whisper the
+ *  manager hears is OUR words in the SESSION's language — never the
+ *  carrier's English default. The language rides the voice
+ *  session's own config (startLanguage / uiLocale); no schema
+ *  change on the handoff row. */
+export type BriefingLanguage = 'en' | 'pt' | 'es';
+
+export function briefingLanguageFrom(signals: { startLanguage?: unknown; uiLocale?: unknown }): BriefingLanguage {
+  const s = `${String(signals.startLanguage ?? '')} ${String(signals.uiLocale ?? '')}`.toLowerCase();
+  if (s.includes('portug') || s.includes('pt')) return 'pt';
+  if (s.includes('span') || s.includes('es')) return 'es';
+  return 'en';
+}
+
+/** BCP-47 tag for the Twilio <Say language> attribute. */
+export function briefingSayLanguage(language: BriefingLanguage): string {
+  return language === 'pt' ? 'pt-BR' : language === 'es' ? 'es-ES' : 'en-US';
+}
+
 /** The one briefing text, shared by the <Say> fallback and the TTS
- *  input so the two can never diverge. Identical wording to what
- *  browser-voice-handoff spoke through Twilio TTS before this
- *  batch. */
-export function managerBriefingText(handoff: { manager_name?: unknown; summary?: unknown }): string {
+ *  input so the two can never diverge. English wording identical to
+ *  what browser-voice-handoff spoke through Twilio TTS before this
+ *  batch; PT/ES are the same words in the session's language
+ *  (2026-11-16). The summary itself is composed upstream in the
+ *  conversation's language. */
+export function managerBriefingText(handoff: { manager_name?: unknown; summary?: unknown }, language: BriefingLanguage = 'en'): string {
   const name = typeof handoff.manager_name === 'string' && handoff.manager_name.trim() ? handoff.manager_name : 'the manager';
-  const summary = typeof handoff.summary === 'string' && handoff.summary.trim() ? handoff.summary : 'The visitor has requested to speak with your team.';
-  return `Hello ${name}. A website visitor is waiting. This is an automated handoff. ${summary} Press 1 to accept and connect. Press any other key to decline.`;
+  const summary = typeof handoff.summary === 'string' && handoff.summary.trim() ? handoff.summary : null;
+  if (language === 'pt') return `Olá ${name}. Um visitante do site está esperando. Esta é uma transferência automática. ${summary ?? 'O visitante pediu para falar com a sua equipe.'} Pressione 1 para aceitar e conectar. Pressione qualquer outra tecla para recusar.`;
+  if (language === 'es') return `Hola ${name}. Un visitante del sitio web está esperando. Esta es una transferencia automática. ${summary ?? 'El visitante ha pedido hablar con su equipo.'} Presione 1 para aceptar y conectar. Presione cualquier otra tecla para rechazar.`;
+  return `Hello ${name}. A website visitor is waiting. This is an automated handoff. ${summary ?? 'The visitor has requested to speak with your team.'} Press 1 to accept and connect. Press any other key to decline.`;
+}
+
+/** Visitor-side line while the manager is being dialed. */
+export function handoffStayLine(language: BriefingLanguage): string {
+  if (language === 'pt') return 'Por favor, aguarde na linha — vou ficar aqui até você ser conectado com o gerente, depois eu saio.';
+  if (language === 'es') return 'Por favor, permanezca en línea — me quedaré hasta que esté conectado con el gerente, luego me retiraré.';
+  return "Please stay here — I'll stay on until you're connected with the manager, then I'll step away.";
+}
+
+/** Manager-side line once he presses 1. */
+export function handoffConnectingLine(language: BriefingLanguage): string {
+  if (language === 'pt') return 'Conectando você agora.';
+  if (language === 'es') return 'Conectándolo ahora.';
+  return 'Connecting you now.';
 }
 
 /** Extract the PCM16 bytes from a generateContent AUDIO response:
