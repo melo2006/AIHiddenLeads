@@ -26,6 +26,8 @@ describe("AvatarGallerySection", () => {
       "Daniel",
       "Sara",
       "Alex",
+      "James",
+      "Diego",
       "Anna",
       "Mei",
       "Zahra",
@@ -38,8 +40,8 @@ describe("AvatarGallerySection", () => {
   it("shows each face once — Lukas appears only as Alex — with matching alt text", () => {
     const { container } = render(<AvatarGallerySection />);
     const alts = [...container.querySelectorAll("img")].map((img) => img.getAttribute("alt"));
-    expect(alts).toHaveLength(13);
-    expect(new Set(alts).size).toBe(13);
+    expect(alts).toHaveLength(15);
+    expect(new Set(alts).size).toBe(15);
     expect(alts).not.toContain("Lukas");
     expect(container.textContent).toContain("one-time $50 setup");
   });

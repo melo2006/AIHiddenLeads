@@ -13,7 +13,7 @@
  * `suggestedName` is the name that pre-fills the assistant-name field when
  * the tile is picked. It is only set where the name is a real name of the
  * face: our settled product names (Aspen, Frank, Monica, Denise, Andy,
- * Daniel, Sara, Alex). Descriptive tiles and Simli presets carry NO
+ * Daniel, Sara, Alex, James, Diego). Descriptive tiles and Simli presets carry NO
  * suggested name — picking them never renames the assistant and never
  * invents a name. Editing the assistant name afterwards renames THEIR
  * assistant only; the library entry itself is never mutated.
@@ -37,7 +37,7 @@ export interface AvatarLibraryEntry {
   /** Name pre-filled into the assistant-name field on pick, when the face has one. */
   suggestedName?: string;
   /** True only for our settled product names (Aspen, Frank, Monica,
-   *  Denise, Andy, Daniel, Sara, Alex). */
+   *  Denise, Andy, Daniel, Sara, Alex, James, Diego). */
   nameSettled: boolean;
   /** Gemini Live voice applied on pick (our own models only). */
   matchedVoice?: string;
@@ -62,6 +62,8 @@ export const EXECUTIVE_D_FACE_ID = "9262002f-2b65-4335-8ebf-6092a5cfe01e";
 export const MIDDLE_AGED_PRO_FACE_ID = "c0be182f-72a4-4be4-8c22-35d6db4c4a11";
 export const SARA_FACE_ID = "f735e62c-dce7-4c0b-8e85-1c7e21774c45";
 export const ALEX_FACE_ID = "a36d66df-a23d-4569-996b-d0e990019857";
+export const JAMES_FACE_ID = "4712e83e-66a8-4c49-a8bf-6c8640207546";
+export const DIEGO_FACE_ID = "1187df68-a4f2-41c8-8263-dcecd8f37669";
 
 /**
  * Our own models, in library order. To add a newly created custom face,
@@ -200,6 +202,36 @@ const OWN_MODELS: AvatarLibraryEntry[] = [
     matchedVoice: "Puck",
     image: catalogImage(ALEX_FACE_ID),
     category: "Your face",
+    own: true,
+  },
+  {
+    // James + Diego (Ron's ruling 2026-11-16): our two newest Simli
+    // faces (generated Nov 15 from Muse's fictional portraits; names
+    // settled by Ron — James stays James, Diego stands). ⚠️ Their
+    // matched voices are PROPOSALS awaiting Ron's ear-check, like
+    // Andy's was: James → "Algieba", Diego → "Alnilam" (the warm
+    // mature male already used as Frank's Portuguese remap).
+    key: "james",
+    faceId: JAMES_FACE_ID,
+    label: "James",
+    suggestedName: "James",
+    nameSettled: true,
+    matchedVoice: "Algieba",
+    image: catalogImage(JAMES_FACE_ID),
+    category: "Your face",
+    generation: catalogGeneration(JAMES_FACE_ID),
+    own: true,
+  },
+  {
+    key: "diego",
+    faceId: DIEGO_FACE_ID,
+    label: "Diego",
+    suggestedName: "Diego",
+    nameSettled: true,
+    matchedVoice: "Alnilam",
+    image: catalogImage(DIEGO_FACE_ID),
+    category: "Your face",
+    generation: catalogGeneration(DIEGO_FACE_ID),
     own: true,
   },
 ];

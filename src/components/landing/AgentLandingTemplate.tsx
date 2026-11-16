@@ -1498,6 +1498,16 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
       </section>
 
       {vertical.slug === "realtors" && (
+        <section data-avatar-gallery-link className="border-t border-border py-6">
+          <div className="container mx-auto px-4 text-center text-sm">
+            <a href="/#avatar-gallery" className="font-medium text-primary underline-offset-4 transition-colors hover:text-foreground hover:underline">
+              Meet all our live presenters — see the full avatar gallery →
+            </a>
+          </div>
+        </section>
+      )}
+
+      {vertical.slug === "realtors" && (
         <section data-agent-contact-strip className="border-t border-border py-6">
           <div className="container mx-auto flex flex-wrap items-center justify-center gap-x-6 gap-y-2 px-4 text-sm">
             <a
