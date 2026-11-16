@@ -44,7 +44,16 @@ FUNCTIONS_SRC="${REPO_ROOT}/supabase/functions"
 # now also imports handoff-return and overage-facts. (handoff-briefing-
 # voice is imported only by browser-voice-handoff, which does not run on
 # this box, so it is deliberately NOT in the closure.)
-# deno cache (step 4) is the authority: a missing file fails the deploy.
+# RE-TRACE 2026-11-15 against Publish #85b main: 41 modules — Publishes
+# #70–#85b added capture-gate, captured-contact, consent-ask,
+# context-compression, discovery-gate, kb-distill and sales-gate. The
+# 2026-11-15 redeploy crash-looped on the missing context-compression.ts.
+# NOTE: `deno cache` (step 4) is NOT a reliable closure authority —
+# server.ts loads the function entry through a dynamic import, which the
+# static cache pass does not traverse (the 2026-11-15 deploy cached
+# "clean" with 7 modules missing). The step-5 post-restart ping is the
+# real check; keep this list traced from the import graph of
+# supabase/functions/gemini-live-proxy/index.ts.
 SHARED_CLOSURE=(
   alex-guide.ts
   booking-confirm.ts
@@ -52,11 +61,16 @@ SHARED_CLOSURE=(
   booking-tools.ts
   browser-handoff.ts
   call-review.ts
+  capture-gate.ts
+  captured-contact.ts
   carrier-guides.ts
+  consent-ask.ts
   contact-save.ts
+  context-compression.ts
   conversation-language.ts
   conversation-records.ts
   demo-sales.ts
+  discovery-gate.ts
   farewell.ts
   followup.ts
   handoff-return.ts
@@ -65,6 +79,7 @@ SHARED_CLOSURE=(
   homepage-pacing.ts
   homepage-services.ts
   hostinger-mail.ts
+  kb-distill.ts
   live-models.ts
   manager-transfer.ts
   overage-facts.ts
@@ -72,6 +87,7 @@ SHARED_CLOSURE=(
   phone-demo.ts
   platform-calendar.ts
   recording-audio.ts
+  sales-gate.ts
   session-opening.ts
   session-resumption.ts
   team-intro.ts
@@ -130,26 +146,31 @@ echo "copied: gemini-live-proxy + ${#SHARED_CLOSURE[@]} _shared modules + server
 install -d -o aspen -g aspen "${DEST}/cache"
 echo "service cache dir: ${DEST}/cache (aspen:aspen) ✓"
 
-# --- 4. Pre-warm module cache (also the closure authority) ---------------------
+# --- 4. Pre-warm module cache -------------------------------------------------
 (cd "${DEST}" && "${DENO}" cache server.ts)
 echo "deno cache: module graph resolved ✓"
 
 # --- 5. Restart + health check --------------------------------------------------
+# Production binds 172.16.0.1 (VOICE_PROXY_BIND in the env file), NOT the
+# loopback default — the 2026-11-15 deploy's loopback-only check reported
+# failure against a healthy-by-its-own-lights restart. Try both addresses.
 if systemctl cat "${UNIT}" >/dev/null 2>&1; then
   systemctl restart "${UNIT}"
   echo "restarted: ${UNIT}"
   PING_OK=""
   for _ in 1 2 3 4 5 6 7 8 9 10; do
-    if curl -fsS 'http://127.0.0.1:8081/?ping=1' >/dev/null 2>&1; then
-      PING_OK="yes"
-      break
-    fi
+    for ADDR in 127.0.0.1 172.16.0.1; do
+      if curl -fsS "http://${ADDR}:8081/?ping=1" >/dev/null 2>&1; then
+        PING_OK="${ADDR}"
+        break 2
+      fi
+    done
     sleep 1
   done
   if [[ -n "${PING_OK}" ]]; then
-    echo "health: $(curl -fsS 'http://127.0.0.1:8081/?ping=1') via loopback ✓"
+    echo "health: $(curl -fsS "http://${PING_OK}:8081/?ping=1") via ${PING_OK} ✓"
   else
-    echo "ERROR: unit restarted but loopback ping did not answer within 10s." >&2
+    echo "ERROR: unit restarted but ping did not answer on 127.0.0.1 or 172.16.0.1 within 10s." >&2
     echo "       Check: journalctl -u ${UNIT} -n 100" >&2
     exit 1
   fi
