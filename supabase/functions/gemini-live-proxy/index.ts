@@ -2,6 +2,7 @@ import { homepagePacingAction, silenceLadderRung, SILENCE_NUDGE_1, SILENCE_NUDGE
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { hourInTimeZone, languagePolicyFor, NO_SPEAKER_LABEL_RULE, renderOpeningTemplate, sanitizeVisitorName, visitorLocalTimeLine, VOICE_DISCONNECT_PLAIN } from '../_shared/voice-config.ts'
+import { identityCorrectionDirective, identityDriftName, newDriftWatch, portugueseCorrectionDirective, spanishSlideInPortuguese } from '../_shared/drift-watch.ts'
 import { openingText } from '../_shared/session-opening.ts'
 import { goAwayReconnectDelayMs, goAwayTimeLeftSeconds, providerResumeAllowed, resumptionHandleFromUpdate, sessionResumptionConfig } from '../_shared/session-resumption.ts'
 import { COMPRESSION_SETUP_SUFFIX_CHARS, COMPRESSION_TOOLS_ALLOWANCE_TOKENS, contextCompressionEnabled, contextWindowCompressionConfig, estimateTokensFromChars, type ContextWindowCompressionConfig } from '../_shared/context-compression.ts'
@@ -238,6 +239,8 @@ Deno.serve(async (req) => {
   // and the turnComplete decision in the provider handler drives
   // it to resolution — directive, then nudge, then record-order.
   let consentAsk: ConsentAskState = freshConsentAskState()
+  let driftWatch = newDriftWatch()
+  let bookingInjected = false
   // The spoken text of the model's current turn, accumulated from
   // its output transcriptions and consumed at turnComplete: the
   // consent-ask decision reads it to tell whether the turn that
@@ -1220,6 +1223,7 @@ Deno.serve(async (req) => {
               })
               bookingGate = bookingDecision.state
               if (bookingDecision.inject) {
+                bookingInjected = true
                 console.info('booking gate', JSON.stringify({ sessionId: session.id, inject: bookingDecision.inject, stern: bookingDecision.stern }));
                 const text = bookingDecision.inject === 'commitment'
                   ? commitmentDirective(bookingDecision.stern)
@@ -1229,6 +1233,26 @@ Deno.serve(async (req) => {
                       ? advanceDirective(bookingDecision.stern)
                       : completeDirective()
                 geminiWs?.send(JSON.stringify({clientContent:{turns:[{role:'user',parts:[{text}]}],turnComplete:true}}))
+              }
+            }
+            // DRIFT WATCH (2026-11-16): judge the completed model
+            // turn for identity drift (she named HERSELF as another
+            // persona) and, on Portuguese sessions, a Spanish slide.
+            // Runs LAST in the boundary chain and only on a boundary
+            // no gate claimed — directives never stack; a drift seen
+            // on a claimed boundary is re-judged next turn (the caps
+            // are per kind per session, so at most one correction
+            // each ever fires).
+            if (!preview && !farewellHandled && !gateInjected && !consentInjected && !salesGateInjected && !bookingInjected && pendingActions.size === 0) {
+              const wrongName = identityDriftName(completedModelTurn, String(config.name || ''))
+              if (wrongName && !driftWatch.identityCorrected) {
+                driftWatch = { ...driftWatch, identityCorrected: true }
+                journal('identity_drift_correction', { wrongName })
+                geminiWs?.send(JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text: identityCorrectionDirective(String(config.name || 'Aspen'), wrongName) }] }], turnComplete: true } }))
+              } else if (!driftWatch.languageCorrected && conversationLanguage === 'Portuguese' && spanishSlideInPortuguese(completedModelTurn)) {
+                driftWatch = { ...driftWatch, languageCorrected: true }
+                journal('language_drift_correction', { sessionLanguage: conversationLanguage })
+                geminiWs?.send(JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text: portugueseCorrectionDirective() }] }], turnComplete: true } }))
               }
             }
             if(config.transferPhone) EdgeRuntime.waitUntil((async()=>{

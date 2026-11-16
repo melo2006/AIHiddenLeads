@@ -46,7 +46,9 @@ FUNCTIONS_SRC="${REPO_ROOT}/supabase/functions"
 # this box, so it is deliberately NOT in the closure.)
 # RE-TRACE 2026-11-15 against Publish #85b main: 41 modules — Publishes
 # #70–#85b added capture-gate, captured-contact, consent-ask,
-# context-compression, discovery-gate, kb-distill and sales-gate. The
+# context-compression, discovery-gate, kb-distill and sales-gate.
+# 2026-11-16: +1 (42 → 43) — the drift watch (batch item 10) added
+# drift-watch.ts to the proxy's imports. The
 # 2026-11-15 redeploy crash-looped on the missing context-compression.ts.
 # NOTE: `deno cache` (step 4) is NOT a reliable closure authority —
 # server.ts loads the function entry through a dynamic import, which the
@@ -72,6 +74,7 @@ SHARED_CLOSURE=(
   conversation-records.ts
   demo-sales.ts
   discovery-gate.ts
+  drift-watch.ts
   farewell.ts
   followup.ts
   handoff-return.ts
