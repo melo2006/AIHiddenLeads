@@ -23,6 +23,23 @@ export function homepagePacingAction(elapsed: number, lastCallerSpeechAgo: numbe
 // fires once per episode.
 export const SILENCE_RUNG_SECONDS = [15, 40, 75] as const;
 
+/**
+ * Whether a COMPLETED visitor turn counts as the visitor genuinely
+ * speaking again — the only event that resets a silence episode.
+ * The proxy used to reset the ladder on every raw transcription
+ * FRAGMENT, so in a room with any background speech (a TV, another
+ * conversation — Ron's staging retest, 2026-11-16, where one-word
+ * fragments like "tú" and "¿Qué?" were transcribed as caller turns)
+ * the episode reset constantly, rung 1 fired five times, and rungs
+ * 2–3 never arrived. A real turn is at least three words; shorter
+ * fragments are still answered by the model normally — they just
+ * don't restart the ladder.
+ */
+export function substantiveCallerTurn(text: string): boolean {
+  const words = (text || '').trim().split(/\s+/).filter(Boolean);
+  return words.length >= 3;
+}
+
 export function silenceLadderRung(silenceSeconds: number, currentRung: number): number {
   for (let rung = currentRung + 1; rung <= SILENCE_RUNG_SECONDS.length; rung++) {
     if (silenceSeconds >= SILENCE_RUNG_SECONDS[rung - 1]) return rung;

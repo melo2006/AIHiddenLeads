@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it, test } from 'vitest';
-import { homepagePacingAction, silenceLadderRung, SILENCE_NUDGE_1, SILENCE_NUDGE_2, SILENCE_NUDGE_3 } from '../../supabase/functions/_shared/homepage-pacing';
+import { homepagePacingAction, silenceLadderRung, substantiveCallerTurn, SILENCE_NUDGE_1, SILENCE_NUDGE_2, SILENCE_NUDGE_3 } from '../../supabase/functions/_shared/homepage-pacing';
 
 test('soft wrap-up offer starts at seven minutes, once', () => {
   expect(homepagePacingAction(419, 5, false)).toBeNull();
@@ -45,6 +45,37 @@ describe('silenceLadderRung — the mechanical silence ladder (2026-11-16)', () 
     const proxy = fs.readFileSync(path.join(__dirname, '..', '..', 'supabase/functions/gemini-live-proxy/index.ts'), 'utf8');
     expect(proxy).toContain("event: 'silence_ladder_fire'");
     expect(proxy).toContain('silenceLadderRung(silenceSeconds, silenceRung)');
-    expect(proxy).toContain('Math.max(lastCallerSpeech, lastModelTurnAt)');
+    expect(proxy).toContain('Math.max(lastRealCallerTurnAt, lastModelTurnAt)');
+  });
+
+  it('the episode resets only on a substantive completed turn — never on a raw fragment', () => {
+    const proxy = fs.readFileSync(path.join(__dirname, '..', '..', 'supabase/functions/gemini-live-proxy/index.ts'), 'utf8');
+    expect(proxy).toContain('substantiveCallerTurn(completedUtterance) || detectFarewell(completedUtterance)');
+    // The fragment handler must not reset the rung: between the
+    // inputTranscription branch and the callerUtterance accumulation
+    // there is no silenceRung assignment.
+    const fragAt = proxy.indexOf('if (sc.inputTranscription?.text) {');
+    const fragBlock = proxy.slice(fragAt, proxy.indexOf('callerUtterance = (callerUtterance', fragAt));
+    expect(fragBlock).not.toContain('silenceRung = 0');
+  });
+});
+
+describe('substantiveCallerTurn — fragments never reset the silence episode (2026-11-16)', () => {
+  it('rejects the one-word background fragments from Ron\'s noisy-room retest', () => {
+    expect(substantiveCallerTurn('tú')).toBe(false);
+    expect(substantiveCallerTurn('¿Qué?')).toBe(false);
+    expect(substantiveCallerTurn('Ja.')).toBe(false);
+    expect(substantiveCallerTurn('Es')).toBe(false);
+    expect(substantiveCallerTurn('')).toBe(false);
+    expect(substantiveCallerTurn('   ')).toBe(false);
+    expect(substantiveCallerTurn('okay')).toBe(false);
+    expect(substantiveCallerTurn('thank you')).toBe(false);
+  });
+
+  it('accepts real visitor turns', () => {
+    expect(substantiveCallerTurn('go ahead, continue')).toBe(true);
+    expect(substantiveCallerTurn('my name is Robert')).toBe(true);
+    expect(substantiveCallerTurn('I run a painting business')).toBe(true);
+    expect(substantiveCallerTurn('how much does it cost')).toBe(true);
   });
 });

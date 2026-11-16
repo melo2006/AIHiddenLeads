@@ -19,6 +19,7 @@ import {
   detectFarewellLeadIn,
   detectFarewellPersistence,
   detectFarewellSoftClose,
+  detectModelClosing,
   farewellSpeakerName,
   hasPresenterStamp,
 } from '../../supabase/functions/_shared/farewell';
@@ -535,6 +536,33 @@ describe('farewell round 2 — after the close, the session actually ends', () =
     const classBlock = src.slice(classAt, src.indexOf('} else if (farewellHandled && !farewellTimer', classAt));
     expect(occurrences(classBlock, 'cancelFarewellEnd()')).toBe(1);
     expect(occurrences(classBlock, 'armFarewellEnd(')).toBe(2);
+  });
+});
+
+describe('detectModelClosing — the model\'s own closing line arms the end (2026-11-16)', () => {
+  it('matches the closing Aspen actually spoke in Ron\'s staging retest', () => {
+    expect(detectModelClosing('Understood. Thank you for your time, and have a great day! Goodbye.')).toBe(true);
+    expect(detectModelClosing('Thanks for your time. Take care!')).toBe(true);
+    expect(detectModelClosing('Thank you for stopping by — have a wonderful evening!')).toBe(true);
+  });
+
+  it('never fires on pitch or mid-conversation turns', () => {
+    // Gratitude with a question on the end is a conversation, not a close.
+    expect(detectModelClosing('Thanks for sharing that. What kind of business do you run?')).toBe(false);
+    // A farewell token without gratitude is not her closing shape.
+    expect(detectModelClosing('Goodbye is what your callers hear from voicemail every day.')).toBe(false);
+    // "Have a great day" buried mid-pitch, turn ends on selling.
+    expect(detectModelClosing('Thanks for asking. Most owners tell me they want every caller to have a great day, and that is exactly what I make sure happens when I answer for you.')).toBe(false);
+    // Long turns never count, even with a closing tail.
+    expect(detectModelClosing('Thank you. ' + 'We answer every call and every website visitor, day or night, and we qualify them and book them into your calendar. '.repeat(4) + 'Goodbye.')).toBe(false);
+    expect(detectModelClosing('')).toBe(false);
+  });
+
+  it('the proxy arms the standard farewell end on a model closing, guarded', () => {
+    const proxy = fs.readFileSync(path.join(__dirname, '..', '..', 'supabase/functions/gemini-live-proxy/index.ts'), 'utf8');
+    expect(proxy).toContain("event: 'farewell_model_close_armed'");
+    expect(proxy).toContain("armFarewellEnd(FAREWELL_END_DELAY_MS, 'model_close')");
+    expect(proxy).toContain("endReason === 'connection_closed' && detectModelClosing(completedModelTurn)");
   });
 });
 

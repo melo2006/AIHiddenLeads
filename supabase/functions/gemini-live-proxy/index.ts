@@ -1,4 +1,4 @@
-import { homepagePacingAction, silenceLadderRung, SILENCE_NUDGE_1, SILENCE_NUDGE_2, SILENCE_NUDGE_3 } from '../_shared/homepage-pacing.ts'
+import { homepagePacingAction, silenceLadderRung, substantiveCallerTurn, SILENCE_NUDGE_1, SILENCE_NUDGE_2, SILENCE_NUDGE_3 } from '../_shared/homepage-pacing.ts'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { hourInTimeZone, languagePolicyFor, NO_SPEAKER_LABEL_RULE, renderOpeningTemplate, sanitizeVisitorName, visitorLocalTimeLine, VOICE_DISCONNECT_PLAIN } from '../_shared/voice-config.ts'
@@ -32,7 +32,7 @@ import { searchKnowledgeBase } from '../_shared/kb-distill.ts'
 import { MANAGER_HANDOFF_DELAY_MS, MANAGER_TRANSFER_POLICY, managerTransferAnnouncement } from '../_shared/manager-transfer.ts'
 import { handoffReturnInstruction, handoffReturnOutcome } from '../_shared/handoff-return.ts'
 import { BROWSER_MINUTES_OVERAGE_POLICY } from '../_shared/overage-facts.ts'
-import { FAREWELL_END_DELAY_MS, FAREWELL_REPEAT_END_DELAY_MS, detectFarewell, detectFarewellLeadIn, detectFarewellPersistence, detectFarewellSoftClose, farewellSpeakerName, hasPresenterStamp } from '../_shared/farewell.ts'
+import { FAREWELL_END_DELAY_MS, FAREWELL_REPEAT_END_DELAY_MS, detectFarewell, detectFarewellLeadIn, detectFarewellPersistence, detectFarewellSoftClose, detectModelClosing, farewellSpeakerName, hasPresenterStamp } from '../_shared/farewell.ts'
 import { CONTACT_SAVE_CLIENT_ERROR, CONTACT_SAVE_FALLBACK_TOOL_RESPONSE, saveConfirmedFollowup } from '../_shared/contact-save.ts'
 import { logUsageEvent, videoAvatarEventFromSession, webVoiceEventFromSession } from '../_shared/usage-ledger.ts'
 
@@ -490,8 +490,14 @@ Deno.serve(async (req) => {
   // Silence ladder (2026-11-16): the current rung of this silence
   // episode (0 = none fired) and when the model's last turn ended —
   // silence is measured from the later of the two, so Aspen's own
-  // long turns never read as the visitor going quiet.
-  let silenceRung = 0, lastModelTurnAt = Date.now()
+  // long turns never read as the visitor going quiet. The visitor
+  // side of the clock is the last SUBSTANTIVE completed turn
+  // (substantiveCallerTurn), NOT raw transcription fragments: in a
+  // noisy room, one-word background fragments used to reset the
+  // episode on every fragment, so rung 1 ("are you still there?")
+  // fired forever and rungs 2–3 never arrived (Ron's staging
+  // retest, 2026-11-16 — five rung-1 fires in one session).
+  let silenceRung = 0, lastModelTurnAt = Date.now(), lastRealCallerTurnAt = Date.now()
   const sendOpening = () => {
           // Opening selection lives in _shared/session-opening.ts so the
           // priority stack is unit-tested: persona swap (planned, NO
@@ -561,7 +567,7 @@ Deno.serve(async (req) => {
       // before the pacing actions; never inside a farewell window,
       // a pending handoff, or while a confirmation card is up.
       if (config.homepageSales === true && geminiWs?.readyState === WebSocket.OPEN && !farewellGateActive() && !managerTransferRequested && pendingActions.size === 0) {
-        const silenceSeconds = (Date.now() - Math.max(lastCallerSpeech, lastModelTurnAt)) / 1000
+        const silenceSeconds = (Date.now() - Math.max(lastRealCallerTurnAt, lastModelTurnAt)) / 1000
         const nextRung = silenceLadderRung(silenceSeconds, silenceRung)
         if (nextRung > silenceRung) {
           silenceRung = nextRung
@@ -672,8 +678,14 @@ Deno.serve(async (req) => {
           realtimeInputConfig: {
             automaticActivityDetection: manualActivity ? { disabled: true } : {
               disabled: false,
-              // Detect quiet caller speech promptly, but tolerate brief pauses.
-              startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH',
+              // NOISY-ROOM DEFAULT (Ron's direction, 2026-11-16):
+              // LOW start sensitivity — Gemini should open a turn
+              // only for real, sustained speech, not for a background
+              // fragment (a TV, another conversation in the room).
+              // HIGH made every gated burst barge in and cut Aspen
+              // off mid-sentence; a visitor who means to interrupt
+              // speaks up and still gets through.
+              startOfSpeechSensitivity: 'START_SENSITIVITY_LOW',
               endOfSpeechSensitivity: 'END_SENSITIVITY_LOW',
               prefixPaddingMs: 200,
               silenceDurationMs: 700,
@@ -947,8 +959,10 @@ Deno.serve(async (req) => {
             clientSocket.send(JSON.stringify({ type: 'aspen_transcript', text: sc.outputTranscription.text }))
           }
           if (sc.inputTranscription?.text) {
+            // Engagement clock only — the silence ladder resets at
+            // turnComplete on a substantive completed turn (see
+            // substantiveCallerTurn), never on a raw fragment.
             lastCallerSpeech = Date.now()
-            silenceRung = 0
             callerUtterance = (callerUtterance + sc.inputTranscription.text).slice(-1500)
             // Farewell cancel (Fix 5): the visitor is speaking again
             // with a substantive new utterance that is not itself a
@@ -980,6 +994,15 @@ Deno.serve(async (req) => {
             // session, never for previews or before the visitor's tap.
             const completedUtterance = callerUtterance
             callerUtterance = ''
+            // SILENCE EPISODE RESET (2026-11-16): only a substantive
+            // completed turn (or a farewell, which the farewell path
+            // owns) ends a silence episode — background fragments
+            // that complete as one-word "turns" must not restart the
+            // ladder at rung 1 forever.
+            if (substantiveCallerTurn(completedUtterance) || detectFarewell(completedUtterance)) {
+              silenceRung = 0
+              lastRealCallerTurnAt = Date.now()
+            }
             // SPOKEN-ANSWER STAMP (2026-11-16): the texting ask was
             // delivered and this visitor turn is its answer — stamp
             // the consent mechanically instead of depending on the
@@ -1073,6 +1096,23 @@ Deno.serve(async (req) => {
             // waits for the first turn boundary after it resolves.
             const completedModelTurn = modelTurnText
             modelTurnText = ''
+            // MODEL-CLOSE BACKSTOP (2026-11-16): the farewell arm
+            // above keys on the VISITOR's words; when speech-to-text
+            // garbles the visitor's goodbye it never fires, and a
+            // model that has already spoken its full closing line
+            // leaves the session running (Ron's staging retest: she
+            // said "Thank you for your time, and have a great day!
+            // Goodbye." and the session ran on for minutes). When
+            // the model's own completed turn IS a terminal closing,
+            // arm the same end — the round-2 classification then owns
+            // anything the visitor says next. Skipped when another
+            // end is already in motion (endReason moved off its
+            // default, e.g. the silence ladder's rung-3 close).
+            if (!farewellHandled && !preview && begun && endReason === 'connection_closed' && detectModelClosing(completedModelTurn)) {
+              farewellHandled = true
+              console.log(JSON.stringify({ event: 'farewell_model_close_armed', sessionId: session.id }))
+              armFarewellEnd(FAREWELL_END_DELAY_MS, 'model_close')
+            }
             // TRANSITION GATE (Publish #74): fold the visitor's
             // completed utterance into the dictated-facts state,
             // then judge the turn that just completed against the
@@ -1307,7 +1347,7 @@ Deno.serve(async (req) => {
       const msg = JSON.parse(event.data)
       if (msg.type === 'begin') {
         if (!begun) {
-          begun = true; openedAt = Date.now(); lastCallerSpeech = Date.now()
+          begun = true; openedAt = Date.now(); lastCallerSpeech = Date.now(); lastRealCallerTurnAt = Date.now()
           if (msg.consent === true) { config.recordAudio = true; config.recordTranscript = true; recordReady = initRecord() }
           if (setupDone) sendOpening()
         } else if (msg.consent === true && !config.recordTranscript) {

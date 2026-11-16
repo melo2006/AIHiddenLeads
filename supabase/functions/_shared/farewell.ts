@@ -316,3 +316,34 @@ export function detectFarewellLeadIn(utterance: string): boolean {
   if (LEAD_INS.has(text)) return true;
   return /(?:^|\s)(still|said|hang)$/.test(text);
 }
+
+/**
+ * True when the MODEL's completed turn is itself a terminal closing
+ * line: gratitude anywhere in the turn, a farewell token in the
+ * FINAL sentence, no question in that sentence, and the whole turn
+ * short (a closing, not a pitch that says "have a great day" in
+ * passing). Backstop for the visitor-farewell arm, which keys on the
+ * VISITOR's words: when speech-to-text garbles the visitor's goodbye
+ * the arm never fires, and a model that has already spoken its full
+ * closing ("Thank you for your time, and have a great day!
+ * Goodbye." — Ron's staging retest, 2026-11-16) otherwise leaves the
+ * session running for minutes. The proxy arms the standard farewell
+ * end on a match, so the round-2 classification (repeat goodbye →
+ * prompt end, new topic → revival) owns everything after.
+ */
+export function detectModelClosing(text: string): boolean {
+  if (typeof text !== 'string') return false;
+  const raw = text.trim();
+  if (!raw) return false;
+  if (raw.split(/\s+/).length > 40) return false;
+  const sentences = raw.split(/(?<=[.!?])\s+/).filter(Boolean);
+  const last = sentences[sentences.length - 1] || '';
+  if (last.includes('?')) return false;
+  const norm = normalize(raw);
+  const lastNorm = normalize(last);
+  const gratitude = /\b(thank|thanks)\b/.test(norm);
+  // The farewell must CLOSE the final sentence — a "have a great
+  // day" quoted mid-sentence inside a pitch is not a closing.
+  const farewellToken = /(goodbye|good bye|bye|take care|have a (great|wonderful|good) (day|evening|afternoon|night|one))$/.test(lastNorm);
+  return gratitude && farewellToken;
+}

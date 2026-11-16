@@ -604,7 +604,15 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // preference must never silently gate the next session's microphone.
   const [captureMode, setCaptureMode] = useState<CaptureMode>(() => initialCaptureMode());
   const [noiseFilter, setNoiseFilter] = useState<NoiseFilter>(() => {
-    try { const saved = localStorage.getItem("voice-noise-filter"); return saved === "light" || saved === "strong" ? saved : "balanced"; } catch { return "balanced"; }
+    // NOISY-ROOM DEFAULT (Ron's direction, 2026-11-16): sessions
+    // start on STRONG filtering — assume a noisy place until the
+    // room proves quiet. The ambient auto-pick may still relax the
+    // filter mid-session when the measured floor is genuinely low,
+    // and a visitor's explicit in-session pick always wins. A saved
+    // "light" (a deliberate quiet-room choice) is respected; a saved
+    // "balanced" was the old factory default, not a choice, so it
+    // no longer holds a session at the middle setting.
+    try { const saved = localStorage.getItem("voice-noise-filter"); return saved === "light" || saved === "strong" ? saved : "strong"; } catch { return "strong"; }
   });
   const noiseFilterRef = useRef(noiseFilter);
   // Mic environment auto-pick (Batch 1, 2026-11-12): the capture loops feed
