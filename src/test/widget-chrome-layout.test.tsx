@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import en from "../i18n/locales/en.json";
 import FloatingPersonFrame, { AspenWindowControls, type Stage3Controls } from '@/components/FloatingPersonFrame';
@@ -67,24 +67,27 @@ const stage3: Stage3Controls = {
 };
 
 describe('widget chrome layout — three stages', () => {
-  it('stage 2: the Voice/Type segmented toggle renders BELOW the portrait, above the chat box', () => {
+  it('stage 2: the Voice/Type segmented toggle renders below the chat header strip, above the chat box', () => {
     render(<FloatingPersonFrame {...baseProps} open mode="chat"><div>panel</div></FloatingPersonFrame>);
     const toggle = screen.getByRole('group', { name: 'Conversation mode' });
-    const portrait = screen.getByAltText('Aspen');
-    // In flow under the portrait: portrait first in DOM order, then the
-    // window-controls row, then the toggle, then the chat thread box —
-    // never above her, never over her.
-    expectBefore(portrait, toggle);
+    // Chat mode (2026-11-16): no big portrait — the slim header strip
+    // (small avatar + name) tops the dock, then the window-controls
+    // row, then the toggle, then the chat thread box.
+    const strip = screen.getByTestId('aspen-chat-header');
+    expect(screen.queryByAltText('Aspen')).toBeNull();
+    expectBefore(strip, toggle);
     expectBefore(toggle, screen.getByText('panel'));
-    const voice = screen.getByRole('button', { name: /Voice/ });
-    const type = screen.getByRole('button', { name: /Type/ });
+    // Scoped to the toggle group: the header strip's avatar button is
+    // also labelled "Voice view" (it returns to the big-avatar view).
+    const voice = within(toggle).getByRole('button', { name: /Voice/ });
+    const type = within(toggle).getByRole('button', { name: /Type/ });
     expect(voice.getAttribute('aria-pressed')).toBe('false');
     expect(type.getAttribute('aria-pressed')).toBe('true');
     fireEvent.click(voice);
     expect(baseProps.onMode).toHaveBeenCalledWith('voice');
   });
 
-  it('stage 2 (chat): exactly one Minimize and one End, with the drag handle, in ONE in-flow row between the portrait and the toggle', () => {
+  it('stage 2 (chat): exactly one Minimize and one End, with the drag handle, in ONE in-flow row between the header strip and the toggle', () => {
     render(<FloatingPersonFrame {...baseProps} open mode="chat"><div>chat panel</div></FloatingPersonFrame>);
     // Exactly one of each window control in the whole open shell.
     expect(screen.getAllByRole('button', { name: 'Minimize' })).toHaveLength(1);
@@ -99,12 +102,12 @@ describe('widget chrome layout — three stages', () => {
     const drag = cluster?.querySelector('[data-drag-handle]');
     expect(drag).toBeTruthy();
     expect(drag?.getAttribute('aria-label')).toBe('Drag widget');
-    // In flow inside the panel: the portrait ends first, then the row,
+    // In flow inside the panel: the header strip first, then the row,
     // then the toggle, then the chat box — the row is a shell child in
-    // normal flow, NOT an overlay straddling the portrait.
-    const portrait = screen.getByAltText('Aspen');
+    // normal flow, NOT an overlay.
+    const strip = screen.getByTestId('aspen-chat-header');
     const toggle = screen.getByRole('group', { name: 'Conversation mode' });
-    expectBefore(portrait, cluster as Element);
+    expectBefore(strip, cluster as Element);
     expectBefore(cluster as Element, toggle);
     expect(screen.queryByRole('group', { name: 'Window controls' })?.className).toContain('aspen-person-chest-cluster');
     // No face overlay remains: the old portrait-overlay X class is gone.

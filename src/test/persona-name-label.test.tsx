@@ -109,13 +109,13 @@ describe('PersonPortrait nameLabel opt-in', () => {
 });
 
 describe('FloatingPersonFrame badge placement', () => {
-  it('chat mode: the badge sits on the portrait and follows the shell display name', () => {
+  it('chat mode: her name rides the slim header strip beside the small avatar (2026-11-16 layout)', () => {
     render(<FloatingPersonFrame {...frameProps} open mode="chat" name="Sara"><div>panel</div></FloatingPersonFrame>);
-    const badge = screen.getByTestId('persona-name-label');
-    expect(badge.textContent).toBe('Sara');
-    // The badge's wrapper is the portrait's positioned container: the
-    // portrait img lives in the same wrapper, ahead of the badge.
-    expect(badge.parentElement?.querySelector('img')).toBeTruthy();
+    // No portrait badge anymore: chat mode has no big portrait to badge.
+    expect(screen.queryByTestId('persona-name-label')).toBeNull();
+    const strip = screen.getByTestId('aspen-chat-header');
+    expect(strip.textContent).toContain('Sara');
+    expect(screen.getByTestId('aspen-chat-avatar').querySelector('img')).toBeTruthy();
   });
 
   it('stage 1 bubble and stage 3 minimized bar carry NO badge', () => {

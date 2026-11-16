@@ -64,7 +64,12 @@ describe('resetVisitForNewVisitor', () => {
 describe('start-over wiring (source pins)', () => {
   it('the helper clears the in-memory stores too, not just storage', () => {
     expect(src).toContain('export function resetVisitForNewVisitor(): void {');
-    expect(src).toContain('visitMemory.clear();');
+    // The visit store moved to @/lib/visitMemory (2026-11-16, shared
+    // with the typed chat): the reset routes through its full wipe,
+    // which clears the in-memory Map itself.
+    expect(src).toContain('clearAllVisitMemory();');
+    const lib = readFileSync(resolve(process.cwd(), 'src/lib/visitMemory.ts'), 'utf8');
+    expect(lib).toContain('visitMemory.clear();');
     expect(src).toContain('visitChainStash.clear();');
     expect(src).toContain('clearDemoResume();');
   });

@@ -175,6 +175,12 @@
   .aspen-person-shell.aspen-person-stage3 { margin-bottom: env(safe-area-inset-bottom, 0px); }
   .aspen-person-collapsed { width: 280px; }
   .aspen-person-expanded { width: 280px; }
+  /* Chat mode (2026-11-16): the thread is the content, so the open
+     shell widens in Type mode — long lines, minimal scrolling —
+     reaching nearly the full screen width on phones (the shell's own
+     max-width keeps the 24px page margin). Voice mode keeps the
+     280px column exactly as before. */
+  .aspen-person-expanded.aspen-person-chat { width: min(26rem, calc(100vw - 24px)); }
   .aspen-person-portrait { width: 234px; height: 188px; flex-shrink: 0; object-fit: cover; object-position: top center; }
   .aspen-person-expanded .aspen-person-portrait { width: 234px; height: 188px; }
   /* Idle→live size step: the live Simli media must occupy the livebox with the
@@ -314,6 +320,16 @@
      the Voice/Type toggle and the chat thread read as a single base the
      presenter sits on — not a second card nested in the first. */
   .aspen-chat-dock .aspen-panel { border-color: transparent; background-color: transparent; box-shadow: none; --tw-ring-shadow: 0 0 #0000; }
+  /* Keyboard fit (2026-11-16): --aspen-available-height tracks the
+     VISUAL viewport (DraggableFloating measures visualViewport), so
+     it shrinks when the on-screen keyboard opens while dvh does not.
+     The chat panel's 20rem floor (the widgets' min-h-80) must never
+     demand more than the visible height minus the shell chrome
+     (header strip + window controls + toggle + recorded line), or
+     the dock clips the panel's bottom — the composer — below the
+     fold: Ron's phone test showed the input field completely hidden
+     behind the keyboard. On tall viewports the floor stays 20rem. */
+  .aspen-chat-dock .aspen-panel { min-height: min(20rem, max(0px, calc(var(--aspen-available-height, 20rem) - 11rem))); }
   .visibility-map { background: hsl(var(--muted) / 0.45); }
   .visibility-map button.audit-rank-good:hover { color: hsl(var(--primary-foreground)); background: hsl(var(--primary)); }
   .visibility-map button.audit-rank-warning:hover { color: hsl(var(--primary-foreground)); background: hsl(var(--audit-rank-warning)); }

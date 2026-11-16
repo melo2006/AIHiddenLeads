@@ -48,6 +48,7 @@ import { PlaybackCaptions, type PlaybackCaption as Caption } from '@/lib/playbac
 import { displayNumbers } from '@/lib/displayNumbers';
 import PlaybackCaption from '@/components/PlaybackCaption';
 import { voiceSessionHeaders } from '@/lib/voiceSessionAuth';
+import { clearAllVisitMemory, visitMemoryAppend, visitMemoryDelete, visitMemoryGet, visitMemorySet, type VisitTurn } from '@/lib/visitMemory';
 import { shouldShowMicHint } from '@/lib/micAudibility';
 import { createMicFlowState, MIC_MUTED_START_GRACE_MS, micDiagPayload, micDiagSignature, micDiagStamp, micInputSeconds, micTrackStartVerdict, noteMicFrame, noteMicSessionLive, noteMicWatchdogFired, shouldShowMicWatchdog, type MicDiagEvent, type MicTrackState } from '@/lib/micWatchdog';
 import { clearRetainedHandoffMic, fitHandoffRecap, handoffDiagPayload, handoffDiagSignature, handoffVisitFact, isHandoffAnnouncement, micStreamIsLive, retainHandoffMic, reusableMicStream, stripHandoffAnnouncement, takeRetainedHandoffMic, type HandoffDiagEvent, type HandoffDiagMic, type HandoffDiagOutcome } from '@/lib/handoffRecovery';
@@ -76,81 +77,12 @@ const VOICES = [
   { id: "Algenib", label: "Algenib — gravelly male" },
 ];
 
-/** One transcript row. The transcript is NEVER cleared at a persona
- * handoff (owner transition spec): assistant rows carry the persona who
- * spoke them (`speaker`, swap sessions only) so the name label follows
- * the speaker, and each completed handoff appends a `divider` row so a
- * visitor scrolling up can follow who said what. Divider rows are
- * chrome — recap builders filter them out. */
-type Turn = { role: "user" | "assistant" | "divider"; text: string; speaker?: PersonaId };
-// Same-page-visit memory so pressing play again after Stop resumes instead of re-greeting.
-const visitMemory = new Map<string, Turn[]>();
-/** sessionStorage mirror of visitMemory (Publish #63, 2026-11-15):
- * the in-page Map alone dies with the page, so a visitor who
- * reloaded — or whose dropped call reopened the demo — arrived at a
- * successor session whose recap was EMPTY while the UI still
- * offered to "pick up right where we left off" (Ron's retest: the
- * return session knew neither his name nor his criteria). The Map
- * stays the runtime store, with identical keying and behavior; the
- * storage mirror is written through on every mutation and read back
- * lazily on the first access, so a reload inside the same tab keeps
- * the conversation. Best-effort by design: quota or privacy-mode
- * failures lose only the mirror, never the call. The persisted copy
- * keeps the most recent turns per key (the recap window needs the
- * opening + the last 30; the chat restore shows the rest). */
-const VISIT_MEMORY_STORAGE_KEY = "aspen-visit-memory-v1";
-const VISIT_MEMORY_PERSISTED_TURNS = 120;
-let visitMemoryHydrated = false;
-function persistVisitMemory() {
-  try {
-    const stored: Record<string, Turn[]> = {};
-    visitMemory.forEach((turns, key) => { stored[key] = turns.slice(-VISIT_MEMORY_PERSISTED_TURNS); });
-    sessionStorage.setItem(VISIT_MEMORY_STORAGE_KEY, JSON.stringify(stored));
-  } catch { /* memory is best-effort */ }
-}
-function hydrateVisitMemory() {
-  if (visitMemoryHydrated) return;
-  visitMemoryHydrated = true;
-  try {
-    const raw = sessionStorage.getItem(VISIT_MEMORY_STORAGE_KEY);
-    if (!raw) return;
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    for (const [key, value] of Object.entries(parsed)) {
-      if (!Array.isArray(value) || visitMemory.has(key)) continue;
-      const turns = value.filter((t): t is Turn => !!t && typeof t === "object"
-        && ((t as Turn).role === "user" || (t as Turn).role === "assistant" || (t as Turn).role === "divider")
-        && typeof (t as Turn).text === "string");
-      if (turns.length) visitMemory.set(key, turns);
-    }
-  } catch { /* memory is best-effort */ }
-}
-function visitMemoryGet(key: string): Turn[] {
-  hydrateVisitMemory();
-  return visitMemory.get(key) || [];
-}
-function visitMemorySet(key: string, turns: Turn[]) {
-  visitMemory.set(key, turns);
-  persistVisitMemory();
-}
-/** Append ONE newly completed turn to the visit's ACCUMULATED history.
- * flushLine and the swap divider used to REPLACE the store with the
- * current component's `turns` array — but every new session starts
- * from an empty `turns` state, so its first flushed line wiped all
- * earlier sessions' turns and the NEXT session's recap covered only
- * the immediately previous session (Ron's staging test, 2026-11-16:
- * after a thin handoff-leg session plus one more drop, Aspen
- * remembered only the leg — the visitor's name and business were
- * gone). Appending keeps the store the whole visit's history, which
- * is what resumeRecap's first-6 + last-30 window was designed for. */
-export function visitMemoryAppend(key: string, turn: Turn) {
-  visitMemory.set(key, [...visitMemoryGet(key), turn]);
-  persistVisitMemory();
-}
-export { visitMemoryGet, visitMemoryDelete };
-function visitMemoryDelete(key: string) {
-  visitMemory.delete(key);
-  persistVisitMemory();
-}
+/** The visit-memory store lives in @/lib/visitMemory (2026-11-16):
+ * the typed chat reads and appends the SAME store, so switching
+ * Voice ⇄ Type continues ONE conversation thread instead of forking
+ * a second one. Re-exported here for the existing importers. */
+type Turn = VisitTurn;
+export { visitMemoryAppend, visitMemoryGet, visitMemoryDelete };
 /** Persona-chain stash across a manual stop / Stage-3 suspend, kept for
  * the length of the page visit (same lifetime as visitMemory). A full
  * teardown used to DELETE the swap chain, so a restart mid-Sara was
@@ -173,10 +105,8 @@ const visitChainStash = new Map<string, ChainStash>();
  * not identity and survive on purpose: the captions choice, voice,
  * noise filter and the voice-proxy override all stay. */
 export function resetVisitForNewVisitor(): void {
-  visitMemory.clear();
-  visitMemoryHydrated = true;
+  clearAllVisitMemory();
   visitChainStash.clear();
-  try { sessionStorage.removeItem(VISIT_MEMORY_STORAGE_KEY); } catch { /* storage is best-effort */ }
   try { localStorage.removeItem("gemini-visitor-key"); } catch { /* storage is best-effort */ }
   clearDemoResume();
 }
@@ -1562,7 +1492,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         const status = await navigator.permissions?.query({ name: "microphone" as PermissionName });
         if (status?.state) permission = status.state;
       } catch { /* Permissions API unavailable — 'unknown' stands. */ }
-      const payload = micDiagPayload(sessionId, micDiagStamp({ event, flow, permission, track, inputSec }), Date.now());
+      const payload = micDiagPayload(sessionId, micDiagStamp({ event, flow, permission, track, inputSec, ambientFloor: ambientTrackerRef.current.floor, noiseFilter: noiseFilterRef.current }), Date.now());
       const signature = micDiagSignature(payload);
       if (signature === lastMicDiagRef.current) return;
       lastMicDiagRef.current = signature;
@@ -4794,7 +4724,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const toggleManagerRow = (belowAvatar || transferPill) ? (
     <div data-testid="toggle-manager-row" className="flex shrink-0 items-start gap-1 py-0.5">
       <div aria-hidden className="flex-1" />
-      <div className="flex shrink-0 justify-center">{belowAvatar}</div>
+      {/* FOCUS VIEW: this row is hidden (never unmounted) in focus, so
+          the toggle itself renders in the focus-only row below
+          instead — exactly one mounted instance either way. */}
+      <div className="flex shrink-0 justify-center">{focusView ? null : belowAvatar}</div>
       <div className="flex min-w-0 flex-1 flex-col items-end">{transferPill}</div>
     </div>
   ) : null;
@@ -4987,7 +4920,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     // transport crushing and spilling over its neighbours — on panels
     // wide enough (~500px) all three still share one row as designed.
     <div data-testid="toggle-transport-row" className="flex shrink-0 flex-wrap items-center gap-1 py-0.5">
-      {belowAvatar && <div className="flex shrink-0 justify-center">{belowAvatar}</div>}
+      {belowAvatar && !focusView && <div className="flex shrink-0 justify-center">{belowAvatar}</div>}
       {/* FOCUS VIEW (2026-11-14): this whole row steps aside (hidden)
           in focus — but the transport must NOT step aside with it:
           Ron's #47 retest dock had no voice controls at all. While
@@ -5021,11 +4954,21 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         )}
         {/* FOCUS VIEW (Ron's approved mockup v2, re-asserted 2026-11-14):
             captions off = the presenter + voice controls + the dock —
-            the Voice/Type toggle and Manager pill rows step aside.
-            'hidden' (not unmount) so a live Manager handoff leg inside
-            the row is never torn down by entering focus; the Captions
-            pill in the dock brings the row back with the captions. */}
+            the Manager pill row steps aside. 'hidden' (not unmount) so
+            a live Manager handoff leg inside the row is never torn
+            down by entering focus; the Captions pill in the dock
+            brings the row back with the captions.
+            TOGGLE EXCEPTION (Ron, 2026-11-16): the Voice/Type toggle
+            itself must stay findable in EVERY open-panel state — in
+            focus view he could not find the switch to Type at all.
+            The toggle therefore moves to its own visible row in
+            focus (the row above renders it as null there, so exactly
+            one instance is mounted); only the Manager pill steps
+            aside with the hidden row. */}
         {faceFirst && <div className={focusView ? 'hidden' : 'contents'}>{wideLandscape ? landscapeControlRow : toggleManagerRow}</div>}
+        {faceFirst && focusView && belowAvatar && (
+          <div data-testid="aspen-focus-mode-toggle" className="flex shrink-0 justify-center py-0.5">{belowAvatar}</div>
+        )}
         <div className="flex items-center gap-1.5">
           {shownPhase === "connecting" && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" />}
           {shownPhase === "live" && !aspenSpeaking && <Mic className="h-3.5 w-3.5 shrink-0 animate-pulse text-primary" />}
@@ -5077,18 +5020,23 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           {turns.length === 0 && (!partialAspen || faceFirst) && !partialUser && (
             <p className="py-1 text-center text-[11px] text-muted-foreground">{t("voice.noConversation")}</p>
           )}
+          {/* TWO-SIDE COLOURS (Ron, 2026-11-16): the visitor's lines
+              wear the emerald primary bubble; Aspen's lines wear a
+              violet accent-tinted bubble — the same two treatments as
+              the typed chat thread, so a conversation reads the same
+              in voice captions and in Type mode. */}
           {turns.map((turn, i) => turn.role === "divider" ? (
             <div key={i} role="separator" className="py-0.5 text-center text-[10px] font-medium text-muted-foreground">{t("voice.handoffTo", { name: PERSONAS[turn.speaker ?? "aspen"].displayName })}</div>
           ) : (
             <Message key={i} from={turn.role} className="max-w-full">
-              <MessageContent aria-label={transcriptAriaLabel(turn.role)} className={turn.role === "user" ? "bg-primary text-primary-foreground text-xs px-2 py-1" : faceFirst ? "text-sm font-bold leading-6 text-foreground" : "text-xs text-foreground"}>
+              <MessageContent aria-label={transcriptAriaLabel(turn.role)} className={turn.role === "user" ? "bg-primary text-primary-foreground text-xs px-2 py-1" : faceFirst ? "rounded-md bg-accent/15 px-2 py-1 text-sm font-bold leading-6 text-foreground" : "rounded-md bg-accent/15 px-2 py-1 text-xs text-foreground"}>
                 {turn.speaker && <span className="mb-0.5 block text-[10px] font-semibold uppercase tracking-wide opacity-70">{PERSONAS[turn.speaker].displayName}</span>}
                 <MessageResponse>{turn.role === "user" ? turn.text : displayNumbers(turn.text)}</MessageResponse>
               </MessageContent>
             </Message>
           ))}
           {partialUser && <Message from="user"><MessageContent className="bg-primary text-primary-foreground text-sm font-bold"><span className="text-[10px] font-semibold">{t("voice.you")}</span><MessageResponse>{partialUser}</MessageResponse></MessageContent></Message>}
-          {!faceFirst && partialAspen && <Message from="assistant"><MessageContent className="text-sm font-bold"><MessageResponse>{displayNumbers(partialAspen)}</MessageResponse></MessageContent></Message>}
+          {!faceFirst && partialAspen && <Message from="assistant"><MessageContent className="rounded-md bg-accent/15 px-2 py-1 text-sm font-bold"><MessageResponse>{displayNumbers(partialAspen)}</MessageResponse></MessageContent></Message>}
           <div ref={transcriptEndRef} />
         </div>
         </div>
@@ -5383,14 +5331,14 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             <div key={i} role="separator" className="py-0.5 text-center text-[10px] font-medium text-muted-foreground">{t("voice.handoffTo", { name: PERSONAS[turn.speaker ?? "aspen"].displayName })}</div>
           ) : (
             <Message key={i} from={turn.role}>
-              <MessageContent aria-label={transcriptAriaLabel(turn.role)} className={turn.role === "user" ? "bg-primary text-primary-foreground" : "text-foreground"}>
+              <MessageContent aria-label={transcriptAriaLabel(turn.role)} className={turn.role === "user" ? "bg-primary text-primary-foreground" : "rounded-md bg-accent/15 px-2 py-1 text-foreground"}>
                 {turn.speaker && <span className="mb-0.5 block text-[10px] font-semibold uppercase tracking-wide opacity-70">{PERSONAS[turn.speaker].displayName}</span>}
                 <MessageResponse>{turn.role === "user" ? turn.text : displayNumbers(turn.text)}</MessageResponse>
               </MessageContent>
             </Message>
           ))}
           {partialUser && <Message from="user"><MessageContent className="bg-primary text-primary-foreground"><MessageResponse>{partialUser}</MessageResponse></MessageContent></Message>}
-          {partialAspen && <Message from="assistant"><MessageContent><MessageResponse>{displayNumbers(partialAspen)}</MessageResponse></MessageContent></Message>}
+          {partialAspen && <Message from="assistant"><MessageContent className="rounded-md bg-accent/15 px-2 py-1"><MessageResponse>{displayNumbers(partialAspen)}</MessageResponse></MessageContent></Message>}
           <div ref={transcriptEndRef} />
         </Card>
 

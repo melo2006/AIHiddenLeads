@@ -254,23 +254,41 @@ export default function FloatingPersonFrame({ name = 'Aspen', avatarUrl, open, m
   const { t } = useTranslation();
   const firstName = name?.trim().split(/\s+/)[0];
   const talkLabel = firstName ? t("frame.talkToName", { name: firstName }) : t("frame.talkToMe");
+  // Chat-mode header avatar source: same semantics as the Stage 1
+  // bubble — undefined avatarUrl means a platform (Aspen) surface and
+  // uses her portrait; '' is a tenant record with no photo (icon).
+  const chatAvatarSrc = avatarUrl === undefined ? aspenPortrait : avatarUrl;
   // The launcher/bubble shows the agent's own photo. avatarUrl comes from the
   // agent record; undefined means a platform (Aspen) surface with no tenant record,
   // which uses the same default portrait as PersonPortrait. A tenant record with no
   // photo ('') keeps the plain mic icon instead of borrowing Aspen's face.
   const bubblePhoto = avatarUrl === undefined ? aspenIdleBeckon : avatarUrl;
   const stage = open ? 2 : minimized ? (stage3 ? 3 : 0) : 1;
-  return <section aria-label={t("frame.shellAria", { name })} className={`aspen-person-shell relative ${open ? 'aspen-person-expanded' : 'aspen-person-collapsed'} ${open && focus ? 'aspen-person-focus' : ''} ${stage === 1 ? 'aspen-person-stage1 items-center' : ''} ${stage === 3 ? 'aspen-person-stage3' : ''} ${stage === 0 ? '!w-[112px] items-center' : ''}`}>
-    {open && mode === 'chat' && <PersonPortrait name={name} avatarUrl={avatarUrl} nameLabel flat />}
+  return <section aria-label={t("frame.shellAria", { name })} className={`aspen-person-shell relative ${open ? 'aspen-person-expanded' : 'aspen-person-collapsed'} ${open && mode === 'chat' ? 'aspen-person-chat' : ''} ${open && focus ? 'aspen-person-focus' : ''} ${stage === 1 ? 'aspen-person-stage1 items-center' : ''} ${stage === 3 ? 'aspen-person-stage3' : ''} ${stage === 0 ? '!w-[112px] items-center' : ''}`}>
     {/* CHAT DOCK (2026-11-14, Ron's phone test): in chat mode the window
         controls, the Voice/Type toggle and the chat surface used to be
         three bare siblings floating over the page under a portrait whose
         backdrop gradient painted a pasted rectangle — "he floats around
         and there's transparent there, he's not sitting on the base".
         They now share ONE dock card styled exactly like the voice panel
-        card, and the portrait (flat = truly transparent) ends at the
-        dock's top border, the Publish #38 rule, same as voice mode. */}
+        card. (2026-11-16: the big portrait above the dock is gone in
+        chat mode — the slim header strip inside the dock carries her
+        small avatar instead, so the thread gets the space.) */}
     {open && mode === 'chat' && <div data-testid="aspen-chat-dock" className="aspen-chat-dock relative z-10 flex min-h-0 flex-1 flex-col gap-1 rounded-lg border border-primary/40 bg-card p-2 shadow-lg ring-1 ring-foreground/10">
+      {/* CHAT HEADER STRIP (Ron, 2026-11-16): in Type mode the big
+          portrait used to eat ~190px above the dock while the thread
+          squeezed below it. She now collapses to a SMALL round avatar
+          pinned in this slim strip — always visible, with her name —
+          and the thread takes the panel's full width and height.
+          Tapping the avatar (or the expand control) returns to the
+          big-avatar view: voice mode, whose layout is unchanged. */}
+      <div data-testid="aspen-chat-header" className="flex shrink-0 items-center gap-2 px-0.5">
+        <button type="button" data-testid="aspen-chat-avatar" onClick={() => onMode('voice')} aria-label={t("frame.voiceView")} title={t("frame.voiceView")} className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary text-primary-foreground ring-1 ring-primary/50 transition-transform hover:scale-105">
+          {chatAvatarSrc ? <img src={chatAvatarSrc} alt="" draggable={false} className="h-full w-full object-cover object-top" /> : <Mic className="h-4 w-4" />}
+        </button>
+        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">{name}</span>
+        <button type="button" onClick={() => onMode('voice')} aria-label={t("frame.voiceView")} title={t("frame.voiceView")} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-background/90 text-foreground transition-colors hover:bg-secondary"><Maximize2 className="h-4 w-4" /></button>
+      </div>
       <AspenWindowControls onMinimize={onMinimize} onClose={onClose} />
       <AspenModeToggle mode={mode} onMode={onMode} />
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">{children}</div>

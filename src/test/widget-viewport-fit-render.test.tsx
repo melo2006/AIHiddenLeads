@@ -42,10 +42,12 @@ const baseProps = { mode: 'chat' as const, onOpen: vi.fn(), onClose: vi.fn(), on
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe('widget viewport fit — rendered shell structure', () => {
-  it('open chat: portrait and toggle are pinned siblings; the panel lives in the flex scroll region', () => {
+  it('open chat: slim header strip (small avatar + name), controls and toggle are pinned in the dock; the panel lives in the flex scroll region', () => {
     const { container } = render(<FloatingPersonFrame {...baseProps} open><div>panel body</div></FloatingPersonFrame>);
     const shell = container.querySelector('.aspen-person-shell');
     expect(shell?.classList.contains('aspen-person-expanded')).toBe(true);
+    // Chat mode widens the shell (2026-11-16) so text lines run long.
+    expect(shell?.classList.contains('aspen-person-chat')).toBe(true);
 
     const region = screen.getByText('panel body').parentElement;
     expect(region?.className).toContain('flex');
@@ -54,20 +56,33 @@ describe('widget viewport fit — rendered shell structure', () => {
     expect(region?.className).toContain('overflow-y-auto');
     expect(region?.className).toContain('overscroll-contain');
 
-    // Portrait, window-controls row and toggle are NOT inside the scroll
-    // region — they cannot be scrolled or squeezed off the top.
-    const portrait = screen.getByAltText('Aspen');
+    // CHAT LAYOUT (2026-11-16): the big portrait no longer sits above
+    // the dock eating the reading space — she collapses to the small
+    // round avatar in the dock's header strip, with her name beside it.
+    expect(screen.queryByAltText('Aspen')).toBeNull();
+    const strip = screen.getByTestId('aspen-chat-header');
+    const avatar = screen.getByTestId('aspen-chat-avatar');
+    expect(strip.contains(avatar)).toBe(true);
+    expect(strip.textContent).toContain('Aspen');
+
+    // Header strip, window-controls row and toggle are NOT inside the
+    // scroll region — they cannot be scrolled or squeezed off the top.
     const toggle = screen.getByRole('group', { name: 'Conversation mode' });
     const controls = screen.getByRole('group', { name: 'Window controls' });
-    expect(region?.contains(portrait)).toBe(false);
+    expect(region?.contains(avatar)).toBe(false);
     expect(region?.contains(toggle)).toBe(false);
     expect(region?.contains(controls)).toBe(false);
-    // DOM order: portrait → window controls → toggle → region (the
-    // controls row is in flow inside the panel since the 2026-11-12
-    // panel layout fix — no overlay on the portrait).
-    expect(portrait.compareDocumentPosition(controls) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // DOM order: header strip → window controls → toggle → region.
+    expect(avatar.compareDocumentPosition(controls) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(controls.compareDocumentPosition(toggle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(toggle.compareDocumentPosition(region as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('open chat: tapping the small header avatar returns to the big-avatar (voice) view', () => {
+    const onMode = vi.fn();
+    render(<FloatingPersonFrame {...baseProps} onMode={onMode} open><div>panel body</div></FloatingPersonFrame>);
+    screen.getByTestId('aspen-chat-avatar').click();
+    expect(onMode).toHaveBeenCalledWith('voice');
   });
 
   it('closed frame: no scroll region is rendered (prewarm/hidden branches untouched)', () => {

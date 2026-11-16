@@ -273,13 +273,20 @@ export interface MicDiagStamp {
   inputSec: number;
   /** The watchdog fired at least once this session. */
   fired: boolean;
+  /** Ambient noise-floor estimate (RMS) at stamp time — what the mic
+   * gate was hearing as "the room". Optional: stamps built without a
+   * live capture context omit it. */
+  ambientFloor?: number;
+  /** The active noise-filter level at stamp time ('light' |
+   * 'balanced' | 'strong'), manual pick or ambient auto-pick. */
+  noiseFilter?: string;
 }
 
 /** The compact one-line form stored in the session record, in the
  *  same `k=v;` style as playoutDiagDetail so a SQL eyeball reads
  *  both the same way. */
 export function micDiagDetail(s: MicDiagStamp): string {
-  return [
+  const parts = [
     `ev=${s.event}`,
     `perm=${s.permission}`,
     `track=${s.track}`,
@@ -288,7 +295,12 @@ export function micDiagDetail(s: MicDiagStamp): string {
     `frames=${s.inputFrames}`,
     `sec=${s.inputSec.toFixed(1)}`,
     `fired=${s.fired ? 1 : 0}`,
-  ].join(";");
+  ];
+  // Gate context (2026-11-16): appended only when the stamp carries
+  // it, so the historical detail shape is unchanged for other callers.
+  if (typeof s.ambientFloor === "number") parts.push(`amb=${s.ambientFloor.toFixed(4)}`);
+  if (s.noiseFilter) parts.push(`nf=${s.noiseFilter}`);
+  return parts.join(";");
 }
 
 export interface MicDiagPayload {
@@ -316,6 +328,8 @@ export function micDiagStamp(args: {
   permission: string;
   track: MicTrackState;
   inputSec: number;
+  ambientFloor?: number;
+  noiseFilter?: string;
 }): MicDiagStamp {
   return {
     event: args.event,
@@ -326,5 +340,7 @@ export function micDiagStamp(args: {
     inputFrames: args.flow.frames,
     inputSec: args.inputSec,
     fired: args.flow.watchdogFired,
+    ...(typeof args.ambientFloor === "number" ? { ambientFloor: args.ambientFloor } : {}),
+    ...(args.noiseFilter ? { noiseFilter: args.noiseFilter } : {}),
   };
 }

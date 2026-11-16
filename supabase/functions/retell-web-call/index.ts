@@ -1378,6 +1378,36 @@ Deno.serve(async (req) => {
 
       const systemPrompt = body.systemPrompt || 'You are a helpful assistant.';
       const chatMessages = Array.isArray(body.messages) ? body.messages : [];
+      // Photo attachments (Ron, 2026-11-16): the chat client may send
+      // ONE image with the latest message — already downscaled to a
+      // ≤1568px JPEG by the client. It rides to the model as an
+      // OpenAI-style image_url part (data URI) on the last user
+      // message, so Aspen actually sees the photo and can discuss it.
+      // Strictly validated; anything off-spec is ignored and the chat
+      // proceeds text-only, exactly as before. No other attachment
+      // kind is accepted here.
+      const IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+      const MAX_IMAGE_BASE64_CHARS = 5_600_000; // ≈4.2 MB of image bytes
+      const rawImage = body.image && typeof body.image === 'object' ? body.image : null;
+      const imageMime = rawImage && typeof rawImage.mimeType === 'string' ? rawImage.mimeType : '';
+      const imageData = rawImage && typeof rawImage.data === 'string' ? rawImage.data : '';
+      const imagePart = IMAGE_MIME_TYPES.includes(imageMime) && imageData.length > 0 && imageData.length <= MAX_IMAGE_BASE64_CHARS && /^[A-Za-z0-9+/=\s]+$/.test(imageData)
+        ? { type: 'image_url', image_url: { url: `data:${imageMime};base64,${imageData.replace(/\s+/g, '')}` } }
+        : null;
+      if (rawImage && !imagePart) {
+        console.warn('chat-completion: image attachment ignored (bad mime type, empty, or oversize)');
+      }
+      let outboundMessages = chatMessages;
+      if (imagePart) {
+        outboundMessages = [...chatMessages];
+        for (let i = outboundMessages.length - 1; i >= 0; i--) {
+          const msg = outboundMessages[i];
+          if (msg && msg.role === 'user' && typeof msg.content === 'string') {
+            outboundMessages[i] = { ...msg, content: [{ type: 'text', text: msg.content }, imagePart] };
+            break;
+          }
+        }
+      }
       // Website UI locale (Ron, 2026-11-09): when the chat client passes
       // the visitor's explicit site-language selection, validate it
       // against the supported set and make the reply language a server
@@ -1403,7 +1433,7 @@ Deno.serve(async (req) => {
             temperature: 0.7,
             messages: [
               { role: 'system', content: effectiveSystemPrompt },
-              ...chatMessages,
+              ...outboundMessages,
             ],
           }),
         });

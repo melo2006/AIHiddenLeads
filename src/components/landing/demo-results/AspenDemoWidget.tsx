@@ -120,7 +120,7 @@ function AspenDemoWidgetContent({ voiceRequested = false, onClosed, onAssistantR
           <GeminiConversation compact faceFirst avatarInline autoStart={expanded} consentOnOpen={expanded} prewarm={prewarm} onPrewarmed={() => onAssistantReady?.()} leadId={chatProps.leadId} prospectId={chatProps.prospectId} name={presenterName} avatarUrl={presenterPortrait} visitorName={chatProps.callerName} onRecommendedPlan={setRecommendedPlan} videoAvatar={matchingAspenVideo(videoAvatar)} verification={verification} invite={invite} sample={sample} onUserTranscript={onUserTranscript} shellControlsRef={shellControlsRef} onShellState={setShellState} belowAvatar={<AspenModeToggle mode={mode} onMode={next => { setMode(next); if (next === 'chat') setChatVisited(true); }} />} windowControls={<AspenWindowControls onMinimize={minimize} onClose={close} />} />
         </div>
       </>}
-      {chatVisited && <div className={mode === 'chat' ? 'aspen-panel min-h-80 overflow-hidden rounded-lg border border-border bg-card' : 'hidden'}><div className="aspen-chat-content"><ChatWidget {...chatProps} presenterName={presenterName} presenterKnowledge={presenterKnowledge} embedded active={expanded && mode === 'chat'} /></div></div>}
+      {chatVisited && <div className={mode === 'chat' ? 'aspen-panel min-h-80 overflow-hidden rounded-lg border border-border bg-card' : 'hidden'}><div className="aspen-chat-content"><ChatWidget {...chatProps} presenterName={presenterName} presenterKnowledge={presenterKnowledge} embedded active={expanded && mode === 'chat'} memoryKey="homepage" onVoiceMode={() => setMode('voice')} /></div></div>}
       <div className="aspen-sales-actions"><AspenSalesActions plan={recommendedPlan} /></div>
     </FloatingPersonFrame>
   </DraggableFloating>;
