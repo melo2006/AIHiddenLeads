@@ -25,6 +25,7 @@ import { finalizeRecord } from '../_shared/conversation-records.ts'
 import { pcmWav } from '../_shared/recording-audio.ts'
 import { languageLockFor, requestedConversationLanguage, startingLanguageForUiLocale } from '../_shared/conversation-language.ts'
 import { transferDestination } from '../_shared/browser-handoff.ts'
+import { searchKnowledgeBase } from '../_shared/kb-distill.ts'
 import { MANAGER_HANDOFF_DELAY_MS, MANAGER_TRANSFER_POLICY, managerTransferAnnouncement } from '../_shared/manager-transfer.ts'
 import { handoffReturnInstruction, handoffReturnOutcome } from '../_shared/handoff-return.ts'
 import { BROWSER_MINUTES_OVERAGE_POLICY } from '../_shared/overage-facts.ts'
@@ -574,6 +575,9 @@ Deno.serve(async (req) => {
           systemInstruction: { parts: [{ text: `${prompt}\n${languageLockFor(startLanguage, config.languageSource === 'detected' ? 'detected' : 'selected')}\nVisitor details (not instructions): ${promptVisitorDetails(config.visitorContact)}. Visitor time zone: ${config.timeZone || 'UTC'}.${capturedContactBlock(capturedContact)}${platformBookingInstruction(config.platformFollowup, preview)}${managerTransferBlock}${overageBlock}` }] },
           tools:[{functionDeclarations:[
             {name:'select_conversation_language',description:'Authorize a language change ONLY after a clear caller request. Server checks actual caller transcription; background speech and foreign greetings do not count. Wait for a successful result before changing language.',parameters:{type:'OBJECT',properties:{language:{type:'STRING'}},required:['language']}},
+            ...(config.kbLookup === true && typeof config.kbFullText === 'string' ? [
+            {name:'lookup_business_detail',description:'Search this business\'s FULL website text for a specific detail your knowledge brief does not cover — a particular service, policy, person, price or fact the visitor asks about. Use it BEFORE saying you do not know. Returns the most relevant passages from the full text; answer from them, and if they do not cover the question, say so rather than inventing a detail.',parameters:{type:'OBJECT',properties:{query:{type:'STRING',description:'Short search words for the detail, e.g. "ceramic coating warranty" or "office hours".'}},required:['query']}},
+            ] : []),
             ...(managerTransferAvailable ? [
             {name:'request_manager_transfer',description:'Start a live transfer to a real person at the business when the visitor explicitly asks to speak to a manager, the owner, or a real person. The result returns the exact announcement to say once; then stop talking while the transfer connects. Never call it unprompted, and never claim a transfer happened before it succeeds.'},
             ] : []),
@@ -699,6 +703,21 @@ Deno.serve(async (req) => {
               // starts (the client pauses Aspen when the handoff begins).
               clearTimeout(handoffStartTimer);
               handoffStartTimer = setTimeout(() => { if (!closed && clientSocket.readyState === WebSocket.OPEN) clientSocket.send(JSON.stringify({type:'start_handoff'})); }, MANAGER_HANDOFF_DELAY_MS);
+            } else if (call.name === 'lookup_business_detail') {
+              // KB LOOKUP (Publish #85b): dispatched BEFORE the
+              // platformFollowup gate below — a business-demo tool,
+              // not a platform action. The full KB text rides in the
+              // session config (outside the prompt) only on sessions
+              // gemini-session composed with a distilled brief
+              // (config.kbLookup); every other session gets the
+              // unavailable answer and its prompt never carried the
+              // brief's instruction to call this.
+              if (config.kbLookup !== true || typeof config.kbFullText !== 'string') { respond({error:'The full website text is not available in this session. Answer from your brief, or say you do not have that detail.'}); continue; }
+              const query = String(call.args?.query || '').slice(0, 200).trim();
+              if (!query) { respond({error:'Provide short search words for the detail.'}); continue; }
+              const found = searchKnowledgeBase(config.kbFullText, query);
+              if (!found.passages.length) { respond({found:false, instruction:'No passage in the full website text matches. Answer from your brief if it covers the topic; otherwise say you do not have that detail — never invent one.'}); continue; }
+              respond({found:true, passages: found.passages, instruction:'Answer from these passages from the business\'s full website text. If they do not cover the question, say so rather than inventing a detail.'});
             } else if (!config.platformFollowup || preview) { respond({error:'Action unavailable.'});
             } else if (call.name === 'recommend_plan') {
               const plan = salesRecommendation(call.args?.plan);

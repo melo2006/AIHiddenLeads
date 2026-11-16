@@ -21,6 +21,7 @@ import { normalizeUiLocale, resolveDemoStartLocale, startingLanguageForUiLocale,
 import { voiceForLocaleSession } from '../_shared/locale-voices.ts';
 import { buildTranscriptRecap } from '../_shared/recap-builder.ts';
 import { capturedContactFromConfig, type CapturedContact } from '../_shared/captured-contact.ts';
+import { composeSessionKnowledge } from '../_shared/kb-distill.ts';
 const personaSegmentSchema=z.object({persona:z.enum(['aspen','sara','alex','frank','latina','black-professional-lady']),boundary:z.enum(['doorway','stepout','meet-alex','return','summon-aspen','intro-sara','intro-return-1','intro-alex','intro-return-2']),parentSessionId:z.string().uuid(),swapRecap:z.string().max(8000),drops:z.number().int().min(0).max(99).default(0),dropRecovery:z.boolean().default(false),manualResume:z.boolean().default(false),swap:z.boolean().default(false),teamIntroSeen:z.boolean().default(false)});
 // SWAP DIAG (voice-first batch, 2026-11-10): the client posts a doorway
 // attempt's RESOLUTION (gate-abort, fallback, forced-execute,
@@ -332,6 +333,14 @@ Deno.serve(async req=>{
     // to confirm it), never as an asserted captured fact.
     if(b.leadId) { const {data:lead}=await db.from('leads').select('business_name,website_url,website_content,scan_status,full_name,email,phone,invite_arrived_at').eq('id',b.leadId).maybeSingle(); if(!lead || !lead.website_content || !['completed','enriched','scanning'].includes(lead.scan_status) || lead.website_content.length<200) return json({error:'This business demo has not finished learning its website. Please wait for the scan.'},409); knowledge=lead.website_content; businessName=lead.business_name; siteUrl=lead.website_url || ''; visitorContact={name:sanitizeVisitorName(lead.full_name)}; leadInviteArrivedAt=lead.invite_arrived_at; const {data:langRow}=await db.from('leads').select('website_language').eq('id',b.leadId).maybeSingle(); leadWebsiteLanguage=langRow?.website_language ?? null; }
     else { const {data:p}=await db.from('prospects').select('business_name,business_data,ai_analysis,website_url').eq('id',b.prospectId).maybeSingle(); if(!p) return json({error:'Demo business not found'},404); knowledge=JSON.stringify(p.business_data || {}); businessName=p.business_name; siteUrl=p.website_url || ''; if(knowledge.length<20) return json({error:'Prepare this prospect website demo before starting a call.'},409); }
+    // KB SLIM (Publish #85b): behind KB_SLIM_BRIEF_ENABLED, the
+    // session prompt carries a distilled brief of the stored KB
+    // instead of the raw page dumps, and the full text rides in the
+    // config (outside the prompt) for the proxy's
+    // lookup_business_detail tool. Flag off → sessionKnowledge IS
+    // knowledge and no config keys are added below, so the composed
+    // config stays byte-identical to pre-#85b.
+    const kbSlim=composeSessionKnowledge(knowledge,(n)=>Deno.env.get(n));
     const {data:aspen}=await db.from('voice_agents').select('published').eq('slug','aspen-homepage').maybeSingle();
     const published=aspen?.published as Record<string,unknown>|undefined;
     // EXAMPLE PRESENTER (Frank batch, 2026-11-13): a marked sample
@@ -369,7 +378,13 @@ Deno.serve(async req=>{
     // identical to before. The verification branch composes from
     // whichever base applies — Act 1's own text is unchanged either
     // way, and its session still ends at the code gate.
-    config={...(presenter ? businessDemoConfig(businessName,knowledge,{...(published ?? {}),name:presenter.displayName,voice:presenterVoice ?? presenter.voiceName,simulationPrompt:presenterSimulationPrompt(presenter, sanitizeVisitorName(b.visitorName || String(visitorContact.name || '')))}) : swapEnabled ? businessDemoConfigSwapParent(businessName,knowledge,published) : businessDemoConfig(businessName,knowledge,published)), visitorContact, platformFollowup:true};
+    config={...(presenter ? businessDemoConfig(businessName,kbSlim.sessionKnowledge,{...(published ?? {}),name:presenter.displayName,voice:presenterVoice ?? presenter.voiceName,simulationPrompt:presenterSimulationPrompt(presenter, sanitizeVisitorName(b.visitorName || String(visitorContact.name || '')))}) : swapEnabled ? businessDemoConfigSwapParent(businessName,kbSlim.sessionKnowledge,published) : businessDemoConfig(businessName,kbSlim.sessionKnowledge,published)), visitorContact, platformFollowup:true};
+    // KB SLIM (Publish #85b): only a distilled session carries the
+    // lookup stamp — the full text rides OUTSIDE the prompt (never
+    // in sourceKnowledge) so the proxy can answer
+    // lookup_business_detail from it. Persona segments inherit both
+    // keys from this parent config via their ...parent spread.
+    if(kbSlim.kbLookup && kbSlim.kbFullText) { config.kbFullText=kbSlim.kbFullText; config.kbLookup=true; }
     if(presenter) config.demoPresenter=presenter.id;
     // ADMIN VOICE OVERRIDE (2026-11-14): the non-presenter demo parent
     // IS Aspen — her composed voice otherwise comes from the published
