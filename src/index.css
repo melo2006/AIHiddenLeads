@@ -330,6 +330,23 @@
      fold: Ron's phone test showed the input field completely hidden
      behind the keyboard. On tall viewports the floor stays 20rem. */
   .aspen-chat-dock .aspen-panel { min-height: min(20rem, max(0px, calc(var(--aspen-available-height, 20rem) - 11rem))); }
+  /* Panel fit (2026-11-16, Ron's phone test of the chat revamp): the
+     floor above was NOT enough — the panel still sized itself against
+     the VIEWPORT (the base .aspen-panel cap, min(70dvh, …)), so on a
+     tall phone the panel outgrew the dock's scroll region by the
+     height of the pinned chrome above it (header strip + window
+     controls + toggle + the recorded line) and the composer sat
+     below the fold: "I cannot see the bottom of the chat box or type
+     anything." Inside the dock the panel is now a flex item of the
+     region: it takes exactly the region's remaining height under the
+     shell's own cap chain (min(80dvh, --aspen-available-height)),
+     hard-capped at the region's height, so the message thread is
+     the ONLY scroll region inside it and the composer stays pinned
+     at the panel's bottom — keyboard closed or open, because
+     --aspen-available-height tracks the visual viewport. The
+     min-height floor above still applies: on a very short visible
+     height the region's own scroll remains the safety valve. */
+  .aspen-chat-dock .aspen-panel { flex: 1 1 auto; max-height: 100%; }
   .visibility-map { background: hsl(var(--muted) / 0.45); }
   .visibility-map button.audit-rank-good:hover { color: hsl(var(--primary-foreground)); background: hsl(var(--primary)); }
   .visibility-map button.audit-rank-warning:hover { color: hsl(var(--primary-foreground)); background: hsl(var(--audit-rank-warning)); }

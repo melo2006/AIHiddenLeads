@@ -277,14 +277,16 @@ export default function FloatingPersonFrame({ name = 'Aspen', avatarUrl, open, m
     {open && mode === 'chat' && <div data-testid="aspen-chat-dock" className="aspen-chat-dock relative z-10 flex min-h-0 flex-1 flex-col gap-1 rounded-lg border border-primary/40 bg-card p-2 shadow-lg ring-1 ring-foreground/10">
       {/* CHAT HEADER STRIP (Ron, 2026-11-16): in Type mode the big
           portrait used to eat ~190px above the dock while the thread
-          squeezed below it. She now collapses to a SMALL round avatar
+          squeezed below it. She now collapses to a round avatar
           pinned in this slim strip — always visible, with her name —
           and the thread takes the panel's full width and height.
           Tapping the avatar (or the expand control) returns to the
-          big-avatar view: voice mode, whose layout is unchanged. */}
+          big-avatar view: voice mode, whose layout is unchanged.
+          (Avatar 36px → 56px the same evening: Ron's phone test —
+          "the avatar is too small, increase the size a little bit.") */}
       <div data-testid="aspen-chat-header" className="flex shrink-0 items-center gap-2 px-0.5">
-        <button type="button" data-testid="aspen-chat-avatar" onClick={() => onMode('voice')} aria-label={t("frame.voiceView")} title={t("frame.voiceView")} className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary text-primary-foreground ring-1 ring-primary/50 transition-transform hover:scale-105">
-          {chatAvatarSrc ? <img src={chatAvatarSrc} alt="" draggable={false} className="h-full w-full object-cover object-top" /> : <Mic className="h-4 w-4" />}
+        <button type="button" data-testid="aspen-chat-avatar" onClick={() => onMode('voice')} aria-label={t("frame.voiceView")} title={t("frame.voiceView")} className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary text-primary-foreground ring-1 ring-primary/50 transition-transform hover:scale-105">
+          {chatAvatarSrc ? <img src={chatAvatarSrc} alt="" draggable={false} className="h-full w-full object-cover object-top" /> : <Mic className="h-6 w-6" />}
         </button>
         <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">{name}</span>
         <button type="button" onClick={() => onMode('voice')} aria-label={t("frame.voiceView")} title={t("frame.voiceView")} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-background/90 text-foreground transition-colors hover:bg-secondary"><Maximize2 className="h-4 w-4" /></button>

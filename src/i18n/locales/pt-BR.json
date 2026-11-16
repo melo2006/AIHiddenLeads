@@ -1026,6 +1026,7 @@
     "attachTooLarge": "Esse arquivo é muito grande — o limite é {{size}}.",
     "attachUnsupported": "Esse tipo de arquivo não é compatível. Tente uma imagem, áudio, vídeo, PDF ou documento.",
     "listen": "Ouvir esta resposta",
+    "listenError": "Não foi possível reproduzir o áudio agora — tente de novo.",
     "copyReply": "Copiar resposta",
     "copied": "Copiado",
     "rateGood": "Boa resposta",
