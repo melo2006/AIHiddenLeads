@@ -1,7 +1,7 @@
 import { homepagePacingAction, silenceLadderRung, SILENCE_NUDGE_1, SILENCE_NUDGE_2, SILENCE_NUDGE_3 } from '../_shared/homepage-pacing.ts'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { languagePolicyFor, NO_SPEAKER_LABEL_RULE, visitorLocalTimeLine, VOICE_DISCONNECT_PLAIN } from '../_shared/voice-config.ts'
+import { hourInTimeZone, languagePolicyFor, NO_SPEAKER_LABEL_RULE, renderOpeningTemplate, sanitizeVisitorName, visitorLocalTimeLine, VOICE_DISCONNECT_PLAIN } from '../_shared/voice-config.ts'
 import { openingText } from '../_shared/session-opening.ts'
 import { goAwayReconnectDelayMs, goAwayTimeLeftSeconds, providerResumeAllowed, resumptionHandleFromUpdate, sessionResumptionConfig } from '../_shared/session-resumption.ts'
 import { COMPRESSION_SETUP_SUFFIX_CHARS, COMPRESSION_TOOLS_ALLOWANCE_TOKENS, contextCompressionEnabled, contextWindowCompressionConfig, estimateTokensFromChars, type ContextWindowCompressionConfig } from '../_shared/context-compression.ts'
@@ -498,9 +498,26 @@ Deno.serve(async (req) => {
           // drop-apology and the plain resume ("Hey, you're back!") — a
           // boundary, segment drop or segment resume can never fall
           // through to them (the C-2 guard).
+          // OPENING RENDER BACKSTOP (2026-11-16): gemini-session renders
+          // the picked opening server-side ONLY for demo parents — the
+          // homepage rotation variants carry {timeGreeting} too, so on
+          // this path the model received the bare template and
+          // improvised the time-of-day word ("Good afternoon" at
+          // 10:07 AM Eastern, session 75aaaab9; the visitor-local-time
+          // instruction line alone could not override a scripted
+          // placeholder). Render here, at serve time, whenever
+          // placeholders survive: the hour comes from the session's
+          // configured zone and the name is the sanitized visitor
+          // name. Already-rendered openings carry no placeholders and
+          // pass through untouched.
+          let openingRendered = config.opening
+          if (typeof openingRendered === 'string' && openingRendered.includes('{')) {
+            const visitorName = sanitizeVisitorName(String((config.visitorContact as { name?: unknown } | undefined)?.name || ''))
+            openingRendered = renderOpeningTemplate(openingRendered, config as Record<string, unknown>, hourInTimeZone(new Date(), typeof config.timeZone === 'string' ? config.timeZone : undefined), visitorName)
+          }
           const opening = openingText({
             preview,
-            opening: config.opening,
+            opening: openingRendered,
             personaSwap: (config.personaSwap ?? null) as { to: 'aspen' | 'sara' | 'alex' | 'frank' | 'latina' | 'black-professional-lady'; boundary: 'doorway' | 'stepout' | 'meet-alex' | 'return' } | null,
             personaDrop: (config.personaDrop ?? null) as { persona: 'aspen' | 'sara' | 'alex' | 'frank' | 'latina' | 'black-professional-lady'; drops: number } | null,
             personaResume: (config.personaResume ?? null) as { persona: 'aspen' | 'sara' | 'alex' | 'frank' | 'latina' | 'black-professional-lady' } | null,

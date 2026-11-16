@@ -36,3 +36,18 @@ describe('visitorLocalTimeLine', () => {
     expect(src).toContain('visitorLocalTimeLine(new Date(), config.timeZone)');
   });
 });
+
+describe('opening render backstop (2026-11-16) — proxy wiring pins', () => {
+  it('the proxy renders a surviving template opening at serve time', () => {
+    const proxy = readFileSync(resolve(process.cwd(), 'supabase/functions/gemini-live-proxy/index.ts'), 'utf8');
+    expect(proxy).toContain('renderOpeningTemplate(openingRendered');
+    expect(proxy).toContain('hourInTimeZone(new Date()');
+    expect(proxy).toContain('opening: openingRendered');
+  });
+
+  it('renderOpeningTemplate substitutes the timezone hour into the homepage rotation shape', async () => {
+    const { renderOpeningTemplate } = await import('../../supabase/functions/_shared/voice-config');
+    const rendered = renderOpeningTemplate('{timeGreeting}, and thanks for calling {businessName}! I\'m {agentName}.', { businessName: 'AI Hidden Leads', name: 'Aspen' }, 10, '');
+    expect(rendered).toBe('Good morning, and thanks for calling AI Hidden Leads! I\'m Aspen.');
+  });
+});
