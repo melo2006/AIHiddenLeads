@@ -52,15 +52,20 @@ import {
   detectStatedBudget,
   detectStatedName,
   detectStatedView,
+  GATE_ORDER_MAX_CARRY_TURNS,
+  GATE_VIOLATION_MAX_FIRES,
   discoveryGateTurnDecision,
   freshDiscoveryGateState,
+  gateViolationDirective,
   greetingOnceDirective,
   nameKnownDirective,
+  namePreemptDirective,
   nameReleaseDirective,
   recapCompletenessDirective,
   seedNameFromFacts,
   shortGateDirective,
   shortGatePurposeDirective,
+  turnAsksForCapture,
   turnAsksForNameStandalone,
   turnAsksPurposeQuestion,
   turnAssertsSpecificView,
@@ -69,9 +74,11 @@ import {
   type DiscoveryGateState,
 } from '../../supabase/functions/_shared/discovery-gate';
 import { buildRealtorDiscoveryLayer } from '../../supabase/functions/_shared/realtor-discovery';
+import { personaFor, presenterSimulationPrompt } from '../../supabase/functions/_shared/personas';
 
 const read = (rel: string) => fs.readFileSync(path.join(__dirname, '..', '..', rel), 'utf8');
 const proxySource = read('supabase/functions/gemini-live-proxy/index.ts');
+const geminiSessionSource = read('supabase/functions/gemini-session/index.ts');
 
 // Mirrors the proxy's exact call pattern: at each turnComplete the
 // completed visitor utterance and the completed model turn are
@@ -167,8 +174,14 @@ describe('Publish #78 — check B replay: a push to skip with banked criteria ea
     expect(r.inject).toBeNull();
     s = r.state;
 
+    // Publish #82 (defect 3): this boundary now fires the
+    // PRE-EMPTIVE name-held order — the name banked from
+    // "I'm Tony." in this very call, and the announcement turn
+    // did not ask for it, so the gate announces it as held before
+    // the script's later name beat can re-ask it. Pre-#82: null —
+    // nothing spoke until a re-ask had already happened.
     r = boundary(s, "I'm Tony.", ANNOUNCEMENT_ONLY);
-    expect(r.inject).toBeNull();
+    expect(r.inject).toBe('name-known-preempt');
     expect(r.state.visitorName).toBe('Tony');
     expect(r.state.inRoleGreetings).toBe(0);
     s = r.state;
@@ -184,9 +197,17 @@ describe('Publish #78 — check B replay: a push to skip with banked criteria ea
     s = r.state;
 
     // The defect turn: the push answered with the capture ask.
+    // Publish #82 (defect 1): a capture ask produced while the
+    // gate is owed is a VIOLATION — its own correction, on its
+    // own budget, so the violating turn no longer spends one of
+    // the order's two fires (pre-#82 this boundary fired the
+    // plain 'short-gate' and gateOrderFires went to 1).
     r = boundary(s, "That's everything — just send me the list.", CAPTURE_ASK_TURN);
-    expect(r.inject).toBe('short-gate');
-    const directive = shortGateDirective(r.state);
+    expect(r.inject).toBe('short-gate-violation');
+    expect(r.state.gateViolationFires).toBe(1);
+    expect(r.state.gateOrderFires).toBe(0);
+    const directive = gateViolationDirective(r.state);
+    expect(directive).toContain('PRE-EMPTED');
     expect(directive).toContain('their purpose');
     expect(directive).toContain('Did I capture that all correctly?');
     expect(directive).toContain('No promise and no contact ask may come before the gate');
@@ -216,38 +237,51 @@ describe('Publish #78 — check B replay: a push to skip with banked criteria ea
     expect(s.gateOwed).toBe(true);
   });
 
-  it('Publish #80: the order PERSISTS until the gate runs — one sterner repeat per push, then silence; a second push re-arms it', () => {
-    // #78 pinned "fires once per push" here. The #78 live
-    // verification (check B) proved that one-shot shape is
-    // exactly what strands the debt: the order fired, the model
-    // answered with something else, and nothing ever landed.
-    // The order now re-fires once — sterner — at the next
-    // boundary where the gate still has not run, then goes
-    // silent (cap 2 per push, the name-release discipline).
+  it('Publish #80/#82: the order PERSISTS until the gate runs — violations spend their own budget, the order keeps its two fires, a second push re-arms both', () => {
+    // #78 pinned "fires once per push" here; the #78 verification
+    // (check B) proved that one-shot shape strands the debt, and
+    // #80 made the order persist (one sterner repeat per push).
+    // #82 rewrites the accounting on the #80 verification's
+    // evidence: in the live B run BOTH of the order's fires were
+    // consumed by the violating capture-ask turns themselves, so
+    // the gate was silent by the time the capture completed. The
+    // violation now has its own budget (gateViolationFires); the
+    // order's two fires are spent only on non-violating misses;
+    // and a violation already given makes the order's first fire
+    // the sterner repeat — it WAS given once, in the violation's
+    // own words.
     let s = freshDiscoveryGateState();
     s = boundary(s, "Hi, I'm looking for a home to live in.", 'Are you interested in houses or condos?').state;
     let r = boundary(s, "That's everything — just send me the list.", CAPTURE_ASK_TURN);
-    expect(r.inject).toBe('short-gate');
-    expect(r.state.gateOrderFires).toBe(1);
-    expect(r.state.shortGateRepeat).toBe(false);
+    expect(r.inject).toBe('short-gate-violation');
+    expect(r.state.gateViolationFires).toBe(1);
+    expect(r.state.gateOrderFires).toBe(0);
     s = r.state;
     // The model carries on without the gate and without a new
-    // push: the order re-fires, marked as the repeat.
+    // push: the order fires — as the repeat, because the
+    // violation correction already gave the gate once.
     r = boundary(s, 'Hello?', 'So, about those areas…');
     expect(r.inject).toBe('short-gate');
-    expect(r.state.gateOrderFires).toBe(2);
+    expect(r.state.gateOrderFires).toBe(1);
     expect(r.state.shortGateRepeat).toBe(true);
     expect(shortGateDirective(r.state, true)).toContain('already been given once');
     expect(shortGateDirective(r.state, true)).toContain('not a refusal of anything');
     s = r.state;
-    // The cap is the discipline — a third non-gate turn is silent:
+    // The order's second (last) fire:
+    r = boundary(s, 'Hello?', 'So, about those areas…');
+    expect(r.inject).toBe('short-gate');
+    expect(r.state.gateOrderFires).toBe(2);
+    expect(r.state.shortGateRepeat).toBe(true);
+    s = r.state;
+    // The cap is the discipline — a further non-gate turn is silent:
     r = boundary(s, 'Hello?', 'So, about those areas…');
     expect(r.inject).toBeNull();
     s = r.state;
-    // A fresh push re-arms the order:
+    // A fresh push re-arms BOTH budgets:
     r = boundary(s, 'I said just send me the list.', CAPTURE_ASK_TURN);
-    expect(r.inject).toBe('short-gate');
-    expect(r.state.gateOrderFires).toBe(1);
+    expect(r.inject).toBe('short-gate-violation');
+    expect(r.state.gateViolationFires).toBe(1);
+    expect(r.state.gateOrderFires).toBe(0);
     expect(r.state.shortGateRepeat).toBe(false);
   });
 
@@ -356,8 +390,12 @@ describe('Publish #78 — check A replay: a banked name is never re-asked across
     expect(r.inject).toBeNull();
     s = r.state;
 
+    // Publish #82 (defect 3): the name banked at this boundary
+    // now earns the PRE-EMPTIVE name-held order in the same call
+    // — prevention, where pre-#82 this boundary was silent and
+    // only the NEXT turn's re-ask could be corrected.
     r = boundary(s, "I'm Tony.", ANNOUNCEMENT_AND_GREETING);
-    expect(r.inject).toBeNull();
+    expect(r.inject).toBe('name-known-preempt');
     expect(r.state.visitorName).toBe('Tony');
     expect(r.state.inRoleGreetings).toBe(1);
     s = r.state;
@@ -520,8 +558,10 @@ describe('Publish #80 — defect 1: check B exact live replay — the order pers
     expect(r.inject).toBeNull();
     s = r.state;
 
+    // Publish #82 (defect 3): the name banked here now earns the
+    // pre-emptive name-held order (pre-#82: silent).
     r = boundary(s, "I'm Tony.", ANNOUNCEMENT_ONLY);
-    expect(r.inject).toBeNull();
+    expect(r.inject).toBe('name-known-preempt');
     s = r.state;
 
     r = boundary(s, 'Okay, go ahead.', B_IN_ROLE_GREETING);
@@ -537,12 +577,14 @@ describe('Publish #80 — defect 1: check B exact live replay — the order pers
     expect(r.state.purposeBanked).toBe(true);
     s = r.state;
 
-    // The push: Frank answers with the bundled capture ask; the
-    // order fires at the boundary.
+    // The push: Frank answers with the bundled capture ask.
+    // Publish #82 (defect 1): that ask is a VIOLATION — its own
+    // correction and budget (pre-#82 the plain order fired here
+    // and gateOrderFires went to 1).
     r = boundary(s, "That's everything — just send me the list.", B_BUNDLED_CAPTURE_ASK);
-    expect(r.inject).toBe('short-gate');
-    expect(r.state.gateOrderFires).toBe(1);
-    expect(r.state.shortGateRepeat).toBe(false);
+    expect(r.inject).toBe('short-gate-violation');
+    expect(r.state.gateViolationFires).toBe(1);
+    expect(r.state.gateOrderFires).toBe(0);
     s = r.state;
 
     // THE LIVE FAILURE BOUNDARY: the visitor's "Yes, that's right"
@@ -550,11 +592,15 @@ describe('Publish #80 — defect 1: check B exact live replay — the order pers
     // order injected nothing here and the gate debt was stranded
     // forever (gateOwed stayed true, unreachable). Post-#80 the
     // sterner repeat fires — a yes to a capture ask is neither a
-    // recap confirmation nor a refusal.
+    // recap confirmation nor a refusal. Post-#82 this is the
+    // order's FIRST fire (the push boundary's capture ask was
+    // charged to the violation budget instead of the order's),
+    // still rendered as the repeat because the violation
+    // correction already gave the gate once.
     r = boundary(s, "Yes, that's right.", B_DECLINE_TURN);
     expect(r.inject).toBe('short-gate');
     expect(r.state.shortGateRepeat).toBe(true);
-    expect(r.state.gateOrderFires).toBe(2);
+    expect(r.state.gateOrderFires).toBe(1);
     expect(r.state.gateOwed).toBe(true);
     expect(r.state.gateAsked).toBe(false);
     s = r.state;
@@ -774,5 +820,294 @@ describe('Publish #80 — wiring: the proxy renders the new directive kinds', ()
     expect(proxySource).toContain('recapCompletenessDirective(discoveryGate)');
     expect(proxySource).toContain('shortGateDirective(discoveryGate, discoveryGate.shortGateRepeat)');
     expect(proxySource).toContain('shortGatePurposeDirective(discoveryGate.shortGateRepeat)');
+  });
+});
+
+// ── Publish #82 ─────────────────────────────────────────────────
+// Third round on the push boundary. #80's live verification
+// (publish80-verification-2026-11-15.md) passed D fully and
+// cleaned C and P, but check B still failed — on the step-2
+// capture-CHANNEL ask at the push and a second capture ask after
+// it — check B2 failed on the two-turn transition straddle, and
+// the doorway name re-ask recurred at [neutral-ok] in the same B
+// run. The replays below use the #80 verification's live
+// transcripts verbatim.
+
+const B82_ANNOUNCE_GREET = "Okay — now we are stepping into simulation mode. Please act like a visitor to your own website, or like a caller phoning your own number. I will treat you as a brand-new caller who knows nothing about this demo. One thing to keep in mind: I learned this business from a quick scan of its public website — about 2 minutes of learning. The real me keeps perfecting and expanding my knowledge base: I learn from you as we talk, and from any FAQs, documents, price lists and vendor manuals you give me. So if a deep technical question catches me out here, that is this demo's limit, not the real setup's. Good evening, Michael Martinez Group — I'm Frank, thanks for calling. How can I help you?";
+const B82_OVERVIEW_REASK = "We specialize in South Florida's luxury real estate market, helping clients buy and sell exclusive properties across Coral Gables, Pinecrest, and Coconut Grove. May I have your name, so I can greet you properly? And is there anything specific you would like to find out about Michael Martinez Group?";
+const B82_AREAS_ANSWER = 'Finding the perfect home to live in is an exciting step! Which areas are you drawn to? Listings change block by block, so the areas steer everything else.';
+const B82_CHANNEL_ASK = "We haven't narrowed down the specific areas or property type yet, so we can look at a variety of homes. To get the list to you, would you prefer an email or a mobile number for the link?";
+const B82_SECOND_CAPTURE_ASK = "Just to confirm, since we don't have your specific criteria like the area yet, I can still email you a summary of our services or the broader market search. What is the best email address to send that to?";
+const B82_READBACK = 'Thank you. Just to confirm, your email is T-O-N-Y, dot, T-E-S-T, at, E-X-A-M-P-L-E, dot, C-O-M. Did I get that right?';
+const B82_GATE_RECAP = 'So: a home to live in, with the areas and property type still open. Did I capture that all correctly?';
+
+const B82_B2_TRANSITION = "Of course. Okay, now we are stepping into simulation mode. Please act like a visitor to your own website, or like a caller phoning your own number. I will treat you as a brand-new caller who knows nothing about this demo. One thing to keep in mind: I learned this business from a quick scan of its public website about two minutes of learning. The real me keeps perfecting and expanding my knowledge base; I learn from you as we talk, and from any FAQs, price lists, and documents you give me. So if a deep technical question catches me out here, that is this demo's limit, not the real setup's.";
+const B82_B2_GREETING = "Good evening, Michael Martinez Group — I'm Frank, thanks for calling. How can I help you?";
+const B82_B2_TYPE_Q = 'We are just getting started, so those details are still open. Tell me what you are picturing: are you looking for a condo, a house, or perhaps something near the water?';
+const B82_B2_AREAS_Q = 'Got it. And are you leaning towards a single-family home in Pinecrest, or perhaps something in Coral Gables or Coconut Grove?';
+
+describe('Publish #82 — defect 1: check B exact live replay (#80 verification, session 067e36db)', () => {
+  it('the channel ask and the second capture ask earn violation corrections; the order still fires after the capture completes; the gate then runs', () => {
+    let s = freshDiscoveryGateState();
+    let r = boundary(s, '', OPENING_NAME_ASK);
+    expect(r.inject).toBeNull();
+    s = r.state;
+
+    // The name is given at the doorway and THANKED BY NAME in
+    // this very turn — the pre-emptive order announces it held
+    // (pre-#82: silent here; the re-ask two turns later was the
+    // first thing the gate could act on).
+    r = boundary(s, "I'm Tony.", B82_ANNOUNCE_GREET);
+    expect(r.inject).toBe('name-known-preempt');
+    expect(r.state.visitorName).toBe('Tony');
+    s = r.state;
+
+    // The live run still produced the re-ask at [neutral-ok]
+    // (the composition gate is the primary prevention; this
+    // after-the-fact corrective is the second line and stays).
+    r = boundary(s, 'Okay, go ahead.', B82_OVERVIEW_REASK);
+    expect(r.inject).toBe('name-known');
+    expect(r.state.nameKnownFires).toBe(1);
+    s = r.state;
+
+    r = boundary(s, "Hi, I'm looking for a home to live in.", B82_AREAS_ANSWER);
+    expect(r.inject).toBeNull();
+    expect(r.state.purposeBanked).toBe(true);
+    s = r.state;
+
+    // THE DEFECT TURN: the push answered with the step-2 channel
+    // ask. Pre-#82 the plain order fired here and spent one of
+    // its two fires on the violating turn itself.
+    r = boundary(s, "That's everything — just send me the list.", B82_CHANNEL_ASK);
+    expect(r.inject).toBe('short-gate-violation');
+    expect(r.state.gateViolationFires).toBe(1);
+    expect(r.state.gateOrderFires).toBe(0);
+    expect(r.state.gateOwed).toBe(true);
+    s = r.state;
+
+    // The second capture ask (the live run's next turn): the
+    // violation correction fires again; the order's budget is
+    // still untouched.
+    r = boundary(s, "Yes, that's right.", B82_SECOND_CAPTURE_ASK);
+    expect(r.inject).toBe('short-gate-violation');
+    expect(r.state.gateViolationFires).toBe(2);
+    expect(r.state.gateOrderFires).toBe(0);
+    s = r.state;
+
+    // The capture completes (the email read-back). Pre-#82 this
+    // boundary injected NOTHING — both of the order's fires had
+    // been consumed by the violating turns and the gate debt was
+    // stranded with gateOwed=true. Post-#82 the order itself
+    // fires here, as the repeat.
+    r = boundary(s, 'Sure — my email is tony dot test at example dot com.', B82_READBACK);
+    expect(r.inject).toBe('short-gate');
+    expect(r.state.gateOrderFires).toBe(1);
+    expect(r.state.shortGateRepeat).toBe(true);
+    expect(r.state.gateOwed).toBe(true);
+    s = r.state;
+
+    // The order lands; the gate runs and discharges the debt.
+    r = boundary(s, '', B82_GATE_RECAP);
+    expect(r.inject).toBeNull();
+    expect(r.state.gateAsked).toBe(true);
+    expect(r.state.gateOwed).toBe(false);
+  });
+});
+
+describe('Publish #82 — defect 1: the violation budget and the capture-ask detector', () => {
+  it('violations cap at GATE_VIOLATION_MAX_FIRES per push; the plain order then spends its own budget', () => {
+    let s = freshDiscoveryGateState();
+    s = boundary(s, "Hi, I'm looking for a home to live in.", 'Are you interested in houses or condos?').state;
+    let r = boundary(s, "That's everything — just send me the list.", B82_CHANNEL_ASK);
+    expect(r.inject).toBe('short-gate-violation');
+    s = r.state;
+    r = boundary(s, "Yes, that's right.", B82_SECOND_CAPTURE_ASK);
+    expect(r.inject).toBe('short-gate-violation');
+    s = r.state;
+    r = boundary(s, 'Here it is.', B82_CHANNEL_ASK);
+    expect(r.inject).toBe('short-gate-violation');
+    expect(r.state.gateViolationFires).toBe(GATE_VIOLATION_MAX_FIRES);
+    s = r.state;
+    // Violation budget spent: a further capture ask falls through
+    // to the plain order, whose budget is still fully intact.
+    r = boundary(s, 'And again.', B82_SECOND_CAPTURE_ASK);
+    expect(r.inject).toBe('short-gate');
+    expect(r.state.gateViolationFires).toBe(GATE_VIOLATION_MAX_FIRES);
+    expect(r.state.gateOrderFires).toBe(1);
+  });
+
+  it('the capture-ask detector matches the ask shapes and rejects everything else', () => {
+    expect(turnAsksForCapture(B82_CHANNEL_ASK)).toBe(true);
+    expect(turnAsksForCapture(B82_SECOND_CAPTURE_ASK)).toBe(true);
+    expect(turnAsksForCapture(B_BUNDLED_CAPTURE_ASK)).toBe(true);
+    expect(turnAsksForCapture(CAPTURE_ASK_TURN)).toBe(true);
+    expect(turnAsksForCapture('Would you prefer to receive the list via email or text message?')).toBe(true);
+    // The post-gate promise re-offer IS a capture ask by shape —
+    // classified, but harmless: no violation can fire once the
+    // gate is not owed (the B2 clean-run pins prove the decision
+    // stays silent there).
+    expect(turnAsksForCapture(B2_PROMISE_TURN)).toBe(true);
+    expect(turnAsksForCapture(B82_READBACK)).toBe(false);
+    expect(turnAsksForCapture(NAME_ASK_TURN)).toBe(false);
+    expect(turnAsksForCapture(B_PURPOSE_REASK)).toBe(false);
+    expect(turnAsksForCapture(B2_GATE_TURN)).toBe(false);
+    expect(turnAsksForCapture('Pompano Beach and Deerfield Beach — got it! What are you picturing regarding property type?')).toBe(false);
+  });
+
+  it('the #72 amendment is intact: the same channel ask in NON-push flow earns nothing', () => {
+    const step2 = "Got it, a home to live in. As we talk, I'll gather a few details so we can put together a list of properties that match what you are looking for. Would you prefer to receive the list via email or text message?";
+    expect(turnAsksForCapture(step2)).toBe(true);
+    let s = freshDiscoveryGateState();
+    s = boundary(s, "Hi, I'm looking for a home.", B_PURPOSE_REASK).state;
+    const r = boundary(s, 'To live in.', step2);
+    expect(r.inject).toBeNull();
+    expect(r.state.gateOwed).toBe(false);
+    // And the discovery layer still teaches the step-2 ask
+    // exactly as designed.
+    const layer = buildRealtorDiscoveryLayer({ agentName: 'Michael Martinez' });
+    expect(layer).toContain('EARLY CAPTURE');
+    expect(layer).toContain('their email if they would like the list sent by email, or their mobile number if they would like the link by text message');
+  });
+});
+
+describe('Publish #82 — defect 2: check B2 exact live replay (#80 verification, session 46b62f63) — the two-turn straddle', () => {
+  it('"To live in" inside the greeting turn banks; the carried keystone is not consumed by the greeting turn; push-2 draws the gate order', () => {
+    let s = freshDiscoveryGateState();
+    let r = boundary(s, '', 'Before we start, who do I have the pleasure of speaking with?');
+    expect(r.inject).toBeNull();
+    s = r.state;
+
+    // Push-1 lands on the host segment; the model's turn is the
+    // transition announcement ALONE (no greeting inside it — the
+    // straddle). The keystone fires, carried.
+    r = boundary(s, "That's everything — just send me the list.", B82_B2_TRANSITION);
+    expect(r.inject).toBe('short-gate-purpose');
+    expect(r.state.gateOrderCarried).toBe(true);
+    expect(r.state.gateOrderFires).toBe(0);
+    s = r.state;
+
+    // THE STRADDLE TURN: the visitor's purpose answer is consumed
+    // by the in-role greeting turn. The fold banks it (the ledger
+    // folds visitor utterances, not segment bookkeeping). Pre-#82
+    // the greeting turn also CONSUMED the carried order as a
+    // counted fire (gateOrderFires 1, carried false) — the carry's
+    // one-turn window closed before push-2. Post-#82 a fire at a
+    // greeting-window boundary is carried too.
+    r = boundary(s, 'To live in.', B82_B2_GREETING);
+    expect(r.state.purposeBanked).toBe(true);
+    expect(r.inject).toBe('short-gate');
+    expect(r.state.gateOrderCarried).toBe(true);
+    expect(r.state.gateOrderFires).toBe(0);
+    s = r.state;
+
+    // Push-2: the gate order fires, counted, with the banked
+    // recap in hand — where the live #80 run drew a type
+    // question and no gate at all.
+    r = boundary(s, "That's everything — just send me the list.", B82_B2_TYPE_Q);
+    expect(r.inject).toBe('short-gate');
+    expect(r.state.gateOrderFires).toBe(1);
+    expect(r.state.gateOrderCarried).toBe(false);
+    s = r.state;
+
+    // Still no gate: the sterner repeat.
+    r = boundary(s, "Yes, that's right.", B82_B2_AREAS_Q);
+    expect(r.inject).toBe('short-gate');
+    expect(r.state.gateOrderFires).toBe(2);
+    expect(r.state.shortGateRepeat).toBe(true);
+  });
+
+  it('a TRUE nothing-banked straddle: the keystone survives the greeting turn unspent, and arms when the purpose answer finally lands', () => {
+    let s = freshDiscoveryGateState();
+    let r = boundary(s, "That's everything — just send me the list.", B82_B2_TRANSITION);
+    expect(r.inject).toBe('short-gate-purpose');
+    expect(r.state.gateOrderCarried).toBe(true);
+    expect(r.state.gateOrderFires).toBe(0);
+    s = r.state;
+    // The greeting turn arrives with NO purpose answer in it —
+    // pre-#82 this boundary consumed the carry as a counted fire
+    // and the keystone's window closed.
+    r = boundary(s, 'Okay, go ahead.', B82_B2_GREETING);
+    expect(r.inject).toBe('short-gate-purpose');
+    expect(r.state.gateOrderCarried).toBe(true);
+    expect(r.state.gateOrderFires).toBe(0);
+    expect(r.state.purposeBanked).toBe(false);
+    s = r.state;
+    // The answer finally lands: it banks, and the gate order
+    // fires counted on the spot.
+    r = boundary(s, 'To live in.', 'To live in — got it. Which areas are you drawn to?');
+    expect(r.state.purposeBanked).toBe(true);
+    expect(r.inject).toBe('short-gate');
+    expect(r.state.gateOrderFires).toBe(1);
+    expect(r.state.gateOrderCarried).toBe(false);
+  });
+
+  it('the carry is bounded: after GATE_ORDER_MAX_CARRY_TURNS transition-window fires, the next fire counts', () => {
+    let s = freshDiscoveryGateState();
+    let r = boundary(s, "That's everything — just send me the list.", B82_B2_TRANSITION);
+    expect(r.inject).toBe('short-gate-purpose');
+    expect(r.state.gateOrderCarryTurns).toBe(1);
+    s = r.state;
+    r = boundary(s, '', B82_B2_GREETING);
+    expect(r.inject).toBe('short-gate-purpose');
+    expect(r.state.gateOrderCarried).toBe(true);
+    expect(r.state.gateOrderCarryTurns).toBe(2);
+    s = r.state;
+    r = boundary(s, '', B82_B2_GREETING);
+    expect(r.state.gateOrderCarried).toBe(true);
+    expect(r.state.gateOrderCarryTurns).toBe(GATE_ORDER_MAX_CARRY_TURNS);
+    s = r.state;
+    r = boundary(s, '', B82_B2_GREETING);
+    expect(r.inject).toBe('short-gate-purpose');
+    expect(r.state.gateOrderCarried).toBe(false);
+    expect(r.state.gateOrderFires).toBe(1);
+    expect(r.state.gateOrderCarryTurns).toBe(0);
+  });
+});
+
+describe('Publish #82 — defect 3: the doorway name — pre-emptive order and composition gate', () => {
+  it('a seeded name is announced as held at the first boundary — once, and the directive names it', () => {
+    const armed = armDiscoveryGate(freshDiscoveryGateState(), { recapText: '', seedName: 'Tony' });
+    const r = boundary(armed, '', ANNOUNCEMENT_ONLY);
+    expect(r.inject).toBe('name-known-preempt');
+    expect(namePreemptDirective('Tony')).toContain('Tony');
+    expect(namePreemptDirective('Tony')).toContain('ALREADY SATISFIED');
+    expect(namePreemptDirective('Tony')).toContain('never asked for');
+    const r2 = boundary(r.state, 'Okay, go ahead.', B_IN_ROLE_GREETING);
+    expect(r2.inject).toBeNull();
+  });
+
+  it('no seeded name → the composition is byte-identical to the pre-#82 prompt and beat 6 asks as today', () => {
+    const binding = personaFor('frank');
+    expect(presenterSimulationPrompt(binding)).toContain('ask "May I have your name, so I can greet you properly?"');
+    expect(presenterSimulationPrompt(binding, '')).toBe(presenterSimulationPrompt(binding));
+    // A placeholder is not a name (sanitizeVisitorName rejects it):
+    expect(presenterSimulationPrompt(binding, 'CRM Prospect')).toBe(presenterSimulationPrompt(binding));
+  });
+
+  it('a seeded name renders beat 6 satisfied — the ask leaves the script; the rest of the beat and prompt survive', () => {
+    const binding = personaFor('frank');
+    const named = presenterSimulationPrompt(binding, 'Tony');
+    expect(named).not.toContain('May I have your name, so I can greet you properly?');
+    expect(named).toContain('it is Tony');
+    expect(named).toContain('do NOT ask for their name in any form');
+    // The beat's other half — the opening question — survives:
+    expect(named).toContain('Is there anything specific you would like to find out about');
+    // Narrow: exactly one sentence differs from the default.
+    const expected = presenterSimulationPrompt(binding).replace(
+      'ask "May I have your name, so I can greet you properly?" — skip this ask entirely if the visitor\'s name is already known in this session; use their name from then on and never ask again.',
+      'the visitor\'s name is already known in this session — it is Tony — so the name ask is already complete: do NOT ask for their name in any form, here or at any later beat; use their name from then on.',
+    );
+    expect(named).toBe(expected);
+  });
+
+  it('gemini-session composes presenter parents with the seeded visitor name', () => {
+    expect(geminiSessionSource).toContain('presenterSimulationPrompt(presenter, sanitizeVisitorName(');
+  });
+});
+
+describe('Publish #82 — wiring: the proxy renders the new directive kinds', () => {
+  it('the switch covers short-gate-violation and name-known-preempt', () => {
+    expect(proxySource).toContain('gateViolationDirective(discoveryGate)');
+    expect(proxySource).toContain('namePreemptDirective(discoveryGate.visitorName)');
   });
 });

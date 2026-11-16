@@ -201,7 +201,10 @@ describe('authorization source pins', () => {
 
   test('gemini-session stamps the presenter parent and (lead path) the swap stamp', () => {
     expect(geminiSession).toContain('examplePresenterForSlug(examplePack.slug)');
-    expect(geminiSession).toContain('simulationPrompt:presenterSimulationPrompt(presenter)');
+    // Publish #82 (defect 3): the composition now also receives
+    // the session's seeded visitor name, so the script's name
+    // beat renders satisfied when the name is already held.
+    expect(geminiSession).toContain('simulationPrompt:presenterSimulationPrompt(presenter, sanitizeVisitorName(');
     expect(geminiSession).toContain('config.demoPresenter=presenter.id');
     // Alex handoff fix (2026-11-14): the swap stamp is no longer
     // withheld from presenter parents on the lead path — the client

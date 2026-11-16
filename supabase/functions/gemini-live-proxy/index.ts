@@ -14,7 +14,7 @@ import { confirmedVisitorContact, CONTACT_READBACK_POLICY, CAPTURE_RITUAL_POLICY
 import { capturedContactFromUnknown, capturedContactBlock, mergeCapturedContact, promptVisitorDetails, type CapturedContact } from '../_shared/captured-contact.ts'
 import { freshConsentAskState, syncConsentAskState, consentAskTurnDecision, CONSENT_ASK_TOOL_DIRECTIVE, CONSENT_ASK_NUDGE, CONSENT_RECORD_NUDGE, type ConsentAskState } from '../_shared/consent-ask.ts'
 import { armCaptureGateFromRecap, captureGateDirective, captureGateRecordDirective, captureGateTurnDecision, freshCaptureGateState, noteVisitorUtterance, spellbackCorrectionNudge, type CaptureGateState } from '../_shared/capture-gate.ts'
-import { armDiscoveryGate, budgetBracketDirective, budgetRangeDirective, budgetRecapDirective, discoveryGateTurnDecision, freshDiscoveryGateState, greetingOnceDirective, nameKnownDirective, nameReleaseDirective, recapCompletenessDirective, seedNameFromFacts, shortGateDirective, shortGatePurposeDirective, type DiscoveryGateState } from '../_shared/discovery-gate.ts'
+import { armDiscoveryGate, budgetBracketDirective, budgetRangeDirective, budgetRecapDirective, discoveryGateTurnDecision, freshDiscoveryGateState, gateViolationDirective, greetingOnceDirective, nameKnownDirective, namePreemptDirective, nameReleaseDirective, recapCompletenessDirective, seedNameFromFacts, shortGateDirective, shortGatePurposeDirective, type DiscoveryGateState } from '../_shared/discovery-gate.ts'
 import { armSalesGateFromRecap, earlyAskDirective, endAskDirective, freshSalesGateState, noRepeatDirective, salesGateTurnDecision, type SalesGateState } from '../_shared/sales-gate.ts'
 import { followupAlert, visitorFollowup, trySend } from '../_shared/hostinger-mail.ts'
 import { DEFAULT_LIVE_MODEL, officialLivePricing } from '../_shared/live-models.ts'
@@ -988,7 +988,12 @@ Deno.serve(async (req) => {
             // #80 — orders persist until complied with, recaps are
             // judged complete-or-void on their own turn, and an
             // order eaten by the simulation-entry transition is
-            // carried across it): judge the completed
+            // carried across it; push-boundary fixes Publish #82 —
+            // a capture/channel ask produced while the gate is owed
+            // is a violation on its own budget, the carry survives
+            // the transition's two-turn straddle, and a held name
+            // is announced pre-emptively before the script's name
+            // beat can re-ask it): judge the completed
             // turn against the discovery arc's settled state. This
             // runs AFTER the capture gate and the consent ask, on
             // its own state, and changes nothing they decide: the
@@ -1010,19 +1015,23 @@ Deno.serve(async (req) => {
                   ? shortGateDirective(discoveryGate, discoveryGate.shortGateRepeat)
                   : discoveryDecision.inject === 'short-gate-purpose'
                     ? shortGatePurposeDirective(discoveryGate.shortGateRepeat)
-                    : discoveryDecision.inject === 'name-known'
-                      ? nameKnownDirective(discoveryGate.visitorName)
-                      : discoveryDecision.inject === 'name-release'
-                        ? nameReleaseDirective(discoveryGate.nameReleaseFires >= 2)
-                        : discoveryDecision.inject === 'budget-bracket'
-                          ? budgetBracketDirective(discoveryGate.budgetBanked)
-                          : discoveryDecision.inject === 'budget-recap'
-                            ? budgetRecapDirective(discoveryGate.budgetBanked)
-                            : discoveryDecision.inject === 'budget-range'
-                              ? budgetRangeDirective(discoveryGate.budgetBanked)
-                              : discoveryDecision.inject === 'recap-completeness'
-                                ? recapCompletenessDirective(discoveryGate)
-                                : greetingOnceDirective()
+                    : discoveryDecision.inject === 'short-gate-violation'
+                      ? gateViolationDirective(discoveryGate)
+                      : discoveryDecision.inject === 'name-known'
+                        ? nameKnownDirective(discoveryGate.visitorName)
+                        : discoveryDecision.inject === 'name-known-preempt'
+                          ? namePreemptDirective(discoveryGate.visitorName)
+                          : discoveryDecision.inject === 'name-release'
+                            ? nameReleaseDirective(discoveryGate.nameReleaseFires >= 2)
+                            : discoveryDecision.inject === 'budget-bracket'
+                              ? budgetBracketDirective(discoveryGate.budgetBanked)
+                              : discoveryDecision.inject === 'budget-recap'
+                                ? budgetRecapDirective(discoveryGate.budgetBanked)
+                                : discoveryDecision.inject === 'budget-range'
+                                  ? budgetRangeDirective(discoveryGate.budgetBanked)
+                                  : discoveryDecision.inject === 'recap-completeness'
+                                    ? recapCompletenessDirective(discoveryGate)
+                                    : greetingOnceDirective()
                 geminiWs?.send(JSON.stringify({clientContent:{turns:[{role:'user',parts:[{text}]}],turnComplete:true}}))
               }
             }
