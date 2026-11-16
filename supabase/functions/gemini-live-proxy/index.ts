@@ -409,7 +409,7 @@ Deno.serve(async (req) => {
   const captureAudio=(speaker:'caller'|'assistant',base64:string)=>{if(config.recordAudio!==true||preview)return;const bin=atob(base64);audioChunks[speaker].push(Uint8Array.from(bin,c=>c.charCodeAt(0)));};
   const checkpointRecording=async(final=false)=>{
     await recordReady;if(!recordId)return;
-    for(const speaker of ['caller','assistant'] as const){const chunks=audioChunks[speaker].splice(0);if(!chunks.length)continue;const path=`${recordId}/${String(audioIndex++).padStart(5,'0')}-${speaker}.wav`;const {error}=await db.storage.from('conversation-recordings').upload(path,pcmWav(chunks,speaker==='caller'?16000:24000),{contentType:'audio/wav'});if(error){console.error('audio checkpoint failed');continue;}audioPaths.push({speaker,path});}
+    for(const speaker of ['caller','assistant'] as const){const chunks=audioChunks[speaker].splice(0);if(!chunks.length)continue;const path=`${recordId}/${String(audioIndex++).padStart(5,'0')}-${speaker}.wav`;const {error}=await db.storage.from('conversation-recordings').upload(path,pcmWav(chunks,speaker==='caller'?16000:24000),{contentType:'audio/wav'});if(error){console.error('audio checkpoint failed',error.message);continue;}audioPaths.push({speaker,path});}
     const {error}=await db.from('conversation_records').update({transcript:[...transcript],audio_paths:[...audioPaths],...(final?{status:'ended',ended_at:new Date().toISOString()}: {})}).eq('id',recordId);
     if(error)console.error('record checkpoint failed');
   };
