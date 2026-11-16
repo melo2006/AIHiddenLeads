@@ -1,0 +1,57 @@
+# Site deploy (Option 2, Ron approved 2026-11-16): AI Studio is no
+# longer in the publishing path. A push to main that touches the site
+# builds it and ships dist/ to the VPS staging/prod web root, served
+# by the aihiddenleads-web nginx container behind Traefik.
+# Manual runs: workflow_dispatch (deploys current main).
+name: Deploy site to VPS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'index.html'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vite.config.*'
+      - 'tsconfig*.json'
+      - 'postcss.config.*'
+      - 'tailwind.config.*'
+      - '.env'
+      - '.github/workflows/site-deploy.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: site-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      # npm ci cannot resolve this tree (react-leaflet peer vs react
+      # 19 — the long-standing ERESOLVE quirk); --legacy-peer-deps is
+      # the repo's working install route.
+      - name: Install
+        run: npm install --legacy-peer-deps --no-audit --no-fund
+      - name: Build
+        run: npm run build
+      - name: Ship dist to the VPS
+        env:
+          DEPLOY_KEY: ${{ secrets.SITE_DEPLOY_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H 168.231.69.246 >> ~/.ssh/known_hosts 2>/dev/null
+          rsync -az --delete -e "ssh -i ~/.ssh/deploy_key" dist/ root@168.231.69.246:/opt/aihiddenleads-web/dist/
+          ssh -i ~/.ssh/deploy_key root@168.231.69.246 'chmod -R a+rX /opt/aihiddenleads-web/dist'
+      - name: Verify the served bundle
+        run: |
+          sleep 3
+          ssh -i ~/.ssh/deploy_key root@168.231.69.246 'curl -sk --resolve stage.aihiddenleads.com:443:127.0.0.1 https://stage.aihiddenleads.com/ | grep -o "index-[A-Za-z0-9_-]*\.js" | head -1'
