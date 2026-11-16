@@ -132,6 +132,21 @@ function visitMemorySet(key: string, turns: Turn[]) {
   visitMemory.set(key, turns);
   persistVisitMemory();
 }
+/** Append ONE newly completed turn to the visit's ACCUMULATED history.
+ * flushLine and the swap divider used to REPLACE the store with the
+ * current component's `turns` array — but every new session starts
+ * from an empty `turns` state, so its first flushed line wiped all
+ * earlier sessions' turns and the NEXT session's recap covered only
+ * the immediately previous session (Ron's staging test, 2026-11-16:
+ * after a thin handoff-leg session plus one more drop, Aspen
+ * remembered only the leg — the visitor's name and business were
+ * gone). Appending keeps the store the whole visit's history, which
+ * is what resumeRecap's first-6 + last-30 window was designed for. */
+export function visitMemoryAppend(key: string, turn: Turn) {
+  visitMemory.set(key, [...visitMemoryGet(key), turn]);
+  persistVisitMemory();
+}
+export { visitMemoryGet, visitMemoryDelete };
 function visitMemoryDelete(key: string) {
   visitMemory.delete(key);
   persistVisitMemory();
@@ -1295,7 +1310,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       // the outgoing line BEFORE the state moves, so it is stamped with
       // the persona who actually spoke it.
       const speaker = role === "assistant" && swapEnabledRef.current ? swapStateRef.current.persona : undefined;
-      setTurns((prev) => { const next = [...prev, { role, text, ...(speaker ? { speaker } : {}) }]; if (!isPreviewRef.current) visitMemorySet(agentId || "homepage", next); return next; });
+      setTurns((prev) => { const turn: Turn = { role, text, ...(speaker ? { speaker } : {}) }; if (!isPreviewRef.current) visitMemoryAppend(agentId || "homepage", turn); return [...prev, turn]; });
     }
     ref.current = "";
     if (role === "user") setPartialUser(""); else setPartialAspen("");
@@ -4116,7 +4131,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       // Transcript divider (owner transition spec): the transcript is
       // never cleared at a handoff; a centered divider row marks where
       // the incoming persona took over, under the last flushed line.
-      setTurns(prev => { const next = [...prev, { role: "divider" as const, text: "", speaker: incoming }]; if (!isPreviewRef.current) visitMemorySet(agentId || "homepage", next); return next; });
+      setTurns(prev => { const divider: Turn = { role: "divider", text: "", speaker: incoming }; if (!isPreviewRef.current) visitMemoryAppend(agentId || "homepage", divider); return [...prev, divider]; });
       // 4) Open the incoming segment's socket on the pre-authorized token.
       //    The connect ctx gives a pre-ready death of this socket ONE
       //    retry with a fresh authorization (the drop-recovery class:
