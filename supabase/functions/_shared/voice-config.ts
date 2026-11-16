@@ -298,6 +298,27 @@ export function sanitizeVisitorName(name: unknown): string {
 // wins whenever it is a real IANA zone; the request's own zone (the
 // schema default included) is only the fallback for a parent that
 // somehow carries none.
+/** VISITOR LOCAL TIME LINE (2026-11-16): template-rendered greetings
+ * already take their hour from hourInTimeZone, but MODEL-COMPOSED
+ * openings (the homepage sales greeting above all) only ever saw the
+ * zone NAME in the system instruction — the model had no idea what
+ * time it was there and guessed: "Good afternoon" at 9:02 AM Eastern,
+ * twice in one morning, flipping to "Good morning" on a third run.
+ * This line states the visitor's current local time as a plain fact
+ * at session setup, with the matching greeting band, so a composed
+ * greeting uses the visitor's clock, not a coin flip. Empty string
+ * for an unusable zone (the caller then adds nothing). */
+export function visitorLocalTimeLine(at: Date, timeZone?: string | null): string {
+  const zone = timeZone || 'UTC';
+  const hour = hourInTimeZone(at, zone);
+  if (hour === undefined) return '';
+  let stamp = '';
+  try {
+    stamp = new Intl.DateTimeFormat('en-US', { timeZone: zone, weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(at);
+  } catch { return ''; }
+  if (!stamp) return '';
+  return ` Visitor local time: ${stamp} (${zone}). If your greeting uses a time-of-day word, it must match this time: morning before 12:00, afternoon from 12:00 to 18:00, evening after 18:00.`;
+}
 export function segmentTimeZone(parentConfig: Record<string, unknown> | undefined, requested?: string): string {
   const parentZone = typeof parentConfig?.timeZone === 'string' ? parentConfig.timeZone : '';
   if (parentZone && hourInTimeZone(new Date(), parentZone) !== undefined) return parentZone;
