@@ -743,7 +743,16 @@ Deno.serve(async (req) => {
             // and let the tool-followup turn speak a second closing
             // line. The end stands; the tool still resolves normally
             // and its follow-up output is swallowed by the gate below.
-            if (!farewellGateActive()) cancelFarewellEnd();
+            // REPEAT-GOODBYE FINALITY (2026-11-16): the same protection
+            // extends to EVERY session once the visitor has repeated
+            // their goodbye (farewellRepeats ≥ 1 — session 22b47dfa
+            // stacked FOUR closings: each repeat's closing turn made a
+            // bookkeeping tool call that cancelled the prompt 1.5s
+            // repeat arm, the empty-utterance branch then re-armed at
+            // the full 9s, the closing played out, and the visitor
+            // said goodbye again). After a repeat, the end is final:
+            // tool calls resolve normally but never lift it.
+            if (!farewellGateActive() && farewellRepeats === 0) cancelFarewellEnd();
             const respond = (response: unknown) => geminiWs?.send(JSON.stringify({toolResponse:{functionResponses:[{id:call.id,name:call.name,response}]}}));
             if (call.name === 'select_conversation_language') {
               const requested = String(call.args?.language || '');
@@ -1013,6 +1022,11 @@ Deno.serve(async (req) => {
                 // could never be closed by a later goodbye either.
                 farewellRevivals += 1
                 farewellHandled = false
+                // A genuine revival starts a FRESH farewell episode:
+                // the repeat-finality guard (tool dispatches never
+                // lifting the end) must not leak into the revived
+                // conversation's own later close.
+                farewellRepeats = 0
                 cancelFarewellEnd()
               }
             } else if (farewellHandled && !farewellTimer && !handoffReturnHandled && !managerTransferRequested) {

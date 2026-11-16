@@ -537,3 +537,17 @@ describe('farewell round 2 — after the close, the session actually ends', () =
     expect(occurrences(classBlock, 'armFarewellEnd(')).toBe(2);
   });
 });
+
+describe('repeat-goodbye finality (2026-11-16) — proxy wiring pins', () => {
+  it('a tool dispatch no longer cancels the farewell end after a repeated goodbye', () => {
+    const proxy = fs.readFileSync(path.join(__dirname, '..', '..', 'supabase/functions/gemini-live-proxy/index.ts'), 'utf8');
+    expect(proxy).toContain('if (!farewellGateActive() && farewellRepeats === 0) cancelFarewellEnd();');
+  });
+
+  it('a genuine revival resets the repeat count so finality never leaks into the new episode', () => {
+    const proxy = fs.readFileSync(path.join(__dirname, '..', '..', 'supabase/functions/gemini-live-proxy/index.ts'), 'utf8');
+    const at = proxy.indexOf('farewellRevivals += 1');
+    expect(at).toBeGreaterThan(0);
+    expect(proxy.slice(at, at + 400)).toContain('farewellRepeats = 0');
+  });
+});
