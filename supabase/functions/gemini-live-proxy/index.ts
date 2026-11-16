@@ -1,4 +1,4 @@
-import { homepagePacingAction } from '../_shared/homepage-pacing.ts'
+import { homepagePacingAction, silenceLadderRung, SILENCE_NUDGE_1, SILENCE_NUDGE_2, SILENCE_NUDGE_3 } from '../_shared/homepage-pacing.ts'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { languagePolicyFor, NO_SPEAKER_LABEL_RULE, visitorLocalTimeLine, VOICE_DISCONNECT_PLAIN } from '../_shared/voice-config.ts'
@@ -484,6 +484,11 @@ Deno.serve(async (req) => {
   }
 
   let lastCallerSpeech = Date.now(), wrapupSent = false, pacingTimer: number | undefined
+  // Silence ladder (2026-11-16): the current rung of this silence
+  // episode (0 = none fired) and when the model's last turn ended —
+  // silence is measured from the later of the two, so Aspen's own
+  // long turns never read as the visitor going quiet.
+  let silenceRung = 0, lastModelTurnAt = Date.now()
   const sendOpening = () => {
           // Opening selection lives in _shared/session-opening.ts so the
           // priority stack is unit-tested: persona swap (planned, NO
@@ -530,6 +535,26 @@ Deno.serve(async (req) => {
           if (!farewellGateActive()) geminiWs.send(JSON.stringify({clientContent:{turns:[{role:'user',parts:[{text:'At the next natural pause after this five-minute checkpoint, briefly offer to keep trying the business simulation, answer implementation questions after clearly stepping out of roleplay, or use Book a quick call. Do not interrupt an answer, end an engaged conversation or assume sales consent.'}]}],turnComplete:true}}));
         }
         return;
+      }
+      // SILENCE LADDER (2026-11-16): homepage sales sessions only —
+      // simulations keep their own in-layer silence rules. Fires
+      // before the pacing actions; never inside a farewell window,
+      // a pending handoff, or while a confirmation card is up.
+      if (config.homepageSales === true && geminiWs?.readyState === WebSocket.OPEN && !farewellGateActive() && !managerTransferRequested && pendingActions.size === 0) {
+        const silenceSeconds = (Date.now() - Math.max(lastCallerSpeech, lastModelTurnAt)) / 1000
+        const nextRung = silenceLadderRung(silenceSeconds, silenceRung)
+        if (nextRung > silenceRung) {
+          silenceRung = nextRung
+          console.log(JSON.stringify({ event: 'silence_ladder_fire', sessionId: session.id, rung: nextRung }))
+          const nudge = nextRung === 1 ? SILENCE_NUDGE_1 : nextRung === 2 ? SILENCE_NUDGE_2 : SILENCE_NUDGE_3
+          geminiWs.send(JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text: nudge }] }], turnComplete: true } }))
+          if (nextRung === 3) {
+            endReason = 'engagement_timeout'
+            clearInterval(pacingTimer)
+            setTimeout(() => { if (clientSocket.readyState === WebSocket.OPEN) clientSocket.send(JSON.stringify({ type: 'closed', reason: 'Conversation ended after a quiet period' })); closeAll() }, 12000)
+            return
+          }
+        }
       }
       const action = homepagePacingAction((Date.now() - openedAt) / 1000, (Date.now() - lastCallerSpeech) / 1000, wrapupSent)
       if (!action || geminiWs?.readyState !== WebSocket.OPEN) return
@@ -894,6 +919,7 @@ Deno.serve(async (req) => {
           }
           if (sc.inputTranscription?.text) {
             lastCallerSpeech = Date.now()
+            silenceRung = 0
             callerUtterance = (callerUtterance + sc.inputTranscription.text).slice(-1500)
             // Farewell cancel (Fix 5): the visitor is speaking again
             // with a substantive new utterance that is not itself a
@@ -919,6 +945,7 @@ Deno.serve(async (req) => {
             clientSocket.send(JSON.stringify({ type: 'user_transcript', text: sc.inputTranscription.text }))
           }
           if (sc.turnComplete) {
+            lastModelTurnAt = Date.now()
             // Farewell hang-up (Fix 5): evaluate the visitor's
             // completed utterance BEFORE the reset below. Once per
             // session, never for previews or before the visitor's tap.
