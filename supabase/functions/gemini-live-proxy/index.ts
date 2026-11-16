@@ -17,6 +17,7 @@ import { freshConsentAskState, syncConsentAskState, consentAskTurnDecision, CONS
 import { armCaptureGateFromRecap, captureGateDirective, captureGateRecordDirective, captureGateTurnDecision, freshCaptureGateState, noteVisitorUtterance, spellbackCorrectionNudge, type CaptureGateState } from '../_shared/capture-gate.ts'
 import { armDiscoveryGate, budgetBracketDirective, budgetRangeDirective, budgetRecapDirective, discoveryGateTurnDecision, freshDiscoveryGateState, gateViolationDirective, greetingOnceDirective, nameKnownDirective, namePreemptDirective, nameReleaseDirective, recapCompletenessDirective, seedNameFromFacts, shortGateDirective, shortGatePurposeDirective, type DiscoveryGateState } from '../_shared/discovery-gate.ts'
 import { armSalesGateFromRecap, bundledOfferDirective, earlyAskDirective, endAskDirective, endAskPreArmDirective, freshSalesGateState, noRepeatDirective, salesGatePreAnswerDecision, salesGateTurnDecision, salesSilenceHoldText, shareAngleCompletionDirective, type SalesGateState } from '../_shared/sales-gate.ts'
+import { bookingGateTurnDecision, commitmentDirective, completeDirective, freshBookingGateState, intentDirective, type BookingGateState } from '../_shared/booking-gate.ts'
 import { followupAlert, visitorFollowup, trySend } from '../_shared/hostinger-mail.ts'
 import { DEFAULT_LIVE_MODEL, officialLivePricing } from '../_shared/live-models.ts'
 import { callReview } from '../_shared/call-review.ts'
@@ -152,6 +153,12 @@ Deno.serve(async (req) => {
   // carried by DEMO_SALES_POLICY prose plus the close script's own
   // one-ask discipline.
   const salesGateSession = config.homepageSales === true && config.simulation !== true
+  // BOOKING GATE (Publish #86): armed on exactly the sessions that
+  // hold the platform booking tools minus simulations — a spoken
+  // time commitment with no calendar check behind it (session
+  // 22b47dfa: tools held for 179 turns, never called) is caught at
+  // the turn boundary and forced into the real check.
+  const bookingGateSession = config.platformFollowup === true && config.simulation !== true
   // Voice-asked manager transfer (Batch 1, Fix 3): available on exactly
   // the sessions gemini-session issues a browser-handoff capability
   // for — a valid saved transfer destination, not a preview, not a
@@ -281,6 +288,11 @@ Deno.serve(async (req) => {
   // durable captured-contact store, exactly like the gates above;
   // inert on every session salesGateSession does not cover.
   let salesGate: SalesGateState = armSalesGateFromRecap(freshSalesGateState(), String(config.resumeContext || ''), capturedContact)
+  // BOOKING GATE (Publish #86): the gate's own ledger plus the tool
+  // ledger the dispatch below stamps — a calendar tool called, a
+  // booking completed, an appointment card presented.
+  let bookingGate: BookingGateState = freshBookingGateState()
+  const bookingGateTools = { calendarChecked: false, bookingCompleted: false, cardPresented: false }
   // Stamp the merged facts back onto this session's row config (the
   // teamIntroSeen pattern): a successor session — reconnect, swap
   // segment, return — reads them from the row, so a dropped call
@@ -743,12 +755,14 @@ Deno.serve(async (req) => {
               clientSocket.send(JSON.stringify({type:'recommended_plan',plan}));
               respond({plan,selectionUrl:`https://aihiddenleads.com/plans?plan=${plan}`,requiresVisitorClick:true,paid:false});
             } else if (call.name === 'get_availability') {
+              bookingGateTools.calendarChecked = true;
               try {
                 const slots = await platformAvailability(db);
                 const preference = { preferredDates: preferredDatesFor(call.args?.day), dayPart: parseDayPart(call.args?.dayPart) };
                 respond({ platform:'AI Hidden Leads', timeZone:'America/New_York', durationMinutes:30, slots, offer: selectOfferSet(slots, preference) });
               } catch(e) { respond({error:e instanceof Error?e.message:'Availability unavailable',slots:[],offer:[]}); }
             } else if (call.name === 'check_time') {
+              bookingGateTools.calendarChecked = true;
               try {
                 const named = resolveNamedTime({ iso: call.args?.iso, date: call.args?.date, time: call.args?.time });
                 const slots = await platformAvailability(db);
@@ -774,10 +788,12 @@ Deno.serve(async (req) => {
                 if (typeof call.args?.smsConsent === 'boolean') noteCapture({ smsConsent: call.args.smsConsent });
                 const booked = await bookPlatformCall(db, { ...confirmedContact, businessName: String(config.businessName), slotStart, smsConsent: smsConsent === true });
                 if (!(booked as { ok?: boolean }).ok) { respond({ error: 'That time could not be booked.' }); continue; }
+                bookingGateTools.bookingCompleted = true;
                 const { confirmationSms, emailSent } = await sendBookingConfirmations(db, booked, { ...confirmedContact, businessName: String(config.businessName), slotStart, smsConsent: smsConsent === true });
                 respond({ booked: true, slotStart, confirmationSms, emailSent, textSent: confirmationSms === 'sent' });
               } catch(e) { respond({ error: e instanceof Error ? e.message : 'Booking failed' }); }
             } else if (call.name === 'platform_availability') {
+              bookingGateTools.calendarChecked = true;
               const requestedSlot = call.args?.requestedSlot;
               if (requestedSlot !== undefined && (typeof requestedSlot !== 'string' || requestedSlot.length > 100 || !/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(requestedSlot) || !Number.isFinite(Date.parse(requestedSlot)))) { respond({error:'Provide a valid requested ISO date and time with its UTC offset.'}); continue; }
               try { respond(voiceAvailability(await platformAvailability(db), new Date(), requestedSlot)); }
@@ -818,6 +834,7 @@ Deno.serve(async (req) => {
               const slotStart = typeof call.args?.slotStart === 'string' ? call.args.slotStart : undefined;
               if (call.name === 'request_platform_appointment' && (!slotStart || !Number.isFinite(Date.parse(slotStart)))) { respond({error:'Choose a valid ISO appointment time from availability.'}); continue; }
               pendingActions.set(call.id,{call:{id:call.id,name:call.name},slotStart});
+              if (call.name === 'request_platform_appointment') bookingGateTools.cardPresented = true;
               const contact = call.name !== 'request_platform_appointment' ? {name: typeof call.args?.name === 'string' ? call.args.name.slice(0,100) : '',email: typeof call.args?.email === 'string' ? call.args.email.slice(0,255) : '',phone: typeof call.args?.phone === 'string' ? call.args.phone.slice(0,30) : ''} : confirmedContact;
               // Publish #68: remember the card for re-presentation,
               // and record the verbally captured details behind it —
@@ -1083,6 +1100,7 @@ Deno.serve(async (req) => {
             // already injected — directives never stack. (Presenter
             // discovery sessions never reach this block: they are
             // simulations, and salesGateSession excludes them.)
+            let salesGateInjected = false
             if (salesGateSession) {
               const salesDecision = salesGateTurnDecision({
                 state: salesGate,
@@ -1093,6 +1111,7 @@ Deno.serve(async (req) => {
               })
               salesGate = salesDecision.state
               if (salesDecision.inject) {
+                salesGateInjected = true
                 const text = salesDecision.inject === 'early-ask'
                   ? earlyAskDirective(salesGate.earlyAskCorrections >= 2)
                   : salesDecision.inject === 'end-ask'
@@ -1102,6 +1121,32 @@ Deno.serve(async (req) => {
                       : salesDecision.inject === 'bundled-offer'
                         ? bundledOfferDirective(salesGate.bundledAngleMissing)
                         : noRepeatDirective(salesGate.repeatCorrections >= 2)
+                geminiWs?.send(JSON.stringify({clientContent:{turns:[{role:'user',parts:[{text}]}],turnComplete:true}}))
+              }
+            }
+            // BOOKING GATE (Publish #86): judge the completed turn
+            // against the booking ledger. Runs after the sales gate
+            // on its own state; stands down at any boundary another
+            // gate already claimed (directives never stack) — the
+            // debt survives in the state and fires at the next free
+            // boundary.
+            if (bookingGateSession) {
+              const bookingDecision = bookingGateTurnDecision({
+                state: bookingGate,
+                modelTurnText: completedModelTurn,
+                visitorUtterance: completedUtterance,
+                calendarChecked: bookingGateTools.calendarChecked,
+                bookingCompleted: bookingGateTools.bookingCompleted,
+                cardPresented: bookingGateTools.cardPresented,
+                blocked: preview || farewellHandled || farewellTimer !== undefined || managerTransferRequested || pendingActions.size > 0 || gateInjected || consentInjected || salesGateInjected,
+              })
+              bookingGate = bookingDecision.state
+              if (bookingDecision.inject) {
+                const text = bookingDecision.inject === 'commitment'
+                  ? commitmentDirective(bookingDecision.stern)
+                  : bookingDecision.inject === 'intent'
+                    ? intentDirective(bookingDecision.stern)
+                    : completeDirective()
                 geminiWs?.send(JSON.stringify({clientContent:{turns:[{role:'user',parts:[{text}]}],turnComplete:true}}))
               }
             }
@@ -1292,7 +1337,7 @@ Deno.serve(async (req) => {
             // confirmed capture. A completed booking retires the card
             // from re-presentation; a failed one stays re-presentable.
             noteCapture({name:cardContact.name,email:cardContact.email,phone:cardContact.phone,confirmed:true,...(typeof smsConsent === 'boolean' ? {smsConsent} : {})});
-            if((booked as {ok?:boolean}).ok) lastCardAction=null;
+            if((booked as {ok?:boolean}).ok){ lastCardAction=null; bookingGateTools.bookingCompleted = true; }
             // Same confirmation machinery as every booking path (emails
             // + .ics invite + consented SMS), via the shared helper.
             // Fire-and-forget as before: the visitor sees action_result

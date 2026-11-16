@@ -57,6 +57,7 @@ FUNCTIONS_SRC="${REPO_ROOT}/supabase/functions"
 SHARED_CLOSURE=(
   alex-guide.ts
   booking-confirm.ts
+  booking-gate.ts
   booking-slots.ts
   booking-tools.ts
   browser-handoff.ts
