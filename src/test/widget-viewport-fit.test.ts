@@ -83,6 +83,30 @@ describe("widget viewport fit — pinned chrome, scrolling transcript", () => {
   });
 });
 
+describe("widget viewport fit — the chat panel is capped by the dock, not the viewport", () => {
+  it("inside the chat dock the panel flexes to the scroll region and is hard-capped at its height", () => {
+    // Ron's chat-revamp phone test (2026-11-16): the panel sized
+    // itself against the viewport (base cap below), outgrew the
+    // dock's region by the pinned chrome's height, and the composer
+    // sat below the fold — he could not see the bottom of the chat
+    // box or type anything. In the dock the panel now takes the
+    // region's remaining height under the shell's cap chain.
+    expect(css).toContain(".aspen-chat-dock .aspen-panel { flex: 1 1 auto; max-height: 100%; }");
+  });
+
+  it("the base panel cap stays viewport-keyed outside the dock (the voice-side panel is untouched)", () => {
+    expect(rule(".aspen-panel {")).toContain("max-height: min(70dvh, var(--aspen-available-height, 70dvh))");
+    expect(rule(".aspen-panel {")).toContain("display: flex");
+    expect(rule(".aspen-panel {")).toContain("flex-direction: column");
+  });
+
+  it("the chat thread is the panel's only scroll region: chat content flexes, the widget list scrolls internally", () => {
+    expect(rule(".aspen-chat-content {")).toContain("flex: 1");
+    expect(rule(".aspen-chat-content {")).toContain("min-height: 0");
+    expect(rule(".aspen-chat-content {")).toContain("overflow: hidden");
+  });
+});
+
 describe("widget viewport fit — Captions pill lives on the header row", () => {
   it("the Captions pill is inside the status header row, right-aligned, with a 40px target", () => {
     const headerStart = conversation.indexOf('<div className="flex items-center gap-1.5">');

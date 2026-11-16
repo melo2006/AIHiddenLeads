@@ -64,6 +64,12 @@ describe('widget viewport fit — rendered shell structure', () => {
     const avatar = screen.getByTestId('aspen-chat-avatar');
     expect(strip.contains(avatar)).toBe(true);
     expect(strip.textContent).toContain('Aspen');
+    // Header avatar size (Ron, 2026-11-16 fix): 36px read as a
+    // thumbnail next to her name — "the avatar is too small,
+    // increase the size a little bit" — it is 56px now.
+    expect(avatar.className).toContain('h-14');
+    expect(avatar.className).toContain('w-14');
+    expect(avatar.className).not.toContain('h-9');
 
     // Header strip, window-controls row and toggle are NOT inside the
     // scroll region — they cannot be scrolled or squeezed off the top.
@@ -83,6 +89,44 @@ describe('widget viewport fit — rendered shell structure', () => {
     render(<FloatingPersonFrame {...baseProps} onMode={onMode} open><div>panel body</div></FloatingPersonFrame>);
     screen.getByTestId('aspen-chat-avatar').click();
     expect(onMode).toHaveBeenCalledWith('voice');
+  });
+
+  it('phone chain: the composer lives INSIDE the panel box, below the thread — the panel is the region\'s flex child, so its bottom (the composer) can never fall below the fold', () => {
+    // The widget structure at phone sizes (GeminiAgentWidget /
+    // AspenDemoWidget markup): the .aspen-panel wraps the chat
+    // surface; the composer is the surface's last in-flow child.
+    // jsdom does no layout, so — the established seam — this pins
+    // the DOM containment the CSS cap chain acts on: dock → region
+    // → panel → thread … composer, with the composer inside the
+    // panel rather than a sibling the region could scroll past.
+    const { container } = render(<FloatingPersonFrame {...baseProps} open>
+      <div className="aspen-panel min-h-80 overflow-hidden rounded-lg border border-border bg-card">
+        <div className="aspen-chat-content">
+          <div>
+            <div data-testid="fit-thread">thread</div>
+            <div data-testid="fit-composer">composer</div>
+          </div>
+        </div>
+      </div>
+    </FloatingPersonFrame>);
+    const dock = screen.getByTestId('aspen-chat-dock');
+    const panel = container.querySelector('.aspen-panel') as HTMLElement;
+    const thread = screen.getByTestId('fit-thread');
+    const composer = screen.getByTestId('fit-composer');
+    const region = thread.closest('.overflow-y-auto') as HTMLElement;
+
+    expect(dock.contains(panel)).toBe(true);
+    expect(panel.parentElement).toBe(region);
+    expect(region.parentElement).toBe(dock);
+    // The composer is inside the panel's box — never a direct child
+    // of the scroll region — and follows the thread in DOM order.
+    expect(panel.contains(composer)).toBe(true);
+    expect(composer.closest('.aspen-panel')).toBe(panel);
+    expect(region.contains(composer)).toBe(true);
+    expect(thread.compareDocumentPosition(composer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // The panel keeps its overflow clip, so an over-tall surface
+    // clips at the panel's own box while the thread scrolls inside.
+    expect(panel.className).toContain('overflow-hidden');
   });
 
   it('closed frame: no scroll region is rendered (prewarm/hidden branches untouched)', () => {

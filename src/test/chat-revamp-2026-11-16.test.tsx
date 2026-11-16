@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import ChatWidget, { attachmentNote, attachmentSupported, formatFileSize, prepareImagePayload, speechLangFor, threadFromVisitMemory } from '@/components/landing/demo-results/ChatWidget';
+import ChatWidget, { attachmentNote, attachmentSupported, formatFileSize, prepareImagePayload, readAloudVoiceFor, speechLangFor, threadFromVisitMemory } from '@/components/landing/demo-results/ChatWidget';
 import { visitMemoryAppend, visitMemoryDelete, visitMemoryGet } from '@/lib/visitMemory';
 import { micDiagDetail, micDiagStamp, createMicFlowState } from '@/lib/micWatchdog';
 
@@ -298,20 +298,51 @@ describe('photo vision — she actually sees attached photos (Ron, 2026-11-16)',
 });
 
 describe('reply actions + two-side colours', () => {
-  it('her replies carry read-aloud, copy and local thumbs; the two sides wear different colours', async () => {
-    const speak = vi.fn();
-    const cancel = vi.fn();
-    Object.defineProperty(window, 'speechSynthesis', { value: { speak, cancel }, configurable: true });
-    (globalThis as unknown as Record<string, unknown>).SpeechSynthesisUtterance = class { lang = ''; onend: (() => void) | null = null; onerror: (() => void) | null = null; constructor(public text: string) {} };
-    const writeText = vi.fn(async () => undefined);
-    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+  // Read-aloud (Ron, 2026-11-16 fix): Listen must speak in the
+  // presenter's own Gemini voice — synthesized by the chat-read-aloud
+  // function — never the browser's speechSynthesis robot voice.
+  class FakeAudio {
+    static instances: FakeAudio[] = [];
+    onended: (() => void) | null = null;
+    onerror: (() => void) | null = null;
+    play = vi.fn(async () => undefined);
+    pause = vi.fn();
+    constructor(public src: string) { FakeAudio.instances.push(this); }
+  }
+  let fetchMock: ReturnType<typeof vi.fn>;
+  let originalAudio: unknown;
+  let originalFetch: unknown;
 
+  const sendOneMessage = async () => {
     render(<ChatWidget {...chatProps} />);
     fireEvent.click(screen.getByText('Start chat & agree'));
     const field = screen.getByLabelText(/message aspen/i);
     fireEvent.change(field, { target: { value: 'Tell me about pricing' } });
     fireEvent.click(screen.getByRole('button', { name: /send message/i }));
     await waitFor(() => expect(screen.getByText(/Happy to help with that!/)).toBeTruthy(), { timeout: 15000 });
+    await waitFor(() => expect(screen.getAllByTestId('chat-message-actions')).toHaveLength(2));
+    return screen.getAllByTestId('chat-message-actions').at(-1) as HTMLElement;
+  };
+
+  beforeEach(() => {
+    FakeAudio.instances = [];
+    originalAudio = (globalThis as Record<string, unknown>).Audio;
+    originalFetch = (globalThis as Record<string, unknown>).fetch;
+    (globalThis as Record<string, unknown>).Audio = FakeAudio;
+    (URL as unknown as Record<string, unknown>).createObjectURL = () => 'blob:mock-reply-audio';
+    fetchMock = vi.fn(async () => ({ ok: true, status: 200, blob: async () => new Blob(['RIFF....WAVE'], { type: 'audio/wav' }) }));
+    (globalThis as Record<string, unknown>).fetch = fetchMock;
+  });
+  afterEach(() => {
+    (globalThis as Record<string, unknown>).Audio = originalAudio;
+    (globalThis as Record<string, unknown>).fetch = originalFetch;
+  });
+
+  it('her replies carry read-aloud, copy and local thumbs; the two sides wear different colours', async () => {
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+
+    const actions = await sendOneMessage();
 
     const bubbles = screen.getAllByTestId('chat-message-bubble');
     const userBubble = bubbles.find((b) => b.getAttribute('data-side') === 'user');
@@ -320,15 +351,7 @@ describe('reply actions + two-side colours', () => {
     expect(aspenBubble?.className).toContain('bg-accent/15');
     expect(aspenBubble?.className).not.toContain('bg-primary');
 
-    // The reply's actions row mounts only once its stream completes
-    // (the greeting already has one) — wait for both rows.
-    await waitFor(() => expect(screen.getAllByTestId('chat-message-actions')).toHaveLength(2));
-    const actions = screen.getAllByTestId('chat-message-actions').at(-1) as HTMLElement;
     expect(actions).toBeTruthy();
-    fireEvent.click(within(actions).getByRole('button', { name: 'Listen to this reply' }));
-    expect(cancel).toHaveBeenCalled();
-    expect(speak).toHaveBeenCalledTimes(1);
-    expect((speak.mock.calls[0][0] as { text: string }).text).toContain('Happy to help');
     fireEvent.click(within(actions).getByRole('button', { name: 'Copy reply' }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Happy to help')));
     const good = within(actions).getByRole('button', { name: 'Good reply' });
@@ -336,6 +359,65 @@ describe('reply actions + two-side colours', () => {
     expect(good.getAttribute('aria-pressed')).toBe('true');
     fireEvent.click(good);
     expect(good.getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('Listen fetches her Gemini voice from chat-read-aloud (Aspen = Kore), plays it, toggles stop, and replays from cache', async () => {
+    const actions = await sendOneMessage();
+    const listen = within(actions).getByRole('button', { name: 'Listen to this reply' });
+
+    fireEvent.click(listen);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, { body: string }];
+    expect(url).toContain('/functions/v1/chat-read-aloud');
+    const body = JSON.parse(init.body) as { text: string; voice: string };
+    expect(body.text).toContain('Happy to help with that!');
+    expect(body.voice).toBe('Kore');
+    await waitFor(() => expect(FakeAudio.instances).toHaveLength(1));
+    expect(FakeAudio.instances[0].src).toBe('blob:mock-reply-audio');
+    expect(FakeAudio.instances[0].play).toHaveBeenCalledTimes(1);
+    expect(listen.getAttribute('aria-pressed')).toBe('true');
+
+    // Second tap stops playback.
+    fireEvent.click(listen);
+    expect(FakeAudio.instances[0].pause).toHaveBeenCalledTimes(1);
+    expect(listen.getAttribute('aria-pressed')).toBe('false');
+
+    // Third tap replays from the in-memory cache — no second fetch.
+    fireEvent.click(listen);
+    await waitFor(() => expect(FakeAudio.instances).toHaveLength(2));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(FakeAudio.instances[1].play).toHaveBeenCalledTimes(1);
+  });
+
+  it('a failed synthesis shows the localized error — and never falls back to the browser voice', async () => {
+    fetchMock.mockImplementation(async () => ({ ok: false, status: 502, blob: async () => new Blob([]) }));
+    const actions = await sendOneMessage();
+    fireEvent.click(within(actions).getByRole('button', { name: 'Listen to this reply' }));
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain("Couldn't play the audio"));
+    expect(FakeAudio.instances).toHaveLength(0);
+  });
+
+  it('source pin: the chat panel never touches the browser speech-synthesis API', () => {
+    const source = read('components/landing/demo-results/ChatWidget.tsx');
+    expect(source).not.toContain('window.speechSynthesis');
+    expect(source).not.toContain('SpeechSynthesisUtterance');
+    expect(source).toContain('/functions/v1/chat-read-aloud');
+  });
+});
+
+describe('read-aloud voice resolution — the presenter\'s assigned Gemini voice per language', () => {
+  it('resolves the persona registry voice with the session language remap', () => {
+    expect(readAloudVoiceFor(undefined, 'en')).toBe('Kore');
+    expect(readAloudVoiceFor('Aspen', undefined)).toBe('Kore');
+    expect(readAloudVoiceFor('Aspen', 'pt-BR')).toBe('Despina');
+    expect(readAloudVoiceFor('Aspen', 'es')).toBe('Kore');
+    expect(readAloudVoiceFor('Frank', 'en')).toBe('Schedar');
+    expect(readAloudVoiceFor('Frank', 'pt-BR')).toBe('Alnilam');
+    expect(readAloudVoiceFor('Frank', 'es')).toBe('Orus');
+    expect(readAloudVoiceFor('Monica', 'en')).toBe('Sulafat');
+    expect(readAloudVoiceFor('Monica', 'pt-BR')).toBe('Callirrhoe');
+    // An unknown presenter name falls back to Aspen, the chat default.
+    expect(readAloudVoiceFor('Somebody New', 'en')).toBe('Kore');
   });
 });
 

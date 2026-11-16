@@ -7,6 +7,8 @@ import { useTranslation } from "react-i18next";
 import "@/i18n"; // standalone harnesses mount this panel without main.tsx
 import { explicitUiLocale, normalizeUiLocale, uiLocaleLanguage } from "@/lib/uiLocale";
 import { visitMemoryAppend, visitMemoryGet } from "@/lib/visitMemory";
+import { PERSONAS } from "../../../../supabase/functions/_shared/personas";
+import { voiceForLocaleSession } from "../../../../supabase/functions/_shared/locale-voices";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -168,12 +170,29 @@ export function threadFromVisitMemory(key: string): Message[] {
     .map((turn) => ({ role: turn.role as "user" | "assistant", content: turn.text }));
 }
 
-/** BCP-47 tag for dictation + read-aloud, from the chat's effective
+/** BCP-47 tag for dictation, from the chat's effective
  *  locale ('en' | 'es' | 'pt-BR' | undefined). */
 export function speechLangFor(locale: string | undefined): string {
   if (locale === "pt-BR") return "pt-BR";
   if (locale === "es") return "es";
   return "en-US";
+}
+
+/** Read-aloud voice (Ron, 2026-11-16): the Gemini voice the VOICE
+ *  sessions assign this presenter for the chat's language — the
+ *  persona registry's base voice run through the same per-language
+ *  remap the Live proxy applies (Aspen: Kore, pt-BR Despina;
+ *  Frank: Schedar, pt-BR Alnilam, es Orus; Monica: Sulafat…). The
+ *  chat is handed only the presenter's display name, so the binding
+ *  is resolved from it; an unknown name falls back to Aspen, the
+ *  chat's own default identity. The chat-read-aloud function
+ *  validates the name against the Gemini voice allow-list before
+ *  synthesizing, so a bad resolution fails safe (an error line),
+ *  never a wrong voice. */
+export function readAloudVoiceFor(presenterDisplayName: string | undefined, locale: string | undefined): string {
+  const name = presenterDisplayName?.trim().toLowerCase();
+  const binding = Object.values(PERSONAS).find((persona) => persona.displayName.toLowerCase() === name) ?? PERSONAS.aspen;
+  return voiceForLocaleSession(binding.voiceName, binding.id, locale);
 }
 
 interface SpeechRecognitionResultLike { isFinal: boolean; 0: { transcript: string } }
@@ -232,6 +251,8 @@ const ChatWidget = ({
   // record); neither → undefined → English default, exactly as before.
   const explicitLocale = explicitUiLocale();
   const effectiveChatLocale = explicitLocale ?? normalizeUiLocale(detectedSiteLanguage) ?? undefined;
+  // The voice her replies are read aloud in (see readAloudVoiceFor).
+  const readAloudVoice = readAloudVoiceFor(presenterDisplayName, effectiveChatLocale);
   const chatLocaleFromDetection = !explicitLocale && Boolean(effectiveChatLocale);
   const [messages, setMessages] = useState<Message[]>([]);
   const [recordingAgreed,setRecordingAgreed]=useState(false);
@@ -262,6 +283,10 @@ const ChatWidget = ({
   const [ratings, setRatings] = useState<Record<number, "up" | "down">>({});
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [speakingIndex, setSpeakingIndex] = useState<number | null>(null);
+  const [listenLoadingIndex, setListenLoadingIndex] = useState<number | null>(null);
+  const [listenErrorIndex, setListenErrorIndex] = useState<number | null>(null);
+  const replyAudioRef = useRef<HTMLAudioElement | null>(null);
+  const replyAudioCacheRef = useRef(new Map<number, string>());
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const photosInputRef = useRef<HTMLInputElement>(null);
   const filesInputRef = useRef<HTMLInputElement>(null);
@@ -304,7 +329,7 @@ const ChatWidget = ({
     return () => {
       mounted.current = false;
       recognitionRef.current?.abort();
-      try { window.speechSynthesis?.cancel(); } catch { /* no speech synthesis */ }
+      if (replyAudioRef.current) { try { replyAudioRef.current.pause(); } catch { /* already stopped */ } replyAudioRef.current = null; }
       objectUrlsRef.current.forEach((url) => { try { URL.revokeObjectURL(url); } catch { /* already gone */ } });
       objectUrlsRef.current = [];
     };
@@ -657,23 +682,61 @@ ${responseLanguageLine}`;
     setAttachment({ name: file.name, type: file.type, size: file.size, ...(previewUrl ? { previewUrl } : {}) });
   }, [t]);
 
-  // Per-reply actions: read-aloud (device speech synthesis, in the
-  // chat's language) and copy. Thumbs are a local visual toggle only.
-  const speakReply = useCallback((index: number, text: string) => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-    if (speakingIndex === index) {
-      window.speechSynthesis.cancel();
-      setSpeakingIndex(null);
-      return;
+  // Per-reply actions: read-aloud in the PRESENTER'S OWN Gemini
+  // voice, copy, and local-only thumbs. Read-aloud used the device's
+  // speechSynthesis until Ron's 2026-11-16 phone test — "an ugly
+  // browser TTS voice", not hers. Now the chat-read-aloud function
+  // synthesizes the reply server-side in her assigned voice for the
+  // chat's language (readAloudVoice) and the client plays the WAV:
+  // first Listen on a reply fetches it, later taps replay the
+  // in-memory cache, tapping the playing reply stops it. There is
+  // deliberately NO speechSynthesis fallback — a failure surfaces
+  // the localized listenError line instead of a robot voice.
+  const stopReplyAudio = useCallback(() => {
+    const audio = replyAudioRef.current;
+    if (audio) {
+      try { audio.pause(); } catch { /* already stopped */ }
+      replyAudioRef.current = null;
     }
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = speechLangFor(effectiveChatLocale);
-    utterance.onend = () => setSpeakingIndex(null);
-    utterance.onerror = () => setSpeakingIndex(null);
+    setSpeakingIndex(null);
+  }, []);
+  const speakReply = useCallback(async (index: number, text: string) => {
+    if (speakingIndex === index) { stopReplyAudio(); return; }
+    if (listenLoadingIndex !== null) return;
+    stopReplyAudio();
+    setListenErrorIndex(null);
+    let url = replyAudioCacheRef.current.get(index);
+    if (!url) {
+      setListenLoadingIndex(index);
+      try {
+        const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat-read-aloud`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({ text, voice: readAloudVoice }),
+        });
+        if (!res.ok) throw new Error(`read-aloud failed [${res.status}]`);
+        url = URL.createObjectURL(await res.blob());
+        replyAudioCacheRef.current.set(index, url);
+        objectUrlsRef.current.push(url);
+      } catch {
+        setListenLoadingIndex(null);
+        if (mounted.current) setListenErrorIndex(index);
+        return;
+      }
+      setListenLoadingIndex(null);
+    }
+    if (!mounted.current) return;
+    const audio = new Audio(url);
+    replyAudioRef.current = audio;
+    audio.onended = () => { if (replyAudioRef.current === audio) { replyAudioRef.current = null; setSpeakingIndex(null); } };
+    audio.onerror = () => { if (replyAudioRef.current === audio) { replyAudioRef.current = null; setSpeakingIndex(null); setListenErrorIndex(index); } };
     setSpeakingIndex(index);
-    window.speechSynthesis.speak(utterance);
-  }, [speakingIndex, effectiveChatLocale]);
+    try { await audio.play(); } catch { if (replyAudioRef.current === audio) { replyAudioRef.current = null; setSpeakingIndex(null); setListenErrorIndex(index); } }
+  }, [speakingIndex, listenLoadingIndex, stopReplyAudio, readAloudVoice]);
   const copyReply = useCallback(async (index: number, text: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -795,12 +858,15 @@ ${responseLanguageLine}`;
                 <MessageResponse>{msg.role === "assistant" ? displayNumbers(msg.content) : msg.content}</MessageResponse>
               </div>
               {msg.role === "assistant" && msg.content.trim() && !(isStreaming && i === messages.length - 1) && (
+                <>
                 <div data-testid="chat-message-actions" className="mt-1 flex items-center gap-0.5">
-                  <button type="button" aria-label={t("chat.listen")} title={t("chat.listen")} aria-pressed={speakingIndex === i} onClick={() => speakReply(i, msg.content)} className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"><Volume2 className="h-3.5 w-3.5" /></button>
+                  <button type="button" aria-label={t("chat.listen")} title={t("chat.listen")} aria-pressed={speakingIndex === i} aria-busy={listenLoadingIndex === i} onClick={() => void speakReply(i, msg.content)} className={`flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground ${listenLoadingIndex === i ? "animate-pulse" : ""}`}><Volume2 className="h-3.5 w-3.5" /></button>
                   <button type="button" aria-label={copiedIndex === i ? t("chat.copied") : t("chat.copyReply")} title={copiedIndex === i ? t("chat.copied") : t("chat.copyReply")} onClick={() => void copyReply(i, msg.content)} className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">{copiedIndex === i ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}</button>
                   <button type="button" aria-label={t("chat.rateGood")} title={t("chat.rateGood")} aria-pressed={ratings[i] === "up"} onClick={() => toggleRating(i, "up")} className={`flex h-7 w-7 items-center justify-center rounded-full transition-colors hover:bg-muted ${ratings[i] === "up" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground"}`}><ThumbsUp className="h-3.5 w-3.5" /></button>
                   <button type="button" aria-label={t("chat.rateBad")} title={t("chat.rateBad")} aria-pressed={ratings[i] === "down"} onClick={() => toggleRating(i, "down")} className={`flex h-7 w-7 items-center justify-center rounded-full transition-colors hover:bg-muted ${ratings[i] === "down" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground"}`}><ThumbsDown className="h-3.5 w-3.5" /></button>
                 </div>
+                {listenErrorIndex === i && <p role="alert" className="mt-1 text-[11px] font-medium text-destructive">{t("chat.listenError")}</p>}
+                </>
               )}
             </div>
           </div>
