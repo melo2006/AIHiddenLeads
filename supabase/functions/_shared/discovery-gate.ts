@@ -161,11 +161,85 @@
 //     DELIVERED: no injection, the order marked counted.
 //  4. (In capture-gate.ts) the hybrid spell-back — see there.
 
+// PUBLISH #82 (2026-11-15) — the #80 verification
+// (~/workspace/publish80-verification-2026-11-15.md) cleared D, C
+// and P, and left ONE family standing: at the push-to-skip
+// boundary, the presenter's built-in beats still beat the gate.
+// Three fixes, each pinned against the verification's exact
+// transcripts (replayed through the pre-#82 decision during the
+// build — the traces below are what the code demonstrably did):
+//
+//  1. B (banked): at the push, Frank answered with the step-2
+//     CHANNEL ask ("would you prefer an email or a mobile number
+//     for the link?"); the next turn brought a SECOND capture ask
+//     ("What is the best email address to send that to?"). The
+//     pre-#82 decision had NO capture-ask detector at all: both
+//     turns were generic non-compliance, and they consumed the
+//     order's whole per-push budget (fires at the push and the
+//     confirm boundaries) — at the read-back boundary the gate
+//     returned null with the debt still owed, permanently. FIX:
+//     a capture/channel ask produced while the gate is owed (with
+//     criteria banked) is a GATE VIOLATION — a distinct correction
+//     that names the pre-emption (the step-2 beat does not run
+//     while the gate is owed; details given in answer to it do
+//     not discharge the gate), on its OWN per-push budget, so a
+//     violating turn can never again spend the order's: the
+//     recap+gate order persists until a recap+gate turn actually
+//     occurs. The #72 amendment is untouched: in NON-push flow
+//     (gate not owed) the step-2 ask is classified but never a
+//     violation, exactly as designed.
+//  2. B2 (nothing banked): the host→simulation transition
+//     STRADDLED TWO TURNS — transition text, then the in-role
+//     greeting — and the visitor's "To live in" was answered by
+//     the greeting turn. The fold itself banked the purpose at
+//     that boundary (the ledger folds visitor utterances; the
+//     trace shows purposeBanked=true) — but the #80 carry only
+//     recognized entry-SIGNAL text, and the greeting carries
+//     none, so the greeting boundary CONSUMED the carried order
+//     as a counted fire and cleared the carry. FIX: while a carry
+//     is outstanding, an in-role greeting turn is still inside
+//     the transition window — the fire is carried across it too,
+//     not counted — bounded by GATE_ORDER_MAX_CARRY_TURNS
+//     consecutive carried turns, after which fires count
+//     normally. The keystone now survives a straddle of any
+//     length up to the bound, whether or not the purpose answer
+//     arrives inside the greeting turn.
+//  3. The doorway name re-ask (seen in #78's E rerun and #80's
+//     B run): "May I have your name, so I can greet you properly?"
+//     delivered to a visitor whose name was given at the doorway
+//     and used by the host itself. The #78/#80 name-known
+//     correction fires only AFTER a re-ask is spoken. FIX, two
+//     layers: (a) in the gate — the moment a name is held
+//     (seeded at arming, or banked from the visitor's own words)
+//     and no turn has asked for it yet, the decision injects the
+//     name-held order PRE-EMPTIVELY, at that boundary, before
+//     the script's later name beat can fire; the after-the-fact
+//     correction remains as the second line. (b) in the
+//     composition — presenterSimulationPrompt renders the
+//     receptionist segment's name beat in its satisfied form
+//     when gemini-session composes with a seeded visitor name,
+//     so the ask is not in the script at all; with no seeded
+//     name the composed prompt is byte-identical to before.
+
 import { sanitizeVisitorName } from './voice-config.ts';
 import { turnSignalsSimulationEntry } from './capture-gate.ts';
 
 /** Total discovery-gate directives one session will inject. */
 export const DISCOVERY_GATE_MAX_FIRES = 6;
+
+/** Gate-violation corrections one push episode will inject
+ * (Publish #82): the violation has its own budget so a violating
+ * turn can never spend the short-gate order's — the order
+ * persists until a recap+gate turn actually occurs. */
+export const GATE_VIOLATION_MAX_FIRES = 3;
+
+/** Consecutive transition-window turns a short-gate order may
+ * be carried across without counting (Publish #82): the sane
+ * bound on the straddle — a host→simulation entry that takes
+ * more turns than this is no longer a straddle, and fires start
+ * counting so the order's persistence budget is spent in the
+ * open, where the later rules can see it. */
+export const GATE_ORDER_MAX_CARRY_TURNS = 3;
 
 // ---------------------------------------------------------------------------
 // Visitor-utterance detectors
@@ -522,6 +596,31 @@ export function turnAsksPurposeQuestion(text: string): boolean {
     || /\bpurpose\b[^.?!]{0,40}\?/.test(t);
 }
 
+/**
+ * Does this model turn ASK for capture — the step-2 beat's shapes
+ * (Publish #82)? The channel choice ("would you prefer an email
+ * or a mobile number for the link?", "via email or text
+ * message?"), a direct detail request ("may I have your name,
+ * your email, and the best phone number…", "can I get your email
+ * address?"), or a direct address question ("What is the best
+ * email address to send that to?"). Ask shapes only: a read-back
+ * confirming details already given ("your email is T-O-N-Y… Did
+ * I get that right?") matches none of them, and neither does the
+ * name beat on its own ("May I have your name, so I can greet you
+ * properly?" — no channel word, and the name rules own it).
+ * Classification is not condemnation: in non-push flow this is
+ * the #72 amendment's designed step-2 ask; it becomes a gate
+ * VIOLATION only when produced while the gate is owed.
+ */
+export function turnAsksForCapture(text: string): boolean {
+  if (!text) return false;
+  const t = text;
+  return /\b(may|can|could) i (please )?(have|get)\b[^.?!]{0,90}\b(e-?mail|phone|mobile|number)\b/i.test(t)
+    || /\bwhat('s| is) (the best|your|a good)\b[^.?!]{0,50}\b(e-?mail|phone|mobile|number)\b/i.test(t)
+    || /\b(e-?mail|mobile|phone|text)\b[^.?!]{0,40}\bor\b[^.?!]{0,30}\b(e-?mail|mobile|phone|text)\b/i.test(t)
+    || /\bprefer\b[^.?!]{0,60}\b(e-?mail|mobile|phone|text)\b/i.test(t);
+}
+
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
@@ -540,6 +639,11 @@ export interface DiscoveryGateState {
   nameKnownFires: number;
   /** Name-loop releases injected (cap 2). */
   nameReleaseFires: number;
+  /** The name-held order has been delivered — pre-emptively at
+   * the boundary where the name first stood held (Publish #82),
+   * or by the after-the-fact name-known correction, which also
+   * announces it. Set once; the pre-emptive order never repeats. */
+  nameHeldAnnounced: boolean;
   /** In-role greetings delivered so far. */
   inRoleGreetings: number;
   /** The one-time re-greeting correction has been spent. */
@@ -564,6 +668,19 @@ export interface DiscoveryGateState {
    * 3): it is carried across the segment boundary and re-fires
    * at the first post-transition boundary. */
   gateOrderCarried: boolean;
+  /** Consecutive transition-window turns the outstanding order
+   * has been carried across (Publish #82): the entry-signal turn
+   * and — while a carry is outstanding — the in-role greeting
+   * turn that completes a two-turn straddle both carry; the
+   * count is the sane bound's ledger (GATE_ORDER_MAX_CARRY_TURNS)
+   * and resets whenever a fire counts. */
+  gateOrderCarryTurns: number;
+  /** Gate-violation corrections fired for the outstanding push
+   * (Publish #82): a capture/channel ask produced while the gate
+   * is owed earns its own correction on its own budget (cap
+   * GATE_VIOLATION_MAX_FIRES per push; the fresh-push fold
+   * resets it), never consuming the order's fires. */
+  gateViolationFires: number;
   /** A model turn has announced the simulation entry. */
   simulationEntered: boolean;
   /** The most recent short-gate fire was a repeat (a prior fire
@@ -611,6 +728,7 @@ export const freshDiscoveryGateState = (): DiscoveryGateState => ({
   prevTurnAskedName: false,
   nameKnownFires: 0,
   nameReleaseFires: 0,
+  nameHeldAnnounced: false,
   inRoleGreetings: 0,
   greetingCorrected: false,
   purposeBanked: false,
@@ -619,6 +737,8 @@ export const freshDiscoveryGateState = (): DiscoveryGateState => ({
   gateOwed: false,
   gateOrderFires: 0,
   gateOrderCarried: false,
+  gateOrderCarryTurns: 0,
+  gateViolationFires: 0,
   simulationEntered: false,
   shortGateRepeat: false,
   gateAsked: false,
@@ -731,12 +851,39 @@ export function shortGatePurposeDirective(repeat = false): string {
 }
 
 /**
+ * The gate-violation correction (Publish #82, defect 1): the
+ * caller pushed to skip, the gate is owed, and the answering
+ * turn produced the step-2 capture/channel ask anyway. The
+ * step-2 beat is PRE-EMPTED while the gate is owed — the ask
+ * does not count, and details surrendered to it do not discharge
+ * the gate. (In non-push flow the same ask is the approved
+ * step-2 design and is never corrected; this directive exists
+ * only inside an armed gate debt.)
+ */
+export function gateViolationDirective(state: DiscoveryGateState): string {
+  return `STOP — the caller asked to skip ahead, and your last turn answered with the capture ask — the email-or-mobile channel question, the step-2 beat. While the gate is owed, that beat is PRE-EMPTED: the ask you just made does not count, it does not advance the capture, and any details the caller gives in answer to it do NOT discharge the gate — the recap still runs first. No promise and no contact ask may come before the gate. Run the SHORT GATE now, in this order: (1) recap ONLY what the caller has banked so far — ${bankedSummary(state)} — naming anything never covered as still open, never filling it in; (2) end the recap with exactly: "Did I capture that all correctly?" and WAIT for their answer. Only after their yes to THAT recap may you promise the list in their channel — and only then make the one capture ask, if no details were ever given.`;
+}
+
+/**
  * The name-known correction (defects A + D): the model asked for
  * a name the session already holds. States the name as held and
  * orders the conversation — not the ask — to continue.
  */
 export function nameKnownDirective(name: string): string {
   return `STOP — you just asked for the visitor's name, but you already have it: their name is ${name}. A name you hold is never re-asked — not in the greeting form, not in the "greet you properly" form, not at any later beat. Use their name naturally and continue the conversation NOW from what the visitor last said: answer what they actually told you and carry the discovery forward. Do not restart any part of the conversation and do not apologize at length.`;
+}
+
+/**
+ * The PRE-EMPTIVE name-held order (Publish #82, defect 3):
+ * delivered at the boundary where a name first stands held —
+ * seeded at the session's start, or banked from the visitor's
+ * own doorway answer — BEFORE the script's later name beat can
+ * fire. The beat is declared satisfied in advance; the
+ * after-the-fact correction above remains the second line for a
+ * model that asks anyway.
+ */
+export function namePreemptDirective(name: string): string {
+  return `You already have the visitor's name: ${name} — it was given at the doorway, or before this session, and it is settled. Your script's later name beat ("May I have your name, so I can greet you properly?") is ALREADY SATISFIED: do not produce that ask in any form, at any later beat — a name you hold is never asked for. Use their name naturally and carry on with the conversation.`;
 }
 
 /**
@@ -825,7 +972,9 @@ export function greetingOnceDirective(): string {
 export type DiscoveryGateInjection =
   | 'short-gate'
   | 'short-gate-purpose'
+  | 'short-gate-violation'
   | 'name-known'
+  | 'name-known-preempt'
   | 'name-release'
   | 'budget-bracket'
   | 'budget-recap'
@@ -883,7 +1032,9 @@ export function discoveryGateTurnDecision(input: {
       // the order even while the gate is still owed from the
       // first one: the caller is insisting, and the order the
       // first push bought has already been spent unanswered.
-      state = { ...state, gateOwed: true, gateOrderFires: 0, gateOrderCarried: false };
+      // Publish #82: the violation budget and the carry ledger
+      // are per-episode too — a fresh push renews them all.
+      state = { ...state, gateOwed: true, gateOrderFires: 0, gateOrderCarried: false, gateOrderCarryTurns: 0, gateViolationFires: 0, shortGateRepeat: false };
     }
   }
 
@@ -924,6 +1075,8 @@ export function discoveryGateTurnDecision(input: {
         gateOwed: false,
         gateOrderFires: 0,
         gateOrderCarried: false,
+        gateOrderCarryTurns: 0,
+        gateViolationFires: 0,
         recapVoided: false,
         recapMissing: [],
         recapInsertedView: false,
@@ -940,6 +1093,11 @@ export function discoveryGateTurnDecision(input: {
     }
   }
   const offeredBracket = turnOffersBracket(modelTurnText);
+  // Publish #82: is this turn a capture/channel ask (the step-2
+  // beat's shapes)? Judged here so the decision below can tell a
+  // gate VIOLATION — that ask produced while the gate is owed —
+  // from ordinary non-compliance.
+  const captureAsk = turnAsksForCapture(modelTurnText);
   state = { ...state, prevTurnAskedName: askedName };
 
   if (blocked) return { state, inject: null };
@@ -969,6 +1127,30 @@ export function discoveryGateTurnDecision(input: {
         inject: budgetKind ? 'budget-recap' : 'recap-completeness',
       };
     }
+    // 1a2. THE GATE VIOLATION (Publish #82, defect 1): with
+    //      criteria banked and the gate owed, the answering turn
+    //      produced the step-2 capture/channel ask — the one beat
+    //      the gate exists to pre-empt at a push. It earns the
+    //      violation correction immediately, on its OWN budget:
+    //      pre-#82 the violating turns were indistinguishable
+    //      from any other miss and consumed the order's two fires
+    //      between them, after which the gate could never fire
+    //      again for that push. Now the violation spends only
+    //      itself, and the order below persists — at full budget
+    //      — until a recap+gate turn actually occurs. (Nothing
+    //      banked: the capture ask is barred by the keystone
+    //      order's own text, and 1c handles it — the violation is
+    //      scoped to the banked push, as tasked.)
+    if (anythingBanked && captureAsk && state.gateViolationFires < GATE_VIOLATION_MAX_FIRES) {
+      return {
+        state: {
+          ...state,
+          gateViolationFires: state.gateViolationFires + 1,
+          fires: state.fires + 1,
+        },
+        inject: 'short-gate-violation',
+      };
+    }
     // 1b. THE KEYSTONE DELIVERED: nothing banked, the gate owed,
     //     and the model's own turn asked the purpose question —
     //     the owed move happened. No injection; the order counts
@@ -978,22 +1160,33 @@ export function discoveryGateTurnDecision(input: {
         ...state,
         gateOrderFires: Math.max(state.gateOrderFires, 1),
         gateOrderCarried: false,
+        gateOrderCarryTurns: 0,
       };
     } else if (!gateRan && state.gateOrderFires < 2) {
       // 1c. THE SHORT-GATE ORDER — fires at every boundary where
       //     the gate is still owed and unrun, up to twice per
       //     push: the initial fire and one sterner repeat. An
-      //     answering turn that signals the simulation entry
-      //     cannot obey an in-role order, so that fire is
-      //     CARRIED, not counted (defect 3): it re-fires at the
-      //     first post-transition boundary.
-      const repeat = state.gateOrderFires >= 1 || state.gateOrderCarried;
-      const entered = turnSignalsSimulationEntry(modelTurnText);
+      //     answering turn inside the TRANSITION WINDOW cannot
+      //     obey an in-role order, so that fire is CARRIED, not
+      //     counted (defect 3): it re-fires at the first
+      //     post-transition boundary. Publish #82: the window is
+      //     the entry-signal turn AND — while a carry is
+      //     outstanding — the in-role greeting turn that completes
+      //     a two-turn straddle; the carry is bounded by
+      //     GATE_ORDER_MAX_CARRY_TURNS consecutive carried turns.
+      //     A violation correction already given for this push
+      //     also makes the next order the sterner repeat: it WAS
+      //     given once, in the violation's own words.
+      const repeat = state.gateOrderFires >= 1 || state.gateOrderCarried || state.gateViolationFires >= 1;
+      const enteredSignal = turnSignalsSimulationEntry(modelTurnText);
+      const greetingCarry = state.gateOrderCarried && turnIsInRoleGreeting(modelTurnText);
+      const carriedFire = (enteredSignal || greetingCarry) && state.gateOrderCarryTurns < GATE_ORDER_MAX_CARRY_TURNS;
       return {
         state: {
           ...state,
-          gateOrderFires: entered ? state.gateOrderFires : state.gateOrderFires + 1,
-          gateOrderCarried: entered,
+          gateOrderFires: carriedFire ? state.gateOrderFires : state.gateOrderFires + 1,
+          gateOrderCarried: carriedFire,
+          gateOrderCarryTurns: carriedFire ? state.gateOrderCarryTurns + 1 : 0,
           shortGateRepeat: repeat,
           fires: state.fires + 1,
         },
@@ -1004,8 +1197,23 @@ export function discoveryGateTurnDecision(input: {
   // 2. A BANKED NAME IS NEVER RE-ASKED.
   if (state.visitorName && askedName && state.nameKnownFires < 2) {
     return {
-      state: { ...state, nameKnownFires: state.nameKnownFires + 1, fires: state.fires + 1 },
+      state: { ...state, nameKnownFires: state.nameKnownFires + 1, nameHeldAnnounced: true, fires: state.fires + 1 },
       inject: 'name-known',
+    };
+  }
+  // 2b. THE NAME-HELD ORDER, PRE-EMPTIVE (Publish #82, defect
+  //     3): a name stands held — seeded at arming or banked from
+  //     the visitor's own words — and no turn has asked for it
+  //     yet. Announce it as held NOW, at this boundary, before
+  //     the script's later name beat can fire: prevention, where
+  //     rule 2 is the cure. Once only — the flag is also set by
+  //     rule 2, so a session hears the name is held exactly once
+  //     before any re-ask, and any re-ask after that meets
+  //     rule 2 instead.
+  if (state.visitorName && !state.nameHeldAnnounced && !askedName) {
+    return {
+      state: { ...state, nameHeldAnnounced: true, fires: state.fires + 1 },
+      inject: 'name-known-preempt',
     };
   }
   // 3. THE NAME LOOP RELEASE — asked standalone for the second time

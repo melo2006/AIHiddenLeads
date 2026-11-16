@@ -39,6 +39,7 @@ import {
   SIMULATION_RECEPTIONIST_SEGMENT,
   SOUND_COMPLAINT_RULE,
   VOICES,
+  sanitizeVisitorName,
 } from './voice-config.ts';
 
 export type PersonaId = 'aspen' | 'sara' | 'alex' | 'frank' | 'latina' | 'black-professional-lady';
@@ -516,8 +517,8 @@ export function presenterAlexGuestPrompt(presenter: PersonaId): string {
 export const PRESENTER_SINGLE_CLOSE_RULE = `
 ONE CLOSING LINE — TOTAL: when the visitor says goodbye, your entire farewell is the ONE brief, warm closing line the GOODBYES rule describes — thank them for calling {businessName}, wish them well if it fits, and stop. The GOODBYES rule, the demo close's final goodbye and any discovery close are three descriptions of that SAME single line, never separate closings to stack: never follow your closing line with a second thank-you, a repeated business name sign-off, or another goodbye — not in the same turn, and not in a later turn either. If a tool result or any other interruption lands after you have already given that closing line, do not close again: stay silent and let the session end.`;
 
-export function presenterSimulationPrompt(binding: PersonaBinding): string {
-  return rewritePresenterCloseSegment(SIMULATION_PROMPT
+export function presenterSimulationPrompt(binding: PersonaBinding, knownVisitorName = ''): string {
+  const composed = rewritePresenterCloseSegment(SIMULATION_PROMPT
     .replace(
       'IF THE VISITOR ASKS FOR SARA BY NAME DURING THIS HOST PHASE: that ask IS the doorway — a request for a named person is a transfer, always. Never answer AS Sara, never speak her lines, and never roleplay the business yourself in her place. Move straight to the handoff: announce the simulation briefly and end with "Can I transfer you to Sara now?", then wait for their answer.',
       `IF THE VISITOR ASKS FOR ASPEN OR SARA BY NAME DURING THIS HOST PHASE: they are your colleagues at AI Hidden Leads, and in THIS demonstration you are the host and the receptionist in one — there is no second person to bring in. Say so warmly and briefly, in your own words — for example: "Aspen and Sara are on my team — for this demonstration you've got me, and I'll look after you myself." Then carry on hosting exactly as scripted: never answer AS Aspen or Sara, and never claim a transfer to them is happening or has happened.`,
@@ -537,4 +538,22 @@ export function presenterSimulationPrompt(binding: PersonaBinding): string {
       `A REQUEST FOR A NAMED PERSON IS A TRANSFER — ALWAYS (2026-11-13, Ron's Andriot retest: asked for Aspen back, Sara answered AS Aspen, then deflected his repeated ask with "what kind of questions do you have?"): if the visitor asks for Aspen by name — or for any person by name — never answer AS that person, never speak in their voice or role, never impersonate them, and never deflect with questions of your own. You may offer ONCE, in a single short line, that you work alongside Aspen and can help with some of it; but a repeated ask, or a specific one ("I want Aspen", "get me Aspen", "I want the blonde lady, not you"), brings Aspen back IMMEDIATELY via the hand-back beat above — the "bring Aspen back" line, then stop talking. A visitor who asks for a person by name is never talked out of it and never answered by a stand-in.`,
       `A REQUEST FOR A NAMED PERSON (2026-11-13, Ron's Andriot retest — the impersonation ban stands in every demo): never answer AS another person, never speak in their voice or role, never impersonate them, and never deflect with questions of your own. If the visitor asks for Aspen or Sara by name — or asks again, however specifically ("I want Aspen", "get me Aspen", "I want the blonde lady, not you") — they are your colleagues, and in THIS demonstration you are the host: there is no handoff to them here. Say so warmly, once, in a single short line — for example: "Aspen and Sara are on my team — for this demonstration you've got me, and I'll look after you myself." — then keep helping the visitor yourself; a repeated ask gets the same warm answer, never a promised handoff and never an offer to fetch her. If the visitor asks for a person at {businessName} by name — the owner, the manager, a named agent — that is an in-role request: handle it in role under the transfer-honesty line above. A visitor who asks for a person by name is never answered by a stand-in.`,
     ), binding) + PRESENTER_SINGLE_CLOSE_RULE;
+  // Publish #82 (defect 3): the receptionist segment's name beat
+  // (beat 6) carries a prose skip condition — "skip this ask
+  // entirely if the visitor's name is already known" — and the
+  // model still produced the ask, at the [neutral-ok] turn, for
+  // visitors whose name the host itself had collected at the
+  // doorway. When the session is composed WITH a seeded visitor
+  // name (gemini-session passes the authorize-time name / the
+  // lead's contact name, sanitized — a placeholder is no name),
+  // the beat is rendered in its SATISFIED form instead: the ask
+  // is not in the script at all. No seeded name → the composed
+  // prompt is byte-identical to before (the needle simply never
+  // gets replaced).
+  const seededName = sanitizeVisitorName(knownVisitorName);
+  if (!seededName) return composed;
+  return composed.replace(
+    `ask "May I have your name, so I can greet you properly?" — skip this ask entirely if the visitor's name is already known in this session; use their name from then on and never ask again.`,
+    `the visitor's name is already known in this session — it is ${seededName} — so the name ask is already complete: do NOT ask for their name in any form, here or at any later beat; use their name from then on.`,
+  );
 }

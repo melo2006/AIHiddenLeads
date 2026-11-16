@@ -369,7 +369,7 @@ Deno.serve(async req=>{
     // identical to before. The verification branch composes from
     // whichever base applies — Act 1's own text is unchanged either
     // way, and its session still ends at the code gate.
-    config={...(presenter ? businessDemoConfig(businessName,knowledge,{...(published ?? {}),name:presenter.displayName,voice:presenterVoice ?? presenter.voiceName,simulationPrompt:presenterSimulationPrompt(presenter)}) : swapEnabled ? businessDemoConfigSwapParent(businessName,knowledge,published) : businessDemoConfig(businessName,knowledge,published)), visitorContact, platformFollowup:true};
+    config={...(presenter ? businessDemoConfig(businessName,knowledge,{...(published ?? {}),name:presenter.displayName,voice:presenterVoice ?? presenter.voiceName,simulationPrompt:presenterSimulationPrompt(presenter, sanitizeVisitorName(b.visitorName || String(visitorContact.name || '')))}) : swapEnabled ? businessDemoConfigSwapParent(businessName,knowledge,published) : businessDemoConfig(businessName,knowledge,published)), visitorContact, platformFollowup:true};
     if(presenter) config.demoPresenter=presenter.id;
     // ADMIN VOICE OVERRIDE (2026-11-14): the non-presenter demo parent
     // IS Aspen — her composed voice otherwise comes from the published
