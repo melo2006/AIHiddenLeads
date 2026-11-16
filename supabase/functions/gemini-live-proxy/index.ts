@@ -4,6 +4,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import { languagePolicyFor, NO_SPEAKER_LABEL_RULE, VOICE_DISCONNECT_PLAIN } from '../_shared/voice-config.ts'
 import { openingText } from '../_shared/session-opening.ts'
 import { goAwayReconnectDelayMs, goAwayTimeLeftSeconds, providerResumeAllowed, resumptionHandleFromUpdate, sessionResumptionConfig } from '../_shared/session-resumption.ts'
+import { COMPRESSION_SETUP_SUFFIX_CHARS, COMPRESSION_TOOLS_ALLOWANCE_TOKENS, contextCompressionEnabled, contextWindowCompressionConfig, estimateTokensFromChars, type ContextWindowCompressionConfig } from '../_shared/context-compression.ts'
 import { pcmSeconds, audioCost, validPricing } from '../_shared/voice-usage.ts'
 import { platformAvailability, bookPlatformCall, voiceAvailability } from '../_shared/platform-calendar.ts'
 import { generateSlots } from '../_shared/booking-slots.ts'
@@ -185,6 +186,14 @@ Deno.serve(async (req) => {
   // resumption handle lives only in this worker's memory for the life of
   // the browser session — never persisted, never sent to the client.
   let resumptionHandle: string | null = null
+  // Context-window compression (Publish #85a, see
+  // _shared/context-compression.ts): computed ONCE from this
+  // session's composed prompt on the first provider connect and
+  // reused verbatim on every resumption reconnect, so a resumed
+  // session's setup never changes shape mid-session. null = the
+  // kill switch disabled compression; the setup then carries no
+  // compression field at all (byte-identical to the pre-#85a setup).
+  let compressionConfig: ContextWindowCompressionConfig | null | undefined
   let providerConnectHandle: string | null = null
   let providerReconnects = 0
   let providerRecoveryActive = false
@@ -560,10 +569,19 @@ Deno.serve(async (req) => {
       if (!ws) return
       ws.onopen = () => {
       if (!geminiWs || geminiWs.readyState !== WebSocket.OPEN) return
+      // Context-window compression (Publish #85a): sized once from
+      // this session's composed prompt (plus the setup suffix and
+      // tool-declaration allowances) and reused on every reconnect.
+      if (compressionConfig === undefined) {
+        compressionConfig = contextCompressionEnabled((n) => Deno.env.get(n))
+          ? contextWindowCompressionConfig(estimateTokensFromChars(prompt.length + COMPRESSION_SETUP_SUFFIX_CHARS) + COMPRESSION_TOOLS_ALLOWANCE_TOKENS)
+          : null
+      }
       // First message must be the setup
       geminiWs.send(JSON.stringify({
         setup: {
           sessionResumption: sessionResumptionConfig(providerConnectHandle),
+          ...(compressionConfig ? { contextWindowCompression: compressionConfig } : {}),
           model: `models/${model}`,
           generationConfig: {
             responseModalities: ['AUDIO'],
