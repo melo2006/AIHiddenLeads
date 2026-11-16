@@ -704,6 +704,11 @@ Deno.serve(async (req) => {
         if (msg.toolCall?.functionCalls) {
           for (const call of msg.toolCall.functionCalls) {
             if (typeof call.id !== 'string') continue;
+            // Publish #86 observability: platform tool dispatches are
+            // journaled (name only, never args) — before this, a
+            // session that silently called tools left no trace
+            // anywhere and booking stalls were undiagnosable.
+            if (call.name === 'platform_availability' || call.name === 'get_availability' || call.name === 'check_time' || call.name === 'book_call' || call.name === 'request_platform_followup' || call.name === 'request_platform_appointment') console.info('platform tool', JSON.stringify({ sessionId: session.id, tool: call.name }));
             // Any tool activity means the conversation is continuing:
             // a pending farewell end is cancelled (Fix 5).
             // DOUBLE-CLOSE GATE exception (2026-11-14): on a presenter
@@ -1143,6 +1148,7 @@ Deno.serve(async (req) => {
               })
               bookingGate = bookingDecision.state
               if (bookingDecision.inject) {
+                console.info('booking gate', JSON.stringify({ sessionId: session.id, inject: bookingDecision.inject, stern: bookingDecision.stern }));
                 const text = bookingDecision.inject === 'commitment'
                   ? commitmentDirective(bookingDecision.stern)
                   : bookingDecision.inject === 'intent'
