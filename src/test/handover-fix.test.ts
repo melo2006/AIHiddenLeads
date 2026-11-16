@@ -238,7 +238,15 @@ describe('5 — swap vs non-swap prompt composition', () => {
     expect(DEMO_INVITE_OPENING_SWAP.startsWith('Host role: You are Aspen of AI Hidden Leads')).toBe(true);
   });
   test('gemini-session serves the swap composition only when the swap family is armed', () => {
-    expect(geminiSession).toContain('businessDemoConfigSwapParent(businessName,knowledge,published) : businessDemoConfig(businessName,knowledge,published)');
+    // Publish #85b: the composed knowledge argument is now
+    // kbSlim.sessionKnowledge — with KB_SLIM_BRIEF_ENABLED off (the
+    // default) composeSessionKnowledge returns the raw knowledge
+    // untouched, so the flag-off composition this pin protects is
+    // unchanged (pinned directly in kb-distill.test.ts). The pin
+    // follows the argument's new name; the ternary it guards —
+    // swap composition only when the swap family is armed — is the
+    // same.
+    expect(geminiSession).toContain('businessDemoConfigSwapParent(businessName,kbSlim.sessionKnowledge,published) : businessDemoConfig(businessName,kbSlim.sessionKnowledge,published)');
     expect(geminiSession).toContain('swapEnabled ? DEMO_INVITE_OPENING_SWAP : DEMO_INVITE_OPENING');
   });
 });
