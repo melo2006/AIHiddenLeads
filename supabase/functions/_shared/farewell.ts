@@ -48,6 +48,8 @@ const PRESENTER_PERSONA_IDS: ReadonlySet<string> = new Set([
   'frank',
   'latina',
   'black-professional-lady',
+  'james',
+  'diego',
 ]);
 
 /**

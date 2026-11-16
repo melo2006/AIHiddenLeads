@@ -42,7 +42,7 @@ import {
   sanitizeVisitorName,
 } from './voice-config.ts';
 
-export type PersonaId = 'aspen' | 'sara' | 'alex' | 'frank' | 'latina' | 'black-professional-lady';
+export type PersonaId = 'aspen' | 'sara' | 'alex' | 'frank' | 'latina' | 'black-professional-lady' | 'james' | 'diego';
 /** All segment boundaries: the Stage 1 simulation family plus the team
  *  intro family (design: team-intro-design-2026-11-09.md §4.1). The two
  *  families are disjoint and phase-gated against their own parent class
@@ -124,6 +124,27 @@ export const BLACK_PROFESSIONAL_LADY_VOICE = 'Despina';
  *  customer-facing name is the binding's displayName below). */
 export const BLACK_PROFESSIONAL_LADY_FACE_ID = '9344d4c1-6b69-43e7-a73f-ddc15d1a3f75';
 
+/** James's voice. ONE named constant: Iapetus — a clear, professional
+ *  male in the Gemini Live set, unused as any other persona's base.
+ *  ⚠️ MUSE'S PICK (2026-11-16), not Ron-settled — proposed with his
+ *  library entry the same day Ron ruled James + Diego into both
+ *  galleries; his ear-check is owed, and a change is a one-line edit
+ *  here and nowhere else. (First draft said Algieba — the gender
+ *  table marks Algieba female; the locale tests caught it.) */
+export const JAMES_VOICE = 'Iapetus';
+/** James's custom Trinity-2 face, created 2026-11-15 (Simli
+ *  auto-name "Molecular Tuna" — never shown to customers). */
+export const JAMES_FACE_ID = '4712e83e-66a8-4c49-a8bf-6c8640207546';
+
+/** Diego's voice. ONE named constant: Alnilam — the warm, firm male
+ *  already proven as Frank's Portuguese remap voice. ⚠️ MUSE'S
+ *  PICK (2026-11-16), not Ron-settled; same ear-check status as
+ *  James's. */
+export const DIEGO_VOICE = 'Alnilam';
+/** Diego's custom Trinity-2 face, created 2026-11-15 (Simli
+ *  auto-name "Judicial Earwig" — never shown to customers). */
+export const DIEGO_FACE_ID = '1187df68-a4f2-41c8-8263-dcecd8f37669';
+
 export const PERSONAS: Record<PersonaId, PersonaBinding> = {
   aspen: {
     id: 'aspen',
@@ -198,6 +219,30 @@ export const PERSONAS: Record<PersonaId, PersonaBinding> = {
     portraitFaceId: BLACK_PROFESSIONAL_LADY_FACE_ID,
     role: 'receptionist',
   },
+  james: {
+    // EXAMPLE PRESENTER (James + Diego batch, 2026-11-16 — Ron's
+    // ruling the same day): same whole-demo presenter shape as
+    // Frank — he FRONTS his mapped examples solo in one session.
+    // His name was settled by Ron 2026-11-15 ("James stays James").
+    id: 'james',
+    displayName: 'James',
+    voiceName: JAMES_VOICE,
+    faceId: JAMES_FACE_ID,
+    portraitFaceId: JAMES_FACE_ID,
+    role: 'receptionist',
+  },
+  diego: {
+    // EXAMPLE PRESENTER (James + Diego batch, 2026-11-16): same
+    // whole-demo presenter shape; he fronts the Latino male agents'
+    // examples. His name was settled by Ron 2026-11-15 ("Diego
+    // stands" — it works in both the US and Brazil).
+    id: 'diego',
+    displayName: 'Diego',
+    voiceName: DIEGO_VOICE,
+    faceId: DIEGO_FACE_ID,
+    portraitFaceId: DIEGO_FACE_ID,
+    role: 'receptionist',
+  },
 };
 
 export function personaFor(id: PersonaId): PersonaBinding {
@@ -205,7 +250,7 @@ export function personaFor(id: PersonaId): PersonaBinding {
 }
 
 export function isPersonaId(value: unknown): value is PersonaId {
-  return value === 'aspen' || value === 'sara' || value === 'alex' || value === 'frank' || value === 'latina' || value === 'black-professional-lady';
+  return value === 'aspen' || value === 'sara' || value === 'alex' || value === 'frank' || value === 'latina' || value === 'black-professional-lady' || value === 'james' || value === 'diego';
 }
 
 /** Integrity guard used by tests: every bound voice must be a real Gemini
@@ -485,9 +530,9 @@ export function rewritePresenterCloseSegment(text: string, binding: PersonaBindi
 
 /** The whole-demo presenter personas (the example-demo front people).
  *  Everyone else in the registry enters through persona segments;
- *  these three FRONT a demo as its parent session instead. */
+ *  these FRONT a demo as its parent session instead. */
 export function isPresenterPersona(id: PersonaId): boolean {
-  return id === 'frank' || id === 'latina' || id === 'black-professional-lady';
+  return id === 'frank' || id === 'latina' || id === 'black-professional-lady' || id === 'james' || id === 'diego';
 }
 
 /** Alex's guest prompt for a PRESENTER parent (Alex handoff fix,

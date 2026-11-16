@@ -209,14 +209,14 @@ const OWN_MODELS: AvatarLibraryEntry[] = [
     // faces (generated Nov 15 from Muse's fictional portraits; names
     // settled by Ron — James stays James, Diego stands). ⚠️ Their
     // matched voices are PROPOSALS awaiting Ron's ear-check, like
-    // Andy's was: James → "Algieba", Diego → "Alnilam" (the warm
+    // Andy's was: James → "Iapetus", Diego → "Alnilam" (the warm
     // mature male already used as Frank's Portuguese remap).
     key: "james",
     faceId: JAMES_FACE_ID,
     label: "James",
     suggestedName: "James",
     nameSettled: true,
-    matchedVoice: "Algieba",
+    matchedVoice: "Iapetus",
     image: catalogImage(JAMES_FACE_ID),
     category: "Your face",
     generation: catalogGeneration(JAMES_FACE_ID),

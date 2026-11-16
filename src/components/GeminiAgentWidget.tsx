@@ -9,7 +9,7 @@ import FloatingPersonFrame, { AspenModeToggle, AspenWindowControls, type Stage3C
 import { matchingAspenVideo } from '@/lib/aspenFace';
 import { SIMLI_FACE_CATALOG, presenterPortraitImage } from '@/lib/simliFaceCatalog';
 import { ALEX_FACE_ID } from '../../supabase/functions/_shared/alex-guide';
-import { BLACK_PROFESSIONAL_LADY_FACE_ID, FRANK_FACE_ID, LATINA_FACE_ID, SARA_FACE_ID } from '../../supabase/functions/_shared/personas';
+import { BLACK_PROFESSIONAL_LADY_FACE_ID, DIEGO_FACE_ID, FRANK_FACE_ID, JAMES_FACE_ID, LATINA_FACE_ID, SARA_FACE_ID } from '../../supabase/functions/_shared/personas';
 import type { PersonaId } from '@/lib/personaSwap';
 
 import { themeVariables, type WidgetTheme } from '../../supabase/functions/_shared/widget-theme';
@@ -22,6 +22,8 @@ const saraPortrait = SIMLI_FACE_CATALOG.find(f => f.id === SARA_FACE_ID)?.image;
 const frankPortrait = presenterPortraitImage(FRANK_FACE_ID);
 const latinaPortrait = presenterPortraitImage(LATINA_FACE_ID);
 const blackProfessionalLadyPortrait = presenterPortraitImage(BLACK_PROFESSIONAL_LADY_FACE_ID);
+const jamesPortrait = presenterPortraitImage(JAMES_FACE_ID);
+const diegoPortrait = presenterPortraitImage(DIEGO_FACE_ID);
 const alexVideoAvatar: VideoAvatar = { enabled: true, provider: 'simli', faceId: ALEX_FACE_ID, position: 'bottom-right', size: 200, shape: 'circle' };
 export default function GeminiAgentWidget({ agentId, leadId, prospectId, businessName, callerName, onClose, floating = false, autoStart = false, guide }: Props) {
  const { t } = useTranslation();
@@ -51,7 +53,7 @@ export default function GeminiAgentWidget({ agentId, leadId, prospectId, busines
  const [activePersona,setActivePersona]=useState<{id:PersonaId;name:string;avatarUrl?:string}|null>(null);
  const handlePersonaChange=(p:{id:PersonaId;displayName:string})=>{
    if(p.id==='aspen'){setActivePersona(null);return;}
-   const avatarUrl = p.id==='sara' ? saraPortrait : p.id==='alex' ? alexPortrait : p.id==='frank' ? frankPortrait : p.id==='latina' ? latinaPortrait : p.id==='black-professional-lady' ? blackProfessionalLadyPortrait : undefined;
+   const avatarUrl = p.id==='sara' ? saraPortrait : p.id==='alex' ? alexPortrait : p.id==='frank' ? frankPortrait : p.id==='latina' ? latinaPortrait : p.id==='black-professional-lady' ? blackProfessionalLadyPortrait : p.id==='james' ? jamesPortrait : p.id==='diego' ? diegoPortrait : undefined;
    setActivePersona({id:p.id,name:p.displayName,avatarUrl});
  };
  const displayName = activePersona?.name ?? identity.name;

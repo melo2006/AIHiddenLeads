@@ -49,7 +49,7 @@ import { isIntroBoundary, type IntroBoundary } from './team-intro.ts';
  *  mirrors PERSONAS there (a test pins the two together) — this
  *  module deliberately does not import personas.ts (team-intro
  *  imports this module, so the import would close a cycle). */
-export type PersonaId = 'aspen' | 'sara' | 'alex' | 'frank' | 'latina' | 'black-professional-lady';
+export type PersonaId = 'aspen' | 'sara' | 'alex' | 'frank' | 'latina' | 'black-professional-lady' | 'james' | 'diego';
 const PERSONA_DISPLAY_NAMES: Record<PersonaId, string> = {
   aspen: 'Aspen', sara: 'Sara', alex: 'Alex',
   frank: 'Frank', latina: 'Monica', 'black-professional-lady': 'Denise',

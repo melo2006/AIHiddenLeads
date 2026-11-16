@@ -44,6 +44,8 @@ export const DEMO_PERSONA_VOICE_ROWS: DemoPersonaVoiceRow[] = [
   { persona: "frank", libraryKey: "frank", label: "Frank", defaultVoice: "Schedar", sessionResolved: true },
   { persona: "latina", libraryKey: "latina", label: "Monica", defaultVoice: "Sulafat", sessionResolved: true },
   { persona: "black-professional-lady", libraryKey: "black-professional-lady", label: "Denise", defaultVoice: "Despina", sessionResolved: true },
+  { persona: "james", libraryKey: "james", label: "James", defaultVoice: "Iapetus", sessionResolved: true },
+  { persona: "diego", libraryKey: "diego", label: "Diego", defaultVoice: "Alnilam", sessionResolved: true },
   { persona: "executive", libraryKey: "executive", label: "Andy", defaultVoice: "Sadaltager", sessionResolved: false },
   { persona: "middle-aged-pro", libraryKey: "middle-aged-pro", label: "Daniel", defaultVoice: "Rasalgethi", sessionResolved: false },
 ];

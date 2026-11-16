@@ -111,9 +111,9 @@ describe('server resolver — DB wins, code default is the fallback', () => {
 });
 
 describe('client row table — displayed defaults are the real defaults', () => {
-  test('exactly the eight demo personas, in the directed order', () => {
+  test('exactly the ten demo personas, in the directed order', () => {
     expect(DEMO_PERSONA_VOICE_ROWS.map((r) => r.persona)).toEqual([
-      'aspen', 'sara', 'alex', 'frank', 'latina', 'black-professional-lady', 'executive', 'middle-aged-pro',
+      'aspen', 'sara', 'alex', 'frank', 'latina', 'black-professional-lady', 'james', 'diego', 'executive', 'middle-aged-pro',
     ]);
   });
 
@@ -123,7 +123,7 @@ describe('client row table — displayed defaults are the real defaults', () => 
     }
   });
 
-  test('all eight: displayed default === the avatar library matched voice', () => {
+  test('all ten: displayed default === the avatar library matched voice', () => {
     for (const row of DEMO_PERSONA_VOICE_ROWS) {
       expect(AVATAR_LIBRARY.find((e) => e.key === row.libraryKey)?.matchedVoice, row.persona).toBe(row.defaultVoice);
     }

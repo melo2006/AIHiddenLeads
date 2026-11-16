@@ -521,9 +521,9 @@ Deno.serve(async (req) => {
           const opening = openingText({
             preview,
             opening: openingRendered,
-            personaSwap: (config.personaSwap ?? null) as { to: 'aspen' | 'sara' | 'alex' | 'frank' | 'latina' | 'black-professional-lady'; boundary: 'doorway' | 'stepout' | 'meet-alex' | 'return' } | null,
-            personaDrop: (config.personaDrop ?? null) as { persona: 'aspen' | 'sara' | 'alex' | 'frank' | 'latina' | 'black-professional-lady'; drops: number } | null,
-            personaResume: (config.personaResume ?? null) as { persona: 'aspen' | 'sara' | 'alex' | 'frank' | 'latina' | 'black-professional-lady' } | null,
+            personaSwap: (config.personaSwap ?? null) as { to: 'aspen' | 'sara' | 'alex' | 'frank' | 'latina' | 'black-professional-lady' | 'james' | 'diego'; boundary: 'doorway' | 'stepout' | 'meet-alex' | 'return' } | null,
+            personaDrop: (config.personaDrop ?? null) as { persona: 'aspen' | 'sara' | 'alex' | 'frank' | 'latina' | 'black-professional-lady' | 'james' | 'diego'; drops: number } | null,
+            personaResume: (config.personaResume ?? null) as { persona: 'aspen' | 'sara' | 'alex' | 'frank' | 'latina' | 'black-professional-lady' | 'james' | 'diego' } | null,
             resumeContext: config.resumeContext,
             segmentGreeting: config.segmentGreeting,
             businessName: config.businessName,

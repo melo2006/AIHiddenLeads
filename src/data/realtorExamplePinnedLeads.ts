@@ -55,7 +55,7 @@ export const REALTOR_EXAMPLE_PINNED_LEADS: RealtorExamplePinnedLead[] = [
  * token and the session itself are authorized server-side against
  * the server's own copy — this copy earns nothing on its own).
  */
-export const REALTOR_EXAMPLE_PRESENTERS: Partial<Record<string, "aspen" | "sara" | "alex" | "frank" | "latina" | "black-professional-lady">> = {
+export const REALTOR_EXAMPLE_PRESENTERS: Partial<Record<string, "aspen" | "sara" | "alex" | "frank" | "latina" | "black-professional-lady" | "james" | "diego">> = {
   "michael-martinez": "frank",
   "richard-steinberg": "frank",
   "paul-saperstein": "frank",
@@ -63,6 +63,13 @@ export const REALTOR_EXAMPLE_PRESENTERS: Partial<Record<string, "aspen" | "sara"
   "danielle-lazier": "latina",
   "ann-chamberlain": "black-professional-lady",
   "ashley-cusack": "black-professional-lady",
+  // James + Diego (2026-11-16) — keep in sync with the server copy.
+  "mauricio-barba": "diego",
+  "baldemar-deleon": "diego",
+  "ray-miramontes": "diego",
+  "jean-luc-andriot": "james",
+  "logan-walter": "james",
+  "gian-sexsmith": "james",
 };
 
 const presenterByLeadId = new Map(

@@ -170,6 +170,20 @@ export const REALTOR_EXAMPLE_PRESENTERS: Partial<Record<string, PersonaId>> = {
   "danielle-lazier": "latina",
   "ann-chamberlain": "black-professional-lady",
   "ashley-cusack": "black-professional-lady",
+  // James + Diego (2026-11-16, Ron's galleries ruling): the six
+  // previously unfronted MALE agents split by the same pattern the
+  // Frank/Monica/Denise pins established — Diego (Latino) fronts
+  // the Latino agents (Barba in Miami, Deleon in Dallas,
+  // Miramontes in Los Angeles); James fronts Andriot (Palm Beach),
+  // Walter (Dallas) and Sexsmith (Salt Lake City). Julie Melrose
+  // stays on the standard Aspen flow — the ladies' two-each balance
+  // Ron approved is untouched.
+  "mauricio-barba": "diego",
+  "baldemar-deleon": "diego",
+  "ray-miramontes": "diego",
+  "jean-luc-andriot": "james",
+  "logan-walter": "james",
+  "gian-sexsmith": "james",
 };
 
 export function examplePresenterForSlug(slug: string | undefined | null): PersonaId | null {

@@ -356,8 +356,8 @@ describe("realtor discovery — wiring into the presenter listings layer", () =>
 
   it("every presenter-fronted example inherits the discovery layer", () => {
     const slugs = Object.keys(REALTOR_EXAMPLE_PRESENTERS);
-    // Frank ×3, Monica ×2, Denise ×2
-    expect(slugs.length).toBe(7);
+    // Frank ×3, Monica ×2, Denise ×2, Diego ×3, James ×3 (2026-11-16)
+    expect(slugs.length).toBe(13);
     for (const slug of slugs) {
       const pack = examplePackBySlug(slug)!;
       const presenterLayer = buildExampleListingsLayer(pack, { presenter: true });

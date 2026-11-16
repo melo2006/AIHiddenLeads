@@ -281,6 +281,8 @@ export const PRESENTER_HAND_BACK_ANCHORS: Partial<Record<PersonaId, string[]>> =
   frank: ['bring frank back'],
   latina: ['bring monica back'],
   'black-professional-lady': ['bring denise back'],
+  james: ['bring james back'],
+  diego: ['bring diego back'],
 };
 
 export function boundaryForAssistantLine(text: string, state: SwapState): PersonaBoundary | null {

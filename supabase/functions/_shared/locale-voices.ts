@@ -72,6 +72,12 @@ export const PERSONA_LOCALE_VOICES: Record<string, Partial<Record<'es' | 'pt-BR'
   frank: { 'pt-BR': 'Alnilam', es: 'Orus' },
   latina: { 'pt-BR': 'Callirrhoe', es: 'Sulafat' },
   'black-professional-lady': { 'pt-BR': 'Despina', es: 'Kore' },
+  // James + Diego (2026-11-16, Muse's proposals alongside their
+  // base voices): both ride the proven male remap pair — Alnilam
+  // for pt-BR (Diego's base voice too), Orus for es (the es male
+  // set carries no Alnilam).
+  james: { 'pt-BR': 'Alnilam', es: 'Orus' },
+  diego: { 'pt-BR': 'Alnilam', es: 'Orus' },
 };
 
 /** The voice a session in `locale` should use, given the persona's

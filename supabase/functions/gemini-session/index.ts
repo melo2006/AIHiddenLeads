@@ -10,7 +10,7 @@ import { workspaceAccess } from '../_shared/customer-payments.ts';
 import { resolveDemoShare } from '../_shared/demo-share.ts';
 import { DEMO_INVITE_GREETING, DEMO_INVITE_GREETING_LEGACY_SLIM, DEMO_INVITE_GREETING_VARIANTS, DEMO_INVITE_OPENING, DEMO_INVITE_OPENING_SWAP, DEMO_VERIFICATION_ACT1, DEMO_VERIFICATION_GREETING } from '../_shared/demo-sales.ts';
 import { alexGuideConfig, alexDemoGuestConfig } from '../_shared/alex-guide.ts';
-import { avatarSwapEnabled, teamIntroEnabled, isPresenterPersona, personaFor, personaSegmentPrompt, presenterAlexGuestPrompt, presenterSimulationPrompt } from '../_shared/personas.ts';
+import { avatarSwapEnabled, teamIntroEnabled, isPresenterPersona, personaFor, personaSegmentPrompt, presenterAlexGuestPrompt, presenterSimulationPrompt, type PersonaId } from '../_shared/personas.ts';
 import { fetchPersonaVoiceOverride, resolvePersonaVoice } from '../_shared/persona-voice-overrides.ts';
 import { examplePresenterForSlug } from '../_shared/realtor-example-pinned-leads.ts';
 import { TEAM_INTRO_TEACHING, isIntroBoundary, teamIntroGreetingFor } from '../_shared/team-intro.ts';
@@ -22,7 +22,7 @@ import { voiceForLocaleSession } from '../_shared/locale-voices.ts';
 import { buildTranscriptRecap } from '../_shared/recap-builder.ts';
 import { capturedContactFromConfig, type CapturedContact } from '../_shared/captured-contact.ts';
 import { composeSessionKnowledge } from '../_shared/kb-distill.ts';
-const personaSegmentSchema=z.object({persona:z.enum(['aspen','sara','alex','frank','latina','black-professional-lady']),boundary:z.enum(['doorway','stepout','meet-alex','return','summon-aspen','intro-sara','intro-return-1','intro-alex','intro-return-2']),parentSessionId:z.string().uuid(),swapRecap:z.string().max(8000),drops:z.number().int().min(0).max(99).default(0),dropRecovery:z.boolean().default(false),manualResume:z.boolean().default(false),swap:z.boolean().default(false),teamIntroSeen:z.boolean().default(false)});
+const personaSegmentSchema=z.object({persona:z.enum(['aspen','sara','alex','frank','latina','black-professional-lady','james','diego']),boundary:z.enum(['doorway','stepout','meet-alex','return','summon-aspen','intro-sara','intro-return-1','intro-alex','intro-return-2']),parentSessionId:z.string().uuid(),swapRecap:z.string().max(8000),drops:z.number().int().min(0).max(99).default(0),dropRecovery:z.boolean().default(false),manualResume:z.boolean().default(false),swap:z.boolean().default(false),teamIntroSeen:z.boolean().default(false)});
 // SWAP DIAG (voice-first batch, 2026-11-10): the client posts a doorway
 // attempt's RESOLUTION (gate-abort, fallback, forced-execute,
 // voice-first cut-over, face takeover, watchdog action…) against the
@@ -32,7 +32,7 @@ const personaSegmentSchema=z.object({persona:z.enum(['aspen','sara','alex','fran
 // existed only in the page (a 100-entry ring buffer that died with
 // it) or as prose inside a successor's resumeContext — the final
 // attempt of a boundary left no server record at all (retest #4).
-const swapDiagSchema=z.object({sessionId:z.string().uuid(),event:z.enum(['gate-abort','fallback','retry-scheduled','token-stale','stage-watchdog','forced-execute','cutover','voice-first-cutover','face-takeover','face-attach-failed']),boundary:z.enum(['doorway','stepout','meet-alex','return','summon-aspen','intro-sara','intro-return-1','intro-alex','intro-return-2']),persona:z.enum(['aspen','sara','alex','frank','latina','black-professional-lady']).optional(),attempt:z.number().int().min(0).max(99).optional(),reason:z.string().max(200).optional(),faceState:z.string().max(100).optional(),at:z.number().optional()});
+const swapDiagSchema=z.object({sessionId:z.string().uuid(),event:z.enum(['gate-abort','fallback','retry-scheduled','token-stale','stage-watchdog','forced-execute','cutover','voice-first-cutover','face-takeover','face-attach-failed']),boundary:z.enum(['doorway','stepout','meet-alex','return','summon-aspen','intro-sara','intro-return-1','intro-alex','intro-return-2']),persona:z.enum(['aspen','sara','alex','frank','latina','black-professional-lady','james','diego']).optional(),attempt:z.number().int().min(0).max(99).optional(),reason:z.string().max(200).optional(),faceState:z.string().max(100).optional(),at:z.number().optional()});
 const SWAP_DIAG_FAILURE_EVENTS: ReadonlySet<string> = new Set(['gate-abort','fallback','token-stale']);
 const playoutDiagSchema=z.object({sessionId:z.string().uuid(),path:z.enum(['local','tap','direct','none']),detail:z.string().max(400),at:z.number().optional()});
 // MIC DIAG (mic zero-input guard, 2026-11-14): the INPUT mirror of
@@ -187,7 +187,7 @@ Deno.serve(async req=>{
     // segment schema's persona enum now admits the presenter ids —
     // before this, the client's presenter return request failed
     // validation outright and Alex's hand-back could never land.)
-    const parentPresenter=parent.demoPresenter==='frank' || parent.demoPresenter==='latina' || parent.demoPresenter==='black-professional-lady' ? parent.demoPresenter : null;
+    const parentPresenter=parent.demoPresenter==='frank' || parent.demoPresenter==='latina' || parent.demoPresenter==='black-professional-lady' || parent.demoPresenter==='james' || parent.demoPresenter==='diego' ? parent.demoPresenter : null;
     const segPersona=b.personaSegment.persona; const segBoundary=b.personaSegment.boundary;
     if(isPresenterPersona(segPersona) && parentPresenter!==segPersona) return json({error:'Persona segment not available for this demo'},404);
     if(parentPresenter && !((segPersona==='alex' && segBoundary==='meet-alex') || (segPersona===parentPresenter && (segBoundary==='return' || segBoundary==='stepout')))) return json({error:'Persona segment not available for this demo'},404);
@@ -258,7 +258,7 @@ Deno.serve(async req=>{
     // back, and the client's presenter matcher arms the return on
     // that phrase. Aspen parents pass undefined and keep the stock
     // guest prompt byte-identical.
-    const built=personaSegmentPrompt(b.personaSegment.persona,b.personaSegment.boundary,businessName,String(parent.systemPrompt || ''),b.personaSegment.persona==='alex'?alexDemoGuestConfig(businessName,parent.demoPresenter?presenterAlexGuestPrompt(parent.demoPresenter as 'frank'|'latina'|'black-professional-lady'):undefined):undefined,parent.teamIntroSeen===true,undefined,examplePack?{layer:buildExampleListingsLayer(examplePack)}:undefined);
+    const built=personaSegmentPrompt(b.personaSegment.persona,b.personaSegment.boundary,businessName,String(parent.systemPrompt || ''),b.personaSegment.persona==='alex'?alexDemoGuestConfig(businessName,parent.demoPresenter?presenterAlexGuestPrompt(parent.demoPresenter as PersonaId):undefined):undefined,parent.teamIntroSeen===true,undefined,examplePack?{layer:buildExampleListingsLayer(examplePack)}:undefined);
     config={
       ...parent,
       name:persona.displayName,
