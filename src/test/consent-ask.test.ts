@@ -46,6 +46,7 @@ import {
   consentAskOwedFor,
   consentAskTurnDecision,
   freshConsentAskState,
+  spokenTextingAnswer,
   syncConsentAskState,
   turnContainsTextingAsk,
   type ConsentAskState,
@@ -300,5 +301,38 @@ describe('proxy wiring — the mechanism is driven, not just advised', () => {
     const at = proxySource.indexOf('const decision = consentAskTurnDecision({');
     const block = proxySource.slice(at, proxySource.indexOf("if(config.transferPhone)", at));
     expect(block).toContain('blocked: preview || farewellHandled || farewellTimer !== undefined || managerTransferRequested || pendingActions.size > 0');
+  });
+});
+
+describe('spokenTextingAnswer — the mechanical spoken-consent stamp (2026-11-16)', () => {
+  it('clear affirmatives stamp TRUE', () => {
+    for (const t of ['Yes', 'Yes, please', 'Sure', 'Okay', 'Go ahead', 'Sim', 'Claro', 'Sí, por favor']) {
+      expect(spokenTextingAnswer(t), t).toBe(true);
+    }
+  });
+
+  it('leading negatives stamp FALSE', () => {
+    for (const t of ['No', 'No thanks', 'No, email is fine', 'Não', 'No gracias']) {
+      expect(spokenTextingAnswer(t), t).toBe(false);
+    }
+  });
+
+  it('anything ambiguous stamps NOTHING (the model path decides)', () => {
+    for (const t of [
+      'Yes, but not on that number', // negation anywhere kills a TRUE
+      'What number do you have?', // a question back is not an answer
+      'Maybe later',
+      'I need to think about it and also my email is different and this is a long sentence about something else entirely that goes on for a while longer yes',
+      '',
+    ]) {
+      expect(spokenTextingAnswer(t), t).toBe(undefined);
+    }
+  });
+
+  it('the proxy stamps the answer at the visitor turnComplete when the ask was delivered', () => {
+    const proxy = fs.readFileSync(path.join(__dirname, '..', '..', 'supabase/functions/gemini-live-proxy/index.ts'), 'utf8');
+    expect(proxy).toContain('spokenTextingAnswer(completedUtterance)');
+    expect(proxy).toContain("event: 'consent_answer_stamped'");
+    expect(proxy).toContain('consentAsk.owed && consentAsk.delivered');
   });
 });

@@ -106,6 +106,37 @@ export const CONSENT_ASK_NUDGE = 'You recorded the visitor\'s mobile number, but
 /** Nudge injected when the ask was delivered but its answer was never recorded. */
 export const CONSENT_RECORD_NUDGE = 'The visitor answered your texting question, but the answer has not been recorded. Record it now with record_captured_contact — smsConsent true if they said yes, false if they said no — before anything else. If their answer was genuinely unclear, ask the texting question once more instead.';
 
+/**
+ * SPOKEN-ANSWER STAMP (Ron's ruling, 2026-11-16): a spoken YES to the
+ * texting question IS consent — Aspen may mark it herself, and the
+ * card checkbox is only a backup. Recording used to depend on the
+ * model calling record_captured_contact with the answer; when it
+ * forgot, the booking paths fell back to "not consented" and no
+ * confirmation text ever went out. The proxy now classifies the
+ * visitor's reply to a DELIVERED ask mechanically and stamps the
+ * answer itself (the model's own record can still overwrite it —
+ * merge semantics let a later explicit boolean win).
+ *
+ * Deliberately conservative, biased to the safe side: a wrong TRUE
+ * would text someone who never consented, so TRUE requires a clear
+ * affirmative lead and NO negation anywhere in a short,
+ * question-free turn; a leading NO settles FALSE at once; anything
+ * else is undefined (the model/nudge path decides). EN/PT/ES leads.
+ */
+// The trailing guard is a lookahead, not \b: \b is ASCII-based and
+// fails after accented letters ("Sí," would never match \bsí\b).
+const SPOKEN_YES_LEAD = /^(yes|yeah|yep|yup|sure|ok|okay|absolutely|definitely|please do|go ahead|sim|claro|pode|sí|si)(?=[\s,.:;!]|$)/i;
+const SPOKEN_NO_LEAD = /^(no|nope|nah|not really|no thanks|não|nao|no gracias)(?=[\s,.:;!]|$)/i;
+const SPOKEN_NEGATION = /\b(no|nope|nah|not|never|don't|dont|não|nao|nunca|jamais)\b/i;
+
+export function spokenTextingAnswer(text: string): boolean | undefined {
+  const t = (text || '').trim();
+  if (!t || t.length > 120 || t.includes('?')) return undefined;
+  if (SPOKEN_NO_LEAD.test(t)) return false;
+  if (SPOKEN_YES_LEAD.test(t) && !SPOKEN_NEGATION.test(t)) return true;
+  return undefined;
+}
+
 export type ConsentAskInjection = 'ask' | 'record' | null;
 
 /**

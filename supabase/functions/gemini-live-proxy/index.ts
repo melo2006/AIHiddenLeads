@@ -13,7 +13,7 @@ import { sendBookingConfirmations } from '../_shared/booking-confirm.ts'
 import { platformBookingInstruction } from '../_shared/phone-demo.ts'
 import { confirmedVisitorContact, CONTACT_READBACK_POLICY, CAPTURE_RITUAL_POLICY, CARD_REPRESENT_POLICY } from '../_shared/visitor-followup.ts'
 import { capturedContactFromUnknown, capturedContactBlock, mergeCapturedContact, promptVisitorDetails, type CapturedContact } from '../_shared/captured-contact.ts'
-import { freshConsentAskState, syncConsentAskState, consentAskTurnDecision, CONSENT_ASK_TOOL_DIRECTIVE, CONSENT_ASK_NUDGE, CONSENT_RECORD_NUDGE, type ConsentAskState } from '../_shared/consent-ask.ts'
+import { freshConsentAskState, syncConsentAskState, consentAskTurnDecision, spokenTextingAnswer, CONSENT_ASK_TOOL_DIRECTIVE, CONSENT_ASK_NUDGE, CONSENT_RECORD_NUDGE, type ConsentAskState } from '../_shared/consent-ask.ts'
 import { armCaptureGateFromRecap, captureGateDirective, captureGateRecordDirective, captureGateTurnDecision, freshCaptureGateState, noteVisitorUtterance, spellbackCorrectionNudge, type CaptureGateState } from '../_shared/capture-gate.ts'
 import { armDiscoveryGate, budgetBracketDirective, budgetRangeDirective, budgetRecapDirective, discoveryGateTurnDecision, freshDiscoveryGateState, gateViolationDirective, greetingOnceDirective, nameKnownDirective, namePreemptDirective, nameReleaseDirective, recapCompletenessDirective, seedNameFromFacts, shortGateDirective, shortGatePurposeDirective, type DiscoveryGateState } from '../_shared/discovery-gate.ts'
 import { armSalesGateFromRecap, bundledOfferDirective, earlyAskDirective, endAskDirective, endAskPreArmDirective, freshSalesGateState, noRepeatDirective, salesGatePreAnswerDecision, salesGateTurnDecision, salesSilenceHoldText, shareAngleCompletionDirective, type SalesGateState } from '../_shared/sales-gate.ts'
@@ -924,6 +924,20 @@ Deno.serve(async (req) => {
             // session, never for previews or before the visitor's tap.
             const completedUtterance = callerUtterance
             callerUtterance = ''
+            // SPOKEN-ANSWER STAMP (2026-11-16): the texting ask was
+            // delivered and this visitor turn is its answer — stamp
+            // the consent mechanically instead of depending on the
+            // model to record it (a forgotten record used to land
+            // bookings 'not_consented' and no confirmation text ever
+            // went out). Conservative classifier: only a clear
+            // yes/no stamps; anything else leaves the model path.
+            if (!preview && begun && consentAsk.owed && consentAsk.delivered && capturedContact && typeof capturedContact.smsConsent !== 'boolean') {
+              const spokenAnswer = spokenTextingAnswer(completedUtterance)
+              if (spokenAnswer !== undefined) {
+                console.log(JSON.stringify({ event: 'consent_answer_stamped', sessionId: session.id, smsConsent: spokenAnswer }))
+                noteCapture({ smsConsent: spokenAnswer })
+              }
+            }
             if (!farewellHandled && !preview && begun && detectFarewell(completedUtterance)) {
               farewellHandled = true
               // SINGLE-SOURCE FAREWELL (2026-11-14): this turnComplete
