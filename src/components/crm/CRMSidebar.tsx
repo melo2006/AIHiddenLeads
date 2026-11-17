@@ -1,7 +1,8 @@
 import {
-  LayoutDashboard, Search, Megaphone, LayoutGrid, FileText, Radar, PhoneIncoming, FolderInput, Monitor, Play, Activity, Image, Brain, Target, MessageSquare, Presentation, ShieldCheck, Video, Wand2, Phone, BarChart3
+  LayoutDashboard, Search, Megaphone, LayoutGrid, FileText, Radar, PhoneIncoming, FolderInput, Monitor, Play, Activity, Image, Brain, Target, MessageSquare, Presentation, ShieldCheck, Video, Wand2, Phone, BarChart3, ChevronLeft, ChevronRight
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
+import { BrandLockup } from "@/components/BrandLogo";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
   SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem,
@@ -49,8 +50,39 @@ const pageItems = [
   { title: "Demo Page", url: "/demo", icon: Play },
 ];
 
+/**
+ * Header title for a CRM path, derived from the same nav structure the
+ * sidebar renders — the shell header shows the active section + page
+ * instead of a second copy of the logo. Exact matches win; detail
+ * routes (campaigns/:id, imported/:id) fall back to their parent item.
+ */
+export function crmTitleForPath(pathname: string): { section: string; title: string } {
+  const clean = pathname.replace(/\/+$/, "") || "/dashboard";
+  const groups: { label: string; items: NavItem[] }[] = [
+    ...navGroups,
+    { label: "Marketing", items: marketingItems },
+    { label: "Pages", items: pageItems },
+  ];
+  for (const group of groups) {
+    for (const item of group.items) {
+      if (item.url === clean) return { section: group.label, title: item.title };
+    }
+  }
+  let best: { section: string; title: string; len: number } | null = null;
+  for (const group of groups) {
+    for (const item of group.items) {
+      if (item.url !== "/dashboard" && clean.startsWith(`${item.url}/`) && (!best || item.url.length > best.len)) {
+        best = { section: group.label, title: item.title, len: item.url.length };
+      }
+    }
+  }
+  if (best) return { section: best.section, title: best.title };
+  if (clean === "/dashboard/intent-leads") return { section: "Find leads", title: "Intent Leads" };
+  return { section: "Overview", title: "Dashboard" };
+}
+
 export function CRMSidebar() {
-  const { state, setOpenMobile } = useSidebar();
+  const { state, setOpenMobile, toggleSidebar } = useSidebar();
   const collapsed = state === "collapsed";
 
   const handleNavClick = () => {
@@ -60,14 +92,9 @@ export function CRMSidebar() {
   return (
     <Sidebar collapsible="icon" className="border-r border-border">
       <SidebarContent className="scrollbar-subtle">
-        {/* Logo area */}
-        <div className={`flex items-center gap-2.5 px-4 py-4 border-b border-border ${collapsed ? "justify-center px-2" : ""}`}>
-          <img src="/logo.png" alt="AI Hidden Leads" className={collapsed ? "w-9 h-9" : "w-10 h-10"} />
-          {!collapsed && (
-            <span className="text-base font-extrabold tracking-tight text-foreground">
-              AI <span className="text-primary">Hidden</span> Leads
-            </span>
-          )}
+        {/* Logo area — the one place the brand lockup appears in the shell */}
+        <div className={`flex items-center px-4 py-4 border-b border-border ${collapsed ? "justify-center px-2" : ""}`}>
+          <BrandLockup collapsed={collapsed} />
         </div>
 
         {navGroups.map((group) => (
@@ -173,6 +200,18 @@ export function CRMSidebar() {
           </div>
         )}
       </SidebarContent>
+      {/* Collapse toggle: a small chevron straddling the sidebar's right
+          edge, at the same spot in both states (desktop only — mobile
+          uses the header trigger and the sheet's own close). */}
+      <button
+        type="button"
+        onClick={toggleSidebar}
+        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        className="absolute right-0 top-6 z-20 hidden h-6 w-6 translate-x-1/2 items-center justify-center rounded-full border border-border bg-background text-muted-foreground shadow-sm transition-colors hover:text-foreground md:flex"
+      >
+        {collapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronLeft className="h-3.5 w-3.5" />}
+      </button>
     </Sidebar>
   );
 }
