@@ -74,13 +74,19 @@ function AspenDemoWidgetContent({ voiceRequested = false, onClosed, onAssistantR
   // Stage 3 shell wiring (declared early: close() clears the snapshot).
   const shellControlsRef = useRef<GeminiShellControls | null>(null);
   const [shellState, setShellState] = useState<GeminiShellState | null>(null);
+  // End-of-chat copy pop-up (chat-fix5): the typed chat registers a
+  // close guard here; close() consults it first — a TRUE return
+  // means the chat intercepted the close with its pop-up and the
+  // panel stays open until the pop-up resolves back through close().
+  // Minimize never consults it.
+  const chatCloseGuardRef = useRef<(() => boolean) | null>(null);
   useEffect(() => { let active = true; void preloadVoiceIdentity().then(d => { if (active) { setVideoAvatar(d?.videoAvatar); setIdentityLoaded(true); } }, () => { if (active) setIdentityLoaded(true); }); return () => { active = false; }; }, []);
   // Never hold the website more than 25s, even if preparation stalls.
   useEffect(() => { const t = window.setTimeout(() => onAssistantReady?.(), 25000); return () => window.clearTimeout(t); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (voiceRequested) { setHasOpened(true); setMinimized(false); } }, [voiceRequested]);
   const expanded = open || voiceRequested;
   const minimize = () => { setOpen(false); setMinimized(true); onClosed(); };
-  const close = () => { minimize(); setHasOpened(false); setPrewarm(false); setShellState(null); };
+  const close = () => { if (chatCloseGuardRef.current?.()) return; minimize(); setHasOpened(false); setPrewarm(false); setShellState(null); };
   const mounted = hasOpened || (prewarm && identityLoaded);
   // Example presenter (Frank batch, 2026-11-13): a sample session on
   // a pinned example lead with a presenter is fronted by him from the
@@ -120,7 +126,7 @@ function AspenDemoWidgetContent({ voiceRequested = false, onClosed, onAssistantR
           <GeminiConversation compact faceFirst avatarInline autoStart={expanded} consentOnOpen={expanded} prewarm={prewarm} onPrewarmed={() => onAssistantReady?.()} leadId={chatProps.leadId} prospectId={chatProps.prospectId} name={presenterName} avatarUrl={presenterPortrait} visitorName={chatProps.callerName} onRecommendedPlan={setRecommendedPlan} videoAvatar={matchingAspenVideo(videoAvatar)} verification={verification} invite={invite} sample={sample} onUserTranscript={onUserTranscript} shellControlsRef={shellControlsRef} onShellState={setShellState} belowAvatar={<AspenModeToggle compact mode={mode} onMode={next => { setMode(next); if (next === 'chat') setChatVisited(true); }} />} windowControls={<AspenWindowControls onMinimize={minimize} onClose={close} />} />
         </div>
       </>}
-      {chatVisited && <div className={mode === 'chat' ? 'aspen-panel min-h-80 overflow-hidden rounded-lg border border-border bg-card' : 'hidden'}><div className="aspen-chat-content"><ChatWidget {...chatProps} presenterName={presenterName} presenterKnowledge={presenterKnowledge} embedded active={expanded && mode === 'chat'} memoryKey="homepage" onVoiceMode={() => setMode('voice')} /></div></div>}
+      {chatVisited && <div className={mode === 'chat' ? 'aspen-panel min-h-80 overflow-hidden rounded-lg border border-border bg-card' : 'hidden'}><div className="aspen-chat-content"><ChatWidget {...chatProps} presenterName={presenterName} presenterKnowledge={presenterKnowledge} embedded active={expanded && mode === 'chat'} memoryKey="homepage" onVoiceMode={() => setMode('voice')} closeGuardRef={chatCloseGuardRef} onRequestClose={close} /></div></div>}
       <div className="aspen-sales-actions"><AspenSalesActions plan={recommendedPlan} /></div>
     </FloatingPersonFrame>
   </DraggableFloating>;
