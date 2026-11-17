@@ -3,6 +3,7 @@ import { GripVertical } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import { createPortal } from 'react-dom';
 import { fitFloatingPosition, floatingCornerPosition, type FloatingViewport } from '@/lib/floatingViewport';
+import { availableHeightFor, visualViewportClass } from '@/lib/visualViewport';
 
 const VIEWPORT_PADDING = 12;
 
@@ -214,13 +215,19 @@ const DraggableFloating = ({
       ref={containerRef}
       onPointerDown={onPointerDown}
       onLostPointerCapture={() => stopDragging()}
+      className={visualViewportClass(viewport.height)}
       style={{
         position: "fixed",
         left: visiblePosition.x,
         top: visiblePosition.y,
         zIndex: 'var(--layer-floating)',
         touchAction: isDragging ? "none" : "auto",
-        '--aspen-available-height': `${Math.max(140, viewport.height - 56)}px`,
+        // Chat-fix4: the available height derives from the VISUAL
+        // viewport (state above tracks window.visualViewport), so
+        // the panel shrinks to the visible area when the on-screen
+        // keyboard opens; the aspen-vv-short class switches the
+        // panel's short-viewport CSS rules on the same signal.
+        '--aspen-available-height': `${availableHeightFor(viewport.height)}px`,
       } as React.CSSProperties}
     >
       <div className={dragHandlePlacement === 'below' ? "flex flex-col items-center" : dragHandlePlacement === 'chest' ? "aspen-drag-chest flex flex-col items-center" : "aspen-drag-top flex flex-col items-center"}>

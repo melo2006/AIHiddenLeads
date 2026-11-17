@@ -65,9 +65,12 @@ describe("caption panel — demo timer is a pill in the header row", () => {
     expect(header).toContain('data-testid="demo-timer-pill"');
     expect(header).toContain('t("voice.demoTimeRemaining")');
     expect(header).toContain("rounded-full");
-    // After the status/speaking text, before the Captions pill.
+    // After the status/speaking text. (Chat-fix4, 2026-11-16: the
+    // Captions pill that used to close this row moved into the
+    // merged control row as the literal "CC" button.)
     expect(header.indexOf('data-testid="demo-timer-pill"')).toBeGreaterThan(header.indexOf('t("voice.speaking"'));
-    expect(header.indexOf('data-testid="demo-timer-pill"')).toBeLessThan(header.indexOf("t('voice.captions')"));
+    expect(header).not.toContain("aspen-captions-toggle");
+    expect(header).not.toContain("t('voice.captions')");
   });
 
   it("the pill shows only where the timer already exists (remainingSeconds gate, nothing new)", () => {
@@ -121,28 +124,29 @@ describe("caption panel — manager transfer is a compact pill in the Voice/Type
     expect(conversation).toContain("const toggleManagerRow = (belowAvatar || transferPill) ? (");
   });
 
-  it("panel layout fix (2026-11-12): in face-first mode the window-controls row and the toggle row render INSIDE the voice panel, in that order, under the livebox", () => {
+  it("panel layout fix (2026-11-12) + chat-fix4 (2026-11-16): in face-first mode ONE merged control row renders INSIDE the voice panel under the livebox, the seam name pill first", () => {
     const livebox = conversation.indexOf('className="aspen-person-livebox');
     const panel = conversation.indexOf("'aspen-voice-panel relative z-10");
-    // Focus view (2026-11-14): the slot now renders the focus dock
-    // (which itself contains the window controls) when captions are
-    // off, and the plain window-controls row otherwise — same slot,
-    // same order inside the panel.
-    const controls = conversation.indexOf("{faceFirst && (focusView ? (");
-    expect(conversation).toContain('data-testid="aspen-focus-dock"');
-    expect(conversation.indexOf('data-testid="aspen-focus-dock"')).toBeLessThan(conversation.indexOf("{windowControls}", conversation.indexOf('data-testid="aspen-focus-dock"')));
-    // Scalone batch Item 8b: the slot renders the combined
-    // toggle+transport row in wide landscape, the toggle row otherwise.
-    const toggleRow = conversation.indexOf("{wideLandscape ? landscapeControlRow : toggleManagerRow}");
+    // Chat-fix4: the presenter's name leaves the control row — the
+    // seam pill renders first inside the panel, straddling its top
+    // edge at the left ("on her shoulder"); then the ONE merged
+    // control row; then the status header.
+    const pill = conversation.indexOf('variant="seam"');
+    const controls = conversation.indexOf("{faceFirst && controlRow}");
     const header = conversation.indexOf('<div className="flex items-center gap-1.5">');
-    // Portrait first, then the panel; inside the panel: window controls,
-    // then the toggle row, then the status header — nothing between the
-    // livebox and the panel, and no row overlaps the portrait.
     expect(livebox).toBeGreaterThan(-1);
     expect(livebox).toBeLessThan(panel);
-    expect(panel).toBeLessThan(controls);
-    expect(controls).toBeLessThan(toggleRow);
-    expect(toggleRow).toBeLessThan(header);
+    expect(panel).toBeLessThan(pill);
+    expect(pill).toBeLessThan(controls);
+    expect(controls).toBeLessThan(header);
+    // Inside the merged row: CC first, then the Voice/Type toggle
+    // slot, then the window controls — one line, nothing stacked.
+    const rowStart = conversation.indexOf('data-testid="aspen-control-row"');
+    expect(rowStart).toBeGreaterThan(-1);
+    const row = conversation.slice(rowStart, rowStart + 700);
+    expect(row.indexOf("{captionsToggleButton}")).toBeGreaterThan(-1);
+    expect(row.indexOf("{captionsToggleButton}")).toBeLessThan(row.indexOf("{belowAvatar}"));
+    expect(row.indexOf("{belowAvatar}")).toBeLessThan(row.indexOf("{windowControls}"));
     // The non-face-first compact flow keeps both rows under the avatar
     // (it has no panel card), ahead of the panel-less content div.
     expect(conversation).toContain("{!faceFirst && windowControls}");

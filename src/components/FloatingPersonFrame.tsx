@@ -18,9 +18,14 @@ import aspenIdleBeckon from '@/assets/aspen-idle-wave.gif';
  * Rendered only inside a positioned (relative) portrait container and
  * only while the panel is open — never on the Stage 1 bubble or the
  * Stage 3 minimized bar. */
-export function PersonaNameLabel({ name, variant = 'overlay' }: { name: string; /** 'overlay' = the lower-third pill over the portrait (default, unchanged). 'dock' = the FOCUS VIEW bottom dock: same pill, larger, in flow next to the dock controls (2026-11-14). */ variant?: 'overlay' | 'dock' }) {
+export function PersonaNameLabel({ name, variant = 'overlay' }: { name: string; /** 'overlay' = the lower-third pill over the portrait (default, unchanged). 'dock' = the FOCUS VIEW bottom dock: same pill, larger, in flow next to the dock controls (2026-11-14). 'seam' = chat-fix4 (2026-11-16, Ron's redesign): the small pill floats at the lower-LEFT of the portrait, straddling the seam where the portrait meets the panel's top edge ("on her shoulder, on the left") — rendered inside the panel (positioned relative) at its top-left, half above the panel's top border; it is the ONE deliberate overlap in the panel layout. */ variant?: 'overlay' | 'dock' | 'seam' }) {
   const label = name?.trim().split(/\s+/)[0];
   if (!label) return null;
+  if (variant === 'seam') {
+    return <span data-testid="persona-name-label" aria-hidden="true" className="pointer-events-none absolute left-2 top-0 z-20 -translate-y-1/2">
+      <span className="block whitespace-nowrap rounded-full bg-black/55 px-2.5 py-0.5 text-[11px] font-bold leading-tight tracking-wide text-white shadow-sm backdrop-blur-sm">{label}</span>
+    </span>;
+  }
   if (variant === 'dock') {
     return <span data-testid="persona-name-label" aria-hidden="true" className="pointer-events-none shrink-0">
       <span className="block whitespace-nowrap rounded-full bg-black/55 px-3.5 py-1 text-sm font-semibold leading-tight tracking-wide text-white shadow-sm backdrop-blur-sm">{label}</span>
@@ -159,13 +164,19 @@ function Stage3LiveFace({ photo }: { photo?: string }) {
 }
 
 const segmentClass = (active: boolean) => `flex min-h-10 items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-semibold transition-colors ${active ? 'bg-primary text-primary-foreground shadow-sm' : 'bg-transparent text-foreground hover:bg-muted'}`;
+const compactSegmentClass = (active: boolean) => `flex h-9 min-w-10 items-center justify-center rounded-full px-2.5 transition-colors ${active ? 'bg-primary text-primary-foreground shadow-sm' : 'bg-transparent text-foreground hover:bg-muted'}`;
 
-/** Voice/Type segmented toggle. Rendered INSIDE the panel, never over the
- * portrait — in chat mode the frame places it under the window-controls
- * row, between the portrait and the chat box; in voice mode the widget
- * passes it into GeminiConversation (belowAvatar), which renders it in
- * the voice panel's toggle row, under the window-controls row. */
-export function AspenModeToggle({ mode, onMode }: { mode: 'voice' | 'chat'; onMode: (mode: 'voice' | 'chat') => void }) {
+/** Voice/Type segmented toggle. Rendered INSIDE the panel, never over
+ * the portrait — since chat-fix4 (2026-11-16, Ron's redesign) it sits
+ * in the ONE merged control row beside the window controls, in both
+ * modes: the frame renders it there in chat mode, and in voice mode
+ * the widget passes it into GeminiConversation (belowAvatar), which
+ * renders it in the voice panel's merged control row.
+ * `compact` (chat-fix4): icon-only segments with localized aria-labels
+ * and tooltips — Ron sanctioned icons-only for the merged row; at
+ * 360px the labelled toggle plus the CC button plus DRAG/−/X cannot
+ * share one line. The deliberate-tap guard below is unchanged. */
+export function AspenModeToggle({ mode, onMode, compact = false }: { mode: 'voice' | 'chat'; onMode: (mode: 'voice' | 'chat') => void; compact?: boolean }) {
   const { t } = useTranslation();
   // Ron's rule (2026-11-09, after his Z Fold screenshots): BOTH options stay
   // fully visible in BOTH states. The pill therefore carries its OWN opaque
@@ -191,7 +202,13 @@ export function AspenModeToggle({ mode, onMode }: { mode: 'voice' | 'chat'; onMo
     if (origin && Math.hypot(event.clientX - origin.x, event.clientY - origin.y) > 10) return;
     onMode(next);
   };
-  return <div className="mx-auto flex shrink-0 items-center gap-0.5 rounded-full border border-border bg-card p-1 shadow-md" role="group" aria-label={t("frame.modeAria")}>
+  if (compact) {
+    return <div data-testid="aspen-mode-toggle" className="flex shrink-0 items-center gap-0.5 rounded-full border border-border bg-card p-0.5 shadow-md" role="group" aria-label={t("frame.modeAria")}>
+      <button type="button" className={compactSegmentClass(mode === 'voice')} aria-pressed={mode === 'voice'} aria-label={t("frame.voice")} title={t("frame.voice")} onPointerDown={(event) => { pressOrigin.current = { x: event.clientX, y: event.clientY }; }} onClick={handleClick('voice')}><AudioLines className="h-4 w-4" /></button>
+      <button type="button" className={compactSegmentClass(mode === 'chat')} aria-pressed={mode === 'chat'} aria-label={t("frame.type")} title={t("frame.type")} onPointerDown={(event) => { pressOrigin.current = { x: event.clientX, y: event.clientY }; }} onClick={handleClick('chat')}><MessageSquare className="h-4 w-4" /></button>
+    </div>;
+  }
+  return <div data-testid="aspen-mode-toggle" className="mx-auto flex shrink-0 items-center gap-0.5 rounded-full border border-border bg-card p-1 shadow-md" role="group" aria-label={t("frame.modeAria")}>
     <button type="button" className={segmentClass(mode === 'voice')} aria-pressed={mode === 'voice'} onPointerDown={(event) => { pressOrigin.current = { x: event.clientX, y: event.clientY }; }} onClick={handleClick('voice')}><AudioLines className="h-4 w-4" />{t("frame.voice")}</button>
     <button type="button" className={segmentClass(mode === 'chat')} aria-pressed={mode === 'chat'} onPointerDown={(event) => { pressOrigin.current = { x: event.clientX, y: event.clientY }; }} onClick={handleClick('chat')}><MessageSquare className="h-4 w-4" />{t("frame.type")}</button>
   </div>;
@@ -215,9 +232,12 @@ export function AspenModeToggle({ mode, onMode }: { mode: 'voice' | 'chat'; onMo
 export function AspenWindowControls({ onMinimize, onClose }: { onMinimize: () => void; onClose: () => void }) {
   const { t } = useTranslation();
   return <div className="aspen-person-chest-cluster" role="group" aria-label={t("frame.windowAria")}>
-    <button type="button" data-drag-handle className="flex h-8 cursor-grab touch-none select-none items-center gap-1 rounded-full border border-primary/60 bg-background/90 px-2 text-primary shadow-sm backdrop-blur-sm transition-colors hover:bg-secondary active:cursor-grabbing" aria-label={t("frame.dragWidget")} title={t("frame.drag")}>
+    {/* Chat-fix4 (2026-11-16): the DRAG button is icon-only — with its
+        8px text label the merged one-line control row (CC + Voice/Type
+        + DRAG/−/X) overflowed the 280px voice panel. The grip icon,
+        the localized aria-label and the tooltip carry the meaning. */}
+    <button type="button" data-drag-handle className="flex h-8 cursor-grab touch-none select-none items-center rounded-full border border-primary/60 bg-background/90 px-2 text-primary shadow-sm backdrop-blur-sm transition-colors hover:bg-secondary active:cursor-grabbing" aria-label={t("frame.dragWidget")} title={t("frame.drag")}>
       <GripVertical className="h-3.5 w-3.5" />
-      <span className="text-[8px] font-bold uppercase tracking-wider">{t("frame.drag")}</span>
     </button>
     <Button size="icon" variant="secondary" className="h-8 w-8 border border-border bg-background/90 text-foreground" onClick={onMinimize} title={t("frame.minimize")} aria-label={t("frame.minimize")}><Minus className="h-4 w-4" /></Button>
     {/* Button state colours (2026-11-14, Ron-approved spec): × ENDS the
@@ -294,8 +314,15 @@ export default function FloatingPersonFrame({ name = 'Aspen', avatarUrl, open, m
         <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">{name}</span>
         <button type="button" onClick={() => onMode('voice')} aria-label={t("frame.voiceView")} title={t("frame.voiceView")} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-background/90 text-foreground transition-colors hover:bg-secondary"><Maximize2 className="h-4 w-4" /></button>
       </div>
-      <AspenWindowControls onMinimize={onMinimize} onClose={onClose} />
-      <AspenModeToggle mode={mode} onMode={onMode} />
+      {/* ONE CONTROL ROW (chat-fix4, 2026-11-16, Ron's redesign): the
+          Voice/Type toggle and the window controls used to stack as
+          two rows eating the thread's height; they now share ONE
+          line — compact icon toggle left, DRAG/−/X right. */}
+      <div data-testid="aspen-control-row" className="flex shrink-0 flex-nowrap items-center gap-1 px-0.5">
+        <AspenModeToggle compact mode={mode} onMode={onMode} />
+        <div aria-hidden className="flex-1" />
+        <AspenWindowControls onMinimize={onMinimize} onClose={onClose} />
+      </div>
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">{children}</div>
     </div>}
     {stage === 1 && <Button variant="ghost" onClick={onOpen} title={inviteArrival ? t("frame.hearName", { name: firstName || 'Aspen' }) : talkLabel} aria-label={inviteArrival ? t("frame.hearNameAria", { name: firstName || 'Aspen' }) : talkLabel} className="flex h-auto flex-col items-center gap-1.5 p-0 hover:bg-transparent">

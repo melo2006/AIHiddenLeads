@@ -87,7 +87,7 @@ describe('widget chrome layout — three stages', () => {
     expect(baseProps.onMode).toHaveBeenCalledWith('voice');
   });
 
-  it('stage 2 (chat): exactly one Minimize and one End, with the drag handle, in ONE in-flow row between the header strip and the toggle', () => {
+  it('stage 2 (chat): exactly one Minimize and one End, with the drag handle, in the ONE merged in-flow control row (with the toggle) under the header strip', () => {
     render(<FloatingPersonFrame {...baseProps} open mode="chat"><div>chat panel</div></FloatingPersonFrame>);
     // Exactly one of each window control in the whole open shell.
     expect(screen.getAllByRole('button', { name: 'Minimize' })).toHaveLength(1);
@@ -102,13 +102,17 @@ describe('widget chrome layout — three stages', () => {
     const drag = cluster?.querySelector('[data-drag-handle]');
     expect(drag).toBeTruthy();
     expect(drag?.getAttribute('aria-label')).toBe('Drag widget');
-    // In flow inside the panel: the header strip first, then the row,
-    // then the toggle, then the chat box — the row is a shell child in
-    // normal flow, NOT an overlay.
+    // In flow inside the panel: the header strip first, then the ONE
+    // merged control row — the toggle and the window-controls cluster
+    // share it (chat-fix4, 2026-11-16; they were two stacked rows) —
+    // then the chat box. The row is a shell child in normal flow,
+    // NOT an overlay.
     const strip = screen.getByTestId('aspen-chat-header');
     const toggle = screen.getByRole('group', { name: 'Conversation mode' });
-    expectBefore(strip, cluster as Element);
-    expectBefore(cluster as Element, toggle);
+    const controlRow = screen.getByTestId('aspen-control-row');
+    expect(controlRow.contains(toggle)).toBe(true);
+    expect(controlRow.contains(cluster)).toBe(true);
+    expectBefore(strip, controlRow);
     expect(screen.queryByRole('group', { name: 'Window controls' })?.className).toContain('aspen-person-chest-cluster');
     // No face overlay remains: the old portrait-overlay X class is gone.
     expect(x.className).not.toContain('aspen-person-x-overlay');

@@ -119,7 +119,12 @@ describe('item 5 + refinement A — chat box layouts and the horizontal control 
   const css = read('src/index.css');
   it('focus is reported to the shell from the captions state', () => {
     expect(conv).toContain('focus: faceFirst && !captions');
-    expect(conv).toContain('data-testid="aspen-focus-dock"');
+    // Chat-fix4 (2026-11-16): the focus dock is gone — ONE merged
+    // control row serves every state and the presenter name rides
+    // the seam pill at the panel's top-left.
+    expect(conv).toContain('data-testid="aspen-control-row"');
+    expect(conv).toContain('variant="seam"');
+    expect(conv).not.toContain('data-testid="aspen-focus-dock"');
     expect(conv).toContain('sessionStorage.getItem("aspen-widget-captions")');
   });
   it('focus geometry: shell widens ~24%, livebox grows ~25% (desktop and compact)', () => {

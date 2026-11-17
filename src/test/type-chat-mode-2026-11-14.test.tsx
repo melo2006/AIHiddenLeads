@@ -179,18 +179,22 @@ describe('control row containment + focus view — source pins', () => {
     expect(source).toContain('min-w-[12.5rem] flex-1 justify-center');
   });
 
-  it('focus view hides (never unmounts) the Manager row, but the Voice/Type toggle stays visible (Ron, 2026-11-16)', () => {
+  it('one control row in every state: the toggle renders once in the merged row; the Manager row hides (never unmounts) in focus (chat-fix4, 2026-11-16)', () => {
     const source = read('components/GeminiConversation.tsx');
-    // The row still hides rather than unmounting (a live Manager leg
-    // inside it is never torn down)…
+    // Chat-fix4 replaced the two-row stack (window-controls row +
+    // toggle row, plus the 2026-11-16 focus-only toggle row) with
+    // ONE merged control row that renders in EVERY state — the
+    // toggle can never become unfindable again, and exactly one
+    // instance mounts.
+    expect(source).toContain('data-testid="aspen-control-row"');
+    expect(source).toContain('{belowAvatar && <div className="flex shrink-0 justify-center">{belowAvatar}</div>}');
+    expect(source).not.toContain('data-testid="aspen-focus-mode-toggle"');
+    // The Manager pill keeps its own row, hidden — never unmounted —
+    // in focus, so a live handoff leg is never torn down.
+    expect(source).toContain('data-testid="manager-pill-row"');
+    expect(source).toContain("focusView ? 'hidden' : 'flex shrink-0 flex-col items-end'");
+    // The wide-landscape transport row still hides in focus the same way.
     expect(source).toContain("focusView ? 'hidden' : 'contents'");
-    // …but the toggle itself moves to its own visible focus row —
-    // in the 2026-11-16 phone test the switch to Type was unfindable
-    // with captions off. Exactly one instance mounts: the hidden
-    // row's slot renders null in focus, the landscape row skips it.
-    expect(source).toContain('data-testid="aspen-focus-mode-toggle"');
-    expect(source).toContain('{focusView ? null : belowAvatar}');
-    expect(source).toContain('{belowAvatar && !focusView &&');
   });
 
   it('the demo panel rhythm is tightened without touching the caption space', () => {
