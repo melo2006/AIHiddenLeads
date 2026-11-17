@@ -17,7 +17,7 @@ import { capturedContactFromUnknown, capturedContactBlock, mergeCapturedContact,
 import { freshConsentAskState, syncConsentAskState, consentAskTurnDecision, spokenTextingAnswer, CONSENT_ASK_TOOL_DIRECTIVE, CONSENT_ASK_NUDGE, CONSENT_RECORD_NUDGE, type ConsentAskState } from '../_shared/consent-ask.ts'
 import { armCaptureGateFromRecap, captureGateDirective, captureGateRecordDirective, captureGateTurnDecision, freshCaptureGateState, noteVisitorUtterance, spellbackCorrectionNudge, type CaptureGateState } from '../_shared/capture-gate.ts'
 import { armDiscoveryGate, budgetBracketDirective, budgetRangeDirective, budgetRecapDirective, discoveryGateTurnDecision, freshDiscoveryGateState, gateViolationDirective, greetingOnceDirective, nameKnownDirective, namePreemptDirective, nameReleaseDirective, recapCompletenessDirective, seedNameFromFacts, shortGateDirective, shortGatePurposeDirective, type DiscoveryGateState } from '../_shared/discovery-gate.ts'
-import { armSalesGateFromRecap, bundledOfferDirective, earlyAskDirective, endAskDirective, endAskPreArmDirective, freshSalesGateState, noRepeatDirective, salesGatePreAnswerDecision, salesGateTurnDecision, salesSilenceHoldText, shareAngleCompletionDirective, type SalesGateState } from '../_shared/sales-gate.ts'
+import { armSalesGateFromRecap, bundledOfferDirective, earlyAskDirective, earlyOfferDirective, endAskDirective, endAskPreArmDirective, freshSalesGateState, noRepeatDirective, salesGatePreAnswerDecision, salesGateTurnDecision, salesSilenceHoldText, shareAngleCompletionDirective, type SalesGateState } from '../_shared/sales-gate.ts'
 import { advanceDirective, bookingGateTurnDecision, commitmentDirective, completeDirective, freshBookingGateState, intentDirective, type BookingGateState } from '../_shared/booking-gate.ts'
 import { followupAlert, visitorFollowup, trySend } from '../_shared/hostinger-mail.ts'
 import { DEFAULT_LIVE_MODEL, officialLivePricing } from '../_shared/live-models.ts'
@@ -1234,8 +1234,10 @@ Deno.serve(async (req) => {
                 salesGateInjected = true
                 const text = salesDecision.inject === 'early-ask'
                   ? earlyAskDirective(salesGate.earlyAskCorrections >= 2)
-                  : salesDecision.inject === 'end-ask'
-                    ? endAskDirective(salesGate.endAskRepeat)
+                  : salesDecision.inject === 'early-offer'
+                    ? earlyOfferDirective(salesGate.earlyOfferCorrections >= 2)
+                    : salesDecision.inject === 'end-ask'
+                      ? endAskDirective(salesGate.endAskRepeat)
                     : salesDecision.inject === 'share-angle'
                       ? shareAngleCompletionDirective()
                       : salesDecision.inject === 'bundled-offer'

@@ -39,6 +39,11 @@
 //   2. EARLY-ASK CORRECTION — the model asked for email/phone
 //      before any interest signal or close: capture is end-timed,
 //      and the ask is withdrawn back into the conversation.
+//   2b. EARLY-OFFER CORRECTION (Publish #87) — the model made
+//      the framed send-OFFER itself before any interest signal
+//      or close: the offer is withdrawn the same way, and it
+//      never becomes the outstanding offer the rest of the
+//      machinery would legitimize.
 //   3. THE END-ASK — interest has landed, no contact is held or
 //      volunteered, and the framed ask has not been made: order
 //      it, in Ron's framing.
@@ -128,6 +133,42 @@
 //      end-ask ORDER itself (both variants) now orders the
 //      offer standing alone — the destination ask belongs
 //      after the visitor's yes, inside the ritual.
+//
+// Publish #87 (2026-11-17) — the EARLY OFFER: a pure send-offer
+// the model fires on its own, before any interest or close.
+// Ron's staging test #1 (2026-11-16) showed the shape, and the
+// p87 harness reproduced it verbatim on the pristine gate: two
+// fragmented qualification answers and a speechless stretch —
+// no interest signal anywhere (detectInterestSignal matched
+// none of his utterances, and none of the harness's) — and the
+// model spoke the step-6 close script anyway ("Before we talk
+// calls and setup — let me send you something you can actually
+// use…"), after which this gate COMPLETED the angle for it:
+// the unearned offer was recorded as OUTSTANDING, the very
+// status that legitimizes the acceptance → collection sequence
+// and makes the silence ladder hold on the offer. The gate
+// never ordered any of it; it merely failed to judge it. The
+// bundled-offer branch has always applied a legitimacy test
+// (interest, close, the model's own close, or the gate's own
+// order in flight); the pure-offer branch had none. Now it has
+// the same one:
+//   - an offer WITH one of those behind it is the scripted
+//     delivery, exactly as #84 left it — outstanding, angle
+//     completion, silence hold, all unchanged;
+//   - an offer with NONE of them is the EARLY OFFER, its own
+//     violation class: it does NOT become outstanding (no
+//     acceptance machinery arms behind it, the ladder never
+//     holds on it), the one ask is marked fired — so a decline
+//     spends it for good, exactly as Ron's "not yet" did — and
+//     ONE early-offer correction is owed, firing at this
+//     boundary or, if the boundary is blocked, at the next
+//     free one (the bundledReputOwed pattern: a blocked
+//     boundary must not lose the debt). Interest or a close
+//     landing first retires the debt silently: by then the
+//     offer's moment has legitimately arrived and a scolding
+//     would be stale. The legitimate end-ask is untouched: an
+//     ignored early offer burns nothing (askDelivered stays
+//     false and the order still fires when interest lands).
 
 import { detectDictatedContact } from './capture-gate.ts';
 
@@ -392,6 +433,17 @@ export interface SalesGateState {
   contactHeld: boolean;
   /** Early-ask corrections injected (cap 2). */
   earlyAskCorrections: number;
+  /** Early-OFFER corrections injected (Publish #87: cap 2,
+   * like the other correction families). */
+  earlyOfferCorrections: number;
+  /** A pure send-offer was observed with no interest, close,
+   * or order behind it (Publish #87) and its correction is
+   * owed at the next free boundary. A state field, not a
+   * local, for the bundledReputOwed reason: the observe can
+   * land on a blocked boundary while the correction is the
+   * decision's to fire later — and interest or a close
+   * landing first retires it silently. */
+  earlyOfferOwed: boolean;
   /** Repeat-ask corrections injected (cap 2). */
   repeatCorrections: number;
   /** End-ask orders injected in the CURRENT interest episode
@@ -467,6 +519,8 @@ export const freshSalesGateState = (): SalesGateState => ({
   volunteered: false,
   contactHeld: false,
   earlyAskCorrections: 0,
+  earlyOfferCorrections: 0,
+  earlyOfferOwed: false,
   repeatCorrections: 0,
   endAskFires: 0,
   endAskTotalFires: 0,
@@ -534,6 +588,26 @@ export function earlyAskDirective(second: boolean): string {
     return `You asked for the visitor's contact details early AGAIN. On the sales path that ask belongs at the END — after the visitor has seen the value and shown interest — and nowhere else: not in qualification, not mid-pitch, not while a demo loads. Do not ask for an email address or a phone number again until the visitor shows interest or the conversation reaches its close. Pick up what the visitor just said and continue the sales conversation from there.`;
   }
   return `STOP — you just asked for the visitor's email or phone number, but they have not yet seen the value or shown any interest. On the sales path, contact capture happens ONCE, at the END — asking during qualification or mid-pitch is barred. Do not repeat the ask and do not return to it: continue the sales conversation from what the visitor just said — their business, their calls, their numbers — and let the value land first. (If the visitor VOLUNTEERS their details at any point, take them gladly through the normal read-back ritual — volunteered details are always welcome; only the early ASK is barred.)`;
+}
+
+/**
+ * The early-OFFER correction (Publish #87): the model made the
+ * send-offer itself before the visitor showed interest or the
+ * conversation reached its close — the prompt-layer close
+ * script fired at a fragmented or speechless boundary. The
+ * offer is withdrawn: it does not stand, it is not completed,
+ * and nothing is collected behind it. The second firing is the
+ * sterner repeat. Neither variant scolds the visitor or walks
+ * anything back out loud — the correction steers the NEXT
+ * turn, and pre-answers the two continuations (a yes gets one
+ * warm holding line and still no collection; a no needs no
+ * comment at all).
+ */
+export function earlyOfferDirective(second: boolean): string {
+  if (second) {
+    return `You made the send-offer early AGAIN — the offer to send the demo link, a copy of this conversation, or a follow-up — and it still has not been earned: the visitor has not asked the price or the next steps, has not responded positively to the pitch, and is not wrapping up. That offer is the END-ask of this sales conversation: it belongs after the value has landed and interest has shown, and nowhere else — never mid-qualification, and never because the conversation went quiet or reconnected. Do not make it again until the visitor shows interest or genuinely begins to close. Pick up what the visitor actually said and continue the sales conversation from there.`;
+  }
+  return `STOP — you just made the send-offer (the offer to send the demo link, a copy of this conversation, or a follow-up from the team), but the visitor has NOT shown interest yet and the conversation has not reached its close: no price question, no next-steps question, no positive response, no goodbye. On the sales path that offer is the END-ask — it is earned by interest or by a genuine close, and a pause, a silence, or a reconnect is neither. The offer does not stand: do not repeat it, do not complete it, and do not ask for an email address or a phone number behind it. Pick up what the visitor actually said and continue the sales conversation — their business, their calls, the value — and let the interest come first. If they respond to the offer anyway: a yes gets ONE warm line (you'll be glad to send it once you've wrapped up) and still no collection now; a no needs no comment at all. The offer may be made once, later, when it is earned.`;
 }
 
 /**
@@ -814,7 +888,7 @@ export function salesGatePreAnswerDecision(input: {
 // The turn-boundary decision
 // ---------------------------------------------------------------------------
 
-export type SalesGateInjection = 'early-ask' | 'end-ask' | 'no-repeat' | 'share-angle' | 'bundled-offer' | null;
+export type SalesGateInjection = 'early-ask' | 'early-offer' | 'end-ask' | 'no-repeat' | 'share-angle' | 'bundled-offer' | null;
 
 /**
  * The turn-boundary decision, evaluated by the proxy at each model
@@ -872,6 +946,7 @@ export function salesGateTurnDecision(input: {
   const wasAwaitingDelivery = state.awaitingDelivery;
   let repeatCandidate = false;
   let earlyCandidate = false;
+  let earlyOfferCandidate = false;
   let violationCandidate = false;
   let angleCompletionCandidate = false;
   if (state.awaitingDelivery) state = { ...state, awaitingDelivery: false };
@@ -952,15 +1027,34 @@ export function salesGateTurnDecision(input: {
     // accepts, and while it stands the end-ask order and the
     // silence ladder both hold on it. An offer observed
     // WITHOUT the share angle earns the one completion.
-    const newEpisode = !state.offerOutstanding;
-    state = {
-      ...state,
-      offerOutstanding: true,
-      offerBundled: false,
-      offerAngleMissing: !turnHasShareAngle(modelTurnText),
-      ...(newEpisode ? { angleCompletionFires: 0 } : {}),
-    };
-    if (state.offerAngleMissing) angleCompletionCandidate = true;
+    //
+    // Publish #87 — but only when the offer is EARNED: the
+    // same legitimacy test the bundled branch above applies
+    // (interest folded in, a close under way, the model's own
+    // close in this turn, or the gate's own order in flight).
+    // With none of those behind it, the offer is the EARLY
+    // OFFER — the model fired the prompt-layer close script
+    // on its own, mid-qualification or at a speechless
+    // boundary — and it is NOT recorded as outstanding: no
+    // acceptance arms behind it, the ladder never holds on
+    // it, and no angle completion polishes it. The one ask
+    // is marked fired (a decline then spends it for good,
+    // through the generic fold — Ron's "not yet" outcome),
+    // and the early-offer correction is owed.
+    if (state.interestSeen || state.closeSeen || modelClose || wasAwaitingDelivery) {
+      const newEpisode = !state.offerOutstanding;
+      state = {
+        ...state,
+        offerOutstanding: true,
+        offerBundled: false,
+        offerAngleMissing: !turnHasShareAngle(modelTurnText),
+        ...(newEpisode ? { angleCompletionFires: 0 } : {}),
+      };
+      if (state.offerAngleMissing) angleCompletionCandidate = true;
+    } else {
+      state = { ...state, askFired: true, earlyOfferOwed: true };
+      earlyOfferCandidate = true;
+    }
   }
 
   // The bundled re-put is owed at this boundary when the fold
@@ -997,7 +1091,36 @@ export function salesGateTurnDecision(input: {
       inject: 'early-ask',
     };
   }
-  // 3. BUNDLED-OFFER CORRECTION (Publish #84) — a bundled offer
+  // 2b. (Publish #87) A correction debt from an earlier
+  //     boundary retires silently once interest or a close has
+  //     landed behind the conversation: the offer's moment has
+  //     legitimately arrived, and scolding its early arrival
+  //     now would be stale. (A debt raised at THIS boundary
+  //     cannot be stale — the fold and the observe above ran
+  //     on this boundary's state, so interest/close already
+  //     stand in it and the observe took the legitimate path.)
+  if (state.earlyOfferOwed && !earlyOfferCandidate && (state.interestSeen || state.closeSeen)) {
+    state = { ...state, earlyOfferOwed: false };
+  }
+  // 3. EARLY-OFFER CORRECTION (Publish #87) — the model made
+  //    the send-offer itself with no interest, close, or order
+  //    behind it. The correction withdraws it: not repeated,
+  //    not completed, nothing collected behind it. Fires at
+  //    the observing boundary, or at the next free one when
+  //    that boundary was blocked (the debt rides the state,
+  //    like bundledReputOwed).
+  if ((earlyOfferCandidate || state.earlyOfferOwed) && state.earlyOfferCorrections < 2) {
+    return {
+      state: {
+        ...state,
+        earlyOfferOwed: false,
+        earlyOfferCorrections: state.earlyOfferCorrections + 1,
+        fires: state.fires + 1,
+      },
+      inject: 'early-offer',
+    };
+  }
+  // 4. BUNDLED-OFFER CORRECTION (Publish #84) — a bundled offer
   //    was resolved without acceptance, or stands unresolved
   //    past a speechless boundary: ONE clean re-put of the
   //    offer, standing alone. The fire-time snapshot
@@ -1021,7 +1144,7 @@ export function salesGateTurnDecision(input: {
       inject: 'bundled-offer',
     };
   }
-  // 4. SHARE-ANGLE COMPLETION (Publish #84) — the offer that
+  // 5. SHARE-ANGLE COMPLETION (Publish #84) — the offer that
   //    just landed dropped the share angle: ONE completion
   //    directive orders it as a follow-up beat, while the
   //    offer still stands unanswered (a visitor response
@@ -1037,7 +1160,7 @@ export function salesGateTurnDecision(input: {
       inject: 'share-angle',
     };
   }
-  // 5. THE END-ASK — owed while interest stands behind it and the
+  // 6. THE END-ASK — owed while interest stands behind it and the
   //    FRAMED ask has neither landed nor been declined. Its order
   //    PERSISTS until complied with (Publish #81): it fires at
   //    the boundary where interest lands and the answering turn
