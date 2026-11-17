@@ -48,7 +48,12 @@ describe("Batch 1 — mic environment control: capture-loop wiring", () => {
 
   it("auto-pick is throttled to ~3s and gated on NOT having manually picked this session", () => {
     expect(conversation).toContain("if (now - ambientCheckedAtRef.current < 3000) return;");
-    expect(conversation).toContain("if (!noiseFilterManualRef.current && next.filter !== noiseFilterRef.current) setNoiseFilter(next.filter);");
+    expect(conversation).toContain("if (!noiseFilterManualRef.current) {");
+    // Chat-fix6: the applied auto-pick is clamped — auto may move
+    // between balanced and strong but never lands on light
+    // (quiet-room/minimum) by itself.
+    expect(conversation).toContain("const autoFilter = next.filter === \"light\" ? \"balanced\" : next.filter;");
+    expect(conversation).toContain("if (autoFilter !== noiseFilterRef.current) setNoiseFilter(autoFilter);");
   });
 
   it("every explicit pick routes through chooseNoiseFilter, which marks manual", () => {
@@ -64,9 +69,14 @@ describe("Batch 1 — mic environment control: capture-loop wiring", () => {
     expect(direct).toHaveLength(2);
   });
 
-  it("the persisted value stays the starting point (localStorage read/write untouched)", () => {
+  it("a saved value counts only as a deliberate manual pick (chat-fix6: marker-gated, manual-only persistence)", () => {
     expect(conversation).toContain('localStorage.getItem("voice-noise-filter")');
-    expect(conversation).toContain('localStorage.setItem("voice-noise-filter", noiseFilter)');
+    expect(conversation).toContain('localStorage.getItem("voice-noise-filter-manual") === "1"');
+    // The write lives in the manual chooser, together with the marker.
+    expect(conversation).toContain('localStorage.setItem("voice-noise-filter", value); localStorage.setItem("voice-noise-filter-manual", "1");');
+    // The old every-change persist is gone: an auto-pick must never
+    // write itself into storage as the visitor's "preference".
+    expect(conversation).not.toContain('localStorage.setItem("voice-noise-filter", noiseFilter)');
   });
 });
 

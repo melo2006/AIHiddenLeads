@@ -625,6 +625,7 @@
     "micMuted": "Não estou te ouvindo — seu microfone pode estar no mudo ou selecionado errado.",
     "micMutedLong": "Não estou te ouvindo — seu microfone pode estar no mudo ou selecionado errado. Confira a configuração do microfone e observe o medidor de nível logo abaixo enquanto fala — ele deve se mover com a sua voz.",
     "micNoSound": "Não estou te ouvindo — seu microfone não está enviando som. Toque no botão do microfone, ou permita o acesso ao microfone no seu navegador.",
+    "micSilent": "Não estou ouvindo nada do seu microfone — ele parece estar silencioso. Se estiver usando um fone de ouvido, verifique o plugue ou a conexão, ou escolha outro microfone.",
     "checkMicrophone": "Verificar microfone",
     "reconnectMicrophone": "Reconectar microfone",
     "holdToTalk": "Segurar para falar ATIVADO — segure o botão enquanto fala",

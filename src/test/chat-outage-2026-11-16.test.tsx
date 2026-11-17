@@ -127,9 +127,13 @@ describe('answer-first plan rule — typed chat prompt', () => {
     expect(prompt).toContain('AI HIDDEN LEADS PLANS — ANSWER FIRST');
     expect(prompt).toContain('ANSWER directly and truthfully FIRST');
     expect(prompt).toContain('There is NO unlimited plan and NO Enterprise plan');
-    expect(prompt).toContain('Premium (400 minutes/month)');
-    expect(prompt).toContain('Professional (1,200 minutes/month)');
-    expect(prompt).toContain('Platinum (2,500 minutes/month)');
+    // Chat-fix6: the plan table now leads with DOLLARS (Ron's
+    // "how much" was answered in minutes only); minutes remain as
+    // supporting detail in the same line.
+    expect(prompt).toContain('Premium ($99/month — 400 minutes');
+    expect(prompt).toContain('Professional ($199/month — 1,200 minutes');
+    expect(prompt).toContain('Platinum ($349/month — 2,500 minutes');
+    expect(prompt).toContain('Never answer a money question with minutes alone');
     expect(prompt).toContain('sales director can sometimes arrange custom terms');
     expect(prompt).toContain('never instead of answering');
   });

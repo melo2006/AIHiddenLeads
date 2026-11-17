@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 import "@/i18n"; // standalone harnesses mount this panel without main.tsx
 import { explicitUiLocale, normalizeUiLocale, uiLocaleLanguage } from "@/lib/uiLocale";
 import { visitMemoryAppend, visitMemoryGet, visitMemorySet, type VisitTurn } from "@/lib/visitMemory";
+import { splitReadAloudChunks } from "@/lib/readAloudChunks";
 import { PERSONAS } from "../../../../supabase/functions/_shared/personas";
 import { voiceForLocaleSession } from "../../../../supabase/functions/_shared/locale-voices";
 import { Button } from '@/components/ui/button';
@@ -342,7 +343,16 @@ const ChatWidget = ({
   const [listenLoadingIndex, setListenLoadingIndex] = useState<number | null>(null);
   const [listenErrorIndex, setListenErrorIndex] = useState<number | null>(null);
   const replyAudioRef = useRef<HTMLAudioElement | null>(null);
-  const replyAudioCacheRef = useRef(new Map<number, string>());
+  // Per-chunk object URLs (chat-fix6): a reply's audio is cached
+  // chunk by chunk under its message index; the array fills in as
+  // chunks land and a replay reuses whatever is already there.
+  const replyAudioCacheRef = useRef(new Map<number, Array<string | undefined>>());
+  // Playback generation + fetch abort: stopping (toggle-off, a new
+  // Listen, unmount) bumps the generation and aborts in-flight
+  // chunk fetches, so a superseded player can never start or
+  // advance playback afterwards.
+  const replyAudioGenRef = useRef(0);
+  const replyAudioAbortRef = useRef<AbortController | null>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const photosInputRef = useRef<HTMLInputElement>(null);
   const filesInputRef = useRef<HTMLInputElement>(null);
@@ -415,6 +425,8 @@ const ChatWidget = ({
     return () => {
       mounted.current = false;
       recognitionRef.current?.abort();
+      replyAudioGenRef.current += 1;
+      replyAudioAbortRef.current?.abort();
       if (replyAudioRef.current) { try { replyAudioRef.current.pause(); } catch { /* already stopped */ } replyAudioRef.current = null; }
       objectUrlsRef.current.forEach((url) => { try { URL.revokeObjectURL(url); } catch { /* already gone */ } });
       objectUrlsRef.current = [];
@@ -600,7 +612,8 @@ ${presenterKnowledge.trim()}
 AI HIDDEN LEADS PLANS — ANSWER FIRST:
 - When the visitor asks about plans, minutes or pricing — including "do you have an unlimited plan?" — ANSWER directly and truthfully FIRST, before offering any next step.
 - There is NO unlimited plan and NO Enterprise plan. Never claim one exists and never quote a price for one.
-- The plans are Premium (400 minutes/month), Professional (1,200 minutes/month) and Platinum (2,500 minutes/month).
+- The plans are Premium ($99/month — 400 minutes, up to 50 B2B prospects a month), Professional ($199/month — 1,200 minutes, up to 100 prospects) and Platinum ($349/month — 2,500 minutes, up to 200 prospects).
+- A price question is a question about MONEY: when the visitor asks "how much", what it costs, or anything about price, lead with the DOLLAR prices — Premium $99/month, Professional $199/month, Platinum $349/month — each with what it includes (its minutes and prospects); minutes are supporting detail, never the whole answer. Never answer a money question with minutes alone.
 - If they need more than Platinum offers, say the sales director can sometimes arrange custom terms for larger needs — offer that conversation only AFTER answering, never instead of answering.
 ` : "";
     const systemPrompt = `You are ${isPresenterChat ? presenterDisplayName : "Aspen"}, the AI chat assistant for ${businessName}. You are warm, witty, funny, and genuinely helpful — like a knowledgeable friend who happens to work at the business.
@@ -838,7 +851,20 @@ ${responseLanguageLine}`;
   // in-memory cache, tapping the playing reply stops it. There is
   // deliberately NO speechSynthesis fallback — a failure surfaces
   // the localized listenError line instead of a robot voice.
+  //
+  // CHUNKED PLAYBACK (chat-fix6): the function synthesizes a whole
+  // request before returning, so one request for a long reply cost
+  // ~30s of silence before the first sound. The reply is now split
+  // into sentence-sized chunks (lib/readAloudChunks.ts): chunk 1 is
+  // requested first and plays as soon as it lands, later chunks are
+  // prefetched while the current one plays and are played in order
+  // on the same audio element. Stopping (toggle-off, another
+  // Listen, unmount) bumps the playback generation and aborts
+  // in-flight fetches, so nothing stale can start or advance.
   const stopReplyAudio = useCallback(() => {
+    replyAudioGenRef.current += 1;
+    replyAudioAbortRef.current?.abort();
+    replyAudioAbortRef.current = null;
     const audio = replyAudioRef.current;
     if (audio) {
       try { audio.pause(); } catch { /* already stopped */ }
@@ -851,37 +877,83 @@ ${responseLanguageLine}`;
     if (listenLoadingIndex !== null) return;
     stopReplyAudio();
     setListenErrorIndex(null);
-    let url = replyAudioCacheRef.current.get(index);
-    if (!url) {
-      setListenLoadingIndex(index);
-      try {
-        const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat-read-aloud`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-          body: JSON.stringify({ text, voice: readAloudVoice }),
-        });
-        if (!res.ok) throw new Error(`read-aloud failed [${res.status}]`);
-        url = URL.createObjectURL(await res.blob());
-        replyAudioCacheRef.current.set(index, url);
-        objectUrlsRef.current.push(url);
-      } catch {
-        setListenLoadingIndex(null);
-        if (mounted.current) setListenErrorIndex(index);
+    const chunks = splitReadAloudChunks(text);
+    if (chunks.length === 0) return;
+    const gen = replyAudioGenRef.current;
+    const stale = () => gen !== replyAudioGenRef.current || !mounted.current;
+    const controller = new AbortController();
+    replyAudioAbortRef.current = controller;
+    const existing = replyAudioCacheRef.current.get(index);
+    const chunkUrls: Array<string | undefined> = existing && existing.length === chunks.length ? existing : new Array<string | undefined>(chunks.length);
+    if (chunkUrls !== existing) replyAudioCacheRef.current.set(index, chunkUrls);
+    const fullyCached = chunkUrls.every(Boolean);
+    const inflight = new Map<number, Promise<string>>();
+    const getChunkUrl = (i: number): Promise<string> => {
+      const hit = chunkUrls[i];
+      if (hit) return Promise.resolve(hit);
+      let pending = inflight.get(i);
+      if (!pending) {
+        pending = (async () => {
+          const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat-read-aloud`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            },
+            body: JSON.stringify({ text: chunks[i], voice: readAloudVoice }),
+            signal: controller.signal,
+          });
+          if (!res.ok) throw new Error(`read-aloud failed [${res.status}]`);
+          const url = URL.createObjectURL(await res.blob());
+          chunkUrls[i] = url;
+          objectUrlsRef.current.push(url);
+          return url;
+        })();
+        inflight.set(i, pending);
+      }
+      return pending;
+    };
+    const fail = () => {
+      if (stale()) return;
+      stopReplyAudio();
+      setListenLoadingIndex(null);
+      setListenErrorIndex(index);
+    };
+    // The element is created lazily, only once chunk 1's URL is in
+    // hand: a failed synthesis must leave nothing constructed or
+    // playing behind (the chat-revamp pin), just the error line.
+    let audio: HTMLAudioElement | null = null;
+    let current = -1;
+    const ensureAudio = (): HTMLAudioElement => {
+      if (!audio) {
+        audio = new Audio();
+        replyAudioRef.current = audio;
+        audio.onended = () => { void playChunk(current + 1); };
+        audio.onerror = () => { fail(); };
+      }
+      return audio;
+    };
+    const playChunk = async (i: number): Promise<void> => {
+      if (stale()) return;
+      if (i >= chunks.length) {
+        if (audio && replyAudioRef.current === audio) { replyAudioRef.current = null; setSpeakingIndex(null); }
         return;
       }
-      setListenLoadingIndex(null);
-    }
-    if (!mounted.current) return;
-    const audio = new Audio(url);
-    replyAudioRef.current = audio;
-    audio.onended = () => { if (replyAudioRef.current === audio) { replyAudioRef.current = null; setSpeakingIndex(null); } };
-    audio.onerror = () => { if (replyAudioRef.current === audio) { replyAudioRef.current = null; setSpeakingIndex(null); setListenErrorIndex(index); } };
-    setSpeakingIndex(index);
-    try { await audio.play(); } catch { if (replyAudioRef.current === audio) { replyAudioRef.current = null; setSpeakingIndex(null); setListenErrorIndex(index); } }
+      current = i;
+      let url: string;
+      try { url = await getChunkUrl(i); } catch { fail(); return; }
+      if (stale()) return;
+      // Prefetch the next chunk while this one plays; a prefetch
+      // failure surfaces when playback actually reaches that chunk.
+      if (i + 1 < chunks.length) void getChunkUrl(i + 1).catch(() => { /* reached-chunk handling reports it */ });
+      const el = ensureAudio();
+      el.src = url;
+      try { await el.play(); } catch { fail(); return; }
+      if (i === 0 && !stale()) { setListenLoadingIndex(null); setSpeakingIndex(index); }
+    };
+    if (!fullyCached) setListenLoadingIndex(index);
+    await playChunk(0);
   }, [speakingIndex, listenLoadingIndex, stopReplyAudio, readAloudVoice]);
   const copyReply = useCallback(async (index: number, text: string) => {
     try {

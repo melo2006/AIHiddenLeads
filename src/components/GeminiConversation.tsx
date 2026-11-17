@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Mic, MicOff, Volume2, VolumeX, FlaskConical, PhoneOff, Loader2, Play, Pause, Save, RotateCcw, RefreshCw, Settings2, Check, Speaker, Smartphone, Bluetooth, Timer } from "lucide-react";
+import { Mic, MicOff, Volume2, VolumeX, FlaskConical, PhoneOff, Loader2, Play, Pause, Save, RotateCcw, RefreshCw, Settings2, Check, Speaker, Smartphone, Bluetooth, Timer, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useTranslation } from "react-i18next";
 // This component renders in standalone harnesses (Voice Lab, embeds, tests)
@@ -50,7 +50,7 @@ import PlaybackCaption from '@/components/PlaybackCaption';
 import { voiceSessionHeaders } from '@/lib/voiceSessionAuth';
 import { clearAllVisitMemory, visitMemoryAppend, visitMemoryDelete, visitMemoryGet, visitMemorySet, type VisitTurn } from '@/lib/visitMemory';
 import { shouldShowMicHint } from '@/lib/micAudibility';
-import { createMicFlowState, MIC_MUTED_START_GRACE_MS, micDiagPayload, micDiagSignature, micDiagStamp, micInputSeconds, micTrackStartVerdict, noteMicFrame, noteMicSessionLive, noteMicWatchdogFired, shouldShowMicWatchdog, type MicDiagEvent, type MicTrackState } from '@/lib/micWatchdog';
+import { createMicFlowState, MIC_MUTED_START_GRACE_MS, MIC_SILENT_MIN_LOUD_FRAMES, micDiagPayload, micDiagSignature, micDiagStamp, micInputSeconds, micTrackStartVerdict, noteMicFrame, noteMicSessionLive, noteMicWatchdogFired, shouldShowMicWatchdog, shouldShowSilentMicNotice, type MicDiagEvent, type MicTrackState } from '@/lib/micWatchdog';
 import { createPlayoutStartupWatch, heardEngineWhy, STARTUP_BLOCKED_AFTER_MS, STARTUP_CHECK_AFTER_MS, startupDiagPayload, startupDiagSignature, type PlayoutProbe, type StartupDiagEvent, type StartupVerdict } from '@/lib/playoutStartup';
 import { clearRetainedHandoffMic, fitHandoffRecap, handoffDiagPayload, handoffDiagSignature, handoffVisitFact, isHandoffAnnouncement, micStreamIsLive, retainHandoffMic, reusableMicStream, stripHandoffAnnouncement, takeRetainedHandoffMic, type HandoffDiagEvent, type HandoffDiagMic, type HandoffDiagOutcome } from '@/lib/handoffRecovery';
 import { windowRecapLines } from '../../supabase/functions/_shared/recap-builder';
@@ -536,14 +536,18 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const [captureMode, setCaptureMode] = useState<CaptureMode>(() => initialCaptureMode());
   const [noiseFilter, setNoiseFilter] = useState<NoiseFilter>(() => {
     // NOISY-ROOM DEFAULT (Ron's direction, 2026-11-16): sessions
-    // start on STRONG filtering — assume a noisy place until the
-    // room proves quiet. The ambient auto-pick may still relax the
-    // filter mid-session when the measured floor is genuinely low,
-    // and a visitor's explicit in-session pick always wins. A saved
-    // "light" (a deliberate quiet-room choice) is respected; a saved
+    // start on STRONG filtering — assume a noisy place. The ambient
+    // auto-pick may still move the filter mid-session, but only
+    // between balanced and strong: it never relaxes a session onto
+    // the quiet-room (light) setting by itself — light is a
+    // deliberate manual pick only. A saved value is respected only
+    // when it carries the manual marker written by chooseNoiseFilter:
+    // the old build persisted EVERY auto-pick too, so values storage
+    // holds without the marker (including a dead mic's auto-"light")
+    // are not the visitor's choice and fall back to strong. A saved
     // "balanced" was the old factory default, not a choice, so it
-    // no longer holds a session at the middle setting.
-    try { const saved = localStorage.getItem("voice-noise-filter"); return saved === "light" || saved === "strong" ? saved : "strong"; } catch { return "strong"; }
+    // no longer holds a session at the middle setting either.
+    try { const saved = localStorage.getItem("voice-noise-filter"); const manual = localStorage.getItem("voice-noise-filter-manual") === "1"; return manual && (saved === "light" || saved === "strong") ? saved : "strong"; } catch { return "strong"; }
   });
   const noiseFilterRef = useRef(noiseFilter);
   // Mic environment auto-pick (Batch 1, 2026-11-12): the capture loops feed
@@ -553,8 +557,9 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // starting point — it does NOT count as a manual pick, so auto may still
   // adjust after connect. Any in-session pick (the in-panel Quiet/Normal/
   // Noisy control or either settings-dialog Select) marks manual and stops
-  // auto-picking for the rest of the session; the pick itself still
-  // persists to localStorage via the effect below, exactly as before.
+  // auto-picking for the rest of the session; the pick itself persists to
+  // localStorage from chooseNoiseFilter, together with the manual marker
+  // the initializer above requires before honoring a saved value.
   const [noiseFilterManual, setNoiseFilterManual] = useState(false);
   const noiseFilterManualRef = useRef(false);
   const ambientTrackerRef = useRef<AmbientGateState>(createAmbientGateState(noiseFilter));
@@ -563,6 +568,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const chooseNoiseFilter = (value: NoiseFilter) => {
     noiseFilterManualRef.current = true;
     setNoiseFilterManual(true);
+    // Only a DELIBERATE pick persists (2026-11-16): the persist
+    // effect used to write every noiseFilter change, so the ambient
+    // auto-pick saved its own guesses as the visitor's "preference"
+    // and later sessions started on them. The marker records that
+    // this stored value was a person's choice (see the initializer).
+    try { localStorage.setItem("voice-noise-filter", value); localStorage.setItem("voice-noise-filter-manual", "1"); } catch { /* Keep controls available without storage. */ }
     // Keep the tracker's hysteresis reference on the visitor's own pick.
     ambientTrackerRef.current = { ...ambientTrackerRef.current, filter: value };
     setNoiseFilter(value);
@@ -581,7 +592,16 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     if (now - ambientCheckedAtRef.current < 3000) return;
     ambientCheckedAtRef.current = now;
     setAmbientFloor(next.floor);
-    if (!noiseFilterManualRef.current && next.filter !== noiseFilterRef.current) setNoiseFilter(next.filter);
+    // AUTO-PICK FLOOR (Ron's order, 2026-11-16): auto moves only
+    // between balanced and strong — it NEVER lands on the quiet-room
+    // (light) setting by itself. The plain bands map a near-zero
+    // floor to light, and a dead mic reads floor 0, which is how a
+    // strong-start session silently became "Minimum filtering —
+    // quiet room" in Ron's settings while his mic sent nothing.
+    if (!noiseFilterManualRef.current) {
+      const autoFilter = next.filter === "light" ? "balanced" : next.filter;
+      if (autoFilter !== noiseFilterRef.current) setNoiseFilter(autoFilter);
+    }
   };
   const ambientLevel = ambientLevelForFloor(ambientFloor);
   useEffect(() => {
@@ -590,9 +610,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   }, [noiseFilter, captureMode]);
   useEffect(() => {
     noiseFilterRef.current = noiseFilter;
-    // Only the noise filter persists. Capture mode is session-scoped: writing
-    // it made a one-time hold choice silently govern every later session.
-    try { localStorage.setItem("voice-noise-filter", noiseFilter); } catch { /* Keep controls available without storage. */ }
+    // No persistence here (2026-11-16): this effect used to write
+    // every noiseFilter value — including the ambient auto-pick's —
+    // to localStorage as if it were the visitor's preference.
+    // Persistence now lives in chooseNoiseFilter (manual picks
+    // only, with the manual marker). Capture mode stays
+    // session-scoped for the same reason it always was.
   }, [noiseFilter, captureMode]);
   const [held, setHeld] = useState(false);
   const [muted, setMuted] = useState(false);
@@ -690,6 +713,18 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const micWatchdogRef = useRef(false);
   const micWatchdogShownAtRef = useRef(0);
   const micFlowRef = useRef(createMicFlowState());
+  // Silent-stream guard (chat-fix6, lib/micWatchdog.ts): the
+  // watchdog's sibling for a LIVE-but-silent input — frames flow,
+  // the track is live, the level never rises off zero (Ron's wired
+  // headset, session 3b30cc34). Stage counts surfacings this
+  // session (0 armed, 1 shown once, 2 re-check used, 3 resolved
+  // by real sound); the fired flag rides every later micDiag
+  // stamp as silent=1. Evaluated in the watchdog interval below.
+  const [showSilentMic, setShowSilentMic] = useState(false);
+  const silentMicRef = useRef(false);
+  const silentStageRef = useRef(0);
+  const silentMicFiredRef = useRef(false);
+  const silentLiveSinceRef = useRef(0);
   const lastMicDiagRef = useRef("");
   // Playout startup guard (chat-fix3, 2026-11-16, lib/playoutStartup.ts):
   // the OUTPUT mirror of the mic guard above. The watch arms at the
@@ -1192,7 +1227,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       // Direct track evidence (Publish #56): a track the browser
       // reports muted/ended is a dead path whatever the levels say.
       const micTrack = micStreamRef.current?.getAudioTracks()[0];
-      if (!shouldShowMicWatchdog({
+      const trackDead = !!micTrack && (micTrack.readyState === "ended" || micTrack.muted);
+      const watchdogDue = shouldShowMicWatchdog({
         now: Date.now(),
         live: liveRef.current && !isPreviewRef.current,
         handsFree: captureRef.current.mode === "handsfree",
@@ -1204,9 +1240,55 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         firstFlowAt,
         lastFlowAt,
         lastAliveAt: flow.lastAliveAt,
-        trackDead: !!micTrack && (micTrack.readyState === "ended" || micTrack.muted),
+        trackDead,
         firedForStretch: flow.firedForStretch,
-      })) return;
+      });
+      // Silent-stream guard (chat-fix6): frames flow and the track
+      // is live, but the level never rises off zero — Ron's wired
+      // headset (session 3b30cc34: 956 frames, amb 0.0000, and
+      // Aspen never told him). The dead-path guard above is blind
+      // to it — dither ticks keep its alive tier warm and one
+      // connect transient counts as its flow — so this sibling
+      // watches the loud tier instead: surface the notice ~5s
+      // after go-live, once more at ~15s if dismissed and still
+      // silent, and stand down for good the moment real level
+      // arrives. watchdogDue stands it down (the two notices
+      // never stack), and nothing here touches playout.
+      if (flow.liveSince !== silentLiveSinceRef.current) {
+        silentLiveSinceRef.current = flow.liveSince;
+        silentStageRef.current = 0;
+        silentMicFiredRef.current = false;
+        if (silentMicRef.current) { silentMicRef.current = false; setShowSilentMic(false); }
+      }
+      if (silentMicRef.current) {
+        const resolved = flow.loudFrames >= MIC_SILENT_MIN_LOUD_FRAMES;
+        if (resolved || !liveRef.current || captureRef.current.muted || captureRef.current.paused || captureRef.current.mode !== "handsfree") {
+          silentMicRef.current = false;
+          if (resolved) silentStageRef.current = 3;
+          setShowSilentMic(false);
+        }
+      } else if (shouldShowSilentMicNotice({
+        now: Date.now(),
+        live: liveRef.current && !isPreviewRef.current,
+        handsFree: captureRef.current.mode === "handsfree",
+        muted: captureRef.current.muted,
+        paused: captureRef.current.paused,
+        handoff: handoffRef.current,
+        recoveryActive: sessionRecoveringRef.current || swapBusyRef.current,
+        liveSince: flow.liveSince,
+        frames: flow.frames,
+        loudFrames: flow.loudFrames,
+        trackDead,
+        watchdogActive: watchdogDue,
+        silentStage: silentStageRef.current,
+      })) {
+        silentMicRef.current = true;
+        silentStageRef.current += 1;
+        silentMicFiredRef.current = true;
+        setShowSilentMic(true);
+        stampMicDiagRef.current("watchdog");
+      }
+      if (!watchdogDue) return;
       noteMicWatchdogFired(flow);
       micWatchdogRef.current = true;
       micWatchdogShownAtRef.current = Date.now();
@@ -1507,7 +1589,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         const status = await navigator.permissions?.query({ name: "microphone" as PermissionName });
         if (status?.state) permission = status.state;
       } catch { /* Permissions API unavailable — 'unknown' stands. */ }
-      const payload = micDiagPayload(sessionId, micDiagStamp({ event, flow, permission, track, inputSec, ambientFloor: ambientTrackerRef.current.floor, noiseFilter: noiseFilterRef.current }), Date.now());
+      const payload = micDiagPayload(sessionId, micDiagStamp({ event, flow, permission, track, inputSec, ambientFloor: ambientTrackerRef.current.floor, noiseFilter: noiseFilterRef.current, silentMic: silentMicFiredRef.current }), Date.now());
       const signature = micDiagSignature(payload);
       if (signature === lastMicDiagRef.current) return;
       lastMicDiagRef.current = signature;
@@ -5253,6 +5335,17 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             <Button size="sm" variant="outline" className="aspen-panel-btn h-7 text-[11px] hover:bg-muted hover:text-foreground" onClick={() => void recoverMicrophone()}>{t("panel.reconnectMicrophone")}</Button>
           </div>
         )}
+        {/* Silent-stream guard (chat-fix6): the path is alive but
+            the level never rises — warning toned, not destructive.
+            The button opens voice settings (the mic picker); the X
+            dismisses, and the evaluator re-checks once at ~15s. */}
+        {showSilentMic && phase === "live" && (
+          <div role="alert" className="flex flex-wrap items-center gap-2 rounded-md border border-warning/60 bg-warning/10 p-2 text-[11px] text-foreground">
+            <span>{t("panel.micSilent")}</span>
+            <Button size="sm" variant="outline" className="aspen-panel-btn h-7 text-[11px] hover:bg-muted hover:text-foreground" onClick={() => setShowSettings(true)}>{t("panel.checkMicrophone")}</Button>
+            <button type="button" aria-label={t("demo.dismiss", { defaultValue: "Dismiss" })} onClick={() => { silentMicRef.current = false; setShowSilentMic(false); }} className="ml-auto inline-flex h-7 w-7 items-center justify-center rounded-md hover:bg-muted"><X className="h-3.5 w-3.5" /></button>
+          </div>
+        )}
         {phase === "live" && captureMode === "hold" && (
           <p role="status" className="w-fit rounded-full border border-border bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-foreground">{t("panel.holdToTalk", { defaultValue: "Hold to talk is ON — hold the button while you speak" })}</p>
         )}
@@ -5501,6 +5594,15 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             <div role="alert" className="flex flex-wrap items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-2 text-xs text-foreground">
               <span>{t("panel.micNoSound")}</span>
               <Button size="sm" variant="outline" className="aspen-panel-btn h-7 text-[11px] hover:bg-muted hover:text-foreground" onClick={() => void recoverMicrophone()}>{t("panel.reconnectMicrophone")}</Button>
+            </div>
+          )}
+          {/* Silent-stream guard (chat-fix6): see the face-first
+              panel's notice — same guard, same actions. */}
+          {showSilentMic && phase === "live" && (
+            <div role="alert" className="flex flex-wrap items-center gap-2 rounded-md border border-warning/60 bg-warning/10 p-2 text-xs text-foreground">
+              <span>{t("panel.micSilent")}</span>
+              <Button size="sm" variant="outline" className="aspen-panel-btn h-7 text-[11px] hover:bg-muted hover:text-foreground" onClick={() => setShowSettings(true)}>{t("panel.checkMicrophone")}</Button>
+              <button type="button" aria-label={t("demo.dismiss", { defaultValue: "Dismiss" })} onClick={() => { silentMicRef.current = false; setShowSilentMic(false); }} className="ml-auto inline-flex h-7 w-7 items-center justify-center rounded-md hover:bg-muted"><X className="h-3.5 w-3.5" /></button>
             </div>
           )}
           {phase === "live" && <div className="flex items-center gap-2 text-xs text-muted-foreground">

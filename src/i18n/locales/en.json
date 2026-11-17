@@ -597,6 +597,7 @@
     "micMuted": "I can’t hear you — your microphone may be muted or set to the wrong one.",
     "micMutedLong": "I can’t hear you — your microphone may be muted or set to the wrong one. Check the Microphone setting, and watch the level meter just below while you speak — it should move with your voice.",
     "micNoSound": "I can't hear you — your microphone isn't sending sound. Tap the mic button, or allow microphone access in your browser.",
+    "micSilent": "I can't hear anything from your microphone — it seems silent. If you're using a headset, check the plug or connection, or pick a different microphone.",
     "checkMicrophone": "Check microphone",
     "reconnectMicrophone": "Reconnect microphone",
     "holdToTalk": "Hold to talk is ON — hold the button while you speak",
