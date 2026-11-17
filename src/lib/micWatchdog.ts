@@ -386,8 +386,11 @@ export interface MicDiagStamp {
    * gate was hearing as "the room". Optional: stamps built without a
    * live capture context omit it. */
   ambientFloor?: number;
-  /** The active noise-filter level at stamp time ('light' |
-   * 'balanced' | 'strong'), manual pick or ambient auto-pick. */
+  /** The APPLIED noise-filter level at stamp time ('light' |
+   * 'balanced' | 'strong') — post auto/manual resolution (see
+   * appliedNoiseFilter in voiceLabAudio), never the ambient band:
+   * nf= is what the capture gate ran with; amb= is what the room
+   * measured. */
   noiseFilter?: string;
   /** The silent-stream notice fired at least once this session
    *  (chat-fix6): frames flowed but the level never rose off

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { microphonePcm, shouldSendMicrophone, microphoneGate, microphoneAutoGain, initialCaptureMode, estimateNoiseFloor, pickNoiseFilterForFloor, ambientLevelForFloor, createAmbientGateState, pushAmbientRms, AMBIENT_WINDOW_MAX_SAMPLES, createSpeechGateState, pushSpeechGateFrame, autoNoiseFilter, appliedAmbientLevel, noiseThresholds, SPEECH_GATE_SUSTAIN_MS, SPEECH_GATE_SPEAKING_SUSTAIN_MS, SPEECH_GATE_SPEAKING_THRESHOLD, type NoiseFilter, type SpeechGateState } from "../lib/voiceLabAudio";
+import { microphonePcm, shouldSendMicrophone, microphoneGate, microphoneAutoGain, initialCaptureMode, estimateNoiseFloor, pickNoiseFilterForFloor, ambientLevelForFloor, createAmbientGateState, pushAmbientRms, AMBIENT_WINDOW_MAX_SAMPLES, createSpeechGateState, pushSpeechGateFrame, autoNoiseFilter, appliedAmbientLevel, appliedNoiseFilter, noiseThresholds, SPEECH_GATE_SUSTAIN_MS, SPEECH_GATE_SPEAKING_SUSTAIN_MS, SPEECH_GATE_SPEAKING_THRESHOLD, type NoiseFilter, type SpeechGateState } from "../lib/voiceLabAudio";
 
 describe("Voice Lab microphone privacy controls", () => {
   it('strong filtering does not automatically amplify background noise', () => {
@@ -277,5 +277,18 @@ describe("auto noise policy — strong and noisy unless the visitor chooses", ()
     expect(appliedAmbientLevel(true, 0.003)).toBe("quiet");
     expect(appliedAmbientLevel(true, 0.01)).toBe("normal");
     expect(appliedAmbientLevel(true, 0.03)).toBe("noisy");
+  });
+
+  // micDiag's nf= records the APPLIED filter (2026-11-17): in auto
+  // that is strong by rule, whatever stale value the state holds —
+  // a session's start stamp read nf=balanced in an auto session
+  // because the raw state was stamped before auto resolution.
+  it("the applied filter resolves auto to strong and honors a manual pick", () => {
+    expect(appliedNoiseFilter(false, "light")).toBe("strong");
+    expect(appliedNoiseFilter(false, "balanced")).toBe("strong");
+    expect(appliedNoiseFilter(false, "strong")).toBe("strong");
+    expect(appliedNoiseFilter(true, "light")).toBe("light");
+    expect(appliedNoiseFilter(true, "balanced")).toBe("balanced");
+    expect(appliedNoiseFilter(true, "strong")).toBe("strong");
   });
 });

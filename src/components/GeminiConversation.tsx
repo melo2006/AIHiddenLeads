@@ -20,7 +20,7 @@ import "@/i18n";
 import { explicitUiLocale } from "@/lib/uiLocale";
 import { clearDemoResume } from "@/lib/demoVerification";
 import { FunctionsHttpError } from "@supabase/supabase-js";
-import { microphonePcm, shouldSendMicrophone, microphoneAutoGain, initialCaptureMode, createAmbientGateState, pushAmbientRms, createSpeechGateState, pushSpeechGateFrame, autoNoiseFilter, appliedAmbientLevel, type AmbientGateState, type NoiseFilter, type CaptureMode } from "@/lib/voiceLabAudio";
+import { microphonePcm, shouldSendMicrophone, microphoneAutoGain, initialCaptureMode, createAmbientGateState, pushAmbientRms, createSpeechGateState, pushSpeechGateFrame, autoNoiseFilter, appliedAmbientLevel, appliedNoiseFilter, type AmbientGateState, type NoiseFilter, type CaptureMode } from "@/lib/voiceLabAudio";
 
 import VoiceActionConfirmation, { type VoiceAction } from "./VoiceActionConfirmation";
 import BrowserVoiceHandoff from "@/components/BrowserVoiceHandoff";
@@ -1598,7 +1598,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         const status = await navigator.permissions?.query({ name: "microphone" as PermissionName });
         if (status?.state) permission = status.state;
       } catch { /* Permissions API unavailable — 'unknown' stands. */ }
-      const payload = micDiagPayload(sessionId, micDiagStamp({ event, flow, permission, track, inputSec, ambientFloor: ambientTrackerRef.current.floor, noiseFilter: noiseFilterRef.current, silentMic: silentMicFiredRef.current }), Date.now());
+      const payload = micDiagPayload(sessionId, micDiagStamp({ event, flow, permission, track, inputSec, ambientFloor: ambientTrackerRef.current.floor, noiseFilter: appliedNoiseFilter(noiseFilterManualRef.current, noiseFilterRef.current), silentMic: silentMicFiredRef.current }), Date.now());
       const signature = micDiagSignature(payload);
       if (signature === lastMicDiagRef.current) return;
       lastMicDiagRef.current = signature;
