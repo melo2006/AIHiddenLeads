@@ -24,3 +24,13 @@ const CHIRP = new Set(['Zephyr','Puck','Charon','Kore','Fenrir','Leda','Orus','A
 export function chirpVoice(geminiVoice: string): string {
   return `Google.en-US-Chirp3-HD-${CHIRP.has(geminiVoice) ? geminiVoice : 'Kore'}`;
 }
+
+const CHIRP_LOCALE = { en: 'en-US', es: 'es-ES', pt: 'pt-BR' } as const;
+
+/** chirpVoice in the session's language (phone transfer lines,
+ *  2026-11-17): same voice name, the locale of the language the
+ *  caller is actually speaking. English is byte-identical to
+ *  chirpVoice. */
+export function chirpVoiceForLanguage(geminiVoice: string, language: 'en' | 'es' | 'pt'): string {
+  return `Google.${CHIRP_LOCALE[language] ?? 'en-US'}-Chirp3-HD-${CHIRP.has(geminiVoice) ? geminiVoice : 'Kore'}`;
+}
