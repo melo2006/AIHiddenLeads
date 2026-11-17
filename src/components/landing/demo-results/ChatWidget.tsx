@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect, useMemo, useCallback, type ChangeEvent } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback, type ChangeEvent, type FormEvent } from "react";
+import { createPortal } from "react-dom";
 import { Bot, User, Maximize2, Minimize2, X, ExternalLink, Mic, Square, AudioLines, Send, Plus, Camera, Image as ImageIcon, FolderOpen, FileText, Volume2, Copy, Check, ThumbsUp, ThumbsDown, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { MessageResponse } from '@/components/ai-elements/message';
@@ -58,6 +59,19 @@ interface ChatWidgetProps {
    *  voice-mode button, Gemini-style). Undefined where the surface has
    *  no voice mode to switch to — the button then does not render. */
   onVoiceMode?: () => void;
+  /** End-of-chat copy offer (chat-fix5, 2026-11-16): the shell hands
+   *  its REAL close function here. When the copy pop-up resolves —
+   *  sent, declined, or dismissed — the widget calls this to finish
+   *  the close the visitor started. Undefined on standalone surfaces,
+   *  where the dismissal falls back to `onClose`. */
+  onRequestClose?: () => void;
+  /** End-of-chat copy offer: the shell registers its close path's
+   *  guard slot here (the shellControlsRef pattern). The widget fills
+   *  it with `() => boolean` — TRUE means "I intercepted this close:
+   *  the copy pop-up is showing instead, do not close yet". The shell
+   *  consults it at the top of its close function (NEVER on
+   *  minimize); a false return lets the close proceed. */
+  closeGuardRef?: { current: (() => boolean) | null };
 }
 
 /** A file the visitor attached in the composer. PHOTOS are seen by
@@ -268,6 +282,8 @@ const ChatWidget = ({
   detectedSiteLanguage,
   memoryKey,
   onVoiceMode,
+  onRequestClose,
+  closeGuardRef,
 }: ChatWidgetProps) => {
   const presenterDisplayName = presenterName?.trim() || "Aspen";
   // A named presenter means the WHOLE chat is that presenter — display
@@ -289,8 +305,16 @@ const ChatWidget = ({
   const [messages, setMessages] = useState<Message[]>([]);
   const [recordingAgreed,setRecordingAgreed]=useState(false);
   const [copyEmail,setCopyEmail]=useState('');
-  const [copyOpen,setCopyOpen]=useState(false);
   const [copyStatus,setCopyStatus]=useState('');
+  // End-of-chat copy offer (chat-fix5, 2026-11-16): the email form
+  // used to live INSIDE the panel under the thread, where it ate a
+  // quarter of the box and shoved the current reply's Listen/copy
+  // row out of view (Ron's annotated screenshots). It now exists
+  // ONLY in the end-of-chat pop-up: copyPopupOpen drives the dialog,
+  // copySent records a completed send for this visit (the close
+  // guard's "already sent" condition).
+  const [copySent,setCopySent]=useState(false);
+  const [copyPopupOpen,setCopyPopupOpen]=useState(false);
   const [input, setInput] = useState("");
   const [isThinking, setIsThinking] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -397,10 +421,15 @@ const ChatWidget = ({
     };
   }, []);
 
+  // isStreaming is a dep on purpose (chat-fix5): a reply's
+  // Listen/copy/thumbs row only mounts when streaming ENDS, growing
+  // the thread by its height after the last chunk's scroll — without
+  // this final pass the row sat ~10px below the fold, the tail of
+  // Ron's photographed complaint.
   useEffect(() => {
     const panel = messagesEndRef.current?.parentElement;
     if (panel && followLatest.current) panel.scrollTop = panel.scrollHeight;
-  }, [messages, isThinking]);
+  }, [messages, isThinking, isStreaming]);
 
   const quickPrompts = useMemo(() => {
     // Suggestion chips live in the locale catalogs (chat-fix3,
@@ -892,6 +921,75 @@ ${responseLanguageLine}`;
   // Ron contrasted apps where the mic vanishes once typing starts.
   const typingLayout = composerActive || input.length > 0 || !!attachment;
 
+  // END-OF-CHAT COPY POP-UP (chat-fix5, 2026-11-16, Ron's design:
+  // "make a pop-up at the end — when you click the end or try to
+  // close, offer that as a pop-up"). The close guard intercepts the
+  // panel's close ONCE per visit, only when a real conversation
+  // happened (a visitor message AND a completed Aspen reply after
+  // it — the seeded greeting alone never counts) and no copy has
+  // been sent yet. Every dismissal route (No thanks, the pop-up's X,
+  // the backdrop, and the post-send close) marks the offer resolved
+  // and finishes the close through the shell's own close function,
+  // so the guard can never loop or nag twice. Minimize never comes
+  // near this code — the shells consult the guard only in their
+  // close functions.
+  const copyOfferResolvedRef = useRef(false);
+  const copyGuardStateRef = useRef({ hasConversation: false, copySent: false });
+  const firstUserIndex = messages.findIndex((m) => m.role === "user");
+  const hasConversation = firstUserIndex >= 0
+    && messages.slice(firstUserIndex + 1).some((m) => m.role === "assistant" && m.content.trim().length > 0);
+  useEffect(() => {
+    copyGuardStateRef.current = { hasConversation, copySent };
+  }, [hasConversation, copySent]);
+  const tryInterceptClose = useCallback((): boolean => {
+    const state = copyGuardStateRef.current;
+    if (!state.hasConversation || state.copySent || copyOfferResolvedRef.current) return false;
+    setCopyPopupOpen(true);
+    return true;
+  }, []);
+  useEffect(() => {
+    if (!closeGuardRef) return;
+    closeGuardRef.current = tryInterceptClose;
+    return () => { if (closeGuardRef.current === tryInterceptClose) closeGuardRef.current = null; };
+  }, [closeGuardRef, tryInterceptClose]);
+  const finishCloseFromPopup = useCallback(() => {
+    copyOfferResolvedRef.current = true;
+    setCopyPopupOpen(false);
+    (onRequestClose ?? onClose)?.();
+  }, [onRequestClose, onClose]);
+  // The copy send itself is byte-identical to the old inline form's
+  // submit (chat-fix5 only relocated it): flush the pending record
+  // writes first, then the same conversation-records chatCopy call
+  // with the same capability, email and consent payload.
+  const submitCopy = useCallback(async (event: FormEvent) => {
+    event.preventDefault();
+    await recordQueue.current;
+    const { error } = await supabase.functions.invoke('conversation-records', { body: { action: 'chatCopy', capability: sessionId.current, email: copyEmail, consent: true } });
+    if (error) {
+      setCopyStatus(t("chat.copyUnavailable"));
+    } else {
+      setCopyStatus(t("chat.copyRequested"));
+      setCopySent(true);
+    }
+  }, [copyEmail, t]);
+  // The pop-up is portaled to the body (the panel lives inside a
+  // transformed, sometimes-hidden shell, so an in-tree dialog could
+  // be clipped or invisible) and sized against the VISUAL viewport
+  // while it is open — the fix4 lesson: dvh does not shrink when the
+  // on-screen keyboard opens, so the email field rides the visual
+  // viewport's own box and stays above the keyboard.
+  const [copyPopupBox, setCopyPopupBox] = useState<{ top: number; height: number } | null>(null);
+  useEffect(() => {
+    if (!copyPopupOpen) return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => setCopyPopupBox({ top: vv.offsetTop, height: vv.height });
+    update();
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    return () => { vv.removeEventListener('resize', update); vv.removeEventListener('scroll', update); };
+  }, [copyPopupOpen]);
+
   if(!recordingAgreed)return <div className="space-y-3 p-4 text-foreground"><p className="text-sm font-semibold">{t("chat.consentTitle", { name: presenterDisplayName })}</p><p className="text-xs text-muted-foreground">{t("chat.consentBody")}</p><Button onClick={()=>setRecordingAgreed(true)}>{t("chat.consentStart")}</Button></div>;
   return (
     <div className={embedded ? 'overflow-hidden bg-card' : 'rounded-2xl border border-accent/20 bg-card shadow-2xl overflow-hidden'}>
@@ -918,7 +1016,7 @@ ${responseLanguageLine}`;
           </button>
           {onClose && (
             <button
-              onClick={onClose}
+              onClick={() => { if (!tryInterceptClose()) onClose(); }}
               className="rounded-md bg-foreground/10 p-1 text-foreground transition-colors hover:bg-foreground/20"
               aria-label={t("chat.close")}
             >
@@ -1048,12 +1146,13 @@ ${responseLanguageLine}`;
           )}
         </div>
        )}
-       {/* RECLAIM SPACE WHILE TYPING (chat-fix4): the email-transcript
-           line hides while the composer is active and returns on
-           blur — display-only (the `hidden` class, never an unmount):
-           the copy form's state and the capture path behind it are
-           untouched. */}
-       {messages.some(m=>m.role==='user') && <div data-testid="chat-email-transcript" className={`mb-2 space-y-2 ${typingLayout ? 'hidden' : ''}`}><Button size="sm" variant="ghost" onClick={()=>setCopyOpen(v=>!v)}>{t("chat.emailTranscript")}</Button>{copyOpen&&<form className="space-y-2" onSubmit={async e=>{e.preventDefault();await recordQueue.current;const {error}=await supabase.functions.invoke('conversation-records',{body:{action:'chatCopy',capability:sessionId.current,email:copyEmail,consent:true}});setCopyStatus(error?t("chat.copyUnavailable"):t("chat.copyRequested"));}}><Input aria-label={t("chat.copyEmailAria")} type="email" required value={copyEmail} onChange={e=>setCopyEmail(e.target.value)} placeholder={t("chat.copyEmailPlaceholder")}/><Button type="submit" size="sm">{t("chat.confirmCopy")}</Button><p className="text-xs text-muted-foreground">{t("chat.copyNote")}</p></form>}{copyStatus&&<p role="status" className="text-xs">{copyStatus}</p>}</div>}
+       {/* The email-transcript block used to render HERE, between the
+           thread and the composer (chat-fix5 removed it, Ron's
+           order): it stood in the panel permanently once the visitor
+           had messaged and shoved the current reply's action row out
+           of view. The offer now lives ONLY in the end-of-chat
+           pop-up rendered at the bottom of this component — the
+           thread and composer own this whole column again. */}
        {/* GEMINI-STYLE COMPOSER (Ron, 2026-11-16, from his annotated
            Gemini app screenshot): ONE rounded bar — the "+" attach
            menu at the left (Camera / Photos / Files, exactly three
@@ -1133,6 +1232,49 @@ ${responseLanguageLine}`;
         {t("chat.ctaBanner")}
       </a>}
       </>
+      )}
+      {/* END-OF-CHAT COPY POP-UP (chat-fix5): the ONLY place the
+          email form exists now. Portaled to the body and layered
+          with the app's modal layer (above the floating shell);
+          its container tracks the visual viewport while open so
+          the email field stays above the on-screen keyboard. The
+          strings and the send are the old inline form's, unchanged:
+          heading, placeholder, confirm button, the no-marketing
+          note and the requested/unavailable status line. */}
+      {copyPopupOpen && createPortal(
+        <div
+          data-testid="chat-copy-popup"
+          role="dialog"
+          aria-modal="true"
+          aria-label={t("chat.emailTranscript")}
+          className="fixed inset-x-0 z-[var(--layer-modal)] flex items-center justify-center p-4"
+          style={copyPopupBox ? { top: copyPopupBox.top, height: copyPopupBox.height } : { top: 0, bottom: 0 }}
+        >
+          <div aria-hidden="true" className="absolute inset-0 bg-black/55" onClick={finishCloseFromPopup} />
+          <div className="relative w-full max-w-sm space-y-3 rounded-2xl border border-border bg-card p-4 text-foreground shadow-2xl">
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-sm font-semibold">{t("chat.emailTranscript")}</p>
+              <button
+                type="button"
+                onClick={finishCloseFromPopup}
+                aria-label={t("chat.close")}
+                className="rounded-md bg-foreground/10 p-1 text-foreground transition-colors hover:bg-foreground/20"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <form className="space-y-2" onSubmit={submitCopy}>
+              <Input aria-label={t("chat.copyEmailAria")} type="email" required autoFocus value={copyEmail} onChange={e=>setCopyEmail(e.target.value)} placeholder={t("chat.copyEmailPlaceholder")}/>
+              <Button type="submit" size="sm">{t("chat.confirmCopy")}</Button>
+              <p className="text-xs text-muted-foreground">{t("chat.copyNote")}</p>
+            </form>
+            {copyStatus && <p role="status" className="text-xs">{copyStatus}</p>}
+            {!copySent && (
+              <Button type="button" variant="ghost" size="sm" data-testid="chat-copy-no-thanks" onClick={finishCloseFromPopup}>{t("chat.copyNoThanks")}</Button>
+            )}
+          </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

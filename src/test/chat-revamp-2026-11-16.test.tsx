@@ -477,7 +477,7 @@ describe('keyboard fit + focus toggle + mic gate diagnostics — source pins', (
   it('the chat panel floor is capped against the visual-viewport height var, and chat mode widens the shell', () => {
     const css = read('index.css');
     expect(css).toContain('.aspen-chat-dock .aspen-panel { min-height: min(20rem, max(0px, calc(var(--aspen-available-height, 20rem) - 11rem))); }');
-    expect(css).toContain('.aspen-person-expanded.aspen-person-chat { width: min(26rem, calc(100vw - 16px)); }');
+    expect(css).toContain('.aspen-person-expanded.aspen-person-chat { width: min(28rem, calc(100vw - 16px)); }');
   });
 
   it('the voice transcript wears the same two-side colours as the chat thread', () => {

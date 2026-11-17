@@ -295,33 +295,33 @@ export default function FloatingPersonFrame({ name = 'Aspen', avatarUrl, open, m
         chat mode — the slim header strip inside the dock carries her
         small avatar instead, so the thread gets the space.) */}
     {open && mode === 'chat' && <div data-testid="aspen-chat-dock" className="aspen-chat-dock relative z-10 flex min-h-0 flex-1 flex-col gap-1 rounded-lg border border-primary/40 bg-card p-2 shadow-lg ring-1 ring-foreground/10">
-      {/* CHAT HEADER STRIP (Ron, 2026-11-16): in Type mode the big
-          portrait used to eat ~190px above the dock while the thread
-          squeezed below it. She now collapses to a round avatar
-          pinned in this slim strip — always visible, with her name —
-          and the thread takes the panel's full width and height.
-          Tapping the avatar (or the expand control) returns to the
-          big-avatar view: voice mode, whose layout is unchanged.
-          (Avatar 36px → 56px the same evening: Ron's phone test —
-          "the avatar is too small, increase the size a little bit."
-          56px → 72px in chat-fix3: Ron's second test — he did not
-          notice the increase, "should be a little bigger than what
-          it used to be.") */}
-      <div data-testid="aspen-chat-header" className="flex shrink-0 items-center gap-2 px-0.5">
-        <button type="button" data-testid="aspen-chat-avatar" onClick={() => onMode('voice')} aria-label={t("frame.voiceView")} title={t("frame.voiceView")} className="flex h-[72px] w-[72px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary text-primary-foreground ring-1 ring-primary/50 transition-transform hover:scale-105">
-          {chatAvatarSrc ? <img src={chatAvatarSrc} alt="" draggable={false} className="h-full w-full object-cover object-top" /> : <Mic className="h-6 w-6" />}
-        </button>
-        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">{name}</span>
-        <button type="button" onClick={() => onMode('voice')} aria-label={t("frame.voiceView")} title={t("frame.voiceView")} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-background/90 text-foreground transition-colors hover:bg-secondary"><Maximize2 className="h-4 w-4" /></button>
-      </div>
-      {/* ONE CONTROL ROW (chat-fix4, 2026-11-16, Ron's redesign): the
-          Voice/Type toggle and the window controls used to stack as
-          two rows eating the thread's height; they now share ONE
-          line — compact icon toggle left, DRAG/−/X right. */}
-      <div data-testid="aspen-control-row" className="flex shrink-0 flex-nowrap items-center gap-1 px-0.5">
-        <AspenModeToggle compact mode={mode} onMode={onMode} />
-        <div aria-hidden className="flex-1" />
-        <AspenWindowControls onMinimize={onMinimize} onClose={onClose} />
+      {/* CHAT HEADER — ONE MERGED ROW (chat-fix5, 2026-11-16, Ron's
+          annotation on the fix4 build): the header used to take TWO
+          rows — avatar + name, then the control row — with dead
+          black space beside the name. Now the presenter NAME sits
+          BELOW the avatar bubble (bolder, a step larger, so it
+          stands out) and ALL the controls ride the avatar's own
+          row: [avatar+name stack] … [Voice|Type] [DRAG − X]. The
+          strip's old expand button is gone — it duplicated the
+          avatar's own tap (both switch to the voice view), and the
+          avatar keeps that action and label. The controls container
+          is exactly the avatar's height and centers its contents,
+          so every control's center sits on the avatar's centerline
+          at every width; the 72px avatar fits beside them even at
+          360px, so it does not shrink. (Avatar history: 36px → 56px
+          → 72px across Ron's 2026-11-16 phone tests.) */}
+      <div data-testid="aspen-chat-header" className="flex shrink-0 items-start gap-2 px-0.5">
+        <div className="flex shrink-0 flex-col items-center gap-0.5">
+          <button type="button" data-testid="aspen-chat-avatar" onClick={() => onMode('voice')} aria-label={t("frame.voiceView")} title={t("frame.voiceView")} className="flex h-[72px] w-[72px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary text-primary-foreground ring-1 ring-primary/50 transition-transform hover:scale-105">
+            {chatAvatarSrc ? <img src={chatAvatarSrc} alt="" draggable={false} className="h-full w-full object-cover object-top" /> : <Mic className="h-6 w-6" />}
+          </button>
+          <span data-testid="aspen-chat-name" className="max-w-28 truncate text-center text-base font-bold leading-tight text-foreground">{name}</span>
+        </div>
+        <div data-testid="aspen-control-row" className="flex h-[72px] min-w-0 flex-1 flex-nowrap items-center gap-1">
+          <AspenModeToggle compact mode={mode} onMode={onMode} />
+          <div aria-hidden className="flex-1" />
+          <AspenWindowControls onMinimize={onMinimize} onClose={onClose} />
+        </div>
       </div>
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">{children}</div>
     </div>}

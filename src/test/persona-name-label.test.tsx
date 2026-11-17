@@ -109,7 +109,7 @@ describe('PersonPortrait nameLabel opt-in', () => {
 });
 
 describe('FloatingPersonFrame badge placement', () => {
-  it('chat mode: her name rides the slim header strip beside the small avatar (2026-11-16 layout)', () => {
+  it('chat mode: her name rides the header strip BELOW the small avatar (chat-fix5 merged header)', () => {
     render(<FloatingPersonFrame {...frameProps} open mode="chat" name="Sara"><div>panel</div></FloatingPersonFrame>);
     // No portrait badge anymore: chat mode has no big portrait to badge.
     expect(screen.queryByTestId('persona-name-label')).toBeNull();
