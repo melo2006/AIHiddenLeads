@@ -151,6 +151,20 @@ export function appliedAmbientLevel(manual: boolean, floor: number): AmbientLeve
   return manual ? ambientLevelForFloor(floor) : "noisy";
 }
 
+/** The noise filter the capture gate actually runs with, AFTER
+ * auto/manual resolution: a manual pick applies as chosen; in auto
+ * the applied filter is STRONG by rule (autoNoiseFilter), whatever
+ * the component state currently holds — a stored pick the
+ * initializer honored is superseded by auto resolution at the first
+ * ambient re-evaluation, so the raw state can sit on a stale value
+ * (a session's start stamp read nf=balanced in an auto session,
+ * 2026-11-17). Diagnostics record THIS — micDiag's nf= is what the
+ * gate applied; amb= separately records what the room measured —
+ * so a field reading never confuses the two again. */
+export function appliedNoiseFilter(manual: boolean, current: NoiseFilter): NoiseFilter {
+  return manual ? current : autoNoiseFilter(current);
+}
+
 /** How many per-frame RMS samples the rolling window keeps. At the capture
  * loop's ~2048-sample frames (≈23/sec at 48 kHz) 256 samples span roughly
  * 8–11 seconds of room sound — long enough to smooth speech bursts, short

@@ -496,6 +496,8 @@ describe('keyboard fit + focus toggle + mic gate diagnostics — source pins', (
     const legacy = micDiagStamp({ event: 'end', flow, permission: 'granted', track: 'live', inputSec: 1.5 });
     expect(micDiagDetail(legacy)).toBe('ev=end;perm=granted;track=live;flow=0;first=-;frames=0;sec=1.5;fired=0');
     const convo = read('components/GeminiConversation.tsx');
-    expect(convo).toContain('ambientFloor: ambientTrackerRef.current.floor, noiseFilter: noiseFilterRef.current');
+    // nf= is the APPLIED filter, post auto/manual resolution
+    // (2026-11-17) — never the raw state or the ambient band.
+    expect(convo).toContain('ambientFloor: ambientTrackerRef.current.floor, noiseFilter: appliedNoiseFilter(noiseFilterManualRef.current, noiseFilterRef.current)');
   });
 });

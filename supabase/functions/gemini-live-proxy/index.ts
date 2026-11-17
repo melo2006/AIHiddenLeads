@@ -1,4 +1,4 @@
-import { homepagePacingAction, silenceLadderRung, substantiveCallerTurn, SILENCE_NUDGE_1, SILENCE_NUDGE_2, SILENCE_NUDGE_3 } from '../_shared/homepage-pacing.ts'
+import { homepagePacingAction, silenceLadderDue, substantiveCallerTurn, SILENCE_NUDGE_1, SILENCE_NUDGE_2, SILENCE_NUDGE_3 } from '../_shared/homepage-pacing.ts'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { hourInTimeZone, INTERRUPTION_RESUME_POLICY, languagePolicyFor, NO_SPEAKER_LABEL_RULE, renderOpeningTemplate, sanitizeVisitorName, visitorLocalTimeLine, VOICE_DISCONNECT_PLAIN } from '../_shared/voice-config.ts'
@@ -487,17 +487,27 @@ Deno.serve(async (req) => {
   }
 
   let lastCallerSpeech = Date.now(), wrapupSent = false, pacingTimer: number | undefined
-  // Silence ladder (2026-11-16): the current rung of this silence
-  // episode (0 = none fired) and when the model's last turn ended —
-  // silence is measured from the later of the two, so Aspen's own
-  // long turns never read as the visitor going quiet. The visitor
-  // side of the clock is the last SUBSTANTIVE completed turn
-  // (substantiveCallerTurn), NOT raw transcription fragments: in a
-  // noisy room, one-word background fragments used to reset the
-  // episode on every fragment, so rung 1 ("are you still there?")
-  // fired forever and rungs 2–3 never arrived (Ron's staging
-  // retest, 2026-11-16 — five rung-1 fires in one session).
+  // Silence ladder (2026-11-16; cadence corrected 2026-11-17): the
+  // current rung of this silence episode (0 = none fired). The
+  // episode clock is the VISITOR's silence — seconds since the last
+  // substantive completed visitor turn (lastRealCallerTurnAt) — and
+  // model turns never restart it. The pre-fix clock measured from
+  // the later of BOTH sides' last speech, so Aspen's own check-in
+  // restarted the [15, 40, 75] climb at zero: rung 2 needed a
+  // further full 40s of total silence, rung 3 a further 75s, and
+  // the ladder degenerated into rung-1 repeats (session 3cfadd76,
+  // 2026-11-17 — rung 1 at 20:33:13 and again at 20:33:43). Her
+  // turns now only gate the moment of firing: never while a model
+  // turn is in flight (modelTurnInFlight), never within a short
+  // settle after it ends (lastModelTurnAt) — see silenceLadderDue.
+  // The visitor side of the clock is the last SUBSTANTIVE completed
+  // turn (substantiveCallerTurn), NOT raw transcription fragments:
+  // in a noisy room, one-word background fragments used to reset
+  // the episode on every fragment, so rung 1 ("are you still
+  // there?") fired forever and rungs 2–3 never arrived (Ron's
+  // staging retest, 2026-11-16 — five rung-1 fires in one session).
   let silenceRung = 0, lastModelTurnAt = Date.now(), lastRealCallerTurnAt = Date.now()
+  let modelTurnInFlight = false, lastSilenceFireAt = 0
   const sendOpening = () => {
           // Opening selection lives in _shared/session-opening.ts so the
           // priority stack is unit-tested: persona swap (planned, NO
@@ -567,10 +577,22 @@ Deno.serve(async (req) => {
       // before the pacing actions; never inside a farewell window,
       // a pending handoff, or while a confirmation card is up.
       if (config.homepageSales === true && geminiWs?.readyState === WebSocket.OPEN && !farewellGateActive() && !managerTransferRequested && pendingActions.size === 0) {
-        const silenceSeconds = (Date.now() - Math.max(lastRealCallerTurnAt, lastModelTurnAt)) / 1000
-        const nextRung = silenceLadderRung(silenceSeconds, silenceRung)
+        // Visitor-silence clock (2026-11-17): measured ONLY from
+        // the visitor's last substantive completed turn — Aspen's
+        // own turns, including the ladder's check-ins and bridges,
+        // never restart the climb; they only gate the firing
+        // moment inside silenceLadderDue.
+        const silenceSeconds = (Date.now() - lastRealCallerTurnAt) / 1000
+        const nextRung = silenceLadderDue({
+          silenceSeconds,
+          currentRung: silenceRung,
+          modelSpeaking: modelTurnInFlight,
+          sinceModelTurnEndSeconds: (Date.now() - lastModelTurnAt) / 1000,
+          sinceLastFireSeconds: lastSilenceFireAt === 0 ? Number.POSITIVE_INFINITY : (Date.now() - lastSilenceFireAt) / 1000,
+        })
         if (nextRung > silenceRung) {
           silenceRung = nextRung
+          lastSilenceFireAt = Date.now()
           console.log(JSON.stringify({ event: 'silence_ladder_fire', sessionId: session.id, rung: nextRung }))
           const nudge = nextRung === 1 ? SILENCE_NUDGE_1 : nextRung === 2 ? SILENCE_NUDGE_2 : SILENCE_NUDGE_3
           geminiWs.send(JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text: nudge }] }], turnComplete: true } }))
@@ -925,6 +947,7 @@ Deno.serve(async (req) => {
         if (sc) {
           // Interruption — tell the client to stop playback immediately
           if (sc.interrupted) {
+            modelTurnInFlight = false
             clientSocket.send(JSON.stringify({ type: 'interrupted' }))
             return
           }
@@ -939,6 +962,11 @@ Deno.serve(async (req) => {
           // bookkeeping below are NOT gated: a visitor who speaks
           // again still cancels the end, and the gate lifts with it.
           const gatePostFarewellOutput = farewellGateActive()
+          // Silence-ladder bookkeeping (2026-11-17): any model
+          // output — even output the farewell gate is about to
+          // swallow — means a model turn is in flight; the ladder
+          // must not fire over it. Cleared at turnComplete below.
+          if (sc.modelTurn?.parts?.length || sc.outputTranscription?.text) modelTurnInFlight = true
           if (sc.modelTurn?.parts && !gatePostFarewellOutput) {
             for (const part of sc.modelTurn.parts) {
               if (part.inlineData?.data) {
@@ -989,6 +1017,7 @@ Deno.serve(async (req) => {
           }
           if (sc.turnComplete) {
             lastModelTurnAt = Date.now()
+            modelTurnInFlight = false
             // Farewell hang-up (Fix 5): evaluate the visitor's
             // completed utterance BEFORE the reset below. Once per
             // session, never for previews or before the visitor's tap.
