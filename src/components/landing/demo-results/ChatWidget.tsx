@@ -6,7 +6,7 @@ import { displayNumbers } from '@/lib/displayNumbers';
 import { useTranslation } from "react-i18next";
 import "@/i18n"; // standalone harnesses mount this panel without main.tsx
 import { explicitUiLocale, normalizeUiLocale, uiLocaleLanguage } from "@/lib/uiLocale";
-import { visitMemoryAppend, visitMemoryGet } from "@/lib/visitMemory";
+import { visitMemoryAppend, visitMemoryGet, visitMemorySet, type VisitTurn } from "@/lib/visitMemory";
 import { PERSONAS } from "../../../../supabase/functions/_shared/personas";
 import { voiceForLocaleSession } from "../../../../supabase/functions/_shared/locale-voices";
 import { Button } from '@/components/ui/button';
@@ -170,6 +170,18 @@ export function threadFromVisitMemory(key: string): Message[] {
     .map((turn) => ({ role: turn.role as "user" | "assistant", content: turn.text }));
 }
 
+/** The store's canned-greeting turn when the thread holds ONLY the
+ *  seeded greeting (chat-fix3): the marker the seed writes (kind +
+ *  greetingLang on the turn) makes "canned-only" mechanically
+ *  checkable — a thread with any real exchange, or a lone turn
+ *  without the marker, is conversation history and returns null. */
+export function cannedGreetingTurn(turns: VisitTurn[]): VisitTurn | null {
+  const displayable = turns.filter((turn) => turn.role !== "divider" && !turn.text.startsWith("[visit fact]"));
+  if (displayable.length !== 1) return null;
+  const only = displayable[0];
+  return only.role === "assistant" && only.kind === "canned-greeting" ? only : null;
+}
+
 /** BCP-47 tag for dictation, from the chat's effective
  *  locale ('en' | 'es' | 'pt-BR' | undefined). */
 export function speechLangFor(locale: string | undefined): string {
@@ -244,7 +256,7 @@ const ChatWidget = ({
   // "You are Aspen", so a Frank demo greeted as Frank and then thought
   // and answered as Aspen.
   const isPresenterChat = Boolean(presenterName?.trim());
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   // Effective chat language (Publish #66): the visitor's explicit
   // language-switch pick wins; below it, the language the demo's own
   // scanned website is published in (detectedSiteLanguage from the lead
@@ -341,52 +353,41 @@ const ChatWidget = ({
   }, [messages, isThinking]);
 
   const quickPrompts = useMemo(() => {
-    const nichePrompts: Record<string, string[]> = {
-      realtors: [
-        "What services do you offer for buyers and sellers?",
-        "Can this AI qualify new real estate leads?",
-        "How does voice AI help with showings and inquiries?",
-      ],
-      medspa: [
-        "What treatments do you offer most often?",
-        "Can this assistant answer pricing and consultation questions?",
-        "How can AI chat and voice improve bookings?",
-      ],
-      autodetail: [
-        "What detailing packages are available?",
-        "Can Aspen handle quote questions 24/7?",
-        "How quickly can this setup be added to my site?",
-      ],
-      veterinary: [
-        "Can this assistant help with pet appointment questions?",
-        "How does it handle urgent inquiries after hours?",
-        "What does setup look like for a vet clinic?",
-      ],
-      marine: [
-        "Can Aspen answer questions about boat services?",
-        "How can this capture leads after hours?",
-        "Can voice AI reduce missed calls?",
-      ],
-      general: [
-        "What can Aspen do for my business?",
-        "How do AI chat and voice work together?",
-        "Can I schedule a 15-minute walkthrough?",
-      ],
-    };
-
-    const prompts = nichePrompts[businessNiche] ?? nichePrompts.general;
+    // Suggestion chips live in the locale catalogs (chat-fix3,
+    // 2026-11-16): they used to be 18 hardcoded English strings, so
+    // a Portuguese chat wore English chips under a Portuguese
+    // greeting (Ron's second phone test). The niche set and the
+    // three-per-niche shape are unchanged; the strings now render
+    // in the chat's effective language.
+    const niche = ["realtors", "medspa", "autodetail", "veterinary", "marine"].includes(businessNiche) ? businessNiche : "general";
+    const prompts = [1, 2, 3].map((n) => t(`chat.prompts.${niche}.${n}`, { lng: effectiveChatLocale }));
     // Presenter demos: the starter questions name the presenter too —
     // "What can Aspen do…" under a Frank demo was part of the same
     // wrong-identity bug. Aspen surfaces keep the strings untouched.
     return isPresenterChat ? prompts.map((prompt) => prompt.replace(/Aspen/g, presenterDisplayName)) : prompts;
-  }, [businessNiche, isPresenterChat, presenterDisplayName]);
+  }, [businessNiche, isPresenterChat, presenterDisplayName, t, effectiveChatLocale]);
 
-  const getGreeting = () => {
+  // The language the canned greeting must speak RIGHT NOW: the
+  // chat's effective locale when one is in force, else the site's
+  // current UI language (which itself resolves pick → browser).
+  const currentChatLang = normalizeUiLocale(effectiveChatLocale) ?? normalizeUiLocale(i18n.language) ?? "en";
+
+  /** Compose the canned opening greeting in a given language (the
+   *  chat's effective locale when omitted). One composer for the
+   *  seed, the language repair below, and its legacy-store check,
+   *  so all three always agree byte-for-byte. */
+  const buildGreeting = useCallback((lang?: string) => {
     const hour = new Date().getHours();
-    if (hour < 12) return t("chat.goodMorning", { lng: effectiveChatLocale });
-    if (hour < 17) return t("chat.goodAfternoon", { lng: effectiveChatLocale });
-    return t("chat.goodEvening", { lng: effectiveChatLocale });
-  };
+    const dayPart = hour < 12 ? "chat.goodMorning" : hour < 17 ? "chat.goodAfternoon" : "chat.goodEvening";
+    const firstName = callerName?.split(" ")[0]?.trim();
+    const nameGreet = firstName ? `, ${firstName}` : "";
+    return `${t(dayPart, { lng: lang })}${nameGreet}! 👋 ${t("chat.greetingBody", { businessName, name: presenterDisplayName, lng: lang })}`;
+  }, [t, callerName, businessName, presenterDisplayName]);
+
+  // Standalone surfaces (no visit store): whether the local thread
+  // still holds ONLY the seeded greeting. Cleared the moment a
+  // real exchange begins (handleSend), like the store marker.
+  const cannedLocalRef = useRef(false);
 
   useEffect(() => {
     if (initialized.current) return;
@@ -404,18 +405,65 @@ const ChatWidget = ({
       }
     }
 
-    const firstName = callerName?.split(" ")[0]?.trim();
-    const nameGreet = firstName ? `, ${firstName}` : "";
-    const greeting = `${getGreeting()}${nameGreet}! 👋 ${t("chat.greetingBody", { businessName, name: presenterDisplayName, lng: effectiveChatLocale })}`;
+    const greeting = buildGreeting(effectiveChatLocale);
 
     setMessages([{ role: "assistant", content: greeting }]);
     if (memoryKey) {
       // The greeting joins the shared thread, so a later switch to
       // voice resumes from the whole conversation, greeting included.
-      visitMemoryAppend(memoryKey, { role: "assistant", text: greeting });
+      // It carries the canned-greeting marker + the language it was
+      // composed in, so the repair below can recognize a thread
+      // holding ONLY this greeting and re-seed it if the site's
+      // language moves on (chat-fix3).
+      visitMemoryAppend(memoryKey, { role: "assistant", text: greeting, kind: "canned-greeting", greetingLang: currentChatLang });
       consumedTurnsRef.current = visitMemoryGet(memoryKey).length;
+    } else {
+      cannedLocalRef.current = true;
     }
-  }, [businessName, callerName]);
+  }, [businessName, callerName, buildGreeting, effectiveChatLocale, currentChatLang, memoryKey]);
+
+  // CANNED-GREETING LANGUAGE REPAIR (chat-fix3, Ron's second phone
+  // test): he switched the site to English and the chat still
+  // opened with "Boa noite!" — the greeting had been seeded in
+  // Portuguese under an earlier pick and nothing ever revisited it.
+  // When the chat opens, and whenever the language changes while it
+  // is open, a thread holding ONLY the canned greeting is re-seeded
+  // in the current language — in component state AND in the visit
+  // store. A thread with any real visitor/assistant exchange is
+  // history and is never rewritten.
+  const repairCannedGreeting = useCallback(() => {
+    if (!initialized.current) return;
+    if (memoryKey) {
+      const raw = visitMemoryGet(memoryKey);
+      let canned = cannedGreetingTurn(raw);
+      if (!canned) {
+        // Legacy stores seeded before the marker existed: recognize
+        // the canned greeting by exact composition — the lone
+        // displayable turn IS this composer's output in one of the
+        // supported languages. Anything else is real history.
+        const displayable = raw.filter((turn) => turn.role !== "divider" && !turn.text.startsWith("[visit fact]"));
+        if (displayable.length === 1 && displayable[0].role === "assistant"
+          && ["en", "es", "pt-BR"].some((lang) => displayable[0].text === buildGreeting(lang))) {
+          canned = displayable[0];
+        }
+      }
+      if (!canned) return;
+      if (canned.greetingLang === currentChatLang) return;
+      const fresh = buildGreeting(currentChatLang);
+      if (canned.text === fresh) return;
+      visitMemorySet(memoryKey, raw.map((turn) => (turn === canned ? { ...turn, text: fresh, kind: "canned-greeting" as const, greetingLang: currentChatLang } : turn)));
+      consumedTurnsRef.current = visitMemoryGet(memoryKey).length;
+      setMessages([{ role: "assistant", content: fresh }]);
+      return;
+    }
+    if (!cannedLocalRef.current) return;
+    setMessages((prev) => {
+      if (prev.length !== 1 || prev[0].role !== "assistant") return prev;
+      const fresh = buildGreeting(currentChatLang);
+      return prev[0].content === fresh ? prev : [{ role: "assistant", content: fresh }];
+    });
+  }, [memoryKey, currentChatLang, buildGreeting]);
+  useEffect(() => { repairCannedGreeting(); }, [repairCannedGreeting]);
 
   // Re-sync on (re)activation: while the visitor was on the voice
   // side, spoken turns landed in the visit store; when the chat
@@ -601,6 +649,9 @@ ${responseLanguageLine}`;
     const userMessage: Message = { role: "user", content: userMsg, ...(staged ? { attachment: staged } : {}) };
     const updated = [...messages, userMessage];
     followLatest.current = true;
+    // A real exchange has begun: the thread is history from here —
+    // the canned-greeting repair must never touch it again.
+    cannedLocalRef.current = false;
     setMessages(updated);
     setIsThinking(true);
     const loggedText = staged ? `${userMsg} ${attachmentNote(staged)}`.trim() : userMsg;
@@ -642,7 +693,12 @@ ${responseLanguageLine}`;
     const Ctor = speechRecognitionCtor();
     if (!Ctor) return;
     const recognition = new Ctor();
-    recognition.lang = speechLangFor(effectiveChatLocale);
+    // Dictation speaks the language the visitor is actually seeing
+    // (chat-fix3): the explicit pick when there is one, else the
+    // session's current UI language — the same currentChatLang the
+    // greeting, chips and Listen follow. (The VOICE session's
+    // language stays explicit-pick-only; that lock is separate.)
+    recognition.lang = speechLangFor(currentChatLang);
     recognition.interimResults = true;
     recognition.continuous = false;
     dictationBaseRef.current = input;
@@ -657,7 +713,7 @@ ${responseLanguageLine}`;
     recognitionRef.current = recognition;
     setDictating(true);
     try { recognition.start(); } catch { setDictating(false); recognitionRef.current = null; }
-  }, [dictating, input, effectiveChatLocale]);
+  }, [dictating, input, currentChatLang]);
 
   // Attachment picking: one handler for the Camera / Photos / Files
   // inputs — same guardrails (type allow-list, 10 MB cap) and the

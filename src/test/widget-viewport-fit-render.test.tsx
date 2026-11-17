@@ -64,11 +64,13 @@ describe('widget viewport fit — rendered shell structure', () => {
     const avatar = screen.getByTestId('aspen-chat-avatar');
     expect(strip.contains(avatar)).toBe(true);
     expect(strip.textContent).toContain('Aspen');
-    // Header avatar size (Ron, 2026-11-16 fix): 36px read as a
+    // Header avatar size (Ron, 2026-11-16): 36px read as a
     // thumbnail next to her name — "the avatar is too small,
-    // increase the size a little bit" — it is 56px now.
-    expect(avatar.className).toContain('h-14');
-    expect(avatar.className).toContain('w-14');
+    // increase the size a little bit" — 56px the same evening, then
+    // 72px in chat-fix3 (Ron's second test: he did not notice 56px —
+    // "should be a little bigger than what it used to be").
+    expect(avatar.className).toContain('h-[72px]');
+    expect(avatar.className).toContain('w-[72px]');
     expect(avatar.className).not.toContain('h-9');
 
     // Header strip, window-controls row and toggle are NOT inside the

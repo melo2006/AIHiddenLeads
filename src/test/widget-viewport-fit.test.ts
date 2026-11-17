@@ -105,6 +105,19 @@ describe("widget viewport fit — the chat panel is capped by the dock, not the 
     expect(rule(".aspen-chat-content {")).toContain("min-height: 0");
     expect(rule(".aspen-chat-content {")).toContain("overflow: hidden");
   });
+
+  it("the chat region may actually shrink: the blanket first-child pin excludes it (chat-fix3)", () => {
+    // Ron's second phone test (2026-11-16): the composer was clipped
+    // out of the panel at phone heights — .aspen-panel's blanket
+    // `> div:first-child { flex-shrink: 0 }` pin matched the chat
+    // region (it IS the panel's first div child) and out-specified
+    // the flex:1 shorthand, so the region sized to its content
+    // (495px) inside the capped panel (404px) and the panel's
+    // overflow clip ate the composer. The pin now excludes the
+    // region and a dedicated rule states its shrink.
+    expect(css).toContain(".aspen-panel > div:first-child:not(.aspen-chat-content)");
+    expect(css).toContain(".aspen-panel > div.aspen-chat-content { flex-shrink: 1; }");
+  });
 });
 
 describe("widget viewport fit — Captions pill lives on the header row", () => {

@@ -7,7 +7,22 @@ import type { PersonaId } from "@/lib/personaSwap";
  * completed handoff appends a `divider` row so a visitor scrolling up
  * can follow who said what. Divider rows are chrome — recap builders
  * filter them out. */
-export type VisitTurn = { role: "user" | "assistant" | "divider"; text: string; speaker?: PersonaId };
+export type VisitTurn = {
+  role: "user" | "assistant" | "divider";
+  text: string;
+  speaker?: PersonaId;
+  /** Canned-greeting marker (chat-fix3, 2026-11-16): the typed
+   *  chat's seeded opening greeting carries kind "canned-greeting"
+   *  plus the language it was composed in (greetingLang), so a
+   *  thread holding ONLY that greeting is mechanically
+   *  recognizable — when the site's language no longer matches,
+   *  the greeting is re-seeded in the current language instead of
+   *  greeting an English visitor in Portuguese (Ron's second phone
+   *  test). Real conversation turns never carry the marker, and a
+   *  thread with any real exchange is never rewritten. */
+  kind?: "canned-greeting";
+  greetingLang?: string;
+};
 
 // Same-page-visit memory so pressing play again after Stop resumes instead of re-greeting.
 const visitMemory = new Map<string, VisitTurn[]>();

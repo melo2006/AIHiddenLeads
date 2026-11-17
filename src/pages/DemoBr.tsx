@@ -10,15 +10,17 @@ import TryDemo from "./TryDemo";
  * only turns Portuguese when the voice starts.
  *
  * The route FORCES the pt-BR locale before the demo page is allowed to
- * render: it writes the same localStorage "lang" pick the site's own
- * LanguageSwitcher writes (the one source of truth every downstream
- * mechanism reads — the UI catalog, DemoSite's explicit-pick rule and
- * the session's locale via explicitUiLocale) and switches i18next to
- * pt-BR. Rendering is gated until the switch lands, so no English frame
- * is ever painted. The pick stays set afterwards, exactly like a manual
- * LanguageSwitcher pick: the whole visit — /demo-site included — runs
- * in Portuguese, and the scanned site's detected language can never
- * override the chrome (the explicit pick always wins, Publish #66).
+ * render: it writes the same "lang" pick the site's own
+ * LanguageSwitcher writes — sessionStorage (the in-session explicit
+ * choice every downstream mechanism reads since chat-fix3: the UI
+ * catalog's initial language, DemoSite's explicit-pick rule and the
+ * session's locale via explicitUiLocale) plus its localStorage
+ * mirror — and switches i18next to pt-BR. Rendering is gated until
+ * the switch lands, so no English frame is ever painted. The pick
+ * stays set afterwards, exactly like a manual LanguageSwitcher pick:
+ * the whole visit — /demo-site included — runs in Portuguese, and
+ * the scanned site's detected language can never override the
+ * chrome (the explicit pick always wins, Publish #66).
  *
  * The English /demo is untouched: it renders the same TryDemo component
  * without the "br" variant.
@@ -33,7 +35,10 @@ const DemoBr = () => {
     // The stored pick is what explicitUiLocale() and the session
     // authorize read — set it directly as well as switching i18next,
     // so the force does not depend on the detector's cache timing.
+    // sessionStorage carries the in-session choice (chat-fix3);
+    // localStorage stays as its mirror for other readers.
     try {
+      sessionStorage.setItem("lang", "pt-BR");
       localStorage.setItem("lang", "pt-BR");
     } catch {
       /* storage unavailable — the i18next switch below still applies */

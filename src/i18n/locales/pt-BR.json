@@ -631,6 +631,7 @@
     "micLevel": "Nível do microfone",
     "signInAdmin": "Entre como administrador para continuar testando",
     "audioPaused": "O áudio está pausado. Encerre a chamada e toque em Iniciar de novo para ativar o som.",
+    "tapForSound": "Toque para ativar o som",
     "startTimeout": "A assistente de voz demorou demais para iniciar. Verifique a permissão do microfone e tente novamente.",
     "initialStatus": "Escolha uma voz e toque em Iniciar — depois é só falar, como numa ligação de verdade. Você pode interromper quando quiser.",
     "micLevelShort": "Nível do microfone",
@@ -998,7 +999,39 @@
     "minimize": "Minimizar o chat",
     "close": "Fechar o chat",
     "minimizedNote": "Chat minimizado. Expanda para ler a conversa completa.",
-    "placeholder": "Pergunte qualquer coisa a {{name}}...",
+    "placeholder": "Pergunte à {{name}}...",
+    "prompts": {
+      "realtors": {
+        "1": "Quais serviços vocês oferecem para compradores e vendedores?",
+        "2": "Esta IA consegue qualificar novos leads imobiliários?",
+        "3": "Como a IA de voz ajuda com visitas e consultas?"
+      },
+      "medspa": {
+        "1": "Quais tratamentos vocês oferecem com mais frequência?",
+        "2": "Este assistente consegue responder perguntas sobre preços e avaliações?",
+        "3": "Como o chat e a voz com IA podem melhorar os agendamentos?"
+      },
+      "autodetail": {
+        "1": "Quais pacotes de estética automotiva estão disponíveis?",
+        "2": "A Aspen consegue responder a perguntas sobre orçamentos a qualquer hora?",
+        "3": "Em quanto tempo essa solução pode ser instalada no meu site?"
+      },
+      "veterinary": {
+        "1": "Este assistente consegue ajudar com perguntas sobre consultas para pets?",
+        "2": "Como ele lida com urgências fora do horário comercial?",
+        "3": "Como é a instalação para uma clínica veterinária?"
+      },
+      "marine": {
+        "1": "A Aspen consegue responder perguntas sobre serviços para barcos?",
+        "2": "Como isso pode captar leads fora do horário comercial?",
+        "3": "A IA de voz pode reduzir as chamadas perdidas?"
+      },
+      "general": {
+        "1": "O que a Aspen pode fazer pela minha empresa?",
+        "2": "Como o chat com IA e a conversa por voz funcionam juntos?",
+        "3": "Posso agendar uma demonstração de 15 minutos?"
+      }
+    },
     "messageAria": "Mensagem para {{name}}",
     "sendAria": "Enviar mensagem para {{name}}",
     "messagesAria": "Mensagens do chat de {{name}}",

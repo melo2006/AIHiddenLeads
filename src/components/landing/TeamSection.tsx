@@ -63,7 +63,7 @@ const COPY = {
     },
   },
   pt: {
-    title: "Conheça a equipa por trás da Aspen",
+    title: "Conheça a equipe por trás da Aspen",
     intro:
       "Três pessoas, uma função cada — para nunca ficar a falar com uma máquina sem ninguém por trás.",
     aspen: {
@@ -73,8 +73,8 @@ const COPY = {
       alt: "Aspen, a sua anfitriã de IA, a acenar",
     },
     sara: {
-      role: "Sara — a rececionista da sua demonstração",
-      text: "A Sara entra numa maqueta do seu site e mostra-lhe exatamente como a sua própria rececionista de IA receberia os clientes, responderia a perguntas e faria a marcação. Nada no seu site real é alterado.",
+      role: "Sara — a recepcionista da sua demonstração",
+      text: "A Sara entra numa maquete do seu site e mostra-lhe exatamente como a sua própria recepcionista de IA receberia os clientes, responderia a perguntas e faria a marcação. Nada no seu site real é alterado.",
       cta: "Ouvir a Sara na sua demonstração",
       alt: "Sara, que apresenta a demonstração do seu site",
     },

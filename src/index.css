@@ -310,10 +310,26 @@
 }
   .aspen-panel { position: relative; z-index: 10; display: flex; flex-direction: column; max-height: min(70dvh, var(--aspen-available-height, 70dvh)); }
   .aspen-panel.hidden { display: none; }
-  .aspen-panel > header, .aspen-panel > div:first-child, .aspen-panel > div[aria-label] { flex-shrink: 0; }
+  .aspen-panel > header, .aspen-panel > div:first-child:not(.aspen-chat-content), .aspen-panel > div[aria-label] { flex-shrink: 0; }
   .aspen-chat-content { display: flex; flex: 1; min-height: 0; overflow: hidden; }
   .aspen-chat-content.hidden { display: none; }
   .aspen-chat-content > div { display: flex; flex: 1; min-height: 0; flex-direction: column; }
+  /* Panel fit (2026-11-16, chat-fix3 — Ron's second phone test): the
+     blanket pin above used to match .aspen-chat-content too — it IS
+     the chat panel's first div child — and its specificity silently
+     overrode the flex:1 shorthand's shrink, so the chat region could
+     never absorb the squeeze: its flex-basis (0% of a panel whose
+     height comes from a max-height clamp) fell back to its CONTENT
+     height, the panel clipped at its cap, and the composer sat below
+     the clip edge — at 360×740 the content measured 495px inside a
+     404px panel, the typing field completely off-screen. The pin now
+     excludes the chat region, and the rule below states the region's
+     shrink directly: it is the panel's ONE shrinkable child (the
+     widget's message list scrolls internally and the composer stays
+     pinned at the panel's bottom). Verified in real Chromium via
+     the phone-layout QA script: flex-shrink:1 alone restored the
+     fit at every phone size, keyboard open or closed. */
+  .aspen-panel > div.aspen-chat-content { flex-shrink: 1; }
   /* Chat dock (2026-11-14): inside FloatingPersonFrame's ONE chat dock
      card, the chat surface's own .aspen-panel wrapper drops its card
      chrome (border / background / shadow / ring) so the window controls,
