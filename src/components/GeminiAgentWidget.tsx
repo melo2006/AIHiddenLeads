@@ -12,6 +12,8 @@ import { ALEX_FACE_ID } from '../../supabase/functions/_shared/alex-guide';
 import { BLACK_PROFESSIONAL_LADY_FACE_ID, DIEGO_FACE_ID, FRANK_FACE_ID, JAMES_FACE_ID, LATINA_FACE_ID, SARA_FACE_ID } from '../../supabase/functions/_shared/personas';
 import type { PersonaId } from '@/lib/personaSwap';
 
+import WhatsAppFloatingButton from '@/components/WhatsAppFloatingButton';
+import { WHATSAPP_BUTTON_ENABLED } from '@/lib/whatsapp';
 import { themeVariables, type WidgetTheme } from '../../supabase/functions/_shared/widget-theme';
 import type { VideoAvatar } from '../../supabase/functions/_shared/video-avatar';
 
@@ -95,5 +97,11 @@ export default function GeminiAgentWidget({ agentId, leadId, prospectId, busines
   </FloatingPersonFrame>
  </>;
  const themedContent=<div style={agentId ? themeVariables(identity.theme) as CSSProperties : undefined}>{content}</div>;
-  return <DraggableFloating initialX={12} initialY={window.innerHeight-90} anchorRight anchorBottom resetKey={open ? 'open' : 'closed'} dragHandlePlacement={open ? 'chest' : minimized ? 'top' : 'below'}>{themedContent}</DraggableFloating>;
+  // WhatsApp Phase 1: the green click-to-chat button rides beside this
+ // launcher on public platform surfaces only (not tenant embeds, not
+ // the Alex setup guide). It hides while Aspen is open (her panel owns
+ // the corner) and during the Stage-3 live bar (which stretches across
+ // the corner), so the two never overlap. Config: src/lib/whatsapp.ts.
+ const showWhatsAppButton = WHATSAPP_BUTTON_ENABLED && floating && !agentId && !isGuide && !open && !stage3;
+ return <>{showWhatsAppButton && <WhatsAppFloatingButton />}<DraggableFloating initialX={12} initialY={window.innerHeight-90} anchorRight anchorBottom resetKey={open ? 'open' : 'closed'} dragHandlePlacement={open ? 'chest' : minimized ? 'top' : 'below'}>{themedContent}</DraggableFloating></>;
 }
