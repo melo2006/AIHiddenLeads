@@ -26,6 +26,7 @@
 import { SIMLI_FACE_CATALOG, type AvatarFace } from "@/lib/simliFaceCatalog";
 import frankTile from "@/assets/avatar-library/frank-senior-owner.png";
 import executiveTile from "@/assets/avatar-library/executive-d.png";
+import aspenTile from "@/assets/aspen-gallery-tile.webp";
 
 export interface AvatarLibraryEntry {
   /** Stable library key (not a Simli id). */
@@ -83,7 +84,12 @@ const OWN_MODELS: AvatarLibraryEntry[] = [
     suggestedName: "Aspen",
     nameSettled: true,
     matchedVoice: "Kore",
-    image: catalogImage(ASPEN_FACE_ID),
+    // Tile uses the studio-background composite of her approved portrait
+    // (fix6 re-cut, 2026-11-17) — the same light studio background as every
+    // other library tile — imported directly like Frank's, so the library
+    // tile never falls back to a transparent/floating still. Display only:
+    // the live face is selected by faceId, not by this image.
+    image: aspenTile,
     category: "Your face",
     generation: catalogGeneration(ASPEN_FACE_ID),
     own: true,
