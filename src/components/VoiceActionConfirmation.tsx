@@ -62,6 +62,11 @@ export default function VoiceActionConfirmation({ action, onAnswer }: { action: 
         {!appointment && <div className="space-y-1 border-y border-border py-2 text-xs text-muted-foreground"><p className="break-words">{t('card.nameSpelling')} {spelling.name}</p><p className="break-words">{t('card.emailSpelling')} {spelling.email}</p>{spelling.phone && <p className="break-words">{t('card.phoneDigits')} {spelling.phone}</p>}</div>}
         <label className="flex items-start gap-2 text-xs"><input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)}/>{copy ? t('card.consentCopy') : appointment ? t('card.consentAppointment', { defaultValue: 'I confirm this appointment with AI Hidden Leads.' }) : t('card.consentFollowup')}</label>
         {showSmsOptIn && <label className="flex items-start gap-2 text-xs"><input type="checkbox" aria-label={t('card.smsLabel', { defaultValue: 'Text me this confirmation' })} checked={smsConsent} onChange={e => setSmsConsent(e.target.checked)}/>{t('card.smsLabel', { defaultValue: 'Text me this confirmation' })}</label>}
+        {/* Studio fold (2026-11-17, Option 2 cutover): the A2P/TCPA disclosure
+            footnote lived only in the AI Studio copy of this file (Publish #71
+            era) and never reached the repo. Folded verbatim so flipping the
+            apex to the repo build cannot lose it. */}
+        {showSmsOptIn && <p className="text-[11px] leading-snug text-muted-foreground">{t('card.smsDisclosure', { defaultValue: 'Msg frequency varies. Msg & data rates may apply. Reply STOP to opt out, HELP for help. Consent is not a condition of purchase.' })} <a href="/privacy" className="underline underline-offset-2">Privacy Policy</a> {' · '} <a href="/terms" className="underline underline-offset-2">Terms</a></p>}
         {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
       </div>
       <div className="sticky bottom-0 z-10 flex gap-2 border-t border-border bg-background px-6 py-4">
