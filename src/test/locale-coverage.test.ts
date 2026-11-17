@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import en from '../i18n/locales/en.json';
+import es from '../i18n/locales/es.json';
 import pt from '../i18n/locales/pt-BR.json';
 
 function leafKeys(o: unknown, prefix = '', out: string[] = []): string[] {
@@ -14,12 +15,17 @@ describe('locale coverage', () => {
   // PT-BR reached full EN coverage on 2026-11-16 (the last 24 keys:
   // the pricing map-visibility set + avatar.intro). A missing key
   // silently falls back to English on the Portuguese pages — pin
-  // full coverage so it cannot regress unnoticed. (Spanish is a
-  // known, much larger gap — 366 keys at last count — and is NOT
-  // pinned here; closing it is its own project.)
+  // full coverage so it cannot regress unnoticed. Spanish closed
+  // its 366-key gap on 2026-11-17 and is pinned the same way.
   it('pt-BR covers every English leaf key', () => {
     const ptKeys = new Set(leafKeys(pt));
     const missing = leafKeys(en).filter((k) => !ptKeys.has(k));
+    expect(missing).toEqual([]);
+  });
+
+  it('es covers every English leaf key', () => {
+    const esKeys = new Set(leafKeys(es));
+    const missing = leafKeys(en).filter((k) => !esKeys.has(k));
     expect(missing).toEqual([]);
   });
 });
