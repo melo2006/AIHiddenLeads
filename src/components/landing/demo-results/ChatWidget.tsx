@@ -224,13 +224,14 @@ export function readAloudVoiceFor(presenterDisplayName: string | undefined, loca
 
 interface SpeechRecognitionResultLike { isFinal: boolean; 0: { transcript: string } }
 interface SpeechRecognitionEventLike { results: ArrayLike<SpeechRecognitionResultLike> }
+interface SpeechRecognitionErrorEventLike { error: string }
 interface SpeechRecognitionLike {
   lang: string;
   interimResults: boolean;
   continuous: boolean;
   onresult: ((event: SpeechRecognitionEventLike) => void) | null;
   onend: (() => void) | null;
-  onerror: (() => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
   start: () => void;
   stop: () => void;
   abort: () => void;
@@ -358,6 +359,28 @@ const ChatWidget = ({
   const filesInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const dictationBaseRef = useRef("");
+  // Dictation keep-recording state (2026-11-17): the browser's
+  // recognition session is NOT the dictation — it ends itself on a
+  // silence pause or a transient error while the visitor is still
+  // mid-thought (Ron's report: cut off ~10s in, mid-sentence). The
+  // refs below carry the dictation ACROSS those self-ended sessions:
+  // active = the visitor's intent (only their stop tap ends it),
+  // committed = final speech banked from sessions that already ended,
+  // and the restart bookkeeping backs off instead of spinning when
+  // sessions die instantly with nothing heard.
+  const dictationActiveRef = useRef(false);
+  const dictationCommittedRef = useRef("");
+  const dictationSessionFinalRef = useRef("");
+  const dictationSessionLastSegmentRef = useRef("");
+  const dictationSessionHadResultRef = useRef(false);
+  const dictationLastSegmentRef = useRef("");
+  const dictationSkipFirstRef = useRef(false);
+  const dictationSessionCheckedRef = useRef(false);
+  const dictationFailuresRef = useRef(0);
+  const dictationRestartTimerRef = useRef<number | null>(null);
+  const dictationLangRef = useRef("en-US");
+  const dictationEndRef = useRef<(immediate: boolean) => void>(() => { /* set below */ });
+  const [dictateError, setDictateError] = useState("");
   const objectUrlsRef = useRef<string[]>([]);
   const [speechSupported] = useState(() => Boolean(speechRecognitionCtor()));
   // Chat-fix4 (2026-11-16, Ron's redesign): composer focus state.
@@ -424,7 +447,10 @@ const ChatWidget = ({
     mounted.current = true;
     return () => {
       mounted.current = false;
+      dictationActiveRef.current = false;
+      if (dictationRestartTimerRef.current !== null) { window.clearTimeout(dictationRestartTimerRef.current); dictationRestartTimerRef.current = null; }
       recognitionRef.current?.abort();
+      recognitionRef.current = null;
       replyAudioGenRef.current += 1;
       replyAudioAbortRef.current?.abort();
       if (replyAudioRef.current) { try { replyAudioRef.current.pause(); } catch { /* already stopped */ } replyAudioRef.current = null; }
@@ -743,6 +769,12 @@ ${responseLanguageLine}`;
     }
 
     if (!prefill) {
+      // A send ends any dictation in flight (contract: send is one
+      // of the only ways a dictation ends) — the field is about to
+      // clear, and a live session would refill it mid-send. Via the
+      // ref: the dictation controls live below handleSend in this
+      // file, and the active flag is never stale.
+      if (dictationActiveRef.current) dictationEndRef.current(true);
       setInput("");
       setAttachment(null);
       attachmentFileRef.current = null;
@@ -788,35 +820,170 @@ ${responseLanguageLine}`;
   // in and edits (recognition errors, TV noise, accents), mixes in
   // typed corrections, and sends only by tapping Send. The button
   // only exists when the browser offers the SpeechRecognition API.
-  const toggleDictation = useCallback(() => {
-    if (dictating) {
-      recognitionRef.current?.stop();
+  //
+  // KEEP-RECORDING (2026-11-17, Ron's report): the browser's
+  // recognition session is not the dictation. Sessions end THEMSELVES
+  // — Chrome stops on a silence pause, engines cut long sessions —
+  // and the old code treated that self-end as the visitor finishing,
+  // truncating him mid-sentence (~10s in). Now a session that ends
+  // while the visitor's intent stands is restarted seamlessly, its
+  // final speech banked first so nothing is lost or repeated; ONLY
+  // the visitor's stop tap (or send / voice-mode switch / unmount)
+  // ends a dictation. A hard mic denial ends it too, with a notice —
+  // restarting against a denied permission would spin forever.
+  const endDictation = useCallback((immediate: boolean) => {
+    dictationActiveRef.current = false;
+    if (dictationRestartTimerRef.current !== null) { window.clearTimeout(dictationRestartTimerRef.current); dictationRestartTimerRef.current = null; }
+    const recognition = recognitionRef.current;
+    if (immediate) {
+      recognitionRef.current = null;
+      if (recognition) { try { recognition.abort(); } catch { /* already gone */ } }
+      setDictating(false);
       return;
     }
+    if (recognition) {
+      // Graceful stop: the engine delivers any last final result,
+      // then onend sees the intent flag down and finishes teardown.
+      try { recognition.stop(); } catch { recognitionRef.current = null; setDictating(false); }
+    } else {
+      // Between sessions (a restart was pending): nothing to stop.
+      setDictating(false);
+    }
+  }, []);
+
+  const dictationStartRef = useRef<() => void>(() => { /* set below */ });
+  const scheduleDictationRestart = useCallback((hadResult: boolean) => {
+    if (!hadResult) dictationFailuresRef.current += 1;
+    const failures = dictationFailuresRef.current;
+    const delay = hadResult ? 120 : Math.min(250 * 2 ** Math.max(0, failures - 1), 2500);
+    dictationRestartTimerRef.current = window.setTimeout(() => {
+      dictationRestartTimerRef.current = null;
+      dictationStartRef.current();
+    }, delay);
+  }, []);
+
+  const startDictationSession = useCallback(() => {
+    if (!dictationActiveRef.current) return;
     const Ctor = speechRecognitionCtor();
-    if (!Ctor) return;
+    if (!Ctor) { dictationActiveRef.current = false; setDictating(false); return; }
     const recognition = new Ctor();
     // Dictation speaks the language the visitor is actually seeing
     // (chat-fix3): the explicit pick when there is one, else the
     // session's current UI language — the same currentChatLang the
     // greeting, chips and Listen follow. (The VOICE session's
     // language stays explicit-pick-only; that lock is separate.)
-    recognition.lang = speechLangFor(currentChatLang);
+    // The language is captured when the dictation STARTS, so a
+    // restarted session keeps listening in the same language.
+    recognition.lang = dictationLangRef.current;
     recognition.interimResults = true;
-    recognition.continuous = false;
-    dictationBaseRef.current = input;
+    // continuous too: it lengthens each session, but the restart
+    // below is what actually guarantees no mid-sentence cutoff —
+    // some engines ignore continuous and end anyway.
+    recognition.continuous = true;
+    dictationSessionFinalRef.current = "";
+    dictationSessionLastSegmentRef.current = "";
+    dictationSessionHadResultRef.current = false;
+    dictationSkipFirstRef.current = false;
+    dictationSessionCheckedRef.current = false;
     recognition.onresult = (event) => {
-      let transcript = "";
-      for (let i = 0; i < event.results.length; i++) transcript += event.results[i][0].transcript;
-      const base = dictationBaseRef.current;
-      setInput(base ? `${base.replace(/\s+$/, "")} ${transcript}` : transcript);
+      if (recognitionRef.current !== recognition) return;
+      dictationSessionHadResultRef.current = true;
+      dictationFailuresRef.current = 0;
+      const results = event.results;
+      // Replay guard: a restarted session can re-deliver the last
+      // banked sentence as its first final result (the classic
+      // restart duplicate). Detect that once, on the session's first
+      // result event, and skip exactly that one segment.
+      if (!dictationSessionCheckedRef.current) {
+        dictationSessionCheckedRef.current = true;
+        const first = results.length > 0 ? results[0] : undefined;
+        if (first?.isFinal && first[0].transcript.trim() && first[0].transcript.trim() === dictationLastSegmentRef.current) {
+          dictationSkipFirstRef.current = true;
+        }
+      }
+      let live = "";
+      let finals = "";
+      let lastFinal = "";
+      for (let i = dictationSkipFirstRef.current ? 1 : 0; i < results.length; i++) {
+        const transcript = results[i][0].transcript;
+        live += transcript;
+        if (results[i].isFinal) { finals += transcript; lastFinal = transcript; }
+      }
+      dictationSessionFinalRef.current = finals;
+      if (lastFinal.trim()) dictationSessionLastSegmentRef.current = lastFinal.trim();
+      const base = [dictationBaseRef.current, dictationCommittedRef.current].map((part) => part.trim()).filter(Boolean).join(" ");
+      const spoken = live.trim();
+      setInput([base, spoken].filter(Boolean).join(" "));
     };
-    recognition.onend = () => { setDictating(false); recognitionRef.current = null; };
-    recognition.onerror = () => { setDictating(false); recognitionRef.current = null; };
+    recognition.onerror = (event) => {
+      if (recognitionRef.current !== recognition) return;
+      const code = event?.error ?? "";
+      if (code === "not-allowed" || code === "service-not-allowed" || code === "audio-capture") {
+        // Hard failure — the mic is denied or there is no mic at
+        // all. Restarting would spin against a wall: end the
+        // dictation and say why, in the chat's language.
+        dictationActiveRef.current = false;
+        if (dictationRestartTimerRef.current !== null) { window.clearTimeout(dictationRestartTimerRef.current); dictationRestartTimerRef.current = null; }
+        recognitionRef.current = null;
+        setDictating(false);
+        setDictateError(t("chat.dictateMicDenied"));
+      }
+      // Transient errors ('no-speech', 'network', 'aborted') are
+      // not the end of the dictation: onend follows and restarts
+      // while the visitor's intent stands.
+    };
+    recognition.onend = () => {
+      if (recognitionRef.current !== recognition) return;
+      recognitionRef.current = null;
+      // Bank this session's final speech before anything else: a
+      // restarted session starts with an empty result list, so
+      // anything not committed here would vanish from the field —
+      // and anything committed twice would repeat a sentence.
+      const finalText = dictationSessionFinalRef.current.trim();
+      if (finalText) {
+        dictationCommittedRef.current = [dictationCommittedRef.current.trim(), finalText].filter(Boolean).join(" ");
+        if (dictationSessionLastSegmentRef.current) dictationLastSegmentRef.current = dictationSessionLastSegmentRef.current;
+      }
+      dictationSessionFinalRef.current = "";
+      dictationSessionLastSegmentRef.current = "";
+      if (!dictationActiveRef.current) { setDictating(false); return; }
+      scheduleDictationRestart(dictationSessionHadResultRef.current);
+    };
     recognitionRef.current = recognition;
+    try { recognition.start(); } catch {
+      // start() can throw when the previous session has not fully
+      // released the mic yet — route through the same restart path
+      // instead of killing the dictation.
+      if (recognitionRef.current === recognition) recognitionRef.current = null;
+      if (dictationActiveRef.current) scheduleDictationRestart(false);
+      else setDictating(false);
+    }
+  }, [scheduleDictationRestart, t]);
+
+  useEffect(() => { dictationStartRef.current = startDictationSession; dictationEndRef.current = endDictation; }, [startDictationSession, endDictation]);
+
+  const toggleDictation = useCallback(() => {
+    if (dictating) {
+      endDictation(false);
+      return;
+    }
+    const Ctor = speechRecognitionCtor();
+    if (!Ctor) return;
+    dictationBaseRef.current = input;
+    dictationCommittedRef.current = "";
+    dictationLastSegmentRef.current = "";
+    dictationFailuresRef.current = 0;
+    dictationLangRef.current = speechLangFor(currentChatLang);
+    dictationActiveRef.current = true;
+    setDictateError("");
     setDictating(true);
-    try { recognition.start(); } catch { setDictating(false); recognitionRef.current = null; }
-  }, [dictating, input, currentChatLang]);
+    dictationStartRef.current();
+  }, [dictating, input, currentChatLang, endDictation]);
+
+  // Leaving the typed chat (voice-mode switch, panel collapse)
+  // ends any dictation in flight — the composer mic never captures
+  // while the visitor is somewhere else.
+  useEffect(() => { if (!active && dictating) endDictation(true); }, [active, dictating, endDictation]);
 
   // Attachment picking: one handler for the Camera / Photos / Files
   // inputs — same guardrails (type allow-list, 10 MB cap) and the
@@ -1251,6 +1418,7 @@ ${responseLanguageLine}`;
         </div>
        )}
        {attachError && <p role="alert" className="mb-2 text-[11px] font-medium text-destructive">{attachError}</p>}
+       {dictateError && <p role="alert" className="mb-2 text-[11px] font-medium text-destructive">{dictateError}</p>}
        <div data-testid="chat-composer" data-layout={typingLayout ? 'typing' : 'idle'} onFocus={() => setComposerActive(true)} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setComposerActive(false); }} className="flex flex-wrap items-end gap-0.5 rounded-[1.75rem] border border-border bg-background px-1.5 py-1.5 shadow-sm transition-colors focus-within:border-primary/60">
         <textarea
           ref={inputRef}
@@ -1281,7 +1449,7 @@ ${responseLanguageLine}`;
           <button type="button" data-testid="chat-dictate-button" aria-label={dictating ? t("chat.dictateStop") : t("chat.dictate")} title={dictating ? t("chat.dictateStop") : t("chat.dictate")} aria-pressed={dictating} onClick={toggleDictation} className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors ${dictating ? "bg-destructive/15 text-destructive" : "text-foreground hover:bg-muted"}`}>{dictating ? <Square className="h-4 w-4 animate-pulse fill-current" /> : <Mic className="h-5 w-5" />}</button>
         )}
         {onVoiceMode && (
-          <button type="button" aria-label={t("chat.voiceMode")} title={t("chat.voiceMode")} onClick={onVoiceMode} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-foreground transition-colors hover:bg-muted"><AudioLines className="h-5 w-5" /></button>
+          <button type="button" aria-label={t("chat.voiceMode")} title={t("chat.voiceMode")} onClick={() => { endDictation(true); onVoiceMode(); }} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-foreground transition-colors hover:bg-muted"><AudioLines className="h-5 w-5" /></button>
         )}
         {(input.trim() || attachment) && (
           <button type="button" aria-label={t("chat.sendAria", { name: presenterDisplayName })} title={t("chat.sendAria", { name: presenterDisplayName })} disabled={isBusy} onClick={() => void handleSend()} className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40 ${typingLayout ? 'ml-auto' : ''}`}><Send className="h-4 w-4" /></button>

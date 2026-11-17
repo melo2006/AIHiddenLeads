@@ -1052,6 +1052,7 @@
     "fallback": "Great question. I can help with that and also arrange a callback or a 15-minute demo with {{owner}}.",
     "dictate": "Dictate message",
     "dictateStop": "Stop dictation",
+    "dictateMicDenied": "Dictation stopped — microphone access is blocked. Allow microphone access in your browser to dictate.",
     "voiceMode": "Switch to voice conversation",
     "attach": "Attach a file",
     "attachCamera": "Camera",

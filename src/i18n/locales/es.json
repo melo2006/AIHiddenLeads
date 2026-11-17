@@ -1052,6 +1052,7 @@
     "fallback": "Buena pregunta. Puedo ayudarte con eso y también organizar una llamada de vuelta o una demostración de 15 minutos con {{owner}}.",
     "dictate": "Dictar mensaje",
     "dictateStop": "Detener dictado",
+    "dictateMicDenied": "Dictado detenido: el acceso al micrófono está bloqueado. Permite el acceso al micrófono en tu navegador para dictar.",
     "voiceMode": "Cambiar a conversación por voz",
     "attach": "Adjuntar un archivo",
     "attachCamera": "Cámara",
