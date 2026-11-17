@@ -625,7 +625,8 @@
     ]
   },
   "panel": {
-    "tapForSound": "Toca para activar el sonido"
+    "tapForSound": "Toca para activar el sonido",
+    "micSilent": "No escucho nada de tu micrófono — parece estar en silencio. Si usas auriculares, revisa el enchufe o la conexión, o elige otro micrófono."
   },
   "voice": {
     "consentTitle": "Prueba una demo en vivo con {{name}}",

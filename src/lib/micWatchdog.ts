@@ -56,6 +56,24 @@
  * snapshot, and the acquisition-time check in micTrackStartVerdict
  * — Publish #53's records showed tracks STARTING muted in 3 of 4
  * sessions, which must surface at once, not after a window).
+ *
+ * SILENT-STREAM TIER (chat-fix6, 2026-11-16): session 3b30cc34
+ * exposed the gap between the tiers above. Ron's wired headset on
+ * Android delivered a LIVE track and 956 flowing frames over 122s,
+ * but the measured ambient level was 0.0000 and the speech
+ * detector never fired — the stream itself was silent. The guard
+ * above could not see it: non-zero dither ticks kept the alive
+ * tier warm and one connect transient counted as flow, defeating
+ * both branches, so Aspen "couldn't hear" for two minutes and
+ * nobody told the visitor. The third tier — LOUD frames, raw RMS
+ * at or above MIC_SILENT_LEVEL_FLOOR — separates a live-but-silent
+ * input from a working mic: a working mic in any real room crosses
+ * the floor within seconds (breath, room tone shifts, clothing,
+ * speech peaks all sit far above it), while a silent stream's
+ * dither never does (3b30cc34's floor printed 0.0000 — under
+ * 0.00005 — for the whole session). shouldShowSilentMicNotice
+ * below drives the rescue notice; the dead-path guard keeps
+ * precedence (a dead path is the watchdog's notice, not this one).
  */
 
 /** Raw-RMS floor for "the microphone heard something real". Far
@@ -74,6 +92,26 @@ export const MIC_WATCHDOG_STALL_MS = 25000;
  *  track still muted after the grace is surfaced immediately
  *  (the guard's notice + Reconnect path), never silently. */
 export const MIC_MUTED_START_GRACE_MS = 2000;
+/** Silent-stream floor (chat-fix6): a frame at or above this raw
+ *  RMS counts as LOUD — real acoustic energy, not dither. Set at
+ *  4× the dead stream's measured ceiling (session 3b30cc34 printed
+ *  amb=0.0000, i.e. its level stayed under 0.00005 for 122s), 2×
+ *  the energy epsilon, and ~35× below the panel's sound-detected
+ *  meter (~0.007): normal speech (0.01+), a breath, or a room
+ *  shift crosses it readily; a silent input's digital noise does
+ *  not. Pinned by the 3b30cc34 fixture in the tests. */
+export const MIC_SILENT_LEVEL_FLOOR = 0.0002;
+/** Loud frames required to call the stream healthy: ~0.4s of
+ *  cumulative real sound at the capture loops' frame rate — a
+ *  single plug click or connect transient (1–2 frames) is not
+ *  proof of a working mic. */
+export const MIC_SILENT_MIN_LOUD_FRAMES = 3;
+/** First silent-stream check: this long after go-live (the
+ *  greeting has had its moment; a working mic has sounded by now). */
+export const MIC_SILENT_FIRST_CHECK_MS = 5000;
+/** Re-check: if the first notice was dismissed and the stream is
+ *  still silent this long after go-live, surface it once more. */
+export const MIC_SILENT_RECHECK_MS = 15000;
 
 export interface MicFlowState {
   /** When the current voice session went live (ms epoch, 0 = not live). */
@@ -92,6 +130,12 @@ export interface MicFlowState {
    *  tier — any signal at all crossed the path, however quiet. A
    *  dead path never produces one (its frames are exact zeros). */
   lastAliveAt: number;
+  /** Frames whose raw RMS reached MIC_SILENT_LEVEL_FLOOR: the
+   *  loud tier (chat-fix6) — real acoustic energy, the evidence
+   *  that separates a working mic from a live-but-silent stream. */
+  loudFrames: number;
+  /** Most recent loud frame (ms epoch, 0 = never). */
+  lastLoudAt: number;
   /** The watchdog has fired for the current silent stretch;
    *  re-armed by the next energy frame. */
   firedForStretch: boolean;
@@ -107,6 +151,8 @@ export function createMicFlowState(): MicFlowState {
     firstFlowAt: 0,
     lastFlowAt: 0,
     lastAliveAt: 0,
+    loudFrames: 0,
+    lastLoudAt: 0,
     firedForStretch: false,
     watchdogFired: false,
   };
@@ -123,6 +169,8 @@ export function noteMicSessionLive(state: MicFlowState, now: number): MicFlowSta
   state.firstFlowAt = 0;
   state.lastFlowAt = 0;
   state.lastAliveAt = 0;
+  state.loudFrames = 0;
+  state.lastLoudAt = 0;
   state.firedForStretch = false;
   state.watchdogFired = false;
   return state;
@@ -136,6 +184,10 @@ export function noteMicSessionLive(state: MicFlowState, now: number): MicFlowSta
 export function noteMicFrame(state: MicFlowState, rms: number, now: number): MicFlowState {
   state.frames += 1;
   if (rms > 0) state.lastAliveAt = now;
+  if (rms >= MIC_SILENT_LEVEL_FLOOR) {
+    state.loudFrames += 1;
+    state.lastLoudAt = now;
+  }
   if (rms > MIC_ENERGY_EPSILON) {
     state.energyFrames += 1;
     if (state.firstFlowAt === 0) state.firstFlowAt = now;
@@ -223,6 +275,63 @@ export function shouldShowMicWatchdog(s: MicWatchdogSnapshot): boolean {
 }
 
 /* ------------------------------------------------------------------ */
+/* Silent-stream notice (chat-fix6): frames flow and the track is   */
+/* live, yet the level never rises off zero — the 3b30cc34 shape.   */
+/* The dead-path guard above cannot see it (dither ticks keep its   */
+/* alive tier warm; a connect transient counts as its flow), so     */
+/* this sibling decision watches the LOUD tier instead. It stands   */
+/* down whenever the dead-path guard owns the moment (no frames at  */
+/* all, a dead track, or the watchdog's own decision due), and for  */
+/* good once MIC_SILENT_MIN_LOUD_FRAMES loud frames have flowed —   */
+/* a working mic in a real room produces them within seconds, so    */
+/* a healthy mic, however quiet the room, never meets this notice.  */
+/* ------------------------------------------------------------------ */
+
+export interface MicSilentSnapshot {
+  now: number;
+  /** Same session gates as the dead-path guard. */
+  live: boolean;
+  handsFree: boolean;
+  muted: boolean;
+  paused: boolean;
+  handoff: boolean;
+  recoveryActive: boolean;
+  /** When the session went live (ms epoch, 0 = not live). */
+  liveSince: number;
+  /** Mic frames observed since go-live. Zero frames is the
+   *  dead-path guard's shape (processor never ran), not this one. */
+  frames: number;
+  /** Loud-tier frames so far (RMS >= MIC_SILENT_LEVEL_FLOOR). */
+  loudFrames: number;
+  /** The browser reports the track muted/ended: the dead-path
+   *  guard's testimony, not this notice's. */
+  trackDead?: boolean;
+  /** The dead-path guard is due (or already showing): it owns
+   *  the moment; the two notices never stack. */
+  watchdogActive?: boolean;
+  /** How many times this notice has already been surfaced this
+   *  session (0 = never, 1 = once, 2 = re-check already used). */
+  silentStage: number;
+}
+
+export function shouldShowSilentMicNotice(s: MicSilentSnapshot): boolean {
+  if (!s.live || !s.handsFree || s.muted || s.paused || s.handoff || s.recoveryActive) return false;
+  if (s.liveSince <= 0) return false;
+  if (s.frames <= 0) return false;
+  if (s.trackDead || s.watchdogActive) return false;
+  // Real sound has flowed: the stream is a working mic, however
+  // quiet the room — the notice never fires, and if it was up it
+  // comes down (the component resolves it on this same fact).
+  if (s.loudFrames >= MIC_SILENT_MIN_LOUD_FRAMES) return false;
+  // Stage 0: first check once the greeting window has passed.
+  if (s.silentStage === 0) return s.now - s.liveSince >= MIC_SILENT_FIRST_CHECK_MS;
+  // Stage 1: the first notice was dismissed and the stream is
+  // still silent — one re-check, then no more surfacing.
+  if (s.silentStage === 1) return s.now - s.liveSince >= MIC_SILENT_RECHECK_MS;
+  return false;
+}
+
+/* ------------------------------------------------------------------ */
 /* Acquisition-time track check (Publish #56): permission granted   */
 /* is not a working microphone — Publish #53's session records      */
 /* showed the track STARTING muted in 3 of 4 sessions, and the      */
@@ -280,6 +389,11 @@ export interface MicDiagStamp {
   /** The active noise-filter level at stamp time ('light' |
    * 'balanced' | 'strong'), manual pick or ambient auto-pick. */
   noiseFilter?: string;
+  /** The silent-stream notice fired at least once this session
+   *  (chat-fix6): frames flowed but the level never rose off
+   *  zero — the 3b30cc34 fact pattern. Optional like the other
+   *  gate-context fields; absent on stamps that predate it. */
+  silentMic?: boolean;
 }
 
 /** The compact one-line form stored in the session record, in the
@@ -300,6 +414,7 @@ export function micDiagDetail(s: MicDiagStamp): string {
   // it, so the historical detail shape is unchanged for other callers.
   if (typeof s.ambientFloor === "number") parts.push(`amb=${s.ambientFloor.toFixed(4)}`);
   if (s.noiseFilter) parts.push(`nf=${s.noiseFilter}`);
+  if (s.silentMic) parts.push("silent=1");
   return parts.join(";");
 }
 
@@ -330,6 +445,7 @@ export function micDiagStamp(args: {
   inputSec: number;
   ambientFloor?: number;
   noiseFilter?: string;
+  silentMic?: boolean;
 }): MicDiagStamp {
   return {
     event: args.event,
@@ -342,5 +458,6 @@ export function micDiagStamp(args: {
     fired: args.flow.watchdogFired,
     ...(typeof args.ambientFloor === "number" ? { ambientFloor: args.ambientFloor } : {}),
     ...(args.noiseFilter ? { noiseFilter: args.noiseFilter } : {}),
+    ...(args.silentMic ? { silentMic: true } : {}),
   };
 }
