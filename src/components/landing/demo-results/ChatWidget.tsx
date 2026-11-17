@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo, useCallback, type ChangeEvent, type FormEvent } from "react";
 import { createPortal } from "react-dom";
-import { Bot, User, Maximize2, Minimize2, X, ExternalLink, Mic, Square, AudioLines, Send, Plus, Camera, Image as ImageIcon, FolderOpen, FileText, Volume2, Copy, Check, ThumbsUp, ThumbsDown, ChevronRight } from "lucide-react";
+import { Bot, User, Maximize2, Minimize2, X, ExternalLink, Mic, Square, AudioLines, Send, Plus, Camera, SwitchCamera, Image as ImageIcon, FolderOpen, FileText, Volume2, Copy, Check, ThumbsUp, ThumbsDown, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { MessageResponse } from '@/components/ai-elements/message';
 import { displayNumbers } from '@/lib/displayNumbers';
@@ -93,6 +93,11 @@ interface Message {
   role: "assistant" | "user";
   content: string;
   attachment?: ChatAttachmentMeta;
+  /** LIVE CAMERA (2026-11-17): this user turn carried a live
+   *  camera frame as its image part, so the payload mapping adds
+   *  the camera-frame note — the model knows the image is the
+   *  visitor's camera RIGHT NOW, not an uploaded photo. */
+  cameraFrame?: boolean;
 }
 
 export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
@@ -173,6 +178,100 @@ export async function prepareImagePayload(file: File): Promise<ImagePrepResult> 
     return { error: "unreadable" };
   } finally {
     URL.revokeObjectURL(url);
+  }
+}
+
+/** LIVE CAMERA (Ron, 2026-11-17 — "Build the camera next"): the
+ *  composer's Camera entry starts the visitor's camera IN the panel
+ *  and Aspen sees what it shows. Design, pinned here so the cost
+ *  shape is auditable:
+ *  - Frames are SAMPLED locally every 2s and only the freshest is
+ *    kept (in a ref — never stored, never uploaded on its own).
+ *  - A frame reaches the model ONLY on a conversation turn, riding
+ *    the exact vision path a photo uses (the chat-completion
+ *    `image` part): once when the camera starts (an intro turn, so
+ *    she can greet what she sees) and then on each visitor send
+ *    while the camera is live. An idle camera costs ZERO model
+ *    calls — there is no frame streaming.
+ *  - Frames are downscaled harder than photos (768px edge): they
+ *    are a live view, not a keepsake, and they ride many turns.
+ *  - A frame older than the stale bound never rides a send — she
+ *    must never describe a scene the camera left seconds ago. */
+export const LIVE_CAMERA_FRAME_INTERVAL_MS = 2000;
+export const LIVE_CAMERA_FRAME_MAX_EDGE_PX = 768;
+export const LIVE_CAMERA_FRAME_STALE_MS = 10_000;
+/** The model-facing note appended to a turn that carries a live
+ *  frame (English like the attachment note — payload plumbing, not
+ *  visitor copy). */
+export const CAMERA_FRAME_NOTE = "[Live camera frame: this image is what the visitor's camera is showing right now.]";
+
+export interface CameraFramePayload {
+  data: string;
+  mimeType: string;
+  byteSize: number;
+  capturedAt: number;
+}
+
+/** Sampling gate: only sample while the camera is on, the page is
+ *  visible, and the video element actually has frames to draw. */
+export function cameraShouldSample(input: { on: boolean; hidden: boolean; videoWidth: number; videoHeight: number }): boolean {
+  return input.on && !input.hidden && input.videoWidth > 0 && input.videoHeight > 0;
+}
+
+/** A banked frame may ride a send only while it is fresh. */
+export function cameraFrameFresh(frame: CameraFramePayload | null, now: number): frame is CameraFramePayload {
+  return frame !== null && now - frame.capturedAt <= LIVE_CAMERA_FRAME_STALE_MS;
+}
+
+async function drawVideoToJpegBlob(video: HTMLVideoElement, maxEdgePx: number, quality: number): Promise<Blob | null> {
+  const srcW = video.videoWidth;
+  const srcH = video.videoHeight;
+  if (!srcW || !srcH) return null;
+  const scale = Math.min(1, maxEdgePx / Math.max(srcW, srcH));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(srcW * scale));
+  canvas.height = Math.max(1, Math.round(srcH * scale));
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  return new Promise<Blob | null>((resolve) => {
+    if (typeof canvas.toBlob === "function") canvas.toBlob((b) => resolve(b), "image/jpeg", quality);
+    else resolve(null);
+  });
+}
+
+/** Capture the video element's current frame as a chat `image`
+ *  payload (768px edge, JPEG) — the live-frame twin of
+ *  prepareImagePayload. Null whenever the frame cannot be taken. */
+export async function captureCameraFrame(video: HTMLVideoElement): Promise<CameraFramePayload | null> {
+  try {
+    const blob = await drawVideoToJpegBlob(video, LIVE_CAMERA_FRAME_MAX_EDGE_PX, 0.7);
+    if (!blob) return null;
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(new Error("frame read failed"));
+      reader.readAsDataURL(blob);
+    });
+    const data = dataUrl.slice(dataUrl.indexOf(",") + 1);
+    if (!data) return null;
+    return { data, mimeType: "image/jpeg", byteSize: blob.size, capturedAt: Date.now() };
+  } catch {
+    return null;
+  }
+}
+
+/** Capture the current frame as a full-size photo File (1568px
+ *  edge — the still-photo cap), so the preview's "Take a photo"
+ *  button stages it through the exact attachment path a picked
+ *  photo takes. */
+export async function captureCameraPhotoFile(video: HTMLVideoElement): Promise<File | null> {
+  try {
+    const blob = await drawVideoToJpegBlob(video, MAX_IMAGE_EDGE_PX, 0.85);
+    if (!blob) return null;
+    return new File([blob], "camera-photo.jpg", { type: "image/jpeg" });
+  } catch {
+    return null;
   }
 }
 
@@ -354,7 +453,6 @@ const ChatWidget = ({
   // advance playback afterwards.
   const replyAudioGenRef = useRef(0);
   const replyAudioAbortRef = useRef<AbortController | null>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
   const photosInputRef = useRef<HTMLInputElement>(null);
   const filesInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
@@ -381,6 +479,154 @@ const ChatWidget = ({
   const dictationLangRef = useRef("en-US");
   const dictationEndRef = useRef<(immediate: boolean) => void>(() => { /* set below */ });
   const [dictateError, setDictateError] = useState("");
+  // LIVE CAMERA state (2026-11-17): off by default, started only by
+  // the visitor's tap on the composer's Camera entry. The stream,
+  // the sampler timer and the freshest frame live in refs (frames
+  // are never state — they change every 2s and must not re-render
+  // the panel); cameraOn mirrors the stream for rendering the
+  // preview strip, and cameraOnRef mirrors it for the async
+  // callbacks that must never act on a stopped camera.
+  const [cameraOn, setCameraOn] = useState(false);
+  const [cameraError, setCameraError] = useState("");
+  const [cameraFacing, setCameraFacing] = useState<"user" | "environment">("user");
+  const [cameraCanFlip, setCameraCanFlip] = useState(false);
+  const [cameraStreamVersion, setCameraStreamVersion] = useState(0);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
+  const cameraVideoElRef = useRef<HTMLVideoElement | null>(null);
+  const cameraFrameRef = useRef<CameraFramePayload | null>(null);
+  const cameraTimerRef = useRef<number | null>(null);
+  const cameraOnRef = useRef(false);
+  const cameraStartingRef = useRef(false);
+  const cameraIntroSentRef = useRef(false);
+  // The intro-turn checker is defined below handleSend (it needs the
+  // send plumbing); the sampler reaches it through this ref, the
+  // same pattern dictation uses for its controls below handleSend.
+  const cameraIntroCheckRef = useRef<() => void>(() => { /* set below */ });
+
+  /** Stop the camera completely: sampler off, every track ended
+   *  (the browser's camera light dies with the last track), the
+   *  banked frame dropped. Safe to call when already off. */
+  const stopCamera = useCallback(() => {
+    cameraOnRef.current = false;
+    if (cameraTimerRef.current !== null) { window.clearInterval(cameraTimerRef.current); cameraTimerRef.current = null; }
+    const stream = cameraStreamRef.current;
+    cameraStreamRef.current = null;
+    if (stream) stream.getTracks().forEach((track) => { try { track.stop(); } catch { /* already stopped */ } });
+    if (cameraVideoElRef.current) { try { cameraVideoElRef.current.srcObject = null; } catch { /* element gone */ } }
+    cameraFrameRef.current = null;
+    setCameraOn(false);
+    setCameraCanFlip(false);
+  }, []);
+
+  /** Sample one frame into the bank (the freshest frame is the only
+   *  one kept). A landed first frame also pokes the intro check —
+   *  she greets what she sees once the camera has something to
+   *  show and the panel is free to take the turn. */
+  const sampleCameraFrame = useCallback(async () => {
+    const video = cameraVideoElRef.current;
+    if (!video) return;
+    if (!cameraShouldSample({ on: cameraOnRef.current, hidden: typeof document !== "undefined" ? document.hidden : false, videoWidth: video.videoWidth, videoHeight: video.videoHeight })) return;
+    const frame = await captureCameraFrame(video);
+    if (!frame || !cameraOnRef.current) return;
+    const isFirst = cameraFrameRef.current === null;
+    cameraFrameRef.current = frame;
+    if (isFirst) cameraIntroCheckRef.current();
+  }, []);
+
+  const startCamera = useCallback(async () => {
+    if (cameraOnRef.current || cameraStartingRef.current) return;
+    setCameraError("");
+    const mediaDevices = typeof navigator !== "undefined" ? navigator.mediaDevices : undefined;
+    if (!mediaDevices?.getUserMedia) {
+      setCameraError(t("chat.cameraUnavailable"));
+      return;
+    }
+    cameraStartingRef.current = true;
+    try {
+      const stream = await mediaDevices.getUserMedia({ video: { facingMode: cameraFacing }, audio: false });
+      if (!mounted.current) {
+        stream.getTracks().forEach((track) => { try { track.stop(); } catch { /* already stopped */ } });
+        return;
+      }
+      cameraStreamRef.current = stream;
+      cameraOnRef.current = true;
+      cameraIntroSentRef.current = false;
+      cameraFrameRef.current = null;
+      setCameraOn(true);
+      // Flip control: only when the device really has a second
+      // camera (a coarse-pointer device is the fallback signal —
+      // phones/tablets carry front + back even when enumeration
+      // is stingy before permission settles).
+      try {
+        const devices = typeof mediaDevices.enumerateDevices === "function" ? await mediaDevices.enumerateDevices() : [];
+        const cameraCount = devices.filter((device) => device.kind === "videoinput").length;
+        const coarse = typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches;
+        if (mounted.current && cameraOnRef.current) setCameraCanFlip(cameraCount > 1 || coarse);
+      } catch { /* flip simply stays hidden */ }
+      if (cameraTimerRef.current !== null) window.clearInterval(cameraTimerRef.current);
+      cameraTimerRef.current = window.setInterval(() => { void sampleCameraFrame(); }, LIVE_CAMERA_FRAME_INTERVAL_MS);
+      void sampleCameraFrame();
+    } catch (err) {
+      const name = (err as { name?: string } | null)?.name ?? "";
+      setCameraError(name === "NotAllowedError" || name === "SecurityError"
+        ? t("chat.cameraDenied", { name: presenterDisplayName })
+        : t("chat.cameraUnavailable"));
+    } finally {
+      cameraStartingRef.current = false;
+    }
+  }, [cameraFacing, sampleCameraFrame, t, presenterDisplayName]);
+
+  const flipCamera = useCallback(async () => {
+    if (!cameraOnRef.current || cameraStartingRef.current) return;
+    const mediaDevices = typeof navigator !== "undefined" ? navigator.mediaDevices : undefined;
+    if (!mediaDevices?.getUserMedia) return;
+    const next = cameraFacing === "user" ? "environment" : "user";
+    cameraStartingRef.current = true;
+    try {
+      const stream = await mediaDevices.getUserMedia({ video: { facingMode: next }, audio: false });
+      if (!mounted.current || !cameraOnRef.current) {
+        stream.getTracks().forEach((track) => { try { track.stop(); } catch { /* already stopped */ } });
+        return;
+      }
+      const previous = cameraStreamRef.current;
+      cameraStreamRef.current = stream;
+      if (previous) previous.getTracks().forEach((track) => { try { track.stop(); } catch { /* already stopped */ } });
+      setCameraFacing(next);
+      setCameraStreamVersion((version) => version + 1);
+      void sampleCameraFrame();
+    } catch {
+      if (mounted.current) setCameraError(t("chat.cameraUnavailable"));
+    } finally {
+      cameraStartingRef.current = false;
+    }
+  }, [cameraFacing, sampleCameraFrame, t]);
+
+  // Attach the live stream to the preview element whenever it
+  // (re)mounts or the stream is replaced (flip). A muted inline
+  // preview may autoplay; a refused play() just leaves the sampler
+  // to work from the element's frames once it can.
+  useEffect(() => {
+    if (!cameraOn) return;
+    const video = cameraVideoElRef.current;
+    const stream = cameraStreamRef.current;
+    if (!video || !stream) return;
+    if (video.srcObject !== stream) {
+      video.srcObject = stream;
+      try {
+        const played = video.play();
+        if (played && typeof played.catch === "function") played.catch(() => { /* preview refusal is not fatal */ });
+      } catch { /* element cannot play yet */ }
+    }
+    // First frame as soon as the preview can produce one; the
+    // sampler's 2s tick is the backstop when metadata is slow.
+    void sampleCameraFrame();
+  }, [cameraOn, cameraStreamVersion, sampleCameraFrame]);
+
+  // The camera never runs while the chat is not the active mode
+  // (voice mode, panel closed) or while the widget is minimized —
+  // capture follows the visitor's eyes, exactly like dictation.
+  useEffect(() => { if (!active && cameraOn) stopCamera(); }, [active, cameraOn, stopCamera]);
+  useEffect(() => { if (isMinimized && cameraOn) stopCamera(); }, [isMinimized, cameraOn, stopCamera]);
   const objectUrlsRef = useRef<string[]>([]);
   const [speechSupported] = useState(() => Boolean(speechRecognitionCtor()));
   // Chat-fix4 (2026-11-16, Ron's redesign): composer focus state.
@@ -447,6 +693,7 @@ const ChatWidget = ({
     mounted.current = true;
     return () => {
       mounted.current = false;
+      stopCamera();
       dictationActiveRef.current = false;
       if (dictationRestartTimerRef.current !== null) { window.clearTimeout(dictationRestartTimerRef.current); dictationRestartTimerRef.current = null; }
       recognitionRef.current?.abort();
@@ -691,8 +938,10 @@ ${responseLanguageLine}`;
       // its payload suffix (the thread itself shows the chip, not
       // the note). A PHOTO additionally rides as `image` — the
       // downscaled JPEG the endpoint attaches to the last user
-      // message as an image part, so the model sees it too.
-      messages: conversationHistory.map((m) => ({ role: m.role, content: m.attachment ? `${m.content} ${attachmentNote(m.attachment)}`.trim() : m.content })),
+      // message as an image part, so the model sees it too. A LIVE
+      // CAMERA turn carries the camera-frame note instead, so the
+      // model reads the image as the visitor's camera right now.
+      messages: conversationHistory.map((m) => ({ role: m.role, content: m.attachment || m.cameraFrame ? `${m.content}${m.attachment ? ` ${attachmentNote(m.attachment)}` : ""}${m.cameraFrame ? ` ${CAMERA_FRAME_NOTE}` : ""}`.trim() : m.content })),
       ...(image ? { image } : {}),
     });
 
@@ -742,6 +991,41 @@ ${responseLanguageLine}`;
     }
   }, [logChatMessage, memoryKey]);
 
+  /** Run one visitor turn end to end: append the message, log it,
+   *  join the visit thread, ask the brain, type the reply (or the
+   *  canned fallback on failure). Shared by handleSend and the
+   *  live-camera intro turn — the two ways a visitor turn begins. */
+  const dispatchTurn = async (userMessage: Message, loggedText: string, imagePayload?: { data: string; mimeType: string }) => {
+    const updated = [...messages, userMessage];
+    followLatest.current = true;
+    // A real exchange has begun: the thread is history from here —
+    // the canned-greeting repair must never touch it again.
+    cannedLocalRef.current = false;
+    setMessages(updated);
+    setIsThinking(true);
+    logChatMessage("user", loggedText);
+    if (memoryKey) {
+      visitMemoryAppend(memoryKey, { role: "user", text: loggedText });
+      consumedTurnsRef.current = visitMemoryGet(memoryKey).length;
+    }
+
+    try {
+      const response = await sendToAI(updated, imagePayload);
+      if (!mounted.current) return;
+
+      await sleep(350);
+      setIsThinking(false);
+      await typeAssistantResponse(response);
+    } catch (err) {
+      console.error("Chat AI error:", err);
+      if (!mounted.current) return;
+
+      setIsThinking(false);
+      const fallback = t("chat.fallback", { owner: ownerLabel });
+      await typeAssistantResponse(fallback);
+    }
+  };
+
   const handleSend = useCallback(async (prefill?: string) => {
     const userMsg = (prefill ?? input).trim();
     // A staged attachment can carry a message on its own (no text).
@@ -768,6 +1052,20 @@ ${responseLanguageLine}`;
       if (prep && "image" in prep) imagePayload = prep.image;
     }
 
+    // LIVE CAMERA (2026-11-17): while the camera is live, the
+    // freshest banked frame rides this send on the same vision
+    // path — so "what do you see?" (or anything else) is answered
+    // about the camera's current view. A staged photo wins: the
+    // visitor explicitly chose that image for this message.
+    let cameraFrameUsed = false;
+    if (!imagePayload && cameraOnRef.current) {
+      const frame = cameraFrameRef.current;
+      if (cameraFrameFresh(frame, Date.now())) {
+        imagePayload = { data: frame.data, mimeType: frame.mimeType };
+        cameraFrameUsed = true;
+      }
+    }
+
     if (!prefill) {
       // A send ends any dictation in flight (contract: send is one
       // of the only ways a dictation ends) — the field is about to
@@ -781,37 +1079,36 @@ ${responseLanguageLine}`;
       setAttachError("");
     }
 
-    const userMessage: Message = { role: "user", content: userMsg, ...(staged ? { attachment: staged } : {}) };
-    const updated = [...messages, userMessage];
-    followLatest.current = true;
-    // A real exchange has begun: the thread is history from here —
-    // the canned-greeting repair must never touch it again.
-    cannedLocalRef.current = false;
-    setMessages(updated);
-    setIsThinking(true);
-    const loggedText = staged ? `${userMsg} ${attachmentNote(staged)}`.trim() : userMsg;
-    logChatMessage("user", loggedText);
-    if (memoryKey) {
-      visitMemoryAppend(memoryKey, { role: "user", text: loggedText });
-      consumedTurnsRef.current = visitMemoryGet(memoryKey).length;
-    }
-
-    try {
-      const response = await sendToAI(updated, imagePayload);
-      if (!mounted.current) return;
-
-      await sleep(350);
-      setIsThinking(false);
-      await typeAssistantResponse(response);
-    } catch (err) {
-      console.error("Chat AI error:", err);
-      if (!mounted.current) return;
-
-      setIsThinking(false);
-      const fallback = t("chat.fallback", { owner: ownerLabel });
-      await typeAssistantResponse(fallback);
-    }
+    const userMessage: Message = { role: "user", content: userMsg, ...(staged ? { attachment: staged } : {}), ...(cameraFrameUsed ? { cameraFrame: true } : {}) };
+    let loggedText = staged ? `${userMsg} ${attachmentNote(staged)}`.trim() : userMsg;
+    if (cameraFrameUsed) loggedText = `${loggedText} ${CAMERA_FRAME_NOTE}`.trim();
+    await dispatchTurn(userMessage, loggedText, imagePayload);
   }, [input, isBusy, messages, ownerLabel, typeAssistantResponse, recordingAgreed, attachment, memoryKey]);
+
+  // LIVE CAMERA intro turn (2026-11-17): once per camera start,
+  // when the first frame is banked and no reply is in flight, she
+  // gets one vision turn — the visitor's "I turned on my camera"
+  // line with the frame riding it (and its thumbnail in the
+  // thread) — so she greets what she sees instead of waiting to be
+  // asked. If a reply IS in flight, the check runs again when the
+  // panel frees up (the isBusy effect below); if the camera stops
+  // first, the check no-ops on the refs.
+  const checkCameraIntro = () => {
+    if (cameraIntroSentRef.current || !cameraOnRef.current || isBusy || !recordingAgreed) return;
+    const frame = cameraFrameRef.current;
+    if (!cameraFrameFresh(frame, Date.now())) return;
+    cameraIntroSentRef.current = true;
+    const introText = t("chat.cameraIntroAsk");
+    const userMessage: Message = {
+      role: "user",
+      content: introText,
+      cameraFrame: true,
+      attachment: { name: t("chat.cameraLive"), type: "image/jpeg", size: frame.byteSize, previewUrl: `data:${frame.mimeType};base64,${frame.data}` },
+    };
+    void dispatchTurn(userMessage, `${introText} ${CAMERA_FRAME_NOTE}`.trim(), { data: frame.data, mimeType: frame.mimeType });
+  };
+  useEffect(() => { cameraIntroCheckRef.current = checkCameraIntro; });
+  useEffect(() => { if (!isBusy && cameraOn) cameraIntroCheckRef.current(); }, [isBusy, cameraOn]);
 
   // Dictation (Gemini-style mic inside the composer): tap to start,
   // tap the square stop state to end. Interim results update the
@@ -985,14 +1282,11 @@ ${responseLanguageLine}`;
   // while the visitor is somewhere else.
   useEffect(() => { if (!active && dictating) endDictation(true); }, [active, dictating, endDictation]);
 
-  // Attachment picking: one handler for the Camera / Photos / Files
-  // inputs — same guardrails (type allow-list, 10 MB cap) and the
-  // same staged chip whichever entry the visitor used.
-  const handleFilePicked = useCallback((event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    setAttachMenuOpen(false);
-    if (!file) return;
+  // Attachment staging: one path for the Photos / Files inputs and
+  // the live camera's snapshot — same guardrails (type allow-list,
+  // 10 MB cap) and the same staged chip whichever way the file
+  // arrived.
+  const stagePickedFile = useCallback((file: File) => {
     if (!attachmentSupported(file)) {
       setAttachError(t("chat.attachUnsupported"));
       return;
@@ -1007,6 +1301,25 @@ ${responseLanguageLine}`;
     if (previewUrl) objectUrlsRef.current.push(previewUrl);
     setAttachment({ name: file.name, type: file.type, size: file.size, ...(previewUrl ? { previewUrl } : {}) });
   }, [t]);
+
+  const handleFilePicked = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    setAttachMenuOpen(false);
+    if (!file) return;
+    stagePickedFile(file);
+  }, [stagePickedFile]);
+
+  // LIVE CAMERA snapshot (2026-11-17): the preview's photo button
+  // freezes the current frame as a staged photo — from here it is
+  // indistinguishable from a picked photo (same chip, same
+  // downscale-and-send vision path). The live camera keeps running.
+  const snapshotCamera = useCallback(async () => {
+    const video = cameraVideoElRef.current;
+    if (!video || !cameraOnRef.current) return;
+    const file = await captureCameraPhotoFile(video);
+    if (file && mounted.current && cameraOnRef.current) stagePickedFile(file);
+  }, [stagePickedFile]);
 
   // Per-reply actions: read-aloud in the PRESENTER'S OWN Gemini
   // voice, copy, and local-only thumbs. Read-aloud used the device's
@@ -1395,7 +1708,9 @@ ${responseLanguageLine}`;
        {/* GEMINI-STYLE COMPOSER (Ron, 2026-11-16, from his annotated
            Gemini app screenshot): ONE rounded bar — the "+" attach
            menu at the left (Camera / Photos / Files, exactly three
-           entries), the text field, an in-field dictation mic, the
+           entries — since 2026-11-17 the Camera entry starts the
+           LIVE in-panel camera instead of the OS capture picker),
+           the text field, an in-field dictation mic, the
            voice-mode switch (waveform), and a send button that
            appears once there is something to send. Enter sends,
            Shift+Enter keeps the newline, as before.
@@ -1409,6 +1724,36 @@ ${responseLanguageLine}`;
            mounted elements (the controls wrapper is `contents` in
            idle, a flex row in typing), so focus and text survive
            the switch; the mic renders in both layouts, always. */}
+       {/* LIVE CAMERA PREVIEW (2026-11-17): the visitor's self-view
+           while the camera is on — a strip in the composer column
+           (the header, chips and composer bar keep their approved
+           layout). The red LIVE pill is the always-visible
+           camera-on indicator; the corner buttons flip (only when
+           a second camera exists), snapshot a still into the
+           staged-attachment path, and stop the camera outright. */}
+       {cameraOn && (
+        <div data-testid="chat-camera-preview" className="relative mb-2 overflow-hidden rounded-xl border border-border bg-black">
+          <video
+            ref={(el) => { cameraVideoElRef.current = el; }}
+            autoPlay
+            muted
+            playsInline
+            aria-label={t("chat.cameraLive")}
+            className={`max-h-40 w-full object-cover ${cameraFacing === "user" ? "-scale-x-100" : ""}`}
+          />
+          <div className="absolute left-2 top-2 flex items-center gap-1.5 rounded-full bg-black/60 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-white">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
+            {t("chat.cameraLive")}
+          </div>
+          <div className="absolute right-2 top-2 flex items-center gap-1.5">
+            {cameraCanFlip && (
+              <button type="button" onClick={() => void flipCamera()} aria-label={t("chat.cameraFlip")} title={t("chat.cameraFlip")} className="flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-black/80"><SwitchCamera className="h-4 w-4" /></button>
+            )}
+            <button type="button" onClick={() => void snapshotCamera()} aria-label={t("chat.cameraSnapshot")} title={t("chat.cameraSnapshot")} className="flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-black/80"><Camera className="h-4 w-4" /></button>
+            <button type="button" onClick={stopCamera} aria-label={t("chat.cameraStop")} title={t("chat.cameraStop")} className="flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-black/80"><X className="h-4 w-4" /></button>
+          </div>
+        </div>
+       )}
        {attachment && (
         <div data-testid="chat-attachment-chip" className="mb-2 flex items-center gap-2 rounded-xl border border-border bg-secondary px-2.5 py-1.5">
           {attachment.previewUrl ? <img src={attachment.previewUrl} alt="" className="h-8 w-8 shrink-0 rounded-md object-cover" /> : <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />}
@@ -1419,6 +1764,7 @@ ${responseLanguageLine}`;
        )}
        {attachError && <p role="alert" className="mb-2 text-[11px] font-medium text-destructive">{attachError}</p>}
        {dictateError && <p role="alert" className="mb-2 text-[11px] font-medium text-destructive">{dictateError}</p>}
+       {cameraError && <p role="alert" className="mb-2 text-[11px] font-medium text-destructive">{cameraError}</p>}
        <div data-testid="chat-composer" data-layout={typingLayout ? 'typing' : 'idle'} onFocus={() => setComposerActive(true)} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setComposerActive(false); }} className="flex flex-wrap items-end gap-0.5 rounded-[1.75rem] border border-border bg-background px-1.5 py-1.5 shadow-sm transition-colors focus-within:border-primary/60">
         <textarea
           ref={inputRef}
@@ -1438,7 +1784,7 @@ ${responseLanguageLine}`;
             <>
               <div aria-hidden="true" className="fixed inset-0 z-40 cursor-default" onClick={() => setAttachMenuOpen(false)} />
               <div role="menu" aria-label={t("chat.attach")} className="absolute bottom-full left-0 z-50 mb-1.5 w-44 overflow-hidden rounded-xl border border-border bg-card p-1 shadow-lg">
-                <button type="button" role="menuitem" onClick={() => { setAttachMenuOpen(false); cameraInputRef.current?.click(); }} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-foreground transition-colors hover:bg-muted"><Camera className="h-4 w-4 shrink-0 text-muted-foreground" />{t("chat.attachCamera")}</button>
+                <button type="button" role="menuitem" aria-pressed={cameraOn} onClick={() => { setAttachMenuOpen(false); if (cameraOnRef.current) stopCamera(); else void startCamera(); }} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-foreground transition-colors hover:bg-muted"><Camera className="h-4 w-4 shrink-0 text-muted-foreground" />{t("chat.attachCamera")}</button>
                 <button type="button" role="menuitem" onClick={() => { setAttachMenuOpen(false); photosInputRef.current?.click(); }} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-foreground transition-colors hover:bg-muted"><ImageIcon className="h-4 w-4 shrink-0 text-muted-foreground" />{t("chat.attachPhotos")}</button>
                 <button type="button" role="menuitem" onClick={() => { setAttachMenuOpen(false); filesInputRef.current?.click(); }} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-foreground transition-colors hover:bg-muted"><FolderOpen className="h-4 w-4 shrink-0 text-muted-foreground" />{t("chat.attachFiles")}</button>
               </div>
@@ -1449,14 +1795,13 @@ ${responseLanguageLine}`;
           <button type="button" data-testid="chat-dictate-button" aria-label={dictating ? t("chat.dictateStop") : t("chat.dictate")} title={dictating ? t("chat.dictateStop") : t("chat.dictate")} aria-pressed={dictating} onClick={toggleDictation} className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors ${dictating ? "bg-destructive/15 text-destructive" : "text-foreground hover:bg-muted"}`}>{dictating ? <Square className="h-4 w-4 animate-pulse fill-current" /> : <Mic className="h-5 w-5" />}</button>
         )}
         {onVoiceMode && (
-          <button type="button" aria-label={t("chat.voiceMode")} title={t("chat.voiceMode")} onClick={() => { endDictation(true); onVoiceMode(); }} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-foreground transition-colors hover:bg-muted"><AudioLines className="h-5 w-5" /></button>
+          <button type="button" aria-label={t("chat.voiceMode")} title={t("chat.voiceMode")} onClick={() => { endDictation(true); stopCamera(); onVoiceMode(); }} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-foreground transition-colors hover:bg-muted"><AudioLines className="h-5 w-5" /></button>
         )}
         {(input.trim() || attachment) && (
           <button type="button" aria-label={t("chat.sendAria", { name: presenterDisplayName })} title={t("chat.sendAria", { name: presenterDisplayName })} disabled={isBusy} onClick={() => void handleSend()} className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40 ${typingLayout ? 'ml-auto' : ''}`}><Send className="h-4 w-4" /></button>
         )}
         </div>
        </div>
-       <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" aria-hidden="true" tabIndex={-1} onChange={handleFilePicked} />
        <input ref={photosInputRef} type="file" accept="image/*,video/*" className="hidden" aria-hidden="true" tabIndex={-1} onChange={handleFilePicked} />
        <input ref={filesInputRef} type="file" accept={ATTACHMENT_ACCEPT_ALL} className="hidden" aria-hidden="true" tabIndex={-1} onChange={handleFilePicked} />
       </div>
