@@ -35,6 +35,7 @@ import {
   detectInterestSignal,
   detectOfferAcceptance,
   earlyAskDirective,
+  earlyOfferDirective,
   endAskDirective,
   endAskPreArmDirective,
   freshSalesGateState,
@@ -995,5 +996,140 @@ describe('Publish #84 — fix 3b: the silence ladder holds on an outstanding off
     expect(proxySource).toContain('salesSilenceHoldText(msg.stage)');
     // The ladder's own texts remain the default for every other state.
     expect(proxySource).toContain(': ladderText;');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Publish #87 — the EARLY OFFER. Fixtures are VERBATIM from the
+// p87 harness reproduction (2026-11-17, session 69807e7c, VPS
+// path) of Ron's staging test #1: fragmented qualification
+// answers, no interest signal anywhere, and the model spoke the
+// step-6 close script anyway — after which the pristine gate
+// COMPLETED the angle for it (the follow-up turn below), the
+// legitimization cascade this publish removes. Under #87 the
+// pure-offer branch applies the bundled branch's legitimacy
+// test: interest, a close, the model's own close, or the
+// gate's own order in flight. Everything else about an earned
+// offer is byte-identical to #84.
+// ---------------------------------------------------------------------------
+
+const RON_NAME_VISITOR = 'My name is Ronald.';
+const RON_BIZ_VISITOR = 'I have a locksmith company here in Fort Lauderdale.';
+const RON_VOLUME_VISITOR = 'We get maybe twenty calls a day. A lot of them just go to voicemail.';
+// The verbatim early fire: price + the step-6 offer, angle-less,
+// answering a call-volume qualification answer.
+const EARLY_OFFER_MODEL = 'So even a few missed jobs a day is real money walking to the next name on the list. Premium is ninety-nine dollars a month, which includes website voice and chat and four hundred browser voice minutes. Setup is waived right now. Before we talk calls and setup — let me send you something you can actually use: the link to this demo, so you can replay it, a copy of this conversation, or a follow-up from the team.';
+// A model turn inside the model's own close — the #79 judgment
+// case: an offer here is earned by the close itself.
+const CLOSE_OFFER_MODEL = "Thanks so much for chatting with me today. Before you go — let me send you the link to this demo so you can replay it, a copy of this conversation, or a follow-up from the team — something you can pass to your manager, a colleague, or the owner.";
+const NEUTRAL_MODEL = 'Of course. When a call comes in, I greet the caller in your business name and take it from there.';
+
+describe('Publish #87 — the early offer: a pure send-offer with nothing behind it', () => {
+  it('the incident replay: the offer is corrected, never outstanding, never angle-completed', () => {
+    let s = freshSalesGateState();
+    s = boundary(s, RON_NAME_VISITOR, QUALIFYING_MODEL).state;
+    s = boundary(s, RON_BIZ_VISITOR, QUALIFYING_MODEL).state;
+    expect(s.interestSeen).toBe(false);
+    const r = boundary(s, RON_VOLUME_VISITOR, EARLY_OFFER_MODEL);
+    expect(r.inject).toBe('early-offer');
+    expect(r.state.earlyOfferCorrections).toBe(1);
+    expect(r.state.earlyOfferOwed).toBe(false); // the correction fired at this boundary
+    expect(r.state.offerOutstanding).toBe(false); // NOT legitimized
+    expect(r.state.offerAngleMissing).toBe(false);
+    expect(r.state.angleCompletionFires).toBe(0); // the cascade is broken
+    expect(r.state.askFired).toBe(true); // a decline can still spend it (the fold below)
+    expect(r.state.askDelivered).toBe(false);
+    expect(r.state.interestSeen).toBe(false);
+    // The incident's next turn — the angle line arriving as its
+    // own beat — is itself an unearned offer under #87: the
+    // sterner correction answers it, and it still never stands.
+    const angle = boundary(r.state, '', ANGLE_LINE_MODEL);
+    expect(angle.inject).toBe('early-offer');
+    expect(angle.state.earlyOfferCorrections).toBe(2);
+    expect(angle.state.offerOutstanding).toBe(false);
+    // The cap then silences the family.
+    const capped = boundary(angle.state, '', PURE_OFFER_MODEL);
+    expect(capped.inject).toBeNull();
+    expect(capped.state.offerOutstanding).toBe(false);
+  });
+
+  it('a decline of the early offer spends the one ask for good — Ron\'s "not yet" outcome', () => {
+    let s = freshSalesGateState();
+    s = boundary(s, RON_VOLUME_VISITOR, EARLY_OFFER_MODEL).state; // correction fired
+    const declined = boundary(s, DECLINE_VISITOR, 'I completely understand.');
+    expect(declined.state.askDeclined).toBe(true);
+    // Interest arriving afterwards does NOT resurrect an order.
+    const interest = boundary(declined.state, INTEREST_VISITOR, PRICE_ANSWER_MODEL);
+    expect(interest.inject).toBeNull();
+    expect(interest.state.askDelivered).toBe(false);
+  });
+
+  it('an ignored early offer burns nothing — the end-ask still fires when interest lands', () => {
+    let s = freshSalesGateState();
+    s = boundary(s, RON_VOLUME_VISITOR, EARLY_OFFER_MODEL).state; // correction fired
+    const onward = boundary(s, 'Tell me more about how the answering works.', NEUTRAL_MODEL);
+    expect(onward.inject).toBeNull();
+    const r = boundary(onward.state, INTEREST_VISITOR, PRICE_ANSWER_MODEL);
+    expect(r.inject).toBe('end-ask');
+    expect(r.state.endAskFires).toBe(1);
+    expect(r.state.askDelivered).toBe(false);
+  });
+
+  it('a blocked boundary banks the correction — it fires at the next free boundary', () => {
+    const observed = boundary(freshSalesGateState(), QUALIFYING_VISITOR, PURE_OFFER_MODEL, { blocked: true });
+    expect(observed.inject).toBeNull();
+    expect(observed.state.earlyOfferOwed).toBe(true);
+    expect(observed.state.offerOutstanding).toBe(false);
+    const fired = boundary(observed.state, '', NEUTRAL_MODEL);
+    expect(fired.inject).toBe('early-offer');
+    expect(fired.state.earlyOfferCorrections).toBe(1);
+    expect(fired.state.earlyOfferOwed).toBe(false);
+  });
+
+  it('interest landing first retires the banked correction silently — the end-ask order answers instead', () => {
+    const observed = boundary(freshSalesGateState(), QUALIFYING_VISITOR, PURE_OFFER_MODEL, { blocked: true });
+    expect(observed.state.earlyOfferOwed).toBe(true);
+    const r = boundary(observed.state, INTEREST_VISITOR, PRICE_ANSWER_MODEL);
+    expect(r.inject).toBe('end-ask');
+    expect(r.state.earlyOfferOwed).toBe(false);
+    expect(r.state.earlyOfferCorrections).toBe(0);
+  });
+
+  it('earned pure offers are unchanged: the model\'s own close, the visitor\'s close, the gate\'s order in flight', () => {
+    const ownClose = boundary(freshSalesGateState(), QUALIFYING_VISITOR, CLOSE_OFFER_MODEL);
+    expect(ownClose.inject).toBeNull();
+    expect(ownClose.state.offerOutstanding).toBe(true);
+    expect(ownClose.state.askFired).toBe(false);
+    const visitorClose = boundary(freshSalesGateState(), "That's all I needed, thanks.", PURE_OFFER_MODEL);
+    expect(visitorClose.inject).toBeNull();
+    expect(visitorClose.state.offerOutstanding).toBe(true);
+    const ordered = boundary(
+      { ...freshSalesGateState(), askFired: true, awaitingDelivery: true, endAskFires: 1 },
+      '',
+      PURE_OFFER_MODEL,
+    );
+    expect(ordered.inject).toBeNull();
+    expect(ordered.state.offerOutstanding).toBe(true);
+  });
+
+  it('the correction texts: the standard names the missing signals; the repeat is sterner', () => {
+    const first = earlyOfferDirective(false);
+    expect(first).toContain('has NOT shown interest yet');
+    expect(first).toContain('a pause, a silence, or a reconnect is neither');
+    expect(first).toContain('do not ask for an email address or a phone number behind it');
+    expect(first).not.toContain('AGAIN');
+    const second = earlyOfferDirective(true);
+    expect(second).toContain('AGAIN');
+    expect(second).toContain('never because the conversation went quiet or reconnected');
+  });
+
+  it('wiring: the proxy speaks the early-offer correction from the gate\'s own counter', () => {
+    expect(proxySource).toContain("salesDecision.inject === 'early-offer'");
+    expect(proxySource).toContain('earlyOfferDirective(salesGate.earlyOfferCorrections >= 2)');
+  });
+
+  it('the prompt rule names the seam: a fragmented exchange is not interest and not the close', () => {
+    expect(HOMEPAGE_SALES_LAYER).toContain('A fragmented exchange is not interest either');
+    expect(HOMEPAGE_SALES_LAYER).toContain('let the offer wait for a real signal or a real goodbye');
   });
 });
