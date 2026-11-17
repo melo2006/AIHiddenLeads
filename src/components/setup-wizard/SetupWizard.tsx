@@ -24,9 +24,10 @@ import ShareDemoLink from "./ShareDemoLink";
 import { rankAuditExamples } from "@/lib/rankAuditExamples";
 import { GUARDRAILS_MARK, REVIEWED_KNOWLEDGE_MARK, replaceSection } from "../../../supabase/functions/_shared/wizard-knowledge";
 import {
-  EMPTY, INDUSTRIES, SPECIALTIES, industryName, LABELS, askLabel, isAskLabel, labelOptions, STEPS, VOICES, faqKnowledge, nameFromUrl, renderGreeting, stepReady, type WizardState,
+  EMPTY, INDUSTRIES, SPECIALTIES, industryName, LABELS, askLabel, isAskLabel, labelOptions, STEPS, faqKnowledge, nameFromUrl, renderGreeting, stepReady, type WizardState,
 } from "./wizardModel";
-import { VOICE_LANGUAGE_SETS, liveVoiceById, type AgentLanguage } from "@/lib/voiceCatalog";
+import { EMPTY_VOICE_FILTERS, GEMINI_LIVE_VOICES, VOICE_LANGUAGE_SETS, filterVoices, liveVoiceById, type AgentLanguage, type VoiceFilters } from "@/lib/voiceCatalog";
+import { VoiceFilterBar, VoiceMetaTags, VoicePreviewButton, VoicePreviewScope } from "@/components/VoicePicker";
 
 const ICONS = [Building2, BookOpen, Mic, UserRound, Palette, Rocket];
 type Source = { id: string; label: string; kind: string; url?: string; status: string; last_error?: string; content?: string };
@@ -70,6 +71,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
   const [agents, setAgents] = useState<{ id: string; draft: Draft }[]>([]);
   const [sources, setSources] = useState<Source[]>([]);
   const [voiceReady, setVoiceReady] = useState(false);
+  const [voiceFilters, setVoiceFilters] = useState<VoiceFilters>(EMPTY_VOICE_FILTERS);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState(false);
   const [linkInput, setLinkInput] = useState("");
@@ -397,34 +399,44 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
                 </div>
               </div>
               <div className="space-y-3">
-                <p className="flex items-center gap-1.5 text-sm font-semibold">Pick a voice<Help>Each voice is the real Gemini voice your callers will hear. The same voice can speak English, Spanish or Portuguese — the language sets below simply pair the voice with that default language.</Help></p>
+              <VoicePreviewScope>
+                <p className="flex items-center gap-1.5 text-sm font-semibold">Pick a voice<Help>Each voice is the real Gemini voice your callers will hear. The same voice can speak English, Spanish or Portuguese — the language sets below simply pair the voice with that default language. Tap the play button on a card to hear that voice first.</Help></p>
+                <VoiceFilterBar filters={voiceFilters} onChange={setVoiceFilters} />
                 <p className="text-xs font-medium text-muted-foreground">English</p>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {VOICES.map((v) => (
-                    <button key={v.id} type="button" onClick={() => pickVoice(v.id, "en")}
-                      className={`rounded-xl border-2 p-3 text-left transition ${s.voice === v.id && (s.defaultLanguage || "en") === "en" && !s.clonedVoiceSelected ? "border-primary bg-primary/10" : "border-border hover:border-primary/50"}`}>
-                      <Mic className={`mb-1 h-4 w-4 ${s.voice === v.id && (s.defaultLanguage || "en") === "en" && !s.clonedVoiceSelected ? "text-primary" : "text-muted-foreground"}`} />
-                      <p className="text-sm font-semibold">{v.label}</p>
-                      <p className="text-[11px] text-muted-foreground">{v.vibe}</p>
-                    </button>
-                  ))}
+                  {filterVoices(GEMINI_LIVE_VOICES, voiceFilters).map((v) => { const active = s.voice === v.id && (s.defaultLanguage || "en") === "en" && !s.clonedVoiceSelected; return (
+                    <div key={v.id} className="relative">
+                      <button type="button" onClick={() => pickVoice(v.id, "en")}
+                        className={`w-full rounded-xl border-2 p-3 pr-9 text-left transition ${active ? "border-primary bg-primary/10" : "border-border hover:border-primary/50"}`}>
+                        <Mic className={`mb-1 h-4 w-4 ${active ? "text-primary" : "text-muted-foreground"}`} />
+                        <p className="text-sm font-semibold">{v.id}</p>
+                        <p className="text-[11px] text-muted-foreground">{v.style} · {v.gender}</p>
+                        <VoiceMetaTags voice={v} />
+                      </button>
+                      <VoicePreviewButton voiceId={v.id} />
+                    </div> ); })}
                 </div>
                 {VOICE_LANGUAGE_SETS.map((setDef) => (
                   <div key={setDef.language} className="space-y-2">
                     <p className="text-xs font-medium text-muted-foreground">{setDef.label} <span className="font-normal">· {setDef.note}</span></p>
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                       {[...setDef.female, ...setDef.male].map((id) => { const v = liveVoiceById(id); if (!v) return null; const active = s.voice === id && s.defaultLanguage === setDef.language && !s.clonedVoiceSelected; return (
-                        <button key={id} type="button" onClick={() => pickVoice(id, setDef.language)}
-                          className={`rounded-xl border-2 p-3 text-left transition ${active ? "border-primary bg-primary/10" : "border-border hover:border-primary/50"}`}>
-                          <Mic className={`mb-1 h-4 w-4 ${active ? "text-primary" : "text-muted-foreground"}`} />
-                          <p className="text-sm font-semibold">{v.id}</p>
-                          <p className="text-[11px] text-muted-foreground">{v.style} · {v.gender}</p>
-                        </button> ); })}
+                        <div key={id} className="relative">
+                          <button type="button" onClick={() => pickVoice(id, setDef.language)}
+                            className={`w-full rounded-xl border-2 p-3 pr-9 text-left transition ${active ? "border-primary bg-primary/10" : "border-border hover:border-primary/50"}`}>
+                            <Mic className={`mb-1 h-4 w-4 ${active ? "text-primary" : "text-muted-foreground"}`} />
+                            <p className="text-sm font-semibold">{v.id}</p>
+                            <p className="text-[11px] text-muted-foreground">{v.style} · {v.gender}</p>
+                            <VoiceMetaTags voice={v} />
+                          </button>
+                          <VoicePreviewButton voiceId={id} />
+                        </div> ); })}
                     </div>
                   </div>
                 ))}
                 {realVoice && (voiceReady ? <div className="rounded-lg border border-border p-2"><GeminiConversation key={`${selectedId}-${s.voice}-${s.greeting}`} previewOnly autoStart previewAudioContext={previewAudioRef.current} draft agentId={selectedId} name={s.name} previewVoice={s.voice} compact /></div> : <Button variant="outline" className="w-full" disabled={busy} onClick={() => void prepareVoice()}>{busy ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}{busy ? 'Saving & preparing voice…' : `Hear my greeting · ${s.voice}`}</Button>)}
 
+              </VoicePreviewScope>
               </div>
               <div className="md:col-span-2">
                 <VoiceClonePanel agentId={selectedId} selected={Boolean(s.clonedVoiceSelected)} onSelectChange={(cloned) => { set({ clonedVoiceSelected: cloned }); if (cloned) setVoiceReady(false); }} />

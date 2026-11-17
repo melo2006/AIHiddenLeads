@@ -10,7 +10,7 @@ import SimliAvatar, { type SimliAvatarHandle } from "@/components/SimliAvatar";
 import VoiceClonePanel from "@/components/VoiceClonePanel";
 import AvatarDevicePreview from "@/components/AvatarDevicePreview";
 import GeminiConversation from "@/components/GeminiConversation";
-import { VOICES } from "@/components/setup-wizard/wizardModel";
+import { VoicePickerGrid } from "@/components/VoicePicker";
 import { type AvatarFace } from '@/lib/simliFaceCatalog';
 import AvatarLibraryGrid from "@/components/AvatarLibraryGrid";
 import { avatarLibraryEntryByFaceId, avatarLibraryPick, type AvatarLibraryEntry } from "@/lib/avatarLibrary";
@@ -203,7 +203,7 @@ export default function AvatarSettings({ value, onChange, agentId, beforePreview
             <div className="flex flex-wrap gap-2">{AVATAR_SHAPES.map((sh) => <Button key={sh} size="sm" variant={value.shape === sh ? "default" : "outline"} onClick={() => set({ shape: sh })} className="text-xs">{SHAPE_LABEL[sh]}</Button>)}</div>
           </div>
         </>}
-        {onVoiceChange && <div className="space-y-2"><p className="text-sm font-medium">Gemini Live voice</p><div className="grid grid-cols-2 gap-2">{VOICES.map(v => <Button key={v.id} variant={voice === v.id && !clonedVoiceSelected ? 'default' : 'outline'} className="h-auto flex-col items-start whitespace-normal p-3" onClick={() => onVoiceChange(v.id)} aria-pressed={voice === v.id && !clonedVoiceSelected}><span>{v.label}</span><span className="text-[11px]">{v.vibe}</span></Button>)}</div></div>}
+        {onVoiceChange && <div className="space-y-2"><p className="text-sm font-medium">Gemini Live voice</p><VoicePickerGrid selectedId={clonedVoiceSelected ? null : voice} onSelect={(id) => onVoiceChange(id)} /></div>}
         <VoiceClonePanel agentId={agentId} selected={clonedVoiceSelected} onSelectChange={onClonedVoiceSelectedChange} />
       </div>
 
