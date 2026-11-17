@@ -825,5 +825,13 @@
   },
   "frame": {
     "voiceView": "Vista de voz"
+  },
+  "whatsapp": {
+    "label": "WhatsApp",
+    "chatAria": "Chatea con AiHiddenLeads en WhatsApp",
+    "message": "Hola, quiero saber más sobre AiHiddenLeads.",
+    "sourceHome": "(desde la página principal)",
+    "sourceDemo": "(desde la página de demostración)",
+    "sourceRealtors": "(desde la página para agentes inmobiliarios)"
   }
 }

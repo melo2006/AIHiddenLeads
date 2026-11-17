@@ -1211,5 +1211,13 @@
     "hearNamePlay": "▶ Hear {{name}}",
     "openName": "Open {{name}}",
     "shellAria": "{{name}} floating assistant"
+  },
+  "whatsapp": {
+    "label": "WhatsApp",
+    "chatAria": "Chat with AiHiddenLeads on WhatsApp",
+    "message": "Hi AiHiddenLeads, I'd like to learn more.",
+    "sourceHome": "(from the homepage)",
+    "sourceDemo": "(from the demo page)",
+    "sourceRealtors": "(from the realtors page)"
   }
 }

@@ -1211,5 +1211,13 @@
     "hearNamePlay": "▶ Ouvir {{name}}",
     "openName": "Abrir {{name}}",
     "shellAria": "Assistente flutuante {{name}}"
+  },
+  "whatsapp": {
+    "label": "WhatsApp",
+    "chatAria": "Conversar com a AiHiddenLeads no WhatsApp",
+    "message": "Olá, quero saber mais sobre a AiHiddenLeads.",
+    "sourceHome": "(da página inicial)",
+    "sourceDemo": "(da página de demonstração)",
+    "sourceRealtors": "(da página para corretores de imóveis)"
   }
 }
