@@ -5,6 +5,8 @@ import { AudioLines, Check, Loader2, Mic, Play, RotateCcw, Square, UploadCloud }
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import ElevenLabsVoiceImport from "@/components/ElevenLabsVoiceImport";
 import {
   CLONE_AUDIO_ACCEPT, MAX_RECORD_SECONDS, VOICE_CLONE_INSTRUCTIONS, VOICE_CLONE_SCRIPT,
   formatClock, isCloneAudioType, measureAudioDuration, validateCloneSample,
@@ -28,6 +30,13 @@ interface Props {
   onSelectChange?: (selected: boolean) => void;
   /** Admin (on-behalf) mode: shows the stored ElevenLabs voice ID with paste-to-attach and remove controls. */
   adminMode?: boolean;
+  /** Live-voice engine toggle (2026-11-17): when on, live conversations
+   *  speak with the attached ElevenLabs voice (Gemini still listens and
+   *  thinks). Off — the default — keeps the built-in Gemini voice. The
+   *  toggle renders only when these props are supplied AND a clone is
+   *  attached; the owning surface persists it in the agent config. */
+  liveVoiceEnabled?: boolean;
+  onLiveVoiceChange?: (enabled: boolean) => void;
 }
 
 type Sample = { blob: Blob; url: string; durationSeconds: number | null };
@@ -38,7 +47,7 @@ type Sample = { blob: Blob; url: string; durationSeconds: number | null };
  * the stored clone in the voice picker. Part of the $50 custom add-on
  * (photo avatar + voice clone together).
  */
-export default function VoiceClonePanel({ agentId, selected = false, onSelectChange, adminMode = false }: Props) {
+export default function VoiceClonePanel({ agentId, selected = false, onSelectChange, adminMode = false, liveVoiceEnabled = false, onLiveVoiceChange }: Props) {
   const [loading, setLoading] = useState(Boolean(agentId));
   const [unlocked, setUnlocked] = useState<boolean | null>(null);
   const [serverAdmin, setServerAdmin] = useState(false);
@@ -219,6 +228,19 @@ export default function VoiceClonePanel({ agentId, selected = false, onSelectCha
       {clone?.status === "ready" && !replacing && (
         <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setReplacing(true)}><RotateCcw className="mr-1 h-3.5 w-3.5" />Record a new clone</Button>
       )}
+      {clone?.status === "ready" && onLiveVoiceChange && (
+        <div className="space-y-1 rounded-lg border border-border p-3">
+          <label className="flex items-center justify-between gap-3 text-sm font-medium">
+            Speak live in this voice (ElevenLabs)
+            <Switch aria-label="Speak live in this voice (ElevenLabs)" checked={liveVoiceEnabled} onCheckedChange={(v) => onLiveVoiceChange(Boolean(v))} />
+          </label>
+          <p className="text-[11px] text-muted-foreground">
+            On: live conversations are spoken in this ElevenLabs voice — the assistant still listens, understands and
+            decides with Gemini, and callers can still interrupt her mid-sentence. Off (the default): the built-in Gemini
+            voice speaks. Applies to new conversations once saved (and published, for the live site).
+          </p>
+        </div>
+      )}
 
       {isAdmin && agentId && !loading && (
         <div className="space-y-2 rounded-lg border border-border p-2">
@@ -281,6 +303,14 @@ export default function VoiceClonePanel({ agentId, selected = false, onSelectCha
           {clone?.status === "creating" && <p role="status" className="flex items-center gap-2 text-xs text-primary"><Loader2 className="h-3.5 w-3.5 animate-spin" />Creating your cloned voice…</p>}
           {problem && <p role="alert" className="text-xs text-destructive">{problem}</p>}
         </div>
+      )}
+
+      {agentId && !loading && unlocked === true && (
+        <ElevenLabsVoiceImport
+          agentId={agentId}
+          attachedVoiceId={clone?.status === "ready" ? clone.id : null}
+          onAttached={(next) => { setClone(next); setReplacing(false); onSelectChange?.(true); }}
+        />
       )}
     </div>
   );

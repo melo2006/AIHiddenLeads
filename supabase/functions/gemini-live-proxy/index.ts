@@ -34,7 +34,8 @@ import { handoffReturnInstruction, handoffReturnOutcome } from '../_shared/hando
 import { BROWSER_MINUTES_OVERAGE_POLICY } from '../_shared/overage-facts.ts'
 import { FAREWELL_END_DELAY_MS, FAREWELL_REPEAT_END_DELAY_MS, detectFarewell, detectFarewellLeadIn, detectFarewellPersistence, detectFarewellSoftClose, detectModelClosing, farewellSpeakerName, hasPresenterStamp } from '../_shared/farewell.ts'
 import { CONTACT_SAVE_CLIENT_ERROR, CONTACT_SAVE_FALLBACK_TOOL_RESPONSE, saveConfirmedFollowup } from '../_shared/contact-save.ts'
-import { logUsageEvent, videoAvatarEventFromSession, webVoiceEventFromSession } from '../_shared/usage-ledger.ts'
+import { elevenLabsTtsEventFromSession, logUsageEvent, videoAvatarEventFromSession, webVoiceEventFromSession } from '../_shared/usage-ledger.ts'
+import { bytesToBase64, createSpeechChunker, elevenLabsMouthVoiceId, elevenLabsTtsCostUsd, mergePcmCarry } from '../_shared/elevenlabs-mouth.ts'
 
 const GEMINI_WS =
   'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent'
@@ -420,8 +421,113 @@ Deno.serve(async (req) => {
   const started = Date.now()
   let inputAudioSeconds = 0
   let outputAudioSeconds = 0
+  // ELEVENLABS LIVE MOUTH gate + counters (2026-11-17 — the state
+  // machine itself sits right below usage()): active only when
+  // gemini-session stamped config.elevenLabsVoiceId (per-agent toggle
+  // on + a ready clone/import attached) AND the API key exists on this
+  // runtime (Supabase secret on Edge; /etc/aspen-voice.env on the VPS).
+  // Inactive sessions are byte-identical to before.
+  const mouthVoiceId = elevenLabsMouthVoiceId(config)
+  const mouthApiKey = Deno.env.get('ELEVENLABS_API_KEY') || ''
+  const mouthActive = Boolean(mouthVoiceId && mouthApiKey)
+  let mouthChars = 0
+  let mouthAudioSeconds = 0
   const providerReports: unknown[] = []
-  const usage = () => ({ model, input_audio_seconds: inputAudioSeconds, output_audio_seconds: outputAudioSeconds, audio_estimate_usd: audioCost(inputAudioSeconds, outputAudioSeconds, pricing), pricing, provider_reports: providerReports, cost_basis: pricing ? 'published_audio_estimate_excludes_text_context_and_scanning' : 'pricing_unverified' })
+  const usage = () => ({ model, input_audio_seconds: inputAudioSeconds, output_audio_seconds: outputAudioSeconds, audio_estimate_usd: audioCost(inputAudioSeconds, outputAudioSeconds, pricing), pricing, provider_reports: providerReports, cost_basis: pricing ? 'published_audio_estimate_excludes_text_context_and_scanning' : 'pricing_unverified', ...(mouthChars > 0 ? { elevenlabs_tts: { characters: mouthChars, audio_seconds: Math.round(mouthAudioSeconds * 10) / 10, est_cost_usd: elevenLabsTtsCostUsd(mouthChars) } } : {}) })
+  // ELEVENLABS LIVE MOUTH state machine (2026-11-17 — see
+  // _shared/elevenlabs-mouth.ts for the pure half). Gemini keeps
+  // generating its native audio; while the mouth is live that audio is
+  // HELD per turn (never forwarded, never recorded) and the reply text
+  // — already arriving as output transcription — is chunked into
+  // sentences and synthesized by ElevenLabs as 24 kHz PCM, forwarded
+  // over the same { type: 'audio' } wire shape. The client's locked
+  // playout, its Simli feed and its interruption contract therefore
+  // behave exactly as with the native voice: an interruption bumps
+  // mouthGen (queued chunks self-skip, the in-flight stream aborts)
+  // and the client's own clearPlayback stops whatever already played.
+  // ANY TTS failure disables the mouth for the rest of the session and
+  // releases the current turn's held Gemini audio — the visitor hears
+  // the Gemini voice, never silence.
+  let mouthFailed = false
+  let mouthGen = 0
+  let mouthAbort: AbortController | null = null
+  let mouthChain: Promise<void> = Promise.resolve()
+  let mouthChunker = createSpeechChunker()
+  let mouthTurnHeldAudio: string[] = []
+  const mouthSpeak = (text: string) => {
+    if (!mouthActive || mouthFailed || closed) return
+    const gen = mouthGen
+    mouthChain = mouthChain.then(async () => {
+      if (gen !== mouthGen || mouthFailed || closed) return
+      mouthChars += text.length
+      const controller = new AbortController()
+      mouthAbort = controller
+      try {
+        const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(mouthVoiceId as string)}/stream?output_format=pcm_24000`, {
+          method: 'POST',
+          headers: { 'xi-api-key': mouthApiKey, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, model_id: 'eleven_flash_v2_5', voice_settings: { stability: 0.5, similarity_boost: 0.75, style: 0, use_speaker_boost: true } }),
+          signal: controller.signal,
+        })
+        if (!res.ok || !res.body) throw new Error(`elevenlabs tts status ${res.status}`)
+        const reader = res.body.getReader()
+        let carry = new Uint8Array(0)
+        for (;;) {
+          const { done, value } = await reader.read()
+          if (done) break
+          if (gen !== mouthGen || closed) { try { await reader.cancel() } catch { /* already gone */ } return }
+          if (!value) continue
+          const merged = mergePcmCarry(carry, value)
+          carry = merged.rest
+          if (merged.emit.length) {
+            const data = bytesToBase64(merged.emit)
+            mouthAudioSeconds += pcmSeconds(data, 24000)
+            captureAudio('assistant', data)
+            if (clientSocket.readyState === WebSocket.OPEN) clientSocket.send(JSON.stringify({ type: 'audio', data }))
+          }
+        }
+      } catch (e) {
+        // An abort WE caused (interruption/close) has gen !== mouthGen
+        // or closed set and lands here too — it is not a failure.
+        if (gen === mouthGen && !closed) {
+          console.error('elevenlabs mouth failed; falling back to the Gemini voice for this session', e instanceof Error ? e.message : 'error')
+          mouthFail()
+        }
+      } finally {
+        if (mouthAbort === controller) mouthAbort = null
+      }
+    })
+  }
+  const mouthFail = () => {
+    if (mouthFailed) return
+    mouthFailed = true
+    // Release the current turn's held Gemini audio so the visitor hears
+    // the turn in the Gemini voice. A sentence the mouth already spoke
+    // may repeat — a rare, failure-only wart; silence would be worse.
+    // Later turns take the native path directly (mouthFailed checks).
+    const held = mouthTurnHeldAudio
+    mouthTurnHeldAudio = []
+    for (const data of held) {
+      captureAudio('assistant', data)
+      if (clientSocket.readyState === WebSocket.OPEN) clientSocket.send(JSON.stringify({ type: 'audio', data }))
+    }
+  }
+  const mouthInterrupt = () => {
+    mouthGen += 1
+    try { mouthAbort?.abort() } catch { /* already settled */ }
+    mouthAbort = null
+    mouthChain = Promise.resolve()
+    mouthChunker = createSpeechChunker()
+    mouthTurnHeldAudio = []
+  }
+  const mouthEndTurn = () => {
+    if (!mouthActive || mouthFailed) { mouthTurnHeldAudio = []; return }
+    const rest = mouthChunker.flush()
+    if (rest) mouthSpeak(rest)
+    // The turn's held Gemini audio is discarded: the mouth spoke it.
+    mouthTurnHeldAudio = []
+    mouthChunker = createSpeechChunker()
+  }
   let heartbeat: ReturnType<typeof setInterval> | undefined
   const persistUsage = async () => {
     if(closed)return;
@@ -441,6 +547,7 @@ Deno.serve(async (req) => {
   const closeAll = () => {
     if (closed) return
     closed = true
+    if (mouthActive) mouthInterrupt()
     releaseSocket?.()
     clearTimeout(sessionTimer); clearTimeout(goAwayTimer); clearInterval(pacingTimer)
     clearTimeout(handoffStartTimer); cancelFarewellEnd()
@@ -459,6 +566,8 @@ Deno.serve(async (req) => {
           await logUsageEvent(db, webVoiceEventFromSession(finalizedSession, finalUsage))
           const videoEvent = videoAvatarEventFromSession(finalizedSession, finalUsage)
           if (videoEvent) await logUsageEvent(db, videoEvent)
+          const ttsEvent = elevenLabsTtsEventFromSession(finalizedSession, { characters: mouthChars, audioSeconds: mouthAudioSeconds })
+          if (ttsEvent) await logUsageEvent(db, ttsEvent)
         } catch { /* ledger is best-effort only */ }
       }
       if (!preview) {
@@ -948,6 +1057,10 @@ Deno.serve(async (req) => {
           // Interruption — tell the client to stop playback immediately
           if (sc.interrupted) {
             modelTurnInFlight = false
+            // ElevenLabs mouth: drop every queued chunk and abort the
+            // in-flight synthesis BEFORE the client clears playout, so
+            // no substitute-voice audio can land after the stop.
+            if (mouthActive) mouthInterrupt()
             clientSocket.send(JSON.stringify({ type: 'interrupted' }))
             return
           }
@@ -971,8 +1084,18 @@ Deno.serve(async (req) => {
             for (const part of sc.modelTurn.parts) {
               if (part.inlineData?.data) {
                 outputAudioSeconds += pcmSeconds(part.inlineData.data, 24000)
-                captureAudio('assistant',part.inlineData.data);
-                clientSocket.send(JSON.stringify({ type: 'audio', data: part.inlineData.data }))
+                if (mouthActive && !mouthFailed) {
+                  // ElevenLabs mouth: Gemini's native audio for this
+                  // turn is HELD — not forwarded, not recorded. The
+                  // mouth speaks the turn from its transcription
+                  // (below); the held audio is released only if the
+                  // mouth fails mid-turn (mouthFail) and discarded at
+                  // turnComplete when the mouth spoke instead.
+                  mouthTurnHeldAudio.push(part.inlineData.data)
+                } else {
+                  captureAudio('assistant',part.inlineData.data);
+                  clientSocket.send(JSON.stringify({ type: 'audio', data: part.inlineData.data }))
+                }
               }
               if (part.text) {
                 clientSocket.send(JSON.stringify({ type: 'model_text', text: part.text }))
@@ -985,6 +1108,12 @@ Deno.serve(async (req) => {
             // reads this turn's spoken text (see modelTurnText).
             modelTurnText += sc.outputTranscription.text
             clientSocket.send(JSON.stringify({ type: 'aspen_transcript', text: sc.outputTranscription.text }))
+            // ElevenLabs mouth: feed the same transcription into the
+            // speech chunker; completed chunks synthesize in order on
+            // the mouth chain.
+            if (mouthActive && !mouthFailed) {
+              for (const chunk of mouthChunker.push(sc.outputTranscription.text)) mouthSpeak(chunk)
+            }
           }
           if (sc.inputTranscription?.text) {
             // Engagement clock only — the silence ladder resets at
@@ -1016,6 +1145,11 @@ Deno.serve(async (req) => {
             clientSocket.send(JSON.stringify({ type: 'user_transcript', text: sc.inputTranscription.text }))
           }
           if (sc.turnComplete) {
+            // ElevenLabs mouth (2026-11-17): the turn is over — flush
+            // any remaining chunked text through TTS and discard the
+            // Gemini audio held back for this turn (the mouth spoke
+            // instead). No-op when the mouth is inactive or failed.
+            if (mouthActive) mouthEndTurn()
             lastModelTurnAt = Date.now()
             modelTurnInFlight = false
             // Farewell hang-up (Fix 5): evaluate the visitor's

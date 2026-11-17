@@ -50,6 +50,9 @@ FUNCTIONS_SRC="${REPO_ROOT}/supabase/functions"
 # 2026-11-16: +1 (42 → 43) — the drift watch (batch item 10) added
 # drift-watch.ts to the proxy's imports. The
 # 2026-11-15 redeploy crash-looped on the missing context-compression.ts.
+# 2026-11-17: +1 (43 → 44) — the ElevenLabs live mouth added
+# elevenlabs-mouth.ts to the proxy's imports (usage-ledger.ts, already in
+# the closure, gained the TTS event builder in the same change).
 # NOTE: `deno cache` (step 4) is NOT a reliable closure authority —
 # server.ts loads the function entry through a dynamic import, which the
 # static cache pass does not traverse (the 2026-11-15 deploy cached
@@ -75,6 +78,7 @@ SHARED_CLOSURE=(
   demo-sales.ts
   discovery-gate.ts
   drift-watch.ts
+  elevenlabs-mouth.ts
   farewell.ts
   followup.ts
   handoff-return.ts
