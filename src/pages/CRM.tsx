@@ -1,4 +1,6 @@
-import { Routes, Route, useNavigate, Navigate, useSearchParams } from "react-router-dom";
+import { Routes, Route, useNavigate, Navigate, useSearchParams, useLocation } from "react-router-dom";
+import { ChevronRight } from "lucide-react";
+import { BrandLockup } from "@/components/BrandLogo";
 import type { ReactNode } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -20,7 +22,7 @@ import SetupWizard from "@/components/setup-wizard/SetupWizard";
 import VideoAvatarsView from "@/components/crm/VideoAvatarsView";
 import TelephonyAdminView from "@/components/crm/TelephonyAdminView";
 import { Link } from "react-router-dom";
-import { CRMSidebar } from "@/components/crm/CRMSidebar";
+import { CRMSidebar, crmTitleForPath } from "@/components/crm/CRMSidebar";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -106,12 +108,7 @@ const AdminLogin = ({ onSignedIn }: { onSignedIn: () => void }) => {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-sm border-border bg-card">
         <CardHeader className="space-y-3">
-          <div className="flex items-center gap-2.5">
-            <img src="/logo.png" alt="AI Hidden Leads" className="h-10 w-10" />
-            <span className="text-base font-extrabold tracking-tight text-foreground">
-              AI <span className="text-primary">Hidden</span> Leads
-            </span>
-          </div>
+          <BrandLockup />
           <CardTitle className="text-lg">Admin sign in</CardTitle>
         </CardHeader>
         <CardContent>
@@ -153,6 +150,8 @@ const AdminLogin = ({ onSignedIn }: { onSignedIn: () => void }) => {
 };
 
 const CRM = () => {
+  const location = useLocation();
+  const pageTitle = crmTitleForPath(location.pathname);
   const [session, setSession] = useState<Session | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [voiceAccess, setVoiceAccess] = useState(false);
@@ -199,12 +198,7 @@ const CRM = () => {
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-sm border-border bg-card">
           <CardHeader className="space-y-3">
-            <div className="flex items-center gap-2.5">
-              <img src="/logo.png" alt="AI Hidden Leads" className="h-10 w-10" />
-              <span className="text-base font-extrabold tracking-tight text-foreground">
-                AI <span className="text-primary">Hidden</span> Leads
-              </span>
-            </div>
+            <BrandLockup />
             <CardTitle className="text-lg">Access restricted</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -230,14 +224,16 @@ const CRM = () => {
         <div className="flex-1 flex flex-col min-w-0">
           <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur-sm">
             <div className="flex h-14 items-center gap-2 px-4">
-              <Link to="/" className="flex min-w-0 items-center gap-2">
-                <img src="/logo.png" alt="AI Hidden Leads" className="h-9 w-9" />
-                <span className="truncate text-lg font-extrabold tracking-tight text-foreground">AI <span className="text-primary">Hidden</span> Leads</span>
-              </Link>
+              {/* Mobile-only nav trigger; desktop collapses via the
+                  chevron on the sidebar's right edge. The brand lockup
+                  lives once, at the top of the sidebar. */}
+              <SidebarTrigger className="h-8 w-8 md:hidden" aria-label="Toggle menu" />
+              <div className="flex min-w-0 items-center gap-1.5">
+                <span className="hidden text-[11px] font-medium uppercase tracking-widest text-muted-foreground sm:inline">{pageTitle.section}</span>
+                <ChevronRight className="hidden h-3.5 w-3.5 shrink-0 text-muted-foreground sm:block" />
+                <h1 className="truncate text-base font-semibold text-foreground">{pageTitle.title}</h1>
+              </div>
               <div className="ml-auto"><AccountMenu /></div>
-            </div>
-            <div className="flex h-9 items-center border-t border-border/60 px-2">
-              <SidebarTrigger className="h-8 w-8" aria-label="Toggle menu" /><span className="text-xs text-muted-foreground">Menu</span>
             </div>
           </header>
           <main className="flex-1 p-4 sm:p-6 overflow-y-auto">
