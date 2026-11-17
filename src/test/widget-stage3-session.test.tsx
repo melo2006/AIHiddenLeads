@@ -79,9 +79,21 @@ describe('stage 3 session: opening gate + true suspend/resume', () => {
     expect(gated.length).toBeGreaterThan(0);
     expect(gated.every(bytes => bytes.every(b => b === 0))).toBe(true);
 
-    // Her first turn completes: the gate lifts and real mic audio flows.
+    // Her first turn completes: the opening gate lifts. Real mic audio
+    // then flows once the visitor's speech proves SUSTAINED — the
+    // barge-in hardening speech gate (2026-11-17) holds the first
+    // ~200 ms of above-threshold input as silence so a transient or an
+    // echo burst can never reach the provider as a "turn". One loud
+    // frame alone is exactly the transient case: still silence.
     act(() => socket.emit({ type: 'aspen_transcript', text: 'Hello, welcome in.' }));
     act(() => socket.emit({ type: 'turn_complete' }));
+    act(() => node.onaudioprocess?.(loudFrame));
+    const transient = socket.audioPayloads().slice(gated.length);
+    expect(transient.length).toBeGreaterThan(0);
+    expect(transient.every(bytes => bytes.every(b => b === 0))).toBe(true);
+    // Sustained loud input past the 200 ms window opens the gate and
+    // real audio flows.
+    await new Promise(resolve => setTimeout(resolve, 260));
     act(() => node.onaudioprocess?.(loudFrame));
     const open = socket.audioPayloads().slice(gated.length);
     expect(open.length).toBeGreaterThan(0);

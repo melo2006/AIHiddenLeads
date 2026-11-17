@@ -162,11 +162,19 @@ describe("fix6 item 1 — silent-mic detection: the 3b30cc34 fixture", () => {
 describe("fix6 item 2 — noise default alignment (noisy-room default)", () => {
   it("the factory start is strong and a saved value needs the manual marker", () => {
     expect(conversation).toContain('localStorage.getItem("voice-noise-filter-manual") === "1"');
-    expect(conversation).toContain('return manual && (saved === "light" || saved === "strong") ? saved : "strong";');
+    // 2026-11-17: a marked save can only have been written by the
+    // manual chooser, so a marked pick is honored as-is — balanced
+    // included (the pre-marker factory-default saves stay unmarked
+    // and still fall back to strong).
+    expect(conversation).toContain('return manual && (saved === "light" || saved === "balanced" || saved === "strong") ? saved : "strong";');
   });
 
-  it("the ambient auto-pick can never land on light by itself", () => {
-    expect(conversation).toContain('const autoFilter = next.filter === "light" ? "balanced" : next.filter;');
+  it("the ambient auto-pick never relaxes below strong by itself (2026-11-17 — supersedes the balanced clamp)", () => {
+    // The fix6 clamp (light → balanced) still let a quiet room slide
+    // a session to Balanced, where her own speaker echo interrupted
+    // her; auto now holds strong until a manual pick (autoNoiseFilter).
+    expect(conversation).toContain('const autoFilter = autoNoiseFilter(next.filter);');
+    expect(conversation).not.toContain('next.filter === "light" ? "balanced" : next.filter');
   });
 
   it("only the manual chooser persists, and it writes the marker with the value", () => {

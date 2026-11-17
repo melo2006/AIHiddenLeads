@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { microphonePcm, shouldSendMicrophone, microphoneGate, microphoneAutoGain, initialCaptureMode, estimateNoiseFloor, pickNoiseFilterForFloor, ambientLevelForFloor, createAmbientGateState, pushAmbientRms, AMBIENT_WINDOW_MAX_SAMPLES } from "../lib/voiceLabAudio";
+import { microphonePcm, shouldSendMicrophone, microphoneGate, microphoneAutoGain, initialCaptureMode, estimateNoiseFloor, pickNoiseFilterForFloor, ambientLevelForFloor, createAmbientGateState, pushAmbientRms, AMBIENT_WINDOW_MAX_SAMPLES, createSpeechGateState, pushSpeechGateFrame, autoNoiseFilter, appliedAmbientLevel, noiseThresholds, SPEECH_GATE_SUSTAIN_MS, SPEECH_GATE_SPEAKING_SUSTAIN_MS, SPEECH_GATE_SPEAKING_THRESHOLD, type NoiseFilter, type SpeechGateState } from "../lib/voiceLabAudio";
 
 describe("Voice Lab microphone privacy controls", () => {
   it('strong filtering does not automatically amplify background noise', () => {
@@ -158,5 +158,124 @@ describe("ambient noise floor estimation and auto-pick", () => {
     for (let i = 0; i < AMBIENT_WINDOW_MAX_SAMPLES; i++) state = pushAmbientRms(state, 0.002);
     expect(state.floor).toBeCloseTo(0.002);
     expect(state.filter).toBe("light");
+  });
+});
+
+// Barge-in hardening (2026-11-17): the capture loops' send gate may only
+// OPEN on sustained speech-level input. Ron's sessions: a fragment of
+// room noise / speaker echo opened the old first-frame gate, streamed
+// ~450 ms of real audio, and the provider cut Aspen off mid-sentence.
+describe("speech gate — sustained input to open, higher bar while she speaks", () => {
+  const STEP = 50; // ms per simulated capture frame
+  /** Drive the gate through [rms, durationMs] segments at 50 ms frames. */
+  const drive = (segments: { rms: number; ms: number }[], filter: NoiseFilter, speaking: boolean) => {
+    let state: SpeechGateState = createSpeechGateState();
+    let now = 0;
+    let everOpened = false;
+    let firstOpenAt = -1;
+    for (const seg of segments) {
+      const frames = Math.max(1, Math.round(seg.ms / STEP));
+      for (let i = 0; i < frames; i++) {
+        state = pushSpeechGateFrame(state, seg.rms, filter, now, speaking);
+        if (state.open) { everOpened = true; if (firstOpenAt < 0) firstOpenAt = now; }
+        now += STEP;
+      }
+    }
+    return { state, everOpened, firstOpenAt };
+  };
+
+  it("a single transient frame never opens the gate, however loud", () => {
+    const { everOpened } = drive([{ rms: 0.3, ms: STEP }, { rms: 0, ms: 1000 }], "strong", false);
+    expect(everOpened).toBe(false);
+  });
+
+  it("sustained speech-level input opens the gate after the sustain window", () => {
+    const { everOpened, firstOpenAt } = drive([{ rms: 0.08, ms: 600 }], "strong", false);
+    expect(everOpened).toBe(true);
+    expect(firstOpenAt).toBe(SPEECH_GATE_SUSTAIN_MS);
+  });
+
+  it("separated bursts do not accumulate toward opening", () => {
+    // Three 150 ms bursts with quiet gaps: each run is under the
+    // sustain window and a quiet frame resets the run.
+    const { everOpened } = drive([
+      { rms: 0.08, ms: 150 }, { rms: 0, ms: 100 },
+      { rms: 0.08, ms: 150 }, { rms: 0, ms: 100 },
+      { rms: 0.08, ms: 150 }, { rms: 0, ms: 500 },
+    ], "strong", false);
+    expect(everOpened).toBe(false);
+  });
+
+  it("a short real answer still opens the gate while she is silent", () => {
+    // A ~300 ms "yes" at clear speech level must get through: the
+    // sustain window is a noise bar, not a word-length test.
+    const { everOpened } = drive([{ rms: 0.08, ms: 300 }], "strong", false);
+    expect(everOpened).toBe(true);
+  });
+
+  it("the speaking bar is the strong floor ×2, whatever filter is applied", () => {
+    expect(SPEECH_GATE_SPEAKING_THRESHOLD).toBe(noiseThresholds.strong * 2);
+    // 0.03 clears the BALANCED send threshold (0.012) and even the
+    // strong one (0.025) — the exact signal that interrupted Ron at
+    // Balanced — yet sustained for a full two seconds while she
+    // speaks it must never open the gate.
+    const { everOpened } = drive([{ rms: 0.03, ms: 2000 }], "balanced", true);
+    expect(everOpened).toBe(false);
+  });
+
+  it("speaker echo simulation: periodic low-level bursts while she speaks never interrupt", () => {
+    // Echo follows her speech envelope: bursts above the old gate's
+    // threshold, broken by her natural pauses. Neither the below-bar
+    // pattern (0.035) nor the above-bar-but-broken pattern (0.06 in
+    // 150 ms bursts, under the 400 ms speaking sustain) may open.
+    const pattern = (rms: number) => Array.from({ length: 12 }, () => [{ rms, ms: 150 }, { rms: 0.004, ms: 100 }]).flat();
+    expect(drive(pattern(0.035), "strong", true).everOpened).toBe(false);
+    expect(drive(pattern(0.06), "strong", true).everOpened).toBe(false);
+  });
+
+  it("real speech over her still interrupts: loud sustained input opens while she speaks", () => {
+    const { everOpened, firstOpenAt } = drive([{ rms: 0.09, ms: 900 }], "strong", true);
+    expect(everOpened).toBe(true);
+    expect(firstOpenAt).toBe(SPEECH_GATE_SPEAKING_SUSTAIN_MS);
+  });
+
+  it("once open, the speech tail extends on the plain threshold and closes after the 450 ms hangover", () => {
+    let state = createSpeechGateState();
+    // Open while she is silent: 0.08 sustained past the sustain window.
+    for (let t = 0; t <= SPEECH_GATE_SUSTAIN_MS; t += STEP) state = pushSpeechGateFrame(state, 0.08, "strong", t, false);
+    expect(state.open).toBe(true);
+    // She starts speaking mid-turn; the visitor's tail at the plain
+    // strong threshold still extends the gate (no mid-word clipping).
+    state = pushSpeechGateFrame(state, 0.03, "strong", 250, true);
+    expect(state.open).toBe(true);
+    // Last above-threshold frame was t=250, so the hangover ends at
+    // t=700: still open just before, closed at the deadline.
+    state = pushSpeechGateFrame(state, 0, "strong", 699, true);
+    expect(state.open).toBe(true);
+    state = pushSpeechGateFrame(state, 0, "strong", 700, true);
+    expect(state.open).toBe(false);
+  });
+});
+
+// Auto-pick policy (Ron's order, 2026-11-17): the room check may never
+// relax filtering on its own — factory AND auto default are Strong /
+// Noisy; only an explicit manual pick selects anything lighter.
+describe("auto noise policy — strong and noisy unless the visitor chooses", () => {
+  it("the auto pick holds strong whatever the tracker suggests", () => {
+    expect(autoNoiseFilter("light")).toBe("strong");
+    expect(autoNoiseFilter("balanced")).toBe("strong");
+    expect(autoNoiseFilter("strong")).toBe("strong");
+  });
+
+  it("in auto mode the environment in force reads Noisy at any measured floor", () => {
+    expect(appliedAmbientLevel(false, 0)).toBe("noisy");
+    expect(appliedAmbientLevel(false, 0.01)).toBe("noisy");
+    expect(appliedAmbientLevel(false, 0.03)).toBe("noisy");
+  });
+
+  it("after a manual pick the readout returns to the measured room", () => {
+    expect(appliedAmbientLevel(true, 0.003)).toBe("quiet");
+    expect(appliedAmbientLevel(true, 0.01)).toBe("normal");
+    expect(appliedAmbientLevel(true, 0.03)).toBe("noisy");
   });
 });

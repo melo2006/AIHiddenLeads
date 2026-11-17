@@ -228,6 +228,6 @@ describe("persona-label leak guard (Publish #67, 2026-11-15)", () => {
     expect(NO_SPEAKER_LABEL_RULE).toContain('never say "Aspen:"');
     expect(NO_SPEAKER_LABEL_RULE).toContain("never spoken, never quoted");
     const proxySource = readFileSync(new URL("../../supabase/functions/gemini-live-proxy/index.ts", import.meta.url), "utf8");
-    expect(proxySource).toContain("${CONTACT_READBACK_POLICY}\\n${NO_SPEAKER_LABEL_RULE}\\nCONVERSATION COPY:");
+    expect(proxySource).toContain("${CONTACT_READBACK_POLICY}\\n${NO_SPEAKER_LABEL_RULE}\\n${INTERRUPTION_RESUME_POLICY}\\nCONVERSATION COPY:");
   });
 });

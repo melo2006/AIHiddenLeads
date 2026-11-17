@@ -12,6 +12,73 @@ export function microphoneGate(rms: number, filter: NoiseFilter, now: number, op
 }
 
 // ---------------------------------------------------------------------------
+// Barge-in hardening (2026-11-17, Ron's phone + quiet-room laptop sessions):
+// the stateless gate above opens on the FIRST frame over the threshold, so
+// a single transient — a tap, a click, a burst of her own speaker echo —
+// streamed ~450 ms of real room audio to the provider, whose VAD then cut
+// Aspen off mid-sentence and transcribed a fragment she apologized for.
+// The speech gate below is what the capture loops actually use now: the
+// gate may only OPEN on SUSTAINED speech-level input, and while Aspen
+// herself is speaking the bar is higher still — evaluated against the
+// STRONG noise floor (×2) with a longer sustain — because in a quiet room
+// the loudest thing her microphone hears is her own playback leaking back.
+// A visitor who means to interrupt speaks up, sustained and louder than
+// echo, and still gets through in well under half a second. Once open,
+// the gate behaves exactly like the old one (same send threshold, same
+// 450 ms speech-tail hangover), so established turns are never clipped.
+// ---------------------------------------------------------------------------
+
+/** Sustained above-bar input required before the gate opens while the
+ * visitor has the floor: ~5 capture frames — long enough to swallow a
+ * click or a knock, short enough that a real "yes" is never eaten. */
+export const SPEECH_GATE_SUSTAIN_MS = 200;
+/** While Aspen is speaking, an interruption must prove itself longer:
+ * echo follows her speech envelope and breaks at her natural pauses,
+ * so a continuous 400 ms run is what separates a person talking over
+ * her from her own voice coming back at her. */
+export const SPEECH_GATE_SPEAKING_SUSTAIN_MS = 400;
+/** The interruption bar while Aspen speaks: twice the STRONG threshold,
+ * whatever filter is applied — a manually lightened filter must not
+ * lower the bar her own echo has to clear. */
+export const SPEECH_GATE_SPEAKING_THRESHOLD = noiseThresholds.strong * 2;
+
+export interface SpeechGateState {
+  /** Gate is open for the current frame (real audio passes). */
+  open: boolean;
+  /** Hangover deadline while open: the gate closes 450 ms after the
+   * last frame at/above the plain send threshold. */
+  openUntil: number;
+  /** When the current continuous above-bar run began (-1 = no run;
+   * frame timestamps are always >= 0, so -1 can never collide with a
+   * run that legitimately starts at t=0). */
+  runSince: number;
+}
+
+export function createSpeechGateState(): SpeechGateState {
+  return { open: false, openUntil: 0, runSince: -1 };
+}
+
+/** Pure reducer: feed one frame's RMS. `speaking` is the caller's
+ * composite "Aspen is generating or audibly playing right now" signal;
+ * it raises the opening bar to SPEECH_GATE_SPEAKING_THRESHOLD and the
+ * sustain to SPEECH_GATE_SPEAKING_SUSTAIN_MS. */
+export function pushSpeechGateFrame(state: SpeechGateState, rms: number, filter: NoiseFilter, now: number, speaking: boolean): SpeechGateState {
+  if (now < state.openUntil) {
+    // Already open: an established turn extends on the plain send
+    // threshold (speech tails dip; the hangover carries them), exactly
+    // the pre-hardening gate's close behavior.
+    const openUntil = rms >= noiseThresholds[filter] ? now + 450 : state.openUntil;
+    return { open: true, openUntil, runSince: -1 };
+  }
+  const bar = speaking ? SPEECH_GATE_SPEAKING_THRESHOLD : noiseThresholds[filter];
+  if (rms < bar) return { open: false, openUntil: state.openUntil, runSince: -1 };
+  const runSince = state.runSince >= 0 ? state.runSince : now;
+  const sustain = speaking ? SPEECH_GATE_SPEAKING_SUSTAIN_MS : SPEECH_GATE_SUSTAIN_MS;
+  if (now - runSince >= sustain) return { open: true, openUntil: now + 450, runSince: -1 };
+  return { open: false, openUntil: state.openUntil, runSince };
+}
+
+// ---------------------------------------------------------------------------
 // Ambient noise estimation + automatic filter pick (Batch 1, 2026-11-12).
 // Pure and framework-free so the whole policy is unit-testable: the capture
 // loops feed per-frame RMS values into a rolling window, the window's low
@@ -57,6 +124,31 @@ export function pickNoiseFilterForFloor(floor: number, current?: NoiseFilter): N
 export function ambientLevelForFloor(floor: number): AmbientLevel {
   const filter = pickNoiseFilterForFloor(floor);
   return filter === "light" ? "quiet" : filter === "strong" ? "noisy" : "normal";
+}
+
+/** AUTO-PICK POLICY (Ron's order, 2026-11-17 — supersedes the 2026-11-16
+ * balanced↔strong clamp): the automatic room check NEVER relaxes the
+ * applied filter on its own. Whatever the tracker measures, the applied
+ * filter stays STRONG until the visitor makes an explicit manual pick —
+ * a quiet room is precisely where her own speaker echo is the loudest
+ * signal the mic hears, and the old clamp's silent slide to Balanced is
+ * what let that echo interrupt her three times in a silent room (Ron's
+ * rebooted-laptop retest, 2026-11-17, settings screenshot showing
+ * "Balanced filtering — everyday" he never chose). The tracker's pick
+ * is accepted as input and deliberately not applied: the parameter
+ * stays so the call site keeps measuring and can log the suggestion. */
+export function autoNoiseFilter(_trackerPick: NoiseFilter): NoiseFilter {
+  return "strong";
+}
+
+/** The environment the settings dialog presents as IN FORCE. In auto
+ * mode that is the standing assumption — Noisy — not the measured
+ * floor: the dialog's readout and its Quiet/Normal/Noisy pills describe
+ * the filtering actually applied, and in auto the applied environment
+ * is Noisy by rule. After a manual pick the readout goes back to the
+ * measured room, as before. The raw floor still feeds diagnostics. */
+export function appliedAmbientLevel(manual: boolean, floor: number): AmbientLevel {
+  return manual ? ambientLevelForFloor(floor) : "noisy";
 }
 
 /** How many per-frame RMS samples the rolling window keeps. At the capture
