@@ -24,7 +24,7 @@
  * leaves the current voice untouched.
  */
 import { SIMLI_FACE_CATALOG, type AvatarFace } from "@/lib/simliFaceCatalog";
-import frankTile from "@/assets/avatar-library/frank-senior-owner.png";
+import frankTile from "@/assets/frank-gallery-tile.webp";
 import executiveTile from "@/assets/avatar-library/executive-d.png";
 
 export interface AvatarLibraryEntry {
@@ -100,8 +100,11 @@ const OWN_MODELS: AvatarLibraryEntry[] = [
     // Google's list, so Ron re-picked Schedar, an even mature male.
     // The wizard pick applies the same voice his demos use by default.
     matchedVoice: "Schedar",
-    // Tile uses the approved Senior Owner portrait (finals PNG), not the
-    // Simli-generated still in the preset catalog.
+    // Tile uses Ron's approved edited portrait (2026-11-17 — same face
+    // and shirt, gray chest hair up to the neck line), the same
+    // dedicated tile asset as Frank's catalog entry, not the
+    // Simli-generated still. Stills only: no Simli resubmission, and
+    // the live demo keeps his existing face and cutout.
     image: frankTile,
     category: "Your face",
     generation: catalogGeneration(FRANK_FACE_ID),

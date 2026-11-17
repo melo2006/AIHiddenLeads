@@ -1,7 +1,7 @@
 // Verified Simli preset catalog: https://docs.simli.com/api-reference/preset-faces
 import aspen from '@/assets/aspen-video-frame-final.webp';
 import aspenTile from '@/assets/aspen-gallery-tile.webp';
-import frankFace from '@/assets/simli/b3f85f7f-57ea-4f24-b1f6-a57229b4fae1.webp';
+import frankTile from '@/assets/frank-gallery-tile.webp';
 import latinaFace from '@/assets/simli/e0d7b128-40a7-4d03-ac84-ef4c54b92450.webp';
 import blackProfessionalLadyFace from '@/assets/simli/9344d4c1-6b69-43e7-a73f-ddc15d1a3f75.webp';
 import middleAgedProFace from '@/assets/simli/c0be182f-72a4-4be4-8c22-35d6db4c4a11.webp';
@@ -67,7 +67,14 @@ export const presenterPortraitImage = (faceId?: string | null): string | undefin
   faceId ? (PRESENTER_CUTOUTS[faceId] ?? SIMLI_FACE_CATALOG.find(f => f.id === faceId)?.image) : undefined;
 export const SIMLI_FACE_CATALOG: AvatarFace[] = [
   { id: 'ed8fedd9-6c86-4dc5-bb3a-017c06146efc', name: 'Aspen · closed smile', image: aspenTile, category: 'Your face', generation: true },
-  { id: "b3f85f7f-57ea-4f24-b1f6-a57229b4fae1", name: "Frank · Senior Owner", category: "Your face", image: frankFace, generation: true },
+  // Frank's catalog image is Ron's approved edited portrait tile
+  // (2026-11-17, frank-gallery-tile.webp — same face and shirt, gray
+  // chest hair up to the neck line), NOT the Simli source still: the
+  // catalog image is what the gallery/library tiles and the settings
+  // placement preview show. The live demo is untouched — its stills
+  // use his cutout (PRESENTER_CUTOUTS) and the Simli source portrait
+  // itself is unchanged on disk.
+  { id: "b3f85f7f-57ea-4f24-b1f6-a57229b4fae1", name: "Frank · Senior Owner", category: "Your face", image: frankTile, generation: true },
   { id: "e0d7b128-40a7-4d03-ac84-ef4c54b92450", name: "Monica · Green Eyes", category: "Your face", image: latinaFace, generation: true },
   { id: "9344d4c1-6b69-43e7-a73f-ddc15d1a3f75", name: "Denise", category: "Your face", image: blackProfessionalLadyFace, generation: true },
   { id: "c0be182f-72a4-4be4-8c22-35d6db4c4a11", name: "Daniel", category: "Your face", image: middleAgedProFace, generation: true },
