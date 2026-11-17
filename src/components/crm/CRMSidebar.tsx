@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard, Search, Megaphone, LayoutGrid, FileText, Radar, PhoneIncoming, FolderInput, Monitor, Play, Activity, Image, Brain, Target, MessageSquare, Presentation, ShieldCheck, Video, Wand2, Phone, BarChart3, ChevronLeft, ChevronRight
+  LayoutDashboard, Search, Megaphone, LayoutGrid, FileText, Radar, PhoneIncoming, FolderInput, Monitor, Play, Activity, Image, Brain, Target, MessageSquare, Presentation, ShieldCheck, Video, Wand2, Phone, BarChart3, ChevronLeft, ChevronRight, Users
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { BrandLockup } from "@/components/BrandLogo";
@@ -29,6 +29,7 @@ const navGroups: { label: string; items: NavItem[] }[] = [
   { label: "Results", items: [
     { title: "Campaign Results", url: "/dashboard/campaign-results", icon: Activity },
     { title: "Demo History", url: "/dashboard/sessions", icon: Presentation },
+    { title: "Page Visitors", url: "/dashboard/page-visitors", icon: Users },
   ]},
   { label: "Voice & avatars", items: [
     { title: "Voice Agents", url: "/dashboard/voice-agents", icon: PhoneIncoming },
