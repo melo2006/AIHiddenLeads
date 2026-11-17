@@ -6,10 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Phone, MessageSquare, ChevronDown, ChevronUp, Clock, User, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 import CallReportActions from './CallReportActions';
+import ConversationDetail from './ConversationDetail';
 import {
   channelLabel, countByChannel, estimateSessionCost, filterVisitorRows, formatUsd,
-  formatVisitorDuration, groupVisitorsByDay, hasRecordingSegments, mergeVisitorRecords,
-  todaySubtotal, transcriptTurnCount,
+  formatVisitorDuration, groupVisitorsByDay, mergeVisitorRecords,
+  todaySubtotal,
   type SessionCost, type VisitorChannelFilter, type VisitorRecordDetail,
   type VisitorRecordListItem, type VisitorRow, type VoicePricing, type VoiceSessionUsage,
 } from '@/lib/pageVisitors';
@@ -149,58 +150,19 @@ const VisitorCard = ({ row, cost, displayDuration }: { row: VisitorRow; cost: Se
                 </div>
               )}
 
-              <div>
-                <div className="flex flex-wrap items-center gap-2 mb-1">
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Summary</p>
+              <ConversationDetail
+                transcript={detail.transcript}
+                audioSegments={detail.audio}
+                summary={detail.summary}
+                summaryError={detail.summary_error}
+                durationSeconds={displayDuration}
+                expectRecording={row.channel === 'voice'}
+                summaryAction={(
                   <Button size="sm" variant="outline" className="h-6 px-2 text-[10px]" disabled={!canSummarize} onClick={() => void summarize()}>
                     Generate AI summary
                   </Button>
-                </div>
-                <p className="text-sm">{detail.summary?.summary || 'No AI summary yet.'}</p>
-                {detail.summary_error && <p role="alert" className="text-xs text-destructive mt-1">{detail.summary_error}</p>}
-                {detail.summary?.needs?.length ? (
-                  <p className="text-xs text-muted-foreground mt-1">Needs: {detail.summary.needs.join(' · ')}</p>
-                ) : null}
-                {detail.summary?.nextSteps?.length ? (
-                  <p className="text-xs text-muted-foreground mt-1">Next steps: {detail.summary.nextSteps.join(' · ')}</p>
-                ) : null}
-              </div>
-
-              {row.channel === 'voice' && (
-                <div>
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Recording</p>
-                  {hasRecordingSegments(detail) ? (
-                    <div className="space-y-2">
-                      {detail.audio?.map((segment, i) => (
-                        <div key={i}>
-                          <p className="text-[11px] text-muted-foreground">{segment.speaker} · segment {i + 1}</p>
-                          <audio controls preload="none" src={segment.url} className="w-full h-8" />
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-[11px] text-muted-foreground italic">No recording segments were saved for this conversation.</p>
-                  )}
-                </div>
-              )}
-
-              <div>
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
-                  Transcript · {transcriptTurnCount(detail)} turn{transcriptTurnCount(detail) !== 1 ? 's' : ''}
-                </p>
-                {detail.transcript?.length ? (
-                  <div className="bg-muted/30 rounded-lg p-3 max-h-60 overflow-y-auto space-y-1">
-                    {detail.transcript.map((turn, i) => (
-                      <p key={i} className="whitespace-pre-wrap text-xs">
-                        <strong className="capitalize">{turn.role}: </strong>
-                        <span className="text-foreground/80">{turn.text}</span>
-                      </p>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-[11px] text-muted-foreground italic">No transcript saved.</p>
                 )}
-              </div>
+              />
             </>
           )}
         </div>

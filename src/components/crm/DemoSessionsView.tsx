@@ -4,10 +4,12 @@ import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Globe, User, Mail, Phone, MessageSquare, PhoneCall, Clock,
-  ChevronDown, ChevronUp, Play, Image as ImageIcon, FileText,
+  ChevronDown, ChevronUp, Play, Image as ImageIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import ConversationDetail, { DialogueBubbles } from "./ConversationDetail";
+import { mergeTranscriptFragments, parseTranscriptString } from "@/lib/conversationDetail";
 
 type Lead = {
   id: string;
@@ -216,26 +218,17 @@ const SessionCard = ({
                         </Badge>
                       )}
                     </div>
-                    {c.recording_url ? (
-                      <audio controls preload="none" src={c.recording_url} className="w-full h-8" />
-                    ) : (
+                    {!c.recording_url && (
                       <p className="text-[11px] text-muted-foreground italic">
                         {c.retell_call_id.startsWith('gemini_') ? 'New agreed audio and transcripts: open Call history → Private conversation records. Historical unsaved audio is unavailable.' : 'No recording stored — open Call History to fetch it from Retell.'}
                       </p>
                     )}
-                    {c.summary && (
-                      <p className="text-xs text-foreground/90"><span className="text-muted-foreground">Summary:</span> {c.summary}</p>
-                    )}
-                    {c.transcript && (
-                      <details className="text-xs">
-                        <summary className="cursor-pointer text-muted-foreground flex items-center gap-1">
-                          <FileText className="h-3 w-3" /> Transcript
-                        </summary>
-                        <pre className="mt-2 bg-background/60 rounded p-2 max-h-48 overflow-y-auto whitespace-pre-wrap font-sans text-foreground/80">
-                          {c.transcript}
-                        </pre>
-                      </details>
-                    )}
+                    <ConversationDetail
+                      transcript={parseTranscriptString(c.transcript)}
+                      audioSegments={c.recording_url ? [{ speaker: 'mixed', url: c.recording_url }] : []}
+                      summary={c.summary}
+                      durationSeconds={c.duration_seconds}
+                    />
                   </div>
                 ))}
               </div>
@@ -254,15 +247,11 @@ const SessionCard = ({
                     <summary className="cursor-pointer text-[11px] text-muted-foreground">
                       Session {sessionId.slice(0, 8)} · {msgs.length} msgs · {formatDate(msgs[0].created_at)}
                     </summary>
-                    <div className="mt-2 space-y-1 max-h-60 overflow-y-auto">
-                      {msgs.map((m) => (
-                        <div key={m.id} className="text-xs">
-                          <span className={`font-medium ${m.role === "user" ? "text-primary" : "text-foreground/70"}`}>
-                            {m.role}:
-                          </span>{" "}
-                          <span className="text-foreground/80">{m.content}</span>
-                        </div>
-                      ))}
+                    <div className="mt-2">
+                      <DialogueBubbles
+                        turns={mergeTranscriptFragments(msgs.map((m) => ({ role: m.role, text: m.content })))}
+                        maxHeightClass="max-h-60"
+                      />
                     </div>
                   </details>
                 ))}

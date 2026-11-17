@@ -8,6 +8,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import ConversationRecordsView from './ConversationRecordsView';
 import CallReportActions from './CallReportActions';
+import ConversationDetail from './ConversationDetail';
+import { parseTranscriptString } from '@/lib/conversationDetail';
 
 
 
@@ -346,9 +348,9 @@ const CallRow = ({ call }: { call: CallRecord }) => {
 
       {expanded && (
         <div className="px-4 pb-4 space-y-3 border-t border-border pt-3">
-          {call.retell_call_id.startsWith('gemini_') && <p className="text-xs text-muted-foreground">New agreed recordings are in Private conversation records above. Historical unsaved audio cannot be recovered. End reason: {String(call.metadata?.end_reason || 'not captured for this historical call')}.</p>}
+          {call.retell_call_id.startsWith('gemini_') && <p className="text-xs text-muted-foreground">New agreed recordings are in Private conversation records above. Historical unsaved audio cannot be recovered.</p>}
           {call.retell_call_id.startsWith('gemini_') && <Link to="/dashboard/voice-costs" className="text-xs text-primary underline">Gemini Voice Costs — call and per-minute estimates</Link>}
-          {/* Recording */}
+          {/* Recording fetch (playback itself lives in ConversationDetail) */}
           {!call.retell_call_id.startsWith('gemini_') && <div>
             <div className="flex items-center justify-between mb-1">
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Recording</p>
@@ -363,25 +365,23 @@ const CallRow = ({ call }: { call: CallRecord }) => {
                 {call.recording_url ? "Refresh" : "Fetch recording"}
               </Button>
             </div>
-            {call.recording_url ? (
-              <audio controls preload="none" src={call.recording_url} className="w-full h-8">
-                Your browser does not support audio playback.
-              </audio>
-            ) : (
+            {!call.recording_url && (
               <p className="text-[11px] text-muted-foreground italic">
                 No recording saved yet. Click "Fetch recording" to pull it from Retell (available shortly after the call ends).
               </p>
             )}
           </div>}
 
-          {/* Summary */}
+          {/* Summary + playback + dialogue + technical details */}
           <CallReportActions records={[call]} allowZapier />
-          {call.summary && (
-            <div>
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Summary</p>
-              <p className="text-sm text-foreground">{call.summary}</p>
-            </div>
-          )}
+          <ConversationDetail
+            transcript={parseTranscriptString(call.transcript)}
+            audioSegments={!call.retell_call_id.startsWith('gemini_') && call.recording_url ? [{ speaker: 'mixed', url: call.recording_url }] : []}
+            summary={call.summary}
+            durationSeconds={call.duration_seconds}
+            endReason={call.retell_call_id.startsWith('gemini_') && call.metadata?.end_reason ? String(call.metadata.end_reason) : undefined}
+            technicalDetails={<RecapDebugPanel call={call} enabled={expanded} />}
+          />
 
 
           {/* Contact details */}
@@ -416,19 +416,6 @@ const CallRow = ({ call }: { call: CallRecord }) => {
             </div>
           )}
 
-          {/* SMS/WhatsApp debug */}
-          <RecapDebugPanel call={call} enabled={expanded} />
-
-          {/* Transcript */}
-
-          {call.transcript && (
-            <div>
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Transcript</p>
-              <div className="bg-muted/30 rounded-lg p-3 max-h-60 overflow-y-auto">
-                <pre className="text-xs whitespace-pre-wrap font-sans text-foreground/80">{call.transcript}</pre>
-              </div>
-            </div>
-          )}
         </div>
       )}
     </div>

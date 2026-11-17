@@ -133,24 +133,27 @@ describe('PageVisitorsView', () => {
     expect(await screen.findByText('No voice conversations yet.')).toBeTruthy();
   });
 
-  it('expanding a voice conversation shows summary, cost lines, recording segments and transcript', async () => {
+  it('expanding a voice conversation shows summary, cost lines, the shared player and dialogue bubbles', async () => {
     renderView();
     const header = await screen.findByText('Robert');
     fireEvent.click(header.closest('button')!);
-    expect(await screen.findByText('Hi, I keep missing calls.')).toBeTruthy();
+    // The transcript renders as a dialogue bubble (and again as a raw
+    // segment line under Technical details — hence findAllByText).
+    expect((await screen.findAllByText('Hi, I keep missing calls.')).length).toBeGreaterThan(0);
     expect(screen.getByText('Visitor asked about missed calls.')).toBeTruthy();
     expect(screen.getByText('Simli video avatar')).toBeTruthy();
     expect(screen.getByText('Gemini voice')).toBeTruthy();
-    const audio = document.querySelector('audio');
-    expect(audio).toBeTruthy();
-    expect(audio?.getAttribute('src')).toBe('https://example.com/segment-1.webm');
+    // One shared player for the whole conversation replaces the old
+    // per-segment <audio> elements; its src is set when playback starts.
+    expect(screen.getByRole('button', { name: /Play conversation/ })).toBeTruthy();
+    expect(document.querySelectorAll('audio')).toHaveLength(1);
   });
 
   it('expanding a chat conversation shows the transcript with no recording section', async () => {
     renderView();
     const header = await screen.findByText('Anonymous visitor');
     fireEvent.click(header.closest('button')!);
-    expect(await screen.findByText('How much does it cost?')).toBeTruthy();
+    expect((await screen.findAllByText('How much does it cost?')).length).toBeGreaterThan(0);
     expect(screen.getByText('Gemini chat')).toBeTruthy();
     expect(screen.queryByText('Simli video avatar')).toBeNull();
     expect(document.querySelector('audio')).toBeNull();
