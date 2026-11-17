@@ -180,8 +180,11 @@
      reaching nearly the full screen width on phones (the shell's own
      max-width keeps the page margin — 16px since chat-fix4, so the
      merged one-line control row fits at 360px). Voice mode keeps
-     the 280px column exactly as before. */
-  .aspen-person-expanded.aspen-person-chat { width: min(26rem, calc(100vw - 16px)); }
+     the 280px column exactly as before. (26rem → 28rem in chat-fix5:
+     Ron authorized the modest widening with the header merge — the
+     one-row header and the thread both breathe easier unfolded;
+     phone widths still resolve through the 100vw − 16px cap.) */
+  .aspen-person-expanded.aspen-person-chat { width: min(28rem, calc(100vw - 16px)); }
   .aspen-person-portrait { width: 234px; height: 188px; flex-shrink: 0; object-fit: cover; object-position: top center; }
   .aspen-person-expanded .aspen-person-portrait { width: 234px; height: 188px; }
   /* Idle→live size step: the live Simli media must occupy the livebox with the

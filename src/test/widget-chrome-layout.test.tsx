@@ -67,12 +67,15 @@ const stage3: Stage3Controls = {
 };
 
 describe('widget chrome layout — three stages', () => {
-  it('stage 2: the Voice/Type segmented toggle renders below the chat header strip, above the chat box', () => {
+  it('stage 2: the Voice/Type segmented toggle renders inside the ONE merged chat header row, above the chat box', () => {
     render(<FloatingPersonFrame {...baseProps} open mode="chat"><div>panel</div></FloatingPersonFrame>);
     const toggle = screen.getByRole('group', { name: 'Conversation mode' });
-    // Chat mode (2026-11-16): no big portrait — the slim header strip
-    // (small avatar + name) tops the dock, then the window-controls
-    // row, then the toggle, then the chat thread box.
+    // Chat mode (2026-11-16): no big portrait — the header strip
+    // (small avatar + name) tops the dock, then the toggle, then the
+    // chat thread box. Chat-fix5 (same day): the header is ONE merged
+    // row — the toggle and window controls ride the avatar's row,
+    // with her name below the avatar — so the strip CONTAINS the
+    // toggle now instead of preceding a separate row.
     const strip = screen.getByTestId('aspen-chat-header');
     expect(screen.queryByAltText('Aspen')).toBeNull();
     expectBefore(strip, toggle);
@@ -87,7 +90,7 @@ describe('widget chrome layout — three stages', () => {
     expect(baseProps.onMode).toHaveBeenCalledWith('voice');
   });
 
-  it('stage 2 (chat): exactly one Minimize and one End, with the drag handle, in the ONE merged in-flow control row (with the toggle) under the header strip', () => {
+  it('stage 2 (chat): exactly one Minimize and one End, with the drag handle, in the ONE merged in-flow control row (with the toggle) inside the header', () => {
     render(<FloatingPersonFrame {...baseProps} open mode="chat"><div>chat panel</div></FloatingPersonFrame>);
     // Exactly one of each window control in the whole open shell.
     expect(screen.getAllByRole('button', { name: 'Minimize' })).toHaveLength(1);
@@ -102,11 +105,12 @@ describe('widget chrome layout — three stages', () => {
     const drag = cluster?.querySelector('[data-drag-handle]');
     expect(drag).toBeTruthy();
     expect(drag?.getAttribute('aria-label')).toBe('Drag widget');
-    // In flow inside the panel: the header strip first, then the ONE
-    // merged control row — the toggle and the window-controls cluster
-    // share it (chat-fix4, 2026-11-16; they were two stacked rows) —
-    // then the chat box. The row is a shell child in normal flow,
-    // NOT an overlay.
+    // In flow inside the panel: the ONE merged header — avatar +
+    // name stack, then the control row the toggle and the
+    // window-controls cluster share (chat-fix4 merged the two
+    // stacked rows into one; chat-fix5 lifted that row onto the
+    // avatar's line, inside the header) — then the chat box. The
+    // row is in normal flow, NOT an overlay.
     const strip = screen.getByTestId('aspen-chat-header');
     const toggle = screen.getByRole('group', { name: 'Conversation mode' });
     const controlRow = screen.getByTestId('aspen-control-row');

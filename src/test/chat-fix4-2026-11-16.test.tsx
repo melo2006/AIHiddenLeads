@@ -13,8 +13,10 @@ import { AspenModeToggle, PersonaNameLabel } from '@/components/FloatingPersonFr
 //    always, even with text present (Send appears alongside it);
 //  * the suggestion chips are ONE horizontal sideways-scroll row
 //    pinned above the composer (never stacked inside the thread);
-//  * while typing, the chips row and the "Email transcript & AI
-//    summary" line hide (display-only) and return on blur;
+//  * while typing, the chips row hides (display-only) and returns
+//    on blur (the "Email transcript" line shared that behaviour in
+//    fix4; chat-fix5 removed the line from the panel entirely — the
+//    absence is pinned below and the pop-up in chat-fix5's suite);
 //  * the Voice/Type toggle gains an icon-only compact form for the
 //    merged one-line control row, and the presenter name becomes the
 //    seam pill straddling the voice panel's top-left edge.
@@ -136,20 +138,19 @@ describe('chat-fix4 chips + space reclamation while typing', () => {
     expect(chips.className).not.toContain('hidden');
   });
 
-  it('the email-transcript line hides while typing and returns on blur (never unmounted)', async () => {
+  it('chat-fix5: NO inline email-transcript block exists in the panel in any state (it moved to the end-of-chat pop-up)', async () => {
     openChat(<ChatWidget {...chatProps} onVoiceMode={vi.fn()} />);
     const field = screen.getByLabelText(/message aspen/i) as HTMLTextAreaElement;
     fireEvent.change(field, { target: { value: 'Tell me about pricing' } });
     fireEvent.keyDown(field, { key: 'Enter', code: 'Enter' });
-    // The line appears once the visitor has messaged.
-    await waitFor(() => expect(screen.getByTestId('chat-email-transcript')).toBeTruthy());
-    const line = screen.getByTestId('chat-email-transcript');
-    expect(line.className).not.toContain('hidden');
-    // Typing again hides it — display-only, still mounted.
+    // The exchange completes (the mocked reply fully types out)…
+    await screen.findByText('Happy to help with that!');
+    // …and no inline email block appears — not idle, not typing.
+    expect(screen.queryByTestId('chat-email-transcript')).toBeNull();
     fireEvent.focus(field);
-    expect(line.className).toContain('hidden');
+    expect(screen.queryByTestId('chat-email-transcript')).toBeNull();
     fireEvent.blur(field);
-    expect(line.className).not.toContain('hidden');
+    expect(screen.queryByTestId('chat-email-transcript')).toBeNull();
   });
 });
 
