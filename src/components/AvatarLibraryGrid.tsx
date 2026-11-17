@@ -115,7 +115,7 @@ export default function AvatarLibraryGrid({ selectedFaceId, onPickLibrary, extra
         </div>
       </div>
       <div className="space-y-1.5">
-        <p className="text-xs font-medium text-muted-foreground">Simli standard faces</p>
+        <p className="text-xs font-medium text-muted-foreground">Standard faces</p>
         <div className="grid grid-cols-3 gap-2">
           {presets.map((entry) => (
             <LibraryTile key={entry.key} entry={entry} active={selectedFaceId === entry.faceId} onPick={onPickLibrary} />

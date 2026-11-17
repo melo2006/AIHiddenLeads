@@ -57,7 +57,7 @@ export const PROVIDER_LABELS: Record<string, string> = {
   gemini: 'Gemini',
   telnyx: 'Telnyx',
   twilio: 'Twilio',
-  simli: 'Simli',
+  simli: 'Video avatar',
   hostinger: 'Hostinger',
   resend: 'Resend',
   other: 'Other',

@@ -91,7 +91,7 @@ export default function AvatarSettings({ value, onChange, agentId, beforePreview
       void call({ action: "status", faceId: pending.faceId }).then((d) => {
         setPending((p) => p && { ...p, status: d.status });
         if (d.status === "completed") { toast.success("Your new face is ready"); set({ faceId: pending.faceId, enabled: true }); }
-        if (d.status === "failed") toast.error("Simli could not build this face. Try a clearer, front-facing photo.");
+        if (d.status === "failed") toast.error("We couldn't build this face. Try a clearer, front-facing photo.");
       }).catch(() => {});
     }, 15000);
     return () => window.clearInterval(timer);
@@ -102,7 +102,7 @@ export default function AvatarSettings({ value, onChange, agentId, beforePreview
     // Simli's create flow rejects WebP (verified live 2026-11-13): customer
     // photos must be PNG or JPG. Only the built-in Aspen asset path (admin)
     // may still send its WebP portrait.
-    if (internal ? !/^image\/(png|jpeg|webp)$/.test(file.type) : !/^image\/(png|jpeg)$/.test(file.type)) { toast.error(internal ? "Use a PNG, JPG or WebP photo" : "Use a PNG or JPG photo — Simli can't build a face from a WebP."); return; }
+    if (internal ? !/^image\/(png|jpeg|webp)$/.test(file.type) : !/^image\/(png|jpeg)$/.test(file.type)) { toast.error(internal ? "Use a PNG, JPG or WebP photo" : "Use a PNG or JPG photo — a face can't be built from a WebP."); return; }
     if (file.size > 10 * 1024 * 1024) { toast.error("Maximum 10 MB"); return; }
     setUploading(true);
     try {
@@ -110,7 +110,7 @@ export default function AvatarSettings({ value, onChange, agentId, beforePreview
       let bin = ""; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
       const d = await call({ action: "createFace", agentId, name: (faceName || file.name.replace(/\.\w+$/, "")).slice(0, 60), imageBase64: btoa(bin), mimeType: file.type });
       setPending({ faceId: d.faceId, status: "pending" });
-      toast.success("Photo accepted. Simli is building your face — usually a few hours, up to 24. We'll flag it here when it's ready.");
+      toast.success("Photo accepted. Your face is being built — usually a few hours, up to 24. We'll flag it here when it's ready.");
     } catch (e) { toast.error(e instanceof Error ? e.message : "Upload failed"); }
     finally { setUploading(false); if (fileRef.current) fileRef.current.value = ""; }
   }
@@ -213,7 +213,7 @@ export default function AvatarSettings({ value, onChange, agentId, beforePreview
         {agentId && <><Button className="w-full" disabled={preparing} onClick={() => void testConversation()}>{preparing ? <Loader2 className="animate-spin"/> : testing ? <Square/> : <Mic/>}{preparing ? 'Saving your choices…' : testing ? 'Close test' : `Preview: hear ${name} with this voice`}</Button>{testing && <GeminiConversation draft agentId={agentId} compact name={name} previewVoice={voice} videoAvatar={value} avatarInline />}</>}
         <p className="text-[11px] text-muted-foreground">Test usage counts toward voice and video limits. Video plan pricing is not finalized.</p>
       </div>
-      <Dialog open={confirmAspen} onOpenChange={setConfirmAspen}><DialogContent className="bg-card"><DialogTitle>Create Aspen in Simli?</DialogTitle><DialogDescription>This sends the optimized portrait to Simli and uses one avatar generation. Your current live face stays unchanged until the new face is ready and you explicitly apply it. Generation usually takes a few hours — please allow up to 24 hours.</DialogDescription><Button disabled={uploading} onClick={() => void createAspenFace()}><UploadCloud />Create Aspen face</Button></DialogContent></Dialog>
+      <Dialog open={confirmAspen} onOpenChange={setConfirmAspen}><DialogContent className="bg-card"><DialogTitle>Create Aspen's face?</DialogTitle><DialogDescription>This sends the optimized portrait for face generation and uses one avatar generation. Your current live face stays unchanged until the new face is ready and you explicitly apply it. Generation usually takes a few hours — please allow up to 24 hours.</DialogDescription><Button disabled={uploading} onClick={() => void createAspenFace()}><UploadCloud />Create Aspen face</Button></DialogContent></Dialog>
     </div>
   );
 }

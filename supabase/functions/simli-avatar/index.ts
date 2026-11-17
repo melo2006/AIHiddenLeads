@@ -151,7 +151,7 @@ Deno.serve(async (req) => {
       // Older (non Trinity-2) faces may reject the framing fields; retry with the face's own look.
       if (!res.ok && backgroundId && res.status === 422) { backgroundApplied = false; res = await fetch(`${SIMLI}/compose/token`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-simli-api-key': apiKey }, body: JSON.stringify({ faceId, handleSilence: true, maxSessionLength: config.maxSessionLength, maxIdleTime: config.maxIdleTime }) }); }
       const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.session_token) return json({ error: String(data.detail || 'Simli refused the avatar session') }, res.status === 400 ? 400 : 502);
+      if (!res.ok || !data.session_token) return json({ error: String(data.detail || 'The avatar session was refused') }, res.status === 400 ? 400 : 502);
       const warnings: string[] = Array.isArray(data.warnings) ? data.warnings.map(String) : [];
       if (warnings.length) console.warn('simli token warnings', warnings);
       const token = String(data.session_token);
@@ -188,8 +188,8 @@ Deno.serve(async (req) => {
       form.append('image', new Blob([bytes], { type: b.mimeType }), `face.${b.mimeType.split('/')[1]}`);
       const res = await fetch(`${SIMLI}/faces/trinity?face_name=${encodeURIComponent(b.name)}`, { method: 'POST', headers: { 'x-simli-api-key': apiKey }, body: form });
       const data = await res.json().catch(() => ({}));
-      if (res.status === 403) return json({ error: 'No avatar generations left on the Simli plan.' }, 403);
-      if (!res.ok) return json({ error: String(data.detail?.[0]?.msg || data.detail || 'Simli could not create this face') }, 502);
+      if (res.status === 403) return json({ error: 'No avatar generations left on the current plan.' }, 403);
+      if (!res.ok) return json({ error: String(data.detail?.[0]?.msg || data.detail || 'We could not create this face') }, 502);
       if (creditId) await db.from('custom_avatar_credits').update({ used_at: new Date().toISOString(), face_id: String(data.face_id) }).eq('id', creditId).is('used_at', null);
       return json({ faceId: data.face_id, message: data.message, dispatchAfter: data.dispatch_after ?? null, warnings: data.warnings || [] });
     }
@@ -202,7 +202,7 @@ Deno.serve(async (req) => {
     if (b.action === 'faces') {
       const res = await fetch(`${SIMLI}/faces`, { headers: { 'x-simli-api-key': apiKey } });
       const data = await res.json().catch(() => []);
-      if (!res.ok) return json({ error: 'Could not list Simli faces' }, 502);
+      if (!res.ok) return json({ error: 'Could not list faces' }, 502);
       return json({ faces: (Array.isArray(data) ? data : []).map((f: Record<string, unknown>) => ({ id: f.id, name: f.name || f.face_name || 'Untitled face', version: f.simli_version ?? null })) });
     }
     // applyHomepage: explicit admin action updates the homepage/demo-room Aspen draft and live snapshot.
