@@ -103,12 +103,13 @@ describe('Gemini-style composer', () => {
     const items = screen.getAllByRole('menuitem').map((el) => el.textContent);
     expect(items).toEqual(['Camera', 'Photos', 'Files']);
     expect(screen.queryByText(/plugins/i)).toBeNull();
-    // Camera captures on the spot; Photos is images/video only.
+    // Photos is images/video only; Files is the broad picker. (The
+    // Camera entry no longer opens an OS capture input — since
+    // 2026-11-17 it starts the live in-panel camera; see
+    // chat-live-camera-2026-11-17.test.tsx.)
     const fileInputs = document.querySelectorAll<HTMLInputElement>('input[type="file"]');
-    expect(fileInputs).toHaveLength(3);
-    expect(fileInputs[0].getAttribute('capture')).toBe('environment');
-    expect(fileInputs[0].getAttribute('accept')).toBe('image/*');
-    expect(fileInputs[1].getAttribute('accept')).toBe('image/*,video/*');
+    expect(fileInputs).toHaveLength(2);
+    expect(fileInputs[0].getAttribute('accept')).toBe('image/*,video/*');
 
     // Voice-mode switch calls back to the shell.
     fireEvent.click(screen.getByRole('button', { name: 'Switch to voice conversation' }));
@@ -197,7 +198,7 @@ describe('attachments', () => {
   it('a picked file stages as a removable chip; an unsupported type and an oversize file get friendly errors', () => {
     render(<ChatWidget {...chatProps} />);
     fireEvent.click(screen.getByText('Start chat & agree'));
-    const filesInput = document.querySelectorAll<HTMLInputElement>('input[type="file"]')[2];
+    const filesInput = document.querySelectorAll<HTMLInputElement>('input[type="file"]')[1];
 
     pickFile(filesInput, new File(['hello'], 'setup.exe', { type: 'application/x-msdownload' }));
     expect(screen.getByRole('alert').textContent).toContain("isn't supported");
@@ -216,7 +217,7 @@ describe('attachments', () => {
   it('an attachment alone can be sent: the thread shows the chip and the payload carries the note', async () => {
     render(<ChatWidget {...chatProps} />);
     fireEvent.click(screen.getByText('Start chat & agree'));
-    const filesInput = document.querySelectorAll<HTMLInputElement>('input[type="file"]')[2];
+    const filesInput = document.querySelectorAll<HTMLInputElement>('input[type="file"]')[1];
     pickFile(filesInput, new File(['%PDF-1.4'], 'report.pdf', { type: 'application/pdf' }));
     // Send appears for the staged attachment even with an empty field.
     fireEvent.click(screen.getByRole('button', { name: /send message/i }));
@@ -277,7 +278,7 @@ describe('photo vision — she actually sees attached photos (Ron, 2026-11-16)',
   it('sending a photo carries the downscaled image in the chat payload, next to the note', async () => {
     render(<ChatWidget {...chatProps} />);
     fireEvent.click(screen.getByText('Start chat & agree'));
-    const photosInput = document.querySelectorAll<HTMLInputElement>('input[type="file"]')[1];
+    const photosInput = document.querySelectorAll<HTMLInputElement>('input[type="file"]')[0];
     pickFile(photosInput, new File([JPEG_BYTES], 'yard.jpg', { type: 'image/jpeg' }));
     expect(screen.getByTestId('chat-attachment-chip').textContent).toContain('yard.jpg');
     const field = screen.getByLabelText(/message aspen/i);
