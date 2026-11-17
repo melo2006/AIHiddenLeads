@@ -283,9 +283,12 @@ export default function FloatingPersonFrame({ name = 'Aspen', avatarUrl, open, m
           Tapping the avatar (or the expand control) returns to the
           big-avatar view: voice mode, whose layout is unchanged.
           (Avatar 36px → 56px the same evening: Ron's phone test —
-          "the avatar is too small, increase the size a little bit.") */}
+          "the avatar is too small, increase the size a little bit."
+          56px → 72px in chat-fix3: Ron's second test — he did not
+          notice the increase, "should be a little bigger than what
+          it used to be.") */}
       <div data-testid="aspen-chat-header" className="flex shrink-0 items-center gap-2 px-0.5">
-        <button type="button" data-testid="aspen-chat-avatar" onClick={() => onMode('voice')} aria-label={t("frame.voiceView")} title={t("frame.voiceView")} className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary text-primary-foreground ring-1 ring-primary/50 transition-transform hover:scale-105">
+        <button type="button" data-testid="aspen-chat-avatar" onClick={() => onMode('voice')} aria-label={t("frame.voiceView")} title={t("frame.voiceView")} className="flex h-[72px] w-[72px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary text-primary-foreground ring-1 ring-primary/50 transition-transform hover:scale-105">
           {chatAvatarSrc ? <img src={chatAvatarSrc} alt="" draggable={false} className="h-full w-full object-cover object-top" /> : <Mic className="h-6 w-6" />}
         </button>
         <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">{name}</span>

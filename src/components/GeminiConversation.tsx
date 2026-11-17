@@ -51,6 +51,7 @@ import { voiceSessionHeaders } from '@/lib/voiceSessionAuth';
 import { clearAllVisitMemory, visitMemoryAppend, visitMemoryDelete, visitMemoryGet, visitMemorySet, type VisitTurn } from '@/lib/visitMemory';
 import { shouldShowMicHint } from '@/lib/micAudibility';
 import { createMicFlowState, MIC_MUTED_START_GRACE_MS, micDiagPayload, micDiagSignature, micDiagStamp, micInputSeconds, micTrackStartVerdict, noteMicFrame, noteMicSessionLive, noteMicWatchdogFired, shouldShowMicWatchdog, type MicDiagEvent, type MicTrackState } from '@/lib/micWatchdog';
+import { createPlayoutStartupWatch, heardEngineWhy, STARTUP_BLOCKED_AFTER_MS, STARTUP_CHECK_AFTER_MS, startupDiagPayload, startupDiagSignature, type PlayoutProbe, type StartupDiagEvent, type StartupVerdict } from '@/lib/playoutStartup';
 import { clearRetainedHandoffMic, fitHandoffRecap, handoffDiagPayload, handoffDiagSignature, handoffVisitFact, isHandoffAnnouncement, micStreamIsLive, retainHandoffMic, reusableMicStream, stripHandoffAnnouncement, takeRetainedHandoffMic, type HandoffDiagEvent, type HandoffDiagMic, type HandoffDiagOutcome } from '@/lib/handoffRecovery';
 import { windowRecapLines } from '../../supabase/functions/_shared/recap-builder';
 import { createMediaSink, mediaPlaybackNode, type MediaSink } from '@/lib/mediaSink';
@@ -690,6 +691,20 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const micWatchdogShownAtRef = useRef(0);
   const micFlowRef = useRef(createMicFlowState());
   const lastMicDiagRef = useRef("");
+  // Playout startup guard (chat-fix3, 2026-11-16, lib/playoutStartup.ts):
+  // the OUTPUT mirror of the mic guard above. The watch arms at the
+  // session's first locally-routed chunk, stamps the startup window
+  // to config.startupDiag, and raises the Tap-for-sound pill when
+  // audio was delivered but the terminal never started moving in a
+  // gesture-fixable state (element paused / context suspended) —
+  // the auto-start-on-panel-open shape that left Ron's b21b5884
+  // session silent for 32 s while the transcript proved she spoke.
+  // Steady-state engine behaviour is untouched: the watch only
+  // observes the terminal, and the pill only re-primes it.
+  const [soundBlocked, setSoundBlocked] = useState(false);
+  const startupWatchRef = useRef(createPlayoutStartupWatch());
+  const startupTimersRef = useRef<number[]>([]);
+  const lastStartupDiagRef = useRef("");
   // Media-routed playback sink (see lib/mediaSink.ts): the audible
   // local voice plays through an HTMLAudioElement once it is unlocked,
   // so the phone's hardware media volume governs it on Android Chrome.
@@ -1506,6 +1521,127 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // than stampMicDiag; it reaches the stamp through this mirror
   // (same pattern as persistSwapDiagRef).
   const stampMicDiagRef = useRef(stampMicDiag); stampMicDiagRef.current = stampMicDiag;
+  // Playout startup guard (chat-fix3): micDiag's sibling through the
+  // same gemini-session diag channel, landing on the session row at
+  // config.startupDiag. It records the startup window — engine
+  // selected + why, context state and terminal element state at
+  // first audio, whether the terminal clock advanced within 2 s,
+  // and the blocked/healed verdicts — so a silent session explains
+  // itself from the record. Fire-and-forget, signature-deduped —
+  // diagnostics never break the call.
+  const startupProbe = useCallback((): PlayoutProbe => {
+    // The terminal carrying the voice RIGHT NOW, in the same
+    // precedence localTerminalDiag uses: the element engine while
+    // it carries the voice, else the media sink's element, else
+    // the bare context. Read-only — the watch never drives the
+    // terminal; only the pill's tap re-primes it.
+    const engine = mediaElementRef.current;
+    if (engine && mediaElementStateRef.current === 'ready' && !engine.failed) {
+      return { clockSec: engine.element.currentTime, paused: engine.element.paused, muted: engine.element.muted, ctxState: playCtxRef.current?.state ?? 'none' };
+    }
+    const sinkElement = mediaSinkRef.current?.sink?.element;
+    if (sinkElement) {
+      return { clockSec: sinkElement.currentTime, paused: sinkElement.paused, muted: sinkElement.muted, ctxState: playCtxRef.current?.state ?? 'none' };
+    }
+    const ctx = playCtxRef.current;
+    return { clockSec: ctx?.currentTime ?? null, paused: ctx ? ctx.state !== 'running' : true, muted: null, ctxState: ctx?.state ?? 'none' };
+  }, []);
+  const stampStartupDiag = useCallback((event: StartupDiagEvent, verdict?: StartupVerdict, advanced?: boolean | null) => {
+    const target = diagStampTarget();
+    const baseline = startupWatchRef.current.baseline;
+    if (!target || !baseline) return;
+    const { sessionId, visitorKey } = target;
+    const payload = startupDiagPayload(sessionId, {
+      event,
+      engine: baseline.engine,
+      why: baseline.why,
+      terminal: baseline.terminal,
+      ctxState: baseline.probe.ctxState,
+      paused: baseline.probe.paused,
+      muted: baseline.probe.muted,
+      advanced: advanced ?? null,
+      ...(verdict ? { verdict } : {}),
+    }, Date.now());
+    const signature = startupDiagSignature(payload);
+    if (signature === lastStartupDiagRef.current) return;
+    lastStartupDiagRef.current = signature;
+    void (async () => {
+      try {
+        const headers = await voiceSessionHeaders();
+        await supabase.functions.invoke('gemini-session', { headers, body: { visitorKey, startupDiag: payload } });
+      } catch { /* diagnostics never break the call */ }
+    })();
+  }, []);
+  const clearStartupTimers = useCallback(() => {
+    startupTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    startupTimersRef.current = [];
+  }, []);
+  /** Arm the startup watch at the session's first locally-routed
+   *  chunk: baseline the terminal, stamp 'first', and schedule the
+   *  two checks — the pill decision at 1.5 s (audio delivered but
+   *  not advancing in a gesture-fixable state) and the record's
+   *  advance verdict at 2 s. A visitor pause is not a block: while
+   *  playback is paused on purpose the pill never shows. Preview
+   *  auditions never arm (their unlock is click-gated already). */
+  const noteStartupFirstAudio = useCallback(() => {
+    const watch = startupWatchRef.current;
+    if (watch.armed || isPreviewRef.current) return;
+    let stored: string | null = null;
+    try { stored = window.localStorage.getItem(HEARD_ENGINE_STORAGE_KEY); } catch { /* private mode */ }
+    watch.noteFirstAudio({
+      atMs: Date.now(),
+      engine: heardEngine(),
+      why: heardEngineWhy(window.location.search, stored),
+      terminal: localTerminalDiag().sink,
+      probe: startupProbe(),
+    });
+    stampStartupDiag('first');
+    const blockedTimer = window.setTimeout(() => {
+      if (captureRef.current.paused) return;
+      const verdict = watch.evaluate(startupProbe(), Date.now());
+      if (verdict === 'blocked') {
+        setSoundBlocked(true);
+        stampStartupDiag('blocked', verdict, false);
+      }
+    }, STARTUP_BLOCKED_AFTER_MS);
+    const checkTimer = window.setTimeout(() => {
+      const probe = startupProbe();
+      const verdict = watch.evaluate(probe, Date.now());
+      stampStartupDiag('check', verdict, watch.advanced(probe));
+      if (verdict === 'blocked' && !captureRef.current.paused) setSoundBlocked(true);
+    }, STARTUP_CHECK_AFTER_MS);
+    startupTimersRef.current = [blockedTimer, checkTimer];
+  }, [stampStartupDiag, startupProbe]);
+  /** Tap-for-sound (chat-fix3): the pill's tap IS the gesture the
+   *  platform wanted — resume the playback context and re-request
+   *  play() on the terminal element from inside it. Mute and level
+   *  are the visitor's and stay untouched (the speaker path is
+   *  locked). The pill hides once the terminal clock actually
+   *  advances, and the 'healed' stamp lands with it; if the clock
+   *  never moves, no heal is claimed and the engines' own stall
+   *  ladder owns the session from there. */
+  const primeSound = useCallback(() => {
+    const ctx = playCtxRef.current;
+    if (ctx && ctx.state === 'suspended') void ctx.resume().catch(() => { /* the poll below reads the result */ });
+    const engine = mediaElementRef.current;
+    if (engine && mediaElementStateRef.current === 'ready' && !engine.failed && engine.element.paused) {
+      void engine.element.play().catch(() => { /* refused again — the pill stays */ });
+    }
+    const sinkElement = mediaSinkRef.current?.sink?.element;
+    if (sinkElement?.paused) void sinkElement.play().catch(() => { /* refused again — the pill stays */ });
+    const watch = startupWatchRef.current;
+    let polls = 0;
+    const poll = window.setInterval(() => {
+      polls += 1;
+      if (watch.advanced(startupProbe())) {
+        window.clearInterval(poll);
+        setSoundBlocked(false);
+        stampStartupDiag('healed', 'advancing', true);
+      } else if (polls >= 10) {
+        window.clearInterval(poll);
+      }
+    }, 250);
+  }, [stampStartupDiag, startupProbe]);
   // Acquisition-time track check (Publish #56): permission granted
   // is not a working mic — Publish #53's records showed the track
   // STARTING muted in 3 of 4 sessions, and those sessions then ran
@@ -2022,6 +2158,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     setShowMicHint(false);
     micWatchdogRef.current = false;
     setShowMicWatchdog(false);
+    // Playout startup guard (chat-fix3): no startup timer or pill
+    // may outlive the conversation that armed it.
+    startupWatchRef.current.reset();
+    clearStartupTimers();
+    setSoundBlocked(false);
     clearMicStartWatch();
     micStartDeadPendingRef.current = false;
     micFlowRef.current = createMicFlowState();
@@ -2325,6 +2466,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     // fallback to the graph all stay on one clock.
     let engineRouted = false;
     if (!pairedVideo || pairedLocal) {
+      // Playout startup guard (chat-fix3): the first chunk this
+      // session routes locally arms the startup watch — baseline,
+      // 'first' stamp, and the 1.5 s / 2 s checks (see
+      // noteStartupFirstAudio). Later chunks no-op.
+      noteStartupFirstAudio();
       const engine = ensureMediaElement();
       if (engine && mediaElementStateRef.current === 'ready' && !captureRef.current.paused) {
         const trailTarget = pairedLocal ? Math.max(0.05, PAIRED_CAPTION_DELAY_SEC - MEDIA_ELEMENT_PIPELINE_SEC) : 0.1;
@@ -2417,7 +2563,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         noteChunkEnded();
       };
     }
-  }, [stopEverything, engageVideoFallback, holdChunkForEngine]);
+  }, [stopEverything, engageVideoFallback, holdChunkForEngine, noteStartupFirstAudio]);
   playPcmChunkRef.current = playPcmChunk;
 
   // Interrupt: drop all queued playback instantly
@@ -2991,6 +3137,14 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         // its playout route at go-live, and the first-chunk stamp
         // re-arms for the new session.
         diagChunkStampRef.current = false;
+        // Playout startup guard (chat-fix3): every parent session —
+        // first connect and every reconnect/resume alike — re-arms
+        // its startup watch at go-live, so the new session's first
+        // chunk baselines fresh (an auto-starting RESUME is exactly
+        // the shape that went silent in Ron's b21b5884 test).
+        startupWatchRef.current.reset();
+        clearStartupTimers();
+        setSoundBlocked(false);
         if (!preview && !warm) stampPlayoutDiag();
         // Zero-input guard: every parent go-live (first connect AND
         // every reconnect/resume) opens a fresh mic flow window and
@@ -5075,6 +5229,16 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           <p role="status" className="w-fit rounded-full border border-border bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-foreground">{t("panel.holdToTalk", { defaultValue: "Hold to talk is ON — hold the button while you speak" })}</p>
         )}
         {audioNeedsTap && <p role="status" className="text-[11px] text-muted-foreground">{t("voice.audioTapNeeded")}</p>}
+        {/* Playout startup guard (chat-fix3): her voice was delivered
+            but the terminal never started moving (a session that
+            auto-started without a fresh tap gesture) — the pill's
+            tap re-primes playout inside the gesture. It hides the
+            moment the terminal clock advances (see primeSound). */}
+        {soundBlocked && phase === "live" && (
+          <button type="button" onClick={primeSound} className="flex w-fit items-center gap-1.5 rounded-full border border-warning/60 bg-warning/15 px-3 py-1.5 text-[11px] font-semibold text-foreground shadow-sm transition-colors hover:bg-warning/25">
+            <Volume2 className="h-3.5 w-3.5" />{t("panel.tapForSound")}
+          </button>
+        )}
         {error && (micFailureKind === "mic-denied-embedded" ? <EmbeddedMicrophoneNotice compact name={personaLabelName} /> : <p className="text-[11px] font-semibold text-destructive">{error}</p>)}
         {signInAction}
 
@@ -5319,6 +5483,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             <p role="status" className="w-fit rounded-full border border-border bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-foreground">{t("panel.holdToTalk", { defaultValue: "Hold to talk is ON — hold the button while you speak" })}</p>
           )}
           {audioNeedsTap && <p role="status" className="text-xs text-muted-foreground">{t("voice.audioTapNeeded")}</p>}
+          {/* Playout startup guard (chat-fix3): see the face-first
+              panel's pill — same watch, same tap-to-prime heal. */}
+          {soundBlocked && phase === "live" && (
+            <button type="button" onClick={primeSound} className="flex w-fit items-center gap-1.5 rounded-full border border-warning/60 bg-warning/15 px-3 py-1.5 text-xs font-semibold text-foreground shadow-sm transition-colors hover:bg-warning/25">
+              <Volume2 className="h-3.5 w-3.5" />{t("panel.tapForSound")}
+            </button>
+          )}
           {error && (micFailureKind === "mic-denied-embedded" ? <EmbeddedMicrophoneNotice name={personaLabelName} /> : <p className="text-xs text-destructive font-semibold">{error}</p>)}
           {signInAction}
         </Card>

@@ -49,7 +49,17 @@ const micDiagSchema=z.object({sessionId:z.string().uuid(),detail:z.string().max(
 // left no handoff trace at all. Same channel, same ownership, same
 // shape as micDiag; sessions with no handoff never stamp.
 const handoffDiagSchema=z.object({sessionId:z.string().uuid(),detail:z.string().max(400),at:z.number().optional()});
-const schema=z.object({ visitorKey:z.string().min(16).max(100), model:z.string().max(100).optional(), agentId:z.string().uuid().optional(), leadId:z.string().uuid().optional(), prospectId:z.string().uuid().optional(), draft:z.boolean().default(false), preview:z.boolean().default(false), voice:z.enum(VOICES as [string,...string[]]).optional(), hour:z.number().int().min(0).max(23).optional(), visitorName:z.string().max(100).default(''), timeZone:z.string().max(100).default('UTC'), locale:z.string().max(10).optional(), campaign:z.object({visitId:z.string().uuid(),source:z.string().max(100),campaign:z.string().max(100),entryPath:z.enum(PUBLIC_PATHS).optional()}).nullable().optional(), consent:z.boolean().default(false), verification:z.enum(['pending','verified']).optional(), invite:z.boolean().optional(), sample:z.boolean().optional(), guide:z.enum(['alex']).optional(), share:z.string().max(100).optional(), resumeContext:z.string().max(16000).optional(), reconnect:z.boolean().default(false), prewarm:z.boolean().default(false), personaSegment:personaSegmentSchema.optional(), swapDiag:swapDiagSchema.optional(), playoutDiag:playoutDiagSchema.optional(), micDiag:micDiagSchema.optional(), handoffDiag:handoffDiagSchema.optional() });
+// STARTUP DIAG (playout startup guard, chat-fix3 2026-11-16): the
+// client stamps the playout STARTUP window (engine selected + why,
+// context state and terminal element state at first audio, whether
+// the terminal clock advanced within 2s, and the blocked/healed
+// verdicts) so a session where Aspen spoke but the visitor heard
+// nothing — b21b5884: 32s of server-side speech, zero heard —
+// explains itself from the record. Same channel, same ownership,
+// same shape as micDiag; sessions whose startup was never watched
+// (previews) simply never stamp.
+const startupDiagSchema=z.object({sessionId:z.string().uuid(),detail:z.string().max(400),at:z.number().optional()});
+const schema=z.object({ visitorKey:z.string().min(16).max(100), model:z.string().max(100).optional(), agentId:z.string().uuid().optional(), leadId:z.string().uuid().optional(), prospectId:z.string().uuid().optional(), draft:z.boolean().default(false), preview:z.boolean().default(false), voice:z.enum(VOICES as [string,...string[]]).optional(), hour:z.number().int().min(0).max(23).optional(), visitorName:z.string().max(100).default(''), timeZone:z.string().max(100).default('UTC'), locale:z.string().max(10).optional(), campaign:z.object({visitId:z.string().uuid(),source:z.string().max(100),campaign:z.string().max(100),entryPath:z.enum(PUBLIC_PATHS).optional()}).nullable().optional(), consent:z.boolean().default(false), verification:z.enum(['pending','verified']).optional(), invite:z.boolean().optional(), sample:z.boolean().optional(), guide:z.enum(['alex']).optional(), share:z.string().max(100).optional(), resumeContext:z.string().max(16000).optional(), reconnect:z.boolean().default(false), prewarm:z.boolean().default(false), personaSegment:personaSegmentSchema.optional(), swapDiag:swapDiagSchema.optional(), playoutDiag:playoutDiagSchema.optional(), micDiag:micDiagSchema.optional(), handoffDiag:handoffDiagSchema.optional(), startupDiag:startupDiagSchema.optional() });
 const json=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
 export async function hash(value:string) { return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)))).map(b=>b.toString(16).padStart(2,'0')).join(''); }
 Deno.serve(async req=>{
@@ -129,6 +139,20 @@ Deno.serve(async req=>{
     const priorHandoff=Array.isArray(handoffConfig.handoffDiag) ? handoffConfig.handoffDiag : [];
     const handoffEntry={detail:b.handoffDiag.detail,at:b.handoffDiag.at ?? Date.now()};
     await db.from('gemini_voice_sessions').update({config:{...handoffConfig,handoffDiag:[...priorHandoff,handoffEntry].slice(-30)}}).eq('id',handoffRow.id);
+    return json({ok:true});
+  }
+  // Playout startup telemetry (chat-fix3, 2026-11-16): appended to
+  // the session row at config.startupDiag (bounded — the last 30),
+  // same visitor-hash ownership as micDiag. Best-effort: a failed
+  // stamp loses only the trace, never the call.
+  if(b.startupDiag) {
+    const startupVisitor=await hash(`${b.visitorKey}|${req.headers.get('x-forwarded-for')?.split(',')[0] || ''}`);
+    const {data:startupRow}=await db.from('gemini_voice_sessions').select('id,config,visitor_hash').eq('id',b.startupDiag.sessionId).maybeSingle();
+    if(!startupRow || startupRow.visitor_hash!==startupVisitor) return json({error:'Session not found'},404);
+    const startupConfig=(startupRow.config ?? {}) as Record<string,unknown>;
+    const priorStartup=Array.isArray(startupConfig.startupDiag) ? startupConfig.startupDiag : [];
+    const startupEntry={detail:b.startupDiag.detail,at:b.startupDiag.at ?? Date.now()};
+    await db.from('gemini_voice_sessions').update({config:{...startupConfig,startupDiag:[...priorStartup,startupEntry].slice(-30)}}).eq('id',startupRow.id);
     return json({ok:true});
   }
   const bearer=req.headers.get('Authorization')?.replace(/^Bearer\s+/i,'') || '';

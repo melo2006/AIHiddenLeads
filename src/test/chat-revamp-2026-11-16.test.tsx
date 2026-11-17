@@ -164,6 +164,10 @@ describe('dictation — review, edit, then send (never auto-sent)', () => {
   });
 
   it('dictation speaks the site language (pt-BR pick → pt-BR recognition)', () => {
+    // chat-fix3: a language pick is recorded in sessionStorage (the
+    // switcher's languageChanged hook writes it there; localStorage
+    // is only a mirror and no longer drives anything on its own).
+    sessionStorage.setItem('lang', 'pt-BR');
     localStorage.setItem('lang', 'pt-BR');
     (window as unknown as Record<string, unknown>).SpeechRecognition = FakeRecognition;
     render(<ChatWidget {...chatProps} />);

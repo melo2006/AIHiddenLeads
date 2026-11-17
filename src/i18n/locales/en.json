@@ -603,6 +603,7 @@
     "micLevel": "Microphone level",
     "signInAdmin": "Sign in as administrator to keep testing",
     "audioPaused": "Audio is paused. End the call and press Start again to enable sound.",
+    "tapForSound": "Tap for sound",
     "startTimeout": "Starting the voice assistant took too long. Check microphone permission and try again.",
     "initialStatus": "Pick a voice and press Start — then just talk, like a real phone call. You can interrupt her.",
     "micLevelShort": "Mic level",
@@ -999,6 +1000,38 @@
     "close": "Close chat",
     "minimizedNote": "Chat minimized. Expand to read full conversation.",
     "placeholder": "Ask {{name}} anything...",
+    "prompts": {
+      "realtors": {
+        "1": "What services do you offer for buyers and sellers?",
+        "2": "Can this AI qualify new real estate leads?",
+        "3": "How does voice AI help with showings and inquiries?"
+      },
+      "medspa": {
+        "1": "What treatments do you offer most often?",
+        "2": "Can this assistant answer pricing and consultation questions?",
+        "3": "How can AI chat and voice improve bookings?"
+      },
+      "autodetail": {
+        "1": "What detailing packages are available?",
+        "2": "Can Aspen handle quote questions 24/7?",
+        "3": "How quickly can this setup be added to my site?"
+      },
+      "veterinary": {
+        "1": "Can this assistant help with pet appointment questions?",
+        "2": "How does it handle urgent inquiries after hours?",
+        "3": "What does setup look like for a vet clinic?"
+      },
+      "marine": {
+        "1": "Can Aspen answer questions about boat services?",
+        "2": "How can this capture leads after hours?",
+        "3": "Can voice AI reduce missed calls?"
+      },
+      "general": {
+        "1": "What can Aspen do for my business?",
+        "2": "How do AI chat and voice work together?",
+        "3": "Can I schedule a 15-minute walkthrough?"
+      }
+    },
     "messageAria": "Message {{name}}",
     "sendAria": "Send message to {{name}}",
     "messagesAria": "{{name}} chat messages",

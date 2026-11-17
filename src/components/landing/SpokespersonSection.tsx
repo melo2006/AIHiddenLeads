@@ -16,10 +16,10 @@ const POINTS = {
     { icon: LifeBuoy, title: "Real people supporting you", text: "Our support team is available by phone, live chat and email at info@aihiddenleads.com." },
   ],
   pt: [
-    { icon: AudioLines, title: "Vozes neurais naturais", text: "IA de voz ao vivo, com respostas rápidas e naturais — nada de menus telefónicos robóticos." },
+    { icon: AudioLines, title: "Vozes neurais naturais", text: "IA de voz ao vivo, com respostas rápidas e naturais — nada de menus telefônicos robóticos." },
     { icon: MessagesSquare, title: "Conversa real nos dois sentidos", text: "Quem liga pode interromper e mudar de assunto. A Aspen ouve, adapta-se e responde com o conhecimento do seu negócio." },
     { icon: HeartHandshake, title: "Feita para ajudar a crescer", text: "Preço inicial baixo, com 50 prospects B2B por mês incluídos, e as perguntas de rotina tratadas por si." },
-    { icon: LifeBuoy, title: "Pessoas reais a apoiar", text: "A nossa equipa de apoio está disponível por telefone, chat ao vivo e e-mail em info@aihiddenleads.com." },
+    { icon: LifeBuoy, title: "Pessoas reais a apoiar", text: "A nossa equipe de apoio está disponível por telefone, chat ao vivo e e-mail em info@aihiddenleads.com." },
   ],
   es: [
     { icon: AudioLines, title: "Voces neuronales naturales", text: "IA de voz en vivo con respuestas rápidas y naturales: nada de menús telefónicos robóticos." },

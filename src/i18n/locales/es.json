@@ -624,6 +624,9 @@
       }
     ]
   },
+  "panel": {
+    "tapForSound": "Toca para activar el sonido"
+  },
   "voice": {
     "consentTitle": "Prueba una demo en vivo con {{name}}",
     "consentBody": "Esta llamada se graba. El audio, la transcripción y el resumen de IA se guardan de forma privada para que nuestro equipo los revise. Solo se envía una copia por correo si la pides. Al empezar, aceptas estas condiciones.",
@@ -754,7 +757,39 @@
     "minimize": "Minimizar el chat",
     "close": "Cerrar el chat",
     "minimizedNote": "Chat minimizado. Expándelo para leer la conversación completa.",
-    "placeholder": "Pregúntale lo que quieras a {{name}}...",
+    "placeholder": "Pregúntale a {{name}}...",
+    "prompts": {
+      "realtors": {
+        "1": "¿Qué servicios ofrecen para compradores y vendedores?",
+        "2": "¿Puede esta IA calificar nuevos clientes potenciales de bienes raíces?",
+        "3": "¿Cómo ayuda la IA de voz con las visitas y consultas?"
+      },
+      "medspa": {
+        "1": "¿Qué tratamientos ofrecen con más frecuencia?",
+        "2": "¿Puede este asistente responder preguntas sobre precios y consultas?",
+        "3": "¿Cómo pueden el chat y la voz con IA mejorar las reservas?"
+      },
+      "autodetail": {
+        "1": "¿Qué paquetes de detallado están disponibles?",
+        "2": "¿Puede Aspen responder preguntas de cotización las 24 horas?",
+        "3": "¿Qué tan rápido se puede instalar esto en mi sitio?"
+      },
+      "veterinary": {
+        "1": "¿Puede este asistente ayudar con preguntas sobre citas para mascotas?",
+        "2": "¿Cómo maneja las consultas urgentes fuera de horario?",
+        "3": "¿Cómo es la instalación para una clínica veterinaria?"
+      },
+      "marine": {
+        "1": "¿Puede Aspen responder preguntas sobre servicios para embarcaciones?",
+        "2": "¿Cómo puede esto captar clientes fuera de horario?",
+        "3": "¿Puede la IA de voz reducir las llamadas perdidas?"
+      },
+      "general": {
+        "1": "¿Qué puede hacer Aspen por mi negocio?",
+        "2": "¿Cómo funcionan juntos el chat y la voz con IA?",
+        "3": "¿Puedo agendar una demostración de 15 minutos?"
+      }
+    },
     "messageAria": "Enviar un mensaje a {{name}}",
     "sendAria": "Enviar el mensaje a {{name}}",
     "messagesAria": "Mensajes del chat de {{name}}",

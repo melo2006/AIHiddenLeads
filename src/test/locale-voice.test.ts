@@ -152,11 +152,25 @@ describe("locale → voice (Ron, 2026-11-09)", () => {
   it("sends only the explicit UI selection from the client", () => {
     expect(conversation).toContain("locale: explicitUiLocale()");
     expect(conversation).toContain('from "@/lib/uiLocale"');
-    // No browser-locale detection anywhere in the helper.
+    // The session-start locale comes ONLY from the in-session
+    // explicit pick (sessionStorage since chat-fix3, 2026-11-16):
+    // a stale localStorage pick from an earlier session must never
+    // start a session, and browser-locale detection must never
+    // reach the session path. Browser language DOES now set the
+    // site's initial UI language (Ron's revised rule — his English
+    // browser was overridden for days by a stored pt-BR pick), but
+    // that resolver (browserUiLocale/initialUiLocale) feeds only
+    // i18n's first paint, never explicitUiLocale.
     const helper = read("../lib/uiLocale.ts");
-    expect(helper).toContain('localStorage.getItem("lang")');
-    expect(helper).not.toContain("navigator.language");
-    expect(helper).not.toContain("navigator.languages");
+    expect(helper).toContain('sessionStorage.getItem("lang")');
+    expect(helper).not.toContain('localStorage.getItem("lang")');
+    const sessionStart = helper.indexOf("export function sessionUiLocale");
+    const sessionPath = helper.slice(sessionStart, helper.indexOf("\n}\n", sessionStart) + 3);
+    expect(sessionPath).not.toContain("navigator");
+    expect(helper).toContain("export function initialUiLocale");
+    const i18nInit = read("../i18n/index.ts");
+    expect(i18nInit).toContain("initialUiLocale()");
+    expect(i18nInit).toContain('sessionStorage.setItem("lang", lng)');
   });
 
   it("localizes the voice panel chrome and the chat panel through i18n", () => {
