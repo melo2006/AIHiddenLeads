@@ -23,7 +23,7 @@ export default function VideoAvatarsView() {
 
   async function loadFaces() {
     const { data, error } = await supabase.functions.invoke("simli-avatar", { body: { action: "faces" } });
-    if (error) toast.error("Could not load your Simli faces");
+    if (error) toast.error("Could not load your faces");
     else setFaces(data.faces || []);
   }
   useEffect(() => {
@@ -77,7 +77,7 @@ export default function VideoAvatarsView() {
       <div className="flex flex-wrap items-start gap-2">
         <div className="min-w-0 flex-1">
           <h1 className="text-lg font-bold">Video Avatars</h1>
-          <p className="text-xs text-muted-foreground">Simli shows the face; the Gemini Live voice, prompts and knowledge stay the same. HeyGen is planned for later.</p>
+          <p className="text-xs text-muted-foreground">The video face is rendered live; the Gemini Live voice, prompts and knowledge stay the same. More face engines are planned for later.</p>
         </div>
         <Button size="sm" variant="outline" onClick={() => void loadFaces()}><RefreshCw className="mr-1.5 h-3.5 w-3.5" />Refresh faces</Button>
         <Button size="sm" disabled={busy || !selected} onClick={() => void apply()}><Save className="mr-1.5 h-3.5 w-3.5" />Save draft choices</Button>
@@ -92,7 +92,7 @@ export default function VideoAvatarsView() {
       <Select value={selectedId} disabled={busy} onValueChange={id => { const a = agents.find(a => a.id === id); if (!a) return; setSelectedId(id); setAvatar(normalizeVideoAvatar(a.draft.videoAvatar)); setVoice(String(a.draft.voice || 'Kore')); }}><SelectTrigger aria-label="Assistant to test"><SelectValue placeholder="Choose a saved business draft"/></SelectTrigger><SelectContent>{agents.map(a => <SelectItem key={a.id} value={a.id}>{String(a.draft.businessName || a.draft.name || 'Business assistant')}</SelectItem>)}</SelectContent></Select>
       {!selected && <p className="text-sm text-muted-foreground">Create a business draft in Customer Setup to test its face, voice and knowledge here.</p>}
       {loading ? <p role="status" className="text-sm text-muted-foreground">Loading saved assistants…</p> : <AvatarSettings key={selectedId} value={avatar} onChange={setAvatar} faces={faces} adminPreview agentId={selectedId || undefined} beforePreview={apply} voice={voice} onVoiceChange={setVoice} name={String(selected?.draft.name || 'Aspen')} />}
-      <p className="text-[11px] text-muted-foreground">Draft tests do not publish or change the homepage. Customer Setup offers the same face and voice choices. HeyGen: coming later.</p>
+      <p className="text-[11px] text-muted-foreground">Draft tests do not publish or change the homepage. Customer Setup offers the same face and voice choices.</p>
     </div>
   );
 }
