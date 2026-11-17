@@ -229,6 +229,26 @@ function speechRecognitionCtor(): SpeechRecognitionCtor | undefined {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** Hard cap on a typed-chat send (2026-11-16 outage): when the
+ *  chat-completion backend died, sends spun forever and the panel
+ *  looked frozen. At 30s the invoke is aborted and the rejection
+ *  takes handleSend's normal error path — the canned fallback types
+ *  out — instead of the visitor staring at a dead panel. */
+export const CHAT_COMPLETION_TIMEOUT_MS = 30_000;
+
+export async function invokeChatCompletion(
+  body: Record<string, unknown>,
+  timeoutMs: number = CHAT_COMPLETION_TIMEOUT_MS,
+) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await supabase.functions.invoke("retell-web-call", { body, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 const ChatWidget = ({
   businessName,
   businessNiche,
@@ -541,6 +561,19 @@ PRESENTER DEMO:
 CURRENT LISTINGS FOR THIS BUSINESS (the demo's listings pack — present each home by its descriptor, the way the business's own site names it; never invent listings, prices or details beyond this list and the knowledge above):
 ${presenterKnowledge.trim()}
 ` : "";
+    // Homepage sales only (Ron's direction, 2026-11-16): where the
+    // business being sold is AI Hidden Leads itself, a plan question
+    // gets a direct, truthful answer FIRST — the meeting offer is a
+    // next step, never a dodge. Presenter demos and prospect
+    // simulations answer for the demo business; they never see this.
+    const isHomepageSalesChat = !isPresenterChat && businessName.trim().toLowerCase() === "ai hidden leads";
+    const homepagePlanBlock = isHomepageSalesChat ? `
+AI HIDDEN LEADS PLANS — ANSWER FIRST:
+- When the visitor asks about plans, minutes or pricing — including "do you have an unlimited plan?" — ANSWER directly and truthfully FIRST, before offering any next step.
+- There is NO unlimited plan and NO Enterprise plan. Never claim one exists and never quote a price for one.
+- The plans are Premium (400 minutes/month), Professional (1,200 minutes/month) and Platinum (2,500 minutes/month).
+- If they need more than Platinum offers, say the sales director can sometimes arrange custom terms for larger needs — offer that conversation only AFTER answering, never instead of answering.
+` : "";
     const systemPrompt = `You are ${isPresenterChat ? presenterDisplayName : "Aspen"}, the AI chat assistant for ${businessName}. You are warm, witty, funny, and genuinely helpful — like a knowledgeable friend who happens to work at the business.
 ${presenterBlock}
 IMPORTANT CONTEXT:
@@ -554,7 +587,7 @@ IMPORTANT CONTEXT:
 
 COMPREHENSIVE BUSINESS KNOWLEDGE (scraped from their website + web research):
 ${businessInfo?.substring(0, 8000) || "A professional business offering quality services."}
-${presenterKnowledgeBlock}
+${presenterKnowledgeBlock}${homepagePlanBlock}
 
 PERSONALITY & STYLE:
 - Be funny, cordial, and CONVERSATIONAL — talk like a real person, not a robot.
@@ -582,19 +615,17 @@ CRITICAL RULES:
 
 ${responseLanguageLine}`;
 
-    const { data, error } = await supabase.functions.invoke("retell-web-call", {
-      body: {
-        action: "chat-completion",
-        locale: effectiveChatLocale,
-        systemPrompt,
-        // A message with an attachment carries the bracketed note as
-        // its payload suffix (the thread itself shows the chip, not
-        // the note). A PHOTO additionally rides as `image` — the
-        // downscaled JPEG the endpoint attaches to the last user
-        // message as an image part, so the model sees it too.
-        messages: conversationHistory.map((m) => ({ role: m.role, content: m.attachment ? `${m.content} ${attachmentNote(m.attachment)}`.trim() : m.content })),
-        ...(image ? { image } : {}),
-      },
+    const { data, error } = await invokeChatCompletion({
+      action: "chat-completion",
+      locale: effectiveChatLocale,
+      systemPrompt,
+      // A message with an attachment carries the bracketed note as
+      // its payload suffix (the thread itself shows the chip, not
+      // the note). A PHOTO additionally rides as `image` — the
+      // downscaled JPEG the endpoint attaches to the last user
+      // message as an image part, so the model sees it too.
+      messages: conversationHistory.map((m) => ({ role: m.role, content: m.attachment ? `${m.content} ${attachmentNote(m.attachment)}`.trim() : m.content })),
+      ...(image ? { image } : {}),
     });
 
     if (error || !data?.content) {
