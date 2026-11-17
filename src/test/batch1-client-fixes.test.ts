@@ -49,10 +49,12 @@ describe("Batch 1 — mic environment control: capture-loop wiring", () => {
   it("auto-pick is throttled to ~3s and gated on NOT having manually picked this session", () => {
     expect(conversation).toContain("if (now - ambientCheckedAtRef.current < 3000) return;");
     expect(conversation).toContain("if (!noiseFilterManualRef.current) {");
-    // Chat-fix6: the applied auto-pick is clamped — auto may move
-    // between balanced and strong but never lands on light
-    // (quiet-room/minimum) by itself.
-    expect(conversation).toContain("const autoFilter = next.filter === \"light\" ? \"balanced\" : next.filter;");
+    // Barge-in hardening (2026-11-17, supersedes the chat-fix6 clamp):
+    // the auto-pick passes through autoNoiseFilter, which never relaxes
+    // below strong on its own — a quiet room no longer lightens the
+    // filter; only an explicit manual pick selects balanced/light.
+    expect(conversation).toContain("const autoFilter = autoNoiseFilter(next.filter);");
+    expect(conversation).not.toContain("next.filter === \"light\" ? \"balanced\" : next.filter");
     expect(conversation).toContain("if (autoFilter !== noiseFilterRef.current) setNoiseFilter(autoFilter);");
   });
 

@@ -198,6 +198,21 @@ export const SOUND_COMPLAINT_RULE = 'SOUND COMPLAINTS: if the visitor says they 
  *  (stripSpokenLabelPrefix), which strips a leaked label before a
  *  recap can re-feed it. */
 export const NO_SPEAKER_LABEL_RULE = 'NO SPEAKER LABELS IN SPEECH: speak in first person, as yourself, always. Never begin a reply — or any sentence in it — with a speaker label or name tag: never say "Aspen:", "Sara:", "Alex:", "Frank:", "Monica:", "Denise:", "Assistant:", "Visitor:" or any other name followed by a colon before your words. The conversation summaries and recaps in your instructions label turns that way for your READING only — those labels are never spoken, never quoted, and never repeated back to the visitor.';
+/** INTERRUPTED-TURN RESUME RULE (2026-11-17): woven into EVERY website
+ *  session prompt in the proxy beside NO_SPEAKER_LABEL_RULE — sales,
+ *  simulations and tenant sessions alike, because this is transport
+ *  behavior, not persona copy. Ron's staging session
+ *  43849783-716e-4f69-b9b1-8c1990e6659d: a two-word fragment
+ *  ("insane thing" — room noise / speaker echo transcribed as speech)
+ *  cut Aspen off mid-sentence; she answered it with "Sorry, I didn't
+ *  catch that", and when Ron said "I didn't say anything" she dropped
+ *  her point entirely and changed the subject. The client gate now
+ *  keeps most content-free bursts from ever becoming a turn; this
+ *  rule governs the ones that still get through: resume, don't
+ *  apologize. It deliberately carves out short REAL answers and the
+ *  genuine garbled-attempt case, which keeps the clarification
+ *  rotation from the language rules. */
+export const INTERRUPTION_RESUME_POLICY = 'INTERRUPTED-TURN RESUME RULE: If your turn is cut off by a caller turn that carries no real answer, request or information — an empty turn, background noise or your own speaker echo transcribed as a stray word or two, or a fragment that means nothing for this conversation — do NOT apologize, do NOT ask the caller to repeat it, and do NOT change the subject: simply continue what you were saying and finish the point, naturally, as if the blip had not happened. If the caller then says they did not say anything, just keep going the same way. Short real answers are NOT blips: "yes", "no", a name, a number, or any direct answer to what you asked is a real answer — respond to it normally. Ask the caller to repeat only when they clearly tried to give a real answer or ask a real question and it came through garbled. For content-free turns like these, this rule overrides the general ask-to-repeat guidance.';
 export const DEFAULT_AGENT = {
   name: 'Aspen', businessName: 'AI Hidden Leads', voice: 'Kore', avatarPath: '',
   greeting: '{timeGreeting}! I am {agentName} from {businessName}. {nameQuestion}',

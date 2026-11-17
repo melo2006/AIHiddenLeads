@@ -20,7 +20,7 @@ import "@/i18n";
 import { explicitUiLocale } from "@/lib/uiLocale";
 import { clearDemoResume } from "@/lib/demoVerification";
 import { FunctionsHttpError } from "@supabase/supabase-js";
-import { microphonePcm, shouldSendMicrophone, microphoneGate, microphoneAutoGain, initialCaptureMode, ambientLevelForFloor, createAmbientGateState, pushAmbientRms, type AmbientGateState, type NoiseFilter, type CaptureMode } from "@/lib/voiceLabAudio";
+import { microphonePcm, shouldSendMicrophone, microphoneAutoGain, initialCaptureMode, createAmbientGateState, pushAmbientRms, createSpeechGateState, pushSpeechGateFrame, autoNoiseFilter, appliedAmbientLevel, type AmbientGateState, type NoiseFilter, type CaptureMode } from "@/lib/voiceLabAudio";
 
 import VoiceActionConfirmation, { type VoiceAction } from "./VoiceActionConfirmation";
 import BrowserVoiceHandoff from "@/components/BrowserVoiceHandoff";
@@ -535,29 +535,31 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // preference must never silently gate the next session's microphone.
   const [captureMode, setCaptureMode] = useState<CaptureMode>(() => initialCaptureMode());
   const [noiseFilter, setNoiseFilter] = useState<NoiseFilter>(() => {
-    // NOISY-ROOM DEFAULT (Ron's direction, 2026-11-16): sessions
-    // start on STRONG filtering — assume a noisy place. The ambient
-    // auto-pick may still move the filter mid-session, but only
-    // between balanced and strong: it never relaxes a session onto
-    // the quiet-room (light) setting by itself — light is a
-    // deliberate manual pick only. A saved value is respected only
-    // when it carries the manual marker written by chooseNoiseFilter:
-    // the old build persisted EVERY auto-pick too, so values storage
-    // holds without the marker (including a dead mic's auto-"light")
-    // are not the visitor's choice and fall back to strong. A saved
-    // "balanced" was the old factory default, not a choice, so it
-    // no longer holds a session at the middle setting either.
-    try { const saved = localStorage.getItem("voice-noise-filter"); const manual = localStorage.getItem("voice-noise-filter-manual") === "1"; return manual && (saved === "light" || saved === "strong") ? saved : "strong"; } catch { return "strong"; }
+    // NOISY-ROOM DEFAULT (Ron's direction, 2026-11-16; hardened
+    // 2026-11-17): sessions start on STRONG filtering — assume a
+    // noisy place — and the ambient auto-pick may no longer relax
+    // the filter mid-session at all (see feedAmbientSample): only a
+    // deliberate manual pick ever selects balanced or light. A saved
+    // value is respected only when it carries the manual marker
+    // written by chooseNoiseFilter: the old build persisted EVERY
+    // auto-pick too, so values storage holds without the marker
+    // (including a dead mic's auto-"light") are not the visitor's
+    // choice and fall back to strong. With the marker, the stored
+    // value can only have been written by the manual chooser, so a
+    // marked pick is honored as-is — balanced included.
+    try { const saved = localStorage.getItem("voice-noise-filter"); const manual = localStorage.getItem("voice-noise-filter-manual") === "1"; return manual && (saved === "light" || saved === "balanced" || saved === "strong") ? saved : "strong"; } catch { return "strong"; }
   });
   const noiseFilterRef = useRef(noiseFilter);
   // Mic environment auto-pick (Batch 1, 2026-11-12): the capture loops feed
-  // every frame's RMS into a rolling ambient tracker; while the visitor has
-  // NOT manually picked a filter this session, the tracker's hysteresis pick
-  // drives noiseFilter. The persisted localStorage value is only the
-  // starting point — it does NOT count as a manual pick, so auto may still
-  // adjust after connect. Any in-session pick (the in-panel Quiet/Normal/
-  // Noisy control or either settings-dialog Select) marks manual and stops
-  // auto-picking for the rest of the session; the pick itself persists to
+  // every frame's RMS into a rolling ambient tracker. The tracker still
+  // measures (its floor feeds diagnostics and the manual-mode readout),
+  // but since 2026-11-17 its pick no longer drives noiseFilter: auto
+  // holds the applied filter at STRONG whatever the room measures, and
+  // only a manual pick moves it (see autoNoiseFilter). The persisted
+  // localStorage value is only the starting point — it does NOT count
+  // as a manual pick. Any in-session pick (the in-panel Quiet/Normal/
+  // Noisy control or either settings-dialog Select) marks manual and
+  // stops auto-picking for the rest of the session; the pick itself persists to
   // localStorage from chooseNoiseFilter, together with the manual marker
   // the initializer above requires before honoring a saved value.
   const [noiseFilterManual, setNoiseFilterManual] = useState(false);
@@ -592,18 +594,25 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     if (now - ambientCheckedAtRef.current < 3000) return;
     ambientCheckedAtRef.current = now;
     setAmbientFloor(next.floor);
-    // AUTO-PICK FLOOR (Ron's order, 2026-11-16): auto moves only
-    // between balanced and strong — it NEVER lands on the quiet-room
-    // (light) setting by itself. The plain bands map a near-zero
-    // floor to light, and a dead mic reads floor 0, which is how a
-    // strong-start session silently became "Minimum filtering —
-    // quiet room" in Ron's settings while his mic sent nothing.
+    // AUTO-PICK FLOOR (Ron's order, 2026-11-17 — supersedes the
+    // 2026-11-16 balanced↔strong clamp): auto NEVER relaxes the
+    // applied filter below strong on its own. The clamp still let a
+    // quiet room slide a strong-start session to "Balanced filtering
+    // — everyday" within seconds — and at Balanced, in a silent
+    // room, Aspen's own speaker echo cleared the gate and cut her
+    // off three times while the visitor said nothing (Ron's
+    // 2026-11-17 phone + rebooted-laptop sessions). The tracker
+    // keeps measuring; its suggestion is passed to autoNoiseFilter,
+    // which holds strong until a manual pick says otherwise.
     if (!noiseFilterManualRef.current) {
-      const autoFilter = next.filter === "light" ? "balanced" : next.filter;
+      const autoFilter = autoNoiseFilter(next.filter);
       if (autoFilter !== noiseFilterRef.current) setNoiseFilter(autoFilter);
     }
   };
-  const ambientLevel = ambientLevelForFloor(ambientFloor);
+  // The environment the dialog presents as in force: in auto mode the
+  // standing Noisy assumption (appliedAmbientLevel), not the measured
+  // floor — the readout describes the filtering actually applied.
+  const ambientLevel = appliedAmbientLevel(noiseFilterManual, ambientFloor);
   useEffect(() => {
     const track = micStreamRef.current?.getAudioTracks()[0];
     if (track) void track.applyConstraints({autoGainControl: microphoneAutoGain(captureMode, noiseFilter)}).catch(() => { /* Browser may not support gain adjustment. */ });
@@ -3267,7 +3276,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         const node = micCtx.createScriptProcessor(2048, 1, 1);
         micNodeRef.current = node;
         let frame = 0;
-        let gateOpenUntil = 0;
+        let speechGate = createSpeechGateState();
         node.onaudioprocess = (e) => {
           if (!liveRef.current || handoffRef.current || ws.readyState !== WebSocket.OPEN) return;
           const input = e.inputBuffer.getChannelData(0);
@@ -3281,13 +3290,20 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           // silent paired-video clocks). Pause/mute/replay still block capture.
           if (capture.paused) return;
           if (!shouldSendMicrophone(capture.mode, capture.held, capture.muted, capture.replaying)) return;
-          const gate = microphoneGate(rms, noiseFilterRef.current, performance.now(), gateOpenUntil);
+          // Barge-in hardening (2026-11-17): the send gate opens only
+          // on SUSTAINED speech-level input, and while Aspen is
+          // generating or audibly playing the bar rises to the strong
+          // floor ×2 with a longer sustain — her own speaker echo and
+          // room transients must never reach the provider as a caller
+          // turn (see pushSpeechGateFrame in lib/voiceLabAudio).
+          const assistantSpeaking = idleRef.current.generating || sourcesRef.current.size > 0 || engineTimersRef.current.size > 0;
+          const gate = pushSpeechGateFrame(speechGate, rms, noiseFilterRef.current, performance.now(), assistantSpeaking);
+          speechGate = gate;
           if (gate.open) micGateHeardRef.current = Date.now();
           if (gate.open && sourcesRef.current.size === 0 && !idleRef.current.generating) {
             idleRef.current.stage = 'waiting';
             idleRef.current.quietSince = Date.now();
           }
-          gateOpenUntil = gate.openUntil;
           // Opening gate: until Aspen's first turn completes, every frame is
           // silence — ambient noise and side remarks cannot interrupt the
           // greeting, and the server VAD hears a clean boundary.
@@ -3684,7 +3700,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       const node = micCtx.createScriptProcessor(2048, 1, 1);
       micNodeRef.current = node;
       let frame = 0;
-      let gateOpenUntil = 0;
+      let speechGate = createSpeechGateState();
       node.onaudioprocess = (e) => {
         if (!liveRef.current || handoffRef.current || ws.readyState !== WebSocket.OPEN) return;
         const input = e.inputBuffer.getChannelData(0);
@@ -3694,13 +3710,16 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         const capture = captureRef.current;
         if (capture.paused) return;
         if (!shouldSendMicrophone(capture.mode, capture.held, capture.muted, capture.replaying)) return;
-        const gate = microphoneGate(rms, noiseFilterRef.current, performance.now(), gateOpenUntil);
+        // Barge-in hardening (2026-11-17): same sustained-speech gate
+        // as the parent socket — see the note in the main capture loop.
+        const assistantSpeaking = idleRef.current.generating || sourcesRef.current.size > 0 || engineTimersRef.current.size > 0;
+        const gate = pushSpeechGateFrame(speechGate, rms, noiseFilterRef.current, performance.now(), assistantSpeaking);
+        speechGate = gate;
         if (gate.open) micGateHeardRef.current = Date.now();
         if (gate.open && sourcesRef.current.size === 0 && !idleRef.current.generating) {
           idleRef.current.stage = 'waiting';
           idleRef.current.quietSince = Date.now();
         }
-        gateOpenUntil = gate.openUntil;
         let openingGate = openingGateRef.current;
         if (openingGate && performance.now() - openingGateSinceRef.current >= OPENING_GATE_FAILSAFE_MS) {
           openingGateRef.current = false;
