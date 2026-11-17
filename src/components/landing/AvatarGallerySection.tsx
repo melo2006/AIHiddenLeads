@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { Camera } from "lucide-react";
 import { useTranslation } from 'react-i18next';
-import { AVATAR_LIBRARY } from "@/lib/avatarLibrary";
+import { AVATAR_LIBRARY, type AvatarLibraryEntry } from "@/lib/avatarLibrary";
+import AvatarPortraitLightbox, { PortraitViewButton } from "@/components/AvatarPortraitLightbox";
 
 // The gallery roster comes from the avatar library — the same source of
 // truth the setup wizard picks from, so the homepage can never drift from
@@ -29,12 +31,21 @@ const AvatarGallerySection = () => {
   const { i18n } = useTranslation();
   const pt = i18n.language.startsWith('pt'); const es = i18n.language.startsWith('es');
   const yourPhotoLabel = pt ? 'A sua foto' : es ? 'Tu foto' : 'Your photo';
+  // Ron (2026-11-17): tiles highlight/lift on hover, and tapping a
+  // portrait opens it large with zoom — phone tiles are small, so the
+  // detail view is where a face is really judged.
+  const [viewing, setViewing] = useState<AvatarLibraryEntry | null>(null);
   return <section id="avatar-gallery" className="py-12 sm:py-16"><div className="container mx-auto px-5 sm:px-6">
     <h2 className="text-2xl sm:text-3xl font-bold mb-3">{pt ? 'Escolha entre dezenas de avatares humanos ao vivo — ou dê vida à sua própria foto.' : es ? 'Elige entre docenas de avatares humanos en vivo — o dale vida a tu propia foto.' : 'Choose from dozens of live human avatars — or bring your own photo to life.'}</h2>
     <p className="text-sm text-muted-foreground max-w-3xl mb-6">{pt ? 'Cada avatar transmite em direto no seu site — um rosto real a falar com os seus clientes com uma voz natural. Escolha um da biblioteca, ou carregue a sua própria foto e veja-a ganhar vida. Use uma das nossas vozes — ou a sua: carregue um clipe ou grave a sua voz, e o seu avatar falará com ela.' : es ? 'Cada avatar se transmite en vivo en tu sitio web: un rostro real que habla con tus clientes con una voz natural. Elige uno de la biblioteca o sube tu propia foto y mírala cobrar vida. Usa una de nuestras voces — o la tuya: sube un clip o graba tu voz y tu avatar hablará con ella.' : 'Every avatar streams live on your website — a real face talking with your customers in a natural voice. Pick one from the library, or upload your own photo and watch it come alive. Use one of our voices — or your own: upload a clip or record your voice, and your avatar speaks with it.'}</p>
     <div className="grid grid-cols-3 gap-3 sm:gap-5 max-w-3xl">
       {GALLERY_FACES.map(entry => <figure key={entry.key} className="flex flex-col items-center gap-2">
-        <img src={entry.image} alt={entry.label} loading="lazy" className="aspect-square w-full rounded-lg border border-border object-cover" />
+        <PortraitViewButton
+          name={entry.label}
+          image={entry.image!}
+          onView={() => setViewing(entry)}
+          className="rounded-lg border border-border"
+        />
         <figcaption className="text-xs text-muted-foreground">{entry.label}</figcaption>
       </figure>)}
       <figure className="flex flex-col items-center gap-2">
@@ -45,6 +56,10 @@ const AvatarGallerySection = () => {
       </figure>
     </div>
     <p className="text-xs text-muted-foreground mt-6">{pt ? 'Os avatares da biblioteca estão incluídos em todos os planos. O seu avatar com a sua própria foto: configuração única de $50.' : es ? 'Los avatares de la biblioteca están incluidos en todos los planes. Tu avatar con tu propia foto: configuración única de $50.' : 'Library avatars are included in every plan. Your own photo avatar: one-time $50 setup.'}</p>
+    <AvatarPortraitLightbox
+      person={viewing ? { name: viewing.label, image: viewing.image! } : null}
+      onClose={() => setViewing(null)}
+    />
   </div></section>;
 };
 export default AvatarGallerySection;

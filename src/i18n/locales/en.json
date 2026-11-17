@@ -1222,5 +1222,14 @@
     "sourceHome": "(from the homepage)",
     "sourceDemo": "(from the demo page)",
     "sourceRealtors": "(from the realtors page)"
+  },
+  "gallery": {
+    "viewPhoto": "View {{name}} up close",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "zoomReset": "Reset zoom",
+    "useThisAvatar": "Use this avatar",
+    "currentAvatar": "Your current avatar",
+    "zoomHint": "Pinch, scroll, or drag to explore the details."
   }
 }
