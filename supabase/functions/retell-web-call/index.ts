@@ -1362,10 +1362,16 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // RETELL_API_KEY is required ONLY by the Retell-backed actions
+    // (create-web-call, get-call-transfer-context, email-call-summary,
+    // refresh-recording) — each of those branches checks for the key
+    // itself below and still fails loudly with the same 500 when it is
+    // absent. This read used to gate the WHOLE handler, so when the
+    // secret went missing every action died with it — including
+    // chat-completion, which runs on GOOGLE_API_KEY/Gemini and never
+    // touches Retell (outage 2026-11-16: typed chat down while the
+    // rest of the platform was fine). Do not re-add a blanket guard.
     const retellApiKey = Deno.env.get('RETELL_API_KEY');
-    if (!retellApiKey) {
-      return jsonResponse({ error: 'RETELL_API_KEY not configured' }, 500);
-    }
 
     const body = await req.json().catch(() => ({}));
     const action = body.action || 'create-web-call';
@@ -1453,6 +1459,10 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'get-call-transfer-context') {
+      if (!retellApiKey) {
+        return jsonResponse({ error: 'RETELL_API_KEY not configured' }, 500);
+      }
+
       const callId = typeof body.callId === 'string' ? body.callId.trim() : '';
       if (!callId) {
         return jsonResponse({ error: 'callId is required' }, 400);
@@ -1478,6 +1488,10 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'email-call-summary') {
+      if (!retellApiKey) {
+        return jsonResponse({ error: 'RETELL_API_KEY not configured' }, 500);
+      }
+
       const resendApiKey = Deno.env.get('RESEND_API_KEY');
       if (!resendApiKey) {
         return jsonResponse({ error: 'RESEND_API_KEY not configured' }, 500);
@@ -2010,6 +2024,11 @@ Deno.serve(async (req) => {
           fallback: 'callback',
         }, 500);
       }
+    }
+
+    // ── create-web-call (the default action): Retell-backed ──
+    if (!retellApiKey) {
+      return jsonResponse({ error: 'RETELL_API_KEY not configured' }, 500);
     }
 
     const {
