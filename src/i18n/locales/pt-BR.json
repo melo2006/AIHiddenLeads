@@ -1222,5 +1222,14 @@
     "sourceHome": "(da página inicial)",
     "sourceDemo": "(da página de demonstração)",
     "sourceRealtors": "(da página para corretores de imóveis)"
+  },
+  "gallery": {
+    "viewPhoto": "Ver {{name}} de perto",
+    "zoomIn": "Aproximar",
+    "zoomOut": "Afastar",
+    "zoomReset": "Repor o zoom",
+    "useThisAvatar": "Usar este avatar",
+    "currentAvatar": "O seu avatar atual",
+    "zoomHint": "Aproxime com dois dedos, rode a roda do rato ou arraste para explorar os detalhes."
   }
 }
