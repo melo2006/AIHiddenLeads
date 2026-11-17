@@ -43,7 +43,7 @@ Deno.serve(async req=>{
   const jwt=req.headers.get('Authorization')?.replace(/^Bearer\s+/i,'')||'';
   const {data:{user}}=await db.auth.getUser(jwt);const {data:role}=user?await db.from('voice_platform_roles').select('role').eq('user_id',user.id).maybeSingle():{data:null};
   if(role?.role!=='admin')return json({error:'Administrator access required'},403);
-  if(b.action==='list'){const {data,error}=await db.from('conversation_records').select('id,channel,business_name,status,summary,summary_status,summary_error,recipient_name,recipient_email,copy_requested_at,copy_sent_at,created_at,ended_at').order('created_at',{ascending:false}).limit(100);return error?json({error:'Could not load records'},500):json({records:data});}
+  if(b.action==='list'){const {data,error}=await db.from('conversation_records').select('id,channel,business_name,status,summary,summary_status,summary_error,recipient_name,recipient_email,session_ref,copy_requested_at,copy_sent_at,created_at,ended_at').order('created_at',{ascending:false}).limit(100);return error?json({error:'Could not load records'},500):json({records:data});}
   const {data:r}=await db.from('conversation_records').select('*').eq('id',b.id).single();if(!r)return json({error:'Record not found'},404);
   if(b.action==='summarize'){await finalizeRecord(db,r.id);const {data:updated}=await db.from('conversation_records').select('*').eq('id',r.id).single();return json({record:updated});}
   const audio=[];for(const part of (r.audio_paths||[])){const {data}=await db.storage.from('conversation-recordings').createSignedUrl(part.path,300);if(data)audio.push({...part,url:data.signedUrl});}

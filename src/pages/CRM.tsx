@@ -42,6 +42,7 @@ import VoiceCostsView from "@/components/crm/VoiceCostsView";
 import UsageReportsView from "@/components/crm/UsageReportsView";
 import CallHistoryView from "@/components/crm/CallHistoryView";
 import DemoSessionsView from "@/components/crm/DemoSessionsView";
+import PageVisitorsView from "@/components/crm/PageVisitorsView";
 import ImportedListsView from "@/components/crm/ImportedListsView";
 import ImportedListDetailView from "@/components/crm/ImportedListDetailView";
 import EngagementDashboard from "@/components/crm/EngagementDashboard";
@@ -247,6 +248,7 @@ const CRM = () => {
               <Route path="pipeline" element={<PipelinePageView />} />
               <Route path="calls" element={<Navigate to="/dashboard/sessions?tab=calls" replace />} />
               <Route path="sessions" element={<TabbedPage tabs={[{ id: "demos", label: "Demo sessions", el: <DemoSessionsView /> }, { id: "calls", label: "Call history", el: <CallHistoryView /> }]} />} />
+              <Route path="page-visitors" element={<PageVisitorsView />} />
               <Route path="imported" element={<ImportedListsView />} />
               <Route path="imported/:id" element={<ImportedListDetailView />} />
               <Route path="engagement" element={<Navigate to="/dashboard/campaign-results?tab=engagement" replace />} />
