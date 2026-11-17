@@ -60,18 +60,25 @@ const chatSurface = <div className="aspen-panel"><p>Try Frank chat</p></div>;
 afterEach(() => cleanup());
 
 describe('chat mode: presenter seated on ONE dock, portrait truly transparent', () => {
-  it('the dock holds the window controls, the mode toggle and the chat surface — in that order', () => {
+  it('the dock holds ONE merged control row (mode toggle + window controls together) and the chat surface below it', () => {
     const view = render(<FloatingPersonFrame {...frameProps} open mode="chat">{chatSurface}</FloatingPersonFrame>);
     const dock = view.getByTestId('aspen-chat-dock');
+    const row = dock.querySelector('[data-testid="aspen-control-row"]');
     const cluster = dock.querySelector('.aspen-person-chest-cluster');
     const toggle = dock.querySelector('[role="group"][aria-label="Conversation mode"]');
     const panel = dock.querySelector('.aspen-panel');
+    expect(row).toBeTruthy();
     expect(cluster).toBeTruthy();
     expect(toggle).toBeTruthy();
     expect(panel).toBeTruthy();
     expect(panel!.textContent).toContain('Try Frank chat');
-    expect(cluster!.compareDocumentPosition(toggle!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(toggle!.compareDocumentPosition(panel!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Chat-fix4 (2026-11-16): the toggle and the window controls share
+    // the ONE row — toggle left, controls right — and the chat surface
+    // follows the row (they were two stacked rows before).
+    expect(row!.contains(toggle!)).toBe(true);
+    expect(row!.contains(cluster!)).toBe(true);
+    expect(toggle!.compareDocumentPosition(cluster!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(row!.compareDocumentPosition(panel!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // The dock is a real card (the voice panel card's styling), not a wash.
     expect(dock.className).toContain('bg-card');
     expect(dock.className).toContain('rounded-lg');

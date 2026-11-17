@@ -73,17 +73,21 @@ describe('widget viewport fit — rendered shell structure', () => {
     expect(avatar.className).toContain('w-[72px]');
     expect(avatar.className).not.toContain('h-9');
 
-    // Header strip, window-controls row and toggle are NOT inside the
-    // scroll region — they cannot be scrolled or squeezed off the top.
+    // Header strip and the control row are NOT inside the scroll
+    // region — they cannot be scrolled or squeezed off the top.
     const toggle = screen.getByRole('group', { name: 'Conversation mode' });
     const controls = screen.getByRole('group', { name: 'Window controls' });
     expect(region?.contains(avatar)).toBe(false);
     expect(region?.contains(toggle)).toBe(false);
     expect(region?.contains(controls)).toBe(false);
-    // DOM order: header strip → window controls → toggle → region.
-    expect(avatar.compareDocumentPosition(controls) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(controls.compareDocumentPosition(toggle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(toggle.compareDocumentPosition(region as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // DOM order (chat-fix4): header strip → ONE merged control row
+    // (toggle, then window controls, inside the same row) → region.
+    const controlRow = screen.getByTestId('aspen-control-row');
+    expect(controlRow.contains(toggle)).toBe(true);
+    expect(controlRow.contains(controls)).toBe(true);
+    expect(avatar.compareDocumentPosition(toggle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(toggle.compareDocumentPosition(controls) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(controls.compareDocumentPosition(region as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('open chat: tapping the small header avatar returns to the big-avatar (voice) view', () => {

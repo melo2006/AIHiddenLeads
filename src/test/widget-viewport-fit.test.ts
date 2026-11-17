@@ -44,7 +44,11 @@ describe("widget viewport fit — shell is bounded and never scrolls as a whole"
 
   it("DraggableFloating still derives the available height from the visual viewport", () => {
     expect(draggable).toContain("window.visualViewport");
-    expect(draggable).toContain("'--aspen-available-height': `${Math.max(140, viewport.height - 56)}px`");
+    // Chat-fix4: the arithmetic moved into the shared, unit-tested
+    // helper (src/lib/visualViewport.ts) and the same visual height
+    // toggles the short-viewport class on the container.
+    expect(draggable).toContain("'--aspen-available-height': `${availableHeightFor(viewport.height)}px`");
+    expect(draggable).toContain("className={visualViewportClass(viewport.height)}");
   });
 
   it("the frame's children wrapper is the flex squeeze/scroll region when open", () => {
@@ -120,21 +124,34 @@ describe("widget viewport fit — the chat panel is capped by the dock, not the 
   });
 });
 
-describe("widget viewport fit — Captions pill lives on the header row", () => {
-  it("the Captions pill is inside the status header row, right-aligned, with a 40px target", () => {
+describe("widget viewport fit — Captions toggle is the CC button in the merged control row (chat-fix4, 2026-11-16)", () => {
+  it("the CC button leads the ONE control row; the status header row no longer carries a Captions pill", () => {
+    // The toggle itself: literal "CC" in every locale, localized
+    // aria-label/title, the same chooseCaptions behaviour.
+    const btnStart = conversation.indexOf('data-testid="aspen-captions-toggle"');
+    expect(btnStart).toBeGreaterThan(-1);
+    const btn = conversation.slice(btnStart, conversation.indexOf("</Button>", btnStart) + "</Button>".length);
+    expect(btn).toContain(">CC</Button>");
+    expect(btn).toContain("aria-label={captions ? t('voice.hideCaptions') : t('voice.showCaptions')}");
+    expect(btn).toContain("onClick={() => chooseCaptions(!captions)}");
+    // The merged control row: CC first, then the Voice/Type toggle
+    // slot, then the window controls — one line, no wrap.
+    const rowStart = conversation.indexOf('data-testid="aspen-control-row"');
+    expect(rowStart).toBeGreaterThan(-1);
+    const row = conversation.slice(rowStart, rowStart + 700);
+    expect(row).toContain("flex-nowrap");
+    expect(row.indexOf("{captionsToggleButton}")).toBeGreaterThan(-1);
+    expect(row.indexOf("{captionsToggleButton}")).toBeLessThan(row.indexOf("{belowAvatar}"));
+    expect(row.indexOf("{belowAvatar}")).toBeLessThan(row.indexOf("{windowControls}"));
+    // The status header row keeps the flexible status text (a crowded
+    // header truncates instead of wrapping) and no captions button.
     const headerStart = conversation.indexOf('<div className="flex items-center gap-1.5">');
-    const headerEnd = conversation.indexOf("</div>", headerStart);
-    const header = conversation.slice(headerStart, headerEnd);
-    expect(header).toContain("t('voice.captions')");
-    expect(header).toContain("ml-auto h-10 shrink-0");
-    expect(header).toContain("rounded-full");
-    expect(header).toContain("px-3 text-xs font-semibold");
-    // A word pill, not the old fixed-width (w-10) chevron icon button.
-    expect(header).not.toContain("w-10");
-    // The old standalone full-width chevron row (h-8 w-8, outside the header) is gone.
-    expect(conversation).not.toContain('className="h-8 w-8 border-primary/60 bg-transparent text-primary');
-    // Status text takes the flexible slot so a crowded header truncates instead of wrapping.
+    const header = conversation.slice(headerStart, conversation.indexOf("</div>", headerStart));
+    expect(header).not.toContain("aspen-captions-toggle");
+    expect(header).not.toContain("t('voice.captions')");
     expect(header).toContain('className="min-w-0 flex-1 break-words text-xs leading-snug text-foreground"');
+    // The old word pill is gone from the conversation entirely.
+    expect(conversation).not.toContain("{t('voice.captions')}");
   });
 });
 

@@ -137,7 +137,7 @@
      Voice/Type toggle, the control row and the hint pill stay pinned.
      vh line first as a legacy fallback; the dvh/var line wins where
      supported. */
-  .aspen-person-shell { display: flex; flex-direction: column; gap: .25rem; max-width: calc(100vw - 24px); max-height: calc(100vh - 56px); max-height: min(80dvh, var(--aspen-available-height, calc(100dvh - 56px))); overflow: hidden; }
+  .aspen-person-shell { display: flex; flex-direction: column; gap: .25rem; max-width: calc(100vw - 16px); max-height: calc(100vh - 56px); max-height: min(80dvh, var(--aspen-available-height, calc(100dvh - 56px))); overflow: hidden; }
   /* Voice panel pinning: every direct child (status header, notices,
      control row, mic meter row, hint pill) keeps its natural height; the
      caption region (transcript / playback caption) is the ONLY child that
@@ -178,9 +178,10 @@
   /* Chat mode (2026-11-16): the thread is the content, so the open
      shell widens in Type mode — long lines, minimal scrolling —
      reaching nearly the full screen width on phones (the shell's own
-     max-width keeps the 24px page margin). Voice mode keeps the
-     280px column exactly as before. */
-  .aspen-person-expanded.aspen-person-chat { width: min(26rem, calc(100vw - 24px)); }
+     max-width keeps the page margin — 16px since chat-fix4, so the
+     merged one-line control row fits at 360px). Voice mode keeps
+     the 280px column exactly as before. */
+  .aspen-person-expanded.aspen-person-chat { width: min(26rem, calc(100vw - 16px)); }
   .aspen-person-portrait { width: 234px; height: 188px; flex-shrink: 0; object-fit: cover; object-position: top center; }
   .aspen-person-expanded .aspen-person-portrait { width: 234px; height: 188px; }
   /* Idle→live size step: the live Simli media must occupy the livebox with the
@@ -363,6 +364,26 @@
      min-height floor above still applies: on a very short visible
      height the region's own scroll remains the safety valve. */
   .aspen-chat-dock .aspen-panel { flex: 1 1 auto; max-height: 100%; }
+  /* Chat-fix4 (2026-11-16): the short-viewport media query above keys
+     off the LAYOUT height, which does not move when a phone keyboard
+     opens — the VISUAL viewport does (Ron's retest: composer hidden
+     behind the keyboard, and half-cut with it closed on a viewport
+     the layout media query never matched). DraggableFloating now
+     toggles .aspen-vv-short on its container from
+     window.visualViewport, so the same relaxations fire whenever the
+     VISIBLE height is short, keyboard open or closed: the portrait
+     shrinks, the voice panel's 232px floor releases, and the chat
+     panel's min-height floor drops to zero so the message region —
+     never the composer — absorbs the squeeze and at least two
+     typing lines stay visible above the keyboard. */
+  @media (max-width: 1024px) {
+    .aspen-vv-short .aspen-person-portrait { height: 120px; }
+    .aspen-vv-short .aspen-person-expanded .aspen-person-portrait { height: 120px; }
+    .aspen-vv-short .aspen-person-livebox { height: 120px; }
+    .aspen-vv-short .aspen-person-shell.aspen-person-focus .aspen-person-livebox { height: 150px; }
+    .aspen-vv-short .aspen-voice-panel { min-height: 0; }
+    .aspen-vv-short .aspen-chat-dock .aspen-panel { min-height: 0; }
+  }
   .visibility-map { background: hsl(var(--muted) / 0.45); }
   .visibility-map button.audit-rank-good:hover { color: hsl(var(--primary-foreground)); background: hsl(var(--primary)); }
   .visibility-map button.audit-rank-warning:hover { color: hsl(var(--primary-foreground)); background: hsl(var(--audit-rank-warning)); }

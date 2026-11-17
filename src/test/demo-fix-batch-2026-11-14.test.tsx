@@ -88,7 +88,7 @@ const stage3: Stage3Controls = {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); sessionStorage.clear(); Socket.current = undefined; vi.clearAllMocks(); });
 
 describe('focus view (item 5b)', () => {
-  it('the Captions pill switches the panel to the dock layout and reports focus to the shell', async () => {
+  it('the CC toggle switches captions off into focus and back, and reports focus to the shell', async () => {
     stubBrowser();
     // Every session starts captions-off (2026-11-16); this test
     // exercises the toggle FROM the captions-on layout, so seed the
@@ -97,29 +97,30 @@ describe('focus view (item 5b)', () => {
     const onShellState = vi.fn();
     const view = render(<GeminiConversation compact faceFirst consentOnOpen videoAvatar={videoAvatar} onShellState={onShellState} />);
     await waitFor(() => expect(view.getByText('Ready to talk')).toBeTruthy());
-    // Standard layout first: no dock, livebox badge present, focus off.
+    // Chat-fix4 (2026-11-16): there is no focus dock anymore — ONE
+    // merged control row serves every state, and the presenter's
+    // name rides the seam pill INSIDE the panel (never the livebox),
+    // in captions-on and captions-off alike.
     expect(view.queryByTestId('aspen-focus-dock')).toBeNull();
-    expect(view.container.querySelector('.aspen-person-livebox [data-testid="persona-name-label"]')).toBeTruthy();
+    expect(view.container.querySelector('.aspen-voice-panel [data-testid="persona-name-label"]')?.textContent).toBe('Aspen');
+    expect(view.container.querySelector('.aspen-person-livebox [data-testid="persona-name-label"]')).toBeNull();
+    expect(view.container.querySelector('[data-testid="aspen-captions-toggle"]')?.textContent).toBe('CC');
     expect(onShellState).toHaveBeenCalledWith(expect.objectContaining({ focus: false }));
 
     fireEvent.click(view.getByLabelText('Hide captions'));
 
-    // Focus layout: dock with the big badge + captions-back toggle;
-    // the livebox badge leaves (the dock carries the name now).
-    await waitFor(() => expect(view.getByTestId('aspen-focus-dock')).toBeTruthy());
-    const dock = view.getByTestId('aspen-focus-dock');
-    expect(dock.querySelector('[data-testid="persona-name-label"]')?.textContent).toBe('Aspen');
-    expect(dock.querySelector('[aria-label="Show captions"]')).toBeTruthy();
-    expect(view.container.querySelector('.aspen-person-livebox [data-testid="persona-name-label"]')).toBeNull();
-    expect(onShellState).toHaveBeenCalledWith(expect.objectContaining({ focus: true }));
+    // Focus state: focus reported to the shell; the seam pill stays;
+    // the CC button flips to its Show-captions face.
+    await waitFor(() => expect(onShellState).toHaveBeenCalledWith(expect.objectContaining({ focus: true })));
+    expect(view.container.querySelector('.aspen-voice-panel [data-testid="persona-name-label"]')?.textContent).toBe('Aspen');
+    expect(view.container.querySelector('[aria-label="Show captions"]')).toBeTruthy();
     expect(sessionStorage.getItem('aspen-widget-captions')).toBe('off');
     // No cross-visit preference is written anymore (2026-11-16).
     expect(localStorage.getItem('aspen-widget-captions')).toBeNull();
 
-    // The dock toggle brings captions (and the standard layout) back.
-    fireEvent.click(dock.querySelector('[aria-label="Show captions"]')!);
-    await waitFor(() => expect(view.queryByTestId('aspen-focus-dock')).toBeNull());
-    expect(sessionStorage.getItem('aspen-widget-captions')).toBe('on');
+    // The CC toggle brings captions (and the standard layout) back.
+    fireEvent.click(view.getByLabelText('Show captions'));
+    await waitFor(() => expect(sessionStorage.getItem('aspen-widget-captions')).toBe('on'));
     expect(localStorage.getItem('aspen-widget-captions')).toBeNull();
   });
 
@@ -128,7 +129,10 @@ describe('focus view (item 5b)', () => {
     sessionStorage.setItem('aspen-widget-captions', 'off');
     const view = render(<GeminiConversation compact faceFirst consentOnOpen videoAvatar={videoAvatar} />);
     await waitFor(() => expect(view.getByText('Ready to talk')).toBeTruthy());
-    expect(view.getByTestId('aspen-focus-dock')).toBeTruthy();
+    // Captions-off = focus state: the seam pill renders inside the
+    // panel and the CC button offers to show captions.
+    expect(view.container.querySelector('.aspen-voice-panel [data-testid="persona-name-label"]')).toBeTruthy();
+    expect(view.container.querySelector('[aria-label="Show captions"]')).toBeTruthy();
   });
 
   it('the frame widens only when open and in focus', () => {

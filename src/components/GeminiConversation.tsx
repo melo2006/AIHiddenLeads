@@ -4721,8 +4721,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const transferControl = phase === 'live' && handoffToken ? <BrowserVoiceHandoff token={handoffToken} onActive={onHandoffActive} onEnded={onHandoffEnded} microphone={microphone} startSignal={handoffStartSignal}/> : null;
   // Compact panel (2026-11-11 rearrangement; Batch 1 move, 2026-11-12):
   // the same handoff, same live + token gate, rendered as the compact
-  // Manager pill in the Voice/Type toggle row (right side) instead of the
-  // voice-controls row, where it wrapped onto its own row on phones.
+  // Manager pill in its own right-aligned row under the merged control
+  // row (chat-fix4; it rode in the Voice/Type toggle row before that)
+  // instead of the voice-controls row, where it wrapped onto its own
+  // row on phones.
   const transferPill = phase === 'live' && handoffToken ? <BrowserVoiceHandoff pill token={handoffToken} onActive={onHandoffActive} onEnded={onHandoffEnded} microphone={microphone} startSignal={handoffStartSignal}/> : null;
 
   if (!previewOnly && !consentReady && !prewarm) return <div className="space-y-3 p-3 text-foreground">
@@ -4768,10 +4770,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // presenter even though the swap machine's persona stays 'aspen'.
   const speakerName = presenterPersona && activePersona === 'aspen' ? PERSONAS[presenterPersona].displayName : PERSONAS[activePersona].displayName;
   // FOCUS VIEW (2026-11-14, Ron-approved mockup v2): captions off on a
-  // face-first panel = the presenter floats frameless and larger, and
-  // the panel's first row becomes the bottom dock (big name badge +
-  // captions-back toggle + window controls). Reported to the shell via
-  // onShellState so the frame widens with her.
+  // face-first panel = the presenter floats frameless and larger.
+  // Reported to the shell via onShellState so the frame widens with
+  // her. (Chat-fix4, 2026-11-16: the focus bottom dock is gone — the
+  // merged control row serves every state, the name rides the seam
+  // pill, and focus now only gates the transport's placement and
+  // the Manager row's visibility.)
   const focusView = faceFirst && !captions;
   const activeVideoAvatar: VideoAvatar | undefined = activePersona === 'sara' && videoAvatar
     ? { ...videoAvatar, faceId: SARA_FACE_ID }
@@ -4884,6 +4888,37 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       <div className="flex shrink-0 justify-center">{focusView ? null : belowAvatar}</div>
       <div className="flex min-w-0 flex-1 flex-col items-end">{transferPill}</div>
     </div>
+  ) : null;
+  // ONE CONTROL ROW + CC + NAME PILL (chat-fix4, 2026-11-16, Ron's
+  // redesign): the face-first panel used to stack TWO control rows —
+  // the focus dock / window-controls row, then the Voice/Type +
+  // Manager row — and carried a word "Captions" pill in the status
+  // row. Ron circled both rows on his phone screenshots. Face-first
+  // panels now render ONE merged row — [CC] [Voice|Type] … [DRAG − X]
+  // — in every state (focus or not, narrow or wide): the Captions
+  // word becomes the literal "CC" (the localized tooltip/aria-label,
+  // the on/off behaviour and the tip card are unchanged), the
+  // presenter name leaves the row entirely (it floats as the seam
+  // pill at the panel's top-left — "on her shoulder" — rendered in
+  // the panel below), and the Manager pill keeps its own
+  // right-aligned row directly underneath: at ~44px tall it cannot
+  // share the 36px control row, and the row stays MOUNTED (hidden
+  // only) in focus view so a live handoff leg is never torn down.
+  // The legacy toggleManagerRow above still serves the non-face-first
+  // compact flow unchanged.
+  const captionsToggleButton = (
+    <Button variant="outline" data-testid="aspen-captions-toggle" className={captions ? "h-9 shrink-0 rounded-full border-primary bg-primary px-2.5 text-xs font-bold text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground" : "aspen-panel-btn h-9 shrink-0 rounded-full border-primary/60 bg-transparent px-2.5 text-xs font-bold text-primary hover:bg-muted hover:text-primary"} aria-label={captions ? t('voice.hideCaptions') : t('voice.showCaptions')} title={captions ? t('voice.hideCaptions') : t('voice.showCaptions')} aria-expanded={captions} onClick={() => chooseCaptions(!captions)}>CC</Button>
+  );
+  const controlRow = (
+    <div data-testid="aspen-control-row" className="flex shrink-0 flex-nowrap items-center gap-1">
+      {captionsToggleButton}
+      {belowAvatar && <div className="flex shrink-0 justify-center">{belowAvatar}</div>}
+      <div aria-hidden className="flex-1" />
+      {windowControls}
+    </div>
+  );
+  const managerRow = transferPill ? (
+    <div data-testid="manager-pill-row" className={focusView ? 'hidden' : 'flex shrink-0 flex-col items-end'}>{transferPill}</div>
   ) : null;
   const transportControls = (
   // w-full + min-w-0 (2026-11-14): as a flex item (the landscape row's
@@ -5060,21 +5095,22 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   </div>
   );
   // LAYOUT REFINEMENT (Scalone batch Item 8b): in a wide landscape
-  // panel the Voice/Type toggle and the transport buttons share ONE
-  // row — the toggle at the left, the transport controls filling the
-  // middle, the Manager pill at the right (its toggle-row home,
-  // preserved). Rendered INSTEAD of the stacked pair (the portrait
-  // toggle row above + the transport slot below the captions), never
-  // alongside them, so exactly one instance of every control mounts.
+  // panel the transport buttons get a row of their own under the
+  // control row, filling the middle. (Chat-fix4, 2026-11-16: the
+  // Voice/Type toggle and the Manager pill that shared this row in
+  // Item 8b moved up — the toggle into the merged control row, the
+  // pill into its own row — so this row is transport-only now.)
+  // Rendered INSTEAD of the bottom transport slot, never alongside
+  // it, so exactly one instance of every control mounts.
   const landscapeControlRow = (
     // The centre slot carries a 12.5rem floor (2026-11-14): five icon
     // buttons at their 36px minimums + gaps need ~200px. Below that
     // the row's flex-wrap moves the transport to its own full-width
-    // line (toggle + Manager stay together on line 1) instead of the
-    // transport crushing and spilling over its neighbours — on panels
-    // wide enough (~500px) all three still share one row as designed.
+    // line instead of the transport crushing and spilling over its
+    // neighbours. Chat-fix4 (2026-11-16): the row is TRANSPORT-ONLY —
+    // the Voice/Type toggle moved up into the merged control row and
+    // the Manager pill into its own row, so neither renders here.
     <div data-testid="toggle-transport-row" className="flex shrink-0 flex-wrap items-center gap-1 py-0.5">
-      {belowAvatar && !focusView && <div className="flex shrink-0 justify-center">{belowAvatar}</div>}
       {/* FOCUS VIEW (2026-11-14): this whole row steps aside (hidden)
           in focus — but the transport must NOT step aside with it:
           Ron's #47 retest dock had no voice controls at all. While
@@ -5082,47 +5118,44 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           renders in the focus dock's own row (aspen-focus-transport,
           below), so exactly one instance mounts either way. */}
       {!focusView && <div className="flex min-w-[12.5rem] flex-1 justify-center">{transportControls}</div>}
-      {transferPill && <div className="flex shrink-0 flex-col items-end">{transferPill}</div>}
     </div>
   );
   if (compact) {
     return (
       <div className={faceFirst ? "flex h-full min-h-0 flex-1 flex-col px-2 pb-2 pt-0 text-foreground" : "space-y-2 p-2 text-foreground"}>
-        {faceFirst ? <div className="aspen-person-livebox relative z-0 mx-auto shrink-0 overflow-hidden"><div className={`h-full w-full ${faceLive ? 'invisible' : ''}`}><PersonPortrait name={name} avatarUrl={avatarUrl} animated={false} flat={focusView} /></div>{avatarView}{stagedAvatarView}{!focusView && <PersonaNameLabel name={personaLabelName} />}</div> : <>{avatarView}{stagedAvatarView}</>}
+        {faceFirst ? <div className="aspen-person-livebox relative z-0 mx-auto shrink-0 overflow-hidden"><div className={`h-full w-full ${faceLive ? 'invisible' : ''}`}><PersonPortrait name={name} avatarUrl={avatarUrl} animated={false} flat={focusView} /></div>{avatarView}{stagedAvatarView}</div> : <>{avatarView}{stagedAvatarView}</>}
         {!faceFirst && windowControls}
         {!faceFirst && toggleManagerRow}
         <div className={(faceFirst ? 'aspen-voice-panel relative z-10 flex min-h-0 flex-1 flex-col space-y-1.5 rounded-lg border border-primary/40 bg-card p-2 shadow-lg ring-1 ring-foreground/10' : 'space-y-2') + (faceFirst && focusView ? ' aspen-voice-panel-focus' : '')}>
-        {faceFirst && (focusView ? (
-          <div data-testid="aspen-focus-dock" className="flex shrink-0 items-center gap-1.5">
-            <PersonaNameLabel name={personaLabelName} variant="dock" />
-            <div aria-hidden className="flex-1" />
-            <Button variant="outline" className="aspen-panel-btn h-10 shrink-0 rounded-full border-primary/60 bg-transparent px-3 text-xs font-semibold text-primary hover:bg-muted hover:text-primary" aria-label={t('voice.showCaptions')} title={t('voice.showCaptions')} aria-expanded={false} onClick={() => chooseCaptions(true)}>{t('voice.captions')}</Button>
-            {windowControls}
-          </div>
-        ) : windowControls)}
+        {/* NAME PILL ON HER SHOULDER (chat-fix4, 2026-11-16, Ron's
+            redesign): the presenter's name no longer sits in the
+            control row — it floats as a highlighted pill at the
+            lower-LEFT of the portrait, straddling the seam where
+            the portrait meets the panel's top edge (the panel is
+            positioned relative; the pill anchors to its top-left,
+            half above the border). It renders in BOTH focus and
+            captions-on states, replacing the livebox overlay and
+            the focus dock's in-flow badge. The standing rule
+            otherwise holds: the portrait ends at the panel's top
+            border and every control sits inside the frame below
+            it — the pill is the one deliberate overlap. */}
+        {faceFirst && <PersonaNameLabel name={personaLabelName} variant="seam" />}
+        {faceFirst && controlRow}
+        {faceFirst && managerRow}
         {captionsTip && faceFirst && (
           <div data-testid="aspen-captions-tip" role="status" className="absolute inset-x-2 bottom-2 z-20 flex items-start gap-2 rounded-lg border border-primary/40 bg-card/85 p-2.5 text-xs text-foreground shadow-lg backdrop-blur-sm">
             <p className="min-w-0 flex-1">{t('voice.captionsTip')}</p>
             <button type="button" aria-label={t('voice.captionsTipDismiss')} className="shrink-0 rounded-full px-1 leading-none text-muted-foreground hover:text-foreground" onClick={() => setCaptionsTip(false)}>✕</button>
           </div>
         )}
-        {/* FOCUS VIEW (Ron's approved mockup v2, re-asserted 2026-11-14):
-            captions off = the presenter + voice controls + the dock —
-            the Manager pill row steps aside. 'hidden' (not unmount) so
-            a live Manager handoff leg inside the row is never torn
-            down by entering focus; the Captions pill in the dock
-            brings the row back with the captions.
-            TOGGLE EXCEPTION (Ron, 2026-11-16): the Voice/Type toggle
-            itself must stay findable in EVERY open-panel state — in
-            focus view he could not find the switch to Type at all.
-            The toggle therefore moves to its own visible row in
-            focus (the row above renders it as null there, so exactly
-            one instance is mounted); only the Manager pill steps
-            aside with the hidden row. */}
-        {faceFirst && <div className={focusView ? 'hidden' : 'contents'}>{wideLandscape ? landscapeControlRow : toggleManagerRow}</div>}
-        {faceFirst && focusView && belowAvatar && (
-          <div data-testid="aspen-focus-mode-toggle" className="flex shrink-0 justify-center py-0.5">{belowAvatar}</div>
-        )}
+        {/* Wide landscape only: the transport row under the merged
+            control row. 'hidden' (not unmount) in focus view, where
+            the transport renders in aspen-focus-transport instead —
+            exactly one mounted instance either way. Narrow panels
+            keep their transport at the bottom slot below. (Before
+            chat-fix4 this wrapper also carried the toggle/Manager
+            row; both moved into the merged control row above.) */}
+        {faceFirst && wideLandscape && <div className={focusView ? 'hidden' : 'contents'}>{landscapeControlRow}</div>}
         <div className="flex items-center gap-1.5">
           {shownPhase === "connecting" && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" />}
           {shownPhase === "live" && !aspenSpeaking && <Mic className="h-3.5 w-3.5 shrink-0 animate-pulse text-primary" />}
@@ -5147,15 +5180,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             <RefreshCw className="h-3.5 w-3.5" />
           </button>
           {remainingSeconds !== null && <span data-testid="demo-timer-pill" title={`${t("voice.demoTimeRemaining")}: ${Math.floor(remainingSeconds/60)}:${String(remainingSeconds%60).padStart(2,'0')}`} aria-label={`${t("voice.demoTimeRemaining")}: ${Math.floor(remainingSeconds/60)}:${String(remainingSeconds%60).padStart(2,'0')}`} className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-background/95 px-2 py-0.5 text-[11px] leading-tight text-muted-foreground"><Timer className="h-3 w-3" />{Math.floor(remainingSeconds/60)}:{String(remainingSeconds%60).padStart(2,'0')}</span>}
-          {/* Captions toggle (2026-11-14): a word pill labelled
-              "Captions" — Ron picked the word over the up/down
-              chevron, which read as decoration; the same pill sits
-              in the focus dock. The FILL carries the state and the
-              label never changes: captions ON wears the green ON
-              fill (before, expanded and collapsed looked identical
-              — green icon either way); OFF keeps the green border
-              affordance with a dark-grey hover wash. */}
-          {faceFirst && !focusView && <Button variant="outline" className={captions ? "ml-auto h-10 shrink-0 rounded-full border-primary bg-primary px-3 text-xs font-semibold text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground" : "aspen-panel-btn ml-auto h-10 shrink-0 rounded-full border-primary/60 bg-transparent px-3 text-xs font-semibold text-primary hover:bg-muted hover:text-primary"} aria-label={captions ? t('voice.hideCaptions') : t('voice.showCaptions')} title={captions ? t('voice.hideCaptions') : t('voice.showCaptions')} aria-expanded={captions} onClick={() => chooseCaptions(!captions)}>{t('voice.captions')}</Button>}
+          {/* The captions toggle used to live at this row's end as a
+              word pill labelled "Captions" (2026-11-14). Chat-fix4
+              (2026-11-16) moved it into the merged control row as
+              the literal "CC" button — see captionsToggleButton. */}
         </div>
         {phase === 'idle' && endedByVisitor && <p className="text-xs text-muted-foreground">{t("voice.pressPlayReconnect", { name })}</p>}
         {/* FOCUS VIEW transport, wide landscape only (2026-11-14): the

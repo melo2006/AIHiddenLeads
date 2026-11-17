@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo, useCallback, type ChangeEvent } from "react";
-import { Bot, User, Maximize2, Minimize2, X, ExternalLink, Mic, Square, AudioLines, Send, Plus, Camera, Image as ImageIcon, FolderOpen, FileText, Volume2, Copy, Check, ThumbsUp, ThumbsDown } from "lucide-react";
+import { Bot, User, Maximize2, Minimize2, X, ExternalLink, Mic, Square, AudioLines, Send, Plus, Camera, Image as ImageIcon, FolderOpen, FileText, Volume2, Copy, Check, ThumbsUp, ThumbsDown, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { MessageResponse } from '@/components/ai-elements/message';
 import { displayNumbers } from '@/lib/displayNumbers';
@@ -306,6 +306,36 @@ const ChatWidget = ({
   const dictationBaseRef = useRef("");
   const objectUrlsRef = useRef<string[]>([]);
   const [speechSupported] = useState(() => Boolean(speechRecognitionCtor()));
+  // Chat-fix4 (2026-11-16, Ron's redesign): composer focus state.
+  // Focus on ANY composer control counts (field, +, mic, voice-mode,
+  // send); the blur handler checks focus stayed inside the composer
+  // before clearing. It drives the typing layout (full-width field,
+  // controls below) and the space reclamation while typing (chips
+  // row + email-transcript line hide until blur).
+  const [composerActive, setComposerActive] = useState(false);
+  const chipsScrollRef = useRef<HTMLDivElement>(null);
+  const chipsObserverRef = useRef<ResizeObserver | null>(null);
+  const [chipsOverflow, setChipsOverflow] = useState(false);
+  const measureChips = useCallback(() => {
+    const el = chipsScrollRef.current;
+    if (el) setChipsOverflow(el.scrollWidth > el.clientWidth + 4 && el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  }, []);
+  // Callback ref (not an effect): the chips row mounts only after
+  // the consent click re-renders this widget, so an effect keyed on
+  // the usual deps never re-runs to measure it — the callback fires
+  // exactly when the row mounts, and again if it remounts.
+  const chipsScrollCallbackRef = useCallback((el: HTMLDivElement | null) => {
+    chipsScrollRef.current = el;
+    chipsObserverRef.current?.disconnect();
+    chipsObserverRef.current = null;
+    if (!el) return;
+    measureChips();
+    if (typeof ResizeObserver !== "undefined") {
+      const observer = new ResizeObserver(measureChips);
+      observer.observe(el);
+      chipsObserverRef.current = observer;
+    }
+  }, [measureChips]);
   // Visit-memory sync bookkeeping (memoryKey surfaces only): how many
   // raw visit turns `messages` already reflects, and whether a reply
   // is mid-stream (a sync must never fight the streaming line).
@@ -820,6 +850,17 @@ ${responseLanguageLine}`;
   const userHasMessaged = messages.some((m) => m.role === "user");
   const lastAssistantMessage = [...messages].reverse().find((m) => m.role === "assistant")?.content;
 
+  // TYPING LAYOUT (chat-fix4, Ron's words: "when you start typing the
+  // controls for the mic and the listen and the send arrow would be
+  // below and the text would go the whole length"): the composer is
+  // in its typing layout while it is focused OR holds text OR stages
+  // an attachment — the textarea then spans the composer's full
+  // width and the control buttons move to a row below it. Pure
+  // class switching on the same mounted elements: focus and text
+  // survive the switch. The mic renders in BOTH layouts, always —
+  // Ron contrasted apps where the mic vanishes once typing starts.
+  const typingLayout = composerActive || input.length > 0 || !!attachment;
+
   if(!recordingAgreed)return <div className="space-y-3 p-4 text-foreground"><p className="text-sm font-semibold">{t("chat.consentTitle", { name: presenterDisplayName })}</p><p className="text-xs text-muted-foreground">{t("chat.consentBody")}</p><Button onClick={()=>setRecordingAgreed(true)}>{t("chat.consentStart")}</Button></div>;
   return (
     <div className={embedded ? 'overflow-hidden bg-card' : 'rounded-2xl border border-accent/20 bg-card shadow-2xl overflow-hidden'}>
@@ -875,7 +916,7 @@ ${responseLanguageLine}`;
           test: the input field completely hidden behind the
           keyboard). Flex lets the list absorb the whole squeeze
           while the composer stays pinned. */}
-      <div aria-label={t("chat.messagesAria", { name: presenterDisplayName })} role="region" onScroll={event => { const panel = event.currentTarget; followLatest.current = panel.scrollHeight - panel.scrollTop - panel.clientHeight < 48; }} className={`${embedded ? 'min-h-0 flex-1' : 'max-h-[22rem]'} overflow-y-auto overscroll-contain touch-pan-y p-3 space-y-2.5`}>
+      <div data-testid="chat-message-list" aria-label={t("chat.messagesAria", { name: presenterDisplayName })} role="region" onScroll={event => { const panel = event.currentTarget; followLatest.current = panel.scrollHeight - panel.scrollTop - panel.clientHeight < 48; }} className={`${embedded ? 'min-h-0 flex-1' : 'max-h-[22rem]'} overflow-y-auto overscroll-contain touch-pan-y p-3 space-y-2.5`}>
         {messages.map((msg, i) => (
           <div key={i} className={`flex gap-2 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
             <div
@@ -928,21 +969,9 @@ ${responseLanguageLine}`;
           </div>
         ))}
 
-        {!userHasMessaged && (
-          <div className="ml-8 flex flex-wrap gap-2 pt-1">
-            {quickPrompts.map((prompt) => (
-              <button
-                key={prompt}
-                type="button"
-                onClick={() => void handleSend(prompt)}
-                disabled={isBusy}
-                className="rounded-full border border-border bg-secondary px-3 py-1.5 text-[11px] font-medium text-foreground transition-colors hover:bg-secondary/80 disabled:opacity-50"
-              >
-                {prompt}
-              </button>
-            ))}
-          </div>
-        )}
+        {/* The suggestion chips used to render here, wrapping into
+            3–4 stacked lines inside the thread. Chat-fix4 moved them
+            to a pinned horizontal row above the composer (below). */}
 
         {isThinking && (
           <div className="flex gap-2">
@@ -960,14 +989,57 @@ ${responseLanguageLine}`;
       </div>
 
       <div className="shrink-0 p-3 border-t border-border">
-       {messages.some(m=>m.role==='user') && <div className="mb-2 space-y-2"><Button size="sm" variant="ghost" onClick={()=>setCopyOpen(v=>!v)}>{t("chat.emailTranscript")}</Button>{copyOpen&&<form className="space-y-2" onSubmit={async e=>{e.preventDefault();await recordQueue.current;const {error}=await supabase.functions.invoke('conversation-records',{body:{action:'chatCopy',capability:sessionId.current,email:copyEmail,consent:true}});setCopyStatus(error?t("chat.copyUnavailable"):t("chat.copyRequested"));}}><Input aria-label={t("chat.copyEmailAria")} type="email" required value={copyEmail} onChange={e=>setCopyEmail(e.target.value)} placeholder={t("chat.copyEmailPlaceholder")}/><Button type="submit" size="sm">{t("chat.confirmCopy")}</Button><p className="text-xs text-muted-foreground">{t("chat.copyNote")}</p></form>}{copyStatus&&<p role="status" className="text-xs">{copyStatus}</p>}</div>}
+       {/* SUGGESTION CHIPS (chat-fix4, 2026-11-16, Ron's redesign):
+           ONE horizontal row, sideways-scrollable, never stacked —
+           with a right-edge fade + chevron while more chips sit
+           off-screen. The row is pinned above the composer (it left
+           the message list, where it wrapped into 3–4 lines) and
+           hides while typing (display-only; it returns on blur). */}
+       {!userHasMessaged && (
+        <div data-testid="chat-chips" className={`relative mb-2 ${typingLayout ? 'hidden' : ''}`}>
+          <div ref={chipsScrollCallbackRef} data-chips-scroll onScroll={measureChips} className="flex flex-nowrap gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {quickPrompts.map((prompt) => (
+              <button
+                key={prompt}
+                type="button"
+                onClick={() => void handleSend(prompt)}
+                disabled={isBusy}
+                className="shrink-0 whitespace-nowrap rounded-full border border-border bg-secondary px-3 py-1.5 text-[11px] font-medium text-foreground transition-colors hover:bg-secondary/80 disabled:opacity-50"
+              >
+                {prompt}
+              </button>
+            ))}
+          </div>
+          {chipsOverflow && (
+            <div data-testid="chat-chips-more" aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 flex w-10 items-center justify-end bg-gradient-to-l from-card via-card/85 to-transparent pr-0.5">
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            </div>
+          )}
+        </div>
+       )}
+       {/* RECLAIM SPACE WHILE TYPING (chat-fix4): the email-transcript
+           line hides while the composer is active and returns on
+           blur — display-only (the `hidden` class, never an unmount):
+           the copy form's state and the capture path behind it are
+           untouched. */}
+       {messages.some(m=>m.role==='user') && <div data-testid="chat-email-transcript" className={`mb-2 space-y-2 ${typingLayout ? 'hidden' : ''}`}><Button size="sm" variant="ghost" onClick={()=>setCopyOpen(v=>!v)}>{t("chat.emailTranscript")}</Button>{copyOpen&&<form className="space-y-2" onSubmit={async e=>{e.preventDefault();await recordQueue.current;const {error}=await supabase.functions.invoke('conversation-records',{body:{action:'chatCopy',capability:sessionId.current,email:copyEmail,consent:true}});setCopyStatus(error?t("chat.copyUnavailable"):t("chat.copyRequested"));}}><Input aria-label={t("chat.copyEmailAria")} type="email" required value={copyEmail} onChange={e=>setCopyEmail(e.target.value)} placeholder={t("chat.copyEmailPlaceholder")}/><Button type="submit" size="sm">{t("chat.confirmCopy")}</Button><p className="text-xs text-muted-foreground">{t("chat.copyNote")}</p></form>}{copyStatus&&<p role="status" className="text-xs">{copyStatus}</p>}</div>}
        {/* GEMINI-STYLE COMPOSER (Ron, 2026-11-16, from his annotated
            Gemini app screenshot): ONE rounded bar — the "+" attach
            menu at the left (Camera / Photos / Files, exactly three
            entries), the text field, an in-field dictation mic, the
            voice-mode switch (waveform), and a send button that
            appears once there is something to send. Enter sends,
-           Shift+Enter keeps the newline, as before. */}
+           Shift+Enter keeps the newline, as before.
+           TWO LAYOUTS (chat-fix4, same day, Ron's unfolded-phone
+           screenshots): IDLE is that single row unchanged. TYPING
+           (focused or holding text) wraps the bar: the textarea
+           takes the full width on its own line — his text wrapped
+           at ~2 words per line when the buttons squeezed it from
+           both sides — and the controls drop to a row below (send
+           right-aligned). The wrap is pure flex classes on the same
+           mounted elements (the controls wrapper is `contents` in
+           idle, a flex row in typing), so focus and text survive
+           the switch; the mic renders in both layouts, always. */}
        {attachment && (
         <div data-testid="chat-attachment-chip" className="mb-2 flex items-center gap-2 rounded-xl border border-border bg-secondary px-2.5 py-1.5">
           {attachment.previewUrl ? <img src={attachment.previewUrl} alt="" className="h-8 w-8 shrink-0 rounded-md object-cover" /> : <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />}
@@ -977,7 +1049,19 @@ ${responseLanguageLine}`;
         </div>
        )}
        {attachError && <p role="alert" className="mb-2 text-[11px] font-medium text-destructive">{attachError}</p>}
-       <div data-testid="chat-composer" className="flex items-end gap-0.5 rounded-[1.75rem] border border-border bg-background px-1.5 py-1.5 shadow-sm transition-colors focus-within:border-primary/60">
+       <div data-testid="chat-composer" data-layout={typingLayout ? 'typing' : 'idle'} onFocus={() => setComposerActive(true)} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setComposerActive(false); }} className="flex flex-wrap items-end gap-0.5 rounded-[1.75rem] border border-border bg-background px-1.5 py-1.5 shadow-sm transition-colors focus-within:border-primary/60">
+        <textarea
+          ref={inputRef}
+          aria-label={t("chat.messageAria", { name: presenterDisplayName })}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void handleSend(); } }}
+          placeholder={t("chat.placeholder", { name: presenterDisplayName })}
+          rows={1}
+          className={`order-1 max-h-24 w-full min-w-0 resize-none bg-transparent px-1.5 py-2 text-base leading-snug outline-none placeholder:text-muted-foreground ${typingLayout ? 'min-h-[3.25rem] flex-none basis-full' : 'min-h-9 flex-1'}`}
+          disabled={isBusy}
+        />
+        <div className={typingLayout ? 'order-2 flex w-full basis-full items-center gap-0.5' : 'contents'}>
         <div className="relative shrink-0">
           <button type="button" aria-label={t("chat.attach")} title={t("chat.attach")} aria-haspopup="menu" aria-expanded={attachMenuOpen} onClick={() => setAttachMenuOpen((open) => !open)} className="flex h-9 w-9 items-center justify-center rounded-full text-foreground transition-colors hover:bg-muted"><Plus className="h-5 w-5" /></button>
           {attachMenuOpen && (
@@ -991,17 +1075,6 @@ ${responseLanguageLine}`;
             </>
           )}
         </div>
-        <textarea
-          ref={inputRef}
-          aria-label={t("chat.messageAria", { name: presenterDisplayName })}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void handleSend(); } }}
-          placeholder={t("chat.placeholder", { name: presenterDisplayName })}
-          rows={1}
-          className="max-h-24 min-h-9 w-full min-w-0 flex-1 resize-none bg-transparent px-1.5 py-2 text-base leading-snug outline-none placeholder:text-muted-foreground"
-          disabled={isBusy}
-        />
         {speechSupported && (
           <button type="button" data-testid="chat-dictate-button" aria-label={dictating ? t("chat.dictateStop") : t("chat.dictate")} title={dictating ? t("chat.dictateStop") : t("chat.dictate")} aria-pressed={dictating} onClick={toggleDictation} className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors ${dictating ? "bg-destructive/15 text-destructive" : "text-foreground hover:bg-muted"}`}>{dictating ? <Square className="h-4 w-4 animate-pulse fill-current" /> : <Mic className="h-5 w-5" />}</button>
         )}
@@ -1009,8 +1082,9 @@ ${responseLanguageLine}`;
           <button type="button" aria-label={t("chat.voiceMode")} title={t("chat.voiceMode")} onClick={onVoiceMode} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-foreground transition-colors hover:bg-muted"><AudioLines className="h-5 w-5" /></button>
         )}
         {(input.trim() || attachment) && (
-          <button type="button" aria-label={t("chat.sendAria", { name: presenterDisplayName })} title={t("chat.sendAria", { name: presenterDisplayName })} disabled={isBusy} onClick={() => void handleSend()} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"><Send className="h-4 w-4" /></button>
+          <button type="button" aria-label={t("chat.sendAria", { name: presenterDisplayName })} title={t("chat.sendAria", { name: presenterDisplayName })} disabled={isBusy} onClick={() => void handleSend()} className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40 ${typingLayout ? 'ml-auto' : ''}`}><Send className="h-4 w-4" /></button>
         )}
+        </div>
        </div>
        <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" aria-hidden="true" tabIndex={-1} onChange={handleFilePicked} />
        <input ref={photosInputRef} type="file" accept="image/*,video/*" className="hidden" aria-hidden="true" tabIndex={-1} onChange={handleFilePicked} />

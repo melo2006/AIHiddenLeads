@@ -16,8 +16,11 @@ describe('captions default + tip card (owner-directed 2026-11-15, strengthened 2
 
   test('the toggle flips the live state only', () => {
     expect(conv).toContain('const chooseCaptions = useCallback((next: boolean) => {');
-    expect(conv).toContain('onClick={() => chooseCaptions(true)}');
+    // Chat-fix4 (2026-11-16): ONE unified CC toggle in the merged
+    // control row flips the state — the focus dock's separate
+    // chooseCaptions(true) button is gone with the dock.
     expect(conv).toContain('onClick={() => chooseCaptions(!captions)}');
+    expect(conv).not.toContain('onClick={() => chooseCaptions(true)}');
     // Muting still forces captions on for the session.
     expect(conv).toContain('if (next) setCaptions(true);');
   });

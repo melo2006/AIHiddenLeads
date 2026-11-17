@@ -192,24 +192,26 @@ describe('voice transport (live session)', () => {
     expect(has(speaker, 'bg-secondary')).toBe(false);
   });
 
-  it('captions toggle is a word pill wearing the GREEN ON fill while captions are on', async () => {
+  it('captions toggle is the CC button wearing the GREEN ON fill while captions are on', async () => {
     const view = await goLive({ faceFirst: true });
     const toggle = await waitFor(() => view.getByLabelText('Hide captions'));
     expect(has(toggle, 'bg-primary')).toBe(true);
     expect(has(toggle, 'text-primary-foreground')).toBe(true);
-    // The control is the "Captions" word pill (2026-11-14, Ron's pick
-    // over the up/down chevron): the word is the label in BOTH states —
-    // the fill carries the state, the text never changes.
-    expect(toggle.textContent).toBe('Captions');
+    // The control was the "Captions" word pill (2026-11-14); chat-fix4
+    // (2026-11-16, Ron's redesign) shortened the label to the literal
+    // "CC" so it fits the merged one-line control row — the label is
+    // "CC" in BOTH states, the fill still carries the state, and the
+    // localized aria-label still names the action.
+    expect(toggle.textContent).toBe('CC');
     expect(has(toggle, 'rounded-full')).toBe(true);
-    // Turning captions off leaves focus view: the dock's Captions pill
-    // is the OFF state — no green fill.
+    // Turning captions off: the same control-row button in its OFF
+    // state — no green fill.
     fireEvent.click(toggle);
-    const dockPill = await waitFor(() => view.getByLabelText('Show captions'));
-    expect(has(dockPill, 'bg-primary')).toBe(false);
-    expect(has(dockPill, 'aspen-panel-btn')).toBe(true);
-    expect(dockPill.textContent).toBe('Captions');
-    expect(has(dockPill, 'rounded-full')).toBe(true);
+    const offPill = await waitFor(() => view.getByLabelText('Show captions'));
+    expect(has(offPill, 'bg-primary')).toBe(false);
+    expect(has(offPill, 'aspen-panel-btn')).toBe(true);
+    expect(offPill.textContent).toBe('CC');
+    expect(has(offPill, 'rounded-full')).toBe(true);
   });
 });
 
