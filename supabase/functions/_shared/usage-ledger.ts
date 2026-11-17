@@ -132,6 +132,36 @@ export function videoAvatarEventFromSession(session: SessionLike, usageObj?: unk
   return { ...base, service: 'video_avatar', provider: 'simli', est_cost_usd: null };
 }
 
+/**
+ * Pure builder: the ElevenLabs-TTS event for a finalized session whose
+ * live replies were spoken by the ElevenLabs mouth (see
+ * _shared/elevenlabs-mouth.ts), or null when the mouth never spoke.
+ * PROVIDER: the usage_events CHECK constraint (drizzle 0020) has no
+ * 'elevenlabs' value — widening it is a dashboard-SQL migration, out of
+ * scope here — so the event rides provider 'other' under the session's
+ * own web_voice service, distinguished by the ':elevenlabs-tts'
+ * source_id suffix (which also keeps it clear of the Gemini web_voice
+ * row's dedupe key). quantity_count = characters synthesized;
+ * est_cost_usd = the published-list estimate ($0.30 / 1k characters).
+ */
+export function elevenLabsTtsEventFromSession(
+  session: SessionLike,
+  tts: { characters?: unknown; audioSeconds?: unknown } | null | undefined,
+): UsageEventInput | null {
+  const characters = typeof tts?.characters === 'number' && Number.isFinite(tts.characters) ? Math.floor(tts.characters) : 0;
+  if (characters <= 0) return null;
+  const audioSeconds = typeof tts?.audioSeconds === 'number' && Number.isFinite(tts.audioSeconds) ? tts.audioSeconds : 0;
+  const base = webVoiceEventFromSession(session);
+  return {
+    ...base,
+    provider: 'other',
+    quantity_minutes: audioSeconds > 0 ? Math.round((audioSeconds / 60) * 1000) / 1000 : null,
+    quantity_count: characters,
+    est_cost_usd: Math.round(characters * 0.0003 * 1e6) / 1e6,
+    source_id: `${String(session?.id ?? '')}:elevenlabs-tts`,
+  };
+}
+
 type CallLike = Record<string, any>;
 
 /** Pure builder: the phone_voice event for a finalized telephony_calls row

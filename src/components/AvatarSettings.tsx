@@ -52,10 +52,13 @@ interface Props {
   /** Picker state for the client's own cloned voice (VoiceClonePanel). */
   clonedVoiceSelected?: boolean;
   onClonedVoiceSelectedChange?: (selected: boolean) => void;
+  /** Live-voice engine toggle, forwarded to VoiceClonePanel (2026-11-17). */
+  elevenLabsLiveVoice?: boolean;
+  onElevenLabsLiveVoiceChange?: (enabled: boolean) => void;
 }
 
 /** Shared video-face picker for the setup wizard and the admin Video Avatars page. */
-export default function AvatarSettings({ value, onChange, agentId, beforePreview, faces = [], adminPreview = false, voice = "Kore", onVoiceChange, name = "Aspen", onNameChange, clonedVoiceSelected = false, onClonedVoiceSelectedChange }: Props) {
+export default function AvatarSettings({ value, onChange, agentId, beforePreview, faces = [], adminPreview = false, voice = "Kore", onVoiceChange, name = "Aspen", onNameChange, clonedVoiceSelected = false, onClonedVoiceSelectedChange, elevenLabsLiveVoice = false, onElevenLabsLiveVoiceChange }: Props) {
   const set = (patch: Partial<VideoAvatar>) => onChange({ ...value, ...patch });
   const [uploading, setUploading] = useState(false);
   const [pending, setPending] = useState<{ faceId: string; status: string } | null>(null);
@@ -204,7 +207,7 @@ export default function AvatarSettings({ value, onChange, agentId, beforePreview
           </div>
         </>}
         {onVoiceChange && <div className="space-y-2"><p className="text-sm font-medium">Gemini Live voice</p><VoicePickerGrid selectedId={clonedVoiceSelected ? null : voice} onSelect={(id) => onVoiceChange(id)} /></div>}
-        <VoiceClonePanel agentId={agentId} selected={clonedVoiceSelected} onSelectChange={onClonedVoiceSelectedChange} />
+        <VoiceClonePanel agentId={agentId} selected={clonedVoiceSelected} onSelectChange={onClonedVoiceSelectedChange} liveVoiceEnabled={elevenLabsLiveVoice} onLiveVoiceChange={onElevenLabsLiveVoiceChange} />
       </div>
 
       <div className="min-w-0 space-y-3">

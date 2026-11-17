@@ -159,6 +159,21 @@ Deno.serve(async req=>{
   const {data:{user}}=await db.auth.getUser(bearer);
   const {data:role}=user ? await db.from('voice_platform_roles').select('role').eq('user_id',user.id).maybeSingle() : {data:null};
   let config:Record<string,unknown>, agentId=null, orgId=null;
+  // ELEVENLABS LIVE VOICE stamp (2026-11-17): when the agent row holds a
+  // READY cloned voice (voice_agents.cloned_voice_id — created in the
+  // panel or imported from the ElevenLabs library; same column either
+  // way) AND the config being authorized carries the per-agent toggle
+  // elevenLabsLiveVoice === true, stamp the voice id into the session
+  // config. The Live proxy reads ONLY this stamp: with it, Gemini still
+  // listens/thinks but ElevenLabs speaks; without it the session is
+  // byte-identical to before. Default is Gemini — the toggle ships off,
+  // and a config that never heard of it stamps nothing.
+  const stampElevenLabsVoice=(target:Record<string,unknown>,agentRow:Record<string,unknown>|null|undefined)=>{
+    const id=typeof agentRow?.cloned_voice_id==='string'?agentRow.cloned_voice_id:'';
+    const status=typeof agentRow?.cloned_voice_status==='string'?agentRow.cloned_voice_status:'';
+    if(id && status==='ready' && target.elevenLabsLiveVoice===true) target.elevenLabsVoiceId=id;
+    else delete target.elevenLabsVoiceId;
+  };
   // Avatar-swap master flag (Stage 1 lands dark): server env, same pattern
   // as DEMO_VERIFICATION_SMS_ENABLED. Read once per request; the parent
   // demo authorization below stamps it into the session config + response.
@@ -330,6 +345,7 @@ Deno.serve(async req=>{
     const agent=await resolveDemoShare(db,b.share); if(!agent) return json({error:'This demo link has expired or was turned off.'},404);
     const {data:sources}=await db.from('voice_agent_sources').select('content').eq('agent_id',agent.id).eq('status','ready');
     config={...(agent.draft as Record<string,unknown>),sourceKnowledge:(sources || []).map(s=>s.content || '').join('\n').slice(0,100000),sharedDemo:true}; agentId=agent.id; orgId=agent.organization_id;
+    stampElevenLabsVoice(config, agent as Record<string,unknown>);
   } else if(b.draft || b.preview) {
     if(!user) return json({error:'Sign in to preview voices'},401);
     if(!b.agentId) { if(role?.role!=='admin') return json({error:'Administrator access required'},403); config={...DEFAULT_AGENT}; }
@@ -339,6 +355,7 @@ Deno.serve(async req=>{
       const {data:member}=await db.from('voice_memberships').select('id').eq('organization_id',agent.organization_id).eq('user_id',user.id).eq('role','editor').maybeSingle(); if(role?.role!=='admin' && !member) return json({error:'Access denied'},403);
       const {data:sources}=await db.from('voice_agent_sources').select('content').eq('agent_id',agent.id).eq('status','ready');
       config={...(agent.draft as Record<string,unknown>),sourceKnowledge:(sources || []).map(s=>s.content || '').join('\n').slice(0,100000)}; agentId=agent.id; orgId=agent.organization_id;
+      stampElevenLabsVoice(config, agent as Record<string,unknown>);
     }
     if(b.voice) config.voice=b.voice;
   } else if(b.leadId || b.prospectId) {
@@ -487,6 +504,7 @@ Deno.serve(async req=>{
     // agents addressed by id on this same path keep exactly the
     // snapshot they published.
     config={...(agent.published as Record<string,unknown>), homepageSales:agent.slug==='aspen-homepage', ...(agent.slug==='aspen-homepage' ? {platformFollowup:true} : {})}; agentId=agent.id; orgId=agent.organization_id;
+    stampElevenLabsVoice(config, agent as Record<string,unknown>);
     // HOMEPAGE SALES STAMP (owner-approved sales-script rebuild,
     // 2026-11-15): the homepage agent opens with the three-opener
     // greeting rotation and carries the SALES CONVERSATION ARC layer
@@ -554,6 +572,11 @@ Deno.serve(async req=>{
       stampRealtorLanding(config);
     }
   }
+  // ELEVENLABS LIVE VOICE strip (2026-11-17): persona segments inherit
+  // the parent config by spread — a parent's stamped ElevenLabs voice
+  // must never leak into a segment, or Sara/Alex would speak in the
+  // host agent's cloned voice. Segments always speak Gemini.
+  if (b.personaSegment) delete config.elevenLabsVoiceId;
   const requestedModel = b.model;
   // TEAM INTRO callbacks (§5.1): a business-demo parent authorization
   // inherits teamIntroSeen from a stamped explainer session belonging

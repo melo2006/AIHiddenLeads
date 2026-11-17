@@ -124,7 +124,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
         customIndustry: INDUSTRIES.includes(String(d.industry || "")) ? "" : String(d.industry || ""), subNiche: String(d.subNiche || ""), businessNotes: String(d.businessNotes || ""), knowledgeGuidance: String(d.knowledgeGuidance || ""), assistantRestrictions: String(d.assistantRestrictions || ""),
         links: (a.voice_agent_sources || []).filter((x: { kind: string }) => x.kind === "url").map((x: { url?: string; label: string }) => x.url || x.label),
         files: (a.voice_agent_sources || []).filter((x: { kind: string }) => x.kind === "document").map((x: { label: string }) => x.label),
-        faqs, name: String(d.name || "Aspen"), greeting: String(d.greeting || EMPTY.greeting), voice: String(d.voice || "Kore"), defaultLanguage: (["es", "pt-BR"].includes(String(d.defaultLanguage)) ? String(d.defaultLanguage) : "en") as AgentLanguage, clonedVoiceSelected: Boolean(d.clonedVoiceSelected),
+        faqs, name: String(d.name || "Aspen"), greeting: String(d.greeting || EMPTY.greeting), voice: String(d.voice || "Kore"), defaultLanguage: (["es", "pt-BR"].includes(String(d.defaultLanguage)) ? String(d.defaultLanguage) : "en") as AgentLanguage, clonedVoiceSelected: Boolean(d.clonedVoiceSelected), elevenLabsLiveVoice: Boolean(d.elevenLabsLiveVoice),
         color: d.theme?.primary || EMPTY.color, label: (() => { const l = String(d.launcherLabel || ""); return !l || isAskLabel(l) ? askLabel(String(d.name || "Aspen")) : l; })(),
         corner: d.launcherCorner === "bottom-left" ? "bottom-left" : "bottom-right", videoAvatar: normalizeVideoAvatar(d.videoAvatar),
       });
@@ -142,7 +142,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
     const faq = faqKnowledge(s.faqs);
     const config = {
       ...draft, websiteUrl: s.websiteUrl ? (/^https?:\/\//i.test(s.websiteUrl) ? s.websiteUrl : `https://${s.websiteUrl}`) : "", businessName: s.businessName || "My business", industry: industryName(s), subNiche: s.subNiche || "", businessNotes: s.businessNotes || "", knowledgeGuidance: s.knowledgeGuidance || "", assistantRestrictions: s.assistantRestrictions || "", systemPrompt: replaceSection(String(draft.systemPrompt || ""), GUARDRAILS_MARK, s.assistantRestrictions || ""), name: s.name || "Aspen",
-      greeting: s.greeting, voice: s.voice, defaultLanguage: s.defaultLanguage || "en", clonedVoiceSelected: Boolean(s.clonedVoiceSelected), phoneSetup, theme: { background: "#101216", foreground: "#F4F6F8", font: "system", ...(draft.theme || {}), primary: s.color }, launcherLabel: s.label, launcherCorner: s.corner, videoAvatar: normalizeVideoAvatar(s.videoAvatar),
+      greeting: s.greeting, voice: s.voice, defaultLanguage: s.defaultLanguage || "en", clonedVoiceSelected: Boolean(s.clonedVoiceSelected), elevenLabsLiveVoice: Boolean(s.elevenLabsLiveVoice), phoneSetup, theme: { background: "#101216", foreground: "#F4F6F8", font: "system", ...(draft.theme || {}), primary: s.color }, launcherLabel: s.label, launcherCorner: s.corner, videoAvatar: normalizeVideoAvatar(s.videoAvatar),
       knowledge: faq ? `${base}\n\n${FAQ_MARK}\n${faq}`.trim() : base,
     };
     try { await request({ action: "save", agentId: selectedId, config }); setDraft(config); return true; }
@@ -439,7 +439,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
               </VoicePreviewScope>
               </div>
               <div className="md:col-span-2">
-                <VoiceClonePanel agentId={selectedId} selected={Boolean(s.clonedVoiceSelected)} onSelectChange={(cloned) => { set({ clonedVoiceSelected: cloned }); if (cloned) setVoiceReady(false); }} />
+                <VoiceClonePanel agentId={selectedId} selected={Boolean(s.clonedVoiceSelected)} onSelectChange={(cloned) => { set({ clonedVoiceSelected: cloned }); if (cloned) setVoiceReady(false); }} liveVoiceEnabled={Boolean(s.elevenLabsLiveVoice)} onLiveVoiceChange={(enabled) => set({ elevenLabsLiveVoice: enabled })} />
               </div>
             </div>
           )}
@@ -447,7 +447,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
           {step === 3 && (
             <div className="space-y-4">
               <StepHead title="Give your assistant a face" hint="Optional: a live video face that speaks with your chosen voice." help="Voice only works everywhere. A video face lip-syncs the same Gemini voice and uses extra video minutes." />
-              <AvatarSettings value={normalizeVideoAvatar(s.videoAvatar)} onChange={(videoAvatar) => set({ videoAvatar })} agentId={selectedId} beforePreview={save} voice={s.voice} onVoiceChange={voice => { set({ voice, clonedVoiceSelected: false }); setVoiceReady(false); }} name={s.name} onNameChange={(next) => set(isAskLabel(s.label) ? { name: next, label: askLabel(next) } : { name: next })} clonedVoiceSelected={Boolean(s.clonedVoiceSelected)} onClonedVoiceSelectedChange={(cloned) => { set({ clonedVoiceSelected: cloned }); if (cloned) setVoiceReady(false); }} />
+              <AvatarSettings value={normalizeVideoAvatar(s.videoAvatar)} onChange={(videoAvatar) => set({ videoAvatar })} agentId={selectedId} beforePreview={save} voice={s.voice} onVoiceChange={voice => { set({ voice, clonedVoiceSelected: false }); setVoiceReady(false); }} name={s.name} onNameChange={(next) => set(isAskLabel(s.label) ? { name: next, label: askLabel(next) } : { name: next })} clonedVoiceSelected={Boolean(s.clonedVoiceSelected)} onClonedVoiceSelectedChange={(cloned) => { set({ clonedVoiceSelected: cloned }); if (cloned) setVoiceReady(false); }} elevenLabsLiveVoice={Boolean(s.elevenLabsLiveVoice)} onElevenLabsLiveVoiceChange={(enabled) => set({ elevenLabsLiveVoice: enabled })} />
             </div>
           )}
 

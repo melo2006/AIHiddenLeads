@@ -2,11 +2,15 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { z } from 'npm:zod@3';
 import { workspaceAccess } from '../_shared/customer-payments.ts';
+import { shapeElevenLabsVoice, shapeElevenLabsVoiceList } from '../_shared/elevenlabs-voices.ts';
 
 // Voice cloning via ElevenLabs Instant Voice Cloning (IVC):
 // POST https://api.elevenlabs.io/v1/voices/add — multipart form-data with
 // `name` + `files[]`, header `xi-api-key`. Returns { voice_id } immediately.
 // The key lives ONLY in the ELEVENLABS_API_KEY Supabase secret; never log it.
+// Library import (2026-11-17) rides this same function: listVoices proxies
+// GET /v1/voices and importVoice validates + attaches a library voice —
+// both keyed by the same secret, shaped by _shared/elevenlabs-voices.ts.
 // Storage: cloned_voice_id / cloned_voice_name / cloned_voice_status columns
 // on voice_agents (migration 20261113120000_voice_clone.sql, additive). All
 // reads/writes tolerate the columns being absent (SQL not applied yet) and
@@ -24,6 +28,16 @@ const body = z.discriminatedUnion('action', [
   // (e.g. cloned outside the panel) or detach the stored clone entirely.
   z.object({ action: z.literal('setId'), agentId: z.string().uuid(), voiceId: z.string().min(8).max(120), name: z.string().min(1).max(80).optional() }),
   z.object({ action: z.literal('remove'), agentId: z.string().uuid() }),
+  // ElevenLabs library import (2026-11-17): list the account's voices
+  // (cloned + premade + generated, with every label the API provides and
+  // each voice's preview URL) and attach one to this agent. Attach writes
+  // the SAME cloned_voice_id state the create flow uses — an imported
+  // voice is indistinguishable from a panel-created clone downstream.
+  // Unlike setId (admin-only, raw ID), importVoice is open to an entitled
+  // editor because the voiceId is validated against the account library
+  // server-side before anything is written.
+  z.object({ action: z.literal('listVoices'), agentId: z.string().uuid() }),
+  z.object({ action: z.literal('importVoice'), agentId: z.string().uuid(), voiceId: z.string().min(8).max(120) }),
 ]);
 
 type CloneState = { id: string; name: string; status: string } | null;
@@ -75,6 +89,35 @@ Deno.serve(async (req) => {
 
     if (b.action === 'get') {
       return json({ unlocked: await purchased(), admin, clonedVoice: await readState() });
+    }
+
+    if (b.action === 'listVoices' || b.action === 'importVoice') {
+      const apiKey = Deno.env.get('ELEVENLABS_API_KEY');
+      if (!apiKey) return json({ error: 'The ElevenLabs voice library is not configured' }, 503);
+      if (!(await purchased())) {
+        // Same $50 add-on gate as create: the library is part of the
+        // custom voice half of the add-on. The panel renders its locked
+        // note from this shape instead of an error.
+        if (b.action === 'listVoices') return json({ unlocked: false, admin, voices: [], clonedVoice: await readState() });
+        return json({ error: 'Importing a library voice is part of the $50 custom avatar + voice add-on.' }, 402);
+      }
+      if (b.action === 'listVoices') {
+        const res = await fetch(`${ELEVENLABS}/v1/voices`, { headers: { 'xi-api-key': apiKey } });
+        if (!res.ok) {
+          console.error('voice-clone-create: ElevenLabs voice list failed', res.status);
+          return json({ error: 'ElevenLabs did not return the voice library. Try again in a moment.' }, 502);
+        }
+        const payload = await res.json().catch(() => ({}));
+        return json({ unlocked: true, admin, voices: shapeElevenLabsVoiceList(payload), clonedVoice: await readState() });
+      }
+      // importVoice: confirm the voice really is in the account library
+      // (and take its canonical name) before attaching it.
+      const res = await fetch(`${ELEVENLABS}/v1/voices/${encodeURIComponent(b.voiceId)}`, { headers: { 'xi-api-key': apiKey } });
+      if (!res.ok) return json({ error: 'That voice is no longer in the ElevenLabs library.' }, 404);
+      const shaped = shapeElevenLabsVoice(await res.json().catch(() => ({})));
+      if (!shaped) return json({ error: 'That voice is no longer in the ElevenLabs library.' }, 404);
+      await writeState({ id: shaped.id, name: shaped.name, status: 'ready' });
+      return json({ clonedVoice: { id: shaped.id, name: shaped.name, status: 'ready' } });
     }
 
     if (b.action === 'setId' || b.action === 'remove') {
