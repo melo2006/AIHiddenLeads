@@ -5,6 +5,7 @@ import type { User } from "@supabase/supabase-js";
 import { LayoutDashboard, LogOut, Shield, UserRound } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { ThemePreferenceItems } from "@/components/ThemeToggle";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
@@ -80,6 +81,8 @@ export default function AccountMenu({ compact = false, onNavigate }: { compact?:
         <DropdownMenuItem onSelect={() => { onNavigate?.(); navigate("/setup"); }}>
           <UserRound className="mr-2 h-4 w-4" /> {t("account.businessSetup")}
         </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <ThemePreferenceItems />
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => { void supabase.auth.signOut(); navigate("/"); }}>
           <LogOut className="mr-2 h-4 w-4" /> {t("account.logout")}

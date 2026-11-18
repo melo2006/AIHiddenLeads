@@ -1,10 +1,11 @@
-import { useTheme } from "next-themes";
 import { Toaster as Sonner, toast } from "sonner";
+import { useTheme } from "@/components/ThemeProvider";
 
 type ToasterProps = React.ComponentProps<typeof Sonner>;
 
 const Toaster = ({ position = "bottom-center", ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme();
+  // Toasts follow the site theme (src/lib/theme.ts), not the OS alone.
+  const { resolvedTheme: theme } = useTheme();
 
   return (
     <Sonner

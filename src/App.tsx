@@ -20,6 +20,7 @@ import ShortLinkRedirect from "./pages/ShortLinkRedirect.tsx";
 import AuthCallback from "./pages/AuthCallback.tsx";
 import CampaignTracking from '@/components/CampaignTracking';
 import { TenantBrandProvider } from "@/components/TenantBrandProvider";
+import ThemeProvider from "@/components/ThemeProvider";
 
 const AdPreviews = lazy(() => import("./pages/AdPreviews.tsx"));
 const MarketingHub = lazy(() => import("./pages/MarketingHub.tsx"));
@@ -58,6 +59,7 @@ const App = () => {
     try { const size = localStorage.getItem("reading-text-size"); if (size && ["90", "100", "110", "125", "150"].includes(size)) document.documentElement.dataset.textSize = size; } catch { /* Default reading size remains available. */ }
   }, []);
   return (
+  <ThemeProvider>
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
@@ -108,6 +110,7 @@ const App = () => {
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
+  </ThemeProvider>
   );
 };
 

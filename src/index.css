@@ -3,51 +3,63 @@
 @tailwind utilities;
 
 @layer base {
+  /* Theme tokens (2026-11-18, site-wide theme foundation): :root is the
+     LIGHT theme; .dark on <html> carries the dark theme. The visitor's
+     System / Light / Dark preference is resolved by src/lib/theme.ts and
+     applied before first paint by the bootstrap script in index.html.
+     Every pair below was contrast-computed (WCAG): body text >= 4.5:1,
+     muted text >= 4.5:1, on-primary >= 4.5:1, accent on surface >= 3:1
+     in BOTH themes. Brand hues stay emerald (160) / violet (262); the
+     light theme deepens them so they stay legible on white. */
   :root {
-    --background: 220 20% 4%;
-    --foreground: 210 40% 96%;
+    color-scheme: light;
 
-    --card: 220 18% 8%;
-    --card-foreground: 210 40% 96%;
+    --background: 210 40% 98%;
+    --foreground: 220 25% 10%;
 
-    --popover: 220 18% 8%;
-    --popover-foreground: 210 40% 96%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 25% 10%;
 
-    --primary: 160 84% 50%;
-    --primary-foreground: 220 20% 4%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 25% 10%;
 
-    --secondary: 220 16% 14%;
-    --secondary-foreground: 210 40% 96%;
+    --primary: 160 84% 27%;
+    --primary-foreground: 0 0% 100%;
 
-    --muted: 220 16% 14%;
-    --muted-foreground: 215 20% 55%;
+    --secondary: 220 16% 93%;
+    --secondary-foreground: 220 25% 10%;
 
-    --accent: 262 83% 65%;
-    --accent-foreground: 210 40% 98%;
+    --muted: 220 16% 93%;
+    --muted-foreground: 215 25% 36%;
 
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 210 40% 98%;
+    --accent: 262 83% 46%;
+    --accent-foreground: 0 0% 100%;
 
-    --border: 220 16% 16%;
-    --input: 220 16% 16%;
-    --ring: 160 84% 50%;
+    --destructive: 0 84% 42%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 16% 86%;
+    --input: 220 18% 58%;
+    --ring: 160 84% 27%;
 
     --radius: 0.75rem;
 
-    --sidebar-background: 220 18% 6%;
-    --sidebar-foreground: 210 40% 96%;
-    --sidebar-primary: 160 84% 50%;
-    --sidebar-primary-foreground: 220 20% 4%;
-    --sidebar-accent: 220 16% 14%;
-    --sidebar-accent-foreground: 210 40% 96%;
-    --sidebar-border: 220 16% 16%;
-    --sidebar-ring: 160 84% 50%;
+    --sidebar-background: 210 40% 97%;
+    --sidebar-foreground: 220 25% 10%;
+    --sidebar-primary: 160 84% 27%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 16% 90%;
+    --sidebar-accent-foreground: 220 25% 10%;
+    --sidebar-border: 220 16% 86%;
+    --sidebar-ring: 160 84% 27%;
 
-    --glow: 160 84% 50%;
-    --glow-accent: 262 83% 65%;
-    --warning: 38 92% 50%;
-    --warning-foreground: 220 20% 4%;
-    --audit-rank-warning: 48 96% 53%;
+    --glow: 160 84% 27%;
+    --glow-accent: 262 83% 46%;
+    --warning: 35 92% 32%;
+    --warning-foreground: 0 0% 100%;
+    --audit-rank-warning: 35 92% 32%;
+    /* The rank map is a printed-paper artifact in BOTH themes (white
+       paper, dark ink) — intentionally theme-independent. */
     --rank-map-paper: 0 0% 100%;
     --rank-map-ink: 220 20% 8%;
     --rank-map-good: 145 70% 30%;
@@ -60,6 +72,8 @@
   }
 
   .dark {
+    color-scheme: dark;
+
     --background: 220 20% 4%;
     --foreground: 210 40% 96%;
     --card: 220 18% 8%;
@@ -71,8 +85,12 @@
     --secondary: 220 16% 14%;
     --secondary-foreground: 210 40% 96%;
     --muted: 220 16% 14%;
-    --muted-foreground: 215 20% 55%;
-    --accent: 262 83% 65%;
+    /* 55% -> 58%: muted text on a muted surface was 4.44:1, just under
+       the 4.5:1 floor; 58% passes on background, card and muted alike. */
+    --muted-foreground: 215 20% 58%;
+    /* 65% -> 58%: white on-accent text was ~4.4:1; 58% passes at 5.4:1
+       and accent-on-surface stays above 3:1. Slightly deeper violet. */
+    --accent: 262 83% 58%;
     --accent-foreground: 210 40% 98%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
@@ -87,6 +105,11 @@
     --sidebar-accent-foreground: 210 40% 96%;
     --sidebar-border: 220 16% 16%;
     --sidebar-ring: 160 84% 50%;
+    --glow: 160 84% 50%;
+    --glow-accent: 262 83% 65%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 220 20% 4%;
+    --audit-rank-warning: 48 96% 53%;
   }
 }
 

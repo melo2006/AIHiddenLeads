@@ -121,6 +121,39 @@
     html.app-ready #startup-status { display: none; }
   </style>
   <script>
+    /* Theme bootstrap (2026-11-18): resolve the visitor's System / Light /
+       Dark preference (localStorage "aihl-theme", default System) and put
+       the resolved theme on <html> BEFORE first paint — no flash. Mirrors
+       src/lib/theme.ts; ThemeProvider keeps it live after React mounts.
+       On any error, fall back to the OS scheme so the page never blocks. */
+    (function () {
+      var root = document.documentElement;
+      try {
+        var pref = localStorage.getItem('aihl-theme');
+        if (pref !== 'light' && pref !== 'dark' && pref !== 'system') pref = 'system';
+        var dark = pref === 'dark' || (pref === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        root.classList.toggle('dark', dark);
+        root.setAttribute('data-theme', dark ? 'dark' : 'light');
+        root.style.colorScheme = dark ? 'dark' : 'light';
+        if (!dark) {
+          root.style.setProperty('--startup-background', '210 40% 98%');
+          root.style.setProperty('--startup-foreground', '220 25% 10%');
+        }
+      } catch (e) {
+        try {
+          var osDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          root.classList.toggle('dark', osDark);
+          root.setAttribute('data-theme', osDark ? 'dark' : 'light');
+          root.style.colorScheme = osDark ? 'dark' : 'light';
+          if (!osDark) {
+            root.style.setProperty('--startup-background', '210 40% 98%');
+            root.style.setProperty('--startup-foreground', '220 25% 10%');
+          }
+        } catch (e2) { /* Startup styles keep their dark defaults. */ }
+      }
+    })();
+  </script>
+  <script>
     document.documentElement.classList.add('app-starting');
     if (typeof URL !== 'undefined' && typeof URL.prototype === 'object' && typeof URL.prototype.startsWith !== 'function') {
       URL.prototype.startsWith = function (s, p) { return this.href.startsWith(s, p); };
