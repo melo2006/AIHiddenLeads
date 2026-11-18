@@ -335,7 +335,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
       // returned as-is, never bought twice.
       if (phoneSetup.route === "new" && phoneSetup.selectedNumber && !phoneSetup.aspenNumber) {
         try { const act = await request({ action: "provisionNumber", agentId: selectedId }); if (act.phoneSetup) setPhoneSetup(act.phoneSetup as PhoneSetupState); } catch { /* activation continues server-side; status copy stays honest */ }
-      } }
+      } } }
     catch (e) { toast.error(e instanceof Error ? e.message : "Could not publish"); }
     finally { setBusy(false); }
   }
