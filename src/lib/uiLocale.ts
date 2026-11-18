@@ -97,6 +97,27 @@ export function explicitUiLocale(): UiLocale | undefined {
   return sessionUiLocale();
 }
 
+/**
+ * Whether a silently pre-authorized (prewarmed) voice session was
+ * authorized under a different effective starting language than the
+ * visitor's CURRENT explicit pick. The floating widget prewarms one
+ * session at mount, in whatever language was picked at that moment;
+ * if the visitor then changes the site language before tapping, the
+ * held session is still authorized in the OLD language and must be
+ * discarded and re-authorized — never activated (Ron's live test,
+ * 2026-11-18: page switched to French, the prewarmed session still
+ * greeted, narrated and captioned in English). No pick (undefined)
+ * means the server defaults the session to English, so undefined and
+ * an explicit "en" pick are the SAME effective language and never
+ * force a re-authorization on their own.
+ */
+export function prewarmLocaleMismatch(
+  warmLocale: UiLocale | undefined,
+  currentLocale: UiLocale | undefined,
+): boolean {
+  return (warmLocale ?? "en") !== (currentLocale ?? "en");
+}
+
 const UI_LOCALE_LANGUAGES: Record<UiLocale, string> = {
   en: "English",
   es: "Spanish",
