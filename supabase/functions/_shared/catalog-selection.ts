@@ -6,9 +6,9 @@
 //     languages: string[] }
 // A null list means "everything in the shared library is offered"
 // (the default — including faces/voices added later). An explicit
-// list is the exact offered set. Languages default to all three the
-// product speaks today; French arrives with the later language
-// package and is deliberately NOT in the list yet.
+// list is the exact offered set. Languages default to all four the
+// product speaks today; French (fr-CA) arrived with the French
+// language package (2026-11-18).
 //
 // The shared library itself (names, images, voice styles) lives in
 // the browser bundle (src/lib/avatarLibrary.ts, src/lib/voiceCatalog
@@ -17,13 +17,14 @@
 
 /** Languages a tenant's assistants can speak today (mirrors
  *  AgentLanguage in src/lib/voiceCatalog.ts). */
-export const CATALOG_LANGUAGES = ['en', 'es', 'pt-BR'] as const;
+export const CATALOG_LANGUAGES = ['en', 'es', 'pt-BR', 'fr-CA'] as const;
 export type CatalogLanguage = (typeof CATALOG_LANGUAGES)[number];
 
 export const LANGUAGE_LABELS: Record<CatalogLanguage, string> = {
   en: 'English',
   es: 'Español',
   'pt-BR': 'Português (Brasil)',
+  'fr-CA': 'Français (Canada)',
 };
 
 export interface CatalogSelection {

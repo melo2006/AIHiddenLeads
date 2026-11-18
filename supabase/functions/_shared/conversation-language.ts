@@ -53,7 +53,8 @@ export const explicitRequestNeverRefused = (language: string): string =>
 // 2026-11-09, superseding the English-start lock for WEBSITE sessions only).
 //
 // A website visitor who explicitly picks a language with the site's own
-// language switch (en / es / pt-BR — the only locales the site ships) has
+// language switch (en / es / pt-BR / fr-CA — the only locales the site
+// ships) has
 // authorized that language as the session's starting language: Aspen's
 // voice, her greeting and the chat all start in it. That is the ONLY new
 // authorization this adds. Detection still authorizes NOTHING: no browser
@@ -65,13 +66,14 @@ export const explicitRequestNeverRefused = (language: string): string =>
 // ---------------------------------------------------------------------------
 
 /** The site's shipped UI locales (matches src/i18n/index.ts SUPPORTED). */
-export const SUPPORTED_UI_LOCALES = ['en', 'es', 'pt-BR'] as const;
+export const SUPPORTED_UI_LOCALES = ['en', 'es', 'pt-BR', 'fr-CA'] as const;
 export type UiLocale = (typeof SUPPORTED_UI_LOCALES)[number];
 
 const UI_LOCALE_LANGUAGES: Record<UiLocale, string> = {
   en: 'English',
   es: 'Spanish',
   'pt-BR': 'Portuguese',
+  'fr-CA': 'French',
 };
 
 /**
@@ -84,6 +86,7 @@ export function normalizeUiLocale(value: unknown): UiLocale | null {
   if (typeof value !== 'string') return null;
   const v = value.trim();
   if (v === 'pt') return 'pt-BR';
+  if (v === 'fr') return 'fr-CA';
   return (SUPPORTED_UI_LOCALES as readonly string[]).includes(v) ? (v as UiLocale) : null;
 }
 

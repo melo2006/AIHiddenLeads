@@ -7,16 +7,25 @@ import LanguageSwitcher from "@/components/LanguageSwitcher";
 import TextSizeControl from "@/components/TextSizeControl";
 import AccountMenu from "@/components/AccountMenu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { ResolvedBrand } from "@/lib/clients";
+import { resolveTenantBrand, type ResolvedBrand } from "@/lib/clients";
+import { useTenantBrand } from "@/components/TenantBrandProvider";
+import { initialsFor } from "@/lib/tenancy";
 
 /**
  * Optional tenant brand (multi-tenant design Phase 1): only the
  * customer shell (CustomerPageLayout) passes one, resolved from the
  * signed-in user's organization. Public pages pass nothing and get the
  * platform AiHiddenLeads lockup, byte-for-byte as before.
+ *
+ * Reseller subdomains (design §12.2): when no explicit brand is
+ * passed and the app is running on a claimed tenant host, the tenant
+ * brand from TenantBrandProvider takes over instead. An explicit
+ * brand (the signed-in customer shell) always wins over the host.
  */
 const LandingNavbar = ({ brand }: { brand?: ResolvedBrand }) => {
-  const orgBrand = brand?.source === "org" ? brand : null;
+  const tenant = useTenantBrand();
+  const effectiveBrand = brand ?? (tenant ? resolveTenantBrand(tenant.branding) : undefined);
+  const orgBrand = effectiveBrand?.source === "org" ? effectiveBrand : null;
   const location=useLocation();
   const navigate=useNavigate();
   const [open, setOpen] = useState(false);
@@ -36,8 +45,21 @@ const LandingNavbar = ({ brand }: { brand?: ResolvedBrand }) => {
         <Link to="/" className="flex min-w-0 flex-1 lg:flex-none items-center gap-1.5">
           {orgBrand ? (
             <>
-              <img src={orgBrand.logoUrl} alt={orgBrand.name} className="w-6 h-6 shrink-0 rounded object-contain sm:w-9 sm:h-9" />
-              <span className="min-w-0 truncate text-sm sm:text-lg leading-tight font-extrabold text-foreground">
+              {orgBrand.logoUrl ? (
+                <img src={orgBrand.logoUrl} alt={orgBrand.name} className="w-6 h-6 shrink-0 rounded object-contain sm:w-9 sm:h-9" />
+              ) : (
+                <span
+                  aria-hidden
+                  className="flex w-6 h-6 shrink-0 items-center justify-center rounded text-[10px] font-bold text-white sm:w-9 sm:h-9 sm:text-xs"
+                  style={{ backgroundColor: orgBrand.brandColor || "#10b981" }}
+                >
+                  {initialsFor(orgBrand.name)}
+                </span>
+              )}
+              <span
+                className="min-w-0 truncate text-sm sm:text-lg leading-tight font-extrabold text-foreground"
+                style={orgBrand.brandColor ? { color: orgBrand.brandColor } : undefined}
+              >
                 {orgBrand.name}
               </span>
             </>

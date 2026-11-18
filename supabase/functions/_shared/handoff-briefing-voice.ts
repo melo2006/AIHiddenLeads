@@ -41,10 +41,14 @@ export function handoffBriefingPath(handoffId: string): string {
  *  carrier's English default. The language rides the voice
  *  session's own config (startLanguage / uiLocale); no schema
  *  change on the handoff row. */
-export type BriefingLanguage = 'en' | 'pt' | 'es';
+export type BriefingLanguage = 'en' | 'pt' | 'es' | 'fr';
 
 export function briefingLanguageFrom(signals: { startLanguage?: unknown; uiLocale?: unknown }): BriefingLanguage {
   const s = `${String(signals.startLanguage ?? '')} ${String(signals.uiLocale ?? '')}`.toLowerCase();
+  // French first: its tokens ('french', 'français', 'fr-ca') contain
+  // neither 'pt' nor 'es', but checking it first keeps that true by
+  // construction rather than by accident.
+  if (s.includes('french') || s.includes('français') || s.includes('francais') || s.includes('fr-ca')) return 'fr';
   if (s.includes('portug') || s.includes('pt')) return 'pt';
   if (s.includes('span') || s.includes('es')) return 'es';
   return 'en';
@@ -52,7 +56,7 @@ export function briefingLanguageFrom(signals: { startLanguage?: unknown; uiLocal
 
 /** BCP-47 tag for the Twilio <Say language> attribute. */
 export function briefingSayLanguage(language: BriefingLanguage): string {
-  return language === 'pt' ? 'pt-BR' : language === 'es' ? 'es-ES' : 'en-US';
+  return language === 'pt' ? 'pt-BR' : language === 'es' ? 'es-ES' : language === 'fr' ? 'fr-CA' : 'en-US';
 }
 
 /** The one briefing text, shared by the <Say> fallback and the TTS
@@ -66,6 +70,7 @@ export function managerBriefingText(handoff: { manager_name?: unknown; summary?:
   const summary = typeof handoff.summary === 'string' && handoff.summary.trim() ? handoff.summary : null;
   if (language === 'pt') return `Olá ${name}. Um visitante do site está esperando. Esta é uma transferência automática. ${summary ?? 'O visitante pediu para falar com a sua equipe.'} Pressione 1 para aceitar e conectar. Pressione qualquer outra tecla para recusar.`;
   if (language === 'es') return `Hola ${name}. Un visitante del sitio web está esperando. Esta es una transferencia automática. ${summary ?? 'El visitante ha pedido hablar con su equipo.'} Presione 1 para aceptar y conectar. Presione cualquier otra tecla para rechazar.`;
+  if (language === 'fr') return `Bonjour ${name}. Un visiteur du site Web attend. Il s'agit d'un transfert automatique. ${summary ?? 'Le visiteur a demandé à parler à votre équipe.'} Appuyez sur 1 pour accepter et vous connecter. Appuyez sur n'importe quelle autre touche pour refuser.`;
   return `Hello ${name}. A website visitor is waiting. This is an automated handoff. ${summary ?? 'The visitor has requested to speak with your team.'} Press 1 to accept and connect. Press any other key to decline.`;
 }
 
@@ -73,6 +78,7 @@ export function managerBriefingText(handoff: { manager_name?: unknown; summary?:
 export function handoffStayLine(language: BriefingLanguage): string {
   if (language === 'pt') return 'Por favor, aguarde na linha — vou ficar aqui até você ser conectado com o gerente, depois eu saio.';
   if (language === 'es') return 'Por favor, permanezca en línea — me quedaré hasta que esté conectado con el gerente, luego me retiraré.';
+  if (language === 'fr') return 'Veuillez rester en ligne — je resterai jusqu\'à ce que vous soyez connecté avec le gérant, puis je me retirerai.';
   return "Please stay here — I'll stay on until you're connected with the manager, then I'll step away.";
 }
 
@@ -80,6 +86,7 @@ export function handoffStayLine(language: BriefingLanguage): string {
 export function handoffConnectingLine(language: BriefingLanguage): string {
   if (language === 'pt') return 'Conectando você agora.';
   if (language === 'es') return 'Conectándolo ahora.';
+  if (language === 'fr') return 'Je vous connecte maintenant.';
   return 'Connecting you now.';
 }
 

@@ -29,15 +29,15 @@ const GALLERY_FACES = [
 
 const AvatarGallerySection = () => {
   const { i18n } = useTranslation();
-  const pt = i18n.language.startsWith('pt'); const es = i18n.language.startsWith('es');
-  const yourPhotoLabel = pt ? 'A sua foto' : es ? 'Tu foto' : 'Your photo';
+  const pt = i18n.language.startsWith('pt'); const es = i18n.language.startsWith('es'); const fr = i18n.language.startsWith('fr');
+  const yourPhotoLabel = pt ? 'A sua foto' : es ? 'Tu foto' : fr ? 'Votre photo' : 'Your photo';
   // Ron (2026-11-17): tiles highlight/lift on hover, and tapping a
   // portrait opens it large with zoom — phone tiles are small, so the
   // detail view is where a face is really judged.
   const [viewing, setViewing] = useState<AvatarLibraryEntry | null>(null);
   return <section id="avatar-gallery" className="py-12 sm:py-16"><div className="container mx-auto px-5 sm:px-6">
-    <h2 className="text-2xl sm:text-3xl font-bold mb-3">{pt ? 'Escolha entre dezenas de avatares humanos ao vivo — ou dê vida à sua própria foto.' : es ? 'Elige entre docenas de avatares humanos en vivo — o dale vida a tu propia foto.' : 'Choose from dozens of live human avatars — or bring your own photo to life.'}</h2>
-    <p className="text-sm text-muted-foreground max-w-3xl mb-6">{pt ? 'Cada avatar transmite em direto no seu site — um rosto real a falar com os seus clientes com uma voz natural. Escolha um da biblioteca, ou carregue a sua própria foto e veja-a ganhar vida. Use uma das nossas vozes — ou a sua: carregue um clipe ou grave a sua voz, e o seu avatar falará com ela.' : es ? 'Cada avatar se transmite en vivo en tu sitio web: un rostro real que habla con tus clientes con una voz natural. Elige uno de la biblioteca o sube tu propia foto y mírala cobrar vida. Usa una de nuestras voces — o la tuya: sube un clip o graba tu voz y tu avatar hablará con ella.' : 'Every avatar streams live on your website — a real face talking with your customers in a natural voice. Pick one from the library, or upload your own photo and watch it come alive. Use one of our voices — or your own: upload a clip or record your voice, and your avatar speaks with it.'}</p>
+    <h2 className="text-2xl sm:text-3xl font-bold mb-3">{pt ? 'Escolha entre dezenas de avatares humanos ao vivo — ou dê vida à sua própria foto.' : es ? 'Elige entre docenas de avatares humanos en vivo — o dale vida a tu propia foto.' : fr ? 'Choisissez parmi des douzaines d\'avatars humains en direct — ou donnez vie à votre propre photo.' : 'Choose from dozens of live human avatars — or bring your own photo to life.'}</h2>
+    <p className="text-sm text-muted-foreground max-w-3xl mb-6">{pt ? 'Cada avatar transmite em direto no seu site — um rosto real a falar com os seus clientes com uma voz natural. Escolha um da biblioteca, ou carregue a sua própria foto e veja-a ganhar vida. Use uma das nossas vozes — ou a sua: carregue um clipe ou grave a sua voz, e o seu avatar falará com ela.' : es ? 'Cada avatar se transmite en vivo en tu sitio web: un rostro real que habla con tus clientes con una voz natural. Elige uno de la biblioteca o sube tu propia foto y mírala cobrar vida. Usa una de nuestras voces — o la tuya: sube un clip o graba tu voz y tu avatar hablará con ella.' : fr ? 'Chaque avatar diffuse en direct sur votre site Web — un vrai visage qui parle à vos clients d\'une voix naturelle. Choisissez-en un dans la bibliothèque, ou téléversez votre propre photo et regardez-la prendre vie. Utilisez l\'une de nos voix — ou la vôtre : téléversez un extrait ou enregistrez votre voix, et votre avatar parlera avec elle.' : 'Every avatar streams live on your website — a real face talking with your customers in a natural voice. Pick one from the library, or upload your own photo and watch it come alive. Use one of our voices — or your own: upload a clip or record your voice, and your avatar speaks with it.'}</p>
     <div className="grid grid-cols-3 gap-3 sm:gap-5 max-w-3xl">
       {GALLERY_FACES.map(entry => <figure key={entry.key} className="flex flex-col items-center gap-2">
         <PortraitViewButton
@@ -55,7 +55,7 @@ const AvatarGallerySection = () => {
         <figcaption className="text-xs text-muted-foreground">{yourPhotoLabel}</figcaption>
       </figure>
     </div>
-    <p className="text-xs text-muted-foreground mt-6">{pt ? 'Os avatares da biblioteca estão incluídos em todos os planos. O seu avatar com a sua própria foto: configuração única de $50.' : es ? 'Los avatares de la biblioteca están incluidos en todos los planes. Tu avatar con tu propia foto: configuración única de $50.' : 'Library avatars are included in every plan. Your own photo avatar: one-time $50 setup.'}</p>
+    <p className="text-xs text-muted-foreground mt-6">{pt ? 'Os avatares da biblioteca estão incluídos em todos os planos. O seu avatar com a sua própria foto: configuração única de $50.' : es ? 'Los avatares de la biblioteca están incluidos en todos los planes. Tu avatar con tu propia foto: configuración única de $50.' : fr ? 'Les avatars de la bibliothèque sont inclus dans tous les forfaits. Votre avatar avec votre propre photo : configuration unique de 50 $.' : 'Library avatars are included in every plan. Your own photo avatar: one-time $50 setup.'}</p>
     <AvatarPortraitLightbox
       person={viewing ? { name: viewing.label, image: viewing.image! } : null}
       onClose={() => setViewing(null)}

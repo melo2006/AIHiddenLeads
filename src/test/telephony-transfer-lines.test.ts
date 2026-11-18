@@ -35,7 +35,13 @@ describe("phone transfer language signals", () => {
     expect(phoneLanguageFromSignal("Portuguese")).toBe("pt");
     expect(phoneLanguageFromSignal("en")).toBe("en");
     expect(phoneLanguageFromSignal("English")).toBe("en");
-    for (const bad of ["fr", "de", "", null, undefined, 42, {}]) {
+    // French package (2026-11-18): a session already in French gets
+    // French transfer lines; the phone START stays English (the
+    // default below is unchanged for anything unrecognized).
+    expect(phoneLanguageFromSignal("fr")).toBe("fr");
+    expect(phoneLanguageFromSignal("fr-CA")).toBe("fr");
+    expect(phoneLanguageFromSignal("French")).toBe("fr");
+    for (const bad of ["de", "", null, undefined, 42, {}]) {
       expect(phoneLanguageFromSignal(bad)).toBe("en");
     }
   });

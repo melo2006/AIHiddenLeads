@@ -7,11 +7,23 @@
     "faq": "Help / FAQ",
     "getFreeDemo": "Get Your Free Demo"
   },
+  "account": {
+    "login": "Log in",
+    "createAccount": "Create account",
+    "menu": "Account menu",
+    "admin": "Admin",
+    "adminDashboard": "Admin dashboard",
+    "myDashboard": "My dashboard",
+    "businessSetup": "Business setup",
+    "logout": "Log out",
+    "fallbackName": "Account"
+  },
   "lang": {
     "label": "Language",
     "en": "English",
     "pt-BR": "Português (Brasil)",
-    "es": "Español"
+    "es": "Español",
+    "fr-CA": "Français (Canada)"
   },
   "hero": {
     "badge": "Try Your Own Website With AI Voice — Free Live Demo",
@@ -28,7 +40,8 @@
     "stat4": "Report Increased Revenue With AI",
     "meetAspen": "Meet Aspen",
     "aspenQuote": "\"When someone needs a price, a part or an appointment, do they usually reach you by phone, through your website—or a little of both? <strong>Talk to Aspen</strong> about capturing inquiries with website voice and chat, fresh prospects and phone answering.\"",
-    "aspenHint": "Click the \"Talk to Aspen\" button on the left to chat live"
+    "aspenHint": "Click the \"Talk to Aspen\" button on the left to chat live",
+    "askAspen": "Questions? Talk to Aspen by voice or chat."
   },
   "tryCta": {
     "kicker": "Free Live Website Demo",
@@ -694,7 +707,8 @@
     "privacy": "Privacy Policy",
     "terms": "Terms of Service",
     "smsConsent": "By using our services, you consent to receive SMS/text messages from AI Hidden Leads. Message frequency varies. Reply STOP to opt out. Reply HELP for help. Message and data rates may apply. Consent is not a condition of purchase.",
-    "copyright": "AI-powered lead generation & sales automation."
+    "copyright": "AI-powered lead generation & sales automation.",
+    "rights": "All rights reserved."
   },
   "diff": {
     "badge": "Try It Before You Decide",
@@ -1238,5 +1252,21 @@
     "useThisAvatar": "Use this avatar",
     "currentAvatar": "Your current avatar",
     "zoomHint": "Pinch, scroll, or drag to explore the details."
+  },
+  "cta": {
+    "tryWebsite": "Try your website",
+    "bookCall": "Book a quick call",
+    "startNow": "Start now"
+  },
+  "landing": {
+    "available": "Available",
+    "preOrder": "Pre-order",
+    "moreDetails": "More details",
+    "getStarted": "Get started",
+    "learnMore": "Learn more",
+    "phoneFirstTitle": "Phone-first? You don’t need a website.",
+    "phoneFirstBody": "Teach your receptionist from business hours, service lists, approved prices and documents. Use your website as optional reference material, not a requirement. Phone answering activates after setup and testing; website and telephone minutes remain separate.",
+    "phoneFirstLink": "Explore phone reception & a sample conversation",
+    "preOrderNote": "Pre-order services activate after setup and testing. No guaranteed sales, savings, callback speed or rankings."
   }
 }

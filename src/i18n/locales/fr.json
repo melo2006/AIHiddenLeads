@@ -1,0 +1,1272 @@
+{
+  "nav": {
+    "services": "Services",
+    "howItWorks": "Comment ça marche",
+    "pricing": "Tarifs",
+    "testimonials": "Témoignages",
+    "faq": "Aide / FAQ",
+    "getFreeDemo": "Obtenez votre démo gratuite"
+  },
+  "account": {
+    "login": "Se connecter",
+    "createAccount": "Créer un compte",
+    "menu": "Menu du compte",
+    "admin": "Admin",
+    "adminDashboard": "Tableau de bord d'administration",
+    "myDashboard": "Mon tableau de bord",
+    "businessSetup": "Configuration de l'entreprise",
+    "logout": "Se déconnecter",
+    "fallbackName": "Compte"
+  },
+  "lang": {
+    "label": "Langue",
+    "en": "English",
+    "pt-BR": "Português (Brasil)",
+    "es": "Español",
+    "fr-CA": "Français (Canada)"
+  },
+  "hero": {
+    "badge": "Essayez la voix IA sur votre propre site Web — démo en direct gratuite",
+    "headline1": "Appels, boîte vocale et visiteurs de votre site Web :",
+    "headline2": "Captez le prochain prospect.",
+    "headline3": "Voix + clavardage sur votre site Web — dès 99 $/mois.",
+    "sub": "Une voix IA naturelle et bidirectionnelle, des modules de clavardage pour site Web et de la génération de prospects. Essayez gratuitement une simulation sur votre site d'origine; le temps de préparation varie. La réponse téléphonique et le renvoi d'appels sont activés pour chaque entreprise après la configuration et les tests.",
+    "ctaPrimary": "🎙️ Essayez la voix IA sur votre site Web — gratuit",
+    "ctaSecondary": "Voir les forfaits et les tarifs",
+    "trust": "Aucune carte de crédit · Simulation sur votre site d'origine · Temps de préparation variable",
+    "stat1": "des prospects choisissent le premier répondant",
+    "stat2": "des prospects ne sont jamais contactés",
+    "stat3": "perdus par occasion manquée",
+    "stat4": "signalent une hausse de revenus grâce à l'IA",
+    "meetAspen": "Rencontrez Aspen",
+    "aspenQuote": "\"Quand quelqu'un a besoin d'un prix, d'une pièce ou d'un rendez-vous, vous joint-on habituellement par téléphone, par votre site Web — ou un peu des deux? <strong>Parlez à Aspen</strong> pour capter les demandes grâce à la voix et au clavardage sur votre site, à de nouveaux prospects et à la réponse téléphonique.\"",
+    "aspenHint": "Cliquez sur le bouton « Parler à Aspen » à gauche pour discuter en direct",
+    "askAspen": "Des questions? Parlez à Aspen par la voix ou le clavardage."
+  },
+  "tryCta": {
+    "kicker": "Démo de site Web en direct gratuite",
+    "title": "Essayez une réceptionniste IA sur votre propre site Web",
+    "sub": "Plus d'appels ou plus de visiteurs sur votre site? Écoutez comment un module voix/clavardage peut répondre aux questions prises en charge et capter les demandes sur votre propre site. Commencez par votre URL; aucune installation ni carte de crédit. Le temps de préparation varie. La réponse téléphonique est configurée séparément pour chaque entreprise.",
+    "cta": "Essayer mon site Web — gratuit"
+  },
+  "beforeAfter": {
+    "titleStart": "Donnez aux visiteurs de votre site Web",
+    "outdated": "Dépassé",
+    "to": "à",
+    "aiPowered": "quelqu'un à qui parler.",
+    "after": "Avec AI Hidden Leads ✨",
+    "desktopBefore": "Ordinateur — Avant",
+    "desktopAfter": "Ordinateur — Avec AI Hidden Leads ✨",
+    "cta": "Essayer mon propre site Web — gratuit",
+    "niches": {
+      "realtors": {
+        "subtitle": "Exemples illustrés de sites Web avec voix et clavardage. Votre démo gratuite conserve votre site réel et y superpose un assistant — elle ne refait pas votre site et n'installe rien.",
+        "before": "Votre site d'agent immobilier aujourd'hui"
+      },
+      "medspa": {
+        "subtitle": "Exemples illustrés de sites Web avec voix et clavardage. Votre démo gratuite conserve votre site réel et y superpose un assistant — elle ne refait pas votre site et n'installe rien.",
+        "before": "Votre site de spa médical aujourd'hui"
+      },
+      "autodetail": {
+        "subtitle": "Exemples illustrés de sites Web avec voix et clavardage. Votre démo gratuite conserve votre site réel et y superpose un assistant — elle ne refait pas votre site et n'installe rien.",
+        "before": "Votre site d'esthétique automobile aujourd'hui"
+      },
+      "veterinary": {
+        "subtitle": "Exemples illustrés de sites Web avec voix et clavardage. Votre démo gratuite conserve votre site réel et y superpose un assistant — elle ne refait pas votre site et n'installe rien.",
+        "before": "Votre site vétérinaire aujourd'hui"
+      },
+      "marine": {
+        "subtitle": "Exemples illustrés de sites Web avec voix et clavardage. Votre démo gratuite conserve votre site réel et y superpose un assistant — elle ne refait pas votre site et n'installe rien.",
+        "before": "Votre site nautique aujourd'hui"
+      }
+    }
+  },
+  "services": {
+    "title": "Nous savons ce qu'il vous faut —",
+    "titleAccent": "Nous avons tout entendu",
+    "sub": "\"Je veux plus de prospects.\" \"Je veux de meilleurs avis.\" \"Je veux être sur la première page de Google.\" \"J'ai besoin d'un meilleur soutien à la clientèle.\"",
+    "subStrong": "Nous faisons tout cela — mais voici par où nous vous recommandons de commencer.",
+    "core": "Service de base",
+    "quickWins": "Gains rapides",
+    "alsoAvailable": "Aussi offerts :",
+    "alsoList": "Refonte et modernisation de site Web · Référencement (SEO) et classement Google Maps · Optimisation pour la recherche par IA (GEO) · Rappels instantanés dès l'arrivée d'un prospect · Formation d'agents IA sur mesure",
+    "items": {
+      "voice": {
+        "title": "Agent vocal IA",
+        "desc": "Votre réceptionniste 24/7. Elle répond à chaque appel d'une voix naturelle, qualifie les prospects, prend les rendez-vous et transfère en direct les prospects chauds vers votre téléphone. Ne manquez plus jamais un appel."
+      },
+      "chat": {
+        "title": "Module de clavardage IA",
+        "desc": "Un clavardage instantané sur votre site Web, formé sur VOTRE entreprise. Il capte des prospects, répond aux questions fréquentes, prend des rendez-vous et convertit les visiteurs en clients pendant que vous dormez."
+      },
+      "reactivation": {
+        "title": "Réactivation de base de données",
+        "desc": "Votre ancien CRM est une mine d'or. Nous réactivons les prospects endormis depuis des mois — appels sortants, courriels et textos par IA qui transforment les contacts oubliés en clients payants."
+      },
+      "leadgen": {
+        "title": "Génération de prospects",
+        "desc": "Nous trouvons les entreprises et les clients qui cherchent activement vos services. Prospection fondée sur l'intention à travers Google, les répertoires et les médias sociaux — livrée chaque jour dans votre CRM."
+      },
+      "reviews": {
+        "title": "Réputation et avis",
+        "desc": "Obtenez automatiquement plus d'avis Google 5 étoiles. Nous vous aidons à répondre aux avis, à gérer votre réputation en ligne et à grimper dans les classements Google Maps."
+      },
+      "outreach": {
+        "title": "Relances et accompagnement",
+        "desc": "Des séquences automatisées de courriels et de textos qui relancent vos prospects pendant des jours ou des semaines. Messages personnalisés, envois programmés et rappels par IA dès qu'ils réagissent."
+      },
+      "social": {
+        "title": "Gestion des médias sociaux",
+        "desc": "Des publications régulières sur vos plateformes sociales. Nous créons et programmons le contenu pour que vous restiez visible sans lever le petit doigt."
+      }
+    }
+  },
+  "stats": {
+    "title1": "Le coût du",
+    "title2": "silence",
+    "sub": "Chaque sonnerie qui aboutit à la boîte vocale, c'est de l'argent qui sort. Voici ce que disent les données sur votre secteur.",
+    "cards": {
+      "unanswered": {
+        "label": "des appels restent sans réponse",
+        "sublabel": "pendant les heures d'ouverture"
+      },
+      "lost": {
+        "label": "perdus par appel manqué",
+        "sublabel": "impact moyen sur les revenus"
+      },
+      "response": {
+        "label": "temps de réponse moyen",
+        "sublabel": "sans assistant IA"
+      },
+      "firstResponder": {
+        "label": "achètent auprès du premier répondant",
+        "sublabel": "la rapidité gagne à tout coup"
+      }
+    }
+  },
+  "how": {
+    "title1": "De la visite sur votre site à",
+    "title2": "une vraie conversation.",
+    "sub": "Essayez d'abord la démo gratuite. Passez en revue les connaissances sur votre entreprise et choisissez la prochaine étape qui convient à votre équipe.",
+    "s1": {
+      "title": "Partagez l'URL de votre site Web",
+      "desc": "Ajoutez l'adresse de votre site Web et votre nom. Nous apprenons à partir de son contenu public lisible et préparons une simulation gratuite par-dessus un aperçu de votre site."
+    },
+    "s2": {
+      "title": "Parlez à votre réceptionniste IA",
+      "desc": "Posez de vraies questions de service par la voix ou le clavardage. Écoutez des réponses naturelles et bidirectionnelles et découvrez l'expérience vidéo en direct en option."
+    },
+    "s3": {
+      "title": "Examinez, puis personnalisez",
+      "desc": "Choisissez un forfait et passez en revue vos connaissances, votre voix et votre apparence dans une configuration guidée. L'installation et tout calendrier ou flux téléphonique connecté doivent être vérifiés."
+    },
+    "s4": {
+      "title": "Faites le suivi des occasions",
+      "desc": "Examinez les demandes et les prospects B2B ciblés. Aidez votre équipe à se concentrer sur les conversations pertinentes et à conclure des ventes, avec des flux supplémentaires convenus séparément."
+    }
+  },
+  "pricing": {
+    "badge": "Avatar vidéo GRATUIT le premier mois · Frais de configuration annulés",
+    "title": "Choisissez votre prochain",
+    "titleAccent": "avantage de croissance.",
+    "sub": "Premium 99 $ · Professionnel 199 $ · Platine 349 $ par mois. Les minutes vocales sur site Web et la vidéo en option sont distinctes de l'utilisation téléphonique.",
+    "perMo": "/mois",
+    "setup": "Configuration :",
+    "free": "GRATUIT",
+    "setupPromo": "(annulés jusqu'au {{date}})",
+    "webMinutes": "minutes vocales navigateur/mois",
+    "perMinSuffix": "équivalent /min",
+    "mostPopular": "Le plus populaire",
+    "essentials": {
+      "name": "Premium",
+      "tag": "Premium + clavardage + 50 prospects B2B par mois",
+      "cta": "Commencer à 99 $/mois"
+    },
+    "growth": {
+      "name": "Professionnel",
+      "tag": "Plus de voix + 100 prospects + réactivation",
+      "cta": "Faire croître mon entreprise"
+    },
+    "full": {
+      "name": "Platine",
+      "tag": "Plus de voix + 200 prospects + services de croissance convenus",
+      "cta": "Passer à Platine"
+    },
+    "transparencyTitle": "Transparence totale : ce qui est inclus",
+    "transparencyBody": "Votre forfait comprend des <strong>minutes vocales sur site Web</strong>, le clavardage et une allocation mensuelle de prospects B2B. La vidéo en direct est en option. La réponse téléphonique aux clients, les transferts et les connexions au calendrier exigent un déploiement, une autorisation et une vérification distincts. <strong>Les textos arrivent bientôt</strong>; ne présumez jamais qu'ils sont actifs.",
+    "compareTitle": "Comparez le canal, pas seulement le prix :",
+    "compareBody": "Premium combine <strong>la voix sur site Web, le clavardage et 50 prospects B2B/mois pour 99 $</strong>. Goodcall Starter est à 79 $ pour 100 clients uniques; Smith.ai AI Pro est à 150 $ pour 75 appels et offre aussi un palier gratuit de 25 appels; Ruby Call Ruby 50 est à 250 $ pour 50 minutes de réceptionniste humaine. Ces unités d'utilisation et ces services diffèrent.",
+    "telephonyTitle": "Service téléphonique — activé après la configuration :",
+    "telephonyBody": "L'offre prévue <strong>Professionnel et Platine</strong> comprend un numéro local et le transfert en direct, avec <strong>l'utilisation téléphonique distincte à 5 ¢/minute</strong>. Le renvoi et la réponse sont activés pour chaque client après la configuration et les tests, avec plafonds de dépenses et transferts vérifiés. Les textos arrivent bientôt.",
+    "headlineStart": "Votre classement Google Maps change selon l'endroit.",
+    "headlineAccent": "À quel point êtes-vous visible à 1, 3 ou 5 milles?",
+    "disclaimer": "Avant et après illustrés — pas des classements mesurés ni une promesse de résultats en 14 jours.",
+    "beforeLabel": "Avant",
+    "afterLabel": "Après · Objectif illustré",
+    "beforeTitle": "Exemple : visibilité avant l'optimisation",
+    "afterTitle": "Objectif de visibilité illustré après l'optimisation",
+    "pinLabel": "Point de contrôle {{mode}} {{n}} : classement illustré {{rank}}",
+    "topThree": "Points de contrôle dans le top 3",
+    "legend": {
+      "good": "#1–3 · Visible",
+      "warning": "#4–10 · À risque",
+      "bad": "#11+ · Faible visibilité"
+    },
+    "selected": "Point de contrôle échantillon {{n}} : avant #{{before}} → après #{{after}}",
+    "office": "Emplacement d'entreprise échantillon — pas votre classement mesuré",
+    "cta": "Vérifier ma carte en 25 points + démo IA en direct de mon site Web — gratuit",
+    "auditNote": "La démo gratuite comprend une grille simulée. Les mesures de quartier en direct et le suivi hebdomadaire exigent la configuration d'un fournisseur; les classements et les citations par l'IA ne sont pas garantis.",
+    "timelineTitle": "Notre échéancier de croissance en 3 volets",
+    "week1Title": "D'abord — capter les conversations du site Web",
+    "week1Text": "Passez en revue les connaissances de votre assistant sur votre entreprise et son installation, puis commencez à traiter les demandes du site Web. La livraison de prospects B2B suit la portée du forfait; le service téléphonique est activé après la configuration et les tests.",
+    "days1to14Title": "Ensuite — prioriser les améliorations du profil et du site Web",
+    "days1to14Text": "Examinez les données de recherche, les catégories de votre profil d'entreprise et les données de site Web lisibles par l'IA. Convenez des correctifs pertinents et appliquez-les; ce sont les plateformes de recherche qui contrôlent le classement.",
+    "days15to60Title": "En continu — mesurer, examiner et raffiner",
+    "days15to60Text": "Examinez la visibilité et les demandes au fil du temps. Les publications de profil, les demandes d'avis honnêtes et les améliorations de contenu exigent une autorisation et une portée convenue — pas une expansion de classement garantie."
+  },
+  "addons": {
+    "badge": "À La Carte",
+    "title": "Forfaits",
+    "titleAccent": "de croissance",
+    "sub": "Bonifiez vos résultats avec ces services ciblés. Ajoutez-les à n'importe quel forfait, annulez en tout temps.",
+    "learnMore": "En savoir plus",
+    "comingSoon": "Bientôt offert",
+    "futureTitle": "🔮 L'avenir de la recherche :",
+    "futureBody": "Google n'est plus la seule façon dont les clients vous trouvent. ChatGPT, Gemini et Perplexity citent aussi des entreprises. Notre optimisation pour la recherche par IA améliore votre admissibilité à ces résultats; le placement est décidé par chaque plateforme.",
+    "items": {
+      "websiteRefresh": {
+        "title": "Modernisation de site Web : jusqu'à 5 pages",
+        "description": "Une refonte moderne, adaptée aux mobiles et à chargement rapide de votre site Web actuel (jusqu'à 5 pages), prête pour votre assistant IA. Besoin de plus de pages? Pages supplémentaires sur devis.",
+        "note": "99 $ une seule fois pour jusqu'à 5 pages"
+      },
+      "seoAudit": {
+        "title": "Rapport d'audit carte et IA en 25 points (GRATUIT)",
+        "description": "Comparez la visibilité à 25 points de contrôle de quartier et repérez quoi examiner en premier. La grille de la page d'accueil est illustrée; des résultats mesurés exigent un audit en direct.",
+        "note": "Aperçu simulé gratuit; les classements en direct exigent un audit vérifié."
+      },
+      "aiSearch": {
+        "title": "Optimisation pour la recherche par IA",
+        "description": "Améliorez la clarté avec laquelle les systèmes de recherche et d'IA peuvent comprendre votre entreprise grâce à du contenu révisé et des données structurées. ChatGPT, Gemini et Perplexity décident quelles entreprises ils citent.",
+        "note": "Nouveau — tarifs pour les premiers adoptants"
+      },
+      "mapsBoost": {
+        "title": "Propulsion Google Maps",
+        "description": "Grimpez dans le trio de tête Google Maps. Nous optimisons votre profil d'entreprise Google, bâtissons des citations et gérons le rythme des avis pour dominer localement.",
+        "note": "⚡ Optimisation rapide du profil et des catégories en 14 jours + suivi hebdomadaire de la grille en 25 points"
+      }
+    },
+    "liveNow": "🔥 Maintenant en direct — recherche par IA + citations ChatGPT/Gemini",
+    "bundle": {
+      "badge": "Combo à meilleur prix",
+      "title": "🚀 Ensemble domination totale de la recherche",
+      "body": "Combinez la propulsion Google Maps ({{maps}} $) + l'optimisation pour la recherche par IA ({{ai}} $) pour {{bundle}} $/mois (économisez {{savings}} $/mois par rapport aux services séparés). Priorisez la visibilité locale et l'information d'entreprise lisible par l'IA, sans garantie de classement ni de citation.",
+      "note": "L'optimisation est un plan d'action, pas une garantie de classement ou de citation. Le suivi hebdomadaire en direct de la grille exige la configuration d'un fournisseur; l'ensemble est arrangé pendant votre appel de mise en place."
+    }
+  },
+  "testimonials": {
+    "title1": "Que pourrait faire votre équipe ",
+    "title2": "avec l'IA?",
+    "sub": "Scénarios d'entreprise illustrés — pas des témoignages de clients ni des résultats mesurés.",
+    "previous": "Témoignage précédent",
+    "next": "Témoignage suivant",
+    "goTo": "Aller au témoignage {{number}}",
+    "items": {
+      "sarah": {
+        "quote": "Un visiteur pose une question sur une inscription après les heures d'ouverture. Un assistant sur site Web peut expliquer les détails publiés et recueillir une demande que l'équipe examinera.",
+        "title": "Scénario immobilier illustré"
+      },
+      "mike": {
+        "quote": "Un acheteur commercial a une question de service pendant que l'équipe est sur un chantier. La voix ou le clavardage peut l'aider à expliquer sa demande au lieu de quitter le site Web.",
+        "title": "Scénario de services commerciaux illustré"
+      },
+      "jessica": {
+        "quote": "Les questions de service courantes peuvent être répondues à partir d'information d'entreprise révisée, laissant au personnel plus de temps pour les clients déjà devant eux.",
+        "title": "Scénario de réception illustré"
+      },
+      "carlos": {
+        "quote": "Une équipe combine les demandes captées sur le site Web avec des prospects B2B recherchés, puis examine les contacts et fait les suivis appropriés. Les résultats de vente dépendent de l'entreprise.",
+        "title": "Scénario de prospection illustré"
+      }
+    }
+  },
+  "leadForm": {
+    "badge": "Démo personnalisée gratuite",
+    "title1": "Essayez la réceptionniste IA",
+    "title2": "de votre site Web — gratuit",
+    "sub": "Posez des questions sur vos services, vos pièces ou vos demandes de rendez-vous par la voix ou le clavardage sur l'aperçu réel de votre site. Votre URL lance l'apprentissage; votre nom personnalise la conversation. Simulation gratuite, aucune installation; le temps de préparation varie. La réponse téléphonique est configurée séparément pour chaque entreprise.",
+    "name": "Votre nom",
+    "business": "Nom de l'entreprise",
+    "website": "URL du site Web",
+    "email": "Courriel",
+    "phone": "Téléphone cellulaire",
+    "altUrl": "URL supplémentaire",
+    "optional": "(facultatif)",
+    "submit": "Créer ma démo IA",
+    "uploadDocs": "Téléverser des documents",
+    "uploadOptional": "(facultatif — jusqu'à 3)",
+    "dragDrop": "Glissez-déposez les fichiers ici, ou",
+    "clickBrowse": "cliquez pour parcourir",
+    "filesSelected": "{{count}}/{{max}} fichiers sélectionnés — cliquez pour en ajouter",
+    "submitting": "Envoi en cours...",
+    "requiredNote": "Requis : votre nom et l'URL de votre site Web. Le nom de l'entreprise, le courriel et le téléphone sont facultatifs; aucun renseignement de contact n'est requis pour essayer la conversation.",
+    "invalidFile": "Type de fichier invalide",
+    "invalidFileDesc": "{{file}} n'est pas un document PDF, TXT ou Word.",
+    "fileTooLarge": "Fichier trop volumineux",
+    "fileTooLargeDesc": "{{file}} dépasse 20 Mo.",
+    "fixForm": "Veuillez corriger le formulaire",
+    "reviewDetails": "Veuillez vérifier vos renseignements et réessayer.",
+    "loadingBasicDemo": "Chargement d'une démo de base",
+    "loadingBasicDemoDesc": "L'analyse du site a pris trop de temps; la démo s'ouvre donc avec les renseignements d'entreprise enregistrés.",
+    "errorTitle": "Une erreur s'est produite",
+    "errorDesc": "Veuillez réessayer."
+  },
+  "tryDemo": {
+    "heroHeadline": "Votre site Web vous répond — en moins de 2 minutes.",
+    "heroTagline": "Rencontrez Aspen — un avatar vidéo en direct avec une vraie voix et le clavardage, qui accueille vos visiteurs, répond aux questions et capte des prospects sur votre propre site Web.",
+    "aspenBubble": "Bonjour, je suis Aspen. Installez-moi sur votre site Web — entrez votre URL ci-dessous et regardez-moi prendre vie sur votre site.",
+    "priceStrip": "Gardez-la pour 99 $/mois — le prix permanent, sans rabais de lancement. 400 minutes vocales + jusqu'à 50 prospects B2B/mois inclus, et l'avatar vidéo en direct est gratuit le premier mois.",
+    "askAspen": "Posez vos questions à Aspen sur cette démo",
+    "benefitsTitle": "Pourquoi les entreprises ajoutent Aspen",
+    "perkVoicemail": "85 % des appelants qui tombent sur la boîte vocale ne rappellent pas — la plupart passent simplement au nom suivant sur la liste. Aspen répond en quelques secondes; vos appelants n'atteignent donc jamais la boîte vocale.",
+    "perkFast": "Répond en quelques secondes, 24/7 — les soirs, les fins de semaine et pendant que votre équipe est occupée.",
+    "perkCapture": "Capte le nom, le courriel et le téléphone pendant qu'elle parle; chaque conversation peut donc devenir un prospect.",
+    "perkBookings": "Prend les demandes de rendez-vous et vous les envoie.",
+    "perkVoicemailShort": "Aucun appelant n'atteint la boîte vocale",
+    "perkFastShort": "Répond en quelques secondes, 24/7",
+    "perkCaptureShort": "Chaque conversation devient un prospect",
+    "perkBookingsShort": "Prend les rendez-vous pour vous",
+    "perkLiveAvatarShort": "Avatar vidéo en direct — pas seulement une voix",
+    "perkLiveAvatar": "Pas une autre voix IA — un avatar vidéo EN DIRECT. Regardez Aspen parler, écouter et vendre sur votre site Web, comme elle le fera dans votre démo. Presque personne d'autre ne peut vous offrir cela.",
+    "smsNote": "Les suivis par texto arrivent bientôt — les résumés par courriel fonctionnent dès aujourd'hui.",
+    "notTouched": "Maquette de démo — votre site Web reste intact, rien sur votre serveur n'est modifié.",
+    "notTouchedShort": "Maquette — site intact",
+    "notTouchedShow": "Afficher la note sur la maquette",
+    "notTouchedHide": "Masquer la note sur la maquette",
+    "capturedCopyNote": "Les réglages de sécurité de ce site Web ne permettent pas une réplique en direct; cette démo fonctionne donc sur une copie capturée.",
+    "howTitle": "Comment ça marche",
+    "stepEnter": "Entrez votre site Web",
+    "stepLearn": "Aspen l'apprend en environ 2 minutes",
+    "stepTalk": "Parlez avec elle sur votre propre site",
+    "examplesTitle": "Pas de site Web sous la main? Essayez une démo prête à l'emploi",
+    "examplesHint": "Choisissez une entreprise, ajoutez votre nom dans le formulaire ci-dessus et commencez — Aspen ouvre la démo sur leur site Web.",
+    "rankTitle": "Vérification gratuite : votre grille de classement Google Maps en 25 points",
+    "faqTitle": "Questions sur la démo",
+    "faqItems": [
+      {
+        "q": "Que se passe-t-il dans la démo gratuite?",
+        "a": "Vous entrez l'adresse de votre site Web, et Aspen construit une simulation en direct sur un aperçu de votre site réel : elle accueille les visiteurs par la voix et le clavardage, répond aux questions à partir de vos propres pages et montre comment elle capterait les demandes et prendrait les rendez-vous pour votre entreprise. Rien n'est installé et rien sur votre site ne change — c'est une maquette construite à partir de vos pages publiques."
+      },
+      {
+        "q": "Combien de temps dure la démo?",
+        "a": "Environ 2 minutes pour voir Aspen en direct sur votre site Web. Construire la simulation complète à partir des pages de votre site prend environ 10 minutes, et Aspen profite de ce temps pour apprendre votre entreprise et répondre à vos questions."
+      },
+      {
+        "q": "Modifiez-vous ou piratez-vous mon site Web?",
+        "a": "Non. Maquette de démo — votre site Web reste intact, rien sur votre serveur n'est modifié. La démo fonctionne sur une copie d'aperçu construite à partir de vos pages publiques; votre site en direct reste exactement comme il est."
+      }
+    ],
+    "headline1": "Voyez votre site Web avec",
+    "headline2": "— démo en direct",
+    "sub": "Essayez la voix et le clavardage IA naturels sur l'aperçu de votre site Web d'origine. Entrez votre nom et votre URL; le temps d'apprentissage et de préparation varie selon le site. La réponse téléphonique et le renvoi d'appels sont configurés séparément et ne font pas partie de cette simulation de site Web.",
+    "payoff": "Captez plus de demandes et donnez à votre équipe plus d'occasions de gagner des clients. Les résultats dépendent de la valeur de vos prospects et de votre taux de conversion.",
+    "namePlaceholder": "Votre nom complet *",
+    "emailPlaceholder": "Courriel (facultatif)",
+    "submit": "Montrez-moi ma démo IA",
+    "missingInfo": "Information manquante",
+    "fixFields": "Veuillez remplir les champs requis et réessayer.",
+    "loadingDemo": "Chargement de la démo",
+    "openingSaved": "Ouverture avec les renseignements enregistrés.",
+    "errorTitle": "Une erreur s'est produite",
+    "errorDesc": "Veuillez réessayer.",
+    "goToProspects": "Aller aux prospects",
+    "disclaimerLead": "⚡ Petit avertissement sur la démo :",
+    "disclaimer": " Il s'agit d'une simulation voix/clavardage de site Web générée par l'IA, pas d'une installation complète ni d'une base de connaissances d'entreprise vérifiée. Le temps de préparation varie. Les connaissances de production doivent être révisées par vous; le renvoi téléphonique aux clients, les transferts avec résumé et les calendriers exigent une configuration autorisée et des tests distincts.",
+    "trusted": "Essayez-la avant de choisir un forfait",
+    "free": "Gratuit",
+    "noSignup": "Aucune inscription requise",
+    "benefits": {
+      "transfer": {
+        "label": "Transfert téléphonique — configuration requise",
+        "desc": "Transfert planifié vers un directeur avec un résumé privé de l'IA, après la configuration et les tests"
+      },
+      "sms": {
+        "label": "Textos — bientôt offerts",
+        "desc": "Les notifications et rappels attendent l'approbation de l'opérateur et la configuration"
+      },
+      "email": {
+        "label": "Résumé par courriel",
+        "desc": "Copie de la transcription/du résumé sur demande en option; les rapports automatiques aux clients exigent une configuration"
+      },
+      "crm": {
+        "label": "Capture de prospects et CRM",
+        "desc": "Captez les demandes pour examen; les connexions au CRM du client exigent une configuration"
+      },
+      "receptionist": {
+        "label": "Voix et clavardage sur site Web",
+        "desc": "Réponses prises en charge et demandes de rendez-vous; réponse téléphonique après la configuration"
+      },
+      "capture": {
+        "label": "Occasions de prospects",
+        "desc": "Aidez les visiteurs du site Web à poser des questions et à partager leurs coordonnées ou leurs demandes de devis"
+      }
+    },
+    "back": "Retour",
+    "home": "Accueil",
+    "backToHome": "Retour à l'accueil",
+    "aspenPortraitAlt": "Aspen, votre porte-parole IA",
+    "resumeTitle": "Bon retour — votre démo est enregistrée",
+    "resumeBody": "Reprenez exactement où vous étiez rendu avec {{name}}.",
+    "resumeContinue": "Continuer ma démo",
+    "resumeDismiss": "Ignorer la démo enregistrée",
+    "examplesDisclaimer": "Exemples publics, pas des clients ni des classements vérifiés. L'accès aux sites Web et les inscriptions Google peuvent changer.",
+    "viewLocationSource": "Voir la source de l'emplacement de l'entreprise",
+    "auditNameLabel": "Nom de l'entreprise / de la succursale",
+    "auditNamePlaceholder": "Nom exact de l'entreprise sur Google",
+    "auditLocationLabel": "Adresse de la succursale locale ou ville + province/État",
+    "auditLocationPlaceholder": "Facultatif pour une recherche Google à l'échelle nationale",
+    "auditKeywordLabel": "Mot-clé de recherche des clients",
+    "auditKeywordPlaceholder": "ex. plombier, fabrication sur mesure, fournitures industrielles",
+    "auditSeparateNote": "L'audit de classement et la démo de site Web fonctionnent séparément. Le mode local Maps vérifie une succursale; le mode national vérifie 25 recherches d'acheteurs Google, pas les citations par l'IA.",
+    "liveDemoSuffix": "démo en direct",
+    "brExamplesTitle": "Démos prêtes à l'emploi d'entreprises brésiliennes",
+    "brExamplesHint": "Touchez une entreprise pour ouvrir sa démo déjà construite — ou utilisez le formulaire ci-dessous avec votre propre site Web.",
+    "brVisitorName": "Visiteur",
+    "brTypes": {
+      "realEstate": "Agence immobilière",
+      "dental": "Clinique dentaire",
+      "law": "Cabinet d'avocats",
+      "gym": "Centre de conditionnement physique",
+      "languageSchool": "École de langues",
+      "autoRepair": "Atelier de réparation automobile"
+    },
+    "reassuranceAria": "Réassurance sur la sécurité du site Web"
+  },
+  "intake": {
+    "formAria": "Commencez votre démo en direct",
+    "greetingTitle": "Bonjour, je suis Aspen",
+    "greetingBody": "Dites-moi où regarder et je donnerai vie à votre site Web — puis prouvez que c'est bien vous avec un code rapide à 4 chiffres.",
+    "namePlaceholder": "Votre nom *",
+    "nameAria": "Votre nom",
+    "phonePlaceholder": "(954) 555-1234 (facultatif)",
+    "phoneAria": "Téléphone (facultatif)",
+    "urlPlaceholder": "monentreprise.com *",
+    "urlAria": "Votre site Web",
+    "emailPlaceholder": "Courriel pour votre code de démo *",
+    "emailAria": "Courriel pour votre code de vérification",
+    "channelAria": "Comment devons-nous envoyer votre code?",
+    "channelEmailTitle": "Envoyez-moi un code par courriel",
+    "channelEmailHint": "Rapide — vérifiez vos pourriels au cas où",
+    "channelSmsTitle": "Envoyez-moi un code par texto",
+    "channelSmsSoon": "Bientôt",
+    "channelSmsSoonHint": "Bientôt offert — le courriel fonctionne aujourd'hui",
+    "channelSmsSentHint": "Envoyé à votre cellulaire",
+    "channelSmsTitleAttr": "Les codes par texto arrivent bientôt",
+    "advancedTitle": "Apprenez-en plus à Aspen (facultatif) : page supplémentaire, exploration plus profonde, documents",
+    "secondaryUrlPlaceholder": "Page supplémentaire ou deuxième site Web (facultatif)",
+    "depthTitle": "À quelle profondeur devons-nous apprendre?",
+    "depth1Label": "Niveau 1 — page et menu",
+    "depth1Hint": "Jusqu'à 20 pages liées",
+    "depth2Label": "Niveau 2 — ajouter les sous-menus",
+    "depth2Hint": "Jusqu'à 40 pages liées",
+    "uploadButton": "Téléverser un PDF / document / texte (max {{max}}, 10 Mo chacun)",
+    "removeFile": "Retirer {{name}}",
+    "verifyToggleLabel": "Vérifier la démo",
+    "verifyToggleHint": "(test seulement — désactivé saute l'étape du code)",
+    "verifyToggleAria": "Vérifier la démo (bascule de test)",
+    "smsConsentAria": "Facultatif : envoyez-moi par texto mon lien de démo et mes résultats",
+    "submit": "Montrez-moi mon site Web qui parle",
+    "trustLine": "Gratuit · Aucune carte de crédit · Votre site n'est jamais modifié",
+    "errName": "Entrez votre nom",
+    "errEmail": "Entrez un courriel valide",
+    "errUrlRequired": "Entrez l'URL de votre site Web",
+    "errUrlInvalid": "Entrez un domaine valide (ex. monentreprise.com)",
+    "toastUnsupportedTitle": "Fichier non pris en charge",
+    "toastUnsupportedDesc": "{{name}} doit être un PDF, un document Word ou un fichier texte.",
+    "toastTooLargeTitle": "Fichier trop volumineux",
+    "toastTooLargeDesc": "{{name}} dépasse 10 Mo.",
+    "toastAlmostTitle": "Presque là",
+    "toastAlmostDesc": "Veuillez vérifier les champs surlignés.",
+    "toastErrorTitle": "Une erreur s'est produite",
+    "toastErrorDesc": "Veuillez réessayer.",
+    "codeResendCooldown": "Un code vient d'être envoyé — vérifiez votre boîte de réception dans un moment.",
+    "codeSendFailed": "Nous n'avons pas pu envoyer votre code de vérification. Veuillez vérifier l'adresse courriel et réessayer.",
+    "leadNotCreated": "Le prospect de démo n'a pas été créé"
+  },
+  "consent": {
+    "smsLabel": "Textos : envoyez-moi mon lien de démo et mes résultats — et des suivis au sujet d'AiHiddenLeads — par texto. Facultatif; la démo fonctionne de toute façon. Des frais de messagerie et de données peuvent s'appliquer; répondez STOP pour cesser.",
+    "disclosure": "En continuant, vous acceptez qu'AI Hidden Leads puisse vous contacter au sujet de votre démo et de nos services par appel et par courriel. Nous ne vous textons que si vous cochez la case Texto ci-dessus. Le consentement n'est pas une condition d'achat. Des frais de messagerie et de données peuvent s'appliquer. Répondez STOP pour cesser les textos."
+  },
+  "demoSite": {
+    "previewEyebrow": "Aperçu de démo",
+    "noLeadTitle": "Sélectionnez un prospect pour ouvrir la démo en direct",
+    "noLeadBody": "Cette page sert à prévisualiser le site Web d'une entreprise précise avec les widgets vocaux et de clavardage d'Aspen superposés par-dessus.",
+    "goToProspects": "Aller aux prospects",
+    "backToHomepage": "Retour à la page d'accueil",
+    "homepage": "Page d'accueil",
+    "openSiteTitle": "Ouvrir le site Web de {{name}}",
+    "siteTitle": "Site Web de {{name}}",
+    "siteLiveTitle": "Site Web de {{name}} (vue en direct)",
+    "simulationPreview": "Aperçu de simulation",
+    "learning": "· Apprentissage…",
+    "installShort": "Installer",
+    "installLong": "Obtenir le code d'installation",
+    "siteUnchangedShort": "Site d'origine inchangé",
+    "siteUnchangedLong": "Votre vrai site Web n'est pas modifié.",
+    "testPhoneOverride": "Remplacement du téléphone de test",
+    "transferTestLabel": "Test de transfert vers un autre numéro",
+    "transferWillGo": "✅ Les transferts iront à {{number}}",
+    "transferInvalid": "⚠️ Numéro invalide — utilisation du numéro par défaut",
+    "transferDefault": "Numéro par défaut utilisé : {{number}}",
+    "transferDefaultNone": "Numéro par défaut utilisé : aucun",
+    "scanFallbackEyebrow": "Aperçu basé sur l'analyse",
+    "scanFallbackTitle": "Nous n'avons pas pu charger le site Web en direct; cette démo utilise donc le résultat de l'analyse.",
+    "scanFallbackBody": "Aspen peut quand même utiliser les services, les messages et les coordonnées d'entreprise capturés ici, sans vous laisser sur une page blanche.",
+    "statusUnavailable": "Site Web non disponible",
+    "statusScanFailed": "Le site Web n'a pas pu être lu",
+    "statusPreviewUnavailable": "Aperçu non disponible",
+    "unreachableTitle": "Ce site Web n'a pas répondu",
+    "scanFailedTitle": "Nous n'avons pas pu accéder au contenu de ce site Web",
+    "scanFailedBody1a": "Bonjour, nous avons essayé de lire et d'apprendre de ",
+    "scanFailedBody1b": ", mais il semble que le site Web bloque l'accès automatisé, utilise une technologie que nous n'avons pas pu analyser, ou que l'URL contient peut-être une faute de frappe.",
+    "scanFailedBody2a": "Pour cette démo, Aspen ne pourra pas simuler le contenu réel de votre site Web parce que nous n'avons pas pu y accéder. Cependant, dans la ",
+    "scanFailedStrong": "vraie mise en œuvre",
+    "scanFailedBody2b": ", nous allons en coulisses déployer manuellement une base de connaissances exacte, de sorte que l'IA vocale parle correctement de vos produits et services.",
+    "renderFailedTitle": "Nous n'avons pas pu afficher ce site Web ici",
+    "scanFailedBody3": "Cette démo rapide est conçue pour fonctionner en moins de deux minutes — mais elle a besoin de l'accès au site Web pour briller. Vous pouvez essayer une autre URL que vous connaissez, et nous pouvons simuler la même expérience avec un autre site Web!",
+    "unreachableBody": "Nous avons recueilli les coordonnées de l'entreprise, mais cette adresse de site Web semble hors ligne, brisée ou incorrecte en ce moment; il n'y avait donc aucune page en direct à afficher.",
+    "renderFailedBody": "Ce site a bloqué l'aperçu en direct et la session de navigateur de secours ne s'est pas chargée correctement; nous sommes donc passés à une solution de rechange sûre.",
+    "websiteUrlLabel": "URL du site Web",
+    "scanResultLabel": "Résultat de l'analyse",
+    "tryAnother": "Essayer un autre site Web",
+    "back": "Retour",
+    "trySiteAnyway": "Essayer le site quand même",
+    "openSite": "Ouvrir le site",
+    "headerAria": "En-tête de la démo d'entreprise",
+    "toastScanBackground": "La démo en direct s'est ouverte, mais l'analyse du site recueille encore des détails en arrière-plan.",
+    "toastLoadingDetails": "Le site Web en direct se charge, mais Aspen recueille encore les coordonnées de l'entreprise."
+  },
+  "gate": {
+    "sentEmail": "Je viens d'envoyer votre code à votre courriel — il est valide 10 minutes. Si vous ne le voyez pas, vérifiez votre dossier de pourriels ou de promotions. J'attends juste ici. Pendant que vous vérifiez — une question sur nous? Demandez-moi, je suis là.",
+    "sentSms": "Je viens d'envoyer votre code par texto — il est valide 10 minutes. J'attends juste ici. Pendant que vous vérifiez — une question sur nous? Demandez-moi, je suis là.",
+    "firstNudge": "Est-il arrivé? Je peux le renvoyer, ou changer de canal si c'est plus facile.",
+    "finalNudge": "Votre code est encore valide pour quelques minutes. Je peux en envoyer un nouveau si vous voulez, ou nous pouvons reprendre plus tard — comme vous préférez.",
+    "exit": "Aucune hâte — votre démo reste enregistrée. Revenez quand vous voulez et dites « continuez ma démo » et nous reprendrons juste ici.",
+    "verified": "Merci — ça a marché, vous êtes dedans. Dans un instant, je passerai en mode simulation et je deviendrai l'assistante de votre entreprise; traitez-moi donc comme un tout nouvel appelant — prix, détails, tout ce que vous voulez savoir.",
+    "openingDemo": "Ouverture de votre démo…",
+    "watchSample": "Regarder plutôt une démo échantillon",
+    "ratherSample": "Vous préférez ne pas le faire? Regardez une démo échantillon",
+    "expiredTitle": "Ce code a expiré",
+    "lockedTitle": "Trop d'essais",
+    "expiredBody": "Les codes sont valides 10 minutes. Envoyez-en un nouveau et nous reprendrons juste ici.",
+    "lockedBody": "Ce code est verrouillé après trop d'essais. Envoyez-en un nouveau et nous reprendrons juste ici.",
+    "sending": "Envoi…",
+    "resendFresh": "Renvoyer un nouveau code",
+    "titleReady": "Votre démo de {{name}} est prête",
+    "enterCode": "Entrez le code à 4 chiffres que nous avons envoyé à {{target}} pour entrer.",
+    "digitAria": "Chiffre {{index}} sur 4",
+    "checking": "Vérification…",
+    "verifyButton": "Vérifier et entrer",
+    "resendCode": "Renvoyer le code",
+    "useText": "Utiliser le texto plutôt",
+    "useEmail": "Utiliser le courriel plutôt",
+    "errMismatch": "Ce code ne correspond pas — veuillez réessayer.",
+    "errCheckFailed": "Une erreur s'est produite lors de la vérification de ce code — veuillez réessayer.",
+    "noticeSmsSoon": "Les codes par texto arrivent bientôt — le courriel fonctionne aujourd'hui.",
+    "noticeWaitResend": "Veuillez attendre un moment avant de renvoyer.",
+    "noticeResendFailed": "Impossible de renvoyer le code — veuillez réessayer dans un moment.",
+    "waitingTitle": "Aspen attend votre code",
+    "waitingBody": "Elle est toujours là — dites les 4 chiffres à voix haute ou tapez-les dans la carte.",
+    "errMismatchTries": "Ce code ne correspond pas — il reste {{count}} essais. Les cases montrent ce qui a été entré — voulez-vous le taper plutôt?",
+    "noticeWaitSeconds": "Veuillez attendre {{count}} secondes avant de renvoyer."
+  },
+  "card": {
+    "close": "Fermer",
+    "titleCopy": "Recevez par courriel votre copie privée de la conversation",
+    "titleAppointment": "Confirmez le rendez-vous de vente",
+    "titleFollowup": "Confirmez vos coordonnées de suivi",
+    "descCopy": "Transcription et résumé de l'IA · lien privé de sept jours · aucun abonnement marketing",
+    "descSales": "Équipe de vente d'AI Hidden Leads · pas l'entreprise simulée",
+    "prefilledNote": "Vos coordonnées tirées de notre conversation sont déjà remplies — rien à taper. Cochez simplement la case et touchez « Confirmer le rendez-vous », et c'est réservé.",
+    "nameLabel": "Prénom et nom",
+    "nameAria": "Nom complet confirmé",
+    "emailLabel": "Courriel",
+    "emailAria": "Courriel confirmé",
+    "phoneLabel": "Téléphone (facultatif)",
+    "phoneAria": "Téléphone confirmé",
+    "nameSpelling": "Orthographe du nom :",
+    "emailSpelling": "Orthographe du courriel :",
+    "phoneDigits": "Chiffres du téléphone :",
+    "consentCopy": "Envoyez-moi par courriel cette copie de conversation seulement. Mon courriel est exact.",
+    "consentAppointment": "Je confirme ce rendez-vous avec AI Hidden Leads.",
+    "consentFollowup": "Ces coordonnées sont exactes et j'autorise un spécialiste des ventes à me contacter au sujet de cette démo.",
+    "smsLabel": "Textos : envoyez-moi cette confirmation",
+    "notNow": "Pas maintenant",
+    "confirmAppointment": "Confirmer le rendez-vous",
+    "confirmSave": "Confirmer et enregistrer",
+    "checkDetails": "Vérifiez vos coordonnées."
+  },
+  "panel": {
+    "formWaiting": "Formulaire en attente — touchez pour ouvrir",
+    "micMuted": "Je ne vous entends pas — votre microphone est peut-être coupé ou mal réglé.",
+    "micMutedLong": "Je ne vous entends pas — votre microphone est peut-être coupé ou mal réglé. Vérifiez le réglage du microphone et regardez le niveau juste en dessous pendant que vous parlez — il devrait bouger avec votre voix.",
+    "micNoSound": "Je ne vous entends pas — votre microphone n'envoie aucun son. Touchez le bouton du micro, ou autorisez l'accès au microphone dans votre navigateur.",
+    "micSilent": "Je n'entends rien de votre microphone — il semble silencieux. Si vous utilisez un casque, vérifiez la prise ou la connexion, ou choisissez un autre microphone.",
+    "checkMicrophone": "Vérifier le microphone",
+    "reconnectMicrophone": "Reconnecter le microphone",
+    "holdToTalk": "Maintenir pour parler est ACTIVÉ — maintenez le bouton pendant que vous parlez",
+    "micLevel": "Niveau du microphone",
+    "signInAdmin": "Connectez-vous comme administrateur pour continuer les tests",
+    "audioPaused": "L'audio est en pause. Terminez l'appel et appuyez à nouveau sur Commencer pour activer le son.",
+    "tapForSound": "Touchez pour le son",
+    "startTimeout": "Le démarrage de l'assistante vocale a pris trop de temps. Vérifiez l'autorisation du microphone et réessayez.",
+    "initialStatus": "Choisissez une voix et appuyez sur Commencer — puis parlez simplement, comme un vrai appel téléphonique. Vous pouvez l'interrompre.",
+    "micLevelShort": "Niveau du micro",
+    "micSound": "Son — votre voix est captée",
+    "micQuiet": "Silence — parlez et regardez ceci bouger",
+    "connecting": "Connexion…",
+    "salesNavAria": "Prochaines étapes avec AI Hidden Leads",
+    "salesDemoTitle": "Ouvrir la démo du site Web dans un nouvel onglet",
+    "salesBookTitle": "Réserver une présentation de 30 minutes dans un nouvel onglet",
+    "salesPlanTitle": "Choisir votre forfait dans un nouvel onglet",
+    "errorRestartBody": "La fenêtre d'Aspen doit redémarrer. Votre page reste disponible.",
+    "errorRestartButton": "Redémarrer Aspen"
+  },
+  "scan": {
+    "greetingWithName": "Bonjour {{name}}, merci d'essayer notre IA!",
+    "greeting": "Merci d'essayer notre IA!",
+    "buildingPrefix": "Nous construisons une démo en direct de",
+    "withAi": "avec la voix et le clavardage IA",
+    "buildingSuffix": "— personnalisée pour votre entreprise. Un instant!",
+    "eyebrow": "Construction de votre démo en direct",
+    "readyTitle": "Votre démo est prête!",
+    "readyDetail": "Le vrai site avec la voix IA, le clavardage et le transfert accompagné.",
+    "complete": "Terminé",
+    "progress": "{{progress}} % — Analyse du site Web et préparation des widgets…",
+    "stop": "Arrêter la création de la démo en direct",
+    "questionsPrefix": "Des questions? Demandez à notre IA vocale de",
+    "transferSpecialist": "vous transférer à un spécialiste des ventes",
+    "questionsSuffix": "en tout temps pendant la démo.",
+    "steps": {
+      "content": {
+        "label": "Analyse du contenu du site Web",
+        "detail": "Lecture des pages, des services et des coordonnées…"
+      },
+      "presence": {
+        "label": "Analyse de votre présence en ligne",
+        "detail": "Capture d'écran et détails de la marque…"
+      },
+      "voice": {
+        "label": "Préparation de la démo vocale IA",
+        "detail": "Configuration de sa voix, de son message d'accueil et de ses connaissances sur votre entreprise…"
+      },
+      "chat": {
+        "label": "Configuration du clavardage IA",
+        "detail": "Préparation de réponses instantanées à partir du contenu de votre site…"
+      },
+      "transfer": {
+        "label": "Activation des transferts accompagnés",
+        "detail": "Connexion du transfert en direct vers votre téléphone…"
+      },
+      "final": {
+        "label": "Finalisation de votre démo en direct",
+        "detail": "Les dernières touches à votre démo…"
+      }
+    },
+    "featuresTitle": "Pendant que vous attendez — ce qu'elle fait pour vous",
+    "previousFeature": "Fonctionnalité précédente",
+    "nextFeature": "Fonctionnalité suivante",
+    "benefits": {
+      "videoAvatar": {
+        "headline": "Pas seulement une voix — un visage sur votre site Web",
+        "body": "Rencontrez votre porte-parole IA — un avatar vidéo en diffusion en direct qui accueille les visiteurs face à face sur votre site Web et tient une conversation vidéo bidirectionnelle avec eux.",
+        "avatarsNote": "Aspen, Frank, Sara — et plus encore à choisir."
+      },
+      "conversation": {
+        "headline": "Une vraie conversation à double sens",
+        "body": "Elle écoute, répond aux questions et pose les bonnes en retour — aucun script lu à vos visiteurs, aucune impasse d'arborescence téléphonique."
+      },
+      "dashboard": {
+        "headline": "Chaque appel dans un seul tableau de bord",
+        "body": "Chaque appel, transcription, texto et rendez-vous au même endroit — suivez tout de n'importe où, et rien ne passe entre les mailles."
+      },
+      "appointments": {
+        "headline": "Réservé — et confirmé — automatiquement",
+        "body": "La réservation commence par la préférence de l'appelant — son heure préférée d'abord — puis elle la confirme sur-le-champ et envoie la confirmation automatiquement. Fini le téléphone tag."
+      },
+      "warmTransfer": {
+        "headline": "Transfert accompagné, avec un briefing de l'IA",
+        "body": "Quand un appelant a besoin d'une personne, elle vous transfère l'appel en direct — après vous avoir briefé avec un résumé de la conversation par l'IA. Vous décrochez en connaissant l'histoire, et vous gardez le contrôle de chaque appel."
+      },
+      "readyFast": {
+        "headline": "Prête en moins de deux minutes",
+        "body": "La démo que vous êtes sur le point d'essayer a été préparée à partir de votre site Web en moins de deux minutes — c'est à cette vitesse qu'elle apprend une entreprise."
+      }
+    }
+  },
+  "footer": {
+    "privacy": "Politique de confidentialité",
+    "terms": "Conditions d'utilisation",
+    "smsConsent": "En utilisant nos services, vous consentez à recevoir des textos de la part d'AI Hidden Leads. La fréquence des messages varie. Répondez STOP pour vous désabonner. Répondez HELP pour de l'aide. Des frais de messagerie et de données peuvent s'appliquer. Le consentement n'est pas une condition d'achat.",
+    "copyright": "Génération de prospects et automatisation des ventes propulsées par l'IA.",
+    "rights": "Tous droits réservés."
+  },
+  "diff": {
+    "badge": "Essayez-la avant de décider",
+    "title1": "Plus qu'un visiteur.",
+    "title2": "Entamez une conversation.",
+    "sub": "Aidez les visiteurs de votre site Web à poser des questions, à expliquer ce qu'il leur faut et à passer à une prochaine étape utile. Commencez par une simulation gratuite en direct — pas une promesse de vente.",
+    "c1": {
+      "title": "Votre entreprise, vos réponses",
+      "desc": "Apprenez à partir des pages lisibles de votre site Web, puis examinez les connaissances de l'assistant. Ajoutez des FAQ et des documents pour les faits que votre site Web ne couvre pas."
+    },
+    "c2": {
+      "title": "Commencez petit, grandissez délibérément",
+      "desc": "Premium combine la voix et le clavardage sur site Web avec 50 prospects B2B par mois pour 99 $. La vidéo en direct et les services supplémentaires ont des prix clairs et distincts."
+    },
+    "c3": {
+      "title": "Essayez-la sur votre site",
+      "desc": "Entrez votre URL, testez la conversation et posez vos questions à Aspen. La démo gratuite laisse votre vrai site Web intact; la préparation de l'analyse et de la vidéo varie."
+    }
+  },
+  "avatar": {
+    "talkCta": "Parlez à Aspen 🎙️",
+    "talkButton": "Parler à Aspen",
+    "tagline": "AI Hidden Leads",
+    "connecting": "Connexion…",
+    "live": "En direct",
+    "speaking": "En train de parler",
+    "listening": "Écoute en cours",
+    "muted": "Son coupé",
+    "agentSpeaking": "🗣️ Aspen parle — intervenez quand vous voulez!",
+    "agentListening": "🎙️ Écoute en cours...",
+    "intro": "Salut! Je suis Aspen, d'A-I Hidden Leads. Laissez-moi vous montrer comment nous aidons les entreprises à cesser de perdre des prospects et à gagner plus d'argent!",
+    "introLeadIn": "Salut! Je suis",
+    "introMid": "de",
+    "introTail": "Laissez-moi vous montrer comment nous aidons les entreprises à cesser de perdre des prospects et à gagner plus d'argent!",
+    "tryFree": "🚀 Essayez notre démo gratuite — faites défiler vers le bas!",
+    "mute": "Couper le son",
+    "unmute": "Rétablir le son",
+    "minimize": "Réduire",
+    "expand": "Agrandir",
+    "close": "Fermer",
+    "endCall": "Terminer l'appel"
+  },
+  "demo": {
+    "homepage": "Page d'accueil",
+    "liveDemo": "Démo en direct",
+    "building": "Construction",
+    "getMoreInfo": "Plus d'information",
+    "brandTag": "AI Hidden Leads",
+    "tryAnother": "Essayer un autre site Web",
+    "back": "Retour",
+    "openSite": "Ouvrir le site",
+    "trySiteAnyway": "Essayer le site quand même",
+    "talkToAspen": "Parler à Aspen",
+    "aiVoice": "Voix IA",
+    "chatWithAspen": "Clavarder avec Aspen",
+    "aiChat": "Clavardage IA",
+    "voiceAssistant": "Assistant vocal IA",
+    "connectingTransfer": "Connexion du transfert...",
+    "callInProgress": "Appel en cours",
+    "readyToStart": "Prêt à commencer",
+    "mute": "Couper le son",
+    "unmute": "Rétablir le son",
+    "end": "Terminer",
+    "startCall": "Démarrer l'appel vocal",
+    "connecting": "Connexion...",
+    "sendRecap": "📧 Envoyez-moi le récapitulatif par courriel",
+    "sendingRecap": "Envoi du récapitulatif…",
+    "recapSent": "✅ Récapitulatif envoyé par courriel!",
+    "seePromo": "🚀 Voir notre promotion — visitez AIHiddenLeads.com",
+    "audioOutput": "Sortie audio",
+    "outputSpeaker": "Haut-parleur",
+    "outputBluetooth": "Bluetooth",
+    "outputPhone": "Téléphone",
+    "askAbout": "Posez des questions sur {{business}}, demandez un transfert en direct à {{owner}}, ou réservez un rendez-vous de 15 minutes.",
+    "liveDemoDesc": "Ceci est une démo en direct de la voix IA pour {{business}}. Aspen peut répondre aux questions, vous transférer en direct au propriétaire, ou réserver un rendez-vous.",
+    "dismiss": "Ignorer",
+    "transferConnecting": "Connexion avec {{owner}} en cours... Votre téléphone sonnera bientôt.",
+    "transferHint": "Répondez à l'appel entrant pour joindre la conférence en direct."
+  },
+  "faqSection": {
+    "badge": "AIDE ET FAQ",
+    "title": "Des questions? Nous avons les réponses.",
+    "subtitle": "Tarifs, limites, dépassements, sources de prospects et fonctionnement — tout est expliqué clairement.",
+    "footer": "Encore des questions? Parlez à Aspen (en bas à droite) ou remontez pour réserver une démo en direct.",
+    "items": [
+      {
+        "q": "Quelle est la meilleure réceptionniste IA pour une petite entreprise?",
+        "a": "La meilleure réceptionniste IA pour une petite entreprise répond à chaque appel instantanément, jour et nuit, réserve les rendez-vous dans votre calendrier et vous envoie un résumé après chaque appel. AiHiddenLeads est bâti selon cette liste : Aspen répond par la voix et le clavardage sur site Web, peut paraître comme un avatar vidéo en direct, et commence à 99 $/mois avec 400 minutes vocales incluses. Le test honnête, c'est votre propre site Web — la démo gratuite en direct prend environ 2 minutes."
+      },
+      {
+        "q": "Combien coûte une réceptionniste IA par mois?",
+        "a": "Premium coûte 99 $/mois — le prix permanent — avec 400 minutes vocales, le clavardage sur site Web et jusqu'à 50 prospects B2B par mois inclus (aucun nombre précis n'est garanti). Professionnel coûte 199 $/mois avec 1 200 minutes et jusqu'à 100 prospects, et Platine coûte 349 $/mois avec 2 500 minutes et jusqu'à 200 prospects. Les frais de configuration de 199 $ sont annulés jusqu'à la fin du mois, et l'avatar vidéo en direct d'Aspen est un supplément facultatif à 79 $/mois sur n'importe quel forfait — son premier mois est gratuit."
+      },
+      {
+        "q": "Existe-t-il une réceptionniste IA avec un avatar vidéo?",
+        "a": "Oui. Aspen, la réceptionniste IA d'AiHiddenLeads, peut paraître sur votre site Web comme un avatar vidéo en direct, synchronisé aux lèvres — votre porte-parole IA — pendant qu'elle parle aux visiteurs par la voix et le clavardage. L'avatar est un supplément facultatif à 79 $/mois sur n'importe quel forfait — et son premier mois est gratuit; la réceptionniste vocale fonctionne seule si vous le sautez. Vous pouvez la voir à l'œuvre dans la démo gratuite en direct sur votre propre site Web."
+      },
+      {
+        "q": "Une réceptionniste IA répond-elle aux appels 24/7 et réserve-t-elle les rendez-vous?",
+        "a": "Oui. Aspen répond 24/7 — les nuits, les fins de semaine et les jours fériés — de sorte que les appelants n'atterrissent jamais dans la boîte vocale; 85 % des appelants qui tombent sur la boîte vocale ne rappellent pas. Elle réserve les rendez-vous directement dans votre calendrier, envoie des confirmations et des rappels, et peut transférer un appelant directement à vous quand un humain est nécessaire."
+      },
+      {
+        "q": "En quoi une réceptionniste IA diffère-t-elle d'un service de réponse?",
+        "a": "Un service de réponse traditionnel fait prendre des messages par des gens — souvent avec des frais pour chaque message ou chaque minute — et vous rappelez plus tard. Une réceptionniste IA répond instantanément, suit votre script de la même façon à chaque appel et fait le travail pendant l'appel même : répondre aux questions, réserver le rendez-vous et vous envoyer un résumé avec la transcription. Chez AiHiddenLeads, le prix est un forfait mensuel fixe avec des minutes incluses, pas un compteur qui tourne à chaque message."
+      },
+      {
+        "q": "Qu'est-ce qui est inclus dans Premium à 99 $/mois?",
+        "a": "Premium comprend 400 minutes vocales navigateur par mois pendant la promotion de lancement actuelle, le clavardage sur site Web et 50 prospects B2B par mois. Professionnel coûte 199 $ avec 1 200 minutes et 100 prospects; Platine coûte 349 $ avec 2 500 minutes et 200 prospects. La vidéo en direct est facultative et l'utilisation téléphonique est distincte."
+      },
+      {
+        "q": "Puis-je l'essayer sur mon propre site Web avant de payer?",
+        "a": "Oui. Lancez la démo gratuite en direct avec l'URL de votre site Web et votre nom. Nous apprenons les pages publiques lisibles et superposons l'assistant sur un aperçu de votre site Web réel. Nous ne modifions pas votre site en direct. La préparation de l'analyse et de la vidéo dépend du site et de la connexion; il n'y a aucune garantie d'achèvement en deux minutes."
+      },
+      {
+        "q": "Une voix IA naturelle comprend-elle la vidéo en direct?",
+        "a": "Tous les forfaits comprennent la voix naturelle bidirectionnelle sur site Web avec un portrait fixe et le clavardage. La vidéo en direct, synchronisée aux lèvres, est un supplément facultatif à 79 $/mois sur chaque forfait, avec des minutes vidéo incluses correspondant à votre forfait (Premium 400, Professionnel 1 200, Platine 2 500) — et le premier mois de l'avatar est gratuit."
+      },
+      {
+        "q": "Peut-elle répondre à mon numéro de téléphone d'entreprise?",
+        "a": "La voix sur site Web est disponible dès maintenant. La réponse téléphonique aux clients et le renvoi d'appels sont disponibles et activés pour chaque entreprise après la configuration et les tests. L'offre prévue prend en charge le renvoi après les heures d'ouverture/appels manqués ou tous les appels; Professionnel et Platine comprennent un numéro local et le transfert, avec l'utilisation téléphonique distincte à 5 ¢/minute. Le routage, la facturation et les plafonds de dépenses doivent être vérifiés avant l'activation."
+      },
+      {
+        "q": "Puis-je connecter mon calendrier ou mon CRM?",
+        "a": "Vous pouvez réserver une rencontre avec notre équipe via notre calendrier de vente en direct. Votre propre calendrier exige une autorisation et une connexion vérifiée. L'exportation CSV des rapports d'appels par l'administrateur et l'envoi par webhook d'un seul rapport examiné existent; la synchronisation CRM des clients et la livraison automatisée ne sont pas en direct. Une vraie destination Zapier doit encore être testée."
+      },
+      {
+        "q": "Les appels sont-ils enregistrés et puis-je recevoir un résumé?",
+        "a": "Les appels navigateur commencent par une divulgation d'enregistrement. Les transcriptions privées, les résumés de l'IA et les segments audio par locuteur soutiennent l'examen interne; ce n'est pas un enregistrement téléphonique mixte continu. Les visiteurs peuvent demander un lien de transcription/résumé avec une confirmation explicite. La livraison automatique par appel ou hebdomadaire aux clients exige une configuration supplémentaire; aucune inscription marketing automatique."
+      },
+      {
+        "q": "D'où viennent les prospects B2B inclus?",
+        "a": "Les prospects d'entreprise sont recherchés à partir de sources d'entreprises publiques par secteur cible et région, avec examen des preuves de contact disponibles. Premium en comprend 50 par mois, Professionnel 100 et Platine 200. Un prospect n'est pas un acheteur inscrit ni une vente garantie, et tous les dossiers n'ont pas un courriel ou un téléphone de propriétaire vérifié."
+      },
+      {
+        "q": "Les textos et les publications sociales sont-ils automatiques?",
+        "a": "Les confirmations, rappels et résumés par texto arrivent bientôt, en attente de l'approbation de l'opérateur et de frais distincts. Le contenu social, la planification et les réponses permises exigent une portée convenue, des comptes connectés et une approbation; la publication ou la messagerie autonome n'est pas connectée ici pour le moment."
+      },
+      {
+        "q": "Combien de temps prend la configuration?",
+        "a": "Essayez d'abord la simulation de site Web, puis examinez les connaissances de votre entreprise, la voix et l'apparence dans la configuration guidée. La préparation à la production dépend de votre site Web, de l'installation et de toute connexion autorisée au calendrier ou au téléphone. Nous ne promettons pas d'échéance de déploiement fixe."
+      },
+      {
+        "q": "Puis-je annuler, et y a-t-il une garantie?",
+        "a": "Les forfaits sont mensuels. L'annulation prend effet à la fin de la période payée; les changements de forfait sont calculés au prorata immédiatement. Les frais mensuels du forfait ont une garantie de remboursement de 14 jours. Examinez les conditions des services facultatifs et de l'utilisation avant le paiement."
+      }
+    ]
+  },
+  "mapVisibility": {
+    "headlineStart": "Aidez les clients des environs",
+    "headlineAccent": "à trouver votre entreprise.",
+    "disclaimer": "Avant et après illustrés — pas des classements mesurés ni une promesse de résultats en 14 jours.",
+    "beforeLabel": "Avant",
+    "afterLabel": "Après · Objectif illustré",
+    "beforeTitle": "Exemple : visibilité avant l'optimisation",
+    "afterTitle": "Objectif de visibilité illustré après l'optimisation",
+    "pinLabel": "Point de contrôle {{mode}} {{n}} : classement illustré {{rank}}",
+    "topThree": "Points de contrôle dans le top 3",
+    "legend": {
+      "good": "#1–3 · Visible",
+      "warning": "#4–10 · À risque",
+      "bad": "#11+ · Faible visibilité"
+    },
+    "selected": "Point de contrôle échantillon {{n}} : avant #{{before}} → après #{{after}}",
+    "office": "Emplacement d'entreprise échantillon — pas votre classement mesuré",
+    "cta": "Vérifier ma carte en 25 points + démo IA en direct de mon site Web — gratuit",
+    "auditNote": "Les cartes de la page d'accueil sont illustrées. Votre démo offre un audit en direct là où c'est pris en charge; les classements mesurés dépendent de l'emplacement et du mot-clé de recherche. Aucune garantie de classement ni de citation par l'IA.",
+    "timelineTitle": "D'une visibilité plus claire à des actions mieux éclairées",
+    "week1Title": "D'abord — capter les conversations du site Web",
+    "week1Text": "Passez en revue les connaissances de votre assistant sur votre entreprise et son installation, puis commencez à traiter les demandes du site Web. La livraison de prospects B2B suit la portée du forfait; le service téléphonique est activé après la configuration et les tests.",
+    "days1to14Title": "Ensuite — prioriser les améliorations du profil et du site Web",
+    "days1to14Text": "Examinez les données de recherche, les catégories de votre profil d'entreprise et les données de site Web lisibles par l'IA. Convenez des correctifs pertinents et appliquez-les; ce sont les plateformes de recherche qui contrôlent le classement.",
+    "days15to60Title": "En continu — mesurer, examiner et raffiner",
+    "days15to60Text": "Examinez la visibilité et les demandes au fil du temps. Les publications de profil, les demandes d'avis honnêtes et les améliorations de contenu exigent une autorisation et une portée convenue — pas une expansion de classement garantie.",
+    "badge": "Audit de visibilité locale en 25 points"
+  },
+  "voice": {
+    "consentTitle": "Essayez une démo en direct avec {{name}}",
+    "consentBody": "Cet appel est enregistré. L'audio, la transcription et le résumé de l'IA sont conservés en privé pour examen par notre équipe. Une copie est envoyée par courriel seulement si vous le demandez. Commencer signifie que vous acceptez.",
+    "consentStart": "Commencer et accepter",
+    "readyToTalk": "Prêt à parler",
+    "connecting": "Connexion…",
+    "reconnecting": "Reconnexion…",
+    "pressPlayReconnect": "Appuyez sur Lecture pour vous reconnecter à {{name}}.",
+    "noConversation": "Aucune conversation pour le moment.",
+    "you": "Vous",
+    "handoffTo": "— {{name}} prend le relais —",
+    "callerTranscript": "Transcription de l'appelant",
+    "aspenTranscript": "Transcription d'Aspen",
+    "transcriptLabel": "Transcription de la conversation",
+    "demoTimeRemaining": "Temps de démo restant",
+    "play": "Lecture",
+    "end": "Terminer",
+    "mute": "Couper le son",
+    "unmute": "Rétablir le son",
+    "pause": "Pause",
+    "resume": "Reprendre",
+    "silence": "Silence",
+    "soundOn": "Son activé",
+    "replay": "Relire",
+    "stopReplay": "Arrêter la relecture",
+    "hold": "Attente",
+    "settings": "Réglages",
+    "managerHandoff": "Transfert au gérant",
+    "paused": "En pause",
+    "replayingSavedAudio": "Relecture de l'audio enregistré",
+    "micMuted": "Microphone coupé",
+    "speaking": "{{name}} parle",
+    "holdToTalk": "Maintenir pour parler",
+    "listening": "Écoute en cours",
+    "captions": "Sous-titres",
+    "hideCaptions": "Masquer les sous-titres",
+    "showCaptions": "Afficher les sous-titres",
+    "captionsTip": "Vous voulez suivre en texte? Touchez le bouton « Sous-titres » pour voir les sous-titres de cette conversation.",
+    "captionsTipDismiss": "Ignorer",
+    "mic": "Micro",
+    "sound": "Son",
+    "quiet": "Silence",
+    "soundDetected": "Son détecté",
+    "playVoice": "Écouter la voix",
+    "stop": "Arrêter",
+    "startConversation": "Démarrer la conversation",
+    "endConversation": "Terminer la conversation",
+    "startOver": "Recommencer comme nouveau visiteur",
+    "playToConnect": "Lecture pour se connecter à {{name}}",
+    "unmuteMic": "Réactiver le microphone",
+    "muteMic": "Couper le microphone",
+    "resumeConversation": "Reprendre la conversation",
+    "pauseConversation": "Mettre la conversation en pause",
+    "speakerOn": "Activer le son du haut-parleur",
+    "speakerOff": "Couper le haut-parleur (sous-titres seulement)",
+    "speakerOnShort": "Activer le son du haut-parleur",
+    "silenceSpeaker": "Couper le haut-parleur",
+    "speakerOutput": "Sortie audio",
+    "speakerVolume": "Volume du haut-parleur",
+    "speakerOutputChoose": "Choisissez où sa voix joue",
+    "speakerLoudspeaker": "Haut-parleur",
+    "speakerEarpiece": "Écouteur du téléphone",
+    "speakerBluetooth": "Bluetooth",
+    "speakerPhoneDefault": "Réglage du téléphone (son de la vidéo)",
+    "speakerMute": "Couper le son",
+    "speakerNoSelectNote": "Ce navigateur n'expose pas la sélection du haut-parleur pour le son vidéo. Le panneau de sortie média de votre téléphone peut quand même basculer vers Bluetooth ou le haut-parleur.",
+    "speakerSwitchFailed": "Impossible de basculer vers cette sortie — elle s'est peut-être déconnectée.",
+    "replayLastMessage": "Relire le dernier message",
+    "replayLastTitle": "Relire le dernier message",
+    "stopReplayTitle": "Arrêter la relecture",
+    "holdListening": "Écoute en cours — relâchez pour envoyer",
+    "voiceSettings": "Réglages vocaux",
+    "voiceSettingsDesc": "Microphone et bruit de fond",
+    "settingsLiveNote": "Le filtrage du bruit peut changer maintenant. Le microphone et le mode de conversation sont réglés avant chaque appel.",
+    "endCallToEdit": "Terminez l'appel pour modifier les réglages",
+    "noiseFiltering": "Filtrage du bruit de fond",
+    "noiseLight": "Filtrage minimal — pièce silencieuse",
+    "noiseBalanced": "Filtrage équilibré — usage quotidien",
+    "noiseStrong": "Filtrage fort — pièce bruyante",
+    "micEnvironment": "Environnement du microphone",
+    "envQuiet": "Silencieux",
+    "envNormal": "Normal",
+    "envNoisy": "Bruyant",
+    "envAuto": "Auto",
+    "micSensitivity": "Sensibilité du microphone",
+    "microphone": "Microphone",
+    "systemDefaultMic": "Microphone par défaut du système",
+    "microphoneN": "Microphone {{n}}",
+    "refreshMics": "Actualiser les microphones",
+    "refreshMicsTitle": "Autoriser l'accès et actualiser les microphones",
+    "conversationMode": "Mode de conversation",
+    "handsFree": "Mains libres",
+    "holdMode": "Endroit bruyant — maintenir pour parler",
+    "previewVoice": "Aperçu de la voix",
+    "startCallWithSettings": "Démarrer l'appel avec ces réglages",
+    "voiceLab": "Laboratoire vocal — Aspen Gemini Live",
+    "voiceLabNote": "(temps réel, Retell inchangé)",
+    "startLive": "Démarrer la conversation en direct",
+    "voiceLabel": "Voix",
+    "transcriptNote": "L'autorisation de transcription, le microphone et le mode de conversation peuvent être modifiés après la fin de cet appel. Le filtrage du bruit reste ajustable.",
+    "saveVoice": "Enregistrer la voix Gemini",
+    "voicePreviewSuffix": "Aperçu de {{voice}}",
+    "pausedResume": "En pause — appuyez sur Reprendre pour continuer",
+    "replayingMicPaused": "Relecture — microphone en pause",
+    "micPaused": "Microphone en pause",
+    "isSpeaking": "{{name}} parle",
+    "micLevel": "Niveau du microphone",
+    "openFullPage": "Ouvrir la page complète",
+    "playSelectedVoice": "Écouter la voix sélectionnée",
+    "stopVoicePreview": "Arrêter l'aperçu vocal",
+    "replaySavedTitle": "Relire le message d'accueil enregistré sans autre demande payante",
+    "replayingSavedGreeting": "Relecture du message d'accueil enregistré",
+    "playingVoice": "Lecture de {{voice}}",
+    "voiceSelected": "{{voice}} sélectionnée",
+    "preparingGreeting": "Préparation de l'audio d'accueil…",
+    "embeddedMicNotice": "Cet aperçu intégré ne peut pas utiliser votre microphone. Ouvrez la page complète pour parler à {{name}}.",
+    "audioTapNeeded": "Touchez Lecture pour activer le son sur ce téléphone. Votre connexion et votre allocation de démo restent inchangées.",
+    "videoFallback": "La vidéo exige une connexion plus rapide — vous parlez à {{name}} par la voix.",
+    "replayAudioTitle": "Relire l'audio enregistré sans autre demande à l'IA"
+  },
+  "chat": {
+    "consentTitle": "Essayez le clavardage avec {{name}}",
+    "consentBody": "Ce clavardage et son résumé par l'IA sont conservés en privé pour examen par notre équipe. Commencer signifie que vous acceptez. Une copie est envoyée seulement si vous le demandez.",
+    "consentStart": "Démarrer le clavardage et accepter",
+    "title": "Clavardage avec Aspen",
+    "subtitle": "Assistant de clavardage IA • En ligne",
+    "expand": "Agrandir le clavardage",
+    "minimize": "Réduire le clavardage",
+    "close": "Fermer le clavardage",
+    "minimizedNote": "Clavardage réduit. Agrandissez pour lire la conversation complète.",
+    "placeholder": "Demandez n'importe quoi à {{name}}...",
+    "prompts": {
+      "realtors": {
+        "1": "Quels services offrez-vous aux acheteurs et aux vendeurs?",
+        "2": "Cette IA peut-elle qualifier de nouveaux prospects immobiliers?",
+        "3": "Comment l'IA vocale aide-t-elle pour les visites et les demandes?"
+      },
+      "medspa": {
+        "1": "Quels traitements offrez-vous le plus souvent?",
+        "2": "Cet assistant peut-il répondre aux questions sur les prix et les consultations?",
+        "3": "Comment le clavardage et la voix IA peuvent-ils améliorer les réservations?"
+      },
+      "autodetail": {
+        "1": "Quels forfaits d'esthétique automobile sont offerts?",
+        "2": "Aspen peut-elle traiter les questions de devis 24/7?",
+        "3": "En combien de temps cette configuration peut-elle être ajoutée à mon site?"
+      },
+      "veterinary": {
+        "1": "Cet assistant peut-il aider pour les questions de rendez-vous vétérinaires?",
+        "2": "Comment traite-t-il les demandes urgentes après les heures d'ouverture?",
+        "3": "À quoi ressemble la configuration pour une clinique vétérinaire?"
+      },
+      "marine": {
+        "1": "Aspen peut-elle répondre aux questions sur les services nautiques?",
+        "2": "Comment cela peut-il capter des prospects après les heures d'ouverture?",
+        "3": "L'IA vocale peut-elle réduire les appels manqués?"
+      },
+      "general": {
+        "1": "Que peut faire Aspen pour mon entreprise?",
+        "2": "Comment le clavardage et la voix IA fonctionnent-ils ensemble?",
+        "3": "Puis-je planifier une visite guidée de 15 minutes?"
+      }
+    },
+    "messageAria": "Message à {{name}}",
+    "sendAria": "Envoyer un message à {{name}}",
+    "messagesAria": "Messages du clavardage avec {{name}}",
+    "emailTranscript": "Envoyer la transcription et le résumé de l'IA par courriel",
+    "copyEmailPlaceholder": "Votre courriel",
+    "copyEmailAria": "Courriel pour la copie de la conversation",
+    "confirmCopy": "Confirmer le courriel et envoyer la copie seulement",
+    "copyNote": "Aucun abonnement marketing. Le lien privé expire dans sept jours.",
+    "copyNoThanks": "Non merci",
+    "copyRequested": "Copie privée demandée.",
+    "copyUnavailable": "Demande de copie non disponible.",
+    "ctaBanner": "🚀 Profitez de notre promotion — visitez AIHiddenLeads.com",
+    "goodMorning": "Bonjour",
+    "goodAfternoon": "Bonjour",
+    "goodEvening": "Bonsoir",
+    "greetingBody": "Je suis {{name}}, l'assistante IA de {{businessName}}. Ceci est une démo en direct de la façon dont le clavardage IA et la voix IA peuvent fonctionner sur votre site Web pour répondre aux questions, capter des prospects et prendre des rendez-vous.\n\nTouchez une suggestion ci-dessous ou demandez-moi n'importe quoi.",
+    "fallback": "Excellente question. Je peux vous aider avec cela et aussi organiser un rappel ou une démo de 15 minutes avec {{owner}}.",
+    "dictate": "Dicter le message",
+    "dictateStop": "Arrêter la dictée",
+    "dictateMicDenied": "Dictée arrêtée — l'accès au microphone est bloqué. Autorisez l'accès au microphone dans votre navigateur pour dicter.",
+    "voiceMode": "Passer à la conversation vocale",
+    "attach": "Joindre un fichier",
+    "attachCamera": "Appareil photo",
+    "attachPhotos": "Photos",
+    "attachFiles": "Fichiers",
+    "cameraLive": "Caméra en direct",
+    "cameraStop": "Arrêter la caméra",
+    "cameraFlip": "Changer de caméra",
+    "cameraSnapshot": "Prendre une photo",
+    "cameraIntroAsk": "J'ai allumé ma caméra — que voyez-vous?",
+    "cameraDenied": "L'accès à la caméra est bloqué. Autorisez l'accès à la caméra dans votre navigateur pour que {{name}} puisse vous voir.",
+    "cameraUnavailable": "Aucune caméra n'est disponible sur cet appareil pour le moment.",
+    "removeAttachment": "Retirer la pièce jointe",
+    "attachTooLarge": "Ce fichier est trop volumineux — la limite est de {{size}}.",
+    "attachUnsupported": "Ce type de fichier n'est pas pris en charge. Essayez une image, un audio, une vidéo, un PDF ou un document.",
+    "listen": "Écouter cette réponse",
+    "listenError": "Impossible de lire l'audio pour le moment — veuillez réessayer.",
+    "copyReply": "Copier la réponse",
+    "copied": "Copié",
+    "rateGood": "Bonne réponse",
+    "rateBad": "Mauvaise réponse"
+  },
+  "rankAudit": {
+    "triggerFull": "Voir la grille de classement Google Maps en 25 points",
+    "triggerCompact": "Audit Maps",
+    "eyebrow": "Visibilité dans le quartier",
+    "title": "Audit Google Maps en 25 points",
+    "examplesTitle": "Exemples B2B",
+    "buyerSearches": "Recherches d'acheteurs : nettoyage commercial, réparation de flottes, fabrication sur mesure, fournitures industrielles, soutien TI aux entreprises.",
+    "recentTitle": "Audits récents",
+    "simulatedStrong": "Aperçu simulé — pas des classements en direct.",
+    "simulatedBody": " Épinglettes de quartier illustrées, pas de vrais emplacements d'entreprise ni de résultats Google mesurés. Lancez l'audit en direct ci-dessous pour mesurer la visibilité réelle.",
+    "liveData": "Données en direct",
+    "liveCached": " (en cache — 0 crédit supplémentaire)",
+    "liveMaps": "Maps",
+    "liveSearch": "Recherche",
+    "liveBody": " Vrai ordre de recherche par point de contrôle — un signal de visibilité fort, pas un classement garanti.",
+    "nameLabel": "Nom exact de l'entreprise ou de la succursale",
+    "websiteLabel": "Site Web de l'entreprise",
+    "typeAria": "Type d'audit",
+    "modeMaps": "📍 Grille Maps locale",
+    "modeNationwide": "Recherche Google à l'échelle nationale",
+    "cityLabel": "Adresse de la succursale ou ville + province/État",
+    "cityPlaceholder": "ex. Fort Lauderdale, FL",
+    "keywordLabel": "Mot-clé cible",
+    "keywordPlaceholderMaps": "ex. « plombier »",
+    "keywordPlaceholderNationwide": "ex. « fournitures industrielles »",
+    "mapsNote": "Un emplacement par analyse. Ville + province/État requis; une adresse complète de succursale aide à éviter la mauvaise succursale. Le code postal est facultatif. Les points de contrôle sont espacés de 1,6 km, à environ 2,8 milles du centre à un coin.",
+    "nationwideNote": "25 recherches d'acheteurs liées à ce site Web. Aucun code postal requis. Il s'agit de la recherche organique Google, pas d'une grille géographique ni d'un test de citation ChatGPT/Gemini.",
+    "creditsNote": "Un audit frais utilise 25 crédits Serper; les résultats identiques sont réutilisés pendant 7 jours. L'utilisation du fournisseur peut devenir coûteuse. Maximum de 30 audits frais par jour.",
+    "runButton": "Lancer l'audit en direct en 25 points",
+    "scanningButton": "Analyse de 25 points de contrôle en direct (30 à 60 s)…",
+    "capError": "La limite quotidienne d'analyses en direct est atteinte — affichage de l'aperçu simulé. Réessayez demain.",
+    "unavailableError": "L'analyse en direct n'est pas disponible pour le moment — affichage de l'aperçu simulé.",
+    "failedError": "L'analyse en direct a échoué — affichage de l'aperçu simulé.",
+    "mapFigureAria": "Audit cartographique en direct en 25 points",
+    "checkpointsCaption": "{{place}} · 25 points de contrôle en direct",
+    "mapNote": "Double contour et pointeur = emplacement de l'entreprise. Espacement de la grille : environ 1 mille; les coins sont à environ 2,8 milles de l'entreprise. Les points de contrôle inconnus ne sont pas des classements bas confirmés.",
+    "nationwideFigureAria": "Matrice de recherche nationale en direct en 25 points",
+    "nationwideCaption": "25 recherches d'acheteurs B2B · votre position organique",
+    "cellPosition": "position n° {{rank}}",
+    "cellNotTop10": "pas dans le top 10",
+    "simFigureAria": "Grille de classement de quartier simulée 5 par 5",
+    "simCaptionSuffix": "25 points de contrôle de quartier",
+    "simPinTitle": "Ligne simulée {{row}}, colonne {{col}} : classement {{rank}}",
+    "statAvg": "Classement moyen",
+    "statTop3": "Visibilité dans le top 3",
+    "statBlind": "Angles morts",
+    "legendGood": "1–3 · Visible",
+    "legendWarn": "4–10 · À risque",
+    "legendBad": "11+ · Faible visibilité",
+    "legendUnknown": "— · Introuvable / non disponible",
+    "ctaButton": "Voir Aspen en direct sur votre site Web",
+    "ctaNote": "La propulsion Google Maps et l'optimisation pour la recherche par IA sont offertes en supplément une fois que vous êtes client — nous vous les présenterons lors de votre appel de suivi.",
+    "errName": "Entrez le nom exact de l'entreprise ou de la succursale.",
+    "errKeyword": "Entrez un service que les acheteurs recherchent, comme le nettoyage commercial ou l'usinage CNC.",
+    "errLocation": "Entrez l'adresse de la succursale ou la ville et la province/l'État pour l'audit cartographique local.",
+    "errWebsite": "Entrez le site Web de l'entreprise pour la recherche de domaine à l'échelle nationale."
+  },
+  "geoGrid": {
+    "titleA": "Diagnostic",
+    "titleB": "des angles morts",
+    "titleC": "Google Maps local",
+    "subtitle": "Analyse en direct de votre classement Google Maps sur une grille géographique 3×3 autour de",
+    "keywordPlaceholder": "Mot-clé cible (ex. « spa médical près de moi »)",
+    "scanning": "Analyse en cours…",
+    "runScan": "Lancer l'analyse géo-grille",
+    "querying": "Interrogation de Google Maps sur 9 points de contrôle hyperlocaux — cela prend de 60 à 120 secondes.",
+    "statAvgRank": "Classement moyen",
+    "statTop3": "Visibilité top 3",
+    "statCells": "Cellules classées",
+    "statBlind": "Angles morts",
+    "narrativeA": "Corriger ces angles morts cartographiques prend environ",
+    "narrativeWeeks": "2 à 4 semaines",
+    "narrativeB": "d'ajustements constants des signaux de proximité localisés. Déployez notre système automatisé d'actifs hyperlocaux et laissez notre agent vocal IA personnalisé gérer le volume d'appels entrants pendant que vos épinglettes locales deviennent",
+    "narrativeGreen": "vertes",
+    "ctaVoice": "Parlez à notre spécialiste automatisé maintenant",
+    "ctaBook": "Réserver un appel stratégique",
+    "errKeyword": "Entrez un mot-clé cible",
+    "errFailed": "L'analyse a échoué. Réessayez."
+  },
+  "showcase": {
+    "navServices": "Services",
+    "navAbout": "À propos",
+    "navReviews": "Avis",
+    "navContact": "Contact",
+    "service1": "Service signature",
+    "service2": "Expérience premium",
+    "service3": "Suivi rapide",
+    "trust1": "Des temps de réponse rapides pour les nouveaux prospects",
+    "trust2": "Des parcours de service clairs avec des signaux de confiance plus forts",
+    "trust3": "La prise de rendez-vous intégrée directement à l'expérience",
+    "trust4": "Une mise en page soignée, actuelle et haut de gamme",
+    "statBooking": "Créneau de réservation",
+    "statCoverage": "Couverture des réponses",
+    "statHandling": "Traitement des prospects",
+    "statLiveAi": "IA en direct",
+    "concept": "Concept de site Web repensé pour les clients",
+    "demoReady": "Refonte prête pour la démo",
+    "modernDirection": "Direction de page d'accueil moderne",
+    "exploreServices": "Explorer les services",
+    "askAspen": "Demander à Aspen en direct",
+    "feelsReal": "On dirait un vrai site",
+    "whyConverts": "Pourquoi cette version convertit mieux",
+    "featuredSections": "Sections en vedette",
+    "sectionLabel": "Section {{index}}",
+    "sectionBody": "Structurée pour guider les visiteurs rapidement de la découverte à la confiance, puis à l'action.",
+    "brandVoice": "Voix de la marque",
+    "trustBuilders": "Éléments de confiance",
+    "fallbackDescription": "{{name}} paraît maintenant plus actuel, plus digne de confiance et beaucoup plus facile à utiliser dès le premier écran.",
+    "liveLayer": "Couche de conversion en direct",
+    "closerTitle": "Un site soigné plus une conclusion conversationnelle.",
+    "closerBody": "Aspen répond comme une vraie réception, confirme un rendez-vous de 15 minutes et peut guider le visiteur vers un transfert humain sans rendre l'expérience robotique.",
+    "headlineReimagined": "{{title}}, réinventé",
+    "headlineSite": "{{name}}, réinventé pour le Web moderne",
+    "supportingFallback": "Une expérience plus propre, plus rapide et plus haut de gamme pour {{name}}, avec des signaux de confiance plus forts, une meilleure découverte des services et la capture de prospects par IA intégrée.",
+    "logoAlt": "Logo de {{name}}"
+  },
+  "frame": {
+    "modeAria": "Mode de conversation",
+    "voice": "Voix",
+    "type": "Texte",
+    "voiceView": "Vue voix",
+    "windowAria": "Commandes de la fenêtre",
+    "dragWidget": "Glisser le widget",
+    "drag": "Glisser",
+    "minimize": "Réduire",
+    "endConversation": "Terminer la conversation",
+    "callControlsAria": "Commandes d'appel",
+    "callPaused": "Appel en pause",
+    "callLive": "Appel en direct",
+    "resumeConversation": "Reprendre la conversation",
+    "pauseConversation": "Mettre la conversation en pause",
+    "disconnect": "Déconnecter",
+    "unmuteMic": "Réactiver le microphone",
+    "muteMic": "Couper le microphone",
+    "speakerOn": "Activer le son du haut-parleur",
+    "silenceSpeaker": "Couper le haut-parleur",
+    "replay": "Relire le dernier message",
+    "maximize": "Agrandir",
+    "talkToName": "Parler à {{name}}",
+    "talkToMe": "Parlez-moi",
+    "tapToTalk": "Touchez pour parler",
+    "hearName": "Écouter {{name}}",
+    "hearNameAria": "Écouter {{name}} — touchez pour entendre votre démo",
+    "hearNamePlay": "▶ Écouter {{name}}",
+    "openName": "Ouvrir {{name}}",
+    "shellAria": "Assistant flottant {{name}}"
+  },
+  "whatsapp": {
+    "label": "WhatsApp",
+    "chatAria": "Clavarder avec AiHiddenLeads sur WhatsApp",
+    "message": "Bonjour AiHiddenLeads, j'aimerais en savoir plus.",
+    "sourceHome": "(depuis la page d'accueil)",
+    "sourceDemo": "(depuis la page de démo)",
+    "sourceRealtors": "(depuis la page des agents immobiliers)"
+  },
+  "gallery": {
+    "viewPhoto": "Voir {{name}} de près",
+    "zoomIn": "Zoomer",
+    "zoomOut": "Dézoomer",
+    "zoomReset": "Réinitialiser le zoom",
+    "useThisAvatar": "Utiliser cet avatar",
+    "currentAvatar": "Votre avatar actuel",
+    "zoomHint": "Pincez, faites défiler ou glissez pour explorer les détails."
+  },
+  "cta": {
+    "tryWebsite": "Essayez votre site Web",
+    "bookCall": "Réservez un court appel",
+    "startNow": "Commencez maintenant"
+  },
+  "landing": {
+    "available": "Disponible",
+    "preOrder": "Précommande",
+    "moreDetails": "Plus de détails",
+    "getStarted": "Commencer",
+    "learnMore": "En savoir plus",
+    "phoneFirstTitle": "Le téléphone d'abord? Vous n'avez pas besoin d'un site Web.",
+    "phoneFirstBody": "Enseignez à votre réceptionniste vos heures d'ouverture, vos listes de services, vos prix approuvés et vos documents. Utilisez votre site Web comme matériel de référence facultatif, pas comme une exigence. La réponse téléphonique s'active après la configuration et les tests; les minutes du site Web et du téléphone restent distinctes.",
+    "phoneFirstLink": "Explorez la réception téléphonique et un exemple de conversation",
+    "preOrderNote": "Les services en précommande s'activent après la configuration et les tests. Aucune garantie de ventes, d'économies, de rapidité de rappel ou de classements."
+  }
+}

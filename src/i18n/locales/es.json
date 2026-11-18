@@ -7,11 +7,23 @@
     "faq": "Ayuda / Preguntas",
     "getFreeDemo": "Demo Gratis"
   },
+  "account": {
+    "login": "Iniciar sesión",
+    "createAccount": "Crear cuenta",
+    "menu": "Menú de la cuenta",
+    "admin": "Admin",
+    "adminDashboard": "Panel de administración",
+    "myDashboard": "Mi panel",
+    "businessSetup": "Configuración del negocio",
+    "logout": "Cerrar sesión",
+    "fallbackName": "Cuenta"
+  },
   "lang": {
     "label": "Idioma",
     "en": "Inglés",
     "pt-BR": "Portugués (Brasil)",
-    "es": "Español"
+    "es": "Español",
+    "fr-CA": "Français (Canada)"
   },
   "hero": {
     "badge": "Prueba Tu Sitio Con Voz de IA — Gratis en 2 Minutos",
@@ -28,7 +40,8 @@
     "stat4": "Aumentaron sus ingresos usando IA",
     "meetAspen": "Conoce a Aspen",
     "aspenQuote": "\"La IA de voz hace mucho más de lo que crees — déjame mostrártelo. Haz clic en <strong>Hablar con Aspen</strong> abajo y te explico cómo convertir llamadas perdidas en citas agendadas y generar leads de tus propios clientes. ¡Pruébalo gratis, ahora mismo!\"",
-    "aspenHint": "Haz clic en el botón \"Hablar con Aspen\" a la izquierda para conversar en vivo"
+    "aspenHint": "Haz clic en el botón \"Hablar con Aspen\" a la izquierda para conversar en vivo",
+    "askAspen": "¿Preguntas? Habla con Aspen por voz o chat."
   },
   "tryCta": {
     "kicker": "Demo Gratis en Vivo",
@@ -532,7 +545,8 @@
     "privacy": "Política de Privacidad",
     "terms": "Términos de Servicio",
     "smsConsent": "Al usar nuestros servicios, aceptas recibir mensajes SMS de AI Hidden Leads. La frecuencia varía. Responde STOP para cancelar. Responde HELP para ayuda. Pueden aplicar tarifas de SMS y datos. El consentimiento no es condición de compra.",
-    "copyright": "Generación de leads y automatización de ventas con IA."
+    "copyright": "Generación de leads y automatización de ventas con IA.",
+    "rights": "Todos los derechos reservados."
   },
   "diff": {
     "badge": "Por Qué Nos Eligen los Negocios",
@@ -1238,5 +1252,21 @@
     "useThisAvatar": "Usar este avatar",
     "currentAvatar": "Tu avatar actual",
     "zoomHint": "Pellizca, desplázate o arrastra para explorar los detalles."
+  },
+  "cta": {
+    "tryWebsite": "Prueba tu sitio",
+    "bookCall": "Reserva una llamada",
+    "startNow": "Empieza ahora"
+  },
+  "landing": {
+    "available": "Disponible",
+    "preOrder": "Reserva anticipada",
+    "moreDetails": "Más detalles",
+    "getStarted": "Empezar",
+    "learnMore": "Más información",
+    "phoneFirstTitle": "¿Primero el teléfono? No necesitas un sitio web.",
+    "phoneFirstBody": "Enseña a tu recepcionista con tus horarios, listas de servicios, precios aprobados y documentos. Usa tu sitio web como material de referencia opcional, no como un requisito. La atención telefónica se activa después de la configuración y las pruebas; los minutos web y telefónicos permanecen separados.",
+    "phoneFirstLink": "Explora la recepción telefónica y una conversación de ejemplo",
+    "preOrderNote": "Los servicios en reserva anticipada se activan después de la configuración y las pruebas. Sin garantías de ventas, ahorros, rapidez de devolución de llamadas ni posicionamiento."
   }
 }

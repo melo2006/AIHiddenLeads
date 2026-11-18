@@ -171,7 +171,7 @@ export function normalizeBranding(raw: unknown): OrgBranding | null {
 
 export type ResolvedBrand =
   | { source: "platform" }
-  | { source: "org"; name: string; logoUrl: string };
+  | { source: "org"; name: string; logoUrl: string | null; brandColor?: string | null };
 
 /**
  * Decide what the customer-facing header shows.
@@ -186,6 +186,23 @@ export type ResolvedBrand =
 export function resolveBrand(branding: OrgBranding | null | undefined): ResolvedBrand {
   if (branding?.logoUrl) {
     return { source: "org", name: branding.name ?? "AI Hidden Leads", logoUrl: branding.logoUrl };
+  }
+  return { source: "platform" };
+}
+
+/**
+ * Brand resolution for a claimed reseller SUBDOMAIN (design §12.2).
+ * Deliberately different from resolveBrand's logo gate: claiming the
+ * subdomain is itself the branding act — the reseller deliberately
+ * pointed his public host at the platform — so a name-only lockup
+ * (company name in his brand color) takes over the public site even
+ * before a logo exists. A logo, when present, renders beside the name
+ * exactly as in the customer shell.
+ */
+export function resolveTenantBrand(branding: OrgBranding | null | undefined): ResolvedBrand {
+  const name = branding?.name?.trim();
+  if (name) {
+    return { source: "org", name, logoUrl: branding.logoUrl, brandColor: branding.brandColor };
   }
   return { source: "platform" };
 }

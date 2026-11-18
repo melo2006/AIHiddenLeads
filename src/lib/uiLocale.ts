@@ -15,7 +15,7 @@
  *     i18next's languageChanged hook in src/i18n/index.ts, and
  *     directly by path-pinned routes such as /demo/br)
  *   → else the browser language (navigator.language: pt* → pt-BR,
- *     es* → es, anything else → en)
+ *     es* → es, fr* → fr-CA, anything else → en)
  *   → else English.
  *
  * localStorage "lang" is still written in sync on every explicit
@@ -28,7 +28,7 @@
  * a merely-detected browser language — see explicitUiLocale and
  * the 2026-11-09 rule it carries.
  */
-export const SUPPORTED_UI_LOCALES = ["en", "es", "pt-BR"] as const;
+export const SUPPORTED_UI_LOCALES = ["en", "es", "pt-BR", "fr-CA"] as const;
 export type UiLocale = (typeof SUPPORTED_UI_LOCALES)[number];
 
 /** Canonicalize a raw value to a supported UI locale, or null. */
@@ -36,6 +36,7 @@ export function normalizeUiLocale(value: unknown): UiLocale | null {
   if (typeof value !== "string") return null;
   const v = value.trim();
   if (v === "pt") return "pt-BR";
+  if (v === "fr") return "fr-CA";
   return (SUPPORTED_UI_LOCALES as readonly string[]).includes(v) ? (v as UiLocale) : null;
 }
 
@@ -56,7 +57,8 @@ export function sessionUiLocale(): UiLocale | undefined {
 /**
  * The browser's own language mapped onto the supported set:
  * Portuguese (any region) → pt-BR, Spanish (any region) → es,
- * everything else → en. Reads navigator.language first, then the
+ * French (any region) → fr-CA, everything else → en. Reads
+ * navigator.language first, then the
  * preferred-languages list; a browser that reports nothing usable
  * resolves to English.
  */
@@ -69,6 +71,7 @@ export function browserUiLocale(nav?: { language?: string; languages?: readonly 
     const tag = raw.trim().toLowerCase();
     if (tag.startsWith("pt")) return "pt-BR";
     if (tag.startsWith("es")) return "es";
+    if (tag.startsWith("fr")) return "fr-CA";
     if (tag.startsWith("en")) return "en";
   }
   return "en";
@@ -98,6 +101,7 @@ const UI_LOCALE_LANGUAGES: Record<UiLocale, string> = {
   en: "English",
   es: "Spanish",
   "pt-BR": "Portuguese",
+  "fr-CA": "French",
 };
 
 /** The conversation language a UI locale selects (English when none). */

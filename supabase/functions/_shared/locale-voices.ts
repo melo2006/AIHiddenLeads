@@ -20,6 +20,14 @@
 //      table mirrors src/lib/voiceCatalog.ts);
 //   4. otherwise the current voice, unchanged (never an invalid voice).
 // English sessions never remap: locale 'en'/null returns the voice as-is.
+//
+// French (fr-CA) sessions deliberately have NO curated voice set and NO
+// remap (French package, 2026-11-18): Gemini Live voices are multilingual
+// and speak French with the persona's own voice; no French voice pairing
+// has been curated or ear-tested, so inventing one would be a guess.
+// voiceForLocaleSession returns the current voice unchanged for fr-CA,
+// exactly like any other unlisted locale. If a curated French set is
+// ever chosen, add it here AND to VOICE_LANGUAGE_SETS together.
 
 import { VOICES } from './voice-config.ts';
 

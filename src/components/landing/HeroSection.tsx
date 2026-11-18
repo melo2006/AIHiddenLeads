@@ -96,9 +96,9 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
                 size="sm"
                 className="h-auto whitespace-normal px-2 py-2 text-sm text-muted-foreground underline-offset-4 hover:underline"
               >
-                <Calendar className="h-4 w-4 shrink-0" />{i18n.language === 'pt-BR' ? 'Agende uma conversa' : i18n.language === 'es' ? 'Reserva una llamada' : 'Book a quick call'}
+                <Calendar className="h-4 w-4 shrink-0" />{t("cta.bookCall")}
               </Button>
-              <Button onClick={() => navigate('/plans?plan=essentials')} variant="ghost" size="sm" className="h-auto whitespace-normal px-2 py-2 text-sm text-muted-foreground underline-offset-4 hover:underline"><ArrowRight className="h-4 w-4 shrink-0" />{i18n.language === 'pt-BR' ? 'Comece agora' : i18n.language === 'es' ? 'Empieza ahora' : 'Start now'}</Button>
+              <Button onClick={() => navigate('/plans?plan=essentials')} variant="ghost" size="sm" className="h-auto whitespace-normal px-2 py-2 text-sm text-muted-foreground underline-offset-4 hover:underline"><ArrowRight className="h-4 w-4 shrink-0" />{t("cta.startNow")}</Button>
             </motion.div>
 
             {i18n.language.startsWith('en') && (
@@ -120,7 +120,7 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
               className="text-sm sm:text-base text-muted-foreground mb-8"
             >
               {copy.trust}
-              <span className="mt-2 block">{i18n.language.startsWith('pt') ? 'Dúvidas? Converse com Aspen por voz ou chat.' : i18n.language.startsWith('es') ? '¿Preguntas? Habla con Aspen por voz o chat.' : 'Questions? Talk to Aspen by voice or chat.'}</span>
+              <span className="mt-2 block">{t("hero.askAspen")}</span>
             </motion.p>
 
             <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-3 text-left" aria-label={copy.title}>

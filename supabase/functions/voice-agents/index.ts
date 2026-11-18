@@ -18,6 +18,7 @@ import {
   WORK_ROLES, MANAGE_ROLES, subtreeOrgIds, childOrgIds, normalizeLimits, validateLimitsInput,
   evaluateCaps, inviteGrantRole, inviteStatusAt, validateBrandingInput, brandingComplete,
   placeholderLogoSvg, featureEnabled,
+  normalizeSubdomain, isReservedSubdomain, validateSubdomain,
   INVITE_EXPIRY_MS, type TenantLimits, type UsageTotals,
 } from '../_shared/tenancy.ts';
 import { DEFAULT_RATE_CARD, mergeRateCard, validateRateCardInput, tenantPriceView, effectivePrice } from '../_shared/rate-card.ts';
@@ -45,12 +46,14 @@ async function suggestGreeting(req:Request,input:{businessName:string;industry?:
 const themeSchema=z.object({primary:z.string().regex(/^#[0-9a-f]{6}$/i),background:z.string().regex(/^#[0-9a-f]{6}$/i),foreground:z.string().regex(/^#[0-9a-f]{6}$/i),font:z.enum(THEME_FONTS)});
 const phoneSetupInputSchema = z.object({ route:z.enum(['forward','port','new']), businessNumber:z.string().max(32).optional(), transferNumber:z.string().max(32).optional(), carrierId:z.string().max(40).refine(v=>CARRIER_GUIDES.some(g=>g.id===v), 'Unknown carrier').optional(), rings:z.union([z.literal(2),z.literal(3),z.literal(4),z.literal(5)]).optional(), areaCode:z.string().regex(/^\d{0,3}$/).optional() });
 const phoneSetupStateSchema = phoneSetupInputSchema.partial({route:true}).extend({ route:z.enum(['forward','port','new']).optional(), aspenNumber:z.string().max(32).optional(), status:z.enum(['not_started','awaiting_number','waiting_first_call','port_requested','new_number_requested','live_detected','live_confirmed']).default('not_started'), savedAt:z.string().max(40).optional(), testCallConfirmedAt:z.string().max(40).optional(), firstCallDetectedAt:z.string().max(40).optional() });
-const configSchema = z.object({ phoneSetup:phoneSetupStateSchema.optional(), onboarding:z.object({ testCallConfirmedAt:z.string().max(40).optional() }).optional(), subNiche:z.string().max(160).optional(), businessNotes:z.string().max(6000).optional(), knowledgeGuidance:z.string().max(12000).optional(), assistantRestrictions:z.string().max(4000).optional(), previewScreenshot:z.string().max(2000).optional(), industry:z.string().max(80).optional(), launcherLabel:z.string().max(40).optional(), launcherCorner:z.enum(['bottom-left','bottom-right']).optional(), websiteUrl:z.string().max(2000).refine(v=>!v || isPublicUrl(v),'Use a public website URL').default(''), theme:z.preprocess(v=>v&&typeof v==='object'?{...DEFAULT_WIDGET_THEME,...(v as Record<string,unknown>)}:v,themeSchema).default(DEFAULT_WIDGET_THEME), suggestedTheme:themeSchema.nullable().optional(), name:z.string().min(1).max(80), businessName:z.string().min(1).max(160), voice:z.enum(VOICES as [string,...string[]]), clonedVoiceSelected:z.boolean().default(false), avatarPath:z.string().max(500).default(''), greeting:z.string().min(1).max(1500), systemPrompt:z.string().min(1).max(12000), simulationGreeting:z.string().min(1).max(1500).default(SIMULATION_GREETING), simulationPrompt:z.string().min(1).max(12000).default(SIMULATION_PROMPT), knowledge:z.string().max(60000).default(''), crawlDepth:z.union([z.literal(1),z.literal(2)]).default(1), recordTranscript:z.boolean().default(false), transferPhone:z.string().regex(/^$|^\\+[1-9]\\d{7,14}$/,'Use an international phone number, starting with +').default(''), transferManagerName:z.string().max(80).default(''), defaultLanguage:z.enum(['en','es','pt-BR']).default('en'), ringCount:z.number().int().min(2).max(5).optional(), bookingRules:z.string().max(4000).default(''), videoAvatar:z.unknown().optional().transform(v=>v===undefined?undefined:normalizeVideoAvatar(v)) });
-const requestSchema = z.object({ action:z.enum(['suggestKnowledge','suggestIndustry','suggestGreeting','list','usage','pricing','create','save','publish','source','refresh','removeSource','member','rollback','share','unshare','onboarding','phoneSetup','duplicate','usageSummary','clients','myBranding','myTenancy','tenants','updateTenant','rateCard','saveRateCard','tenantClients','resellerConsole','inviteCreate','inviteList','inviteRevoke','invitePreview','inviteAccept','saveBranding','demoStatus','seedDemoData','removeDemoData','resellerRetail','saveResellerRetail','tenantRetail','currencyRates','saveCurrencyRates','resellerCatalog','saveResellerCatalog']), phoneSetup:phoneSetupInputSchema.optional(), confirmTestCall:z.enum(['phone','agent']).optional(), agentId:z.string().uuid().optional(), mode:z.enum(['website','generic']).default('website'), subNiche:z.string().max(160).optional(), businessNotes:z.string().max(6000).optional(), industry:z.string().max(80).optional(), tone:z.string().max(40).optional(), slug:z.string().min(3).max(80).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(), sourceId:z.string().uuid().optional(), config:configSchema.optional(), businessName:z.string().min(1).max(160).optional(), userEmail:z.string().email().optional(), kind:z.enum(['url','document']).optional(), label:z.string().min(1).max(255).optional(), url:z.string().max(2000).optional(), storagePath:z.string().max(500).optional(), pricing:z.object({model:z.literal('gemini-3.8-live'),inputAudioPerMinute:z.number().finite().min(0).max(100),outputAudioPerMinute:z.number().finite().min(0).max(100),source:z.string().url().max(2000)}).optional(),
+const configSchema = z.object({ phoneSetup:phoneSetupStateSchema.optional(), onboarding:z.object({ testCallConfirmedAt:z.string().max(40).optional() }).optional(), subNiche:z.string().max(160).optional(), businessNotes:z.string().max(6000).optional(), knowledgeGuidance:z.string().max(12000).optional(), assistantRestrictions:z.string().max(4000).optional(), previewScreenshot:z.string().max(2000).optional(), industry:z.string().max(80).optional(), launcherLabel:z.string().max(40).optional(), launcherCorner:z.enum(['bottom-left','bottom-right']).optional(), websiteUrl:z.string().max(2000).refine(v=>!v || isPublicUrl(v),'Use a public website URL').default(''), theme:z.preprocess(v=>v&&typeof v==='object'?{...DEFAULT_WIDGET_THEME,...(v as Record<string,unknown>)}:v,themeSchema).default(DEFAULT_WIDGET_THEME), suggestedTheme:themeSchema.nullable().optional(), name:z.string().min(1).max(80), businessName:z.string().min(1).max(160), voice:z.enum(VOICES as [string,...string[]]), clonedVoiceSelected:z.boolean().default(false), avatarPath:z.string().max(500).default(''), greeting:z.string().min(1).max(1500), systemPrompt:z.string().min(1).max(12000), simulationGreeting:z.string().min(1).max(1500).default(SIMULATION_GREETING), simulationPrompt:z.string().min(1).max(12000).default(SIMULATION_PROMPT), knowledge:z.string().max(60000).default(''), crawlDepth:z.union([z.literal(1),z.literal(2)]).default(1), recordTranscript:z.boolean().default(false), transferPhone:z.string().regex(/^$|^\\+[1-9]\\d{7,14}$/,'Use an international phone number, starting with +').default(''), transferManagerName:z.string().max(80).default(''), defaultLanguage:z.enum(['en','es','pt-BR','fr-CA']).default('en'), ringCount:z.number().int().min(2).max(5).optional(), bookingRules:z.string().max(4000).default(''), videoAvatar:z.unknown().optional().transform(v=>v===undefined?undefined:normalizeVideoAvatar(v)) });
+const requestSchema = z.object({ action:z.enum(['suggestKnowledge','suggestIndustry','suggestGreeting','list','usage','pricing','create','save','publish','source','refresh','removeSource','member','rollback','share','unshare','onboarding','phoneSetup','duplicate','usageSummary','clients','myBranding','myTenancy','tenants','updateTenant','rateCard','saveRateCard','tenantClients','resellerConsole','inviteCreate','inviteList','inviteRevoke','invitePreview','inviteAccept','saveBranding','demoStatus','seedDemoData','removeDemoData','resellerRetail','saveResellerRetail','tenantRetail','currencyRates','saveCurrencyRates','resellerCatalog','saveResellerCatalog','tenantBranding','setSubdomain']), phoneSetup:phoneSetupInputSchema.optional(), confirmTestCall:z.enum(['phone','agent']).optional(), agentId:z.string().uuid().optional(), mode:z.enum(['website','generic']).default('website'), subNiche:z.string().max(160).optional(), businessNotes:z.string().max(6000).optional(), industry:z.string().max(80).optional(), tone:z.string().max(40).optional(), slug:z.string().min(3).max(80).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(), sourceId:z.string().uuid().optional(), config:configSchema.optional(), businessName:z.string().min(1).max(160).optional(), userEmail:z.string().email().optional(), kind:z.enum(['url','document']).optional(), label:z.string().min(1).max(255).optional(), url:z.string().max(2000).optional(), storagePath:z.string().max(500).optional(), pricing:z.object({model:z.literal('gemini-3.8-live'),inputAudioPerMinute:z.number().finite().min(0).max(100),outputAudioPerMinute:z.number().finite().min(0).max(100),source:z.string().url().max(2000)}).optional(),
   // Multi-tenant Phase 2 (2026-11-18): tenancy / invites / rate card.
   organizationId:z.string().uuid().optional(), inviteId:z.string().uuid().optional(), inviteKind:z.enum(['reseller','client','staff']).optional(), companyName:z.string().min(1).max(160).optional(), inviteRole:z.enum(['admin','editor','viewer']).optional(), inviteToken:z.string().min(16).max(200).optional(), status:z.enum(['active','suspended']).optional(), limits:z.unknown().optional(), rateCard:z.unknown().optional(), branding:z.unknown().optional(),
   // Multi-tenant Phase 2.5 (2026-11-18): demo tenants / retail / currency / catalog.
-  retailPrices:z.unknown().optional(), customerCurrency:z.string().min(3).max(3).optional(), rates:z.unknown().optional(), catalog:z.unknown().optional() });
+  retailPrices:z.unknown().optional(), customerCurrency:z.string().min(3).max(3).optional(), rates:z.unknown().optional(), catalog:z.unknown().optional(),
+  // Reseller subdomains (2026-11-18, design §12.2).
+  subdomain:z.string().max(80).nullable().optional() });
 const json = (data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
 
 // ---------------------------------------------------------------------------
@@ -58,16 +61,17 @@ const json = (data:unknown,status=200)=>new Response(JSON.stringify(data),{statu
 // resolved HERE, server-side, from real membership rows — the browser's
 // claims about which org it belongs to are never trusted.
 // ---------------------------------------------------------------------------
-type OrgRow={id:string;name:string;parent_organization_id?:string|null;type?:string|null;status?:string|null;logo_url?:string|null;slogan?:string|null;support_email?:string|null;brand_color?:string|null;feature_limits?:unknown;rate_card_overrides?:unknown;is_demo?:boolean|null;demo_profile?:unknown;retail_prices?:unknown;customer_currency?:string|null;offered_catalog?:unknown};
+type OrgRow={id:string;name:string;parent_organization_id?:string|null;type?:string|null;status?:string|null;logo_url?:string|null;slogan?:string|null;support_email?:string|null;brand_color?:string|null;feature_limits?:unknown;rate_card_overrides?:unknown;is_demo?:boolean|null;demo_profile?:unknown;retail_prices?:unknown;customer_currency?:string|null;offered_catalog?:unknown;subdomain?:string|null};
 // Column sets by schema generation. Each phase's manual SQL adds
 // columns; reads try the newest set first and fall back so the
 // function keeps working (with that phase's features reading as
 // "not set") until the SQL is applied.
+const ORG_RICH_SUB='id,name,parent_organization_id,type,status,logo_url,slogan,support_email,brand_color,feature_limits,rate_card_overrides,is_demo,demo_profile,retail_prices,customer_currency,offered_catalog,subdomain';
 const ORG_RICH25='id,name,parent_organization_id,type,status,logo_url,slogan,support_email,brand_color,feature_limits,rate_card_overrides,is_demo,demo_profile,retail_prices,customer_currency,offered_catalog';
 const ORG_RICH='id,name,parent_organization_id,type,status,logo_url,slogan,support_email,brand_color,feature_limits,rate_card_overrides';
 const ORG_BASE='id,name,parent_organization_id,type,status,logo_url,slogan,support_email,brand_color,feature_limits';
 async function loadOrgs(db:any):Promise<OrgRow[]>{
-  for(const cols of [ORG_RICH25,ORG_RICH,ORG_BASE]){
+  for(const cols of [ORG_RICH_SUB,ORG_RICH25,ORG_RICH,ORG_BASE]){
     const r=await db.from('voice_organizations').select(cols);
     if(!r.error) return (r.data || []) as OrgRow[];
   }
@@ -76,7 +80,7 @@ async function loadOrgs(db:any):Promise<OrgRow[]>{
   return (base.data || []) as OrgRow[];
 }
 async function loadOrg(db:any,orgId:string):Promise<OrgRow|null>{
-  for(const cols of [ORG_RICH25,ORG_RICH]){
+  for(const cols of [ORG_RICH_SUB,ORG_RICH25,ORG_RICH]){
     const r=await db.from('voice_organizations').select(cols).eq('id',orgId).maybeSingle();
     if(!r.error) return (r.data || null) as OrgRow|null;
   }
@@ -102,7 +106,7 @@ function canManageOrg(memberships:MembershipRow[],orgId:string):boolean{
 }
 function orgSummary(o:OrgRow){
   return { id:o.id, name:o.name, type:o.type || 'client', status:o.status || 'active', parentOrganizationId:o.parent_organization_id || null,
-    isDemo:isDemoOrg(o),
+    isDemo:isDemoOrg(o), subdomain:o.subdomain || null,
     branding:{ name:o.name, logoUrl:o.logo_url || null, slogan:o.slogan || null, supportEmail:o.support_email || null, brandColor:o.brand_color || null } };
 }
 function monthStartIso():string{ const d=new Date(); return new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),1)).toISOString(); }
@@ -227,6 +231,11 @@ async function phase25ColumnsReady(db:any):Promise<boolean>{
   try { const {error}=await db.from('voice_organizations').select('is_demo').limit(1); return !error; } catch { return false; }
 }
 const PHASE25_SQL_MSG='This turns on once the Phase 2.5 database update is applied.';
+/** True once the subdomain column exists (design §12.2 manual SQL). */
+async function subdomainColumnReady(db:any):Promise<boolean>{
+  try { const {error}=await db.from('voice_organizations').select('subdomain').limit(1); return !error; } catch { return false; }
+}
+const SUBDOMAIN_SQL_MSG='This turns on once the subdomain database update is applied.';
 
 /** Stored currency-rate rows merged over the built-in defaults. */
 async function loadCurrencyRates(db:any):Promise<EffectiveRate[]>{
@@ -367,6 +376,11 @@ async function seedDemoOrgs(db:any):Promise<{resellerOrgId:string;credentials:{l
     if(!up.error){ const {data:pub}=db.storage.from('tenant-branding').getPublicUrl(path); if(pub?.publicUrl) logoUrl=pub.publicUrl; }
   } catch { /* data-URI fallback stands */ }
   const {error:lErr}=await db.from('voice_organizations').update({logo_url:logoUrl}).eq('id',reseller.id); if(lErr) throw lErr;
+  // The demo reseller also claims its subdomain (design §12.2), so the
+  // presentation world includes a working branded host. Best-effort:
+  // the column may not exist until the subdomain SQL is applied, and
+  // the seed must not fail over a presentation extra.
+  try { await db.from('voice_organizations').update({subdomain:'northpeak'}).eq('id',reseller.id); } catch { /* subdomain column not applied yet */ }
   const resellerOwnerId=await createAccount(DEMO_RESELLER.email,DEMO_RESELLER.ownerName,`Reseller owner — ${DEMO_RESELLER.businessName}`);
   const {error:mErr}=await db.from('voice_memberships').upsert({organization_id:reseller.id,user_id:resellerOwnerId,role:'owner'},{onConflict:'organization_id,user_id'});
   if(mErr) throw mErr;
@@ -427,7 +441,27 @@ Deno.serve(async req=>{
     // company name, invite kind, inviter brand and status — never the
     // invited email or any tenant data. Accepting still requires a
     // signed-in account whose email matches the invite.
-    const peek=await req.clone().json().catch(()=>null) as {action?:string;inviteToken?:string}|null;
+    const peek=await req.clone().json().catch(()=>null) as {action?:string;inviteToken?:string;subdomain?:string}|null;
+    if(peek?.action==='tenantBranding') {
+      // Public, pre-auth (design §12.2): the SPA loads on
+      // <slug>.aihiddenleads.com and asks whose brand to render. The
+      // answer is PUBLIC BRAND DATA ONLY — company name, logo, slogan,
+      // support email, brand color — the same exposure class as
+      // invitePreview. Never the org id, never prices/costs/limits,
+      // never membership. An unknown, malformed, reserved or
+      // suspended slug answers branding:null and the app renders the
+      // normal platform site — never an error.
+      const slug=normalizeSubdomain(peek.subdomain);
+      if(!slug || isReservedSubdomain(slug)) return json({branding:null});
+      try {
+        const {data:o,error}=await db.from('voice_organizations')
+          .select('name,logo_url,slogan,support_email,brand_color,status,type')
+          .eq('subdomain',slug).maybeSingle();
+        if(error || !o) return json({branding:null});
+        if((o.status || 'active')!=='active' || o.type!=='reseller') return json({branding:null});
+        return json({branding:{name:o.name,logoUrl:o.logo_url || null,slogan:o.slogan || null,supportEmail:o.support_email || null,brandColor:o.brand_color || null}});
+      } catch { return json({branding:null}); }
+    }
     if(peek?.action==='invitePreview') {
       if(!peek.inviteToken) return json({error:'Invite link required'},400);
       const {data:inv}=await db.from('tenant_invites').select('kind,company_name,organization_id,inviter_organization_id,status,expires_at').eq('token_hash',await sha256(peek.inviteToken)).maybeSingle();
@@ -724,6 +758,35 @@ Deno.serve(async req=>{
       patch.slogan=b.slogan; patch.support_email=b.supportEmail; patch.brand_color=b.brandColor; patch.logo_url=b.logoUrl;
       const {error}=await db.from('voice_organizations').update(patch).eq('id',body.organizationId); if(error) throw error;
       return json({success:true});
+    }
+    if(body.action==='setSubdomain') {
+      // Reseller subdomains (design §12.2): the platform admin sets /
+      // changes / clears a slug on the Tenants screen; a reseller who
+      // manages the org may claim one ONLY while it is unset (changing
+      // or clearing afterwards is a support action — the admin path).
+      // Reseller orgs only: client orgs never get a public subdomain.
+      if(!body.organizationId) return json({error:'Organization required'},400);
+      const memberships=await loadMemberships(db,user.id);
+      if(!admin && !canManageOrg(memberships,body.organizationId)) return json({error:'Access denied'},403);
+      const org=await loadOrg(db,body.organizationId); if(!org) return json({error:'Organization not found'},404);
+      if((org.type || 'client')!=='reseller') return json({error:'Subdomains are available for reseller organizations only'},400);
+      if(!(await subdomainColumnReady(db))) return json({error:SUBDOMAIN_SQL_MSG},400);
+      const clearing=body.subdomain===null || body.subdomain==='';
+      if(!admin && org.subdomain) return json({error:'Your subdomain is already set — contact support to change it.'},400);
+      if(clearing) {
+        const {error}=await db.from('voice_organizations').update({subdomain:null}).eq('id',org.id);
+        if(error) return json({error:/column|schema/i.test(error.message||'')?SUBDOMAIN_SQL_MSG:error.message},400);
+        return json({success:true,subdomain:null});
+      }
+      const v=validateSubdomain(body.subdomain); if('error' in v) return json({error:v.error},400);
+      // Uniqueness is checked server-side against every org (the
+      // unique index in the manual SQL is the backstop).
+      const orgs=await loadOrgs(db);
+      if(orgs.some(o=>o.id!==org.id && (o.subdomain || '').toLowerCase()===v.subdomain))
+        return json({error:'That subdomain is already taken'},409);
+      const {error}=await db.from('voice_organizations').update({subdomain:v.subdomain}).eq('id',org.id);
+      if(error) return json({error:/column|schema/i.test(error.message||'')?SUBDOMAIN_SQL_MSG:(/duplicate|unique/i.test(error.message||'')?'That subdomain is already taken':error.message)},400);
+      return json({success:true,subdomain:v.subdomain});
     }
     // -----------------------------------------------------------------
     // Multi-tenant Phase 2.5 actions (design 2026-11-18 §12): demo /

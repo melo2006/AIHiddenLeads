@@ -20,6 +20,8 @@ import { canPresentRawIframe, isCapturedCopyPreview, resolveConsentCoveredRoute,
 import { pinnedExampleSeedForLeadId } from "@/lib/pinnedExampleSeed";
 import { explicitUiLocale, normalizeUiLocale } from "@/lib/uiLocale";
 import DemoVerificationGate from "@/components/landing/demo-results/DemoVerificationGate";
+import { useTenantBrand } from "@/components/TenantBrandProvider";
+import { initialsFor } from "@/lib/tenancy";
 import DemoReassuranceStrip from "@/components/landing/DemoReassuranceStrip";
 import {
   getDemoVerificationStatus,
@@ -276,6 +278,7 @@ const DemoSite = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { t, i18n } = useTranslation();
+  const tenant = useTenantBrand();
   const [isScanning, setIsScanning] = useState(false);
 
 
@@ -1303,6 +1306,24 @@ const DemoSite = () => {
       <header className="relative z-40" aria-label={t("demoSite.headerAria")}>
         <div ref={previewBarRef} className="border-b border-border bg-card px-3 py-2 sm:px-5">
           <div className="flex min-w-0 items-center gap-2">
+            {tenant && (
+              <span className="flex shrink-0 items-center gap-1.5" title={tenant.branding.name ?? undefined}>
+                {tenant.branding.logoUrl ? (
+                  <img src={tenant.branding.logoUrl} alt={tenant.branding.name ?? ""} className="h-6 w-6 rounded object-contain" />
+                ) : (
+                  <span
+                    aria-hidden
+                    className="flex h-6 w-6 items-center justify-center rounded text-[10px] font-bold text-white"
+                    style={{ backgroundColor: tenant.branding.brandColor || "#10b981" }}
+                  >
+                    {initialsFor(tenant.branding.name)}
+                  </span>
+                )}
+                <span className="hidden max-w-[10rem] truncate text-xs font-bold text-foreground md:inline" style={tenant.branding.brandColor ? { color: tenant.branding.brandColor } : undefined}>
+                  {tenant.branding.name}
+                </span>
+              </span>
+            )}
             <Button size="icon" variant="outline" className="h-8 w-8 shrink-0" onClick={() => navigate("/")} aria-label={t("demoSite.backToHomepage")} title={t("demoSite.homepage")}><ArrowLeft className="h-4 w-4" /></Button>
             <a href={homepageUrl} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1" title={t("demoSite.openSiteTitle", { name: siteName })}>
               <span className="block text-[10px] font-semibold text-primary">{t("demoSite.simulationPreview")} {isScanning && t("demoSite.learning")}</span>

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import en from '../i18n/locales/en.json';
 import es from '../i18n/locales/es.json';
 import pt from '../i18n/locales/pt-BR.json';
+import fr from '../i18n/locales/fr.json';
 
 function leafKeys(o: unknown, prefix = '', out: string[] = []): string[] {
   if (o && typeof o === 'object' && !Array.isArray(o)) {
@@ -27,5 +28,20 @@ describe('locale coverage', () => {
     const esKeys = new Set(leafKeys(es));
     const missing = leafKeys(en).filter((k) => !esKeys.has(k));
     expect(missing).toEqual([]);
+  });
+
+  // French (fr-CA) shipped at full parity with the French package
+  // (2026-11-18) and is pinned the same way: a dropped leaf would
+  // silently render English on the French pages.
+  it('fr-CA covers every English leaf key', () => {
+    const frKeys = new Set(leafKeys(fr));
+    const missing = leafKeys(en).filter((k) => !frKeys.has(k));
+    expect(missing).toEqual([]);
+  });
+
+  it('fr-CA adds no leaf keys English does not have', () => {
+    const enKeys = new Set(leafKeys(en));
+    const extra = leafKeys(fr).filter((k) => !enKeys.has(k));
+    expect(extra).toEqual([]);
   });
 });

@@ -2694,6 +2694,7 @@ export type Database = {
           retail_prices: Json
           slogan: string | null
           status: string
+          subdomain: string | null
           support_email: string | null
           type: string
         }
@@ -2713,6 +2714,7 @@ export type Database = {
           retail_prices?: Json
           slogan?: string | null
           status?: string
+          subdomain?: string | null
           support_email?: string | null
           type?: string
         }
@@ -2732,6 +2734,7 @@ export type Database = {
           retail_prices?: Json
           slogan?: string | null
           status?: string
+          subdomain?: string | null
           support_email?: string | null
           type?: string
         }

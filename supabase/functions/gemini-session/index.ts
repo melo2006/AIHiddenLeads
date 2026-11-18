@@ -610,7 +610,7 @@ Deno.serve(async req=>{
   if(!b.personaSegment && swapEnabled && (b.leadId || b.prospectId) && !b.draft && !b.preview && (!config.demoPresenter || b.leadId)) config.personaSwapEnabled=true;
   // Website UI locale → authorized starting language (Ron, 2026-11-09).
   // The client sends ONLY the visitor's explicit site-language selection;
-  // it is validated here against the supported set (en / es / pt-BR) and
+  // it is validated here against the supported set (en / es / pt-BR / fr-CA) and
   // anything else is ignored — never browser detection. Persona segments
   // skip this: they inherit uiLocale/startLanguage from the parent's
   // stored config via the segment branch's spread. Phone/telephony

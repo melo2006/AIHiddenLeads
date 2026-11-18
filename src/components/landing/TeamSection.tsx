@@ -108,6 +108,29 @@ const COPY = {
       alt: "Alex, tu especialista de configuración y soporte",
     },
   },
+  fr: {
+    title: "Rencontrez l'équipe derrière Aspen",
+    intro:
+      "Trois personnes, un rôle chacune — pour que vous ne parliez jamais à une machine sans personne derrière.",
+    aspen: {
+      role: "Aspen — votre hôtesse",
+      text: "Aspen accueille vos visiteurs et vos appelants, répond aux questions sur AiHiddenLeads et démarre votre démo gratuite. C'est la voix que vous entendrez en premier — ici, et au téléphone.",
+      cta: "Écouter Aspen",
+      alt: "Aspen, votre hôtesse IA, qui fait un signe de la main",
+    },
+    sara: {
+      role: "Sara — la réceptionniste de votre démo",
+      text: "Sara entre dans une maquette de votre site Web et vous montre exactement comment votre propre réceptionniste IA accueillerait les clients, répondrait aux questions et prendrait la réservation. Rien sur votre vrai site n'est modifié.",
+      cta: "Écouter Sara dans votre démo",
+      alt: "Sara, qui présente la démo de votre site Web",
+    },
+    alex: {
+      role: "Alex — configuration et soutien",
+      text: "Une fois à bord, Alex vous accompagne — vous ou votre technicien — dans la configuration, étape par étape, y compris le petit extrait de code qui met votre assistant sur votre site, que ce soit WordPress, Wix ou du HTML simple.",
+      cta: "Écouter Alex dans la configuration",
+      alt: "Alex, votre spécialiste de configuration et de soutien",
+    },
+  },
 } as const;
 
 type TeamCopy = {
@@ -149,7 +172,9 @@ const TeamSection = ({ compact = false }: TeamSectionProps) => {
     ? COPY.pt
     : i18n.language.startsWith("es")
       ? COPY.es
-      : COPY.en;
+      : i18n.language.startsWith("fr")
+        ? COPY.fr
+        : COPY.en;
 
   const people = [
     {

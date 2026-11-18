@@ -807,7 +807,7 @@ const ChatWidget = ({
         // supported languages. Anything else is real history.
         const displayable = raw.filter((turn) => turn.role !== "divider" && !turn.text.startsWith("[visit fact]"));
         if (displayable.length === 1 && displayable[0].role === "assistant"
-          && ["en", "es", "pt-BR"].some((lang) => displayable[0].text === buildGreeting(lang))) {
+          && ["en", "es", "pt-BR", "fr-CA"].some((lang) => displayable[0].text === buildGreeting(lang))) {
           canned = displayable[0];
         }
       }

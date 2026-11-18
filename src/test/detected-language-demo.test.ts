@@ -92,6 +92,9 @@ describe("Publish #66 — detected site language drives the demo", () => {
       expect(resolveDemoStartLocale(undefined, "pt-BR")).toEqual({ locale: "pt-BR", source: "detected" });
       expect(resolveDemoStartLocale(null, "es")).toEqual({ locale: "es", source: "detected" });
       expect(resolveDemoStartLocale("", "pt")).toEqual({ locale: "pt-BR", source: "detected" });
+      // French package (2026-11-18): a detected French site resolves too.
+      expect(resolveDemoStartLocale(undefined, "fr-CA")).toEqual({ locale: "fr-CA", source: "detected" });
+      expect(resolveDemoStartLocale("fr-CA", "es")).toEqual({ locale: "fr-CA", source: "explicit" });
     });
 
     it("a detected English site stamps nothing (English is the default)", () => {
@@ -102,7 +105,7 @@ describe("Publish #66 — detected site language drives the demo", () => {
 
     it("never trusts an unsupported stored value", () => {
       expect(resolveDemoStartLocale(undefined, "pt-PT")).toBeNull();
-      expect(resolveDemoStartLocale(undefined, "fr")).toBeNull();
+      expect(resolveDemoStartLocale(undefined, "de")).toBeNull();
       expect(resolveDemoStartLocale(undefined, "Portuguese")).toBeNull();
     });
   });
