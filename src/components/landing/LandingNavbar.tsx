@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Menu, X, FileText, Type } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -32,6 +32,13 @@ const LandingNavbar = ({ brand }: { brand?: ResolvedBrand }) => {
   const [open, setOpen] = useState(false);
   const { t } = useTranslation();
 
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open ]);
+
   const scrollTo = (id: string) => {
     setOpen(false);
     if(location.pathname !== '/') { navigate(`/#${id}`); return; }
@@ -43,15 +50,15 @@ const LandingNavbar = ({ brand }: { brand?: ResolvedBrand }) => {
     <div aria-hidden className="h-14 sm:h-16" />
     <nav className="fixed top-0 inset-x-0 z-[90] bg-background/80 backdrop-blur-xl border-b border-border">
       <div className="container mx-auto px-4 sm:px-6 flex items-center justify-between h-14 sm:h-16">
-        <Link to="/" className="flex min-w-0 flex-1 lg:flex-none items-center gap-1.5">
+        <Link to="/" className="flex min-w-0 flex-1 lg:flex-none items-center gap-2 sm:gap-2.5">
           {orgBrand ? (
             <>
               {orgBrand.logoUrl ? (
-                <img src={orgBrand.logoUrl} alt={orgBrand.name} className="w-6 h-6 shrink-0 rounded object-contain sm:w-9 sm:h-9" />
+                <img src={orgBrand.logoUrl} alt={orgBrand.name} className="w-10 h-10 shrink-0 rounded object-contain sm:w-12 sm:h-12" />
               ) : (
                 <span
                   aria-hidden
-                  className="flex w-6 h-6 shrink-0 items-center justify-center rounded text-[10px] font-bold text-white sm:w-9 sm:h-9 sm:text-xs"
+                  className="flex w-10 h-10 shrink-0 items-center justify-center rounded text-xs font-bold text-white sm:w-12 sm:h-12 sm:text-sm"
                   style={{ backgroundColor: orgBrand.brandColor || "#10b981" }}
                 >
                   {initialsFor(orgBrand.name)}
@@ -66,7 +73,11 @@ const LandingNavbar = ({ brand }: { brand?: ResolvedBrand }) => {
             </>
           ) : (
             <>
-              <img src="/logo.png" alt="AI Hidden Leads" className="w-6 h-6 shrink-0 sm:w-9 sm:h-9" />
+              {/* logo-mark.png is /logo.png pre-cropped to its artwork:
+                  the source canvas is ~64% transparent padding, which made
+                  the mark render at ~13px inside a 36px box. The cropped
+                  mark at 40/48px puts the artwork itself at ~33/39px. */}
+              <img src="/logo-mark.png" alt="AI Hidden Leads" className="w-10 h-10 shrink-0 sm:w-12 sm:h-12" />
               <span className="min-w-0 text-sm sm:text-lg leading-tight font-extrabold text-foreground">
                 AI <span className="text-primary">Hidden</span> Leads
               </span>
@@ -116,8 +127,15 @@ const LandingNavbar = ({ brand }: { brand?: ResolvedBrand }) => {
         </div>
       </div>
 
-      {open && (
-        <div className="lg:hidden max-h-[calc(100dvh-4rem)] overflow-y-auto overscroll-contain border-t border-border bg-background/95 backdrop-blur-xl px-4 py-3 space-y-1">
+    </nav>
+
+    {open && (
+      <div className="lg:hidden">
+        {/* Light scrim only: the page stays visible beside the narrow
+            panel so live changes (text size, theme) can be judged with
+            the menu open. Clicking the scrim closes the menu. */}
+        <div aria-hidden onClick={() => setOpen(false)} className="fixed inset-0 top-14 z-[80] bg-foreground/10 sm:top-16" />
+        <div role="dialog" aria-label="Menu" className="fixed bottom-0 right-0 top-14 z-[85] w-[min(88vw,360px)] space-y-1 overflow-y-auto overscroll-contain border-l border-border bg-background px-4 py-3 shadow-2xl sm:top-16">
           {[
             { id: "services", label: t("nav.services") },
             { id: "how-it-works", label: t("nav.howItWorks") },
@@ -147,8 +165,8 @@ const LandingNavbar = ({ brand }: { brand?: ResolvedBrand }) => {
             {t("nav.getFreeDemo")}
           </Button>
         </div>
-      )}
-    </nav>
+      </div>
+    )}
     </>
   );
 };
