@@ -329,6 +329,67 @@ export function mergeChecklistItems(packItems: ChecklistItem[], aiItems: Checkli
   return out.slice(0, cap);
 }
 
+/**
+ * SUGGEST MORE (2026-11-18): the wizard's "Suggest more" button asks for
+ * ANOTHER batch of candidates. The client sends back the ids + labels of
+ * everything already shown; NOTHING already shown may come back from any
+ * source — AI, curated pack or generic/universal fallback. Matching is
+ * by id, or by normalized label (case/punctuation-insensitive), so a
+ * rephrased duplicate still counts as shown.
+ */
+export interface ExclusionSet {
+  ids: Set<string>;
+  labels: Set<string>;
+}
+
+export function exclusionSet(excludeIds: readonly string[] = [], excludeLabels: readonly string[] = []): ExclusionSet {
+  return {
+    ids: new Set(excludeIds.map((x) => String(x).trim()).filter(Boolean)),
+    labels: new Set(excludeLabels.map((x) => normLabel(String(x))).filter(Boolean)),
+  };
+}
+
+export const isExcludedItem = (item: ChecklistItem, ex: ExclusionSet): boolean =>
+  ex.ids.has(item.id) || ex.labels.has(normLabel(item.label));
+
+/** Drop every already-shown item from a candidate list (final safety filter). */
+export function filterExcludedItems(items: ChecklistItem[], excludeIds: readonly string[] = [], excludeLabels: readonly string[] = []): ChecklistItem[] {
+  const ex = exclusionSet(excludeIds, excludeLabels);
+  if (!ex.ids.size && !ex.labels.size) return [...items];
+  return items.filter((i) => !isExcludedItem(i, ex));
+}
+
+/**
+ * Compose one "Suggest more" batch: curated pack leftovers first, then
+ * fresh AI candidates, then the generic/universal items as the last
+ * fallback (so an AI outage still yields grounded cards). Every source
+ * is filtered against the exclusions and deduplicated by normalized
+ * label; the batch is capped. Returns [] when nothing new remains —
+ * the client renders the honest end state.
+ */
+export function buildMoreItems(opts: {
+  packItems: ChecklistItem[];
+  genericItems: ChecklistItem[];
+  aiItems: ChecklistItem[];
+  excludeIds?: readonly string[];
+  excludeLabels?: readonly string[];
+  cap?: number;
+}): ChecklistItem[] {
+  const { packItems, genericItems, aiItems, cap = 6 } = opts;
+  const ex = exclusionSet(opts.excludeIds, opts.excludeLabels);
+  const seen = new Set<string>();
+  const out: ChecklistItem[] = [];
+  for (const item of [...packItems, ...aiItems, ...genericItems]) {
+    if (out.length >= cap) break;
+    if (isExcludedItem(item, ex)) continue;
+    const key = normLabel(item.label);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(item);
+  }
+  return out;
+}
+
 /** Parse a model reply that should be a JSON array of {label, sentence}. */
 export function parseChecklistJson(text: string): ChecklistItem[] {
   const match = text.match(/\[[\s\S]*\]/);

@@ -1268,5 +1268,11 @@
     "phoneFirstBody": "Enseña a tu recepcionista con tus horarios, listas de servicios, precios aprobados y documentos. Usa tu sitio web como material de referencia opcional, no como un requisito. La atención telefónica se activa después de la configuración y las pruebas; los minutos web y telefónicos permanecen separados.",
     "phoneFirstLink": "Explora la recepción telefónica y una conversación de ejemplo",
     "preOrderNote": "Los servicios en reserva anticipada se activan después de la configuración y las pruebas. Sin garantías de ventas, ahorros, rapidez de devolución de llamadas ni posicionamiento."
+  },
+  "wizard": {
+    "suggestMore": "Sugerir más",
+    "suggestingMore": "Sugiriendo…",
+    "suggestExhausted": "Eso es todo lo que tenemos por ahora — escribe las tuyas abajo",
+    "suggestOwnBelow": "…o escribe las tuyas abajo"
   }
 }

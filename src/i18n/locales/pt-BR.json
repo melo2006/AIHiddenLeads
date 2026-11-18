@@ -1268,5 +1268,11 @@
     "phoneFirstBody": "Ensine sua recepcionista com seus horários, listas de serviços, preços aprovados e documentos. Use seu site como material de referência opcional, não como requisito. O atendimento telefônico é ativado após a configuração e os testes; os minutos do site e do telefone permanecem separados.",
     "phoneFirstLink": "Explore a recepção telefônica e uma conversa de exemplo",
     "preOrderNote": "Os serviços em pré-encomenda são ativados após a configuração e os testes. Sem garantias de vendas, economia, rapidez de retorno ou classificações."
+  },
+  "wizard": {
+    "suggestMore": "Sugerir mais",
+    "suggestingMore": "Sugerindo…",
+    "suggestExhausted": "Isso é tudo o que temos por agora — escreva as suas abaixo",
+    "suggestOwnBelow": "…ou escreva as suas abaixo"
   }
 }
