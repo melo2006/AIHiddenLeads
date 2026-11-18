@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { toast } from "sonner";
-import { Check, Phone, PhoneForwarded, PhoneIncoming, Plus, RefreshCw } from "lucide-react";
+import { Check, MessageSquare, Phone, PhoneForwarded, PhoneIncoming, Plus, RefreshCw, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,43 +48,98 @@ export function CarrierGuideView({ guide, aspenNumber }: { guide: CarrierGuide; 
 const ROUTES: { id: PhoneRoute; icon: typeof Phone; title: string; blurb: string }[] = [
   { id: "forward", icon: PhoneForwarded, title: "Forward my existing number", blurb: "Keep your carrier. Your phone rings first; unanswered calls forward to Aspen." },
   { id: "port", icon: PhoneIncoming, title: "Bring my number to AiHiddenLeads", blurb: "We move your number to our phone platform and host it. Porting takes several business days — we handle the paperwork." },
-  { id: "new", icon: Plus, title: "Get a new number", blurb: "A fresh Aspen number in your area code, assigned by our team." },
+  { id: "new", icon: Plus, title: "Get a new number", blurb: "Pick a fresh Aspen number in your area code — included in your plan." },
 ];
+
+/** +19545550134 -> (954) 555-0134 for display. Non-US shapes pass through. */
+export function formatUsNumber(e164: string): string {
+  const d = e164.replace(/\D/g, "");
+  if (d.length === 11 && d.startsWith("1")) return `(${d.slice(1, 4)}) ${d.slice(4, 7)}-${d.slice(7)}`;
+  return e164;
+}
+
+interface NumberCandidate { phoneNumber: string; locality?: string; region?: string; rateCenter?: string }
+
+/** Provider place names arrive ALL-CAPS ("POMPANO BEACH") — soften to title case for display. */
+export function prettyPlace(locality?: string, region?: string, rateCenter?: string): string {
+  const city = locality || rateCenter || "";
+  const titled = city === city.toUpperCase() ? city.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()) : city;
+  return [titled, region].filter(Boolean).join(", ");
+}
 
 function statusCopy(p: PhoneSetupState): string {
   switch (p.status) {
     case "awaiting_number": return "Saved. We're assigning your dedicated Aspen number — this step completes when it's ready, and we'll email you.";
     case "waiting_first_call": return `Setup saved — waiting for your first forwarded call. Forward ${p.businessNumber || "your number"} to ${p.aspenNumber || "your Aspen number"}, then call your own number and let it ring out.`;
     case "port_requested": return "Port requested. We've recorded your request and our team will start the port — do not cancel your old line until we confirm the port is complete. We'll email you updates.";
-    case "new_number_requested": return "Requested. Our team is assigning your new Aspen number — we'll email it as soon as it's ready.";
+    case "new_number_requested":
+      if (p.aspenNumber) return `Live — your new number ${formatUsNumber(p.aspenNumber)} is active and Aspen answers it now. Publish it anywhere.`;
+      if (p.selectedNumber) return `You picked ${formatUsNumber(p.selectedNumber)}. We're activating it now — we'll email you the moment it's live.`;
+      return "Requested. Our team is assigning your new Aspen number — we'll email it as soon as it's ready.";
     case "live_detected": return "Live — Aspen has answered a forwarded call on your line.";
     case "live_confirmed": return "Live — you confirmed your test call reached Aspen.";
     default: return "";
   }
 }
 
-export default function PhoneSetupPanel({ agentId, value, onSaved }: { agentId?: string; value: PhoneSetupState; onSaved: (p: PhoneSetupState) => void }) {
+export default function PhoneSetupPanel({ agentId, value, onSaved, businessName }: { agentId?: string; value: PhoneSetupState; onSaved: (p: PhoneSetupState) => void; businessName?: string }) {
   const [route, setRoute] = useState<PhoneRoute | undefined>(value.route);
   const [businessNumber, setBusinessNumber] = useState(value.businessNumber || "");
   const [transferNumber, setTransferNumber] = useState(value.transferNumber || "");
   const [carrierId, setCarrierId] = useState(value.carrierId || "");
   const [rings, setRings] = useState<number>(value.rings || 3);
   const [areaCode, setAreaCode] = useState(value.areaCode || "");
+  const [zip, setZip] = useState("");
+  const [vanity, setVanity] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [searched, setSearched] = useState(false);
+  const [results, setResults] = useState<NumberCandidate[]>([]);
+  const [searchError, setSearchError] = useState("");
+  const [selected, setSelected] = useState(value.selectedNumber || "");
+  const [selectedLocality, setSelectedLocality] = useState(value.selectedNumberLocality || "");
+  const [smsWanted, setSmsWanted] = useState(Boolean(value.smsIntent?.wanted));
+  const [smsLegalName, setSmsLegalName] = useState(value.smsIntent?.legalName || businessName || "");
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     setRoute(value.route); setBusinessNumber(value.businessNumber || ""); setTransferNumber(value.transferNumber || "");
     setCarrierId(value.carrierId || ""); setRings(value.rings || 3); setAreaCode(value.areaCode || "");
+    setSelected(value.selectedNumber || ""); setSelectedLocality(value.selectedNumberLocality || "");
+    setSmsWanted(Boolean(value.smsIntent?.wanted)); setSmsLegalName(value.smsIntent?.legalName || businessName || "");
   }, [value]);
 
   const guide = carrierGuide(carrierId);
   const seconds = ringSeconds(rings);
 
+  async function searchNumbers() {
+    if (!agentId) return;
+    const ac = areaCode.trim();
+    if (ac && ac.length !== 3) { setSearchError("Area codes are 3 digits — check what you typed."); return; }
+    if (!ac && !zip.trim() && !vanity.trim()) { setSearchError("Enter an area code, a ZIP code, or a word you'd like your number to spell."); return; }
+    setSearching(true); setSearchError("");
+    try {
+      const data = await request({ action: "searchNumbers", agentId, numberQuery: { areaCode: ac || undefined, zip: zip.trim() || undefined, contains: vanity.trim() || undefined } });
+      setResults((data.numbers || []) as NumberCandidate[]);
+      setSearched(true);
+    } catch (e) { setSearchError(e instanceof Error ? e.message : "Number search is unavailable right now"); setResults([]); setSearched(true); }
+    finally { setSearching(false); }
+  }
+
   async function save() {
     if (!agentId || !route) return;
     setBusy(true);
     try {
-      const data = await request({ action: "phoneSetup", agentId, phoneSetup: { route, businessNumber: businessNumber.trim() || undefined, transferNumber: transferNumber.trim() || undefined, carrierId: carrierId || undefined, rings, areaCode: areaCode.trim() || undefined } });
-      onSaved(data.phoneSetup as PhoneSetupState);
+      const withSms = route === "new" || route === "port";
+      const data = await request({ action: "phoneSetup", agentId, phoneSetup: { route, businessNumber: businessNumber.trim() || undefined, transferNumber: transferNumber.trim() || undefined, carrierId: carrierId || undefined, rings, areaCode: areaCode.trim() || undefined, selectedNumber: route === "new" && selected ? selected : undefined, selectedNumberLocality: route === "new" && selected ? (selectedLocality || undefined) : undefined, smsIntent: withSms ? { wanted: smsWanted, legalName: smsLegalName.trim() || undefined } : undefined } });
+      let savedState = data.phoneSetup as PhoneSetupState;
+      // New route with a pick: ask the server to activate it. The action
+      // is idempotent — re-saving never activates (or buys) twice.
+      if (route === "new" && selected && !savedState.aspenNumber) {
+        try {
+          const act = await request({ action: "provisionNumber", agentId });
+          if (act.phoneSetup) savedState = act.phoneSetup as PhoneSetupState;
+        } catch { /* activation continues in the background; the saved pick + status copy say so honestly */ }
+      }
+      onSaved(savedState);
       toast.success("Phone setup saved");
     } catch (e) { toast.error(e instanceof Error ? e.message : "Could not save phone setup"); }
     finally { setBusy(false); }
@@ -174,11 +229,82 @@ export default function PhoneSetupPanel({ agentId, value, onSaved }: { agentId?:
 
       {route === "new" && (
         <div className="space-y-3">
-          <label className="block space-y-1 text-sm font-medium">Preferred area code (optional)
-            <Input inputMode="numeric" maxLength={3} placeholder="e.g. 954" value={areaCode} onChange={(e) => setAreaCode(e.target.value.replace(/\D/g, ""))} />
-          </label>
-          <p className="rounded-lg bg-muted p-3 text-xs leading-relaxed text-muted-foreground">We&rsquo;ll assign a new Aspen number — in your area code when one is available — and email it to you. You can publish it anywhere, or forward an existing number to it later.</p>
+          {value.aspenNumber ? (
+            <p className="rounded-lg bg-primary/5 p-3 text-sm leading-relaxed">Your number <strong>{formatUsNumber(value.aspenNumber)}</strong> is live — Aspen answers it now. Publish it anywhere.</p>
+          ) : (
+            <>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <label className="block space-y-1 text-sm font-medium">Area code
+                  <Input inputMode="numeric" maxLength={3} placeholder="e.g. 954" value={areaCode} onChange={(e) => setAreaCode(e.target.value.replace(/\D/g, ""))} />
+                </label>
+                <label className="block space-y-1 text-sm font-medium">or ZIP code
+                  <Input inputMode="numeric" maxLength={5} placeholder="e.g. 33308" value={zip} onChange={(e) => setZip(e.target.value.replace(/\D/g, ""))} />
+                </label>
+                <label className="block space-y-1 text-sm font-medium">or a word it spells
+                  <Input maxLength={10} placeholder="e.g. PLUMB" value={vanity} onChange={(e) => setVanity(e.target.value.toUpperCase())} />
+                </label>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button type="button" variant="outline" disabled={searching || !agentId} onClick={() => void searchNumbers()}>
+                  {searching ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}Find my numbers
+                </Button>
+                <p className="text-xs text-muted-foreground">Your first number is <strong>included in your plan</strong> — no extra monthly charge. Additional numbers are $3/mo each.</p>
+              </div>
+              {searchError && <p role="alert" className="rounded-lg bg-destructive/10 p-3 text-xs leading-relaxed text-destructive">{searchError}</p>}
+              {searched && !searchError && results.length === 0 && (
+                <p className="rounded-lg bg-muted p-3 text-xs leading-relaxed text-muted-foreground">No numbers came back for that search. Try a nearby area code, or clear the word it spells — some words are rare in real inventory. You can also save now and our team will assign a number for you, or forward your existing number instead.</p>
+              )}
+              {results.length > 0 && (
+                <div className="space-y-2" role="radiogroup" aria-label="Available numbers">
+                  {results.map((n) => {
+                    const place = prettyPlace(n.locality, n.region, n.rateCenter);
+                    const isPick = selected === n.phoneNumber;
+                    return (
+                      <button key={n.phoneNumber} type="button" role="radio" aria-checked={isPick} onClick={() => { setSelected(n.phoneNumber); setSelectedLocality(place); }} className={`flex w-full items-center justify-between gap-3 rounded-xl border-2 p-3 text-left transition ${isPick ? "border-primary bg-primary/10" : "border-border hover:border-primary/50"}`}>
+                        <span>
+                          <span className="block text-sm font-semibold">{formatUsNumber(n.phoneNumber)}</span>
+                          {place && <span className="block text-[11px] text-muted-foreground">{place}</span>}
+                        </span>
+                        {isPick ? <span className="flex items-center gap-1 text-xs font-semibold text-primary"><Check className="h-3.5 w-3.5" />Your pick</span> : <span className="text-[11px] text-muted-foreground">Included in your plan</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {selected && (
+                <p className="text-xs text-muted-foreground">Your pick: <strong>{formatUsNumber(selected)}</strong>{selectedLocality ? ` · ${selectedLocality}` : ""}. Save below and we&rsquo;ll activate it. You can publish it anywhere, or forward an existing number to it later.</p>
+              )}
+              {!selected && (
+                <p className="rounded-lg bg-muted p-3 text-xs leading-relaxed text-muted-foreground">Prefer not to pick? Save now and we&rsquo;ll assign a new Aspen number — in your area code when one is available — and email it to you.</p>
+              )}
+            </>
+          )}
         </div>
+      )}
+
+      {(route === "new" || route === "port") && (
+        <div className="space-y-3 rounded-xl border border-border p-3">
+          <label className="flex cursor-pointer items-start gap-2 text-sm font-medium">
+            <input type="checkbox" className="mt-0.5 h-4 w-4 accent-primary" checked={smsWanted} onChange={(e) => setSmsWanted(e.target.checked)} />
+            <span className="flex items-center gap-2"><MessageSquare className="h-4 w-4 text-primary" />I also want texting (SMS) on my number</span>
+          </label>
+          {smsWanted && (
+            <div className="space-y-2">
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                Honest timing: texting needs a one-time registration for your business with the mobile carriers — an anti-spam rule that applies to every business, us included. We file it for you. It usually takes a few business days, and we&rsquo;ll email you when texting is live on your number. Your voice service starts right away either way.
+              </p>
+              <label className="block space-y-1 text-sm font-medium">Legal business name (as registered)
+                <Input placeholder="e.g. BlueLine Plumbing Co. LLC" value={smsLegalName} onChange={(e) => setSmsLegalName(e.target.value)} />
+              </label>
+              <p className="text-[11px] text-muted-foreground">Use the exact legal name on your business registration — the carriers check it against their records.</p>
+              {value.smsIntent?.status === "requested" && <p className="text-xs font-medium text-primary">Texting requested — we&rsquo;ll file your registration and email you when it&rsquo;s live.</p>}
+            </div>
+          )}
+        </div>
+      )}
+
+      {route === "forward" && (
+        <p className="text-xs leading-relaxed text-muted-foreground">Want texting too? Texting (SMS) becomes available once a number sits on our phone platform — choose &ldquo;Get a new number&rdquo; or &ldquo;Bring my number&rdquo; above and tick the texting box there.</p>
       )}
 
       {route && (

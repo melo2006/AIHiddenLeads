@@ -100,6 +100,8 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
   const [drag, setDrag] = useState(false);
   const [published, setPublished] = useState(false);
   const [phoneSetup, setPhoneSetup] = useState<PhoneSetupState>(EMPTY_PHONE_SETUP);
+  const [accountEmail, setAccountEmail] = useState("");
+  useEffect(() => { void supabase.auth.getUser().then(({ data }) => setAccountEmail(data.user?.email || "")).catch(() => {}); }, []);
   const [calling, setCalling] = useState(false);
   const [loading, setLoading] = useState(true);
   const [suggestedIndustry, setSuggestedIndustry] = useState("");
@@ -155,6 +157,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
         faqs, name: String(d.name || "Aspen"), greeting: String(d.greeting || EMPTY.greeting), voice: String(d.voice || "Kore"), defaultLanguage: (["es", "pt-BR", "fr-CA"].includes(String(d.defaultLanguage)) ? String(d.defaultLanguage) : "en") as AgentLanguage, clonedVoiceSelected: Boolean(d.clonedVoiceSelected), elevenLabsLiveVoice: Boolean(d.elevenLabsLiveVoice),
         color: d.theme?.primary || EMPTY.color, label: (() => { const l = String(d.launcherLabel || ""); return !l || isAskLabel(l) ? askLabel(String(d.name || "Aspen")) : l; })(),
         corner: d.launcherCorner === "bottom-left" ? "bottom-left" : "bottom-right", videoAvatar: normalizeVideoAvatar(d.videoAvatar),
+        notificationEmail: String(d.notificationEmail || ""),
       });
       setPublished(Boolean(a.published));
       setPhoneSetup((d.phoneSetup as PhoneSetupState) || EMPTY_PHONE_SETUP);
@@ -171,7 +174,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
     const faq = faqKnowledge(s.faqs);
     const config = {
       ...draft, websiteUrl: s.websiteUrl ? (/^https?:\/\//i.test(s.websiteUrl) ? s.websiteUrl : `https://${s.websiteUrl}`) : "", businessName: s.businessName || "My business", industry: industryName(s), subNiche: s.subNiche || "", businessNotes: s.businessNotes || "", knowledgeGuidance: s.knowledgeGuidance || "", assistantRestrictions: s.assistantRestrictions || "", serviceArea: s.serviceArea, serviceAreaText: s.serviceAreaText || "", systemPrompt: replaceSection(String(draft.systemPrompt || ""), GUARDRAILS_MARK, s.assistantRestrictions || ""), name: s.name || "Aspen",
-      greeting: s.greeting, voice: s.voice, defaultLanguage: s.defaultLanguage || "en", clonedVoiceSelected: Boolean(s.clonedVoiceSelected), elevenLabsLiveVoice: Boolean(s.elevenLabsLiveVoice), phoneSetup, theme: { background: "#101216", foreground: "#F4F6F8", font: "system", ...(draft.theme || {}), primary: s.color }, launcherLabel: s.label, launcherCorner: s.corner, videoAvatar: normalizeVideoAvatar(s.videoAvatar),
+      greeting: s.greeting, voice: s.voice, defaultLanguage: s.defaultLanguage || "en", clonedVoiceSelected: Boolean(s.clonedVoiceSelected), elevenLabsLiveVoice: Boolean(s.elevenLabsLiveVoice), phoneSetup, notificationEmail: s.notificationEmail?.trim() || undefined, theme: { background: "#101216", foreground: "#F4F6F8", font: "system", ...(draft.theme || {}), primary: s.color }, launcherLabel: s.label, launcherCorner: s.corner, videoAvatar: normalizeVideoAvatar(s.videoAvatar),
       knowledge: faq ? `${base}\n\n${FAQ_MARK}\n${faq}`.trim() : base,
     };
     try { await request({ action: "save", agentId: selectedId, config }); setDraft(config); return true; }
@@ -326,7 +329,13 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
     if (!selectedId) return;
     if (preview && !window.confirm("Publish this assistant for website visitors? This does not create or charge a customer subscription.")) return;
     setBusy(true);
-    try { if (await save()) { await request({ action: "publish", agentId: selectedId }); setPublished(true); toast.success("Your assistant is live"); } }
+    try { if (await save()) { await request({ action: "publish", agentId: selectedId }); setPublished(true); toast.success("Your assistant is live");
+      // Phone step v2: publishing also activates a picked new number.
+      // The server action is idempotent — an already-live number is
+      // returned as-is, never bought twice.
+      if (phoneSetup.route === "new" && phoneSetup.selectedNumber && !phoneSetup.aspenNumber) {
+        try { const act = await request({ action: "provisionNumber", agentId: selectedId }); if (act.phoneSetup) setPhoneSetup(act.phoneSetup as PhoneSetupState); } catch { /* activation continues server-side; status copy stays honest */ }
+      } }
     catch (e) { toast.error(e instanceof Error ? e.message : "Could not publish"); }
     finally { setBusy(false); }
   }
@@ -621,7 +630,15 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
             <div className="grid gap-6 md:grid-cols-2">
               <div className="space-y-4">
                 <StepHead title={published ? "You're live!" : "Try it, then go live"} hint={published ? "Add it to your website with the steps below." : "Make a test call, then publish."} help="Test calls use your saved draft. Publishing makes it available to your website visitors." />
-                <PhoneSetupPanel agentId={selectedId} value={phoneSetup} onSaved={setPhoneSetup} />
+                <PhoneSetupPanel agentId={selectedId} value={phoneSetup} onSaved={setPhoneSetup} businessName={s.businessName} />
+                <div className="space-y-2 rounded-2xl border border-border p-4">
+                  <h3 className="text-base font-bold">Booking notifications</h3>
+                  <p className="text-sm text-muted-foreground">New bookings and appointment confirmations are emailed here. Leave blank to use your account email{accountEmail ? <> (<strong>{accountEmail}</strong>)</> : null}.</p>
+                  <label className="block space-y-1 text-sm font-medium">Notification email
+                    <Input type="email" placeholder={accountEmail || "you@yourbusiness.com"} value={s.notificationEmail || ""} onChange={(e) => set({ notificationEmail: e.target.value })} />
+                  </label>
+                  <p className="text-[11px] text-muted-foreground">Saved when you publish — change it any time.</p>
+                </div>
                 {realVoice ? (
                   calling ? <div className="rounded-xl border border-border p-2"><GeminiConversation key={`call-${selectedId}`} draft agentId={selectedId} name={s.name} previewVoice={s.voice} compact videoAvatar={normalizeVideoAvatar(s.videoAvatar)} /></div>
                     : <Button size="lg" variant="outline" className="w-full" disabled={busy || sources.some(x => x.status !== "ready")} onClick={() => void prepareVoice(true)}><Phone className="mr-2 h-5 w-5" />Try a test call</Button>

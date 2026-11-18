@@ -29,6 +29,21 @@ export type PhoneSetupStatus =
   | 'live_detected'
   | 'live_confirmed';
 
+/** SMS/texting intent collected in the phone step (phone step v2,
+ *  2026-11-18). Collection only: US anti-spam (A2P) rules require a
+ *  one-time carrier registration per business before a number may text,
+ *  and that filing is a team task — the wizard records the request and
+ *  the legal business name it will be filed under, nothing more. */
+export interface SmsIntentState {
+  /** The client ticked "I also want texting (SMS) on my number". */
+  wanted: boolean;
+  /** Legal business name the registration will be filed under (prefilled from the business name, editable). */
+  legalName?: string;
+  status: 'requested' | 'not_requested';
+  /** ISO timestamp of the first save that requested texting. */
+  requestedAt?: string;
+}
+
 export interface PhoneSetupState {
   route?: PhoneRoute;
   /** The client's existing business number (forward/port routes), E.164-ish free text as typed. */
@@ -41,8 +56,16 @@ export interface PhoneSetupState {
   rings?: number;
   /** Preferred area code for a brand-new Aspen number (new route). */
   areaCode?: string;
+  /** Number the client picked in the self-serve picker (new route), E.164. */
+  selectedNumber?: string;
+  /** Locality label of the picked number, for display ("Fort Lauderdale, FL"). */
+  selectedNumberLocality?: string;
   /** The dedicated Aspen number assigned to this client, once ops assigns one. */
   aspenNumber?: string;
+  /** ISO timestamp when the picked number was actually provisioned on the phone platform (live provisioning only). */
+  provisionedAt?: string;
+  /** Texting intent collected in the phone step (see SmsIntentState). */
+  smsIntent?: SmsIntentState;
   status: PhoneSetupStatus;
   savedAt?: string;
   /** ISO timestamp when the client confirmed their own test call reached Aspen. */

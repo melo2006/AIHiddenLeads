@@ -33,6 +33,8 @@ export type WizardState = {
   label: string;
   corner: Corner;
   videoAvatar?: VideoAvatar;
+  /** Where booking confirmations + new-booking alerts are emailed (Step 6). Defaults to the account email when blank. */
+  notificationEmail?: string;
 };
 
 export const INDUSTRIES = [
