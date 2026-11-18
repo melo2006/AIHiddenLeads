@@ -4,6 +4,7 @@ import { z } from 'npm:zod@3';
 import { DEFAULT_AGENT, VOICES, openingFor, renderOpeningTemplate, businessDemoConfig, businessDemoConfigSwapParent, SIMULATION_GREETING_LEGACY_SLIM, hourInTimeZone, sanitizeVisitorName, segmentTimeZone } from '../_shared/voice-config.ts';
 import { DEFAULT_LIVE_MODEL, officialLivePricing } from '../_shared/live-models.ts';
 import { voiceQuotaClass, voiceLimitResponse } from '../_shared/voice-session-limit.ts';
+import { normalizeLimits, sessionGate, featureEnabled, subtreeOrgIds } from '../_shared/tenancy.ts';
 import { transferDestination } from '../_shared/browser-handoff.ts';
 import { transcriptAllowed } from '../_shared/transcript-consent.ts';
 import { workspaceAccess } from '../_shared/customer-payments.ts';
@@ -843,6 +844,61 @@ Deno.serve(async req=>{
       // in-role greeting, never the raw parent sales template.
       config.opening=renderOpeningTemplate(String(config.greeting || ''),config,greetingHour,greetingName);
     }
+  }
+  // TENANT CAPS (multi-tenant Phase 2, design §6/§11): before a session
+  // is authorized, the governing tenant's limits are checked against
+  // this month's metered usage across its whole subtree — minutes
+  // pool, overall spend cap, and (for demo-classified sessions) the
+  // demo budget, hard stop at 100% per §8 decision 4. The governing
+  // tenant is the org's reseller parent when it has one, else the org
+  // itself (so the platform can cap its own marketing orgs too).
+  // Suspension blocks as well. The check lives HERE, at session
+  // creation in this function — the playout engine and the live proxy
+  // are untouched. It is failure-open by design: any error in the caps
+  // plumbing logs and allows the session, because a limits bug must
+  // never take down live calls; caps only bite on clean data.
+  if(orgId && !segmentParentId) {
+    try {
+      const {data:orgRow}=await db.from('voice_organizations').select('id,parent_organization_id,status,feature_limits').eq('id',orgId).maybeSingle();
+      if(orgRow) {
+        let limitsRow=orgRow as {id:string;parent_organization_id?:string|null;status?:string|null;feature_limits?:unknown};
+        if(orgRow.parent_organization_id) {
+          const {data:parent}=await db.from('voice_organizations').select('id,parent_organization_id,status,feature_limits').eq('id',orgRow.parent_organization_id).maybeSingle();
+          if(parent?.status==='suspended') return json({error:'This assistant is currently unavailable.'},403);
+          if(parent) limitsRow=parent as typeof limitsRow;
+        }
+        if(orgRow.status==='suspended') return json({error:'This assistant is currently unavailable.'},403);
+        const limits=normalizeLimits(limitsRow.feature_limits);
+        const hasCaps=limits.minutesPool!==null || limits.monthlySpendCapUsd!==null || limits.demoBudgetUsd!==null || !featureEnabled(limits,'voiceAgents') || !featureEnabled(limits,'videoAvatar');
+        if(hasCaps) {
+          if(!featureEnabled(limits,'voiceAgents')) return json({error:'This assistant is currently unavailable.'},403);
+          if(!featureEnabled(limits,'videoAvatar')) {
+            const va=(config as Record<string,unknown>).videoAvatar as Record<string,unknown>|undefined;
+            if(va?.enabled===true) (config as Record<string,unknown>).videoAvatar={...va,enabled:false};
+          }
+          const monthStart=new Date(Date.UTC(new Date().getUTCFullYear(),new Date().getUTCMonth(),1)).toISOString();
+          const {data:allOrgs}=await db.from('voice_organizations').select('id,parent_organization_id');
+          const subtree=subtreeOrgIds((allOrgs || []).map((o:any)=>({id:o.id,parentOrganizationId:o.parent_organization_id})),limitsRow.id);
+          const totals={minutes:0,spendUsd:0,demoSpendUsd:0,clientCount:0};
+          const {data:events}=await db.from('usage_events').select('organization_id,service,quantity_minutes,est_cost_usd,carrier_cost_usd').gte('occurred_at',monthStart).limit(20000);
+          for(const e of events || []) { if(!subtree.has(e.organization_id as string)) continue;
+            if(['web_voice','phone_voice','video_avatar'].includes(String(e.service))) totals.minutes+=Number(e.quantity_minutes || 0);
+            totals.spendUsd+=Number(e.est_cost_usd || 0)+Number(e.carrier_cost_usd || 0); }
+          const isDemo=Boolean(b.share || b.preview || b.leadId || b.prospectId || (config as Record<string,unknown>).sharedDemo===true || (config as Record<string,unknown>).homepageSales===true);
+          if(isDemo) {
+            const {data:demoSessions}=await db.from('gemini_voice_sessions').select('organization_id,config,usage').gte('created_at',monthStart).limit(10000);
+            for(const s of demoSessions || []) { if(!subtree.has(s.organization_id as string)) continue;
+              const cfg=(s.config || {}) as Record<string,unknown>;
+              if(!(cfg.preview===true || cfg.sharedDemo===true || cfg.homepageSales===true || cfg.quotaClass==='visitor')) continue;
+              const u=(s.usage || {}) as Record<string,unknown>;
+              if(typeof u.audio_estimate_usd==='number') totals.demoSpendUsd+=u.audio_estimate_usd; }
+          }
+          const gate=sessionGate(limits,totals,{demo:isDemo});
+          if(!gate.allowed) return json({error:gate.blockedBy==='demoSpend'?'This demo has reached its usage limit for this month.':'This assistant has reached its usage limit for this month.'},403);
+          (config as Record<string,unknown>).tenantCaps={checked:true,at:new Date().toISOString()};
+        }
+      }
+    } catch(e) { console.error('tenant caps check failed (allowing session)', e instanceof Error?e.message:e); }
   }
   const token=crypto.randomUUID()+crypto.randomUUID();
   const visitor=await hash(`${b.visitorKey}|${req.headers.get('x-forwarded-for')?.split(',')[0] || ''}`);

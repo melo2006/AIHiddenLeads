@@ -22,6 +22,9 @@ import SetupWizard from "@/components/setup-wizard/SetupWizard";
 import VideoAvatarsView from "@/components/crm/VideoAvatarsView";
 import TelephonyAdminView from "@/components/crm/TelephonyAdminView";
 import ClientsView from "@/components/crm/ClientsView";
+import TenantsView from "@/components/crm/TenantsView";
+import RateCardView from "@/components/crm/RateCardView";
+import TenantShell from "@/components/crm/TenantShell";
 import { Link } from "react-router-dom";
 import { CRMSidebar } from "@/components/crm/CRMSidebar";
 import { supabase } from "@/integrations/supabase/client";
@@ -176,7 +179,7 @@ const CRM = () => {
     let active = true;
     setRolesReady(false);
     if (!session) { setVoiceAccess(false); setVoiceAdmin(false); setRolesReady(true); return; }
-    Promise.all([supabase.from('voice_platform_roles').select('role').eq('user_id', session.user.id), supabase.from('voice_memberships').select('id').eq('user_id', session.user.id).eq('role','editor')]).then(([roles,members]) => {
+    Promise.all([supabase.from('voice_platform_roles').select('role').eq('user_id', session.user.id), supabase.from('voice_memberships').select('id').eq('user_id', session.user.id)]).then(([roles,members]) => {
       if (!active) return;
       setVoiceAdmin(Boolean(roles.data?.some(r => r.role === 'admin')));
       setVoiceAccess(Boolean(members.data?.length)); setRolesReady(true);
@@ -215,7 +218,7 @@ const CRM = () => {
     );
   }
 
-  if (!voiceAdmin && voiceAccess) return <div className="min-h-screen bg-background text-foreground"><header className="sticky top-0 flex h-14 items-center justify-between border-b border-border bg-background px-4"><span className="flex items-center gap-2"><BrandMark className="h-8 w-8 shrink-0" /><span className="font-bold">AI Hidden Leads · Voice Agents</span></span><Button size="sm" variant="ghost" onClick={() => supabase.auth.signOut()}>Sign out</Button></header><main className="p-4 sm:p-6"><VoiceAgentsView /></main></div>;
+  if (!voiceAdmin && voiceAccess) return <TenantShell />;
 
   return (
     <SidebarProvider>
@@ -253,6 +256,8 @@ const CRM = () => {
               <Route path="sessions" element={<TabbedPage tabs={[{ id: "demos", label: "Demo sessions", el: <DemoSessionsView /> }, { id: "calls", label: "Call history", el: <CallHistoryView /> }]} />} />
               <Route path="page-visitors" element={<PageVisitorsView />} />
               <Route path="clients" element={<ClientsView />} />
+              <Route path="tenants" element={<TenantsView />} />
+              <Route path="rate-card" element={<RateCardView />} />
               <Route path="imported" element={<ImportedListsView />} />
               <Route path="imported/:id" element={<ImportedListDetailView />} />
               <Route path="engagement" element={<Navigate to="/dashboard/campaign-results?tab=engagement" replace />} />

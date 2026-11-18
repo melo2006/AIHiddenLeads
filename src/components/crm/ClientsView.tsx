@@ -31,7 +31,7 @@ interface ProspectsResult {
   linkable: boolean;
 }
 
-function ClientDetail({ client, prospects, linkable }: { client: ClientViewModel; prospects: ProspectLite[]; linkable: boolean }) {
+function ClientDetail({ client, prospects, linkable, showLeadLink = true }: { client: ClientViewModel; prospects: ProspectLite[]; linkable: boolean; showLeadLink?: boolean }) {
   const queryClient = useQueryClient();
   const [pick, setPick] = useState('');
   const [busy, setBusy] = useState(false);
@@ -97,6 +97,7 @@ function ClientDetail({ client, prospects, linkable }: { client: ClientViewModel
         </div>
       </div>
 
+      {showLeadLink && (
       <div className="rounded-lg border border-border p-3">
         <p className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">Came from a lead?</p>
         {!linkable ? (
@@ -151,17 +152,19 @@ function ClientDetail({ client, prospects, linkable }: { client: ClientViewModel
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }
 
-const ClientsView = () => {
+const ClientsView = ({ scope = 'platform' }: { scope?: 'platform' | 'reseller' } = {}) => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const reseller = scope === 'reseller';
 
   const { data: clients, isLoading, error } = useQuery({
-    queryKey: ['clients'],
+    queryKey: [reseller ? 'tenant-clients' : 'clients'],
     queryFn: async () => {
-      const { data, error: invokeError } = await supabase.functions.invoke('voice-agents', { body: { action: 'clients' } });
+      const { data, error: invokeError } = await supabase.functions.invoke('voice-agents', { body: { action: reseller ? 'tenantClients' : 'clients' } });
       if (invokeError) throw invokeError;
       return shapeClients((data?.clients ?? []) as ClientPayload[]);
     },
@@ -169,6 +172,7 @@ const ClientsView = () => {
 
   const { data: prospectsResult } = useQuery({
     queryKey: ['clients-prospects'],
+    enabled: !reseller,
     retry: false,
     queryFn: async (): Promise<ProspectsResult> => {
       const rich = await supabase
@@ -190,7 +194,9 @@ const ClientsView = () => {
       <div>
         <h2 className="text-lg font-bold">Clients</h2>
         <p className="text-xs text-muted-foreground">
-          Every paying customer — the person, their business, their plan and where they came from.
+          {reseller
+            ? 'Your client businesses — the person, their business, their plan and its status.'
+            : 'Every paying customer — the person, their business, their plan and where they came from.'}
         </p>
       </div>
 
@@ -202,8 +208,9 @@ const ClientsView = () => {
         <div className="py-8 text-center text-sm text-muted-foreground">
           <p className="font-medium text-foreground">No paying customers yet.</p>
           <p className="mt-1">
-            When someone buys a plan and their workspace is provisioned, they will appear here — with their
-            plan, subscription status and the lead they came from.
+            {reseller
+              ? 'Clients you invite appear here once their workspace is provisioned — with their plan and subscription status.'
+              : 'When someone buys a plan and their workspace is provisioned, they will appear here — with their plan, subscription status and the lead they came from.'}
           </p>
         </div>
       ) : (
@@ -249,7 +256,7 @@ const ClientsView = () => {
                   expanded ? (
                     <tr key={`${client.organizationId}-detail`} className="border-b border-border bg-card/50">
                       <td colSpan={7}>
-                        <ClientDetail client={client} prospects={prospects} linkable={linkable} />
+                        <ClientDetail client={client} prospects={prospects} linkable={linkable} showLeadLink={!reseller} />
                       </td>
                     </tr>
                   ) : null,
