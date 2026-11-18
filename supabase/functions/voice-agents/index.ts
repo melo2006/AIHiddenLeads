@@ -47,12 +47,71 @@ async function suggestGreeting(req:Request,input:{businessName:string;industry?:
   return text.slice(0,600);
 }
 
+/** Concept C page discovery (2026-11-18): list the pages a site exposes
+ * so the owner can tick which ones the assistant learns. Discovery only —
+ * cheap fetches (sitemap first, homepage links as fallback), hard-capped;
+ * learning a ticked page still goes through the normal source+scan path,
+ * so crawl credits stay bounded by what the owner actually picked. */
+async function fetchTextCapped(url:string,maxChars:number):Promise<string>{
+  const controller=new AbortController(); const timer=setTimeout(()=>controller.abort(),8000);
+  try {
+    const res=await fetch(url,{signal:controller.signal,headers:{'User-Agent':'AIHiddenLeads page discovery'}});
+    if(!res.ok) return '';
+    return (await res.text()).slice(0,maxChars);
+  } catch { return ''; } finally { clearTimeout(timer); }
+}
+function classifyPagePath(path:string):string{
+  const p=path.toLowerCase();
+  if(p==='/'||p==='') return 'home';
+  if(/service/.test(p)) return 'services';
+  if(/about|team|company/.test(p)) return 'about';
+  if(/pric|rate|plan|package/.test(p)) return 'pricing';
+  if(/faq|help|support/.test(p)) return 'faq';
+  if(/contact/.test(p)) return 'contact';
+  if(/blog|news|article/.test(p)) return 'blog';
+  if(/privacy|terms|legal|cookie/.test(p)) return 'legal';
+  return 'page';
+}
+async function discoverSitePages(rawUrl:string):Promise<{url:string;path:string;kind:string}[]>{
+  const base=new URL(rawUrl);
+  const origin=base.origin; const host=base.host;
+  const found=new Map<string,string>();
+  const add=(u:string)=>{ try { const parsed=new URL(u); if(parsed.host!==host) return; parsed.hash=''; const clean=parsed.toString(); if(!found.has(clean)) found.set(clean,classifyPagePath(parsed.pathname)); } catch { /* skip malformed */ } };
+  let sitemapUrls=[`${origin}/sitemap.xml`];
+  const robots=await fetchTextCapped(`${origin}/robots.txt`,20000);
+  for(const m of robots.matchAll(/^Sitemap:\s*(\S+)/gim)) sitemapUrls.push(m[1]);
+  sitemapUrls=[...new Set(sitemapUrls)].slice(0,4);
+  for(const sm of sitemapUrls) {
+    if(found.size>=60) break;
+    const xml=await fetchTextCapped(sm,1500000);
+    if(!xml) continue;
+    const locs=[...xml.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/g)].map(m=>m[1]);
+    for(const loc of locs) if(!/\.xml($|\?)/i.test(loc)) add(loc);
+    for(const child of locs.filter(u=>/\.xml($|\?)/i.test(u)).slice(0,3)) {
+      if(found.size>=60) break;
+      const childXml=await fetchTextCapped(child,1500000);
+      for(const m of childXml.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/g)) add(m[1]);
+    }
+  }
+  if(found.size<2) {
+    const home=await fetchTextCapped(origin+'/',500000);
+    for(const m of home.matchAll(/href\s*=\s*["']([^"'#]+)["']/gi)) { try { add(new URL(m[1],origin+'/').toString()); } catch { /* skip malformed */ } if(found.size>=60) break; }
+  }
+  add(origin+'/');
+  return [...found.entries()].slice(0,60).map(([url,kind])=>({url,path:new URL(url).pathname,kind}));
+}
+
 const themeSchema=z.object({primary:z.string().regex(/^#[0-9a-f]{6}$/i),background:z.string().regex(/^#[0-9a-f]{6}$/i),foreground:z.string().regex(/^#[0-9a-f]{6}$/i),font:z.enum(THEME_FONTS)});
 const smsIntentInputSchema = z.object({ wanted:z.boolean(), legalName:z.string().max(160).optional() });
 const phoneSetupInputSchema = z.object({ route:z.enum(['forward','port','new']), businessNumber:z.string().max(32).optional(), transferNumber:z.string().max(32).optional(), carrierId:z.string().max(40).refine(v=>CARRIER_GUIDES.some(g=>g.id===v), 'Unknown carrier').optional(), rings:z.union([z.literal(2),z.literal(3),z.literal(4),z.literal(5)]).optional(), areaCode:z.string().regex(/^\d{0,3}$/).optional(), selectedNumber:z.string().regex(/^\+[1-9]\d{7,14}$/).optional(), selectedNumberLocality:z.string().max(80).optional(), smsIntent:smsIntentInputSchema.optional() });
 const phoneSetupStateSchema = phoneSetupInputSchema.partial({route:true}).extend({ route:z.enum(['forward','port','new']).optional(), aspenNumber:z.string().max(32).optional(), provisionedAt:z.string().max(40).optional(), smsIntent:z.object({ wanted:z.boolean(), legalName:z.string().max(160).optional(), status:z.enum(['requested','not_requested']).default('not_requested'), requestedAt:z.string().max(40).optional() }).optional(), status:z.enum(['not_started','awaiting_number','waiting_first_call','port_requested','new_number_requested','live_detected','live_confirmed']).default('not_started'), savedAt:z.string().max(40).optional(), testCallConfirmedAt:z.string().max(40).optional(), firstCallDetectedAt:z.string().max(40).optional() });
-const configSchema = z.object({ phoneSetup:phoneSetupStateSchema.optional(), notificationEmail:z.string().max(160).refine(v=>!v || /.+@.+\..+/.test(v), 'Enter a valid email').optional(), onboarding:z.object({ testCallConfirmedAt:z.string().max(40).optional() }).optional(), subNiche:z.string().max(160).optional(), businessNotes:z.string().max(6000).optional(), knowledgeGuidance:z.string().max(12000).optional(), assistantRestrictions:z.string().max(4000).optional(), previewScreenshot:z.string().max(2000).optional(), industry:z.string().max(80).optional(), launcherLabel:z.string().max(40).optional(), launcherCorner:z.enum(['bottom-left','bottom-right']).optional(), websiteUrl:z.string().max(2000).refine(v=>!v || isPublicUrl(v),'Use a public website URL').default(''), theme:z.preprocess(v=>v&&typeof v==='object'?{...DEFAULT_WIDGET_THEME,...(v as Record<string,unknown>)}:v,themeSchema).default(DEFAULT_WIDGET_THEME), suggestedTheme:themeSchema.nullable().optional(), name:z.string().min(1).max(80), businessName:z.string().min(1).max(160), voice:z.enum(VOICES as [string,...string[]]), clonedVoiceSelected:z.boolean().default(false), avatarPath:z.string().max(500).default(''), greeting:z.string().min(1).max(1500), systemPrompt:z.string().min(1).max(40000), simulationGreeting:z.string().min(1).max(1500).default(SIMULATION_GREETING), simulationPrompt:z.string().min(1).max(40000).default(SIMULATION_PROMPT), knowledge:z.string().max(60000).default(''), crawlDepth:z.union([z.literal(1),z.literal(2)]).default(1), recordTranscript:z.boolean().default(false), transferPhone:z.string().regex(/^$|^\\+[1-9]\\d{7,14}$/,'Use an international phone number, starting with +').default(''), transferManagerName:z.string().max(80).default(''), defaultLanguage:z.enum(['en','es','pt-BR','fr-CA']).default('en'), ringCount:z.number().int().min(2).max(5).optional(), bookingRules:z.string().max(4000).default(''), serviceArea:z.unknown().optional().transform(v=>v===undefined?undefined:normalizeServiceArea(v)), serviceAreaText:z.string().max(2000).optional(), videoAvatar:z.unknown().optional().transform(v=>v===undefined?undefined:normalizeVideoAvatar(v)) });
-const requestSchema = z.object({ action:z.enum(['suggestKnowledge','suggestIndustry','suggestGreeting','suggestServices','suggestGuardrails','suggestServiceArea','list','usage','pricing','create','save','publish','source','refresh','removeSource','member','rollback','share','unshare','onboarding','phoneSetup','searchNumbers','provisionNumber','duplicate','usageSummary','clients','myBranding','myTenancy','tenants','updateTenant','rateCard','saveRateCard','tenantClients','resellerConsole','inviteCreate','inviteList','inviteRevoke','invitePreview','inviteAccept','saveBranding','demoStatus','seedDemoData','removeDemoData','resellerRetail','saveResellerRetail','tenantRetail','currencyRates','saveCurrencyRates','resellerCatalog','saveResellerCatalog','tenantBranding','setSubdomain']), phoneSetup:phoneSetupInputSchema.optional(), numberQuery:z.object({ areaCode:z.string().regex(/^\d{3}$/).optional(), zip:z.string().regex(/^\d{5}$/).optional(), contains:z.string().max(10).optional(), limit:z.number().int().min(1).max(25).optional() }).optional(), excludeIds:z.array(z.string().min(1).max(120)).max(60).optional(), excludeLabels:z.array(z.string().min(1).max(120)).max(60).optional(), round:z.number().int().min(0).max(10).optional(), confirmTestCall:z.enum(['phone','agent']).optional(), agentId:z.string().uuid().optional(), mode:z.enum(['website','generic']).default('website'), subNiche:z.string().max(160).optional(), businessNotes:z.string().max(6000).optional(), industry:z.string().max(80).optional(), tone:z.string().max(40).optional(), slug:z.string().min(3).max(80).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(), sourceId:z.string().uuid().optional(), config:configSchema.optional(), businessName:z.string().min(1).max(160).optional(), userEmail:z.string().email().optional(), kind:z.enum(['url','document']).optional(), label:z.string().min(1).max(255).optional(), url:z.string().max(2000).optional(), storagePath:z.string().max(500).optional(), pricing:z.object({model:z.literal('gemini-3.8-live'),inputAudioPerMinute:z.number().finite().min(0).max(100),outputAudioPerMinute:z.number().finite().min(0).max(100),source:z.string().url().max(2000)}).optional(),
+const configSchema = z.object({ phoneSetup:phoneSetupStateSchema.optional(), notificationEmail:z.string().max(160).refine(v=>!v || /.+@.+\..+/.test(v), 'Enter a valid email').optional(), onboarding:z.object({ testCallConfirmedAt:z.string().max(40).optional() }).optional(), subNiche:z.string().max(160).optional(), businessNotes:z.string().max(6000).optional(), knowledgeGuidance:z.string().max(12000).optional(), assistantRestrictions:z.string().max(4000).optional(), previewScreenshot:z.string().max(2000).optional(), industry:z.string().max(80).optional(), launcherLabel:z.string().max(40).optional(), launcherCorner:z.enum(['bottom-left','bottom-right']).optional(), websiteUrl:z.string().max(2000).refine(v=>!v || isPublicUrl(v),'Use a public website URL').default(''), theme:z.preprocess(v=>v&&typeof v==='object'?{...DEFAULT_WIDGET_THEME,...(v as Record<string,unknown>)}:v,themeSchema).default(DEFAULT_WIDGET_THEME), suggestedTheme:themeSchema.nullable().optional(), name:z.string().min(1).max(80), businessName:z.string().min(1).max(160), voice:z.enum(VOICES as [string,...string[]]), clonedVoiceSelected:z.boolean().default(false), avatarPath:z.string().max(500).default(''), greeting:z.string().min(1).max(1500), systemPrompt:z.string().min(1).max(40000), simulationGreeting:z.string().min(1).max(1500).default(SIMULATION_GREETING), simulationPrompt:z.string().min(1).max(40000).default(SIMULATION_PROMPT), knowledge:z.string().max(60000).default(''), crawlDepth:z.union([z.literal(1),z.literal(2)]).default(1), recordTranscript:z.boolean().default(false), transferPhone:z.string().regex(/^$|^\\+[1-9]\\d{7,14}$/,'Use an international phone number, starting with +').default(''), transferManagerName:z.string().max(80).default(''), defaultLanguage:z.enum(['en','es','pt-BR','fr-CA']).default('en'), ringCount:z.number().int().min(2).max(5).optional(), bookingRules:z.string().max(4000).default(''), serviceArea:z.unknown().optional().transform(v=>v===undefined?undefined:normalizeServiceArea(v)), serviceAreaText:z.string().max(2000).optional(), videoAvatar:z.unknown().optional().transform(v=>v===undefined?undefined:normalizeVideoAvatar(v)),
+  // Concept C wizard (2026-11-18): owner-defined variables + lookup-table
+  // marks. Both are owner-authored config only — capped, token-shaped
+  // names, and they ride the same save/publish path as every other field.
+  customVariables:z.array(z.object({ id:z.string().min(1).max(60), name:z.string().min(2).max(40).regex(/^[a-z][a-zA-Z0-9_]*$/), label:z.string().min(1).max(80), source:z.enum(['call','caller-id','chat','lookup']), example:z.string().max(120) })).max(20).optional(),
+  lookupTables:z.array(z.object({ id:z.string().min(1).max(80), label:z.string().min(1).max(255), keyColumn:z.string().min(1).max(120), speakableColumns:z.array(z.string().min(1).max(120)).max(30) })).max(10).optional() });
+const requestSchema = z.object({ action:z.enum(['suggestKnowledge','suggestIndustry','suggestGreeting','suggestServices','suggestGuardrails','suggestServiceArea','list','usage','pricing','create','save','publish','source','refresh','removeSource','member','rollback','share','unshare','onboarding','phoneSetup','searchNumbers','provisionNumber','duplicate','usageSummary','clients','myBranding','myTenancy','tenants','updateTenant','rateCard','saveRateCard','tenantClients','resellerConsole','inviteCreate','inviteList','inviteRevoke','invitePreview','inviteAccept','saveBranding','demoStatus','seedDemoData','removeDemoData','resellerRetail','saveResellerRetail','tenantRetail','currencyRates','saveCurrencyRates','resellerCatalog','saveResellerCatalog','tenantBranding','setSubdomain','discoverPages','rewriteText']), phoneSetup:phoneSetupInputSchema.optional(), numberQuery:z.object({ areaCode:z.string().regex(/^\d{3}$/).optional(), zip:z.string().regex(/^\d{5}$/).optional(), contains:z.string().max(10).optional(), limit:z.number().int().min(1).max(25).optional() }).optional(), excludeIds:z.array(z.string().min(1).max(120)).max(60).optional(), excludeLabels:z.array(z.string().min(1).max(120)).max(60).optional(), round:z.number().int().min(0).max(10).optional(), confirmTestCall:z.enum(['phone','agent']).optional(), agentId:z.string().uuid().optional(), mode:z.enum(['website','generic']).default('website'), subNiche:z.string().max(160).optional(), businessNotes:z.string().max(6000).optional(), industry:z.string().max(80).optional(), tone:z.string().max(40).optional(), slug:z.string().min(3).max(80).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(), sourceId:z.string().uuid().optional(), config:configSchema.optional(), businessName:z.string().min(1).max(160).optional(), userEmail:z.string().email().optional(), kind:z.enum(['url','document']).optional(), label:z.string().min(1).max(255).optional(), url:z.string().max(2000).optional(), storagePath:z.string().max(500).optional(), text:z.string().max(4000).optional(), rewriteMode:z.enum(['warmer','shorter']).optional(), pricing:z.object({model:z.literal('gemini-3.8-live'),inputAudioPerMinute:z.number().finite().min(0).max(100),outputAudioPerMinute:z.number().finite().min(0).max(100),source:z.string().url().max(2000)}).optional(),
   // Multi-tenant Phase 2 (2026-11-18): tenancy / invites / rate card.
   organizationId:z.string().uuid().optional(), inviteId:z.string().uuid().optional(), inviteKind:z.enum(['reseller','client','staff']).optional(), companyName:z.string().min(1).max(160).optional(), inviteRole:z.enum(['admin','editor','viewer']).optional(), inviteToken:z.string().min(16).max(200).optional(), status:z.enum(['active','suspended']).optional(), limits:z.unknown().optional(), rateCard:z.unknown().optional(), branding:z.unknown().optional(),
   // Multi-tenant Phase 2.5 (2026-11-18): demo tenants / retail / currency / catalog.
@@ -585,6 +644,37 @@ Deno.serve(async req=>{
       if(!moreRound) return json({items:filterExcludedItems(mergeChecklistItems(packItems,aiItems),excludeIds,excludeLabels),hasEvidence:Boolean(evidence),pack:key});
       const genericItems=isServices?NICHE_PACKS.generic.services:NICHE_PACKS.generic.guardrails;
       return json({items:buildMoreItems({packItems,genericItems,aiItems,excludeIds,excludeLabels}),hasEvidence:Boolean(evidence),pack:key,round:body.round ?? 0});
+    }
+    if(body.action==='discoverPages' || body.action==='rewriteText') {
+      // Concept C wizard (2026-11-18): page discovery for the Learn
+      // step's page picker, and the field toolbar's rewrite help
+      // (warmer / shorter). Same access rule as the other suggest
+      // actions: platform admin, or a workspace member on their own agent.
+      if(!body.agentId) return json({error:'Agent required'},400);
+      const {data:agentRow}=await db.from('voice_agents').select('organization_id').eq('id',body.agentId).maybeSingle();
+      if(!agentRow) return json({error:'Agent not found'},404);
+      if(!admin) {
+        const {data:m}=await db.from('voice_memberships').select('id').eq('organization_id',agentRow.organization_id).eq('user_id',user.id).in('role',WORK_ROLES).maybeSingle();
+        if(!m || !(await workspaceAccess(db,agentRow.organization_id))) return json({error:'Access denied'},403);
+      }
+      if(body.action==='discoverPages') {
+        const url=(body.url || '').trim();
+        if(!url || !isPublicUrl(url)) return json({error:'Use a public website URL'},400);
+        try { return json({pages:await discoverSitePages(url)}); }
+        catch { return json({pages:[]}); }
+      }
+      const text=(body.text || '').trim();
+      if(!text) return json({error:'Text is required'},400);
+      const apiKey = Deno.env.get('GOOGLE_API_KEY'); if(!apiKey) return json({error:'AI is not configured'},503);
+      const instructions = body.rewriteMode==='shorter'
+        ? 'Rewrite the text below to be noticeably shorter and punchier. Keep every fact, every {placeholder} token exactly as written, and the core meaning. Keep the same language as the input. Return only the rewritten text.'
+        : 'Rewrite the text below so it sounds warmer and friendlier. Keep every fact, every {placeholder} token exactly as written, and the meaning identical. Keep the same language as the input. Return only the rewritten text.';
+      try {
+        const {result}=createResponsesCall(req,{baseURL:'https://generativelanguage.googleapis.com/v1beta/openai',apiKey,model:'gemini-2.5-flash'},[{role:'user',content:text}],instructions);
+        const rewritten=(await result.text).trim().replace(/^"|"$/g,'');
+        if(!rewritten) return json({error:'No rewrite returned. Please try again.'},502);
+        return json({text:rewritten.slice(0,4000)});
+      } catch(e) { const status=(e as {status?:number}).status ?? (e as {statusCode?:number}).statusCode ?? 502; return json({error:e instanceof Error?e.message:'Rewrite failed'},[400,402,403,429].includes(status)?status:502); }
     }
     if(body.action==='clients') {
       // Platform admin only (multi-tenant design Phase 1, 2026-11-18):

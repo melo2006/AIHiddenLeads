@@ -1277,6 +1277,165 @@
     "suggestMore": "Suggest more",
     "suggestingMore": "Suggesting…",
     "suggestExhausted": "That's everything we have for now — type your own below",
-    "suggestOwnBelow": "…or type your own below"
+    "suggestOwnBelow": "…or type your own below",
+    "steps": {
+      "business": "Your business",
+      "learn": "Learn",
+      "face": "Face & voice",
+      "review": "Review the draft",
+      "look": "Look on your site",
+      "launch": "Test & go live"
+    },
+    "strip": {
+      "yourBusiness": "Your business",
+      "preview": "Preview"
+    },
+    "pieces": {
+      "title": "Your assistant, taking shape",
+      "business": "Business details",
+      "learn": "Knowledge learned",
+      "face": "Face & voice",
+      "review": "Draft reviewed",
+      "look": "Look on your site",
+      "launch": "Live"
+    },
+    "learn": {
+      "title": "Teach your assistant",
+      "hint": "Add your sources — your assistant learns only what you give it.",
+      "help": "Learning starts only when you choose it. General industry guidance is not verified information about your business.",
+      "websiteTitle": "Your website",
+      "websiteHint": "Learn the whole site, or find its pages first and tick only the ones your assistant should learn — unticked pages are never read, so nothing is wasted on blog posts or legal pages.",
+      "findPages": "Find my pages",
+      "findingPages": "Finding pages…",
+      "noPagesFound": "We couldn't find a page list for that site — learning the website directly still works.",
+      "depthLabel": "Scan depth",
+      "depthKey": "Key pages",
+      "depthDeep": "Deeper (follows links)",
+      "pagesFound": "{{count}} pages found",
+      "pickAll": "Tick all",
+      "pickNone": "Clear",
+      "learnPicked": "Learn {{count}} ticked pages",
+      "pagesAlreadyKnown": "Those pages are already learned.",
+      "sourceCap": "That would pass the 12-source limit — untick a few pages and try again.",
+      "pagesLearned": "Pages learned",
+      "pickerNote": "Each ticked page is learned as its own source (12 sources max per assistant). Your main website scan still covers the homepage.",
+      "alreadyLearned": "Learned",
+      "capacityTitle": "Knowledge capacity",
+      "capacityValue": "{{used}} of {{cap}} characters",
+      "capacityHint": "Your assistant's compiled knowledge — learned sources, accepted guidance, coverage text and quick answers — fits up to the cap. Each source is also kept in full on its own.",
+      "notesTitle": "Your notes",
+      "summarySources": "Your assistant has learned {{count}} sources.",
+      "summaryGuidance": "It also has your reviewed guidance.",
+      "summaryFaqs": "And {{count}} quick answers.",
+      "summaryEmpty": "Nothing learned yet — add a source above and your assistant will know your business.",
+      "kind": {
+        "home": "Home",
+        "services": "Services",
+        "about": "About",
+        "pricing": "Pricing",
+        "faq": "FAQ",
+        "contact": "Contact",
+        "blog": "Blog",
+        "legal": "Legal",
+        "page": "Page"
+      }
+    },
+    "lookup": {
+      "title": "Lookup tables",
+      "hint": "Got a spreadsheet your assistant should look things up in — a price list, a stock list, your listings? Mark it as a lookup table: pick the column a caller would quote, and the columns the assistant may say out loud.",
+      "keyIs": "Key: {{column}}",
+      "edit": "Edit",
+      "useAsTable": "Use as a lookup table",
+      "remove": "Remove lookup table",
+      "keyColumn": "Key column — what the caller quotes",
+      "speakable": "Columns the assistant may say out loud",
+      "save": "Save lookup table",
+      "cancel": "Cancel",
+      "noColumns": "We couldn't read this file's columns yet — once it shows as Learned above, try again.",
+      "phaseNote": "Lookup tables are saved with your setup today; live in-call lookups switch on with the next platform update, and we'll email you when yours is active."
+    },
+    "face": {
+      "title": "Face & voice",
+      "hint": "Pick the face and voice your callers will see and hear.",
+      "help": "Voice only works everywhere. A video face lip-syncs the same voice and uses extra video minutes."
+    },
+    "review": {
+      "title": "Review what your assistant drafted",
+      "hint": "Everything below was drafted from what your assistant learned — check it, change anything, make it yours.",
+      "help": "Suggestions are drafts, never facts: nothing here is used until you keep it, and every text stays editable.",
+      "greetingTitle": "Your greeting",
+      "useStyle": "Use this greeting",
+      "templateLibrary": "Template library",
+      "style": {
+        "warm": "Warm",
+        "professional": "Professional",
+        "short": "Short & sweet"
+      },
+      "template": {
+        "thanks-for-calling": "Thanks for calling",
+        "busy": "Busy right now",
+        "after-hours": "After hours",
+        "warm-welcome": "Warm welcome",
+        "formal": "Formal"
+      }
+    },
+    "variables": {
+      "title": "Variables",
+      "hint": "Variables drop live values into your texts — tap one to add it to your greeting. Previews always show real values, never the raw {tokens}.",
+      "yours": "Your variables",
+      "remove": "Remove",
+      "nameLabel": "Variable name (one word)",
+      "labelLabel": "What is it? (plain words)",
+      "labelPlaceholder": "Ticket number",
+      "sourceLabel": "Where does the value come from?",
+      "exampleLabel": "Example value (for previews)",
+      "add": "Add variable",
+      "nameInvalid": "Use a name that starts with a small letter — letters, numbers and underscores only, e.g. ticketNumber.",
+      "nameTaken": "You already have a variable with that name.",
+      "labelRequired": "Give the variable a plain-words label first.",
+      "timeGreeting": "Time of day",
+      "agentName": "Assistant name",
+      "businessName": "Business name",
+      "callerName": "Caller's name",
+      "callerNumber": "Caller's number",
+      "todayDate": "Today's date",
+      "source": {
+        "call": "Asked during the call",
+        "callerId": "From caller ID",
+        "chat": "Typed in the chat",
+        "lookup": "From a lookup table"
+      }
+    },
+    "toolbar": {
+      "dictate": "Dictate",
+      "stop": "Stop",
+      "listen": "Listen",
+      "preparing": "Preparing…",
+      "aiHelp": "AI help",
+      "suggest": "Suggest",
+      "suggestMore": "Suggest more",
+      "makeWarmer": "Make it warmer",
+      "makeShorter": "Make it shorter",
+      "addNote": "Add a note",
+      "variables": "Variables",
+      "insertVariable": "Insert a variable",
+      "dictationUnsupported": "Dictation isn't available in this browser — typing works as always.",
+      "dictationBlocked": "Microphone access was blocked — check the browser's permission for this site.",
+      "nothingToHear": "There's nothing here to hear yet.",
+      "listenFailed": "Couldn't prepare the voice just now — try again in a moment.",
+      "rewriteFailed": "The rewrite didn't come back — your text is unchanged."
+    },
+    "knownCaller": {
+      "title": "Returning callers are recognized",
+      "body": "When someone calls on the phone, your assistant recognizes their number and can greet them by name on their next call, with their details saved from the last conversation. Website visitors have no caller ID, so your assistant can ask for a reference you define — a ticket or account number, as a variable above. Before anything account-specific is shared, your assistant always confirms one more detail — a number alone is never proof of identity."
+    },
+    "integrations": {
+      "title": "Integrations",
+      "body": "Plays well with your back office — Salesforce · SAP · Oracle · PeopleSoft · Workday · Amdocs · and hundreds more, connected via Zapier, n8n, or direct API in a guided setup with our team.",
+      "cta": "Book a consultation"
+    },
+    "look": {
+      "phoneHint": "Your preview rides along at the top of this page — tap Preview to see the full page."
+    }
   }
 }
