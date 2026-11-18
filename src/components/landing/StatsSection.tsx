@@ -32,9 +32,9 @@ const StatsSection = ({ niche }: { niche: NicheData }) => {
     <h2 className="text-2xl sm:text-3xl font-bold mb-3">{pt ? 'Chamadas, correio de voz e leads do site: responder importa.' : es ? 'Llamadas, buzón de voz y leads web: responder importa.' : fr ? 'Appels, boîte vocale et prospects du site Web : chaque réponse compte.' : 'Calls, voicemail and website leads: every answer matters.'}</h2>
     <p className="text-sm text-muted-foreground mb-6">{pt ? 'Estudos externos, não resultados dos nossos clientes nem garantias.' : es ? 'Estudios externos, no resultados de nuestros clientes ni garantías.' : fr ? 'Recherches externes — pas les résultats de nos clients, ni une estimation de marché 2026, ni une garantie de rendement.' : 'External research—not our client results, a 2026 market estimate or a performance guarantee.'}</p>
     <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-5">
-      {HOMEPAGE_EVIDENCE.map((e, i) => { const Icon = icons[i] || Star; return <article key={e.value} className="rounded-lg border border-border bg-card p-5">
-        <Icon className="h-6 w-6 text-primary mb-3" /><p className="text-3xl sm:text-4xl font-bold text-primary">{e.value}</p>
-        <h3 className="mt-3 font-semibold">{labels[i]}</h3><p className="mt-3 text-xs text-muted-foreground leading-relaxed">{e.caveat}</p>
+      {HOMEPAGE_EVIDENCE.map((e, i) => { const Icon = icons[i] || Star; return <article key={e.value} className="rounded-lg border border-border bg-card p-4 sm:p-5">
+        <div className="flex items-center gap-3 sm:gap-3.5"><Icon className="h-10 w-10 sm:h-11 sm:w-11 shrink-0 text-primary" /><p className="text-3xl sm:text-4xl font-bold text-primary leading-none">{e.value}</p></div>
+        <h3 className="mt-2.5 text-xl sm:text-2xl font-bold leading-snug">{labels[i]}</h3><p className="mt-3 text-xs text-muted-foreground leading-relaxed">{e.caveat}</p>
         <a className="mt-4 inline-flex gap-1 items-center text-xs text-primary underline" href={e.url} target="_blank" rel="noopener noreferrer">{e.source}<ExternalLink className="h-3 w-3 shrink-0" /></a>
       </article>; })}
     </div>

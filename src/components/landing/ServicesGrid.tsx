@@ -30,13 +30,13 @@ const ServicesGrid = () => {
           {english ? SERVICE_DETAILS.map((s, index) => {
             const Icon = iconById[s.id] || Phone;
             return <article key={s.id} className="flex min-w-0 flex-col rounded-lg border border-border bg-card p-5 sm:p-6">
-              <div className="flex items-center justify-between gap-3 mb-4">
-                <Icon className="h-10 w-10 text-primary" aria-hidden="true" />
-                <Badge variant="outline" className={s.status === "available" ? "border-primary/40 text-primary" : "border-border text-muted-foreground"}>
+              <div className="flex flex-wrap items-start gap-x-3.5 gap-y-2 mb-4">
+                <Icon className="h-12 w-12 shrink-0 text-primary" aria-hidden="true" />
+                <p className="min-w-0 flex-1 basis-44 text-xl font-semibold leading-snug">{s.problem}</p>
+                <Badge variant="outline" className={(s.status === "available" ? "border-primary/40 text-primary" : "border-border text-muted-foreground") + " ml-auto shrink-0"}>
                   {s.status === "available" ? t("landing.available") : t("landing.preOrder")}
                 </Badge>
               </div>
-              <p className="text-lg font-semibold leading-snug">{s.problem}</p>
               <p className="mt-2 text-sm text-muted-foreground">{s.today}</p>
               <p className="mt-4 text-xs font-medium uppercase text-primary">0{index + 1} · {s.name}</p>
               <p className="mt-1 text-sm leading-relaxed">{s.solution}</p>
@@ -61,13 +61,13 @@ const ServicesGrid = () => {
             const Icon = iconById[service.id] || Phone;
             const detail = detailById[service.id];
             return <article key={service.id} className="flex min-w-0 flex-col rounded-lg border border-border bg-card p-5 sm:p-6">
-              <div className="flex items-center justify-between gap-3 mb-4">
-                <Icon className="h-10 w-10 text-primary" aria-hidden="true" />
-                {detail && <Badge variant="outline" className={detail.status === "available" ? "border-primary/40 text-primary" : "border-border text-muted-foreground"}>
+              <div className="flex flex-wrap items-start gap-x-3.5 gap-y-2 mb-4">
+                <Icon className="h-12 w-12 shrink-0 text-primary" aria-hidden="true" />
+                {service.problem && <p className="min-w-0 flex-1 basis-44 text-xl font-semibold leading-snug">{service.problem}</p>}
+                {detail && <Badge variant="outline" className={(detail.status === "available" ? "border-primary/40 text-primary" : "border-border text-muted-foreground") + " ml-auto shrink-0"}>
                   {detail.status === "available" ? t("landing.available") : t("landing.preOrder")}
                 </Badge>}
               </div>
-              {service.problem && <p className="text-lg font-semibold leading-snug">{service.problem}</p>}
               <p className="mt-4 text-xs font-medium uppercase text-primary">0{index + 1} · {service.name}</p>
               {service.solution
                 ? <p className="mt-1 text-sm leading-relaxed">{service.solution}</p>
