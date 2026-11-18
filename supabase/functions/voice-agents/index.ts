@@ -9,6 +9,7 @@ import { websiteTheme, THEME_FONTS, DEFAULT_WIDGET_THEME } from '../_shared/widg
 import { workspaceAccess } from '../_shared/customer-payments.ts';
 import { validPaymentPlan } from '../_shared/payment-rules.ts';
 import { applyPhoneSignals, statusAfterSave, type PhoneSetupState } from '../_shared/onboarding.ts';
+import { searchAvailableNumbers, provisioningMode, planProvisioning, createNumberOrder, findOwnedNumber, assignNumberConnection, PhonePlatformError } from '../_shared/phone-numbers.ts';
 import { CARRIER_GUIDES } from '../_shared/carrier-guides.ts';
 import { createResponsesCall } from './responses.ts';
 import { sha256 } from '../_shared/demo-share.ts';
@@ -47,10 +48,11 @@ async function suggestGreeting(req:Request,input:{businessName:string;industry?:
 }
 
 const themeSchema=z.object({primary:z.string().regex(/^#[0-9a-f]{6}$/i),background:z.string().regex(/^#[0-9a-f]{6}$/i),foreground:z.string().regex(/^#[0-9a-f]{6}$/i),font:z.enum(THEME_FONTS)});
-const phoneSetupInputSchema = z.object({ route:z.enum(['forward','port','new']), businessNumber:z.string().max(32).optional(), transferNumber:z.string().max(32).optional(), carrierId:z.string().max(40).refine(v=>CARRIER_GUIDES.some(g=>g.id===v), 'Unknown carrier').optional(), rings:z.union([z.literal(2),z.literal(3),z.literal(4),z.literal(5)]).optional(), areaCode:z.string().regex(/^\d{0,3}$/).optional() });
-const phoneSetupStateSchema = phoneSetupInputSchema.partial({route:true}).extend({ route:z.enum(['forward','port','new']).optional(), aspenNumber:z.string().max(32).optional(), status:z.enum(['not_started','awaiting_number','waiting_first_call','port_requested','new_number_requested','live_detected','live_confirmed']).default('not_started'), savedAt:z.string().max(40).optional(), testCallConfirmedAt:z.string().max(40).optional(), firstCallDetectedAt:z.string().max(40).optional() });
-const configSchema = z.object({ phoneSetup:phoneSetupStateSchema.optional(), onboarding:z.object({ testCallConfirmedAt:z.string().max(40).optional() }).optional(), subNiche:z.string().max(160).optional(), businessNotes:z.string().max(6000).optional(), knowledgeGuidance:z.string().max(12000).optional(), assistantRestrictions:z.string().max(4000).optional(), previewScreenshot:z.string().max(2000).optional(), industry:z.string().max(80).optional(), launcherLabel:z.string().max(40).optional(), launcherCorner:z.enum(['bottom-left','bottom-right']).optional(), websiteUrl:z.string().max(2000).refine(v=>!v || isPublicUrl(v),'Use a public website URL').default(''), theme:z.preprocess(v=>v&&typeof v==='object'?{...DEFAULT_WIDGET_THEME,...(v as Record<string,unknown>)}:v,themeSchema).default(DEFAULT_WIDGET_THEME), suggestedTheme:themeSchema.nullable().optional(), name:z.string().min(1).max(80), businessName:z.string().min(1).max(160), voice:z.enum(VOICES as [string,...string[]]), clonedVoiceSelected:z.boolean().default(false), avatarPath:z.string().max(500).default(''), greeting:z.string().min(1).max(1500), systemPrompt:z.string().min(1).max(40000), simulationGreeting:z.string().min(1).max(1500).default(SIMULATION_GREETING), simulationPrompt:z.string().min(1).max(40000).default(SIMULATION_PROMPT), knowledge:z.string().max(60000).default(''), crawlDepth:z.union([z.literal(1),z.literal(2)]).default(1), recordTranscript:z.boolean().default(false), transferPhone:z.string().regex(/^$|^\\+[1-9]\\d{7,14}$/,'Use an international phone number, starting with +').default(''), transferManagerName:z.string().max(80).default(''), defaultLanguage:z.enum(['en','es','pt-BR','fr-CA']).default('en'), ringCount:z.number().int().min(2).max(5).optional(), bookingRules:z.string().max(4000).default(''), serviceArea:z.unknown().optional().transform(v=>v===undefined?undefined:normalizeServiceArea(v)), serviceAreaText:z.string().max(2000).optional(), videoAvatar:z.unknown().optional().transform(v=>v===undefined?undefined:normalizeVideoAvatar(v)) });
-const requestSchema = z.object({ action:z.enum(['suggestKnowledge','suggestIndustry','suggestGreeting','suggestServices','suggestGuardrails','suggestServiceArea','list','usage','pricing','create','save','publish','source','refresh','removeSource','member','rollback','share','unshare','onboarding','phoneSetup','duplicate','usageSummary','clients','myBranding','myTenancy','tenants','updateTenant','rateCard','saveRateCard','tenantClients','resellerConsole','inviteCreate','inviteList','inviteRevoke','invitePreview','inviteAccept','saveBranding','demoStatus','seedDemoData','removeDemoData','resellerRetail','saveResellerRetail','tenantRetail','currencyRates','saveCurrencyRates','resellerCatalog','saveResellerCatalog','tenantBranding','setSubdomain']), phoneSetup:phoneSetupInputSchema.optional(), confirmTestCall:z.enum(['phone','agent']).optional(), agentId:z.string().uuid().optional(), mode:z.enum(['website','generic']).default('website'), subNiche:z.string().max(160).optional(), businessNotes:z.string().max(6000).optional(), industry:z.string().max(80).optional(), tone:z.string().max(40).optional(), slug:z.string().min(3).max(80).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(), sourceId:z.string().uuid().optional(), config:configSchema.optional(), businessName:z.string().min(1).max(160).optional(), userEmail:z.string().email().optional(), kind:z.enum(['url','document']).optional(), label:z.string().min(1).max(255).optional(), url:z.string().max(2000).optional(), storagePath:z.string().max(500).optional(), pricing:z.object({model:z.literal('gemini-3.8-live'),inputAudioPerMinute:z.number().finite().min(0).max(100),outputAudioPerMinute:z.number().finite().min(0).max(100),source:z.string().url().max(2000)}).optional(),
+const smsIntentInputSchema = z.object({ wanted:z.boolean(), legalName:z.string().max(160).optional() });
+const phoneSetupInputSchema = z.object({ route:z.enum(['forward','port','new']), businessNumber:z.string().max(32).optional(), transferNumber:z.string().max(32).optional(), carrierId:z.string().max(40).refine(v=>CARRIER_GUIDES.some(g=>g.id===v), 'Unknown carrier').optional(), rings:z.union([z.literal(2),z.literal(3),z.literal(4),z.literal(5)]).optional(), areaCode:z.string().regex(/^\d{0,3}$/).optional(), selectedNumber:z.string().regex(/^\+[1-9]\d{7,14}$/).optional(), selectedNumberLocality:z.string().max(80).optional(), smsIntent:smsIntentInputSchema.optional() });
+const phoneSetupStateSchema = phoneSetupInputSchema.partial({route:true}).extend({ route:z.enum(['forward','port','new']).optional(), aspenNumber:z.string().max(32).optional(), provisionedAt:z.string().max(40).optional(), smsIntent:z.object({ wanted:z.boolean(), legalName:z.string().max(160).optional(), status:z.enum(['requested','not_requested']).default('not_requested'), requestedAt:z.string().max(40).optional() }).optional(), status:z.enum(['not_started','awaiting_number','waiting_first_call','port_requested','new_number_requested','live_detected','live_confirmed']).default('not_started'), savedAt:z.string().max(40).optional(), testCallConfirmedAt:z.string().max(40).optional(), firstCallDetectedAt:z.string().max(40).optional() });
+const configSchema = z.object({ phoneSetup:phoneSetupStateSchema.optional(), notificationEmail:z.string().max(160).refine(v=>!v || /.+@.+\..+/.test(v), 'Enter a valid email').optional(), onboarding:z.object({ testCallConfirmedAt:z.string().max(40).optional() }).optional(), subNiche:z.string().max(160).optional(), businessNotes:z.string().max(6000).optional(), knowledgeGuidance:z.string().max(12000).optional(), assistantRestrictions:z.string().max(4000).optional(), previewScreenshot:z.string().max(2000).optional(), industry:z.string().max(80).optional(), launcherLabel:z.string().max(40).optional(), launcherCorner:z.enum(['bottom-left','bottom-right']).optional(), websiteUrl:z.string().max(2000).refine(v=>!v || isPublicUrl(v),'Use a public website URL').default(''), theme:z.preprocess(v=>v&&typeof v==='object'?{...DEFAULT_WIDGET_THEME,...(v as Record<string,unknown>)}:v,themeSchema).default(DEFAULT_WIDGET_THEME), suggestedTheme:themeSchema.nullable().optional(), name:z.string().min(1).max(80), businessName:z.string().min(1).max(160), voice:z.enum(VOICES as [string,...string[]]), clonedVoiceSelected:z.boolean().default(false), avatarPath:z.string().max(500).default(''), greeting:z.string().min(1).max(1500), systemPrompt:z.string().min(1).max(40000), simulationGreeting:z.string().min(1).max(1500).default(SIMULATION_GREETING), simulationPrompt:z.string().min(1).max(40000).default(SIMULATION_PROMPT), knowledge:z.string().max(60000).default(''), crawlDepth:z.union([z.literal(1),z.literal(2)]).default(1), recordTranscript:z.boolean().default(false), transferPhone:z.string().regex(/^$|^\\+[1-9]\\d{7,14}$/,'Use an international phone number, starting with +').default(''), transferManagerName:z.string().max(80).default(''), defaultLanguage:z.enum(['en','es','pt-BR','fr-CA']).default('en'), ringCount:z.number().int().min(2).max(5).optional(), bookingRules:z.string().max(4000).default(''), serviceArea:z.unknown().optional().transform(v=>v===undefined?undefined:normalizeServiceArea(v)), serviceAreaText:z.string().max(2000).optional(), videoAvatar:z.unknown().optional().transform(v=>v===undefined?undefined:normalizeVideoAvatar(v)) });
+const requestSchema = z.object({ action:z.enum(['suggestKnowledge','suggestIndustry','suggestGreeting','suggestServices','suggestGuardrails','suggestServiceArea','list','usage','pricing','create','save','publish','source','refresh','removeSource','member','rollback','share','unshare','onboarding','phoneSetup','searchNumbers','provisionNumber','duplicate','usageSummary','clients','myBranding','myTenancy','tenants','updateTenant','rateCard','saveRateCard','tenantClients','resellerConsole','inviteCreate','inviteList','inviteRevoke','invitePreview','inviteAccept','saveBranding','demoStatus','seedDemoData','removeDemoData','resellerRetail','saveResellerRetail','tenantRetail','currencyRates','saveCurrencyRates','resellerCatalog','saveResellerCatalog','tenantBranding','setSubdomain']), phoneSetup:phoneSetupInputSchema.optional(), numberQuery:z.object({ areaCode:z.string().regex(/^\d{3}$/).optional(), zip:z.string().regex(/^\d{5}$/).optional(), contains:z.string().max(10).optional(), limit:z.number().int().min(1).max(25).optional() }).optional(), confirmTestCall:z.enum(['phone','agent']).optional(), agentId:z.string().uuid().optional(), mode:z.enum(['website','generic']).default('website'), subNiche:z.string().max(160).optional(), businessNotes:z.string().max(6000).optional(), industry:z.string().max(80).optional(), tone:z.string().max(40).optional(), slug:z.string().min(3).max(80).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(), sourceId:z.string().uuid().optional(), config:configSchema.optional(), businessName:z.string().min(1).max(160).optional(), userEmail:z.string().email().optional(), kind:z.enum(['url','document']).optional(), label:z.string().min(1).max(255).optional(), url:z.string().max(2000).optional(), storagePath:z.string().max(500).optional(), pricing:z.object({model:z.literal('gemini-3.8-live'),inputAudioPerMinute:z.number().finite().min(0).max(100),outputAudioPerMinute:z.number().finite().min(0).max(100),source:z.string().url().max(2000)}).optional(),
   // Multi-tenant Phase 2 (2026-11-18): tenancy / invites / rate card.
   organizationId:z.string().uuid().optional(), inviteId:z.string().uuid().optional(), inviteKind:z.enum(['reseller','client','staff']).optional(), companyName:z.string().min(1).max(160).optional(), inviteRole:z.enum(['admin','editor','viewer']).optional(), inviteToken:z.string().min(16).max(200).optional(), status:z.enum(['active','suspended']).optional(), limits:z.unknown().optional(), rateCard:z.unknown().optional(), branding:z.unknown().optional(),
   // Multi-tenant Phase 2.5 (2026-11-18): demo tenants / retail / currency / catalog.
@@ -943,7 +945,7 @@ Deno.serve(async req=>{
     if(!admin && !(await workspaceAccess(db,agent.organization_id))) return json({error:'Your paid subscription period has ended.'},403);
     // Role ladder (Phase 2): a viewer membership is read-only — every
     // mutating agent action is denied server-side, not just hidden.
-    if(!admin && membership?.role==='viewer' && (['save','publish','rollback','source','removeSource','refresh','phoneSetup'].includes(body.action) || (body.action==='onboarding' && body.confirmTestCall))) return json({error:'Your role is view-only for this workspace'},403);
+    if(!admin && membership?.role==='viewer' && (['save','publish','rollback','source','removeSource','refresh','phoneSetup','provisionNumber'].includes(body.action) || (body.action==='onboarding' && body.confirmTestCall))) return json({error:'Your role is view-only for this workspace'},403);
     if(body.action==='share' || body.action==='unshare') {
       if(!admin) return json({error:'Administrator access required'},403);
       const {error:revokeError}=await db.from('voice_demo_shares').update({revoked_at:new Date().toISOString()}).eq('agent_id',agent.id).is('revoked_at',null); if(revokeError) throw revokeError;
@@ -1004,13 +1006,80 @@ Deno.serve(async req=>{
       const {data:tc}=await db.from('telephony_clients').select('id,voice_number,active').eq('agent_id',agent.id).maybeSingle();
       const aspenNumber=tc?.voice_number || undefined;
       const draft=(agent.draft || {}) as Record<string,unknown>;
-      const phoneSetup:PhoneSetupState={ route:input.route, businessNumber:input.businessNumber || undefined, transferNumber:input.transferNumber || input.businessNumber || undefined, carrierId:input.carrierId, rings:input.rings, areaCode:input.areaCode || undefined, aspenNumber, status:statusAfterSave(input.route,aspenNumber), savedAt:new Date().toISOString() };
-      const notes=`Onboarding wizard phone step · route=${input.route}${input.carrierId?` · carrier=${input.carrierId}`:''}${input.rings?` · rings=${input.rings}`:''}${input.businessNumber?` · business number=${input.businessNumber}`:''}${input.areaCode?` · area code=${input.areaCode}`:''}`;
+      const prev=(draft.phoneSetup || {}) as PhoneSetupState;
+      // Phone step v2: the picked number (new route) and the texting
+      // intent ride the same save. Server-owned stamps (provisionedAt,
+      // the first requestedAt) are preserved from the stored draft —
+      // the client can never set them.
+      const smsIntent=input.smsIntent ? (input.smsIntent.wanted
+        ? { wanted:true, legalName:input.smsIntent.legalName || undefined, status:'requested' as const, requestedAt:prev.smsIntent?.requestedAt || new Date().toISOString() }
+        : { wanted:false, legalName:input.smsIntent.legalName || undefined, status:'not_requested' as const })
+        : prev.smsIntent;
+      const phoneSetup:PhoneSetupState={ route:input.route, businessNumber:input.businessNumber || undefined, transferNumber:input.transferNumber || input.businessNumber || undefined, carrierId:input.carrierId, rings:input.rings, areaCode:input.areaCode || undefined, selectedNumber:input.route==='new' ? (input.selectedNumber || prev.selectedNumber) : undefined, selectedNumberLocality:input.route==='new' ? (input.selectedNumberLocality || prev.selectedNumberLocality) : undefined, aspenNumber, provisionedAt:prev.provisionedAt, smsIntent, status:statusAfterSave(input.route,aspenNumber), savedAt:new Date().toISOString() };
+      const notes=`Onboarding wizard phone step · route=${input.route}${input.carrierId?` · carrier=${input.carrierId}`:''}${input.rings?` · rings=${input.rings}`:''}${input.businessNumber?` · business number=${input.businessNumber}`:''}${input.areaCode?` · area code=${input.areaCode}`:''}${phoneSetup.selectedNumber?` · picked number=${phoneSetup.selectedNumber}`:''}${smsIntent?.wanted?` · SMS requested (legal name: ${smsIntent.legalName || '—'})`:''}`;
       const row={ organization_id:agent.organization_id, agent_id:agent.id, client_name:String(draft.businessName || 'Customer'), transfer_phone:phoneSetup.transferNumber || null, notes };
       const {error:tcErr}=tc?.id ? await db.from('telephony_clients').update(row).eq('id',tc.id) : await db.from('telephony_clients').insert(row);
       if(tcErr) throw tcErr;
       const {error}=await db.from('voice_agents').update({draft:{...draft,phoneSetup},updated_at:new Date().toISOString()}).eq('id',agent.id); if(error) throw error;
       return json({phoneSetup});
+    }
+    if(body.action==='searchNumbers') {
+      // Phone step v2: read-only inventory search behind the wizard's
+      // self-serve number picker. No order is ever placed here.
+      if(!body.numberQuery) return json({error:'Tell us an area code, a ZIP code, or a word your number should spell'},400);
+      try {
+        const { numbers, search } = await searchAvailableNumbers({ apiKey: Deno.env.get('TELNYX_API_KEY') || '', apiBase: Deno.env.get('TELNYX_API_BASE') || undefined, query: body.numberQuery });
+        return json({ numbers, search });
+      } catch(e) {
+        if(e instanceof PhonePlatformError) return json({error:e.message}, e.status);
+        throw e;
+      }
+    }
+    if(body.action==='provisionNumber') {
+      // Phone step v2: activate the number the client picked in the
+      // wizard. IDEMPOTENT — an agent that already has a number (on the
+      // draft or on its telephony row) gets it back, never a second
+      // purchase. A real order is placed ONLY when the function env
+      // TELNYX_PROVISION_MODE is exactly 'live'; otherwise this is a
+      // dry run that reports what would happen and changes nothing at
+      // the provider (the pick itself is already stored by phoneSetup).
+      const draft=(agent.draft || {}) as Record<string,unknown>;
+      const phoneSetup=(draft.phoneSetup || {status:'not_started'}) as PhoneSetupState;
+      if(phoneSetup.route!=='new') return json({error:'Number activation only applies when you pick a new number'},400);
+      if(!phoneSetup.selectedNumber) return json({error:'Pick a number first, then activate it'},400);
+      const {data:tc}=await db.from('telephony_clients').select('id,voice_number,active').eq('agent_id',agent.id).maybeSingle();
+      const plan=planProvisioning({ aspenNumber:phoneSetup.aspenNumber, telephonyVoiceNumber:tc?.voice_number || undefined }, phoneSetup.selectedNumber);
+      if(plan.action==='already') {
+        if(phoneSetup.aspenNumber!==plan.number) {
+          const adopted={...phoneSetup, aspenNumber:plan.number};
+          const {error}=await db.from('voice_agents').update({draft:{...draft,phoneSetup:adopted},updated_at:new Date().toISOString()}).eq('id',agent.id); if(error) throw error;
+          return json({phoneSetup:adopted, provisioned:true, alreadyProvisioned:true});
+        }
+        return json({phoneSetup, provisioned:true, alreadyProvisioned:true});
+      }
+      const mode=provisioningMode({ TELNYX_PROVISION_MODE: Deno.env.get('TELNYX_PROVISION_MODE') || undefined });
+      if(mode!=='live') return json({phoneSetup, provisioned:false, dryRun:true, wouldProvision:plan.number});
+      const apiKey=Deno.env.get('TELNYX_API_KEY') || '';
+      const connectionId=Deno.env.get('TELNYX_CONNECTION_ID') || '';
+      if(!apiKey) return json({error:'Number activation is not available yet — our team will finish your activation'},503);
+      try {
+        // Provider-level idempotency too: if a previous order landed
+        // but the local write did not, adopt the owned number instead
+        // of ordering a duplicate.
+        const owned=await findOwnedNumber({ apiKey, apiBase: Deno.env.get('TELNYX_API_BASE') || undefined, phoneNumber: plan.number });
+        if(owned) { if(owned.connectionId!==connectionId) await assignNumberConnection({ apiKey, apiBase: Deno.env.get('TELNYX_API_BASE') || undefined, phoneNumberId: owned.id, connectionId }); }
+        else await createNumberOrder({ apiKey, apiBase: Deno.env.get('TELNYX_API_BASE') || undefined, connectionId, phoneNumber: plan.number });
+      } catch(e) {
+        if(e instanceof PhonePlatformError) return json({error:e.message}, e.status);
+        throw e;
+      }
+      const provisionedAt=new Date().toISOString();
+      const next={...phoneSetup, aspenNumber:plan.number, provisionedAt};
+      const row={ organization_id:agent.organization_id, agent_id:agent.id, client_name:String(draft.businessName || 'Customer'), voice_number:plan.number, transfer_phone:phoneSetup.transferNumber || null, active:true, notes:`Onboarding wizard phone step · self-serve number ${plan.number} provisioned ${provisionedAt}` };
+      const {error:tcErr}=tc?.id ? await db.from('telephony_clients').update(row).eq('id',tc.id) : await db.from('telephony_clients').insert(row);
+      if(tcErr) throw tcErr;
+      const {error}=await db.from('voice_agents').update({draft:{...draft,phoneSetup:next},updated_at:new Date().toISOString()}).eq('id',agent.id); if(error) throw error;
+      return json({phoneSetup:next, provisioned:true});
     }
     if(body.action==='onboarding') {
       // First-steps checklist state, derived from real records server-side:
