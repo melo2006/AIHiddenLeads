@@ -21,6 +21,7 @@ import { openingText } from "../../supabase/functions/_shared/session-opening";
 import {
   explicitUiLocale,
   normalizeUiLocale as normalizeClientUiLocale,
+  prewarmLocaleMismatch,
   uiLocaleLanguage,
 } from "../lib/uiLocale";
 
@@ -153,7 +154,11 @@ describe("locale → voice (Ron, 2026-11-09)", () => {
   });
 
   it("sends only the explicit UI selection from the client", () => {
-    expect(conversation).toContain("locale: explicitUiLocale()");
+    // The invoke reads the pick ONCE into a local (2026-11-18 prewarm
+    // fix) so the locale sent and the locale recorded for a warm
+    // authorization can never disagree, then sends that local.
+    expect(conversation).toContain("const locale = explicitUiLocale()");
+    expect(conversation).toContain("locale, visitorName");
     expect(conversation).toContain('from "@/lib/uiLocale"');
     // The session-start locale comes ONLY from the in-session
     // explicit pick (sessionStorage since chat-fix3, 2026-11-16):
@@ -220,5 +225,81 @@ describe("locale → voice (Ron, 2026-11-09)", () => {
     expect(pt.chat.greetingBody).not.toBe(en.chat.greetingBody);
     expect(pt.voice.consentStart).toBe("Começar e concordar");
     expect(es.chat.consentStart).toBe("Iniciar el chat y aceptar");
+  });
+});
+
+/**
+ * Ron's French live test (2026-11-18): the site was switched to
+ * Canadian French — the page rendered fully French — but Aspen still
+ * greeted, narrated and captioned in English. Root cause: the
+ * floating widget PREWARMS one session at mount, authorized in the
+ * language picked at that moment (no pick yet → English); switching
+ * the site language afterwards never re-authorized it, and the tap
+ * activated the held English session. The server chain was never
+ * broken (gemini-session validates + stamps the locale, the proxy
+ * starts voice/greeting/captions in it) — the drop was the stale
+ * prewarm on the client. These pins hold the fix: a held session
+ * whose authorization language differs from the visitor's CURRENT
+ * pick is discarded and re-authorized, never activated.
+ */
+describe("prewarm language guard (Ron's French test, 2026-11-18)", () => {
+  it("treats no-pick and an explicit English pick as the same effective language", () => {
+    expect(prewarmLocaleMismatch(undefined, undefined)).toBe(false);
+    expect(prewarmLocaleMismatch(undefined, "en")).toBe(false);
+    expect(prewarmLocaleMismatch("en", undefined)).toBe(false);
+    expect(prewarmLocaleMismatch("en", "en")).toBe(false);
+  });
+
+  it("flags every real language change after the prewarm, in every direction", () => {
+    // Ron's exact case: prewarmed with no pick (English), then French picked.
+    expect(prewarmLocaleMismatch(undefined, "fr-CA")).toBe(true);
+    expect(prewarmLocaleMismatch("en", "fr-CA")).toBe(true);
+    // And every other ordered pair of distinct shipped locales.
+    const locales = ["en", "es", "pt-BR", "fr-CA"] as const;
+    for (const warm of locales) {
+      for (const current of locales) {
+        expect(prewarmLocaleMismatch(warm, current)).toBe(warm !== current);
+      }
+      // Switching back to no-pick is impossible in the UI, but a
+      // non-English warm session against a cleared pick must still
+      // count as stale rather than silently run in the old language.
+      if (warm !== "en") expect(prewarmLocaleMismatch(warm, undefined)).toBe(true);
+    }
+  });
+
+  it("records the warm authorization's locale and guards the tap with it", () => {
+    // The warm invoke records the exact locale it sent.
+    expect(conversation).toContain("if (warm) warmLocaleRef.current = locale");
+    expect(conversation).toContain("const warmLocaleRef = useRef<UiLocale | undefined>(undefined)");
+    // The tap compares BEFORE activating, and only for a session that
+    // has not already gone live (a live conversation is never discarded).
+    expect(conversation).toContain(
+      "if (!warmRef.current.activated && prewarmLocaleMismatch(warmLocaleRef.current, explicitUiLocale()))",
+    );
+    const guardAt = conversation.indexOf("prewarmLocaleMismatch(warmLocaleRef.current");
+    const activateAt = conversation.indexOf("await activateWarmRef.current()");
+    expect(guardAt).toBeGreaterThan(-1);
+    expect(activateAt).toBeGreaterThan(guardAt);
+    // The discard tears the held session down, then falls through to a
+    // fresh authorization in the current language (no early return).
+    const guardBlock = conversation.slice(guardAt, guardAt + 200);
+    expect(guardBlock).toContain("stopEverything()");
+  });
+
+  it("drives greeting, policy and lock from the SAME stamped language for every shipped locale", () => {
+    const cases = [
+      ["en", "English"],
+      ["es", "Spanish"],
+      ["pt-BR", "Portuguese"],
+      ["fr-CA", "French"],
+    ] as const;
+    for (const [locale, language] of cases) {
+      expect(startingLanguageForUiLocale(locale)).toBe(language);
+      expect(languagePolicyFor(language).startsWith(`Start in ${language}.`)).toBe(true);
+      expect(languageLockFor(language)).toContain(`starts as ${language}`);
+      const opening = openingText({ preview: false, opening: "G", startLanguage: language });
+      expect(opening).toContain(`in ${language} only`);
+      expect(opening).toContain(`Say this greeting now in ${language}: G`);
+    }
   });
 });
