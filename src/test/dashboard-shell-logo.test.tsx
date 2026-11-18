@@ -82,6 +82,13 @@ describe("CRM shell structure", () => {
     expect(header.indexOf("BrandLockup")).toBeLessThan(header.indexOf("AccountMenu"));
   });
 
+  test("the header brand links back to the main site homepage, not the dashboard", () => {
+    // Ron's rule (2026-11-18): tapping the logo/name in the admin header
+    // leaves the admin for the public homepage, like other software.
+    expect(header).toContain('<Link to="/"');
+    expect(header).not.toContain('<Link to="/dashboard"');
+  });
+
   test("the header trigger works at every width — it is not mobile-only", () => {
     expect(header).toContain('SidebarTrigger className="h-8 w-8 shrink-0"');
     expect(header).not.toContain("md:hidden");

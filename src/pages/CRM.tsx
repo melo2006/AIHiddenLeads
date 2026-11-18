@@ -228,7 +228,7 @@ const CRM = () => {
                   The brand lockup lives here, in the sticky header —
                   pages render their own headings, so no breadcrumb. */}
               <SidebarTrigger className="h-8 w-8 shrink-0" aria-label="Toggle menu" />
-              <Link to="/dashboard" aria-label="AI Hidden Leads — dashboard home" className="flex min-w-0 items-center">
+              <Link to="/" aria-label="AI Hidden Leads — back to the main site" className="flex min-w-0 items-center">
                 <BrandLockup />
               </Link>
               <div className="ml-auto flex items-center gap-1">
