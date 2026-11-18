@@ -1,4 +1,5 @@
 import { DEFAULT_VIDEO_AVATAR, type VideoAvatar } from "../../../supabase/functions/_shared/video-avatar";
+import { EMPTY_SERVICE_AREA, type ServiceAreaState } from "../../../supabase/functions/_shared/service-area";
 import { GEMINI_LIVE_VOICES, type AgentLanguage } from "@/lib/voiceCatalog";
 export type Faq = { q: string; a: string };
 export type Corner = "bottom-right" | "bottom-left";
@@ -12,6 +13,10 @@ export type WizardState = {
   businessNotes?: string;
   knowledgeGuidance?: string;
   assistantRestrictions?: string;
+  /** Structured service-area choices (mode, places/radius/ZIPs, out-of-area policy, travel fee). */
+  serviceArea?: ServiceAreaState;
+  /** Compiled coverage sentences — visible/editable text that lands in the knowledge under SERVICE_AREA_MARK. */
+  serviceAreaText?: string;
   links: string[];
   files: string[];
   faqs: Faq[];
@@ -86,7 +91,29 @@ export const EMPTY: WizardState = {
   websiteUrl: "", businessName: "", industry: "", links: [], files: [], faqs: [], name: "Aspen",
   greeting: "{timeGreeting}! I'm {agentName} with {businessName}. How can I help you today?",
   voice: "Kore", defaultLanguage: "en", clonedVoiceSelected: false, elevenLabsLiveVoice: false, color: "#10b981", label: "Ask Aspen", corner: "bottom-right", videoAvatar: DEFAULT_VIDEO_AVATAR,
+  serviceArea: EMPTY_SERVICE_AREA, serviceAreaText: "",
 };
+
+/**
+ * Insert or remove one plain sentence in an owner-edited text block (the
+ * wizard suggestion checklists). Sentences live on their own lines so an
+ * untick removes exactly what a tick added; the owner can edit the text
+ * freely afterwards — a sentence they rewrote simply no longer matches,
+ * and unticking then leaves their version untouched.
+ */
+export function toggleSentence(text: string, sentence: string, on: boolean) {
+  const s = sentence.trim();
+  if (on) {
+    if (sentenceAccepted(text, s)) return text;
+    return text.trim() ? `${text.trimEnd()}\n${s}` : s;
+  }
+  if (!sentenceAccepted(text, s)) return text;
+  return text.split("\n").filter((l) => l.trim() !== s).join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+/** True when a suggestion sentence is currently in the owner's text. */
+export const sentenceAccepted = (text: string, sentence: string) =>
+  text.split("\n").map((l) => l.trim()).includes(sentence.trim());
 
 /** Fill greeting placeholders for previews. */
 export function renderGreeting(s: Pick<WizardState, "greeting" | "name" | "businessName">, hour = new Date().getHours()) {
