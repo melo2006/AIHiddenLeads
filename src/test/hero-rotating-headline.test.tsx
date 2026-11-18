@@ -51,12 +51,12 @@ describe("HeroRotatingHeadline", () => {
     expect(activeIndex(container)).toBe(0);
     for (let next = 1; next < HERO_HEADLINE_TEXTS.length; next++) {
       act(() => {
-        vi.advanceTimersByTime(4500);
+        vi.advanceTimersByTime(7500);
       });
       expect(activeIndex(container)).toBe(next);
     }
     act(() => {
-      vi.advanceTimersByTime(4500);
+      vi.advanceTimersByTime(7500);
     });
     expect(activeIndex(container)).toBe(0);
   });

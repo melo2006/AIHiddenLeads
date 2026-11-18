@@ -39,7 +39,9 @@ export const HERO_HEADLINE_TEXTS: readonly string[] = HERO_HEADLINE_LINES.map((s
   segments.map((segment) => segment.text).join(""),
 );
 
-const DWELL_MS = 4500;
+// Per-line dwell before the crossfade. The lines run 3–4 wrapped lines, so
+// Ron asked for ~3s more reading time (2026-11-18): 4.5s was too fast to read.
+const DWELL_MS = 7500;
 
 interface HeroRotatingHeadlineProps {
   /** Pause cycling (e.g. while the visitor hovers the headline or uses the hero CTAs). */
