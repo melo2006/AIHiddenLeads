@@ -1,8 +1,7 @@
 import {
-  LayoutDashboard, Search, Megaphone, LayoutGrid, FileText, Radar, PhoneIncoming, FolderInput, Monitor, Play, Activity, Image, Brain, Target, MessageSquare, Presentation, ShieldCheck, Video, Wand2, Phone, BarChart3, ChevronLeft, ChevronRight, Users
+  LayoutDashboard, Search, Megaphone, LayoutGrid, FileText, Radar, PhoneIncoming, FolderInput, Monitor, Play, Activity, Image, Brain, Target, MessageSquare, Presentation, ShieldCheck, Video, Wand2, Phone, BarChart3, Users
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
-import { BrandLockup } from "@/components/BrandLogo";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
   SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem,
@@ -51,39 +50,8 @@ const pageItems = [
   { title: "Demo Page", url: "/demo", icon: Play },
 ];
 
-/**
- * Header title for a CRM path, derived from the same nav structure the
- * sidebar renders — the shell header shows the active section + page
- * instead of a second copy of the logo. Exact matches win; detail
- * routes (campaigns/:id, imported/:id) fall back to their parent item.
- */
-export function crmTitleForPath(pathname: string): { section: string; title: string } {
-  const clean = pathname.replace(/\/+$/, "") || "/dashboard";
-  const groups: { label: string; items: NavItem[] }[] = [
-    ...navGroups,
-    { label: "Marketing", items: marketingItems },
-    { label: "Pages", items: pageItems },
-  ];
-  for (const group of groups) {
-    for (const item of group.items) {
-      if (item.url === clean) return { section: group.label, title: item.title };
-    }
-  }
-  let best: { section: string; title: string; len: number } | null = null;
-  for (const group of groups) {
-    for (const item of group.items) {
-      if (item.url !== "/dashboard" && clean.startsWith(`${item.url}/`) && (!best || item.url.length > best.len)) {
-        best = { section: group.label, title: item.title, len: item.url.length };
-      }
-    }
-  }
-  if (best) return { section: best.section, title: best.title };
-  if (clean === "/dashboard/intent-leads") return { section: "Find leads", title: "Intent Leads" };
-  return { section: "Overview", title: "Dashboard" };
-}
-
 export function CRMSidebar() {
-  const { state, setOpenMobile, toggleSidebar } = useSidebar();
+  const { state, setOpenMobile } = useSidebar();
   const collapsed = state === "collapsed";
 
   const handleNavClick = () => {
@@ -93,11 +61,8 @@ export function CRMSidebar() {
   return (
     <Sidebar collapsible="icon" className="border-r border-border">
       <SidebarContent className="scrollbar-subtle">
-        {/* Logo area — the one place the brand lockup appears in the shell */}
-        <div className={`flex items-center px-4 py-4 border-b border-border ${collapsed ? "justify-center px-2" : ""}`}>
-          <BrandLockup collapsed={collapsed} />
-        </div>
-
+        {/* Nav starts at the top: the brand lockup lives in the shell's
+            sticky header (CRM.tsx), not here. */}
         {navGroups.map((group) => (
           <SidebarGroup key={group.label}>
             <SidebarGroupLabel className="text-[10px] uppercase tracking-widest text-muted-foreground">
@@ -201,18 +166,8 @@ export function CRMSidebar() {
           </div>
         )}
       </SidebarContent>
-      {/* Collapse toggle: a small chevron straddling the sidebar's right
-          edge, at the same spot in both states (desktop only — mobile
-          uses the header trigger and the sheet's own close). */}
-      <button
-        type="button"
-        onClick={toggleSidebar}
-        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        className="absolute right-0 top-6 z-20 hidden h-6 w-6 translate-x-1/2 items-center justify-center rounded-full border border-border bg-background text-muted-foreground shadow-sm transition-colors hover:text-foreground md:flex"
-      >
-        {collapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronLeft className="h-3.5 w-3.5" />}
-      </button>
+      {/* Collapse/open is owned by the header's SidebarTrigger (CRM.tsx):
+          one menu control at every width, so no edge chevron here. */}
     </Sidebar>
   );
 }

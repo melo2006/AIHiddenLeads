@@ -44,8 +44,8 @@ export function BrandMark({ className = "h-10 w-10" }: { className?: string }) {
 /**
  * The one brand lockup: pin mark + typeset wordmark
  * ("AI" foreground, "Hidden" emerald primary, "Leads" foreground).
- * Used by the CRM sidebar (expanded + collapsed) and the CRM
- * sign-in / access cards — the logo appears exactly once per surface.
+ * Used by the CRM shell's sticky header and the CRM sign-in / access
+ * cards — the logo appears exactly once per surface.
  */
 export function BrandLockup({
   collapsed = false,
