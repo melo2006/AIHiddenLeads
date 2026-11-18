@@ -1257,6 +1257,18 @@
     "currentAvatar": "Votre avatar actuel",
     "zoomHint": "Pincez, faites défiler ou glissez pour explorer les détails."
   },
+  "examplesGallery": {
+    "title": "Voyez Aspen en direct sur de vrais sites d'entreprises",
+    "sub": "Ce sont des simulations d'exemple — des sites de vraies entreprises, pas nos clients — chacun avec une réceptionniste IA qui y répond. Cliquez sur l'un d'eux et la démo démarre en direct sur ce site.",
+    "devices": "Chaque démo peut être vue sur un téléphone mobile, un ordinateur ou une tablette — chaque carte montre les vues ordinateur et téléphone côte à côte.",
+    "runDemo": "Lancer la démo",
+    "scrollHint": "Faites défiler dans le cadre pour voir les {{count}} exemples. Chaque démo est une simulation — la réceptionniste répond comme la réceptionniste de ce site.",
+    "visitorName": "John Doe",
+    "openDemo": "Lancer la démo en direct sur le site de {{name}}",
+    "cardAltDesktop": "Site de {{name}} avec la réceptionniste IA qui y répond — vue ordinateur",
+    "cardAltMobile": "Site de {{name}} avec la réceptionniste IA qui y répond — vue téléphone",
+    "presenterLine": "Répondu par {{name}}"
+  },
   "cta": {
     "tryWebsite": "Essayez votre site Web",
     "bookCall": "Réservez un court appel",

@@ -1257,6 +1257,18 @@
     "currentAvatar": "Your current avatar",
     "zoomHint": "Pinch, scroll, or drag to explore the details."
   },
+  "examplesGallery": {
+    "title": "See Aspen live on real business websites",
+    "sub": "These are example simulations — real businesses' websites, not our customers — each with an AI receptionist answering on it. Click any one and the demo starts live on that site.",
+    "devices": "Every demo can be viewed on a mobile phone, desktop, or tablet — each card shows the desktop and phone views side by side.",
+    "runDemo": "Run the demo",
+    "scrollHint": "Scroll inside the frame to see all {{count}} examples. Each demo is a simulation — the receptionist answers as that site's own receptionist.",
+    "visitorName": "John Doe",
+    "openDemo": "Run the live demo on {{name}}'s website",
+    "cardAltDesktop": "{{name}}'s website with the AI receptionist answering on it — desktop view",
+    "cardAltMobile": "{{name}}'s website with the AI receptionist answering on it — phone view",
+    "presenterLine": "Answered by {{name}}"
+  },
   "cta": {
     "tryWebsite": "Try your website",
     "bookCall": "Book a quick call",

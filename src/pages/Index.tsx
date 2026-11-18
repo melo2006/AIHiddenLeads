@@ -8,7 +8,7 @@ import AvatarGallerySection from "@/components/landing/AvatarGallerySection";
 import SpokespersonSection from "@/components/landing/SpokespersonSection";
 import ServicesGrid from "@/components/landing/ServicesGrid";
 import HowItWorksSection from "@/components/landing/HowItWorksSection";
-import DemoDifferentiator from "@/components/landing/DemoDifferentiator";
+import ExamplesGallerySection from "@/components/landing/ExamplesGallerySection";
 import PricingSection from "@/components/landing/PricingSection";
 import AddOnPackages from "@/components/landing/AddOnPackages";
 import FAQSection from "@/components/landing/FAQSection";
@@ -41,7 +41,7 @@ const Index = () => {
       <MapVisibilitySection />
       <HowItWorksSection />
       <TryWebsiteCTA />
-      <DemoDifferentiator />
+      <ExamplesGallerySection />
       <PricingSection />
       <AddOnPackages />
       <FAQSection />
