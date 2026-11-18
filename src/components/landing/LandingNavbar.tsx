@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import TextSizeControl from "@/components/TextSizeControl";
+import ThemeToggle, { ThemePreferenceRow } from "@/components/ThemeToggle";
 import AccountMenu from "@/components/AccountMenu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { resolveTenantBrand, type ResolvedBrand } from "@/lib/clients";
@@ -99,6 +100,7 @@ const LandingNavbar = ({ brand }: { brand?: ResolvedBrand }) => {
           </Link>
           <LanguageSwitcher />
           <Popover><PopoverTrigger asChild><Button size="icon" variant="ghost" aria-label="Text size" title="Text size"><Type /></Button></PopoverTrigger><PopoverContent className="z-[100] w-72"><TextSizeControl /></PopoverContent></Popover>
+          <ThemeToggle />
           <Button size="sm" onClick={() => scrollTo("demo-form")}>
             {t("nav.getFreeDemo")}
           </Button>
@@ -140,6 +142,7 @@ const LandingNavbar = ({ brand }: { brand?: ResolvedBrand }) => {
           </Link>
           <Button asChild variant="ghost" className="w-full justify-start"><Link to="/account?mode=signup" onClick={()=>setOpen(false)}>Create account</Link></Button>
           <TextSizeControl />
+          <ThemePreferenceRow />
           <Button size="lg" className="h-auto min-h-11 whitespace-normal w-full mt-2 py-3 text-base" onClick={() => scrollTo("demo-form")}>
             {t("nav.getFreeDemo")}
           </Button>
