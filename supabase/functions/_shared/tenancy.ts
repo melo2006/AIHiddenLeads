@@ -364,3 +364,47 @@ export function placeholderLogoSvg(name: string | null | undefined, brandColor: 
 export function brandingComplete(branding: { logoUrl?: string | null } | null | undefined): boolean {
   return Boolean(branding?.logoUrl);
 }
+
+// ---------------------------------------------------------------------------
+// Reseller subdomains (design §12.2 — company.aihiddenleads.com)
+// ---------------------------------------------------------------------------
+
+/** Hosts that are the platform itself or infrastructure — never a
+ *  tenant slug. 'aihiddenleads' is the apex label itself. */
+export const RESERVED_SUBDOMAINS = [
+  'www', 'stage', 'voice-proxy', 'app', 'api', 'mail', 'demo',
+  'admin', 'support', 'aihiddenleads',
+] as const;
+
+export const SUBDOMAIN_MIN_LENGTH = 3;
+export const SUBDOMAIN_MAX_LENGTH = 40;
+
+/** The slug shape: lowercase letters/digits with single hyphens
+ *  between segments — the same style as the agent-slug rule. */
+export const SUBDOMAIN_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/** Canonicalize a raw subdomain value for storage/lookup: trimmed
+ *  and lowercased. Returns null for non-strings and empties. */
+export function normalizeSubdomain(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const v = value.trim().toLowerCase();
+  return v ? v : null;
+}
+
+export function isReservedSubdomain(slug: string): boolean {
+  return (RESERVED_SUBDOMAINS as readonly string[]).includes(slug);
+}
+
+/** Validate a subdomain for ASSIGNMENT (setSubdomain). Returns the
+ *  canonical slug or an error. Lookup paths (tenantBranding) use
+ *  normalizeSubdomain + isReservedSubdomain only — a malformed or
+ *  reserved lookup slug simply resolves to no tenant. */
+export function validateSubdomain(raw: unknown): { subdomain: string } | { error: string } {
+  const slug = normalizeSubdomain(raw);
+  if (!slug) return { error: 'Subdomain is required' };
+  if (slug.length < SUBDOMAIN_MIN_LENGTH) return { error: `Subdomain must be at least ${SUBDOMAIN_MIN_LENGTH} characters` };
+  if (slug.length > SUBDOMAIN_MAX_LENGTH) return { error: `Subdomain must be ${SUBDOMAIN_MAX_LENGTH} characters or fewer` };
+  if (!SUBDOMAIN_PATTERN.test(slug)) return { error: 'Subdomain may use lowercase letters, numbers and single hyphens only' };
+  if (isReservedSubdomain(slug)) return { error: 'That subdomain is reserved' };
+  return { subdomain: slug };
+}

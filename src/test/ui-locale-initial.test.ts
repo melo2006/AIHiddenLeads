@@ -57,14 +57,24 @@ describe("initial UI language — in-session pick, else browser, else English", 
   it("browser Spanish resolves to es; anything else falls back to English", () => {
     setBrowserLanguage("es-MX");
     expect(browserUiLocale()).toBe("es");
-    setBrowserLanguage("fr-FR");
-    expect(browserUiLocale()).toBe("en");
     setBrowserLanguage("de-DE");
     expect(initialUiLocale()).toBe("en");
   });
 
+  // French package (2026-11-18): fr-CA is a shipped site language, so
+  // a French browser now lands in French (Canadian) instead of
+  // falling through to English, and a stored bare 'fr' canonicalizes
+  // exactly like bare 'pt' does.
+  it("browser French (any region) resolves to fr-CA", () => {
+    setBrowserLanguage("fr-FR");
+    expect(browserUiLocale()).toBe("fr-CA");
+    expect(initialUiLocale()).toBe("fr-CA");
+    setBrowserLanguage("fr-CA");
+    expect(browserUiLocale()).toBe("fr-CA");
+  });
+
   it("an unsupported stored value is ignored, never trusted", () => {
-    sessionStorage.setItem("lang", "fr");
+    sessionStorage.setItem("lang", "de");
     setBrowserLanguage("es-ES");
     expect(sessionUiLocale()).toBeUndefined();
     expect(initialUiLocale()).toBe("es");
@@ -75,11 +85,19 @@ describe("initial UI language — in-session pick, else browser, else English", 
     expect(sessionUiLocale()).toBe("pt-BR");
   });
 
+  it("the bare 'fr' stored form canonicalizes to fr-CA", () => {
+    sessionStorage.setItem("lang", "fr");
+    expect(sessionUiLocale()).toBe("fr-CA");
+    expect(explicitUiLocale()).toBe("fr-CA");
+  });
+
   it("browserUiLocale accepts an explicit navigator shape (no globals needed)", () => {
     expect(browserUiLocale({ language: "pt-BR" })).toBe("pt-BR");
     expect(browserUiLocale({ language: "es" })).toBe("es");
+    expect(browserUiLocale({ language: "fr-CA" })).toBe("fr-CA");
     expect(browserUiLocale({ language: "ja-JP" })).toBe("en");
     expect(browserUiLocale({})).toBe("en");
-    expect(browserUiLocale({ languages: ["fr-FR", "pt-BR"] })).toBe("pt-BR");
+    expect(browserUiLocale({ languages: ["de-DE", "pt-BR"] })).toBe("pt-BR");
+    expect(browserUiLocale({ languages: ["fr-FR", "pt-BR"] })).toBe("fr-CA");
   });
 });

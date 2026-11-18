@@ -97,6 +97,7 @@ const LANGUAGE_TAG: Record<AgentLanguage, string> = {
   en: "English",
   es: "Spanish",
   "pt-BR": "Portuguese",
+  "fr-CA": "French",
 };
 
 /** Honest per-voice tags: the age band only where the style word

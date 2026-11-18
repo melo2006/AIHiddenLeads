@@ -7,11 +7,23 @@
     "faq": "Ajuda / Perguntas",
     "getFreeDemo": "Ver Demo Grátis"
   },
+  "account": {
+    "login": "Entrar",
+    "createAccount": "Criar conta",
+    "menu": "Menu da conta",
+    "admin": "Admin",
+    "adminDashboard": "Painel do administrador",
+    "myDashboard": "Meu painel",
+    "businessSetup": "Configuração da empresa",
+    "logout": "Sair",
+    "fallbackName": "Conta"
+  },
   "lang": {
     "label": "Idioma",
     "en": "Inglês",
     "pt-BR": "Português (Brasil)",
-    "es": "Espanhol"
+    "es": "Espanhol",
+    "fr-CA": "Français (Canada)"
   },
   "hero": {
     "badge": "Teste o Seu Site com Voz de IA — Grátis em 2 Minutos",
@@ -28,7 +40,8 @@
     "stat4": "Aumentaram a receita usando IA",
     "meetAspen": "Conheça a Aspen",
     "aspenQuote": "\"A IA de voz faz muito mais do que você imagina — deixa eu te mostrar. Clica em <strong>Falar com a Aspen</strong> aqui embaixo que eu te explico como transformar ligações perdidas em agendamentos e gerar leads dos seus próprios clientes. Pode testar grátis, agora!\"",
-    "aspenHint": "Clica no botão \"Falar com a Aspen\" no canto pra conversar ao vivo"
+    "aspenHint": "Clica no botão \"Falar com a Aspen\" no canto pra conversar ao vivo",
+    "askAspen": "Dúvidas? Converse com Aspen por voz ou chat."
   },
   "tryCta": {
     "kicker": "Demo Grátis ao Vivo",
@@ -722,7 +735,8 @@
     "privacy": "Política de Privacidade",
     "terms": "Termos de Uso",
     "smsConsent": "Ao usar nossos serviços, você consente em receber SMS da AI Hidden Leads. A frequência varia. Responda STOP pra cancelar. Responda HELP pra ajuda. Podem ser aplicadas taxas de SMS e dados. O consentimento não é condição de compra.",
-    "copyright": "Geração de leads e automação de vendas com IA."
+    "copyright": "Geração de leads e automação de vendas com IA.",
+    "rights": "Todos os direitos reservados."
   },
   "diff": {
     "badge": "Por Que as Empresas Nos Escolhem",
@@ -1238,5 +1252,21 @@
     "useThisAvatar": "Usar este avatar",
     "currentAvatar": "O seu avatar atual",
     "zoomHint": "Aproxime com dois dedos, rode a roda do rato ou arraste para explorar os detalhes."
+  },
+  "cta": {
+    "tryWebsite": "Teste seu site",
+    "bookCall": "Agende uma conversa",
+    "startNow": "Comece agora"
+  },
+  "landing": {
+    "available": "Disponível",
+    "preOrder": "Pré-encomenda",
+    "moreDetails": "Mais detalhes",
+    "getStarted": "Começar",
+    "learnMore": "Saiba mais",
+    "phoneFirstTitle": "Telefone primeiro? Você não precisa de um site.",
+    "phoneFirstBody": "Ensine sua recepcionista com seus horários, listas de serviços, preços aprovados e documentos. Use seu site como material de referência opcional, não como requisito. O atendimento telefônico é ativado após a configuração e os testes; os minutos do site e do telefone permanecem separados.",
+    "phoneFirstLink": "Explore a recepção telefônica e uma conversa de exemplo",
+    "preOrderNote": "Os serviços em pré-encomenda são ativados após a configuração e os testes. Sem garantias de vendas, economia, rapidez de retorno ou classificações."
   }
 }

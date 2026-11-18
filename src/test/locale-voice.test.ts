@@ -42,12 +42,14 @@ const chatFn = read("../../supabase/functions/retell-web-call/index.ts");
  */
 describe("locale → voice (Ron, 2026-11-09)", () => {
   it("validates the UI locale against the supported set only", () => {
-    expect([...SUPPORTED_UI_LOCALES]).toEqual(["en", "es", "pt-BR"]);
+    expect([...SUPPORTED_UI_LOCALES]).toEqual(["en", "es", "pt-BR", "fr-CA"]);
     expect(normalizeUiLocale("en")).toBe("en");
     expect(normalizeUiLocale("es")).toBe("es");
     expect(normalizeUiLocale("pt-BR")).toBe("pt-BR");
     expect(normalizeUiLocale("pt")).toBe("pt-BR"); // i18n alias
-    for (const bad of ["fr", "de", "en-US", "pt-PT", "", "EN", null, undefined, 42, {}]) {
+    expect(normalizeUiLocale("fr-CA")).toBe("fr-CA");
+    expect(normalizeUiLocale("fr")).toBe("fr-CA"); // i18n alias (French package, 2026-11-18)
+    for (const bad of ["de", "en-US", "pt-PT", "", "EN", null, undefined, 42, {}]) {
       expect(normalizeUiLocale(bad)).toBeNull();
     }
     // The client helper mirrors the server rule exactly.
@@ -65,7 +67,8 @@ describe("locale → voice (Ron, 2026-11-09)", () => {
     expect(startingLanguageForUiLocale("pt-BR")).toBe("Portuguese");
     expect(startingLanguageForUiLocale("pt")).toBe("Portuguese");
     expect(startingLanguageForUiLocale(undefined)).toBe("English");
-    expect(startingLanguageForUiLocale("fr")).toBe("English");
+    expect(startingLanguageForUiLocale("fr")).toBe("French");
+    expect(startingLanguageForUiLocale("fr-CA")).toBe("French");
     expect(startingLanguageForUiLocale(null)).toBe("English");
   });
 

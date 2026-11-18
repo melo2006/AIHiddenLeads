@@ -5,9 +5,10 @@ import LanguageDetector from "i18next-browser-languagedetector";
 import en from "./locales/en.json";
 import ptBR from "./locales/pt-BR.json";
 import es from "./locales/es.json";
+import fr from "./locales/fr.json";
 import { initialUiLocale } from "@/lib/uiLocale";
 
-const SUPPORTED = ["en", "pt-BR", "es"] as const;
+const SUPPORTED = ["en", "pt-BR", "es", "fr-CA"] as const;
 export type SupportedLang = (typeof SUPPORTED)[number];
 
 // Initial language (Ron's rule, revised 2026-11-16 — chat-fix3):
@@ -28,10 +29,12 @@ i18n
       "pt-BR": { translation: ptBR },
       pt: { translation: ptBR },
       es: { translation: es },
+      "fr-CA": { translation: fr },
+      fr: { translation: fr },
     },
     lng: getInitialLang(),
     fallbackLng: "en",
-    supportedLngs: ["en", "pt-BR", "pt", "es"],
+    supportedLngs: ["en", "pt-BR", "pt", "es", "fr-CA", "fr"],
     load: "currentOnly",
     interpolation: { escapeValue: false },
     react: { useSuspense: false },

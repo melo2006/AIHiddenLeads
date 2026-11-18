@@ -26,11 +26,11 @@ const icons = [PhoneOff, Voicemail, TrendingUp, Timer, MailX, Star];
 const StatsSection = ({ niche }: { niche: NicheData }) => {
   const phones = nichePhones[niche.id] ?? nichePhones.realtors;
   const { i18n } = useTranslation();
-  const pt = i18n.language.startsWith('pt'); const es = i18n.language.startsWith('es');
-  const labels = pt ? ['Disseram ter abandonado uma empresa após uma chamada sem resposta','Desligaram no correio de voz sem deixar mensagem','Prospects por telefone convertidos durante a chamada','Mais chance de qualificar um lead contatado em até uma hora','Das empresas nunca responderam a um lead online','Usariam uma empresa que responde a todas as avaliações'] : es ? ['Dijeron haber abandonado una empresa tras una llamada sin respuesta','Colgaron en el buzón de voz sin dejar mensaje','Prospectos telefónicos convertidos durante la llamada','Más probable calificar un lead contactado en una hora','De empresas nunca respondieron a un lead web','Usarían una empresa que responde a todas las reseñas'] : HOMEPAGE_EVIDENCE.map(e => e.label);
+  const pt = i18n.language.startsWith('pt'); const es = i18n.language.startsWith('es'); const fr = i18n.language.startsWith('fr');
+  const labels = pt ? ['Disseram ter abandonado uma empresa após uma chamada sem resposta','Desligaram no correio de voz sem deixar mensagem','Prospects por telefone convertidos durante a chamada','Mais chance de qualificar um lead contatado em até uma hora','Das empresas nunca responderam a um lead online','Usariam uma empresa que responde a todas as avaliações'] : es ? ['Dijeron haber abandonado una empresa tras una llamada sin respuesta','Colgaron en el buzón de voz sin dejar mensaje','Prospectos telefónicos convertidos durante la llamada','Más probable calificar un lead contactado en una hora','De empresas nunca respondieron a un lead web','Usarían una empresa que responde a todas las reseñas'] : fr ? ['Ont dit avoir abandonné une entreprise après un appel sans réponse','Ont raccroché sur la boîte vocale sans laisser de message','Prospects téléphoniques convertis pendant l\'appel','Plus de chances de qualifier un prospect contacté en moins d\'une heure','Des entreprises n\'ont jamais répondu à un prospect en ligne','Utiliseraient une entreprise qui répond à tous les avis'] : HOMEPAGE_EVIDENCE.map(e => e.label);
   return <section className="py-12 sm:py-16"><div className="container mx-auto px-5 sm:px-6">
-    <h2 className="text-2xl sm:text-3xl font-bold mb-3">{pt ? 'Chamadas, correio de voz e leads do site: responder importa.' : es ? 'Llamadas, buzón de voz y leads web: responder importa.' : 'Calls, voicemail and website leads: every answer matters.'}</h2>
-    <p className="text-sm text-muted-foreground mb-6">{pt ? 'Estudos externos, não resultados dos nossos clientes nem garantias.' : es ? 'Estudios externos, no resultados de nuestros clientes ni garantías.' : 'External research—not our client results, a 2026 market estimate or a performance guarantee.'}</p>
+    <h2 className="text-2xl sm:text-3xl font-bold mb-3">{pt ? 'Chamadas, correio de voz e leads do site: responder importa.' : es ? 'Llamadas, buzón de voz y leads web: responder importa.' : fr ? 'Appels, boîte vocale et prospects du site Web : chaque réponse compte.' : 'Calls, voicemail and website leads: every answer matters.'}</h2>
+    <p className="text-sm text-muted-foreground mb-6">{pt ? 'Estudos externos, não resultados dos nossos clientes nem garantias.' : es ? 'Estudios externos, no resultados de nuestros clientes ni garantías.' : fr ? 'Recherches externes — pas les résultats de nos clients, ni une estimation de marché 2026, ni une garantie de rendement.' : 'External research—not our client results, a 2026 market estimate or a performance guarantee.'}</p>
     <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-5">
       {HOMEPAGE_EVIDENCE.map((e, i) => { const Icon = icons[i] || Star; return <article key={e.value} className="rounded-lg border border-border bg-card p-5">
         <Icon className="h-6 w-6 text-primary mb-3" /><p className="text-3xl sm:text-4xl font-bold text-primary">{e.value}</p>
@@ -42,7 +42,7 @@ const StatsSection = ({ niche }: { niche: NicheData }) => {
       <div className="flex flex-row items-center justify-center gap-4 sm:gap-8 max-w-xl mx-auto">
         <div className="relative flex-1 max-w-[160px] sm:max-w-[200px]">
           <img src={phones.oldPhone} alt={`Outdated ${niche.label} website on a phone`} loading="lazy" className="w-full h-auto rounded-2xl" />
-          <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-destructive/20 border border-destructive/30 text-destructive text-xs sm:text-sm font-semibold whitespace-nowrap">{pt ? 'Antes' : es ? 'Antes' : 'Before'}</div>
+          <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-destructive/20 border border-destructive/30 text-destructive text-xs sm:text-sm font-semibold whitespace-nowrap">{pt ? 'Antes' : es ? 'Antes' : fr ? 'Avant' : 'Before'}</div>
         </div>
         <div className="flex-shrink-0 hidden sm:flex">
           <div className="w-12 h-12 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center">
@@ -53,10 +53,10 @@ const StatsSection = ({ niche }: { niche: NicheData }) => {
           <div className="relative overflow-hidden rounded-2xl">
             <img src={phones.newPhone} alt={`Modern AI-powered ${niche.label} website`} loading="lazy" className="w-full h-auto" />
           </div>
-          <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-primary/20 border border-primary/30 text-primary text-xs sm:text-sm font-semibold whitespace-nowrap">{pt ? 'Depois' : es ? 'Después' : 'After'}</div>
+          <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-primary/20 border border-primary/30 text-primary text-xs sm:text-sm font-semibold whitespace-nowrap">{pt ? 'Depois' : es ? 'Después' : fr ? 'Après' : 'After'}</div>
         </div>
       </div>
-      <p className="mt-8 text-center text-sm text-muted-foreground">{pt ? 'O mesmo site da empresa — antes da Aspen, e depois.' : es ? 'El mismo sitio web de la empresa: antes de Aspen, y después.' : 'The same business website — before Aspen, and after.'}</p>
+      <p className="mt-8 text-center text-sm text-muted-foreground">{pt ? 'O mesmo site da empresa — antes da Aspen, e depois.' : es ? 'El mismo sitio web de la empresa: antes de Aspen, y después.' : fr ? 'Le même site Web d\'entreprise — avant Aspen, et après.' : 'The same business website — before Aspen, and after.'}</p>
     </div>
   </div></section>;
 };

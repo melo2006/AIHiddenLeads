@@ -11,7 +11,7 @@
  * exist, and the commonly published split for the rest.
  */
 export type VoiceGender = "Female" | "Male";
-export type AgentLanguage = "en" | "es" | "pt-BR";
+export type AgentLanguage = "en" | "es" | "pt-BR" | "fr-CA";
 
 export interface LiveVoice {
   id: string;
@@ -92,6 +92,7 @@ export const AGENT_LANGUAGES: { id: AgentLanguage; label: string }[] = [
   { id: "en", label: "English" },
   { id: "es", label: "Spanish" },
   { id: "pt-BR", label: "Portuguese (Brazil)" },
+  { id: "fr-CA", label: "French (Canada)" },
 ];
 
 /**

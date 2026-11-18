@@ -25,6 +25,8 @@ import DemoReassuranceStrip from "@/components/landing/DemoReassuranceStrip";
 import BrazilExamples from "@/components/landing/BrazilExamples";
 import aspenPortrait from "@/assets/aspen-video-frame-final.webp";
 import { loadDemoResume, clearDemoResume, type DemoResume } from "@/lib/demoVerification";
+import { useTenantBrand } from "@/components/TenantBrandProvider";
+import { initialsFor } from "@/lib/tenancy";
 
 const LAST_DEMO_STORAGE_KEY = "lastDemoLeadData";
 
@@ -55,6 +57,7 @@ const perks = [
 
 const TryDemo = ({ variant = "default" }: { variant?: "default" | "br" }) => {
   const { t, i18n } = useTranslation();
+  const tenant = useTenantBrand();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [url, setUrl] = useState("");
@@ -151,10 +154,34 @@ const TryDemo = ({ variant = "default" }: { variant?: "default" | "br" }) => {
             className="inline-flex items-center gap-2 hover:opacity-80 transition-opacity"
             aria-label={t("tryDemo.backToHome")}
           >
-            <img src="/favicon.png" alt="AI Hidden Leads" className="w-6 h-6" />
-            <span className="text-sm font-extrabold tracking-tight text-foreground">
-              AI <span className="text-primary">Hidden</span> Leads
-            </span>
+            {tenant ? (
+              <>
+                {tenant.branding.logoUrl ? (
+                  <img src={tenant.branding.logoUrl} alt={tenant.branding.name ?? ""} className="w-6 h-6 rounded object-contain" />
+                ) : (
+                  <span
+                    aria-hidden
+                    className="flex w-6 h-6 items-center justify-center rounded text-[10px] font-bold text-white"
+                    style={{ backgroundColor: tenant.branding.brandColor || "#10b981" }}
+                  >
+                    {initialsFor(tenant.branding.name)}
+                  </span>
+                )}
+                <span
+                  className="text-sm font-extrabold tracking-tight text-foreground"
+                  style={tenant.branding.brandColor ? { color: tenant.branding.brandColor } : undefined}
+                >
+                  {tenant.branding.name}
+                </span>
+              </>
+            ) : (
+              <>
+                <img src="/favicon.png" alt="AI Hidden Leads" className="w-6 h-6" />
+                <span className="text-sm font-extrabold tracking-tight text-foreground">
+                  AI <span className="text-primary">Hidden</span> Leads
+                </span>
+              </>
+            )}
           </button>
           <div className="flex items-center gap-1">
             <Button

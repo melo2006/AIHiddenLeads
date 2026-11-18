@@ -19,6 +19,7 @@ import CheckoutReturn from "./pages/CheckoutReturn.tsx";
 import ShortLinkRedirect from "./pages/ShortLinkRedirect.tsx";
 import AuthCallback from "./pages/AuthCallback.tsx";
 import CampaignTracking from '@/components/CampaignTracking';
+import { TenantBrandProvider } from "@/components/TenantBrandProvider";
 
 const AdPreviews = lazy(() => import("./pages/AdPreviews.tsx"));
 const MarketingHub = lazy(() => import("./pages/MarketingHub.tsx"));
@@ -65,6 +66,7 @@ const App = () => {
         <ScrollToTop />
         <LocationHead />
         <CampaignTracking />
+        <TenantBrandProvider>
         <Suspense fallback={<div className="min-h-screen bg-background" />}>
           <Routes>
             <Route path="/" element={<Index />} />
@@ -102,6 +104,7 @@ const App = () => {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
+        </TenantBrandProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

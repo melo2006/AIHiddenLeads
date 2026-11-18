@@ -27,28 +27,34 @@ const POINTS = {
     { icon: HeartHandshake, title: "Pensada para ayudarte a crecer", text: "Precio inicial bajo con 50 prospectos B2B al mes incluidos, mientras las preguntas rutinarias se resuelven por ti." },
     { icon: LifeBuoy, title: "Personas reales apoyándote", text: "Nuestro equipo de soporte está disponible por teléfono, chat en vivo y correo en info@aihiddenleads.com." },
   ],
+  fr: [
+    { icon: AudioLines, title: "Des voix neuronales naturelles", text: "Une IA vocale en direct, de parole à parole, avec des tours de parole rapides et naturels — pas une synthèse vocale robotique ni un menu téléphonique." },
+    { icon: MessagesSquare, title: "Une vraie conversation à double sens", text: "Les appelants peuvent interrompre et changer de sujet. Aspen écoute, s'adapte et répond à partir des connaissances de votre entreprise." },
+    { icon: HeartHandshake, title: "Conçue pour vous aider à grandir", text: "Un prix d'entrée bas avec 50 prospects B2B par mois inclus, pendant que les questions de routine sont traitées pour vous." },
+    { icon: LifeBuoy, title: "De vraies personnes pour vous soutenir", text: "Notre équipe de soutien est disponible par téléphone, clavardage en direct et courriel à info@aihiddenleads.com." },
+  ],
 } as const;
 
 const SpokespersonSection = () => {
   const navigate = useNavigate();
   const { i18n } = useTranslation();
   const copy = homepageSalesCopy(i18n.language);
-  const pt = i18n.language.startsWith('pt'); const es = i18n.language.startsWith('es');
+  const pt = i18n.language.startsWith('pt'); const es = i18n.language.startsWith('es'); const fr = i18n.language.startsWith('fr');
   return <section className="py-12 sm:py-16"><div className="container mx-auto px-5 sm:px-6">
     <div className="flex flex-col md:flex-row items-center gap-8 lg:gap-12">
       <div className="w-full md:w-1/2 flex justify-center">
         <img
           src={aspenHero}
-          alt={pt ? 'Aspen, a sua porta-voz de IA' : es ? 'Aspen, tu portavoz de IA' : 'Aspen, your AI spokesperson'}
+          alt={pt ? 'Aspen, a sua porta-voz de IA' : es ? 'Aspen, tu portavoz de IA' : fr ? 'Aspen, votre porte-parole IA' : 'Aspen, your AI spokesperson'}
           loading="lazy"
           className="aspect-[4/3] w-full max-w-[300px] rounded-2xl border border-border object-cover object-top sm:max-w-sm"
         />
       </div>
       <div className="w-full md:w-1/2 text-center md:text-left">
-        <h2 className="text-2xl sm:text-3xl font-bold mb-3">{pt ? 'Não é um robô de voz. É o seu porta-voz de IA.' : es ? 'No es un bot de voz. Es tu portavoz de IA.' : 'Not a voice bot. Your AI spokesperson.'}</h2>
-        <p className="text-base text-muted-foreground max-w-xl mx-auto md:mx-0 mb-6">{pt ? 'A Aspen é uma porta-voz ao vivo, com sincronização labial, no seu site — um rosto real que saúda os visitantes pelo nome, responde às suas perguntas e agenda a chamada, 24/7. Escolha um rosto da biblioteca ou use a sua própria foto. Use uma das nossas vozes naturais, ou a sua. Quase ninguém mais pode oferecer isso.' : es ? 'Aspen es una portavoz en vivo, con sincronización labial, en tu sitio web: un rostro real que saluda a los visitantes por su nombre, responde sus preguntas y agenda la llamada, 24/7. Elige un rostro de la biblioteca o usa tu propia foto. Usa una de nuestras voces naturales, o la tuya. Casi nadie más puede ofrecerte eso.' : 'Aspen is a live, lip-synced spokesperson on your website — a real face that greets visitors by name, answers their questions, and books the call, 24/7. Pick a face from the library or use your own photo. Use one of our natural voices, or your own. Almost nobody else can give you that.'}</p>
+        <h2 className="text-2xl sm:text-3xl font-bold mb-3">{pt ? 'Não é um robô de voz. É o seu porta-voz de IA.' : es ? 'No es un bot de voz. Es tu portavoz de IA.' : fr ? 'Pas un robot vocal. Votre porte-parole IA.' : 'Not a voice bot. Your AI spokesperson.'}</h2>
+        <p className="text-base text-muted-foreground max-w-xl mx-auto md:mx-0 mb-6">{pt ? 'A Aspen é uma porta-voz ao vivo, com sincronização labial, no seu site — um rosto real que saúda os visitantes pelo nome, responde às suas perguntas e agenda a chamada, 24/7. Escolha um rosto da biblioteca ou use a sua própria foto. Use uma das nossas vozes naturais, ou a sua. Quase ninguém mais pode oferecer isso.' : es ? 'Aspen es una portavoz en vivo, con sincronización labial, en tu sitio web: un rostro real que saluda a los visitantes por su nombre, responde sus preguntas y agenda la llamada, 24/7. Elige un rostro de la biblioteca o usa tu propia foto. Usa una de nuestras voces naturales, o la tuya. Casi nadie más puede ofrecerte eso.' : fr ? 'Aspen est une porte-parole en direct, synchronisée aux lèvres, sur votre site Web — un vrai visage qui accueille les visiteurs par leur nom, répond à leurs questions et réserve l\'appel, 24/7. Choisissez un visage de la bibliothèque ou utilisez votre propre photo. Utilisez l\'une de nos voix naturelles, ou la vôtre. Presque personne d\'autre ne peut vous offrir cela.' : 'Aspen is a live, lip-synced spokesperson on your website — a real face that greets visitors by name, answers their questions, and books the call, 24/7. Pick a face from the library or use your own photo. Use one of our natural voices, or your own. Almost nobody else can give you that.'}</p>
         <ul className="grid grid-cols-1 lg:grid-cols-2 gap-x-5 gap-y-4 max-w-xl mx-auto md:mx-0 mb-7 text-left">
-          {(pt ? POINTS.pt : es ? POINTS.es : POINTS.en).map(({ icon: Icon, title, text }) => (
+          {(pt ? POINTS.pt : es ? POINTS.es : fr ? POINTS.fr : POINTS.en).map(({ icon: Icon, title, text }) => (
             <li key={title} className="flex items-start gap-3">
               <Icon className="h-5 w-5 shrink-0 text-primary mt-0.5" aria-hidden="true" />
               <span>

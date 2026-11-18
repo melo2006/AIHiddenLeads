@@ -18,8 +18,9 @@
 //     telephony-stream already uses for latency / call reports);
 //   - on platform (AI Hidden Leads) lines the spoken target is a
 //     TITLE — "our sales director" / "nosso diretor de vendas" /
-//     "nuestro director de ventas", the same words as
-//     manager-transfer.ts — never the owner's personal name,
+//     "nuestro director de ventas" / "notre directeur des ventes",
+//     the same words as manager-transfer.ts — never the owner's
+//     personal name,
 //     whatever the saved config carries;
 //   - a tenant line keeps its own configured role / manager name:
 //     that is the tenant's business fact, exactly as the website
@@ -39,6 +40,7 @@ function clean(value: unknown): string {
  *  starting language. */
 export function phoneLanguageFromSignal(value: unknown): PhoneTransferLanguage {
   const s = clean(value).toLowerCase();
+  if (s.startsWith('fr') || s === 'french' || s === 'français' || s === 'francais') return 'fr';
   if (s.startsWith('pt') || s === 'portuguese' || s === 'português') return 'pt';
   if (s.startsWith('es') || s === 'spanish' || s === 'español') return 'es';
   return 'en';
@@ -67,12 +69,14 @@ export function phoneTransferTarget(
   if (input.platformSales === true) {
     if (language === 'pt') return 'nosso diretor de vendas';
     if (language === 'es') return 'nuestro director de ventas';
+    if (language === 'fr') return 'notre directeur des ventes';
     return 'our sales director';
   }
   const name = clean(input.configuredName);
   if (name && name !== 'the manager') return name;
   if (language === 'pt') return 'o gerente';
   if (language === 'es') return 'el gerente';
+  if (language === 'fr') return 'le gérant';
   return 'the manager';
 }
 
@@ -80,6 +84,7 @@ const WHISPER_FALLBACK_SUMMARY: Record<PhoneTransferLanguage, string> = {
   en: 'A caller asked to speak with you.',
   pt: 'Um chamador pediu para falar com você.',
   es: 'Una persona que llamó pidió hablar con usted.',
+  fr: 'Une personne qui a appelé a demandé à vous parler.',
 };
 
 /** The whisper the manager leg hears before the caller is bridged:
@@ -90,6 +95,7 @@ export function phoneWhisperText(summary: unknown, language: PhoneTransferLangua
   const s = clean(summary) || WHISPER_FALLBACK_SUMMARY[language];
   if (language === 'pt') return `Transferência da Aspen. ${s} Conectando agora.`;
   if (language === 'es') return `Transferencia de Aspen. ${s} Conectando ahora.`;
+  if (language === 'fr') return `Transfert d'Aspen. ${s} Connexion en cours.`;
   return `Transfer from Aspen. ${s} Connecting now.`;
 }
 
@@ -97,6 +103,7 @@ export function phoneWhisperText(summary: unknown, language: PhoneTransferLangua
 export function phoneConnectLine(target: string, language: PhoneTransferLanguage): string {
   if (language === 'pt') return `Vou conectar você com ${target} agora.`;
   if (language === 'es') return `Le conecto ahora con ${target}.`;
+  if (language === 'fr') return `Je vous connecte avec ${target} à l'instant.`;
   return `Let me connect you with ${target}.`;
 }
 
@@ -104,6 +111,7 @@ export function phoneConnectLine(target: string, language: PhoneTransferLanguage
 export function phoneTransferUnavailableLine(target: string, language: PhoneTransferLanguage): string {
   if (language === 'pt') return `Desculpe, ${target} não está disponível no momento. Ligaremos de volta em breve. Adeus.`;
   if (language === 'es') return `Lo siento, ${target} no está disponible en este momento. Le devolveremos la llamada pronto. Adiós.`;
+  if (language === 'fr') return `Désolé, ${target} n'est pas disponible pour le moment. Nous vous rappellerons bientôt. Au revoir.`;
   return `Sorry, ${target} is not available right now. We'll call you back soon. Goodbye.`;
 }
 
@@ -111,5 +119,6 @@ export function phoneTransferUnavailableLine(target: string, language: PhoneTran
 export function phoneFollowUpLine(language: PhoneTransferLanguage): string {
   if (language === 'pt') return 'Obrigado pela ligação. Alguém da nossa equipe entrará em contato em breve. Adeus.';
   if (language === 'es') return 'Gracias por llamar. Alguien de nuestro equipo se pondrá en contacto con usted pronto. Adiós.';
+  if (language === 'fr') return 'Merci de votre appel. Quelqu\'un de notre équipe vous recontactera bientôt. Au revoir.';
   return 'Thanks for calling. Someone will follow up with you soon. Goodbye.';
 }

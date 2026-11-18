@@ -23,7 +23,7 @@ import type { TenantLimits } from '@/lib/tenancy';
 // prices, our costs, or any vendor name.
 
 interface ConsoleData {
-  organization: { id: string; name: string; type: string; status: string; branding: OrgBranding };
+  organization: { id: string; name: string; type: string; status: string; subdomain?: string | null; branding: OrgBranding };
   limits: TenantLimits;
   caps: Record<string, string>;
   usage: { minutes: number; spendUsd: number; demoSpendUsd: number; clientCount: number };
@@ -37,6 +37,66 @@ const UNIT_LABELS: Record<string, string> = {
   segment: 'per segment', number_month: 'per number / month', message: 'per message', prospect: 'per prospect',
 };
 const money = (v: number) => (v < 0.1 ? `$${v.toFixed(4)}` : `$${v.toFixed(2)}`);
+
+/** Your public subdomain (design §12.2): the public site — homepage,
+ *  demo, everything — renders under your brand at
+ *  <slug>.aihiddenleads.com. Claim once here; changing or removing it
+ *  afterwards is a support action so a printed link can never be
+ *  silently re-pointed. */
+function SubdomainSettings({ organizationId, subdomain, onSaved }: {
+  organizationId: string;
+  subdomain: string | null;
+  onSaved: () => void;
+}) {
+  const [slug, setSlug] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const claim = async () => {
+    const value = slug.trim().toLowerCase();
+    if (!value) return;
+    setBusy(true);
+    const { data, error } = await supabase.functions.invoke('voice-agents', {
+      body: { action: 'setSubdomain', organizationId, subdomain: value },
+    });
+    setBusy(false);
+    const err = (data as { error?: string })?.error;
+    if (error || err) { toast.error('Could not claim that subdomain.', { description: err }); return; }
+    toast.success(`Your site is live at ${value}.aihiddenleads.com.`);
+    onSaved();
+  };
+
+  return (
+    <div className="mt-6 rounded-lg border border-border p-4">
+      <h3 className="text-sm font-semibold">Your subdomain</h3>
+      {subdomain ? (
+        <>
+          <p className="mt-2 text-sm">
+            Your public site runs under your brand at{' '}
+            <span className="font-medium text-foreground">https://{subdomain}.aihiddenleads.com</span>
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            To change or remove it, contact support — a web address you have shared or printed should never silently move.
+          </p>
+        </>
+      ) : (
+        <>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Claim your own web address — the public site, including the live demo, renders under your brand there.
+            Lowercase letters, numbers and single hyphens.
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1 text-sm">
+              <Input aria-label="Subdomain" className="h-9 w-48 text-sm" placeholder="yourcompany"
+                value={slug} onChange={(e) => setSlug(e.target.value)} />
+              <span className="text-muted-foreground">.aihiddenleads.com</span>
+            </div>
+            <Button size="sm" disabled={busy || !slug.trim()} onClick={() => void claim()}>Claim subdomain</Button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 function CapLine({ label, used, cap, state, format }: { label: string; used: string; cap: number | null; state: string; format?: (n: number) => string }) {
   return (
@@ -221,6 +281,7 @@ const ResellerConsole = ({ organizationId }: { organizationId?: string }) => {
 
         <TabsContent value="branding">
           <BrandingSettings organizationId={org.id} organizationName={org.name} initial={org.branding} onSaved={refresh} />
+          <SubdomainSettings organizationId={org.id} subdomain={org.subdomain ?? null} onSaved={refresh} />
         </TabsContent>
 
         <TabsContent value="team">

@@ -124,7 +124,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
         customIndustry: INDUSTRIES.includes(String(d.industry || "")) ? "" : String(d.industry || ""), subNiche: String(d.subNiche || ""), businessNotes: String(d.businessNotes || ""), knowledgeGuidance: String(d.knowledgeGuidance || ""), assistantRestrictions: String(d.assistantRestrictions || ""),
         links: (a.voice_agent_sources || []).filter((x: { kind: string }) => x.kind === "url").map((x: { url?: string; label: string }) => x.url || x.label),
         files: (a.voice_agent_sources || []).filter((x: { kind: string }) => x.kind === "document").map((x: { label: string }) => x.label),
-        faqs, name: String(d.name || "Aspen"), greeting: String(d.greeting || EMPTY.greeting), voice: String(d.voice || "Kore"), defaultLanguage: (["es", "pt-BR"].includes(String(d.defaultLanguage)) ? String(d.defaultLanguage) : "en") as AgentLanguage, clonedVoiceSelected: Boolean(d.clonedVoiceSelected), elevenLabsLiveVoice: Boolean(d.elevenLabsLiveVoice),
+        faqs, name: String(d.name || "Aspen"), greeting: String(d.greeting || EMPTY.greeting), voice: String(d.voice || "Kore"), defaultLanguage: (["es", "pt-BR", "fr-CA"].includes(String(d.defaultLanguage)) ? String(d.defaultLanguage) : "en") as AgentLanguage, clonedVoiceSelected: Boolean(d.clonedVoiceSelected), elevenLabsLiveVoice: Boolean(d.elevenLabsLiveVoice),
         color: d.theme?.primary || EMPTY.color, label: (() => { const l = String(d.launcherLabel || ""); return !l || isAskLabel(l) ? askLabel(String(d.name || "Aspen")) : l; })(),
         corner: d.launcherCorner === "bottom-left" ? "bottom-left" : "bottom-right", videoAvatar: normalizeVideoAvatar(d.videoAvatar),
       });

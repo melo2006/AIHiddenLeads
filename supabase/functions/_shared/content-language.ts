@@ -23,7 +23,16 @@
 // Pure and deterministic so the unit tests can pin real captured site text
 // (src/test/fixtures/site-*.txt) against it.
 
-export type DetectedContentLanguage = 'en' | 'es' | 'pt-BR';
+export type DetectedContentLanguage = 'en' | 'es' | 'pt-BR' | 'fr-CA';
+
+// French (fr-CA) joined the set with the French package (2026-11-18):
+// the product ships exactly one French (Canadian — wording and business
+// terms are Québec-appropriate), so French text classifies as 'fr-CA'.
+// French carries NO distinctive-character weight: 'ç' occurs in
+// Portuguese too ('preço'), so the French verdict rests entirely on its
+// high-precision word set below — words chosen to never collide with
+// the Portuguese/Spanish/English sets ('que', 'mais', 'entre', 'la'
+// are deliberately absent: Spanish/Portuguese text would score them).
 
 /** Bounded sample: the homepage top carries the site's voice; scanning
  *  more only slows the scan. 12k chars is several pages of visible copy. */
@@ -75,6 +84,21 @@ const ES_WORDS = new Set([
   'comprar', 'alquilar', 'agendar', 'presupuesto', 'atención',
 ]);
 
+const FR_WORDS = new Set([
+  'bienvenue', 'accueil', 'bonjour', 'merci', 'nous', 'vous', 'votre',
+  'vos', 'notre', 'nos', 'avec', 'chez', 'pour', 'dans', 'les', 'des',
+  'une', 'est', 'aux', 'ces', 'cette', 'qui', 'sur', 'par', 'pas', 'et',
+  'être', 'sont', 'aussi', 'avoir', 'faire', 'entreprise', 'entreprises',
+  'années', 'année', 'jours', 'ville', 'droits', 'réservés',
+  'confidentialité', 'politique', 'conditions', 'découvrez', 'prix',
+  'vente', 'ventes', 'maison', 'propriétés', 'recherche', 'trouver',
+  'téléphone', 'qualité', 'équipe', 'depuis', 'propos', 'janvier',
+  'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août',
+  'septembre', 'octobre', 'novembre', 'décembre', 'lundi', 'mardi',
+  'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche', 'canada',
+  'québec', 'montréal', 'courriel', 'forfait',
+]);
+
 const EN_WORDS = new Set([
   'the', 'and', 'your', 'you', 'with', 'for', 'our', 'are', 'this', 'that',
   'from', 'have', 'will', 'home', 'homes', 'sale', 'rent', 'real', 'estate',
@@ -93,7 +117,8 @@ function countMatches(text: string, pattern: RegExp): number {
 }
 
 /** Classify the language of scanned website text. Returns 'pt-BR' for ANY
- *  Portuguese (Brazilian is the product's only Portuguese), 'es', 'en', or
+ *  Portuguese (Brazilian is the product's only Portuguese), 'fr-CA' for
+ *  French (Canadian is the product's only French), 'es', 'en', or
  *  null when the sample is too thin or too mixed to trust. */
 export function detectContentLanguage(rawText: unknown): DetectedContentLanguage | null {
   if (typeof rawText !== 'string') return null;
@@ -104,18 +129,21 @@ export function detectContentLanguage(rawText: unknown): DetectedContentLanguage
   let pt = countMatches(lower, /[ãõ]/g) * DISTINCTIVE_CHAR_WEIGHT;
   let es = countMatches(lower, /[ñ¿¡]/g) * DISTINCTIVE_CHAR_WEIGHT;
   let en = 0;
+  let fr = 0;
 
   const words = lower.match(/[a-zà-ÿ']+/g) || [];
   for (const word of words) {
     if (PT_WORDS.has(word)) pt += 1;
     if (ES_WORDS.has(word)) es += 1;
     if (EN_WORDS.has(word)) en += 1;
+    if (FR_WORDS.has(word)) fr += 1;
   }
 
   const ranked: Array<[DetectedContentLanguage, number]> = [
     ['pt-BR', pt],
     ['es', es],
     ['en', en],
+    ['fr-CA', fr],
   ].sort((a, b) => b[1] - a[1]);
   const [winner, winnerScore] = ranked[0];
   const runnerUpScore = ranked[1][1];

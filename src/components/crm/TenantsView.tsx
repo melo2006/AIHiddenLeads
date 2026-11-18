@@ -37,6 +37,8 @@ interface TenantRow {
   status: string;
   /** Phase 2.5: seeded presentation org — excluded from real billing. */
   isDemo?: boolean;
+  /** Reseller subdomains (§12.2): the org's public slug, if claimed. */
+  subdomain?: string | null;
   parentOrganizationId: string | null;
   parentName: string | null;
   branding: { logoUrl: string | null; slogan: string | null; supportEmail: string | null; brandColor: string | null };
@@ -70,7 +72,20 @@ function LimitsEditor({ tenant, card, onSaved }: { tenant: TenantRow; card: Rate
     })));
   const [overrideModes, setOverrideModes] = useState<Record<string, string>>(() =>
     Object.fromEntries(card.map((l) => [l.key, tenant.rateCardOverrides[l.key]?.mode ?? l.mode])));
+  const [subdomain, setSubdomain] = useState(tenant.subdomain ?? '');
   const [busy, setBusy] = useState(false);
+
+  const saveSubdomain = async (value: string | null) => {
+    setBusy(true);
+    const { data, error } = await supabase.functions.invoke('voice-agents', {
+      body: { action: 'setSubdomain', organizationId: tenant.id, subdomain: value },
+    });
+    setBusy(false);
+    const err = (data as { error?: string })?.error;
+    if (error || err) { toast.error('Could not save the subdomain.', { description: err }); return; }
+    toast.success(value ? `${tenant.name} is live at ${value}.aihiddenleads.com.` : `Subdomain cleared for ${tenant.name}.`);
+    onSaved();
+  };
 
   const numOrNull = (s: string) => {
     const t = s.trim();
@@ -175,6 +190,32 @@ function LimitsEditor({ tenant, card, onSaved }: { tenant: TenantRow; card: Rate
           ))}
         </div>
       </div>
+
+      {tenant.type === 'reseller' && (
+        <div>
+          <p className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">Reseller subdomain</p>
+          <p className="mb-2 text-[11px] text-muted-foreground">
+            The public site renders under this reseller's brand at{' '}
+            <span className="font-medium text-foreground">{(subdomain.trim().toLowerCase() || 'company')}.aihiddenleads.com</span>.
+            Lowercase letters, numbers and single hyphens; reserved names are blocked. Leave empty and clear to remove it.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1 text-xs">
+              <Input aria-label="Subdomain" className="h-8 w-44 text-xs" placeholder="company"
+                value={subdomain} onChange={(e) => setSubdomain(e.target.value)} />
+              <span className="text-muted-foreground">.aihiddenleads.com</span>
+            </div>
+            <Button size="sm" variant="outline" disabled={busy || !subdomain.trim()} onClick={() => void saveSubdomain(subdomain.trim().toLowerCase())}>
+              Save subdomain
+            </Button>
+            {tenant.subdomain && (
+              <Button size="sm" variant="ghost" disabled={busy} onClick={() => { setSubdomain(''); void saveSubdomain(null); }}>
+                Clear
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2">
         <Button size="sm" disabled={busy} onClick={() => void save()}><Save className="mr-1 h-3 w-3" /> Save limits</Button>

@@ -12,17 +12,18 @@ import { GEMINI_LIVE_VOICES } from "@/lib/voiceCatalog";
 // Phase 2.5 catalog selection (design 2026-11-18 §12.5): which
 // avatars / voices / languages a reseller offers his clients.
 // null = the whole library (new entries arrive automatically);
-// French is deliberately NOT a catalog language in this phase.
+// French (fr-CA) joined the catalog languages with the French
+// package (2026-11-18), superseding the Phase 2.5 scope note.
 
 describe("catalog selection — defaults", () => {
   it("defaults to the whole library and every supported language", () => {
     expect(DEFAULT_CATALOG_SELECTION.avatars).toBeNull();
     expect(DEFAULT_CATALOG_SELECTION.voices).toBeNull();
-    expect(DEFAULT_CATALOG_SELECTION.languages).toEqual(["en", "es", "pt-BR"]);
+    expect(DEFAULT_CATALOG_SELECTION.languages).toEqual(["en", "es", "pt-BR", "fr-CA"]);
     expect(normalizeCatalogSelection(null)).toEqual(DEFAULT_CATALOG_SELECTION);
     expect(normalizeCatalogSelection({})).toEqual(DEFAULT_CATALOG_SELECTION);
-    expect(CATALOG_LANGUAGES).toEqual(["en", "es", "pt-BR"]);
-    expect(CATALOG_LANGUAGES).not.toContain("fr-CA");
+    expect(CATALOG_LANGUAGES).toEqual(["en", "es", "pt-BR", "fr-CA"]);
+    expect(CATALOG_LANGUAGES).toContain("fr-CA");
   });
   it("isOffered: null offers everything, a list offers only its members", () => {
     expect(isOffered(null, "anything")).toBe(true);
@@ -40,18 +41,20 @@ describe("catalog selection — normalization", () => {
     const out = normalizeCatalogSelection({
       avatars: ["aspen", "aspen", "not-a-face"],
       voices: ["Kore", "NotAVoice"],
-      languages: ["en", "fr-CA", "es"],
+      languages: ["en", "fr-CA", "es", "de"],
     });
     expect(out.avatars).toEqual(["aspen", "not-a-face"]);
     expect(out.voices).toEqual(["Kore", "NotAVoice"]);
     expect(isOffered(out.avatars, "not-a-face")).toBe(true); // stored…
     expect(AVATAR_LIBRARY.some((a) => a.key === "not-a-face")).toBe(false); // …but no such avatar exists to offer
-    // Languages, a closed set, ARE filtered to the supported list.
-    expect(out.languages).toEqual(["en", "es"]);
+    // Languages, a closed set, ARE filtered to the supported list:
+    // fr-CA is supported (kept, in catalog order), "de" is not (dropped).
+    expect(out.languages).toEqual(["en", "es", "fr-CA"]);
   });
   it("an emptied language list falls back to all languages (never none)", () => {
-    expect(normalizeCatalogSelection({ languages: [] }).languages).toEqual(["en", "es", "pt-BR"]);
-    expect(normalizeCatalogSelection({ languages: ["fr-CA"] }).languages).toEqual(["en", "es", "pt-BR"]);
+    expect(normalizeCatalogSelection({ languages: [] }).languages).toEqual(["en", "es", "pt-BR", "fr-CA"]);
+    expect(normalizeCatalogSelection({ languages: ["de"] }).languages).toEqual(["en", "es", "pt-BR", "fr-CA"]);
+    expect(normalizeCatalogSelection({ languages: ["fr-CA"] }).languages).toEqual(["fr-CA"]);
   });
   it("every library key and voice id validates as offerable", () => {
     for (const a of AVATAR_LIBRARY) {
@@ -65,7 +68,7 @@ describe("catalog selection — normalization", () => {
 
 describe("catalog selection — write validation", () => {
   it("rejects unsupported languages, an empty language list and junk shapes", () => {
-    expect(validateCatalogSelectionInput({ languages: ["fr-CA"] })).toHaveProperty("error");
+    expect(validateCatalogSelectionInput({ languages: ["de"] })).toHaveProperty("error");
     expect(validateCatalogSelectionInput({ languages: [] })).toHaveProperty("error");
     expect(validateCatalogSelectionInput({ avatars: "aspen" })).toHaveProperty("error");
     expect(validateCatalogSelectionInput({ avatars: [42] })).toHaveProperty("error");
@@ -74,5 +77,7 @@ describe("catalog selection — write validation", () => {
   it("accepts null lists (whole library) and partial selections", () => {
     const ok = validateCatalogSelectionInput({ avatars: null, voices: ["Kore"], languages: ["en"] });
     expect(ok).toEqual({ value: { avatars: null, voices: ["Kore"], languages: ["en"] } });
+    const fr = validateCatalogSelectionInput({ languages: ["fr-CA"] }) as { value?: { languages: string[] } };
+    expect(fr.value?.languages).toEqual(["fr-CA"]);
   });
 });
