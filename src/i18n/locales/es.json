@@ -1437,5 +1437,50 @@
     "look": {
       "phoneHint": "Tu vista previa va en la parte superior de esta página — toca Vista previa para ver la página completa."
     }
+  },
+  "wizardSection": {
+    "title1": "Su propio asistente de voz con avatar —",
+    "title2": "en vivo en 15 a 20 minutos",
+    "sub": "Créelo usted mismo en el asistente de configuración, sin conocimientos técnicos. Alex, nuestro ingeniero de soporte, le ayuda en cada paso, y la mayoría de los propietarios termina en unos 15 a 20 minutos.",
+    "timeChip": "Unos 15–20 minutos",
+    "alexName": "Alex",
+    "alexRole": "Nuestro ingeniero de soporte",
+    "alexLine": "Con usted en cada paso — solo siga sus indicaciones.",
+    "alexAlt": "Alex, nuestro ingeniero de soporte",
+    "stepsTitle": "Seis pasos cortos",
+    "s1": {
+      "title": "Su empresa",
+      "desc": "Su nombre, su oficio y su sitio web — un formulario breve."
+    },
+    "s2": {
+      "title": "Aprendizaje",
+      "desc": "Su asistente lee su sitio web y sus documentos y aprende sus servicios, precios y políticas."
+    },
+    "s3": {
+      "title": "Rostro y voz",
+      "desc": "Elija un rostro de la biblioteca y la voz que suene como su empresa."
+    },
+    "s4": {
+      "title": "Revise el borrador",
+      "desc": "Lea el saludo y las respuestas que preparó, marque sus servicios y edite lo que quiera con sus propias palabras."
+    },
+    "s5": {
+      "title": "Véalo en su sitio",
+      "desc": "Véala en vivo en su propio sitio web antes que cualquier visitante."
+    },
+    "s6": {
+      "title": "Pruebe y salga en vivo",
+      "desc": "Conecte su número de teléfono, haga una llamada de prueba y actívela."
+    },
+    "shot1Alt": "El primer paso del asistente de configuración: cuéntenos sobre su empresa",
+    "shot1Caption": "Paso 1 · Su empresa",
+    "shot2Alt": "El paso de aprendizaje del asistente: su sitio web se convierte en el conocimiento de su asistente",
+    "shot2Caption": "Paso 2 · Aprendizaje — lee su sitio web",
+    "shot3Alt": "El paso de rostro y voz del asistente: elija un rostro y una voz",
+    "shot3Caption": "Paso 3 · Rostro y voz",
+    "shotsNote": "Pantallas reales del asistente de configuración, con una empresa de plomería de ejemplo.",
+    "cta": "Comience su configuración",
+    "ctaNote": "Elija un plan y se abrirá el asistente — Alex le guiará.",
+    "demoLink": "O pruebe primero la demostración gratuita en vivo"
   }
 }
