@@ -70,6 +70,7 @@ function ClientDetail({ client, prospects, linkable, showLeadLink = true }: { cl
     ['Period ends', formatDate(client.currentPeriodEnd)],
     ['Joined', formatDate(client.joinedAt)],
     ['Tenant', client.tenantLabel],
+    ...(client.isDemo ? [['Demo account', 'Yes — presentation data, never billed'] as [string, string]] : []),
     ['Organization status', client.organizationStatus],
     ['Environment', client.environment ?? '—'],
     ['Organization ID', client.organizationId],
@@ -242,7 +243,10 @@ const ClientsView = ({ scope = 'platform' }: { scope?: 'platform' | 'reseller' }
                         <p className="text-xs text-muted-foreground">{client.email}</p>
                       )}
                     </td>
-                    <td className="px-4 py-3">{client.businessName}</td>
+                    <td className="px-4 py-3">
+                      {client.businessName}
+                      {client.isDemo && <Badge variant="secondary" className="ml-2 text-[10px]">Demo</Badge>}
+                    </td>
                     <td className="px-4 py-3">{client.planLabel}</td>
                     <td className="px-4 py-3">
                       <Badge variant="outline" className="text-[10px]">{client.statusLabel}</Badge>

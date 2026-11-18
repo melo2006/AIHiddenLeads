@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Save } from 'lucide-react';
 import { toast } from 'sonner';
 import { effectivePrice, type RateCardLine } from '@/lib/rateCard';
+import { CURRENCIES, type EffectiveRate } from '@/lib/currency';
 
 // Rate Card — platform admin only (design 2026-11-18 §11). Every
 // metered cost center is one editable row: our cost, the charge mode
@@ -67,6 +68,77 @@ function LineRow({ line, onChange }: { line: RateCardLine; onChange: (next: Rate
       </td>
       <td className="px-4 py-3 font-medium">{money(effectivePrice(line))}</td>
     </tr>
+  );
+}
+
+// Currency conversion table (design 2026-11-18 §12.4, Phase 2.5).
+// USD is the base and the ONLY settlement currency — these rates exist
+// purely so a reseller's customers can be SHOWN his retail prices in
+// their own currency. They are editable defaults with an as-of date,
+// never presented as a live exchange feed.
+function CurrencyRatesCard() {
+  const queryClient = useQueryClient();
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  const { data } = useQuery({
+    queryKey: ['currency-rates'],
+    queryFn: async () => {
+      const { data: d, error: e } = await supabase.functions.invoke('voice-agents', { body: { action: 'currencyRates' } });
+      if (e) throw e;
+      if ((d as { error?: string })?.error) throw new Error((d as { error: string }).error);
+      return (d as { rates: EffectiveRate[] }).rates;
+    },
+  });
+  useEffect(() => {
+    if (data) setDrafts(Object.fromEntries(data.filter((r) => r.code !== 'USD').map((r) => [r.code, String(r.rate)])));
+  }, [data]);
+
+  const save = async () => {
+    const rates: Record<string, number> = {};
+    for (const [code, raw] of Object.entries(drafts)) {
+      const n = Number(raw);
+      if (!Number.isFinite(n) || n <= 0) { toast.error(`Rate for ${code} must be a positive number.`); return; }
+      rates[code] = n;
+    }
+    setBusy(true);
+    const { data: d, error: e } = await supabase.functions.invoke('voice-agents', { body: { action: 'saveCurrencyRates', rates } });
+    setBusy(false);
+    if (e || (d as { error?: string })?.error) {
+      toast.error('Could not save currency rates.', { description: (d as { error?: string })?.error });
+      return;
+    }
+    toast.success('Currency rates saved.');
+    await queryClient.invalidateQueries({ queryKey: ['currency-rates'] });
+  };
+
+  if (!data) return null;
+  const byCode = new Map(data.map((r) => [r.code, r]));
+  return (
+    <div className="rounded-lg border border-border p-4">
+      <p className="mb-1 text-sm font-medium">Customer currency conversion</p>
+      <p className="mb-3 max-w-2xl text-xs text-muted-foreground">
+        Resellers always settle with us in US dollars. These rates only convert how a reseller's retail
+        prices are DISPLAYED to his customers in their currency. They are editable defaults — not a live
+        exchange feed — so review them from time to time.
+      </p>
+      <div className="space-y-2">
+        {CURRENCIES.filter((c) => c.code !== 'USD').map((c) => {
+          const eff = byCode.get(c.code);
+          return (
+            <div key={c.code} className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="w-44">{c.name} ({c.code})</span>
+              <span className="text-xs text-muted-foreground">1 USD =</span>
+              <Input aria-label={`Rate for ${c.code}`} className="h-8 w-28 text-xs" inputMode="decimal"
+                value={drafts[c.code] ?? ''} onChange={(e) => setDrafts((d) => ({ ...d, [c.code]: e.target.value }))} />
+              <span className="text-xs text-muted-foreground">
+                {eff ? `rate as of ${eff.asOf}${eff.edited ? ' · edited by an admin' : ' · built-in default'}` : ''}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <Button size="sm" className="mt-3" disabled={busy} onClick={() => void save()}><Save className="mr-1 h-3 w-3" /> Save currency rates</Button>
+    </div>
   );
 }
 
@@ -136,6 +208,7 @@ const RateCardView = () => {
             </table>
           </div>
           <Button size="sm" disabled={busy} onClick={() => void save()}><Save className="mr-1 h-3 w-3" /> Save rate card</Button>
+          <CurrencyRatesCard />
         </>
       )}
     </div>

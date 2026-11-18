@@ -4,10 +4,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ChevronDown, ChevronUp, MailPlus, Save } from 'lucide-react';
+import { ChevronDown, ChevronUp, MailPlus, Save, Sparkles, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { FEATURE_KEYS, type TenantLimits } from '@/lib/tenancy';
 import { effectivePrice, type RateCardLine } from '@/lib/rateCard';
+import { formatMoney } from '@/lib/currency';
+import type { RetailPriceLine } from '@/lib/retailPricing';
 
 // Tenants — the platform admin's reseller screen (multi-tenant design
 // Phase 2, 2026-11-18): every organization with its type and status,
@@ -33,6 +35,8 @@ interface TenantRow {
   name: string;
   type: string;
   status: string;
+  /** Phase 2.5: seeded presentation org — excluded from real billing. */
+  isDemo?: boolean;
   parentOrganizationId: string | null;
   parentName: string | null;
   branding: { logoUrl: string | null; slogan: string | null; supportEmail: string | null; brandColor: string | null };
@@ -182,6 +186,143 @@ function LimitsEditor({ tenant, card, onSaved }: { tenant: TenantRow; card: Rate
   );
 }
 
+// ---------------------------------------------------------------------------
+// Phase 2.5 (design §12.1 + §12.3): the demo-data panel and the
+// read-only retail summary. Demo orgs are seeded presentation data —
+// flagged is_demo server-side, carrying their figures in demo_profile,
+// never in the usage ledger — so they can be presented at all three
+// levels and removed in one click. A reseller's retail setup is HIS
+// business (§8 decision 5): the platform can look, never edit.
+// ---------------------------------------------------------------------------
+interface DemoStatus { seeded: boolean; resellerName: string | null; clientCount: number }
+interface DemoCredential { label: string; email: string; password: string }
+
+function DemoDataPanel({ onChanged }: { onChanged: () => void }) {
+  const queryClient = useQueryClient();
+  const [busy, setBusy] = useState<'seed' | 'remove' | null>(null);
+  const [credentials, setCredentials] = useState<DemoCredential[] | null>(null);
+  const { data: status } = useQuery({
+    queryKey: ['demo-status'],
+    queryFn: async () => {
+      const { data: d, error: e } = await supabase.functions.invoke('voice-agents', { body: { action: 'demoStatus' } });
+      if (e) throw e;
+      if ((d as { error?: string })?.error) throw new Error((d as { error: string }).error);
+      return d as DemoStatus;
+    },
+  });
+
+  const refresh = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['demo-status'] });
+    await queryClient.invalidateQueries({ queryKey: ['tenants'] });
+    onChanged();
+  };
+
+  const seed = async () => {
+    setBusy('seed');
+    const { data: d, error: e } = await supabase.functions.invoke('voice-agents', { body: { action: 'seedDemoData' } });
+    setBusy(null);
+    if (e || (d as { error?: string })?.error) {
+      toast.error('Could not seed demo data.', { description: (d as { error?: string })?.error });
+      return;
+    }
+    setCredentials((d as { credentials: DemoCredential[] }).credentials);
+    toast.success('Demo data seeded — save the sign-in passwords below; they are shown only once.');
+    await refresh();
+  };
+
+  const remove = async () => {
+    setBusy('remove');
+    const { data: d, error: e } = await supabase.functions.invoke('voice-agents', { body: { action: 'removeDemoData' } });
+    setBusy(null);
+    if (e || (d as { error?: string })?.error) {
+      toast.error('Could not remove demo data.', { description: (d as { error?: string })?.error });
+      return;
+    }
+    setCredentials(null);
+    const removed = (d as { removed: { orgs: number; users: number } }).removed;
+    toast.success(`Demo data removed (${removed.orgs} organizations, ${removed.users} accounts).`);
+    await refresh();
+  };
+
+  return (
+    <div className="rounded-lg border border-dashed border-border p-4">
+      <p className="mb-1 flex items-center gap-2 text-sm font-medium"><Sparkles className="h-4 w-4" /> Demo / presentation data</p>
+      <p className="mb-3 text-xs text-muted-foreground">
+        Seeds a complete demo world — a reseller (NorthPeak Partners) with branding, selling prices and four
+        believable client businesses — so all three levels (your admin, the reseller console, a client dashboard)
+        can be presented with real-looking numbers. Demo organizations are flagged and never mix with real
+        billing or usage. Re-seeding refreshes the world; it never duplicates it.
+      </p>
+      <p className="mb-3 text-xs">
+        {status?.seeded
+          ? <>Currently seeded: <span className="font-medium">{status.resellerName}</span> with {status.clientCount} demo clients.</>
+          : 'Not seeded right now.'}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" className="h-9" disabled={busy !== null} onClick={() => void seed()}>
+          <Sparkles className="mr-1 h-3 w-3" /> {status?.seeded ? 'Re-seed (refresh) demo data' : 'Seed demo data'}
+        </Button>
+        <Button size="sm" variant="outline" className="h-9" disabled={busy !== null || !status?.seeded} onClick={() => void remove()}>
+          <Trash2 className="mr-1 h-3 w-3" /> Remove demo data
+        </Button>
+      </div>
+      {credentials && (
+        <div className="mt-3 rounded-md bg-muted/50 p-3 text-xs">
+          <p className="mb-2 font-medium">Demo sign-ins — save these now; the passwords are shown only once, right after seeding.</p>
+          <ul className="space-y-1">
+            {credentials.map((c) => (
+              <li key={c.email} className="break-all">
+                <span className="text-muted-foreground">{c.label}:</span> <code>{c.email}</code> · <code>{c.password}</code>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface TenantRetailPayload { lines: RetailPriceLine[]; customerCurrency: string; readOnly?: boolean }
+
+function RetailSummary({ tenant }: { tenant: TenantRow }) {
+  const { data } = useQuery({
+    queryKey: ['tenant-retail', tenant.id],
+    queryFn: async () => {
+      const { data: d, error: e } = await supabase.functions.invoke('voice-agents', {
+        body: { action: 'tenantRetail', organizationId: tenant.id },
+      });
+      if (e) throw e;
+      if ((d as { error?: string })?.error) throw new Error((d as { error: string }).error);
+      return d as TenantRetailPayload;
+    },
+  });
+  if (!data) return null;
+  const modeNote = (l: RetailPriceLine) =>
+    l.setting.mode === 'markup' ? `+${l.setting.markupPct}% markup`
+    : l.setting.mode === 'flat' ? 'flat price'
+    : `cost + ${formatMoney(l.setting.addonUsd, 'USD')}`;
+  return (
+    <div className="border-b border-border px-4 py-4">
+      <p className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">His selling prices (read-only)</p>
+      <p className="mb-2 text-[11px] text-muted-foreground">
+        What this reseller charges his own customers, and what he pays us. His customers see prices in{' '}
+        {data.customerCurrency}; he always settles with us in USD. His prices are his business — view only.
+      </p>
+      <div className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2 lg:grid-cols-3">
+        {data.lines.map((l) => (
+          <p key={l.key} className="flex items-baseline justify-between gap-2 text-xs">
+            <span className="min-w-0 truncate" title={l.label}>{l.label}</span>
+            <span className="shrink-0 tabular-nums">
+              {formatMoney(l.wholesaleUsd, 'USD')} → <span className="font-medium">{formatMoney(l.retailUsd, 'USD')}</span>
+              <span className="text-muted-foreground"> ({modeNote(l)})</span>
+            </span>
+          </p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const TenantsView = () => {
   const queryClient = useQueryClient();
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -252,6 +393,8 @@ const TenantsView = () => {
         )}
       </div>
 
+      <DemoDataPanel onChanged={() => void queryClient.invalidateQueries({ queryKey: ['clients'] })} />
+
       {isLoading ? (
         <div className="py-8 text-center text-sm text-muted-foreground">Loading tenants…</div>
       ) : error ? (
@@ -282,7 +425,7 @@ const TenantsView = () => {
                 return [
                   <tr key={t.id} className="cursor-pointer border-b border-border hover:bg-muted/40" onClick={() => setExpandedId(expanded ? null : t.id)}>
                     <td className="px-4 py-3">
-                      <p className="font-medium">{t.name}</p>
+                      <p className="font-medium">{t.name}{t.isDemo && <Badge variant="secondary" className="ml-2 text-[10px]">Demo</Badge>}</p>
                       {t.parentName && <p className="text-xs text-muted-foreground">under {t.parentName}</p>}
                       {t.type === 'reseller' && !t.brandingComplete && <p className="text-xs text-amber-600">Branding not set up yet</p>}
                     </td>
@@ -296,7 +439,10 @@ const TenantsView = () => {
                   </tr>,
                   expanded ? (
                     <tr key={`${t.id}-detail`} className="border-b border-border bg-card/50">
-                      <td colSpan={8}><LimitsEditor tenant={t} card={card ?? []} onSaved={() => void queryClient.invalidateQueries({ queryKey: ['tenants'] })} /></td>
+                      <td colSpan={8}>
+                        {t.type === 'reseller' && <RetailSummary tenant={t} />}
+                        <LimitsEditor tenant={t} card={card ?? []} onSaved={() => void queryClient.invalidateQueries({ queryKey: ['tenants'] })} />
+                      </td>
                     </tr>
                   ) : null,
                 ];

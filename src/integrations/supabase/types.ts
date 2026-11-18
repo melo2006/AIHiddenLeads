@@ -2681,11 +2681,17 @@ export type Database = {
         Row: {
           brand_color: string | null
           created_at: string
+          customer_currency: string
+          demo_profile: Json
           feature_limits: Json
           id: string
+          is_demo: boolean
           logo_url: string | null
           name: string
+          offered_catalog: Json
           parent_organization_id: string | null
+          rate_card_overrides: Json
+          retail_prices: Json
           slogan: string | null
           status: string
           support_email: string | null
@@ -2694,11 +2700,17 @@ export type Database = {
         Insert: {
           brand_color?: string | null
           created_at?: string
+          customer_currency?: string
+          demo_profile?: Json
           feature_limits?: Json
           id?: string
+          is_demo?: boolean
           logo_url?: string | null
           name: string
+          offered_catalog?: Json
           parent_organization_id?: string | null
+          rate_card_overrides?: Json
+          retail_prices?: Json
           slogan?: string | null
           status?: string
           support_email?: string | null
@@ -2707,11 +2719,17 @@ export type Database = {
         Update: {
           brand_color?: string | null
           created_at?: string
+          customer_currency?: string
+          demo_profile?: Json
           feature_limits?: Json
           id?: string
+          is_demo?: boolean
           logo_url?: string | null
           name?: string
+          offered_catalog?: Json
           parent_organization_id?: string | null
+          rate_card_overrides?: Json
+          retail_prices?: Json
           slogan?: string | null
           status?: string
           support_email?: string | null
