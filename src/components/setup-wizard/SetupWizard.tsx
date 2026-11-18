@@ -22,10 +22,14 @@ import { EMPTY_PHONE_SETUP, type PhoneSetupState } from "../../../supabase/funct
 import SitePreview from "./SitePreview";
 import ShareDemoLink from "./ShareDemoLink";
 import { rankAuditExamples } from "@/lib/rankAuditExamples";
-import { GUARDRAILS_MARK, REVIEWED_KNOWLEDGE_MARK, replaceSection } from "../../../supabase/functions/_shared/wizard-knowledge";
+import { GUARDRAILS_MARK, REVIEWED_KNOWLEDGE_MARK, SERVICE_AREA_MARK, replaceSection } from "../../../supabase/functions/_shared/wizard-knowledge";
 import {
-  EMPTY, INDUSTRIES, SPECIALTIES, industryName, LABELS, askLabel, isAskLabel, labelOptions, STEPS, faqKnowledge, nameFromUrl, renderGreeting, stepReady, type WizardState,
+  EMPTY, INDUSTRIES, SPECIALTIES, industryName, LABELS, askLabel, isAskLabel, labelOptions, STEPS, faqKnowledge, nameFromUrl, renderGreeting, sentenceAccepted, stepReady, toggleSentence, type WizardState,
 } from "./wizardModel";
+import type { ChecklistItem } from "../../../supabase/functions/_shared/niche-suggestions";
+import {
+  EMPTY_SERVICE_AREA, OUT_OF_AREA_POLICIES, compileServiceArea, normalizeServiceArea, travelFeeTemplate, type ServiceAreaState,
+} from "../../../supabase/functions/_shared/service-area";
 import { EMPTY_VOICE_FILTERS, GEMINI_LIVE_VOICES, VOICE_LANGUAGE_SETS, filterVoices, liveVoiceById, type AgentLanguage, type VoiceFilters } from "@/lib/voiceCatalog";
 import { VoiceFilterBar, VoiceMetaTags, VoicePreviewButton, VoicePreviewScope } from "@/components/VoicePicker";
 
@@ -62,6 +66,24 @@ function StepHead({ title, hint, help }: { title: string; hint: string; help?: s
   );
 }
 
+/** Checkable suggestion cards: ticking inserts the item's plain sentence into the owner's editable text; unticking removes exactly that sentence. */
+function ChecklistCards({ items, text, onToggle }: { items: ChecklistItem[]; text: string; onToggle: (item: ChecklistItem, on: boolean) => void }) {
+  return (
+    <div className="flex gap-2 overflow-x-auto pb-1">
+      {items.map((item) => {
+        const on = sentenceAccepted(text, item.sentence);
+        return (
+          <button key={item.id} type="button" role="checkbox" aria-checked={on} aria-label={item.label} onClick={() => onToggle(item, !on)}
+            className={`flex min-w-[180px] max-w-[250px] shrink-0 items-start gap-2 rounded-xl border-2 p-3 text-left transition ${on ? "border-primary bg-primary/10" : "border-border hover:border-primary/50"}`}>
+            <span className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${on ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground"}`}>{on && <Check className="h-3 w-3" />}</span>
+            <span><span className="block text-sm font-medium">{item.label}</span><span className="block text-[11px] text-muted-foreground">{item.sentence}</span></span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 type Draft = Record<string, unknown> & { knowledge?: string; theme?: Record<string, string> };
 
 export default function SetupWizard({ preview = false, agentId }: { preview?: boolean; agentId?: string }) {
@@ -83,6 +105,11 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
   const [suggestedIndustry, setSuggestedIndustry] = useState("");
   const [knowledgeProposal, setKnowledgeProposal] = useState("");
   const [knowledgeMode, setKnowledgeMode] = useState<'website' | 'generic'>('website');
+  const [serviceItems, setServiceItems] = useState<ChecklistItem[] | null>(null);
+  const [guardrailItems, setGuardrailItems] = useState<ChecklistItem[] | null>(null);
+  const [areaSuggestions, setAreaSuggestions] = useState<string[]>([]);
+  const [placeInput, setPlaceInput] = useState("");
+  const [zipInput, setZipInput] = useState("");
   const [services, setServices] = useState<Record<string, boolean>>({});
   const [serviceStep, setServiceStep] = useState(0);
   const loadGeneration = useRef(0);
@@ -98,7 +125,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
     if (current.right > bounds.right) progress.scrollLeft += current.right - bounds.right + 2;
     else if (current.left < bounds.left) progress.scrollLeft -= bounds.left - current.left + 2;
   }, [step]);
-  useEffect(() => { setSuggestedIndustry(''); setKnowledgeProposal(''); }, [selectedId]);
+  useEffect(() => { setSuggestedIndustry(''); setKnowledgeProposal(''); setServiceItems(null); setGuardrailItems(null); setAreaSuggestions([]); }, [selectedId]);
   const set = (patch: Partial<WizardState>) => setS((p) => ({ ...p, ...patch }));
   /** Picking a voice also pairs it with a default language (Live voices are language-agnostic). */
   const pickVoice = (id: string, language: AgentLanguage) => { set({ voice: id, defaultLanguage: language, clonedVoiceSelected: false }); setVoiceReady(false); };
@@ -122,6 +149,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
       setS({
         websiteUrl: String(d.websiteUrl || ""), businessName: String(d.businessName || ""), industry: INDUSTRIES.includes(String(d.industry || "")) ? String(d.industry || "") : d.industry ? "Other" : "",
         customIndustry: INDUSTRIES.includes(String(d.industry || "")) ? "" : String(d.industry || ""), subNiche: String(d.subNiche || ""), businessNotes: String(d.businessNotes || ""), knowledgeGuidance: String(d.knowledgeGuidance || ""), assistantRestrictions: String(d.assistantRestrictions || ""),
+        serviceArea: normalizeServiceArea(d.serviceArea), serviceAreaText: typeof d.serviceAreaText === "string" ? d.serviceAreaText : (knowledge.split(FAQ_MARK)[0].split(SERVICE_AREA_MARK)[1] || "").trim(),
         links: (a.voice_agent_sources || []).filter((x: { kind: string }) => x.kind === "url").map((x: { url?: string; label: string }) => x.url || x.label),
         files: (a.voice_agent_sources || []).filter((x: { kind: string }) => x.kind === "document").map((x: { label: string }) => x.label),
         faqs, name: String(d.name || "Aspen"), greeting: String(d.greeting || EMPTY.greeting), voice: String(d.voice || "Kore"), defaultLanguage: (["es", "pt-BR", "fr-CA"].includes(String(d.defaultLanguage)) ? String(d.defaultLanguage) : "en") as AgentLanguage, clonedVoiceSelected: Boolean(d.clonedVoiceSelected), elevenLabsLiveVoice: Boolean(d.elevenLabsLiveVoice),
@@ -138,10 +166,11 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
 
   async function save() {
     if (!selectedId || !draft) return false;
-    const base = replaceSection(String(draft.knowledge || "").split(FAQ_MARK)[0], REVIEWED_KNOWLEDGE_MARK, s.knowledgeGuidance || "");
+    const reviewed = replaceSection(String(draft.knowledge || "").split(FAQ_MARK)[0], REVIEWED_KNOWLEDGE_MARK, s.knowledgeGuidance || "");
+    const base = replaceSection(reviewed, SERVICE_AREA_MARK, s.serviceAreaText || "");
     const faq = faqKnowledge(s.faqs);
     const config = {
-      ...draft, websiteUrl: s.websiteUrl ? (/^https?:\/\//i.test(s.websiteUrl) ? s.websiteUrl : `https://${s.websiteUrl}`) : "", businessName: s.businessName || "My business", industry: industryName(s), subNiche: s.subNiche || "", businessNotes: s.businessNotes || "", knowledgeGuidance: s.knowledgeGuidance || "", assistantRestrictions: s.assistantRestrictions || "", systemPrompt: replaceSection(String(draft.systemPrompt || ""), GUARDRAILS_MARK, s.assistantRestrictions || ""), name: s.name || "Aspen",
+      ...draft, websiteUrl: s.websiteUrl ? (/^https?:\/\//i.test(s.websiteUrl) ? s.websiteUrl : `https://${s.websiteUrl}`) : "", businessName: s.businessName || "My business", industry: industryName(s), subNiche: s.subNiche || "", businessNotes: s.businessNotes || "", knowledgeGuidance: s.knowledgeGuidance || "", assistantRestrictions: s.assistantRestrictions || "", serviceArea: s.serviceArea, serviceAreaText: s.serviceAreaText || "", systemPrompt: replaceSection(String(draft.systemPrompt || ""), GUARDRAILS_MARK, s.assistantRestrictions || ""), name: s.name || "Aspen",
       greeting: s.greeting, voice: s.voice, defaultLanguage: s.defaultLanguage || "en", clonedVoiceSelected: Boolean(s.clonedVoiceSelected), elevenLabsLiveVoice: Boolean(s.elevenLabsLiveVoice), phoneSetup, theme: { background: "#101216", foreground: "#F4F6F8", font: "system", ...(draft.theme || {}), primary: s.color }, launcherLabel: s.label, launcherCorner: s.corner, videoAvatar: normalizeVideoAvatar(s.videoAvatar),
       knowledge: faq ? `${base}\n\n${FAQ_MARK}\n${faq}`.trim() : base,
     };
@@ -159,7 +188,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
         const data = await request({ action: "create", businessName });
         const id = data.agent?.id;
         if (!id) throw new Error("Could not create assistant");
-        const config = { ...data.agent.draft, ...s, industry: industryName(s), businessName, websiteUrl: s.websiteUrl ? (/^https?:\/\//i.test(s.websiteUrl) ? s.websiteUrl : `https://${s.websiteUrl}`) : "", theme: { primary: s.color, background: "#09090b", foreground: "#fafafa", font: "system" }, launcherLabel: s.label, launcherCorner: s.corner };
+        const config = { ...data.agent.draft, ...s, industry: industryName(s), businessName, websiteUrl: s.websiteUrl ? (/^https?:\/\//i.test(s.websiteUrl) ? s.websiteUrl : `https://${s.websiteUrl}`) : "", knowledge: replaceSection(String(data.agent.draft.knowledge || "").split(FAQ_MARK)[0], SERVICE_AREA_MARK, s.serviceAreaText || ""), theme: { primary: s.color, background: "#09090b", foreground: "#fafafa", font: "system" }, launcherLabel: s.label, launcherCorner: s.corner };
         await request({ action: "save", agentId: id, config });
         setSelectedId(id); setDraft(config); ok = true;
       } else ok = await save();
@@ -240,6 +269,47 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
       else setKnowledgeProposal(data.suggestion);
     } catch(e) { toast.error(e instanceof Error ? e.message : 'Could not generate suggestions'); }
     finally { setBusy(false); }
+  }
+
+  async function suggestChecklist(action: 'suggestServices' | 'suggestGuardrails') {
+    setBusy(true);
+    try {
+      const data = await request({ action, agentId: selectedId, businessName: s.businessName || nameFromUrl(s.websiteUrl) || undefined, industry: industryName(s) || undefined, subNiche: s.subNiche || undefined, businessNotes: s.businessNotes || undefined, mode: knowledgeMode });
+      const items = Array.isArray(data?.items) ? data.items as ChecklistItem[] : [];
+      if (action === 'suggestServices') setServiceItems(items); else setGuardrailItems(items);
+      if (!items.length) toast.error('No suggestions came back — typing your own works as always.');
+    } catch { toast.error('Suggestions are not available right now — typing your own works as always.'); if (action === 'suggestServices') setServiceItems([]); else setGuardrailItems([]); }
+    finally { setBusy(false); }
+  }
+
+  async function suggestAreas() {
+    setBusy(true);
+    try {
+      const data = await request({ action: 'suggestServiceArea', agentId: selectedId, businessName: s.businessName || nameFromUrl(s.websiteUrl) || undefined, industry: industryName(s) || undefined, subNiche: s.subNiche || undefined, businessNotes: s.businessNotes || undefined, url: s.websiteUrl || undefined, mode: knowledgeMode });
+      const areas = Array.isArray(data?.areas) ? data.areas as string[] : [];
+      setAreaSuggestions(areas);
+      if (!areas.length) toast.error('No service areas found in your website or notes yet — add yours below.');
+    } catch { toast.error('Area suggestions are not available right now — add yours below.'); }
+    finally { setBusy(false); }
+  }
+
+  const area = s.serviceArea || EMPTY_SERVICE_AREA;
+  /** Any structured service-area change recompiles the visible coverage text. */
+  function setArea(patch: Partial<ServiceAreaState>) {
+    const next = { ...area, ...patch };
+    if (patch.travelFeeEnabled && !next.travelFeeText.trim()) next.travelFeeText = travelFeeTemplate(next.radiusMiles);
+    set({ serviceArea: next, serviceAreaText: compileServiceArea(next) });
+  }
+  function addPlace(raw: string) {
+    const v = raw.trim(); if (!v) return;
+    if (!area.places.some((p) => p.toLowerCase() === v.toLowerCase())) setArea({ places: [...area.places, v] });
+    setPlaceInput("");
+  }
+  function addZip(raw: string) {
+    const v = raw.trim(); if (!v) return;
+    if (!/^\d{5}$/.test(v)) { toast.error('Enter a 5-digit ZIP code'); return; }
+    if (!area.zips.includes(v)) setArea({ zips: [...area.zips, v] });
+    setZipInput("");
   }
 
   async function prepareVoice(call = false) {
@@ -342,7 +412,79 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
                 <Button variant="outline" disabled={busy || !selectedId} onClick={() => void assist('suggestKnowledge')}><Sparkles className={`mr-2 h-4 w-4 ${busy ? 'animate-pulse' : ''}`} />{busy ? 'Preparing your draft…' : knowledgeProposal || s.knowledgeGuidance ? 'Regenerate knowledge draft' : 'Generate knowledge draft'}</Button>
                 {knowledgeProposal && <div className="space-y-2"><p className="text-xs text-muted-foreground">Not yet used by your assistant. Review business facts and remove anything unconfirmed.</p><Textarea aria-label="Knowledge draft for review" rows={12} maxLength={12000} value={knowledgeProposal} onChange={e => setKnowledgeProposal(e.target.value)} /><div className="flex gap-2"><Button disabled={busy} onClick={() => { set({ knowledgeGuidance: knowledgeProposal }); setKnowledgeProposal(''); toast.success('Accepted. Saved when you continue.'); }}><Check className="mr-2 h-4 w-4" />Accept reviewed draft</Button><Button variant="ghost" onClick={() => setKnowledgeProposal('')}>Discard</Button></div></div>}
                 {s.knowledgeGuidance && <label className="block space-y-1 text-sm font-medium">Accepted guidance<Textarea aria-label="Accepted guidance" rows={8} maxLength={12000} value={s.knowledgeGuidance} onChange={e => set({ knowledgeGuidance: e.target.value })} /></label>}
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-semibold">Services you offer</p>
+                    <Button size="sm" variant="outline" disabled={busy || !selectedId} onClick={() => void suggestChecklist('suggestServices')}><Sparkles className={`mr-2 h-4 w-4 ${busy ? 'animate-pulse' : ''}`} />{serviceItems ? 'Re-run suggestions' : 'Suggest for me'}</Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Short on time? Let us suggest services a typical {industryName(s) || 'business like yours'} offers. Tick the ones you actually offer — each ticked service is added as a sentence to your guidance text above, where you can edit it. Nothing is added until you tick it.</p>
+                  {serviceItems && (serviceItems.length
+                    ? <><p className="text-xs font-medium">Do you also offer any of these?</p><ChecklistCards items={serviceItems} text={s.knowledgeGuidance || ''} onToggle={(item, on) => set({ knowledgeGuidance: toggleSentence(s.knowledgeGuidance || '', item.sentence, on) })} /></>
+                    : <p className="text-xs text-muted-foreground">Suggestions are not available right now — typing your services above works as always.</p>)}
+                </div>
                 <label className="block space-y-1 text-sm font-medium">Assistant restrictions (optional)<Textarea aria-label="Assistant restrictions" rows={3} maxLength={4000} placeholder="e.g. Do not quote prices. Do not give technical safety advice. Ask the team when unsure." value={s.assistantRestrictions || ''} onChange={e => set({ assistantRestrictions: e.target.value })} /></label>
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-semibold">Guardrails</p>
+                    <Button size="sm" variant="outline" disabled={busy || !selectedId} onClick={() => void suggestChecklist('suggestGuardrails')}><Sparkles className={`mr-2 h-4 w-4 ${busy ? 'animate-pulse' : ''}`} />{guardrailItems ? 'Re-run suggestions' : 'Suggest guardrails'}</Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Typical "never do this" rules for a {industryName(s) || 'business like yours'}. Tick the ones you want — each ticked rule is added to your restrictions above, where you can edit it.</p>
+                  {guardrailItems && (guardrailItems.length
+                    ? <ChecklistCards items={guardrailItems} text={s.assistantRestrictions || ''} onToggle={(item, on) => set({ assistantRestrictions: toggleSentence(s.assistantRestrictions || '', item.sentence, on) })} />
+                    : <p className="text-xs text-muted-foreground">Suggestions are not available right now — typing your restrictions above works as always.</p>)}
+                </div>
+              </div>
+              <div className="space-y-3 border-b border-border pb-5">
+                <p className="text-sm font-semibold">Service area</p>
+                <p className="text-xs text-muted-foreground">Tell your assistant where you work, so it can answer "do you cover my area?" — and what to do when a caller is outside it. Pick one way to describe your coverage.</p>
+                <div className="flex flex-wrap gap-2">
+                  {([['places', 'Cities & counties'], ['radius', 'Radius from our address'], ['zips', 'ZIP codes']] as const).map(([mode, label]) => (
+                    <Button key={mode} size="sm" variant={area.mode === mode ? 'default' : 'outline'} onClick={() => setArea({ mode })}>{label}</Button>
+                  ))}
+                </div>
+                {area.mode === 'places' && (
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <Input aria-label="Add a city or county" placeholder="e.g. Fort Lauderdale or Broward County" value={placeInput} onChange={(e) => setPlaceInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addPlace(placeInput)} />
+                      <Button variant="outline" aria-label="Add area" onClick={() => addPlace(placeInput)}><Plus className="h-4 w-4" /></Button>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">{area.places.map((p) => <span key={p} className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">{p}<button type="button" aria-label={`Remove ${p}`} onClick={() => setArea({ places: area.places.filter((x) => x !== p) })}><X className="h-3 w-3" /></button></span>)}</div>
+                    <Button size="sm" variant="outline" disabled={busy || !selectedId} onClick={() => void suggestAreas()}><Sparkles className={`mr-2 h-4 w-4 ${busy ? 'animate-pulse' : ''}`} />Suggest areas from my website & notes</Button>
+                    {areaSuggestions.length > 0 && <div className="space-y-1"><p className="text-xs text-muted-foreground">Found in your website or notes — tap to add:</p><div className="flex flex-wrap gap-1.5">{areaSuggestions.filter((a) => !area.places.some((p) => p.toLowerCase() === a.toLowerCase())).map((a) => <button key={a} type="button" className="rounded-full border border-dashed border-primary/60 px-2 py-0.5 text-[11px] text-primary" onClick={() => setArea({ places: [...area.places, a] })}>+ {a}</button>)}</div></div>}
+                  </div>
+                )}
+                {area.mode === 'radius' && (
+                  <div className="grid gap-3 sm:grid-cols-[1fr_140px]">
+                    <label className="block space-y-1 text-sm font-medium">Business address<Input aria-label="Business address" placeholder="Street, city, state" value={area.baseAddress} onChange={(e) => setArea({ baseAddress: e.target.value })} /></label>
+                    <label className="block space-y-1 text-sm font-medium">Radius (miles)<Input aria-label="Radius in miles" type="number" min={1} max={500} placeholder="25" value={area.radiusMiles ?? ''} onChange={(e) => setArea({ radiusMiles: e.target.value ? Number(e.target.value) : null })} /></label>
+                  </div>
+                )}
+                {area.mode === 'zips' && (
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <Input aria-label="Add a ZIP code" inputMode="numeric" placeholder="e.g. 33301" value={zipInput} onChange={(e) => setZipInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addZip(zipInput)} />
+                      <Button variant="outline" aria-label="Add ZIP code" onClick={() => addZip(zipInput)}><Plus className="h-4 w-4" /></Button>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">{area.zips.map((z) => <span key={z} className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">{z}<button type="button" aria-label={`Remove ${z}`} onClick={() => setArea({ zips: area.zips.filter((x) => x !== z) })}><X className="h-3 w-3" /></button></span>)}</div>
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">When a caller is outside your area</p>
+                  {OUT_OF_AREA_POLICIES.map((p) => (
+                    <label key={p.id} className={`flex cursor-pointer items-start gap-2 rounded-xl border-2 p-3 transition ${area.outOfAreaPolicy === p.id ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'}`}>
+                      <input type="radio" name="out-of-area-policy" className="mt-1" checked={area.outOfAreaPolicy === p.id} onChange={() => setArea({ outOfAreaPolicy: p.id })} />
+                      <span><span className="block text-sm font-medium">{p.label}{p.id === 'callback' && <span className="ml-2 rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground">Recommended</span>}</span><span className="block text-[11px] text-muted-foreground">{p.hint}</span></span>
+                    </label>
+                  ))}
+                </div>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={area.travelFeeEnabled} onChange={(e) => setArea({ travelFeeEnabled: e.target.checked })} /> Travel fee for far-away jobs</label>
+                  {area.travelFeeEnabled && <Textarea aria-label="Travel fee sentence" rows={2} maxLength={300} value={area.travelFeeText} onChange={(e) => setArea({ travelFeeText: e.target.value })} />}
+                </div>
+                <label className="block space-y-1 text-sm font-medium">Coverage text in your assistant's knowledge
+                  <Textarea aria-label="Coverage text" rows={3} maxLength={2000} value={s.serviceAreaText || ''} onChange={(e) => set({ serviceAreaText: e.target.value })} />
+                  <span className="block text-[11px] font-normal text-muted-foreground">This is exactly what your assistant learns about your coverage. Edit it any time — changing a choice above rewrites it from your choices.</span>
+                </label>
               </div>
               <Button variant="outline" disabled={busy || !s.websiteUrl} onClick={() => void learnWebsite()}><RefreshCw className={`mr-2 h-4 w-4 ${busy ? "animate-spin" : ""}`} />{busy ? "Learning…" : "Learn website & capture preview"}</Button>
               {sources.length > 0 && <div className="divide-y divide-border">{sources.map(source => <div key={source.id} className="flex items-start gap-2 py-2 text-xs"><div className="min-w-0 flex-1"><p className="break-words font-medium">{source.label}</p><p className={source.status === "failed" ? "text-destructive" : "text-muted-foreground"}>{source.status === "ready" ? `Learned · ${source.content?.length || 0} characters` : source.last_error || source.status}</p></div><Button size="icon" variant="ghost" disabled={busy} aria-label={`Retry ${source.label}`} onClick={async () => { setBusy(true); try { await request({ action: "refresh", agentId: selectedId, sourceId: source.id }); } catch(e) { toast.error(e instanceof Error ? e.message : "Learning failed"); } finally { await load(); setBusy(false); } }}><RefreshCw className="h-4 w-4" /></Button></div>)}</div>}
