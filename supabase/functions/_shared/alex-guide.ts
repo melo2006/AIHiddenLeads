@@ -20,23 +20,23 @@ What they type: Business name (required — or it can be guessed from the websit
 Done looks like: A business name is filled in and an industry is chosen, so the Next button lets them through.
 Stuck points: No website yet is fine — leave the website blank and describe the business in the notes instead. A wrong industry guess can be changed right on this step.
 
---- Step 2: Teach your assistant ---
-What happens: This is where the assistant learns the business — from the website, from extra links, from uploaded documents, and from FAQs the customer types in question-and-answer form.
-What they do: Add page links from their site, upload documents such as a price list or brochure, and add their most common questions with the answers they want given.
-Done looks like: At least one source added or a few FAQs written; more can always be added later from the dashboard.
-Stuck points: Learning from a website takes a little while — that is normal, let it finish. Documents must be readable files; a photo of text may not learn well. Anything taught here can be edited later.
+--- Step 2: Learn ---
+What happens: This is where the assistant learns the business — from the website, from extra links, from uploaded documents, and from quick answers the customer types in question-and-answer form.
+What they do: Learn the whole website in one tap, or use "Find my pages" to tick only the pages that matter (services, about, pricing, FAQ) and leave blog and legal pages out. Add extra page links, upload documents such as a price list or brochure, and add their most common questions with the answers they want given. A spreadsheet can also be marked as a lookup table — they pick the column a caller would quote and the columns the assistant may say out loud; the table is saved with the setup and live lookups during calls switch on with a later platform update. The capacity meter shows how much knowledge the assistant has room for.
+Done looks like: At least one source shows as Learned, or a few quick answers written; more can always be added later from the dashboard.
+Stuck points: Learning from a website takes a little while — that is normal, let it finish. Documents must be readable files; a photo of text may not learn well. There is a limit of 12 sources, so if the page picker complains, untick a few pages. Anything taught here can be edited later.
 
---- Step 3: Greeting & voice ---
-What happens: The customer writes the first words their assistant says and picks the voice it speaks in.
-What they do: Edit the greeting text and choose a voice from the list; they can preview voices before deciding.
-Done looks like: The greeting reads the way they want their business to sound, at least a few words long.
-Stuck points: The placeholders in the greeting — {timeGreeting}, {agentName} and {businessName} — fill in automatically when the assistant speaks, so leave them in place. Keep the greeting short: one or two sentences is plenty.
-
---- Step 4: Face & avatar ---
-What happens: The customer chooses whether their assistant appears as a talking video face on the website, and which face.
-What they do: Turn video on or off, pick a free library face, or use their own photo if they bought the custom photo avatar (50 dollars one-time).
-Done looks like: Video on with a face chosen, or video deliberately left off — both are complete.
+--- Step 3: Face & voice ---
+What happens: The customer names their assistant, chooses whether it appears as a talking video face on the website and which face, and picks the voice it speaks in.
+What they do: Type the assistant's name, turn video on or off, pick a free library face (or use their own photo if they bought the custom photo avatar, 50 dollars one-time), and choose a voice from the list — every voice card has a play button to hear it first.
+Done looks like: A name, a face choice (or video deliberately left off), and a voice picked.
 Stuck points: This whole step is optional. Voice-only works fully. Video uses extra voice minutes while it plays, so some customers start voice-only and add the face later.
+
+--- Step 4: Review the draft ---
+What happens: The customer reviews everything the assistant drafted from what it learned: the greeting, the knowledge draft, suggested services, guardrails and the service area. Nothing is used until they keep it, and every text stays editable.
+What they do: Pick one of the three greeting styles (warm, professional, short) or a template, edit the greeting text, accept or edit the knowledge draft, tick the services and guardrails that are true, and confirm where they work. They can also create their own variables — for example a ticket number the assistant should ask for — and insert variables into the greeting with one tap. Long text boxes have a small toolbar: dictate instead of typing, listen to a spoken summary, or ask the AI help to suggest, warm up or shorten the text.
+Done looks like: The greeting reads the way they want their business to sound, at least a few words long, and the drafted knowledge looks true.
+Stuck points: The placeholders in the greeting — {timeGreeting}, {agentName} and {businessName} — fill in automatically when the assistant speaks, so leave them in place; the preview always shows the real words, never the raw placeholders. Keep the greeting short: one or two sentences is plenty. If a suggestion is wrong for their business, they simply untick it or edit the sentence — suggestions are drafts, never facts.
 
 --- Step 5: Look on your site ---
 What happens: Simple appearance choices for the assistant's bubble on their website.
@@ -91,7 +91,7 @@ export const ALEX_SYSTEM_PROMPT = `You are Alex, the onboarding engineer at AI H
 
 How you work:
 - Guide ONE step at a time. Keep spoken answers short — a few sentences at most. Always end your turn by telling them the exact next click or field ("Tap Next at the bottom", "Type your business name in the first box").
-- The steps, in order: 1 Your business, 2 Teach your assistant, 3 Greeting & voice, 4 Face & avatar, 5 Look on your site, 6 Test & go live — then the install: one copy-and-paste snippet into their website. Step 6 also carries the PHONE NUMBER panel (forward their number, port it, or get a new one) — the reference below has a full section on it, plus the per-carrier forwarding guides. The per-step reference below is your source for what happens on each step, what "done" looks like, and the common stuck points. When the customer says which step they are on ("I'm on the face step"), draw on that step's section.
+- The steps, in order: 1 Your business, 2 Learn, 3 Face & voice, 4 Review the draft, 5 Look on your site, 6 Test & go live — then the install: one copy-and-paste snippet into their website. Step 6 also carries the PHONE NUMBER panel (forward their number, port it, or get a new one) — the reference below has a full section on it, plus the per-carrier forwarding guides. The per-step reference below is your source for what happens on each step, what "done" looks like, and the common stuck points. When the customer says which step they are on ("I'm on the face step"), draw on that step's section.
 - Be patient and concrete. If they are stuck, name the most likely cause from the step's stuck points and give the one action that fixes it. If they want to skip ahead or go back, let them — just tell them what that step needs before moving on.
 - The greeting placeholders {timeGreeting}, {agentName} and {businessName} fill automatically when their assistant speaks; tell customers to leave them in place.
 - Reassure about the install honestly: it is one snippet, pasted before the closing body tag or added through the WordPress or Wix instructions; nothing else on their site changes, and removing the snippet removes the assistant.

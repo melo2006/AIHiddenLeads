@@ -35,6 +35,34 @@ export type WizardState = {
   videoAvatar?: VideoAvatar;
   /** Where booking confirmations + new-booking alerts are emailed (Step 6). Defaults to the account email when blank. */
   notificationEmail?: string;
+  /** How deep the website scan reads: 1 = key pages, 2 = also the pages they link to. */
+  crawlDepth?: 1 | 2;
+  /** Owner-defined variables (Concept C): insertable into greeting/guidance text as {name}. */
+  customVariables?: CustomVariable[];
+  /** Spreadsheets marked as lookup tables (Concept C UI hooks; the keyed runtime lookup is a later phase). */
+  lookupTables?: LookupTableConfig[];
+};
+
+/** An owner-created variable: the owner names it, says where its value comes from, and gives an example for previews. */
+export type CustomVariable = {
+  id: string;
+  /** Token name used in text, e.g. "ticketNumber" → inserted as {ticketNumber}. */
+  name: string;
+  /** Plain-words label shown in the catalog, e.g. "Ticket number". */
+  label: string;
+  /** Where the value comes from when a caller is talking to the assistant. */
+  source: "call" | "caller-id" | "chat" | "lookup";
+  /** Example value, used to render previews honestly instead of showing raw {tokens}. */
+  example: string;
+};
+
+/** A spreadsheet the owner marked as a lookup table: one key column the caller can quote, plus the columns the assistant may say out loud. */
+export type LookupTableConfig = {
+  id: string;
+  /** Source label (the uploaded file's name). */
+  label: string;
+  keyColumn: string;
+  speakableColumns: string[];
 };
 
 export const INDUSTRIES = [
@@ -66,9 +94,9 @@ export const LABELS = ["Ask Aspen", "Talk to us", "Chat or call", "Need help?"];
 
 export const STEPS = [
   { id: "business", title: "Your business" },
-  { id: "teach", title: "Teach your assistant" },
-  { id: "greeting", title: "Greeting & voice" },
-  { id: "face", title: "Face & avatar" },
+  { id: "learn", title: "Learn" },
+  { id: "face", title: "Face & voice" },
+  { id: "review", title: "Review the draft" },
   { id: "look", title: "Look on your site" },
   { id: "launch", title: "Test & go live" },
 ] as const;
@@ -93,7 +121,7 @@ export const EMPTY: WizardState = {
   websiteUrl: "", businessName: "", industry: "", links: [], files: [], faqs: [], name: "Aspen",
   greeting: "{timeGreeting}! I'm {agentName} with {businessName}. How can I help you today?",
   voice: "Kore", defaultLanguage: "en", clonedVoiceSelected: false, elevenLabsLiveVoice: false, color: "#10b981", label: "Ask Aspen", corner: "bottom-right", videoAvatar: DEFAULT_VIDEO_AVATAR,
-  serviceArea: EMPTY_SERVICE_AREA, serviceAreaText: "",
+  serviceArea: EMPTY_SERVICE_AREA, serviceAreaText: "", crawlDepth: 1, customVariables: [], lookupTables: [],
 };
 
 /**
@@ -119,13 +147,109 @@ export const sentenceAccepted = (text: string, sentence: string) =>
 
 /** Fill greeting placeholders for previews. */
 export function renderGreeting(s: Pick<WizardState, "greeting" | "name" | "businessName">, hour = new Date().getHours()) {
+  return renderTemplate(s.greeting, s, hour);
+}
+
+/**
+ * Render any owner text (greeting, template) the way a caller would hear
+ * it: built-in variables filled with the business's real values (or an
+ * honest sample for caller-specific ones), custom variables filled with
+ * the owner's own example values. A preview NEVER shows a naked {token}.
+ */
+export function renderTemplate(text: string, s: Pick<WizardState, "name" | "businessName" | "customVariables">, hour = new Date().getHours()) {
   const time = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
-  return s.greeting
+  let out = text
     .split("{timeGreeting}").join(time)
     .split("{agentName}").join(s.name || "Aspen")
     .split("{businessName}").join(s.businessName || "our business")
-    .replace(/\{[a-zA-Z]+\}/g, "")
-    .trim();
+    .split("{callerName}").join("Jordan")
+    .split("{callerNumber}").join("+1 (555) 010-2030")
+    .split("{todayDate}").join(new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }));
+  for (const v of s.customVariables || []) out = out.split(`{${v.name}}`).join(v.example || v.label);
+  return out.replace(/\{[a-zA-Z0-9_]+\}/g, "").replace(/\s{2,}/g, " ").trim();
+}
+
+/** The built-in variable catalog (Concept C §5). `token` is what lands in the owner's text. */
+export const BUILT_IN_VARIABLES: { token: string; label: string; hint: string }[] = [
+  { token: "timeGreeting", label: "Time of day", hint: "Good morning / afternoon / evening, from the caller's clock" },
+  { token: "agentName", label: "Assistant name", hint: "Your assistant's name" },
+  { token: "businessName", label: "Business name", hint: "Your business's name" },
+  { token: "callerName", label: "Caller's name", hint: "The caller's name, when we know it" },
+  { token: "callerNumber", label: "Caller's number", hint: "The number the caller is calling from" },
+  { token: "todayDate", label: "Today's date", hint: "Today's full date" },
+];
+
+/** A custom-variable name must be a clean token and must not shadow a built-in. */
+export function customVariableNameValid(name: string) {
+  return /^[a-z][a-zA-Z0-9_]{1,39}$/.test(name) && !BUILT_IN_VARIABLES.some((v) => v.token === name);
+}
+
+/** Greeting template library (Concept C §5): tap one to use it; variables stay visible as tokens in the text and render live in the preview. */
+export const GREETING_TEMPLATES: { id: string; label: string; text: string }[] = [
+  { id: "thanks-for-calling", label: "Thanks for calling", text: "{timeGreeting}, and thanks for calling {businessName}! I'm {agentName}. How can I help you today?" },
+  { id: "busy", label: "Busy right now", text: "{timeGreeting}! You've reached {businessName}. Our team is with other customers right now, but I'm {agentName} and I can help you, take a message, or book a time that suits you." },
+  { id: "after-hours", label: "After hours", text: "{timeGreeting}! {businessName} is closed right now, but I'm {agentName} — I can answer questions, take a message, or book you in for when we reopen." },
+  { id: "warm-welcome", label: "Warm welcome", text: "{timeGreeting}! Great to hear from you — I'm {agentName} with {businessName}. What can I do for you today?" },
+  { id: "formal", label: "Formal", text: "{timeGreeting}. {businessName}, {agentName} speaking. How may I assist you?" },
+];
+
+/** The three greeting style cards drafted for the Review step (Concept C §5). */
+export function greetingStyles(): { id: string; label: string; text: string }[] {
+  return [
+    { id: "warm", label: "Warm", text: "{timeGreeting}! I'm {agentName} with {businessName}. Lovely to hear from you — are you calling about a new enquiry, an existing job, or something else?" },
+    { id: "professional", label: "Professional", text: "{timeGreeting}. Thank you for calling {businessName}. This is {agentName}. How may I help you today?" },
+    { id: "short", label: "Short & sweet", text: "{timeGreeting}! {businessName}, {agentName} here. How can I help?" },
+  ];
+}
+
+/**
+ * A short spoken summary of a long owner text for the field toolbar's
+ * Listen button: the read-aloud endpoint caps at 800 characters and the
+ * owner should hear the gist (opening lines + topic headers), never a
+ * robotic read of the whole knowledge base.
+ */
+export function summarizeForSpeech(text: string, maxChars = 700) {
+  const clean = text.replace(/^-{3}.*-{3}$/gm, "").replace(/\s+/g, " ").trim();
+  if (clean.length <= maxChars) return clean;
+  const sentences = clean.match(/[^.!?]+[.!?]+/g) || [clean];
+  let out = "";
+  for (const sentence of sentences) {
+    if ((out + sentence).length > maxChars) break;
+    out += sentence;
+  }
+  return (out || clean.slice(0, maxChars)).trim();
+}
+
+/** Splice an insertion into a text field's value at the caret (the variable-chip insert). */
+export function spliceText(value: string, start: number, end: number, insert: string) {
+  return value.slice(0, start) + insert + value.slice(end);
+}
+
+/** Column names from a CSV's header row (quotes respected), for the lookup-table key/speakable pickers. */
+export function parseCsvColumns(text: string): string[] {
+  const firstLine = text.split(/\r?\n/).find((l) => l.trim());
+  if (!firstLine) return [];
+  const cols: string[] = [];
+  let cur = "", quoted = false;
+  for (let i = 0; i < firstLine.length; i++) {
+    const ch = firstLine[i];
+    if (quoted) {
+      if (ch === '"') { if (firstLine[i + 1] === '"') { cur += '"'; i++; } else quoted = false; }
+      else cur += ch;
+    } else if (ch === '"') quoted = true;
+    else if (ch === ",") { cols.push(cur); cur = ""; }
+    else cur += ch;
+  }
+  cols.push(cur);
+  return [...new Set(cols.map((c) => c.trim()).filter(Boolean))].slice(0, 30);
+}
+
+/** The compiled-knowledge ceiling the capacity meter reads against (matches the server's knowledge cap). */
+export const KNOWLEDGE_CAP_CHARS = 60000;
+
+/** Characters the assistant's compiled knowledge currently holds: accepted guidance + coverage text + FAQs + learned source content. */
+export function compiledKnowledgeChars(parts: { guidance?: string; serviceAreaText?: string; faqs?: Faq[]; sourcesChars?: number }) {
+  return (parts.guidance || "").length + (parts.serviceAreaText || "").length + faqKnowledge(parts.faqs || []).length + (parts.sourcesChars || 0);
 }
 
 /** Business name guess from a URL, e.g. https://www.apex-roofing.com -> "Apex Roofing". */
@@ -139,7 +263,7 @@ export function nameFromUrl(url: string) {
 /** Which steps are complete enough to move on. */
 export function stepReady(step: number, s: WizardState) {
   if (step === 0) return Boolean(s.businessName.trim() || nameFromUrl(s.websiteUrl)) && (s.industry !== 'Other' || Boolean(s.customIndustry?.trim()));
-  if (step === 2) return s.greeting.trim().length >= 5;
+  if (step === 3) return s.greeting.trim().length >= 5;
   return true;
 }
 

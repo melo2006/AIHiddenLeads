@@ -1277,6 +1277,165 @@
     "suggestMore": "Plus de suggestions",
     "suggestingMore": "Recherche…",
     "suggestExhausted": "C'est tout ce que nous avons pour le moment — ajoutez les vôtres ci-dessous",
-    "suggestOwnBelow": "…ou ajoutez les vôtres ci-dessous"
+    "suggestOwnBelow": "…ou ajoutez les vôtres ci-dessous",
+    "steps": {
+      "business": "Votre entreprise",
+      "learn": "Apprentissage",
+      "face": "Visage et voix",
+      "review": "Révision du brouillon",
+      "look": "Apparence sur votre site",
+      "launch": "Tester et publier"
+    },
+    "strip": {
+      "yourBusiness": "Votre entreprise",
+      "preview": "Aperçu"
+    },
+    "pieces": {
+      "title": "Votre assistant prend forme",
+      "business": "Coordonnées de l'entreprise",
+      "learn": "Connaissances apprises",
+      "face": "Visage et voix",
+      "review": "Brouillon révisé",
+      "look": "Apparence sur votre site",
+      "launch": "En ligne"
+    },
+    "learn": {
+      "title": "Apprenez à votre assistant",
+      "hint": "Ajoutez vos sources — votre assistant n'apprend que ce que vous lui donnez.",
+      "help": "L'apprentissage ne commence que lorsque vous le choisissez. Les conseils généraux du secteur ne sont pas des renseignements vérifiés sur votre entreprise.",
+      "websiteTitle": "Votre site web",
+      "websiteHint": "Apprenez le site entier, ou trouvez d'abord ses pages et cochez seulement celles que votre assistant doit apprendre — les pages non cochées ne sont jamais lues, rien n'est gaspillé sur un blogue ou des pages juridiques.",
+      "findPages": "Trouver mes pages",
+      "findingPages": "Recherche des pages…",
+      "noPagesFound": "Nous n'avons pas pu trouver la liste des pages de ce site — l'apprentissage direct du site fonctionne toujours.",
+      "depthLabel": "Profondeur de lecture",
+      "depthKey": "Pages clés",
+      "depthDeep": "Plus profond (suit les liens)",
+      "pagesFound": "{{count}} pages trouvées",
+      "pickAll": "Tout cocher",
+      "pickNone": "Effacer",
+      "learnPicked": "Apprendre {{count}} pages cochées",
+      "pagesAlreadyKnown": "Ces pages sont déjà apprises.",
+      "sourceCap": "Cela dépasserait la limite de 12 sources — décochez quelques pages et réessayez.",
+      "pagesLearned": "Pages apprises",
+      "pickerNote": "Chaque page cochée est apprise comme sa propre source (12 sources maximum par assistant). La lecture principale de votre site couvre toujours la page d'accueil.",
+      "alreadyLearned": "Apprise",
+      "capacityTitle": "Capacité de connaissances",
+      "capacityValue": "{{used}} sur {{cap}} caractères",
+      "capacityHint": "Les connaissances compilées de votre assistant — sources apprises, conseils acceptés, texte de couverture et réponses rapides — tiennent jusqu'au plafond. Chaque source est aussi conservée en entier, séparément.",
+      "notesTitle": "Vos notes",
+      "summarySources": "Votre assistant a appris {{count}} sources.",
+      "summaryGuidance": "Il a aussi vos conseils révisés.",
+      "summaryFaqs": "Et {{count}} réponses rapides.",
+      "summaryEmpty": "Rien d'appris pour le moment — ajoutez une source ci-dessus et votre assistant connaîtra votre entreprise.",
+      "kind": {
+        "home": "Accueil",
+        "services": "Services",
+        "about": "À propos",
+        "pricing": "Tarifs",
+        "faq": "FAQ",
+        "contact": "Contact",
+        "blog": "Blogue",
+        "legal": "Juridique",
+        "page": "Page"
+      }
+    },
+    "lookup": {
+      "title": "Tables de consultation",
+      "hint": "Vous avez un tableur dans lequel votre assistant devrait chercher des renseignements — une liste de prix, un inventaire, vos propriétés? Marquez-le comme table de consultation : choisissez la colonne que la personne va mentionner, et les colonnes que l'assistant peut dire à voix haute.",
+      "keyIs": "Clé : {{column}}",
+      "edit": "Modifier",
+      "useAsTable": "Utiliser comme table de consultation",
+      "remove": "Retirer la table de consultation",
+      "keyColumn": "Colonne clé — ce que la personne mentionne",
+      "speakable": "Colonnes que l'assistant peut dire à voix haute",
+      "save": "Enregistrer la table",
+      "cancel": "Annuler",
+      "noColumns": "Nous n'avons pas encore pu lire les colonnes de ce fichier — quand il apparaîtra comme Appris ci-dessus, réessayez.",
+      "phaseNote": "Les tables de consultation sont enregistrées avec votre configuration aujourd'hui; les consultations en direct pendant l'appel seront activées avec la prochaine mise à jour de la plateforme, et nous vous écrirons quand la vôtre sera active."
+    },
+    "face": {
+      "title": "Visage et voix",
+      "hint": "Choisissez le visage et la voix que vos clients verront et entendront.",
+      "help": "La voix seule fonctionne partout. Un visage vidéo synchronise les lèvres avec la même voix et utilise des minutes vidéo supplémentaires."
+    },
+    "review": {
+      "title": "Révisez ce que votre assistant a rédigé",
+      "hint": "Tout ce qui suit a été rédigé à partir de ce que votre assistant a appris — vérifiez, changez ce que vous voulez, appropriez-le-vous.",
+      "help": "Les suggestions sont des brouillons, jamais des faits : rien ici n'est utilisé tant que vous ne le conservez pas, et chaque texte reste modifiable.",
+      "greetingTitle": "Votre message d'accueil",
+      "useStyle": "Utiliser ce message",
+      "templateLibrary": "Bibliothèque de modèles",
+      "style": {
+        "warm": "Chaleureux",
+        "professional": "Professionnel",
+        "short": "Court et doux"
+      },
+      "template": {
+        "thanks-for-calling": "Merci de votre appel",
+        "busy": "Occupés en ce moment",
+        "after-hours": "Après les heures",
+        "warm-welcome": "Accueil chaleureux",
+        "formal": "Formel"
+      }
+    },
+    "variables": {
+      "title": "Variables",
+      "hint": "Les variables insèrent des valeurs réelles dans vos textes — touchez-en une pour l'ajouter à votre message d'accueil. Les aperçus montrent toujours les vraies valeurs, jamais les {jetons} bruts.",
+      "yours": "Vos variables",
+      "remove": "Retirer",
+      "nameLabel": "Nom de la variable (un mot)",
+      "labelLabel": "Qu'est-ce que c'est? (en mots simples)",
+      "labelPlaceholder": "Numéro de billet",
+      "sourceLabel": "D'où vient la valeur?",
+      "exampleLabel": "Valeur d'exemple (pour les aperçus)",
+      "add": "Ajouter la variable",
+      "nameInvalid": "Utilisez un nom qui commence par une minuscule — lettres, chiffres et traits de soulignement seulement, p. ex. numeroBillet.",
+      "nameTaken": "Vous avez déjà une variable de ce nom.",
+      "labelRequired": "Donnez d'abord à la variable une description en mots simples.",
+      "timeGreeting": "Moment de la journée",
+      "agentName": "Nom de l'assistant",
+      "businessName": "Nom de l'entreprise",
+      "callerName": "Nom de l'appelant",
+      "callerNumber": "Numéro de l'appelant",
+      "todayDate": "Date d'aujourd'hui",
+      "source": {
+        "call": "Demandée pendant l'appel",
+        "callerId": "De l'afficheur",
+        "chat": "Tapée dans le clavardage",
+        "lookup": "D'une table de consultation"
+      }
+    },
+    "toolbar": {
+      "dictate": "Dicter",
+      "stop": "Arrêter",
+      "listen": "Écouter",
+      "preparing": "Préparation…",
+      "aiHelp": "Aide IA",
+      "suggest": "Suggérer",
+      "suggestMore": "Plus de suggestions",
+      "makeWarmer": "Rendre plus chaleureux",
+      "makeShorter": "Rendre plus court",
+      "addNote": "Ajouter une note",
+      "variables": "Variables",
+      "insertVariable": "Insérer une variable",
+      "dictationUnsupported": "La dictée n'est pas disponible dans ce navigateur — taper fonctionne comme toujours.",
+      "dictationBlocked": "L'accès au microphone a été bloqué — vérifiez la permission du navigateur pour ce site.",
+      "nothingToHear": "Il n'y a encore rien à écouter ici.",
+      "listenFailed": "Impossible de préparer la voix pour le moment — réessayez dans un instant.",
+      "rewriteFailed": "La réécriture n'est pas revenue — votre texte est inchangé."
+    },
+    "knownCaller": {
+      "title": "Les appelants connus sont reconnus",
+      "body": "Quand quelqu'un appelle au téléphone, votre assistant reconnaît son numéro et peut le saluer par son nom au prochain appel, avec ses coordonnées gardées de la dernière conversation. Les visiteurs du site n'ont pas d'afficheur, alors votre assistant peut demander une référence que vous définissez — un numéro de billet ou de compte, comme variable ci-dessus. Avant de partager tout renseignement lié à un compte, votre assistant confirme toujours un détail de plus — un numéro seul n'est jamais une preuve d'identité."
+    },
+    "integrations": {
+      "title": "Intégrations",
+      "body": "Il s'entend bien avec votre arrière-boutique — Salesforce · SAP · Oracle · PeopleSoft · Workday · Amdocs · et des centaines d'autres, connectés via Zapier, n8n ou l'API directe, dans une configuration guidée avec notre équipe.",
+      "cta": "Réserver une consultation"
+    },
+    "look": {
+      "phoneHint": "Votre aperçu vous suit en haut de cette page — touchez Aperçu pour voir la page entière."
+    }
   }
 }

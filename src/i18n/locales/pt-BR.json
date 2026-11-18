@@ -1277,6 +1277,165 @@
     "suggestMore": "Sugerir mais",
     "suggestingMore": "Sugerindo…",
     "suggestExhausted": "Isso é tudo o que temos por agora — escreva as suas abaixo",
-    "suggestOwnBelow": "…ou escreva as suas abaixo"
+    "suggestOwnBelow": "…ou escreva as suas abaixo",
+    "steps": {
+      "business": "Sua empresa",
+      "learn": "Aprender",
+      "face": "Rosto e voz",
+      "review": "Revisar o rascunho",
+      "look": "Visual no seu site",
+      "launch": "Testar e publicar"
+    },
+    "strip": {
+      "yourBusiness": "Sua empresa",
+      "preview": "Prévia"
+    },
+    "pieces": {
+      "title": "Seu assistente ganhando forma",
+      "business": "Dados da empresa",
+      "learn": "Conhecimento aprendido",
+      "face": "Rosto e voz",
+      "review": "Rascunho revisado",
+      "look": "Visual no seu site",
+      "launch": "No ar"
+    },
+    "learn": {
+      "title": "Ensine seu assistente",
+      "hint": "Adicione suas fontes — seu assistente aprende só o que você der a ele.",
+      "help": "O aprendizado só começa quando você escolhe. Orientações gerais do setor não são informações verificadas sobre a sua empresa.",
+      "websiteTitle": "Seu site",
+      "websiteHint": "Aprenda o site inteiro, ou encontre primeiro as páginas dele e marque só as que seu assistente deve aprender — páginas desmarcadas nunca são lidas, então nada se desperdiça com blog ou páginas jurídicas.",
+      "findPages": "Encontrar minhas páginas",
+      "findingPages": "Procurando páginas…",
+      "noPagesFound": "Não conseguimos encontrar a lista de páginas desse site — aprender o site diretamente continua funcionando.",
+      "depthLabel": "Profundidade da leitura",
+      "depthKey": "Páginas principais",
+      "depthDeep": "Mais fundo (segue os links)",
+      "pagesFound": "{{count}} páginas encontradas",
+      "pickAll": "Marcar todas",
+      "pickNone": "Limpar",
+      "learnPicked": "Aprender {{count}} páginas marcadas",
+      "pagesAlreadyKnown": "Essas páginas já foram aprendidas.",
+      "sourceCap": "Isso passaria do limite de 12 fontes — desmarque algumas páginas e tente de novo.",
+      "pagesLearned": "Páginas aprendidas",
+      "pickerNote": "Cada página marcada é aprendida como uma fonte própria (máximo de 12 fontes por assistente). A leitura principal do seu site continua cobrindo a página inicial.",
+      "alreadyLearned": "Aprendida",
+      "capacityTitle": "Capacidade de conhecimento",
+      "capacityValue": "{{used}} de {{cap}} caracteres",
+      "capacityHint": "O conhecimento compilado do seu assistente — fontes aprendidas, orientações aceitas, texto de cobertura e respostas rápidas — cabe até o limite. Cada fonte também fica guardada completa, separadamente.",
+      "notesTitle": "Suas anotações",
+      "summarySources": "Seu assistente aprendeu {{count}} fontes.",
+      "summaryGuidance": "Ele também tem as suas orientações revisadas.",
+      "summaryFaqs": "E {{count}} respostas rápidas.",
+      "summaryEmpty": "Nada aprendido ainda — adicione uma fonte acima e seu assistente vai conhecer a sua empresa.",
+      "kind": {
+        "home": "Início",
+        "services": "Serviços",
+        "about": "Sobre",
+        "pricing": "Preços",
+        "faq": "Perguntas frequentes",
+        "contact": "Contato",
+        "blog": "Blog",
+        "legal": "Jurídico",
+        "page": "Página"
+      }
+    },
+    "lookup": {
+      "title": "Tabelas de consulta",
+      "hint": "Tem uma planilha onde seu assistente deveria consultar dados — uma tabela de preços, um estoque, seus imóveis? Marque-a como tabela de consulta: escolha a coluna que a pessoa vai mencionar e as colunas que o assistente pode falar em voz alta.",
+      "keyIs": "Chave: {{column}}",
+      "edit": "Editar",
+      "useAsTable": "Usar como tabela de consulta",
+      "remove": "Remover tabela de consulta",
+      "keyColumn": "Coluna-chave — o que a pessoa menciona",
+      "speakable": "Colunas que o assistente pode falar em voz alta",
+      "save": "Salvar tabela de consulta",
+      "cancel": "Cancelar",
+      "noColumns": "Ainda não conseguimos ler as colunas deste arquivo — quando ele aparecer como Aprendido acima, tente de novo.",
+      "phaseNote": "As tabelas de consulta ficam salvas na sua configuração hoje; as consultas ao vivo durante a chamada são ativadas na próxima atualização da plataforma, e avisaremos por e-mail quando a sua estiver ativa."
+    },
+    "face": {
+      "title": "Rosto e voz",
+      "hint": "Escolha o rosto e a voz que seus clientes vão ver e ouvir.",
+      "help": "Só a voz funciona em qualquer lugar. Um rosto em vídeo sincroniza os lábios com a mesma voz e usa minutos extras de vídeo."
+    },
+    "review": {
+      "title": "Revise o que seu assistente rascunhou",
+      "hint": "Tudo abaixo foi rascunhado a partir do que seu assistente aprendeu — confira, mude o que quiser, deixe com a sua cara.",
+      "help": "Sugestões são rascunhos, nunca fatos: nada aqui é usado até você manter, e todo texto continua editável.",
+      "greetingTitle": "Sua saudação",
+      "useStyle": "Usar esta saudação",
+      "templateLibrary": "Biblioteca de modelos",
+      "style": {
+        "warm": "Caloroso",
+        "professional": "Profissional",
+        "short": "Curto e direto"
+      },
+      "template": {
+        "thanks-for-calling": "Obrigado por ligar",
+        "busy": "Ocupados agora",
+        "after-hours": "Fora do horário",
+        "warm-welcome": "Boas-vindas calorosas",
+        "formal": "Formal"
+      }
+    },
+    "variables": {
+      "title": "Variáveis",
+      "hint": "Variáveis colocam valores reais nos seus textos — toque em uma para adicioná-la à sua saudação. As prévias sempre mostram valores reais, nunca os {tokens} crus.",
+      "yours": "Suas variáveis",
+      "remove": "Remover",
+      "nameLabel": "Nome da variável (uma palavra)",
+      "labelLabel": "O que é? (em palavras simples)",
+      "labelPlaceholder": "Número do chamado",
+      "sourceLabel": "De onde vem o valor?",
+      "exampleLabel": "Valor de exemplo (para as prévias)",
+      "add": "Adicionar variável",
+      "nameInvalid": "Use um nome que comece com letra minúscula — só letras, números e sublinhados, ex.: numeroChamado.",
+      "nameTaken": "Você já tem uma variável com esse nome.",
+      "labelRequired": "Primeiro dê à variável uma descrição em palavras simples.",
+      "timeGreeting": "Hora do dia",
+      "agentName": "Nome do assistente",
+      "businessName": "Nome da empresa",
+      "callerName": "Nome de quem liga",
+      "callerNumber": "Número de quem liga",
+      "todayDate": "Data de hoje",
+      "source": {
+        "call": "Perguntado durante a chamada",
+        "callerId": "Do identificador de chamadas",
+        "chat": "Digitado no chat",
+        "lookup": "De uma tabela de consulta"
+      }
+    },
+    "toolbar": {
+      "dictate": "Ditar",
+      "stop": "Parar",
+      "listen": "Ouvir",
+      "preparing": "Preparando…",
+      "aiHelp": "Ajuda da IA",
+      "suggest": "Sugerir",
+      "suggestMore": "Sugerir mais",
+      "makeWarmer": "Deixar mais caloroso",
+      "makeShorter": "Deixar mais curto",
+      "addNote": "Adicionar uma anotação",
+      "variables": "Variáveis",
+      "insertVariable": "Inserir uma variável",
+      "dictationUnsupported": "O ditado não está disponível neste navegador — digitar funciona como sempre.",
+      "dictationBlocked": "O acesso ao microfone foi bloqueado — verifique a permissão do navegador para este site.",
+      "nothingToHear": "Ainda não há nada para ouvir aqui.",
+      "listenFailed": "Não foi possível preparar a voz agora — tente de novo em um instante.",
+      "rewriteFailed": "A reescrita não voltou — seu texto ficou igual."
+    },
+    "knownCaller": {
+      "title": "Quem já ligou é reconhecido",
+      "body": "Quando alguém liga pelo telefone, seu assistente reconhece o número e pode cumprimentá-lo pelo nome na próxima ligação, com os dados salvos da conversa anterior. Quem visita o site não tem identificador de chamadas, então seu assistente pode pedir uma referência definida por você — um número de chamado ou de conta, como variável acima. Antes de compartilhar qualquer dado de conta, seu assistente sempre confirma mais um detalhe — um número sozinho nunca é prova de identidade."
+    },
+    "integrations": {
+      "title": "Integrações",
+      "body": "Combina com o seu escritório — Salesforce · SAP · Oracle · PeopleSoft · Workday · Amdocs · e centenas de outros, conectados via Zapier, n8n ou API direta, numa configuração guiada com a nossa equipe.",
+      "cta": "Agendar uma consulta"
+    },
+    "look": {
+      "phoneHint": "Sua prévia acompanha você no topo desta página — toque em Prévia para ver a página inteira."
+    }
   }
 }
