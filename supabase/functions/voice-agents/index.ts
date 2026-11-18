@@ -7,6 +7,7 @@ import { DEFAULT_LIVE_MODEL, LIVE_MODELS, officialLivePricing } from '../_shared
 import { validPricing } from '../_shared/voice-usage.ts';
 import { websiteTheme, THEME_FONTS, DEFAULT_WIDGET_THEME } from '../_shared/widget-theme.ts';
 import { workspaceAccess } from '../_shared/customer-payments.ts';
+import { validPaymentPlan } from '../_shared/payment-rules.ts';
 import { applyPhoneSignals, statusAfterSave, type PhoneSetupState } from '../_shared/onboarding.ts';
 import { CARRIER_GUIDES } from '../_shared/carrier-guides.ts';
 import { createResponsesCall } from './responses.ts';
@@ -27,7 +28,7 @@ const themeSchema=z.object({primary:z.string().regex(/^#[0-9a-f]{6}$/i),backgrou
 const phoneSetupInputSchema = z.object({ route:z.enum(['forward','port','new']), businessNumber:z.string().max(32).optional(), transferNumber:z.string().max(32).optional(), carrierId:z.string().max(40).refine(v=>CARRIER_GUIDES.some(g=>g.id===v), 'Unknown carrier').optional(), rings:z.union([z.literal(2),z.literal(3),z.literal(4),z.literal(5)]).optional(), areaCode:z.string().regex(/^\d{0,3}$/).optional() });
 const phoneSetupStateSchema = phoneSetupInputSchema.partial({route:true}).extend({ route:z.enum(['forward','port','new']).optional(), aspenNumber:z.string().max(32).optional(), status:z.enum(['not_started','awaiting_number','waiting_first_call','port_requested','new_number_requested','live_detected','live_confirmed']).default('not_started'), savedAt:z.string().max(40).optional(), testCallConfirmedAt:z.string().max(40).optional(), firstCallDetectedAt:z.string().max(40).optional() });
 const configSchema = z.object({ phoneSetup:phoneSetupStateSchema.optional(), onboarding:z.object({ testCallConfirmedAt:z.string().max(40).optional() }).optional(), subNiche:z.string().max(160).optional(), businessNotes:z.string().max(6000).optional(), knowledgeGuidance:z.string().max(12000).optional(), assistantRestrictions:z.string().max(4000).optional(), previewScreenshot:z.string().max(2000).optional(), industry:z.string().max(80).optional(), launcherLabel:z.string().max(40).optional(), launcherCorner:z.enum(['bottom-left','bottom-right']).optional(), websiteUrl:z.string().max(2000).refine(v=>!v || isPublicUrl(v),'Use a public website URL').default(''), theme:z.preprocess(v=>v&&typeof v==='object'?{...DEFAULT_WIDGET_THEME,...(v as Record<string,unknown>)}:v,themeSchema).default(DEFAULT_WIDGET_THEME), suggestedTheme:themeSchema.nullable().optional(), name:z.string().min(1).max(80), businessName:z.string().min(1).max(160), voice:z.enum(VOICES as [string,...string[]]), clonedVoiceSelected:z.boolean().default(false), avatarPath:z.string().max(500).default(''), greeting:z.string().min(1).max(1500), systemPrompt:z.string().min(1).max(12000), simulationGreeting:z.string().min(1).max(1500).default(SIMULATION_GREETING), simulationPrompt:z.string().min(1).max(12000).default(SIMULATION_PROMPT), knowledge:z.string().max(60000).default(''), crawlDepth:z.union([z.literal(1),z.literal(2)]).default(1), recordTranscript:z.boolean().default(false), transferPhone:z.string().regex(/^$|^\\+[1-9]\\d{7,14}$/,'Use an international phone number, starting with +').default(''), transferManagerName:z.string().max(80).default(''), defaultLanguage:z.enum(['en','es','pt-BR']).default('en'), ringCount:z.number().int().min(2).max(5).optional(), bookingRules:z.string().max(4000).default(''), videoAvatar:z.unknown().optional().transform(v=>v===undefined?undefined:normalizeVideoAvatar(v)) });
-const requestSchema = z.object({ action:z.enum(['suggestKnowledge','suggestIndustry','suggestGreeting','list','usage','pricing','create','save','publish','source','refresh','removeSource','member','rollback','share','unshare','onboarding','phoneSetup','duplicate','usageSummary']), phoneSetup:phoneSetupInputSchema.optional(), confirmTestCall:z.enum(['phone','agent']).optional(), agentId:z.string().uuid().optional(), mode:z.enum(['website','generic']).default('website'), subNiche:z.string().max(160).optional(), businessNotes:z.string().max(6000).optional(), industry:z.string().max(80).optional(), tone:z.string().max(40).optional(), slug:z.string().min(3).max(80).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(), sourceId:z.string().uuid().optional(), config:configSchema.optional(), businessName:z.string().min(1).max(160).optional(), userEmail:z.string().email().optional(), kind:z.enum(['url','document']).optional(), label:z.string().min(1).max(255).optional(), url:z.string().max(2000).optional(), storagePath:z.string().max(500).optional(), pricing:z.object({model:z.literal('gemini-3.8-live'),inputAudioPerMinute:z.number().finite().min(0).max(100),outputAudioPerMinute:z.number().finite().min(0).max(100),source:z.string().url().max(2000)}).optional() });
+const requestSchema = z.object({ action:z.enum(['suggestKnowledge','suggestIndustry','suggestGreeting','list','usage','pricing','create','save','publish','source','refresh','removeSource','member','rollback','share','unshare','onboarding','phoneSetup','duplicate','usageSummary','clients','myBranding']), phoneSetup:phoneSetupInputSchema.optional(), confirmTestCall:z.enum(['phone','agent']).optional(), agentId:z.string().uuid().optional(), mode:z.enum(['website','generic']).default('website'), subNiche:z.string().max(160).optional(), businessNotes:z.string().max(6000).optional(), industry:z.string().max(80).optional(), tone:z.string().max(40).optional(), slug:z.string().min(3).max(80).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(), sourceId:z.string().uuid().optional(), config:configSchema.optional(), businessName:z.string().min(1).max(160).optional(), userEmail:z.string().email().optional(), kind:z.enum(['url','document']).optional(), label:z.string().min(1).max(255).optional(), url:z.string().max(2000).optional(), storagePath:z.string().max(500).optional(), pricing:z.object({model:z.literal('gemini-3.8-live'),inputAudioPerMinute:z.number().finite().min(0).max(100),outputAudioPerMinute:z.number().finite().min(0).max(100),source:z.string().url().max(2000)}).optional() });
 const json = (data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
 Deno.serve(async req=>{
   if(req.method==='OPTIONS') return new Response('ok',{headers:corsHeaders});
@@ -86,6 +87,96 @@ Deno.serve(async req=>{
       }
       try { return json({greeting:await suggestGreeting(req,{businessName:body.businessName||'our business',industry:body.industry,websiteUrl:body.url,tone:body.tone})}); }
       catch(e){ const status=(e as {status?:number}).status ?? (e as {statusCode?:number}).statusCode ?? 502; return json({error:e instanceof Error?e.message:'Suggestion failed'},[400,402,403,429].includes(status)?status:502); }
+    }
+    if(body.action==='clients') {
+      // Platform admin only (multi-tenant design Phase 1, 2026-11-18):
+      // the "Where are my customers?" join. A paying customer is
+      // scattered across an auth user, a subscriptions row, a
+      // customer_workspaces row and a voice_agents row — this action
+      // joins them server-side so the admin Clients view never has to
+      // query auth users from the browser. Reads of the Phase 1 columns
+      // (org branding/hierarchy, prospect link) degrade gracefully
+      // until their SQL is applied in the dashboard.
+      if(!admin) return json({error:'Administrator access required'},403);
+      const {data:workspaces,error:wsErr}=await db.from('customer_workspaces').select('id,user_id,organization_id,agent_id,environment,created_at').order('created_at',{ascending:false});
+      if(wsErr) throw wsErr;
+      const orgIds=[...new Set((workspaces || []).map(w=>w.organization_id))];
+      const userIds=[...new Set((workspaces || []).map(w=>w.user_id))];
+      type OrgRow={id:string;name:string;parent_organization_id?:string|null;type?:string|null;status?:string|null};
+      let orgs:OrgRow[]=[];
+      if(orgIds.length) {
+        const rich=await db.from('voice_organizations').select('id,name,parent_organization_id,type,status').in('id',orgIds);
+        if(rich.error) { const base=await db.from('voice_organizations').select('id,name').in('id',orgIds); if(base.error) throw base.error; orgs=(base.data || []) as OrgRow[]; }
+        else orgs=(rich.data || []) as OrgRow[];
+      }
+      const orgById=new Map(orgs.map(o=>[o.id,o]));
+      const parentIds=[...new Set(orgs.map(o=>o.parent_organization_id).filter(Boolean))] as string[];
+      const parentNameById=new Map<string,string>();
+      if(parentIds.length) { const {data:parents}=await db.from('voice_organizations').select('id,name').in('id',parentIds); for(const p of parents || []) parentNameById.set(p.id,p.name); }
+      // One plan row per user+environment: prefer a real plan price over
+      // add-on rows (e.g. the video avatar subscription), newest wins.
+      const subByKey=new Map<string,{price_id:string;status:string;current_period_end:string|null;created_at?:string|null}>();
+      if(userIds.length) {
+        const {data:subs,error:subErr}=await db.from('subscriptions').select('user_id,price_id,status,current_period_end,environment,created_at').in('user_id',userIds);
+        if(subErr) throw subErr;
+        for(const s of subs || []) {
+          const key=`${s.user_id}|${s.environment}`;
+          const prev=subByKey.get(key);
+          const isPlan=validPaymentPlan(s.price_id);
+          if(!prev || (isPlan && !validPaymentPlan(prev.price_id)) || (isPlan===validPaymentPlan(prev.price_id) && String(s.created_at || '')>String(prev.created_at || ''))) subByKey.set(key,s);
+        }
+      }
+      const userById=new Map<string,{email:string|null;name:string|null;createdAt:string|null}>();
+      for(let page=1;page<=20;page++) { const {data,error}=await db.auth.admin.listUsers({page,perPage:100}); if(error) throw error; for(const u of data.users) userById.set(u.id,{email:u.email || null,name:(u.user_metadata?.full_name as string) || (u.user_metadata?.name as string) || null,createdAt:u.created_at || null}); if(data.users.length<100) break; }
+      // Lead -> customer links. The converted_* columns land with the
+      // Phase 1 prospects migration; until then this degrades to no
+      // links rather than failing the whole list.
+      const linkedProspectByOrg=new Map<string,string>();
+      if(orgIds.length) {
+        try {
+          const {data:links,error:linkErr}=await db.from('prospects').select('id,converted_organization_id').in('converted_organization_id',orgIds);
+          if(linkErr) throw linkErr;
+          for(const l of links || []) if(l.converted_organization_id) linkedProspectByOrg.set(l.converted_organization_id,l.id);
+        } catch { /* link columns not applied yet */ }
+      }
+      const clients=(workspaces || []).map(w=>{
+        const org=orgById.get(w.organization_id);
+        const u=userById.get(w.user_id);
+        const sub=subByKey.get(`${w.user_id}|${w.environment}`);
+        return {
+          userId:w.user_id, email:u?.email || null, customerName:u?.name || null,
+          organizationId:w.organization_id, businessName:org?.name || 'Unknown business',
+          organizationType:org?.type || 'client', organizationStatus:org?.status || 'active',
+          parentOrganizationId:org?.parent_organization_id || null,
+          parentOrganizationName:org?.parent_organization_id ? parentNameById.get(org.parent_organization_id) || null : null,
+          agentId:w.agent_id, environment:w.environment,
+          planPriceId:sub?.price_id || null, subscriptionStatus:sub?.status || null, currentPeriodEnd:sub?.current_period_end || null,
+          joinedAt:w.created_at || u?.createdAt || null,
+          linkedProspectId:linkedProspectByOrg.get(w.organization_id) || null,
+        };
+      });
+      return json({clients});
+    }
+    if(body.action==='myBranding') {
+      // The signed-in customer's own organization branding, for the
+      // customer-facing shell (design Phase 1). Null when the user has
+      // no workspace/org or the org carries no branding — the shell
+      // then shows the platform brand, exactly as before Phase 1.
+      let orgId:string|null=null;
+      const {data:workspace}=await db.from('customer_workspaces').select('organization_id').eq('user_id',user.id).maybeSingle();
+      if(workspace?.organization_id) orgId=workspace.organization_id;
+      if(!orgId) { const {data:membership}=await db.from('voice_memberships').select('organization_id').eq('user_id',user.id).limit(1).maybeSingle(); orgId=membership?.organization_id || null; }
+      if(!orgId) return json({branding:null});
+      const rich=await db.from('voice_organizations').select('id,name,logo_url,slogan,support_email,brand_color').eq('id',orgId).maybeSingle();
+      if(rich.error) {
+        const base=await db.from('voice_organizations').select('id,name').eq('id',orgId).maybeSingle();
+        if(base.error) throw base.error;
+        if(!base.data) return json({branding:null});
+        return json({branding:{name:base.data.name,logoUrl:null,slogan:null,supportEmail:null,brandColor:null}});
+      }
+      if(!rich.data) return json({branding:null});
+      const o=rich.data as {name:string;logo_url:string|null;slogan:string|null;support_email:string|null;brand_color:string|null};
+      return json({branding:{name:o.name,logoUrl:o.logo_url || null,slogan:o.slogan || null,supportEmail:o.support_email || null,brandColor:o.brand_color || null}});
     }
     if(body.action==='list') {
       const {data:members}=await db.from('voice_memberships').select('organization_id').eq('user_id',user.id).eq('role','editor');

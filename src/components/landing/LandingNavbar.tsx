@@ -7,8 +7,16 @@ import LanguageSwitcher from "@/components/LanguageSwitcher";
 import TextSizeControl from "@/components/TextSizeControl";
 import AccountMenu from "@/components/AccountMenu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import type { ResolvedBrand } from "@/lib/clients";
 
-const LandingNavbar = () => {
+/**
+ * Optional tenant brand (multi-tenant design Phase 1): only the
+ * customer shell (CustomerPageLayout) passes one, resolved from the
+ * signed-in user's organization. Public pages pass nothing and get the
+ * platform AiHiddenLeads lockup, byte-for-byte as before.
+ */
+const LandingNavbar = ({ brand }: { brand?: ResolvedBrand }) => {
+  const orgBrand = brand?.source === "org" ? brand : null;
   const location=useLocation();
   const navigate=useNavigate();
   const [open, setOpen] = useState(false);
@@ -26,10 +34,21 @@ const LandingNavbar = () => {
     <nav className="fixed top-0 inset-x-0 z-[90] bg-background/80 backdrop-blur-xl border-b border-border">
       <div className="container mx-auto px-4 sm:px-6 flex items-center justify-between h-14 sm:h-16">
         <Link to="/" className="flex min-w-0 flex-1 lg:flex-none items-center gap-1.5">
-          <img src="/logo.png" alt="AI Hidden Leads" className="w-6 h-6 shrink-0 sm:w-9 sm:h-9" />
-          <span className="min-w-0 text-sm sm:text-lg leading-tight font-extrabold text-foreground">
-            AI <span className="text-primary">Hidden</span> Leads
-          </span>
+          {orgBrand ? (
+            <>
+              <img src={orgBrand.logoUrl} alt={orgBrand.name} className="w-6 h-6 shrink-0 rounded object-contain sm:w-9 sm:h-9" />
+              <span className="min-w-0 truncate text-sm sm:text-lg leading-tight font-extrabold text-foreground">
+                {orgBrand.name}
+              </span>
+            </>
+          ) : (
+            <>
+              <img src="/logo.png" alt="AI Hidden Leads" className="w-6 h-6 shrink-0 sm:w-9 sm:h-9" />
+              <span className="min-w-0 text-sm sm:text-lg leading-tight font-extrabold text-foreground">
+                AI <span className="text-primary">Hidden</span> Leads
+              </span>
+            </>
+          )}
         </Link>
 
         <div className="hidden lg:flex items-center gap-6">

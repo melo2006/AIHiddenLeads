@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard, Search, Megaphone, LayoutGrid, FileText, Radar, PhoneIncoming, FolderInput, Monitor, Play, Activity, Image, Brain, Target, MessageSquare, Presentation, ShieldCheck, Video, Wand2, Phone, BarChart3, Users
+  LayoutDashboard, Search, Megaphone, LayoutGrid, FileText, Radar, PhoneIncoming, FolderInput, Monitor, Play, Activity, Image, Brain, Target, MessageSquare, Presentation, ShieldCheck, Video, Wand2, Phone, BarChart3, Users, UserCheck
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
@@ -29,6 +29,7 @@ const navGroups: { label: string; items: NavItem[] }[] = [
     { title: "Campaign Results", url: "/dashboard/campaign-results", icon: Activity },
     { title: "Demo History", url: "/dashboard/sessions", icon: Presentation },
     { title: "Page Visitors", url: "/dashboard/page-visitors", icon: Users },
+    { title: "Clients", url: "/dashboard/clients", icon: UserCheck },
   ]},
   { label: "Voice & avatars", items: [
     { title: "Voice Agents", url: "/dashboard/voice-agents", icon: PhoneIncoming },

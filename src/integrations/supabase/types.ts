@@ -1557,6 +1557,8 @@ export type Database = {
           city: string | null
           contact_method: string | null
           country: string | null
+          converted_at: string | null
+          converted_organization_id: string | null
           created_at: string
           demo_link: string | null
           demo_viewed_at: string | null
@@ -1621,6 +1623,8 @@ export type Database = {
           city?: string | null
           contact_method?: string | null
           country?: string | null
+          converted_at?: string | null
+          converted_organization_id?: string | null
           created_at?: string
           demo_link?: string | null
           demo_viewed_at?: string | null
@@ -1685,6 +1689,8 @@ export type Database = {
           city?: string | null
           contact_method?: string | null
           country?: string | null
+          converted_at?: string | null
+          converted_organization_id?: string | null
           created_at?: string
           demo_link?: string | null
           demo_viewed_at?: string | null
@@ -2673,21 +2679,53 @@ export type Database = {
       }
       voice_organizations: {
         Row: {
+          brand_color: string | null
           created_at: string
+          feature_limits: Json
           id: string
+          logo_url: string | null
           name: string
+          parent_organization_id: string | null
+          slogan: string | null
+          status: string
+          support_email: string | null
+          type: string
         }
         Insert: {
+          brand_color?: string | null
           created_at?: string
+          feature_limits?: Json
           id?: string
+          logo_url?: string | null
           name: string
+          parent_organization_id?: string | null
+          slogan?: string | null
+          status?: string
+          support_email?: string | null
+          type?: string
         }
         Update: {
+          brand_color?: string | null
           created_at?: string
+          feature_limits?: Json
           id?: string
+          logo_url?: string | null
           name?: string
+          parent_organization_id?: string | null
+          slogan?: string | null
+          status?: string
+          support_email?: string | null
+          type?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "voice_organizations_parent_organization_id_fkey"
+            columns: ["parent_organization_id"]
+            isOneToOne: false
+            referencedRelation: "voice_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       voice_platform_roles: {
         Row: {

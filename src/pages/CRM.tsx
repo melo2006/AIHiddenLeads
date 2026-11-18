@@ -21,6 +21,7 @@ import AccountMenu from "@/components/AccountMenu";
 import SetupWizard from "@/components/setup-wizard/SetupWizard";
 import VideoAvatarsView from "@/components/crm/VideoAvatarsView";
 import TelephonyAdminView from "@/components/crm/TelephonyAdminView";
+import ClientsView from "@/components/crm/ClientsView";
 import { Link } from "react-router-dom";
 import { CRMSidebar } from "@/components/crm/CRMSidebar";
 import { supabase } from "@/integrations/supabase/client";
@@ -251,6 +252,7 @@ const CRM = () => {
               <Route path="calls" element={<Navigate to="/dashboard/sessions?tab=calls" replace />} />
               <Route path="sessions" element={<TabbedPage tabs={[{ id: "demos", label: "Demo sessions", el: <DemoSessionsView /> }, { id: "calls", label: "Call history", el: <CallHistoryView /> }]} />} />
               <Route path="page-visitors" element={<PageVisitorsView />} />
+              <Route path="clients" element={<ClientsView />} />
               <Route path="imported" element={<ImportedListsView />} />
               <Route path="imported/:id" element={<ImportedListDetailView />} />
               <Route path="engagement" element={<Navigate to="/dashboard/campaign-results?tab=engagement" replace />} />
