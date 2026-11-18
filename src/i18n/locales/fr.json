@@ -1268,5 +1268,11 @@
     "phoneFirstBody": "Enseignez à votre réceptionniste vos heures d'ouverture, vos listes de services, vos prix approuvés et vos documents. Utilisez votre site Web comme matériel de référence facultatif, pas comme une exigence. La réponse téléphonique s'active après la configuration et les tests; les minutes du site Web et du téléphone restent distinctes.",
     "phoneFirstLink": "Explorez la réception téléphonique et un exemple de conversation",
     "preOrderNote": "Les services en précommande s'activent après la configuration et les tests. Aucune garantie de ventes, d'économies, de rapidité de rappel ou de classements."
+  },
+  "wizard": {
+    "suggestMore": "Plus de suggestions",
+    "suggestingMore": "Recherche…",
+    "suggestExhausted": "C'est tout ce que nous avons pour le moment — ajoutez les vôtres ci-dessous",
+    "suggestOwnBelow": "…ou ajoutez les vôtres ci-dessous"
   }
 }

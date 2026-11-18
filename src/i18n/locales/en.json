@@ -1268,5 +1268,11 @@
     "phoneFirstBody": "Teach your receptionist from business hours, service lists, approved prices and documents. Use your website as optional reference material, not a requirement. Phone answering activates after setup and testing; website and telephone minutes remain separate.",
     "phoneFirstLink": "Explore phone reception & a sample conversation",
     "preOrderNote": "Pre-order services activate after setup and testing. No guaranteed sales, savings, callback speed or rankings."
+  },
+  "wizard": {
+    "suggestMore": "Suggest more",
+    "suggestingMore": "Suggesting…",
+    "suggestExhausted": "That's everything we have for now — type your own below",
+    "suggestOwnBelow": "…or type your own below"
   }
 }

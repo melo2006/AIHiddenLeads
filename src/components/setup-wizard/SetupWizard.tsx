@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { toast } from "sonner";
 import {
@@ -84,9 +85,31 @@ function ChecklistCards({ items, text, onToggle }: { items: ChecklistItem[]; tex
   );
 }
 
+/** "Suggest more" state for one suggestion checklist: extra rounds fetched, a fetch in flight, or a round that came back with nothing new. */
+type MoreState = { rounds: number; busy: boolean; exhausted: boolean };
+const EMPTY_MORE: MoreState = { rounds: 0, busy: false, exhausted: false };
+const MAX_MORE_ROUNDS = 3;
+
+/**
+ * The row under a suggestion checklist: "Suggest more" appends another
+ * batch of fresh candidates. After MAX_MORE_ROUNDS extra rounds — or a
+ * round that returns nothing new — the button retires into a quiet line
+ * pointing at the owner's own free-text box.
+ */
+function SuggestMoreRow({ more, onMore, labels }: { more: MoreState; onMore: () => void; labels: { more: string; busy: string; exhausted: string; own: string } }) {
+  if (more.exhausted) return <p className="text-xs text-muted-foreground">{labels.exhausted}</p>;
+  if (more.rounds >= MAX_MORE_ROUNDS) return <p className="text-xs text-muted-foreground">{labels.own}</p>;
+  return (
+    <Button size="sm" variant="ghost" className="h-8 text-primary" disabled={more.busy} onClick={onMore}>
+      {more.busy ? <RefreshCw className="mr-1 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1 h-4 w-4" />}{more.busy ? labels.busy : labels.more}
+    </Button>
+  );
+}
+
 type Draft = Record<string, unknown> & { knowledge?: string; theme?: Record<string, string> };
 
 export default function SetupWizard({ preview = false, agentId }: { preview?: boolean; agentId?: string }) {
+  const { t } = useTranslation();
   const [step, setStep] = useState(0);
   const [s, setS] = useState<WizardState>(EMPTY);
   const [selectedId, setSelectedId] = useState(agentId);
@@ -109,6 +132,8 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
   const [knowledgeMode, setKnowledgeMode] = useState<'website' | 'generic'>('website');
   const [serviceItems, setServiceItems] = useState<ChecklistItem[] | null>(null);
   const [guardrailItems, setGuardrailItems] = useState<ChecklistItem[] | null>(null);
+  const [serviceMore, setServiceMore] = useState<MoreState>(EMPTY_MORE);
+  const [guardrailMore, setGuardrailMore] = useState<MoreState>(EMPTY_MORE);
   const [areaSuggestions, setAreaSuggestions] = useState<string[]>([]);
   const [placeInput, setPlaceInput] = useState("");
   const [zipInput, setZipInput] = useState("");
@@ -127,7 +152,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
     if (current.right > bounds.right) progress.scrollLeft += current.right - bounds.right + 2;
     else if (current.left < bounds.left) progress.scrollLeft -= bounds.left - current.left + 2;
   }, [step]);
-  useEffect(() => { setSuggestedIndustry(''); setKnowledgeProposal(''); setServiceItems(null); setGuardrailItems(null); setAreaSuggestions([]); }, [selectedId]);
+  useEffect(() => { setSuggestedIndustry(''); setKnowledgeProposal(''); setServiceItems(null); setGuardrailItems(null); setServiceMore(EMPTY_MORE); setGuardrailMore(EMPTY_MORE); setAreaSuggestions([]); }, [selectedId]);
   const set = (patch: Partial<WizardState>) => setS((p) => ({ ...p, ...patch }));
   /** Picking a voice also pairs it with a default language (Live voices are language-agnostic). */
   const pickVoice = (id: string, language: AgentLanguage) => { set({ voice: id, defaultLanguage: language, clonedVoiceSelected: false }); setVoiceReady(false); };
@@ -276,6 +301,8 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
 
   async function suggestChecklist(action: 'suggestServices' | 'suggestGuardrails') {
     setBusy(true);
+    // A fresh list restarts the "Suggest more" rounds for that list.
+    if (action === 'suggestServices') setServiceMore(EMPTY_MORE); else setGuardrailMore(EMPTY_MORE);
     try {
       const data = await request({ action, agentId: selectedId, businessName: s.businessName || nameFromUrl(s.websiteUrl) || undefined, industry: industryName(s) || undefined, subNiche: s.subNiche || undefined, businessNotes: s.businessNotes || undefined, mode: knowledgeMode });
       const items = Array.isArray(data?.items) ? data.items as ChecklistItem[] : [];
@@ -283,6 +310,35 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
       if (!items.length) toast.error('No suggestions came back — typing your own works as always.');
     } catch { toast.error('Suggestions are not available right now — typing your own works as always.'); if (action === 'suggestServices') setServiceItems([]); else setGuardrailItems([]); }
     finally { setBusy(false); }
+  }
+
+  /**
+   * "Suggest more": ask for another batch, sending everything already
+   * shown as exclusions, and APPEND only genuinely new cards — shown
+   * cards (ticked or not) are never duplicated or removed. A round with
+   * nothing new retires the button into the honest end state; the row
+   * also retires after MAX_MORE_ROUNDS rounds (see SuggestMoreRow).
+   */
+  async function suggestMore(action: 'suggestServices' | 'suggestGuardrails') {
+    const items = action === 'suggestServices' ? serviceItems : guardrailItems;
+    const more = action === 'suggestServices' ? serviceMore : guardrailMore;
+    const setMore = action === 'suggestServices' ? setServiceMore : setGuardrailMore;
+    if (!items?.length || more.busy || more.exhausted || more.rounds >= MAX_MORE_ROUNDS) return;
+    setMore({ ...more, busy: true });
+    try {
+      const data = await request({ action, agentId: selectedId, businessName: s.businessName || nameFromUrl(s.websiteUrl) || undefined, industry: industryName(s) || undefined, subNiche: s.subNiche || undefined, businessNotes: s.businessNotes || undefined, mode: knowledgeMode, excludeIds: items.map((i) => i.id), excludeLabels: items.map((i) => i.label), round: more.rounds + 1 });
+      const incoming = Array.isArray(data?.items) ? data.items as ChecklistItem[] : [];
+      const shown = new Set(items.map((i) => i.id));
+      const shownLabels = new Set(items.map((i) => i.label.trim().toLowerCase()));
+      const fresh = incoming.filter((i) => {
+        if (shown.has(i.id) || shownLabels.has(i.label.trim().toLowerCase())) return false;
+        shown.add(i.id); shownLabels.add(i.label.trim().toLowerCase());
+        return true;
+      });
+      if (!fresh.length) { setMore({ ...more, busy: false, exhausted: true }); return; }
+      if (action === 'suggestServices') setServiceItems([...items, ...fresh]); else setGuardrailItems([...items, ...fresh]);
+      setMore({ rounds: more.rounds + 1, busy: false, exhausted: false });
+    } catch { toast.error('Suggestions are not available right now — typing your own works as always.'); setMore({ ...more, busy: false }); }
   }
 
   async function suggestAreas() {
@@ -428,7 +484,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
                   </div>
                   <p className="text-xs text-muted-foreground">Short on time? Let us suggest services a typical {industryName(s) || 'business like yours'} offers. Tick the ones you actually offer — each ticked service is added as a sentence to your guidance text above, where you can edit it. Nothing is added until you tick it.</p>
                   {serviceItems && (serviceItems.length
-                    ? <><p className="text-xs font-medium">Do you also offer any of these?</p><ChecklistCards items={serviceItems} text={s.knowledgeGuidance || ''} onToggle={(item, on) => set({ knowledgeGuidance: toggleSentence(s.knowledgeGuidance || '', item.sentence, on) })} /></>
+                    ? <><p className="text-xs font-medium">Do you also offer any of these?</p><ChecklistCards items={serviceItems} text={s.knowledgeGuidance || ''} onToggle={(item, on) => set({ knowledgeGuidance: toggleSentence(s.knowledgeGuidance || '', item.sentence, on) })} /><SuggestMoreRow more={serviceMore} onMore={() => void suggestMore('suggestServices')} labels={{ more: t('wizard.suggestMore'), busy: t('wizard.suggestingMore'), exhausted: t('wizard.suggestExhausted'), own: t('wizard.suggestOwnBelow') }} /></>
                     : <p className="text-xs text-muted-foreground">Suggestions are not available right now — typing your services above works as always.</p>)}
                 </div>
                 <label className="block space-y-1 text-sm font-medium">Assistant restrictions (optional)<Textarea aria-label="Assistant restrictions" rows={3} maxLength={4000} placeholder="e.g. Do not quote prices. Do not give technical safety advice. Ask the team when unsure." value={s.assistantRestrictions || ''} onChange={e => set({ assistantRestrictions: e.target.value })} /></label>
@@ -439,7 +495,7 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
                   </div>
                   <p className="text-xs text-muted-foreground">Typical "never do this" rules for a {industryName(s) || 'business like yours'}. Tick the ones you want — each ticked rule is added to your restrictions above, where you can edit it.</p>
                   {guardrailItems && (guardrailItems.length
-                    ? <ChecklistCards items={guardrailItems} text={s.assistantRestrictions || ''} onToggle={(item, on) => set({ assistantRestrictions: toggleSentence(s.assistantRestrictions || '', item.sentence, on) })} />
+                    ? <><ChecklistCards items={guardrailItems} text={s.assistantRestrictions || ''} onToggle={(item, on) => set({ assistantRestrictions: toggleSentence(s.assistantRestrictions || '', item.sentence, on) })} /><SuggestMoreRow more={guardrailMore} onMore={() => void suggestMore('suggestGuardrails')} labels={{ more: t('wizard.suggestMore'), busy: t('wizard.suggestingMore'), exhausted: t('wizard.suggestExhausted'), own: t('wizard.suggestOwnBelow') }} /></>
                     : <p className="text-xs text-muted-foreground">Suggestions are not available right now — typing your restrictions above works as always.</p>)}
                 </div>
               </div>
