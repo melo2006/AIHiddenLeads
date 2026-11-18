@@ -8,7 +8,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import ConversationRecordsView from './ConversationRecordsView';
 import CallReportActions from './CallReportActions';
-import ConversationDetail from './ConversationDetail';
+import ConversationDetail, { type ConversationAudioSegment } from './ConversationDetail';
 import { parseTranscriptString } from '@/lib/conversationDetail';
 
 
@@ -243,12 +243,82 @@ const RecapDebugPanel = ({ call, enabled }: { call: CallRecord; enabled: boolean
   );
 };
 
+// --- Gemini recording join -------------------------------------------------
+// A Gemini call's audio does not live on the call_history row — it is
+// stored as the session's Private conversation record, keyed exactly:
+// conversation_records.session_ref === call.retell_call_id (both are
+// 'gemini_<session id>'). Resolve it lazily and share the work across
+// rows: the function's list runs once (every row's hook subscribes to
+// the same react-query key, so it is fetched a single time and indexed
+// by session_ref), and a matched record's audio segments are read once
+// per record. Nothing fires until a Gemini row is first expanded.
+
+interface ConversationRecordListItem {
+  id: string;
+  session_ref?: string | null;
+}
+
+interface GeminiRecordAudio {
+  /** Segments for the shared player; undefined until the lookup settles. */
+  segments: ConversationAudioSegment[] | undefined;
+  /** True once the lookup has settled: match read, no match, or lookup
+   *  failed — in the last two cases segments is empty and the detail
+   *  shows its plain no-recording line. */
+  resolved: boolean;
+}
+
+const useGeminiRecordAudio = (sessionRef: string, enabled: boolean): GeminiRecordAudio => {
+  const indexQuery = useQuery({
+    queryKey: ["conversation-records-index"],
+    enabled,
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("conversation-records", { body: { action: "list" } });
+      if (error) throw error;
+      const byRef = new Map<string, string>();
+      for (const r of (data?.records ?? []) as ConversationRecordListItem[]) {
+        if (r.session_ref && !byRef.has(r.session_ref)) byRef.set(r.session_ref, r.id);
+      }
+      return byRef;
+    },
+  });
+
+  const recordId = indexQuery.data?.get(sessionRef);
+  const audioQuery = useQuery({
+    queryKey: ["conversation-record-audio", recordId],
+    enabled: enabled && Boolean(recordId),
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("conversation-records", { body: { action: "read", id: recordId } });
+      if (error) throw error;
+      const audio = (data?.record?.audio ?? []) as { speaker?: unknown; url?: unknown }[];
+      return audio
+        .filter((a) => a && typeof a.url === "string" && Boolean(a.url))
+        .map((a) => ({ speaker: typeof a.speaker === "string" ? a.speaker : "mixed", url: a.url as string })) as ConversationAudioSegment[];
+    },
+  });
+
+  if (!enabled) return { segments: undefined, resolved: false };
+  if (indexQuery.isError) return { segments: [], resolved: true };
+  if (!indexQuery.data) return { segments: undefined, resolved: false };
+  if (!recordId) return { segments: [], resolved: true };
+  if (audioQuery.isError) return { segments: [], resolved: true };
+  if (!audioQuery.data) return { segments: undefined, resolved: false };
+  return { segments: audioQuery.data, resolved: true };
+};
+
 const CallRow = ({ call }: { call: CallRecord }) => {
 
   const [expanded, setExpanded] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+
+  const isGemini = call.retell_call_id.startsWith('gemini_');
+  // Gemini audio lives on the session's conversation record, not on
+  // this row — resolve it on first expansion (see useGeminiRecordAudio).
+  const { segments: geminiSegments, resolved: geminiAudioResolved } = useGeminiRecordAudio(
+    call.retell_call_id,
+    expanded && isGemini,
+  );
 
   const handleRefreshRecording = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -309,7 +379,7 @@ const CallRow = ({ call }: { call: CallRecord }) => {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
             <p className="text-sm font-medium truncate">{call.business_name}</p>
-            {call.retell_call_id.startsWith('gemini_') && <Badge variant="outline" className="text-[10px]">Gemini</Badge>}
+            {isGemini && <Badge variant="outline" className="text-[10px]">Gemini</Badge>}
             {call.website_url && (
               <button
                 onClick={handleRedemo}
@@ -348,10 +418,8 @@ const CallRow = ({ call }: { call: CallRecord }) => {
 
       {expanded && (
         <div className="px-4 pb-4 space-y-3 border-t border-border pt-3">
-          {call.retell_call_id.startsWith('gemini_') && <p className="text-xs text-muted-foreground">New agreed recordings are in Private conversation records above. Historical unsaved audio cannot be recovered.</p>}
-          {call.retell_call_id.startsWith('gemini_') && <Link to="/dashboard/voice-costs" className="text-xs text-primary underline">Gemini Voice Costs — call and per-minute estimates</Link>}
           {/* Recording fetch (playback itself lives in ConversationDetail) */}
-          {!call.retell_call_id.startsWith('gemini_') && <div>
+          {!isGemini && <div>
             <div className="flex items-center justify-between mb-1">
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Recording</p>
               <Button
@@ -374,13 +442,26 @@ const CallRow = ({ call }: { call: CallRecord }) => {
 
           {/* Summary + playback + dialogue + technical details */}
           <CallReportActions records={[call]} allowZapier />
+          {isGemini && !geminiAudioResolved && (
+            <p className="text-[11px] text-muted-foreground italic">Loading recording…</p>
+          )}
           <ConversationDetail
             transcript={parseTranscriptString(call.transcript)}
-            audioSegments={!call.retell_call_id.startsWith('gemini_') && call.recording_url ? [{ speaker: 'mixed', url: call.recording_url }] : []}
+            audioSegments={isGemini ? (geminiSegments ?? []) : call.recording_url ? [{ speaker: 'mixed', url: call.recording_url }] : []}
             summary={call.summary}
             durationSeconds={call.duration_seconds}
-            endReason={call.retell_call_id.startsWith('gemini_') && call.metadata?.end_reason ? String(call.metadata.end_reason) : undefined}
-            technicalDetails={<RecapDebugPanel call={call} enabled={expanded} />}
+            endReason={isGemini && call.metadata?.end_reason ? String(call.metadata.end_reason) : undefined}
+            expectRecording={isGemini ? geminiAudioResolved : undefined}
+            technicalDetails={(
+              <>
+                {isGemini && (
+                  <p>
+                    <Link to="/dashboard/voice-costs" className="text-xs text-primary underline">Gemini Voice Costs — call and per-minute estimates</Link>
+                  </p>
+                )}
+                <RecapDebugPanel call={call} enabled={expanded} />
+              </>
+            )}
           />
 
 
