@@ -17,9 +17,20 @@ import { normalizeVideoAvatar } from '../_shared/video-avatar.ts';
 import {
   WORK_ROLES, MANAGE_ROLES, subtreeOrgIds, childOrgIds, normalizeLimits, validateLimitsInput,
   evaluateCaps, inviteGrantRole, inviteStatusAt, validateBrandingInput, brandingComplete,
+  placeholderLogoSvg, featureEnabled,
   INVITE_EXPIRY_MS, type TenantLimits, type UsageTotals,
 } from '../_shared/tenancy.ts';
-import { DEFAULT_RATE_CARD, mergeRateCard, validateRateCardInput, tenantPriceView } from '../_shared/rate-card.ts';
+import { DEFAULT_RATE_CARD, mergeRateCard, validateRateCardInput, tenantPriceView, effectivePrice } from '../_shared/rate-card.ts';
+import {
+  normalizeRetailPrices, validateRetailPricesInput, retailPriceView, customerRetailView,
+} from '../_shared/retail-pricing.ts';
+import {
+  effectiveCurrencyRates, isSupportedCurrency, validateCurrencyRatesInput, type EffectiveRate,
+} from '../_shared/currency.ts';
+import {
+  DEMO_RESELLER, DEMO_CLIENTS, DEMO_EMAILS, isDemoOrg, normalizeDemoProfile,
+} from '../_shared/demo-tenants.ts';
+import { normalizeCatalogSelection, validateCatalogSelectionInput } from '../_shared/catalog-selection.ts';
 import { sendOwnerMail } from '../_shared/hostinger-mail.ts';
 
 async function suggestGreeting(req:Request,input:{businessName:string;industry?:string;websiteUrl?:string;tone?:string}){
@@ -35,9 +46,11 @@ const themeSchema=z.object({primary:z.string().regex(/^#[0-9a-f]{6}$/i),backgrou
 const phoneSetupInputSchema = z.object({ route:z.enum(['forward','port','new']), businessNumber:z.string().max(32).optional(), transferNumber:z.string().max(32).optional(), carrierId:z.string().max(40).refine(v=>CARRIER_GUIDES.some(g=>g.id===v), 'Unknown carrier').optional(), rings:z.union([z.literal(2),z.literal(3),z.literal(4),z.literal(5)]).optional(), areaCode:z.string().regex(/^\d{0,3}$/).optional() });
 const phoneSetupStateSchema = phoneSetupInputSchema.partial({route:true}).extend({ route:z.enum(['forward','port','new']).optional(), aspenNumber:z.string().max(32).optional(), status:z.enum(['not_started','awaiting_number','waiting_first_call','port_requested','new_number_requested','live_detected','live_confirmed']).default('not_started'), savedAt:z.string().max(40).optional(), testCallConfirmedAt:z.string().max(40).optional(), firstCallDetectedAt:z.string().max(40).optional() });
 const configSchema = z.object({ phoneSetup:phoneSetupStateSchema.optional(), onboarding:z.object({ testCallConfirmedAt:z.string().max(40).optional() }).optional(), subNiche:z.string().max(160).optional(), businessNotes:z.string().max(6000).optional(), knowledgeGuidance:z.string().max(12000).optional(), assistantRestrictions:z.string().max(4000).optional(), previewScreenshot:z.string().max(2000).optional(), industry:z.string().max(80).optional(), launcherLabel:z.string().max(40).optional(), launcherCorner:z.enum(['bottom-left','bottom-right']).optional(), websiteUrl:z.string().max(2000).refine(v=>!v || isPublicUrl(v),'Use a public website URL').default(''), theme:z.preprocess(v=>v&&typeof v==='object'?{...DEFAULT_WIDGET_THEME,...(v as Record<string,unknown>)}:v,themeSchema).default(DEFAULT_WIDGET_THEME), suggestedTheme:themeSchema.nullable().optional(), name:z.string().min(1).max(80), businessName:z.string().min(1).max(160), voice:z.enum(VOICES as [string,...string[]]), clonedVoiceSelected:z.boolean().default(false), avatarPath:z.string().max(500).default(''), greeting:z.string().min(1).max(1500), systemPrompt:z.string().min(1).max(12000), simulationGreeting:z.string().min(1).max(1500).default(SIMULATION_GREETING), simulationPrompt:z.string().min(1).max(12000).default(SIMULATION_PROMPT), knowledge:z.string().max(60000).default(''), crawlDepth:z.union([z.literal(1),z.literal(2)]).default(1), recordTranscript:z.boolean().default(false), transferPhone:z.string().regex(/^$|^\\+[1-9]\\d{7,14}$/,'Use an international phone number, starting with +').default(''), transferManagerName:z.string().max(80).default(''), defaultLanguage:z.enum(['en','es','pt-BR']).default('en'), ringCount:z.number().int().min(2).max(5).optional(), bookingRules:z.string().max(4000).default(''), videoAvatar:z.unknown().optional().transform(v=>v===undefined?undefined:normalizeVideoAvatar(v)) });
-const requestSchema = z.object({ action:z.enum(['suggestKnowledge','suggestIndustry','suggestGreeting','list','usage','pricing','create','save','publish','source','refresh','removeSource','member','rollback','share','unshare','onboarding','phoneSetup','duplicate','usageSummary','clients','myBranding','myTenancy','tenants','updateTenant','rateCard','saveRateCard','tenantClients','resellerConsole','inviteCreate','inviteList','inviteRevoke','invitePreview','inviteAccept','saveBranding']), phoneSetup:phoneSetupInputSchema.optional(), confirmTestCall:z.enum(['phone','agent']).optional(), agentId:z.string().uuid().optional(), mode:z.enum(['website','generic']).default('website'), subNiche:z.string().max(160).optional(), businessNotes:z.string().max(6000).optional(), industry:z.string().max(80).optional(), tone:z.string().max(40).optional(), slug:z.string().min(3).max(80).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(), sourceId:z.string().uuid().optional(), config:configSchema.optional(), businessName:z.string().min(1).max(160).optional(), userEmail:z.string().email().optional(), kind:z.enum(['url','document']).optional(), label:z.string().min(1).max(255).optional(), url:z.string().max(2000).optional(), storagePath:z.string().max(500).optional(), pricing:z.object({model:z.literal('gemini-3.8-live'),inputAudioPerMinute:z.number().finite().min(0).max(100),outputAudioPerMinute:z.number().finite().min(0).max(100),source:z.string().url().max(2000)}).optional(),
+const requestSchema = z.object({ action:z.enum(['suggestKnowledge','suggestIndustry','suggestGreeting','list','usage','pricing','create','save','publish','source','refresh','removeSource','member','rollback','share','unshare','onboarding','phoneSetup','duplicate','usageSummary','clients','myBranding','myTenancy','tenants','updateTenant','rateCard','saveRateCard','tenantClients','resellerConsole','inviteCreate','inviteList','inviteRevoke','invitePreview','inviteAccept','saveBranding','demoStatus','seedDemoData','removeDemoData','resellerRetail','saveResellerRetail','tenantRetail','currencyRates','saveCurrencyRates','resellerCatalog','saveResellerCatalog']), phoneSetup:phoneSetupInputSchema.optional(), confirmTestCall:z.enum(['phone','agent']).optional(), agentId:z.string().uuid().optional(), mode:z.enum(['website','generic']).default('website'), subNiche:z.string().max(160).optional(), businessNotes:z.string().max(6000).optional(), industry:z.string().max(80).optional(), tone:z.string().max(40).optional(), slug:z.string().min(3).max(80).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(), sourceId:z.string().uuid().optional(), config:configSchema.optional(), businessName:z.string().min(1).max(160).optional(), userEmail:z.string().email().optional(), kind:z.enum(['url','document']).optional(), label:z.string().min(1).max(255).optional(), url:z.string().max(2000).optional(), storagePath:z.string().max(500).optional(), pricing:z.object({model:z.literal('gemini-3.8-live'),inputAudioPerMinute:z.number().finite().min(0).max(100),outputAudioPerMinute:z.number().finite().min(0).max(100),source:z.string().url().max(2000)}).optional(),
   // Multi-tenant Phase 2 (2026-11-18): tenancy / invites / rate card.
-  organizationId:z.string().uuid().optional(), inviteId:z.string().uuid().optional(), inviteKind:z.enum(['reseller','client','staff']).optional(), companyName:z.string().min(1).max(160).optional(), inviteRole:z.enum(['admin','editor','viewer']).optional(), inviteToken:z.string().min(16).max(200).optional(), status:z.enum(['active','suspended']).optional(), limits:z.unknown().optional(), rateCard:z.unknown().optional(), branding:z.unknown().optional() });
+  organizationId:z.string().uuid().optional(), inviteId:z.string().uuid().optional(), inviteKind:z.enum(['reseller','client','staff']).optional(), companyName:z.string().min(1).max(160).optional(), inviteRole:z.enum(['admin','editor','viewer']).optional(), inviteToken:z.string().min(16).max(200).optional(), status:z.enum(['active','suspended']).optional(), limits:z.unknown().optional(), rateCard:z.unknown().optional(), branding:z.unknown().optional(),
+  // Multi-tenant Phase 2.5 (2026-11-18): demo tenants / retail / currency / catalog.
+  retailPrices:z.unknown().optional(), customerCurrency:z.string().min(3).max(3).optional(), rates:z.unknown().optional(), catalog:z.unknown().optional() });
 const json = (data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
 
 // ---------------------------------------------------------------------------
@@ -45,21 +58,28 @@ const json = (data:unknown,status=200)=>new Response(JSON.stringify(data),{statu
 // resolved HERE, server-side, from real membership rows — the browser's
 // claims about which org it belongs to are never trusted.
 // ---------------------------------------------------------------------------
-type OrgRow={id:string;name:string;parent_organization_id?:string|null;type?:string|null;status?:string|null;logo_url?:string|null;slogan?:string|null;support_email?:string|null;brand_color?:string|null;feature_limits?:unknown;rate_card_overrides?:unknown};
+type OrgRow={id:string;name:string;parent_organization_id?:string|null;type?:string|null;status?:string|null;logo_url?:string|null;slogan?:string|null;support_email?:string|null;brand_color?:string|null;feature_limits?:unknown;rate_card_overrides?:unknown;is_demo?:boolean|null;demo_profile?:unknown;retail_prices?:unknown;customer_currency?:string|null;offered_catalog?:unknown};
+// Column sets by schema generation. Each phase's manual SQL adds
+// columns; reads try the newest set first and fall back so the
+// function keeps working (with that phase's features reading as
+// "not set") until the SQL is applied.
+const ORG_RICH25='id,name,parent_organization_id,type,status,logo_url,slogan,support_email,brand_color,feature_limits,rate_card_overrides,is_demo,demo_profile,retail_prices,customer_currency,offered_catalog';
 const ORG_RICH='id,name,parent_organization_id,type,status,logo_url,slogan,support_email,brand_color,feature_limits,rate_card_overrides';
 const ORG_BASE='id,name,parent_organization_id,type,status,logo_url,slogan,support_email,brand_color,feature_limits';
 async function loadOrgs(db:any):Promise<OrgRow[]>{
-  const rich=await db.from('voice_organizations').select(ORG_RICH);
-  if(!rich.error) return (rich.data || []) as OrgRow[];
-  const mid=await db.from('voice_organizations').select(ORG_BASE);
-  if(!mid.error) return (mid.data || []) as OrgRow[];
+  for(const cols of [ORG_RICH25,ORG_RICH,ORG_BASE]){
+    const r=await db.from('voice_organizations').select(cols);
+    if(!r.error) return (r.data || []) as OrgRow[];
+  }
   const base=await db.from('voice_organizations').select('id,name');
   if(base.error) throw base.error;
   return (base.data || []) as OrgRow[];
 }
 async function loadOrg(db:any,orgId:string):Promise<OrgRow|null>{
-  const rich=await db.from('voice_organizations').select(ORG_RICH).eq('id',orgId).maybeSingle();
-  if(!rich.error) return (rich.data || null) as OrgRow|null;
+  for(const cols of [ORG_RICH25,ORG_RICH]){
+    const r=await db.from('voice_organizations').select(cols).eq('id',orgId).maybeSingle();
+    if(!r.error) return (r.data || null) as OrgRow|null;
+  }
   const base=await db.from('voice_organizations').select('id,name').eq('id',orgId).maybeSingle();
   if(base.error) throw base.error;
   return (base.data || null) as OrgRow|null;
@@ -82,6 +102,7 @@ function canManageOrg(memberships:MembershipRow[],orgId:string):boolean{
 }
 function orgSummary(o:OrgRow){
   return { id:o.id, name:o.name, type:o.type || 'client', status:o.status || 'active', parentOrganizationId:o.parent_organization_id || null,
+    isDemo:isDemoOrg(o),
     branding:{ name:o.name, logoUrl:o.logo_url || null, slogan:o.slogan || null, supportEmail:o.support_email || null, brandColor:o.brand_color || null } };
 }
 function monthStartIso():string{ const d=new Date(); return new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),1)).toISOString(); }
@@ -131,8 +152,12 @@ async function buildClients(db:any,orgFilter:Set<string>|null){
   const userIds=[...new Set(rows.map((w:any)=>w.user_id))] as string[];
   let orgs:OrgRow[]=[];
   if(orgIds.length) {
-    const rich=await db.from('voice_organizations').select('id,name,parent_organization_id,type,status').in('id',orgIds);
-    if(rich.error) { const base=await db.from('voice_organizations').select('id,name').in('id',orgIds); if(base.error) throw base.error; orgs=(base.data || []) as OrgRow[]; }
+    const rich=await db.from('voice_organizations').select('id,name,parent_organization_id,type,status,is_demo').in('id',orgIds);
+    if(rich.error) {
+      const mid=await db.from('voice_organizations').select('id,name,parent_organization_id,type,status').in('id',orgIds);
+      if(mid.error) { const base=await db.from('voice_organizations').select('id,name').in('id',orgIds); if(base.error) throw base.error; orgs=(base.data || []) as OrgRow[]; }
+      else orgs=(mid.data || []) as OrgRow[];
+    }
     else orgs=(rich.data || []) as OrgRow[];
   }
   const orgById=new Map(orgs.map(o=>[o.id,o]));
@@ -174,6 +199,7 @@ async function buildClients(db:any,orgFilter:Set<string>|null){
       planPriceId:sub?.price_id || null, subscriptionStatus:sub?.status || null, currentPeriodEnd:sub?.current_period_end || null,
       joinedAt:w.created_at || u?.createdAt || null,
       linkedProspectId:linkedProspectByOrg.get(w.organization_id) || null,
+      isDemo:isDemoOrg(org),
     };
   });
 }
@@ -188,6 +214,190 @@ async function loadStoredRateCard(db:any):Promise<Record<string,unknown>|null>{
     for(const r of data) map[r.line_key]={ costUsd:Number(r.cost_usd), ...(r.charge_mode==='markup'?{mode:'markup',markupPct:Number(r.charge_value)}:{mode:'flat',flatUsd:Number(r.charge_value)}) };
     return map;
   } catch { return null; }
+}
+// ---------------------------------------------------------------------------
+// Multi-tenant Phase 2.5 helpers (design 2026-11-18 §12): demo /
+// presentation tenants, reseller retail pricing, currency conversion,
+// catalog selection. Same rules as Phase 2: scope is resolved
+// server-side from memberships, tenant payloads never carry platform
+// costs, and every Phase 2.5 read degrades until the manual SQL runs.
+// ---------------------------------------------------------------------------
+/** True once the Phase 2.5 columns exist on voice_organizations. */
+async function phase25ColumnsReady(db:any):Promise<boolean>{
+  try { const {error}=await db.from('voice_organizations').select('is_demo').limit(1); return !error; } catch { return false; }
+}
+const PHASE25_SQL_MSG='This turns on once the Phase 2.5 database update is applied.';
+
+/** Stored currency-rate rows merged over the built-in defaults. */
+async function loadCurrencyRates(db:any):Promise<EffectiveRate[]>{
+  let stored:Record<string,{rate?:unknown;updated_at?:unknown}>|null=null;
+  try {
+    const {data,error}=await db.from('tenant_currency_rates').select('code,rate,updated_at');
+    if(error) throw error;
+    if(data?.length){ stored={}; for(const r of data) stored[r.code]={rate:Number(r.rate),updated_at:r.updated_at}; }
+  } catch { stored=null; }
+  return effectiveCurrencyRates(stored);
+}
+/** Resolve the tenant org an action applies to: platform admin names
+ *  any org; anyone else gets one of the reseller orgs they manage
+ *  (body.organizationId is a request, never proof). */
+async function resolveTenantOrg(db:any,userId:string,admin:boolean,organizationId?:string):Promise<{org:OrgRow}|{error:string;status:number}>{
+  const orgs=await loadOrgs(db);
+  if(admin){
+    if(!organizationId) return {error:'Organization required',status:400};
+    const org=orgs.find(o=>o.id===organizationId);
+    return org?{org}:{error:'Organization not found',status:404};
+  }
+  const memberships=await loadMemberships(db,userId);
+  const managed=managedResellerOrgs(orgs,memberships);
+  const org=(organizationId?managed.find(o=>o.id===organizationId):managed[0]) || null;
+  return org?{org}:{error:'Reseller access required',status:403};
+}
+/** A reseller's full pricing picture: his wholesale prices (the only
+ *  rate-card projection a tenant may see), his retail settings, the
+ *  computed retail lines, the customer-safe projection, his display
+ *  currency and the conversion table. No platform costs anywhere. */
+async function buildRetailPayload(db:any,org:OrgRow){
+  const stored=await loadStoredRateCard(db);
+  const card=mergeRateCard(stored,(org.rate_card_overrides && typeof org.rate_card_overrides==='object')?org.rate_card_overrides as Record<string,unknown>:null);
+  const wholesale=tenantPriceView(card);
+  const settings=normalizeRetailPrices(org.retail_prices);
+  const lines=retailPriceView(wholesale,settings);
+  return { organizationId:org.id, wholesale, retail:settings, lines,
+    customerPrices:customerRetailView(lines),
+    customerCurrency:(org.customer_currency as string) || 'USD',
+    currencies:await loadCurrencyRates(db) };
+}
+/** A reseller's catalog picture: his selection, the creation charges
+ *  from HIS effective card, and the feature gates that apply. */
+async function buildCatalogPayload(db:any,org:OrgRow){
+  const stored=await loadStoredRateCard(db);
+  const card=mergeRateCard(stored,(org.rate_card_overrides && typeof org.rate_card_overrides==='object')?org.rate_card_overrides as Record<string,unknown>:null);
+  const priceOf=(key:string)=>{ const line=card.find(l=>l.key===key); return line?effectivePrice(line):0; };
+  const limits=normalizeLimits(org.feature_limits);
+  return { organizationId:org.id, selection:normalizeCatalogSelection(org.offered_catalog),
+    charges:{ avatarCreationUsd:priceOf('avatar_creation'), voiceCloneUsd:priceOf('voice_clone_creation') },
+    features:{ voiceCloning:featureEnabled(limits,'voiceCloning'), videoAvatar:featureEnabled(limits,'videoAvatar') } };
+}
+function randomDemoPassword():string{
+  const bytes=new Uint8Array(15); crypto.getRandomValues(bytes);
+  return 'Demo-'+Array.from(bytes).map(b=>b.toString(16).padStart(2,'0')).join('').slice(0,20)+'!';
+}
+/** Remove EVERY demo org and everything hanging off it (the seed's
+ *  refresh path and the admin's one-click cleanup share this). Each
+ *  step is failure-isolated: a table a given deployment lacks must
+ *  not wedge the removal of the rest. Demo accounts are found three
+ *  ways — workspaces, memberships, and the known demo email list —
+ *  so even a half-finished seed cleans up completely. */
+async function removeDemoOrgs(db:any):Promise<{orgs:number;users:number}>{
+  const orgs=await loadOrgs(db);
+  const demo=orgs.filter(o=>isDemoOrg(o));
+  const userIds=new Set<string>();
+  if(demo.length){
+    const demoIds=demo.map(o=>o.id);
+    try { const {data:ws}=await db.from('customer_workspaces').select('user_id,agent_id').in('organization_id',demoIds);
+      for(const w of ws || []){ userIds.add(w.user_id); } } catch { /* table absent */ }
+    try { const {data:mem}=await db.from('voice_memberships').select('user_id').in('organization_id',demoIds);
+      for(const m of mem || []) userIds.add(m.user_id); } catch { /* table absent */ }
+  }
+  // Sweep by the known demo emails too (covers a seed that died
+  // between creating the account and writing its workspace).
+  try {
+    for(let page=1;page<=20;page++){ const {data,error}=await db.auth.admin.listUsers({page,perPage:100}); if(error) break;
+      for(const u of data.users) if(u.email && DEMO_EMAILS.includes(u.email.toLowerCase())) userIds.add(u.id);
+      if(data.users.length<100) break; }
+  } catch { /* auth admin unavailable */ }
+  if(!demo.length && !userIds.size) return {orgs:0,users:0};
+  const demoIds=demo.map(o=>o.id);
+  const agentIds=new Set<string>();
+  if(demoIds.length){
+    try { const {data:ws}=await db.from('customer_workspaces').select('agent_id').in('organization_id',demoIds);
+      for(const w of ws || []) if(w.agent_id) agentIds.add(w.agent_id); } catch { /* ignore */ }
+    const quiet=async(p:PromiseLike<unknown>)=>{ try { await p; } catch { /* failure-isolated */ } };
+    await quiet(db.from('tenant_invites').delete().in('organization_id',demoIds));
+    await quiet(db.from('tenant_invites').delete().in('inviter_organization_id',demoIds));
+    if(agentIds.size) await quiet(db.from('voice_agent_sources').delete().in('agent_id',[...agentIds]));
+    await quiet(db.from('customer_workspaces').delete().in('organization_id',demoIds));
+    if(agentIds.size) await quiet(db.from('voice_agents').delete().in('id',[...agentIds]));
+    await quiet(db.from('voice_memberships').delete().in('organization_id',demoIds));
+    for(const id of demoIds){ try { const {data:files}=await db.storage.from('tenant-branding').list(id);
+      if(files?.length) await db.storage.from('tenant-branding').remove(files.map((f:{name:string})=>`${id}/${f.name}`)); } catch { /* logos are cosmetic */ } }
+    // Children first so no parent delete can strand a child org.
+    const children=demo.filter(o=>o.parent_organization_id); const roots=demo.filter(o=>!o.parent_organization_id);
+    for(const o of [...children,...roots]) await quiet(db.from('voice_organizations').delete().eq('id',o.id));
+  }
+  let users=0;
+  if(userIds.size){
+    try { await db.from('subscriptions').delete().in('user_id',[...userIds]).like('stripe_subscription_id','sub_demo_%'); } catch { /* ignore */ }
+    for(const uid of userIds){ try { const {error}=await db.auth.admin.deleteUser(uid); if(!error) users++; } catch { /* already gone */ } }
+  }
+  return {orgs:demo.length,users};
+}
+/** Seed the demo world (design §12.1). Caller removes any previous
+ *  demo world first, so re-running refreshes instead of duplicating.
+ *  Writes ZERO usage-ledger rows: the presentation figures live in
+ *  demo_profile only — see _shared/demo-tenants.ts for the rule. */
+async function seedDemoOrgs(db:any):Promise<{resellerOrgId:string;credentials:{label:string;email:string;password:string}[]}>{
+  const seededAt=new Date().toISOString();
+  const credentials:{label:string;email:string;password:string}[]=[];
+  const createAccount=async(email:string,fullName:string,label:string)=>{
+    const password=randomDemoPassword();
+    const {data,error}=await db.auth.admin.createUser({email,password,email_confirm:true,user_metadata:{full_name:fullName}});
+    if(error) throw error;
+    credentials.push({label,email,password});
+    return data.user.id as string;
+  };
+  // --- the demo reseller -------------------------------------------------
+  const {data:reseller,error:rErr}=await db.from('voice_organizations').insert({
+    name:DEMO_RESELLER.businessName, type:'reseller',
+    slogan:DEMO_RESELLER.slogan, support_email:DEMO_RESELLER.supportEmail, brand_color:DEMO_RESELLER.brandColor,
+    feature_limits:DEMO_RESELLER.limits, retail_prices:DEMO_RESELLER.retailPrices,
+    customer_currency:DEMO_RESELLER.customerCurrency, offered_catalog:DEMO_RESELLER.offeredCatalog,
+    is_demo:true, demo_profile:{...DEMO_RESELLER.stats,seededAt},
+  }).select().single();
+  if(rErr) throw rErr;
+  // Logo: the generated placeholder mark, uploaded like a real logo so
+  // there is one logo code path; a data-URI of the same SVG is the
+  // fallback if storage is unavailable.
+  const svg=placeholderLogoSvg(DEMO_RESELLER.businessName,DEMO_RESELLER.brandColor);
+  let logoUrl='data:image/svg+xml;utf8,'+encodeURIComponent(svg);
+  try {
+    const path=`${reseller.id}/logo.svg`;
+    const up=await db.storage.from('tenant-branding').upload(path,new Blob([svg],{type:'image/svg+xml'}),{upsert:true,contentType:'image/svg+xml'});
+    if(!up.error){ const {data:pub}=db.storage.from('tenant-branding').getPublicUrl(path); if(pub?.publicUrl) logoUrl=pub.publicUrl; }
+  } catch { /* data-URI fallback stands */ }
+  const {error:lErr}=await db.from('voice_organizations').update({logo_url:logoUrl}).eq('id',reseller.id); if(lErr) throw lErr;
+  const resellerOwnerId=await createAccount(DEMO_RESELLER.email,DEMO_RESELLER.ownerName,`Reseller owner — ${DEMO_RESELLER.businessName}`);
+  const {error:mErr}=await db.from('voice_memberships').upsert({organization_id:reseller.id,user_id:resellerOwnerId,role:'owner'},{onConflict:'organization_id,user_id'});
+  if(mErr) throw mErr;
+  // --- the demo clients ---------------------------------------------------
+  const DAY=86400000;
+  for(const c of DEMO_CLIENTS){
+    const userId=await createAccount(c.email,c.ownerName,`Client owner — ${c.businessName}`);
+    const joined=new Date(Date.now()-c.joinedDaysAgo*DAY);
+    const {data:org,error:oErr}=await db.from('voice_organizations').insert({
+      name:c.businessName, parent_organization_id:reseller.id,
+      is_demo:true, demo_profile:{...c.stats,seededAt},
+    }).select().single();
+    if(oErr) throw oErr;
+    const {error:cmErr}=await db.from('voice_memberships').upsert({organization_id:org.id,user_id:userId,role:'owner'},{onConflict:'organization_id,user_id'});
+    if(cmErr) throw cmErr;
+    const {data:agent,error:aErr}=await db.from('voice_agents').insert({organization_id:org.id,draft:{...DEFAULT_AGENT,businessName:c.businessName,name:c.assistantName,systemPrompt:'You are the business customer-service assistant. Answer only from approved business knowledge and learned sources. Never invent prices, policies, appointments or completed actions. Calendar and telephone actions require separately connected services.'}}).select().single();
+    if(aErr) throw aErr;
+    const {error:wErr}=await db.from('customer_workspaces').insert({user_id:userId,organization_id:org.id,agent_id:agent.id,environment:'sandbox',created_at:joined.toISOString()});
+    if(wErr) throw wErr;
+    // Current billing cycle: started within the last 30 days, ends in
+    // the future — the account reads as a live paying customer.
+    const cycleStart=new Date(Date.now()-(c.joinedDaysAgo%30)*DAY);
+    const {error:sErr}=await db.from('subscriptions').insert({
+      user_id:userId, stripe_subscription_id:`sub_demo_${c.slug}`, stripe_customer_id:`cus_demo_${c.slug}`,
+      product_id:'demo', price_id:c.planPriceId, status:'active',
+      current_period_start:cycleStart.toISOString(), current_period_end:new Date(cycleStart.getTime()+30*DAY).toISOString(),
+      cancel_at_period_end:false, environment:'sandbox', updated_at:new Date().toISOString(),
+    });
+    if(sErr) throw sErr;
+  }
+  return {resellerOrgId:reseller.id,credentials};
 }
 const SITE_BASE=(Deno.env.get('SITE_URL') || 'https://aihiddenleads.com').replace(/\/$/,'');
 const inviteUrl=(token:string)=>`${SITE_BASE}/invite/${token}`;
@@ -327,7 +537,14 @@ Deno.serve(async req=>{
       const perOrg=await monthUsageByOrg(db);
       const parentName=new Map(orgs.map(o=>[o.id,o.name]));
       const tenants=orgs.map(o=>{
-        const usage=rollupUsage(orgs,perOrg,o.id);
+        const rolled=rollupUsage(orgs,perOrg,o.id);
+        // Demo orgs (Phase 2.5): their presentation figures come from
+        // demo_profile, NEVER the ledger — the seed writes no ledger
+        // rows, so demo numbers can't pollute a real rollup, and a
+        // real org's rollup never includes a demo org (demo orgs only
+        // ever sit under the demo reseller).
+        const profile=isDemoOrg(o)?normalizeDemoProfile(o.demo_profile):null;
+        const usage=profile?{...rolled,minutes:profile.minutes,spendUsd:profile.spendUsd,demoSpendUsd:profile.demoSpendUsd}:rolled;
         const limits=normalizeLimits(o.feature_limits);
         return { ...orgSummary(o), parentName:o.parent_organization_id?parentName.get(o.parent_organization_id) || null:null,
           limits, rateCardOverrides:(o.rate_card_overrides && typeof o.rate_card_overrides==='object')?o.rate_card_overrides:{},
@@ -384,7 +601,11 @@ Deno.serve(async req=>{
       const scope=subtreeOrgIds(lite,root.id);
       if(body.action==='tenantClients') return json({clients:await buildClients(db,scope), organizationId:root.id});
       const perOrg=await monthUsageByOrg(db);
-      const usage=rollupUsage(orgs,perOrg,root.id);
+      const rolled=rollupUsage(orgs,perOrg,root.id);
+      // Demo reseller (Phase 2.5): present the seeded figures, not the
+      // (empty) ledger — same substitution as the Tenants screen.
+      const profile=isDemoOrg(root)?normalizeDemoProfile(root.demo_profile):null;
+      const usage=profile?{...rolled,minutes:profile.minutes,spendUsd:profile.spendUsd,demoSpendUsd:profile.demoSpendUsd}:rolled;
       const limits=normalizeLimits(root.feature_limits);
       const stored=await loadStoredRateCard(db);
       const card=mergeRateCard(stored,(root.rate_card_overrides && typeof root.rate_card_overrides==='object')?root.rate_card_overrides as Record<string,unknown>:null);
@@ -503,6 +724,89 @@ Deno.serve(async req=>{
       patch.slogan=b.slogan; patch.support_email=b.supportEmail; patch.brand_color=b.brandColor; patch.logo_url=b.logoUrl;
       const {error}=await db.from('voice_organizations').update(patch).eq('id',body.organizationId); if(error) throw error;
       return json({success:true});
+    }
+    // -----------------------------------------------------------------
+    // Multi-tenant Phase 2.5 actions (design 2026-11-18 §12): demo /
+    // presentation tenants, reseller retail pricing, currency rates,
+    // reseller catalog selection.
+    // -----------------------------------------------------------------
+    if(body.action==='demoStatus') {
+      if(!admin) return json({error:'Administrator access required'},403);
+      const orgs=await loadOrgs(db);
+      const demo=orgs.filter(o=>isDemoOrg(o));
+      const reseller=demo.find(o=>o.type==='reseller') || null;
+      return json({ seeded:demo.length>0, resellerOrgId:reseller?.id || null, resellerName:reseller?.name || null,
+        clientCount:reseller?demo.filter(o=>o.parent_organization_id===reseller.id).length:0, orgCount:demo.length });
+    }
+    if(body.action==='seedDemoData') {
+      if(!admin) return json({error:'Administrator access required'},403);
+      if(!(await phase25ColumnsReady(db))) return json({error:`Demo data: ${PHASE25_SQL_MSG}`},400);
+      // Refresh semantics: wipe any previous demo world first, so a
+      // re-seed can never duplicate it.
+      await removeDemoOrgs(db);
+      try {
+        const seeded=await seedDemoOrgs(db);
+        // Credentials are returned exactly once — the passwords exist
+        // nowhere else after this response.
+        return json({seeded:true,...seeded});
+      } catch(e) {
+        await removeDemoOrgs(db).catch(()=>undefined);
+        return json({error:e instanceof Error?e.message:'Demo seed failed'},500);
+      }
+    }
+    if(body.action==='removeDemoData') {
+      if(!admin) return json({error:'Administrator access required'},403);
+      const removed=await removeDemoOrgs(db);
+      return json({removed});
+    }
+    if(body.action==='resellerRetail' || body.action==='saveResellerRetail') {
+      const resolved=await resolveTenantOrg(db,user.id,admin,body.organizationId);
+      if('error' in resolved) return json({error:resolved.error},resolved.status);
+      const org=resolved.org;
+      if(body.action==='saveResellerRetail') {
+        const patch:Record<string,unknown>={};
+        if(body.retailPrices!==undefined){ const v=validateRetailPricesInput(body.retailPrices); if('error' in v) return json({error:v.error},400); patch.retail_prices=v.value; }
+        if(body.customerCurrency!==undefined){ if(!isSupportedCurrency(body.customerCurrency)) return json({error:'Unsupported currency'},400); patch.customer_currency=body.customerCurrency; }
+        if(!Object.keys(patch).length) return json({error:'Nothing to update'},400);
+        const {error}=await db.from('voice_organizations').update(patch).eq('id',org.id);
+        if(error) return json({error:/column|schema/i.test(error.message||'')?PHASE25_SQL_MSG:error.message},400);
+        const fresh=await loadOrg(db,org.id);
+        return json({success:true,...(await buildRetailPayload(db,fresh || org))});
+      }
+      return json(await buildRetailPayload(db,org));
+    }
+    if(body.action==='tenantRetail') {
+      // Platform admin, READ-ONLY: a reseller's retail setup is his
+      // business (§8 decision 5) — the platform can look, not edit.
+      if(!admin) return json({error:'Administrator access required'},403);
+      if(!body.organizationId) return json({error:'Organization required'},400);
+      const org=await loadOrg(db,body.organizationId); if(!org) return json({error:'Organization not found'},404);
+      return json({readOnly:true,...(await buildRetailPayload(db,org))});
+    }
+    if(body.action==='currencyRates') {
+      if(!admin) return json({error:'Administrator access required'},403);
+      return json({base:'USD',rates:await loadCurrencyRates(db)});
+    }
+    if(body.action==='saveCurrencyRates') {
+      if(!admin) return json({error:'Administrator access required'},403);
+      const v=validateCurrencyRatesInput(body.rates); if('error' in v) return json({error:v.error},400);
+      const rows=Object.entries(v.value).map(([code,rate])=>({code,rate,updated_by:user.id,updated_at:new Date().toISOString()}));
+      const {error}=await db.from('tenant_currency_rates').upsert(rows,{onConflict:'code'});
+      if(error) return json({error:/relation|schema/i.test(error.message||'')?PHASE25_SQL_MSG:error.message},400);
+      return json({success:true,base:'USD',rates:await loadCurrencyRates(db)});
+    }
+    if(body.action==='resellerCatalog' || body.action==='saveResellerCatalog') {
+      const resolved=await resolveTenantOrg(db,user.id,admin,body.organizationId);
+      if('error' in resolved) return json({error:resolved.error},resolved.status);
+      const org=resolved.org;
+      if(body.action==='saveResellerCatalog') {
+        const v=validateCatalogSelectionInput(body.catalog); if('error' in v) return json({error:v.error},400);
+        const {error}=await db.from('voice_organizations').update({offered_catalog:v.value}).eq('id',org.id);
+        if(error) return json({error:/column|schema/i.test(error.message||'')?PHASE25_SQL_MSG:error.message},400);
+        const fresh=await loadOrg(db,org.id);
+        return json({success:true,...(await buildCatalogPayload(db,fresh || org))});
+      }
+      return json(await buildCatalogPayload(db,org));
     }
     if(body.action==='list') {
       const {data:members}=await db.from('voice_memberships').select('organization_id').eq('user_id',user.id).in('role',WORK_ROLES);

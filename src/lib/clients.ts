@@ -35,6 +35,9 @@ export interface ClientPayload {
   currentPeriodEnd?: string | null;
   joinedAt?: string | null;
   linkedProspectId?: string | null;
+  /** Phase 2.5: this customer belongs to a seeded demo org —
+   *  presentation data, never a real (or billed) customer. */
+  isDemo?: boolean | null;
 }
 
 export interface ClientViewModel {
@@ -60,6 +63,8 @@ export interface ClientViewModel {
   organizationStatus: string;
   joinedAt: string | null;
   linkedProspectId: string | null;
+  /** Seeded presentation account (Phase 2.5 demo world). */
+  isDemo: boolean;
 }
 
 /** Plan display names — the same names/prices the customer sees in
@@ -97,6 +102,7 @@ export function shapeClientRow(p: ClientPayload): ClientViewModel {
     organizationStatus: p.organizationStatus ?? "active",
     joinedAt: p.joinedAt ?? null,
     linkedProspectId: p.linkedProspectId ?? null,
+    isDemo: p.isDemo === true,
   };
 }
 

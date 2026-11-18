@@ -9,6 +9,8 @@ import { MailPlus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import ClientsView from '@/components/crm/ClientsView';
 import BrandingSettings from '@/components/crm/BrandingSettings';
+import ResellerPricing from '@/components/crm/ResellerPricing';
+import ResellerCatalog from '@/components/crm/ResellerCatalog';
 import type { OrgBranding } from '@/lib/clients';
 import type { TenantLimits } from '@/lib/tenancy';
 
@@ -176,6 +178,8 @@ const ResellerConsole = ({ organizationId }: { organizationId?: string }) => {
           <TabsTrigger value="branding">Branding</TabsTrigger>
           <TabsTrigger value="team">Team & invites</TabsTrigger>
           <TabsTrigger value="prices">Your prices</TabsTrigger>
+          <TabsTrigger value="pricing">Selling prices</TabsTrigger>
+          <TabsTrigger value="catalog">Avatars & voices</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview">
@@ -282,6 +286,14 @@ const ResellerConsole = ({ organizationId }: { organizationId?: string }) => {
               </table>
             </div>
           </div>
+        </TabsContent>
+
+        <TabsContent value="pricing">
+          <ResellerPricing organizationId={org.id} branding={org.branding} organizationName={org.name} />
+        </TabsContent>
+
+        <TabsContent value="catalog">
+          <ResellerCatalog organizationId={org.id} />
         </TabsContent>
       </Tabs>
     </div>
