@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { motion } from "framer-motion";
 import { Phone, Search, Star, Users, Video, Calendar, ArrowRight, MessageSquare } from "lucide-react";
 import { homepageSalesCopy } from "@/data/homepageSalesCopy";
@@ -8,6 +8,7 @@ import { useNavigate } from "react-router-dom";
 import type { NicheData } from "@/data/nicheData";
 import aspenPortrait from "@/assets/aspen-idle-wave.gif";
 import HeroRotatingHeadline from "@/components/landing/HeroRotatingHeadline";
+import HeroSceneBackdrop from "@/components/landing/HeroSceneBackdrop";
 
 interface HeroSectionProps {
   niche: NicheData;
@@ -25,9 +26,18 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
   const [rotationPaused, setRotationPaused] = useState(false);
   const pauseRotation = () => setRotationPaused(true);
   const resumeRotation = () => setRotationPaused(false);
+  // The photo backdrop crossfades in sync with the rotating headline.
+  const [headlineIndex, setHeadlineIndex] = useState(0);
+  const handleHeadlineIndexChange = useCallback((index: number) => {
+    setHeadlineIndex(index);
+  }, []);
+  const openAspen = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('open-homepage-aspen', { detail: { mode: 'voice', start: true } }));
+  }, []);
 
   return (
     <section className="landing-hero relative overflow-hidden pt-6 sm:pt-8 pb-8 sm:pb-10">
+      <HeroSceneBackdrop activeLineIndex={headlineIndex} />
       <div className="container mx-auto px-5 sm:px-6 relative z-10">
         {/* Two-column layout: Text left, Aspen right */}
         <div className="flex flex-col lg:flex-row items-center gap-8 lg:gap-10">
@@ -54,11 +64,11 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.1 }}
-              className="text-3xl sm:text-5xl lg:text-6xl font-bold leading-tight mb-5"
+              className="text-2xl sm:text-4xl lg:text-5xl font-bold leading-tight mb-5"
               onMouseEnter={pauseRotation}
               onMouseLeave={resumeRotation}
             >
-              <HeroRotatingHeadline paused={rotationPaused} lines={copy.heroHeadlines} />
+              <HeroRotatingHeadline paused={rotationPaused} lines={copy.heroHeadlines} onActiveIndexChange={handleHeadlineIndexChange} />
             </motion.h1>
 
             {/* Subheadline */}
@@ -92,13 +102,13 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
               </Button>
               <Button
                 onClick={() => navigate('/book')}
-                variant="ghost"
+                variant="outline"
                 size="sm"
-                className="h-auto whitespace-normal px-2 py-2 text-sm text-muted-foreground underline-offset-4 hover:underline"
+                className="h-auto whitespace-normal px-3.5 py-2 text-sm font-medium bg-background/60 shadow-sm backdrop-blur-sm hover:bg-background/85"
               >
                 <Calendar className="h-4 w-4 shrink-0" />{t("cta.bookCall")}
               </Button>
-              <Button onClick={() => navigate('/plans?plan=essentials')} variant="ghost" size="sm" className="h-auto whitespace-normal px-2 py-2 text-sm text-muted-foreground underline-offset-4 hover:underline"><ArrowRight className="h-4 w-4 shrink-0" />{t("cta.startNow")}</Button>
+              <Button onClick={() => navigate('/plans?plan=essentials')} variant="outline" size="sm" className="h-auto whitespace-normal px-3.5 py-2 text-sm font-medium bg-background/60 shadow-sm backdrop-blur-sm hover:bg-background/85"><ArrowRight className="h-4 w-4 shrink-0" />{t("cta.startNow")}</Button>
             </motion.div>
 
             {i18n.language.startsWith('en') && (
@@ -113,22 +123,30 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
             )}
 
             {/* Trust line */}
-            <motion.p
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.5, delay: 0.4 }}
-              className="text-sm sm:text-base text-muted-foreground mb-8"
+              className="mb-8"
             >
-              {copy.trust}
-              <span className="mt-2 block">{t("hero.askAspen")}</span>
-            </motion.p>
+              <p className="text-base sm:text-lg font-bold text-foreground max-w-xl mx-auto lg:mx-0">
+                {copy.trust}
+              </p>
+              <button
+                type="button"
+                onClick={openAspen}
+                className="mt-2 text-sm sm:text-base font-semibold text-primary underline decoration-primary/60 underline-offset-4 transition-colors hover:text-primary/80 hover:decoration-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded-sm"
+              >
+                {t("hero.askAspen")}
+              </button>
+            </motion.div>
 
             <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-3 text-left" aria-label={copy.title}>
               {copy.services.map((service, index) => {
                 const Icon = icons[index] || Phone;
                 return <li key={service.id} className="flex min-w-0 items-center gap-3">
                   <Icon className="h-7 w-7 shrink-0 text-primary" aria-hidden="true" />
-                  <span className="text-sm font-medium">{service.name}</span>
+                  <span className="text-base font-semibold">{service.name}</span>
                 </li>;
               })}
             </ul>
@@ -145,7 +163,7 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
               <button
                 type="button"
                 aria-label="Talk to Aspen"
-                onClick={() => window.dispatchEvent(new CustomEvent('open-homepage-aspen', { detail: { mode: 'voice', start: true } }))}
+                onClick={openAspen}
                 className="rounded-2xl cursor-pointer transition-transform hover:scale-[1.02] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
               >
                 <img

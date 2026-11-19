@@ -48,6 +48,12 @@ interface HeroRotatingHeadlineProps {
   paused?: boolean;
   /** The lines to rotate, in the visitor's language. Defaults to the English set. */
   lines?: ReadonlyArray<ReadonlyArray<HeadlineSegment>>;
+  /**
+   * Optional: notified with the active line index whenever it changes
+   * (including the initial line on mount). HeroSection uses it to keep
+   * the photo backdrop crossfading in sync with the headline.
+   */
+  onActiveIndexChange?: (index: number) => void;
 }
 
 /**
@@ -58,7 +64,7 @@ interface HeroRotatingHeadlineProps {
  * rise (~600ms) instead of jump-cutting. Inactive lines are aria-hidden
  * (no aria-live); with prefers-reduced-motion the first line is static.
  */
-const HeroRotatingHeadline = ({ paused = false, lines = HERO_HEADLINE_LINES }: HeroRotatingHeadlineProps) => {
+const HeroRotatingHeadline = ({ paused = false, lines = HERO_HEADLINE_LINES, onActiveIndexChange }: HeroRotatingHeadlineProps) => {
   const [index, setIndex] = useState(0);
   const [reducedMotion] = useState(
     () =>
@@ -97,6 +103,10 @@ const HeroRotatingHeadline = ({ paused = false, lines = HERO_HEADLINE_LINES }: H
   }, [reducedMotion, paused, lines]);
 
   const activeIndex = reducedMotion ? 0 : index;
+
+  useEffect(() => {
+    onActiveIndexChange?.(activeIndex);
+  }, [activeIndex, onActiveIndexChange]);
 
   return (
     <span className="grid">
