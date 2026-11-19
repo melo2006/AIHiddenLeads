@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Camera } from "lucide-react";
+import { Camera, UserRound } from "lucide-react";
 import { useTranslation } from 'react-i18next';
 import { AVATAR_LIBRARY, type AvatarLibraryEntry } from "@/lib/avatarLibrary";
 import AvatarPortraitLightbox, { PortraitViewButton } from "@/components/AvatarPortraitLightbox";
@@ -46,13 +46,18 @@ const AvatarGallerySection = () => {
           onView={() => setViewing(entry)}
           className="rounded-lg border border-border"
         />
-        <figcaption className="text-xs text-muted-foreground">{entry.label}</figcaption>
+        <figcaption className="text-xs font-bold text-foreground">{entry.label}</figcaption>
       </figure>)}
       <figure className="flex flex-col items-center gap-2">
-        <div className="flex aspect-square w-full items-center justify-center rounded-lg border border-dashed border-border bg-card text-muted-foreground">
-          <Camera className="h-8 w-8" />
+        <div className="relative flex aspect-square w-full items-center justify-center rounded-lg border border-dashed border-border bg-card text-muted-foreground">
+          {/* Person outline with the camera inside the silhouette, so the
+              tile reads as "your photo of a person goes here" (Ron, 2026-11-18). */}
+          <UserRound className="h-20 w-20 sm:h-28 sm:w-28" strokeWidth={1.25} />
+          <span className="absolute left-1/2 top-[64%] flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-card p-1.5">
+            <Camera className="h-5 w-5 sm:h-6 sm:w-6" />
+          </span>
         </div>
-        <figcaption className="text-xs text-muted-foreground">{yourPhotoLabel}</figcaption>
+        <figcaption className="text-xs font-bold text-foreground">{yourPhotoLabel}</figcaption>
       </figure>
     </div>
     <p className="text-xs text-muted-foreground mt-6">{pt ? 'Os avatares da biblioteca estão incluídos em todos os planos. O seu avatar com a sua própria foto: configuração única de $50.' : es ? 'Los avatares de la biblioteca están incluidos en todos los planes. Tu avatar con tu propia foto: configuración única de $50.' : fr ? 'Les avatars de la bibliothèque sont inclus dans tous les forfaits. Votre avatar avec votre propre photo : configuration unique de 50 $.' : 'Library avatars are included in every plan. Your own photo avatar: one-time $50 setup.'}</p>
