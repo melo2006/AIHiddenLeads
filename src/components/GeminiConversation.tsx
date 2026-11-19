@@ -17,7 +17,7 @@ import { useTranslation } from "react-i18next";
 // that never run main.tsx — importing the i18n module here guarantees the
 // locale resources exist wherever the panel mounts (same singleton in the app).
 import "@/i18n";
-import { explicitUiLocale } from "@/lib/uiLocale";
+import { explicitUiLocale, prewarmLocaleMismatch, type UiLocale } from "@/lib/uiLocale";
 import { clearDemoResume } from "@/lib/demoVerification";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { microphonePcm, shouldSendMicrophone, microphoneAutoGain, initialCaptureMode, createAmbientGateState, pushAmbientRms, createSpeechGateState, pushSpeechGateFrame, autoNoiseFilter, appliedAmbientLevel, appliedNoiseFilter, type AmbientGateState, type NoiseFilter, type CaptureMode } from "@/lib/voiceLabAudio";
@@ -437,6 +437,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const knownNameRef = useRef('');
   const sessionStartedAtRef = useRef(0);
   const warmRef = useRef<{ ready: Promise<boolean>; ok: boolean; activated: boolean; goLive?: () => void } | null>(null);
+  // The UI locale the held warm session was AUTHORIZED under (captured
+  // at its gemini-session invoke, byte-identical to what was sent). A
+  // language switch after the prewarm leaves the held session in the
+  // old language; the tap compares this against the current pick and
+  // re-authorizes instead of activating a stale-language session
+  // (2026-11-18 — see prewarmLocaleMismatch in lib/uiLocale).
+  const warmLocaleRef = useRef<UiLocale | undefined>(undefined);
   const avatarRef = useRef<SimliAvatarHandle>(null);
   const [faceLive, setFaceLive] = useState(false);
   // Captions on/off doubles as the FOCUS VIEW switch (2026-11-14):
@@ -2908,7 +2915,21 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   }, [stopEverything, partialTeardownForSwap]);
   const startConversation = useCallback(async (preview = false, warm = false) => {
     // A silently prepared session only needs the tap's audio/microphone unlock.
-    if (!preview && !warm && warmRef.current) { await activateWarmRef.current(); return; }
+    if (!preview && !warm && warmRef.current) {
+      // LANGUAGE GUARD (2026-11-18, Ron's French live test): the held
+      // session was authorized at prewarm time, in the language picked
+      // at that moment. If the visitor has since changed the site
+      // language, activating it would run the whole session — greeting,
+      // narration, captions — in the OLD language while the page shows
+      // the new one. Discard the stale-language prewarm and fall
+      // through to a fresh authorization in the current language. A
+      // session already activated is a live conversation, never
+      // discarded here: mid-session switches stay with the explicit
+      // spoken-request tool, as before.
+      if (!warmRef.current.activated && prewarmLocaleMismatch(warmLocaleRef.current, explicitUiLocale())) {
+        stopEverything();
+      } else { await activateWarmRef.current(); return; }
+    }
     const reconnecting = reconnectRef.current.pending; reconnectRef.current.pending = false;
     if (!reconnecting) reconnectRef.current.count = 0;
     if (startingRef.current || liveRef.current) return;
@@ -3070,11 +3091,16 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         }
         throw micError;
       });
-      const requestSession = (key: string) =>
-        voiceSessionHeaders().then(headers => {
+      const requestSession = (key: string) => {
+        // Read the pick ONCE so the locale sent and the locale recorded
+        // for a warm authorization can never disagree.
+        const locale = explicitUiLocale();
+        if (warm) warmLocaleRef.current = locale;
+        return voiceSessionHeaders().then(headers => {
           if (generation !== generationRef.current) throw new Error('Demo start cancelled.');
-          return supabase.functions.invoke("gemini-session", { headers, body: { visitorKey: key, agentId, leadId, prospectId, draft, preview, voice: previewVoice || voice, model: testModel, campaign:campaignVisit(), hour: new Date().getHours(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, locale: explicitUiLocale(), visitorName, consent: !warm && consentReadyRef.current, prewarm: warm, share: shareToken, resumeContext, reconnect: reconnecting && !!resumeContext, verification, invite, sample, guide } });
+          return supabase.functions.invoke("gemini-session", { headers, body: { visitorKey: key, agentId, leadId, prospectId, draft, preview, voice: previewVoice || voice, model: testModel, campaign:campaignVisit(), hour: new Date().getHours(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, locale, visitorName, consent: !warm && consentReadyRef.current, prewarm: warm, share: shareToken, resumeContext, reconnect: reconnecting && !!resumeContext, verification, invite, sample, guide } });
         });
+      };
       const [initialSession, stream, , , faceOutcome] = await Promise.all([
         requestSession(visitorKey),
         microphoneReady,
