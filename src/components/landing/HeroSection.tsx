@@ -8,6 +8,7 @@ import { useNavigate } from "react-router-dom";
 import type { NicheData } from "@/data/nicheData";
 import aspenPortrait from "@/assets/aspen-idle-wave.gif";
 import HeroSceneSlider from "@/components/landing/HeroSceneSlider";
+import AspenIntroVideo from "@/components/landing/AspenIntroVideo";
 
 interface HeroSectionProps {
   niche: NicheData;
@@ -141,13 +142,19 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
             </ul>
           </div>
 
-          {/* Right column - Aspen with quote */}
+          {/* Right column - founder intro video + Aspen portrait. Desktop:
+              video left of the portrait; phones stack video first, then
+              Aspen. The video is muted-autoplay (3 loops, captions on,
+              speaker button for sound + full controls) — AspenIntroVideo
+              owns that behaviour. */}
           <motion.div
             initial={{ opacity: 0, x: 40 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.7, delay: 0.3 }}
-            className="flex-shrink-0 w-full lg:w-[420px] flex flex-col items-center"
+            className="flex w-full min-w-0 flex-1 flex-col items-center gap-6 lg:flex-row lg:items-center"
           >
+            <AspenIntroVideo />
+            <div className="flex w-full flex-col items-center lg:w-[300px] lg:shrink-0">
             {/* CTA overlap rule: the demo pill sits in normal flow inside a
                 width-capped wrapper, pulled up over the portrait's bottom
                 edge with a negative margin. Its TOP edge is therefore pinned
@@ -185,6 +192,7 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
               </div>
             </div>
             {i18n.language.startsWith('en') && <p className="mt-3 text-center text-xs text-muted-foreground">Aspen, live on this page — tap to talk</p>}
+            </div>
           </motion.div>
         </div>
       </div>
