@@ -9,27 +9,26 @@ export interface HeadlineSegment {
 // en / es / pt-BR / fr-CA) via the lines prop.
 export const HERO_HEADLINE_LINES: ReadonlyArray<ReadonlyArray<HeadlineSegment>> = [
   [
-    { text: "85% of callers who hit " },
+    { text: "85% of " },
     { text: "voicemail", accent: true },
-    { text: " don't call back — most move on to the next name on the list." },
+    { text: " callers never call back. They call your competitor." },
   ],
-  [{ text: "Did you know? 67% of callers hang up the moment they can't reach a real person." }],
-  [{ text: "78% of customers abandoned a business after just one unanswered call." }],
+  [{ text: "67% of callers hang up when no real person answers." }],
   [
-    {
-      text: "Have you heard? Most owners are shocked to learn 78% of customers abandon a business after just ONE unanswered call.",
-    },
+    { text: "78% of customers leave after " },
+    { text: "ONE", accent: true },
+    { text: " bad experience." },
   ],
+  [{ text: "One unanswered call can cost you 78% of customers." }],
   [
-    { text: "Choose from dozens of live " },
-    { text: "spokespersons", accent: true },
-    { text: " — or put your own face on your website." },
+    { text: "Pick a live " },
+    { text: "spokesperson", accent: true },
+    { text: " — or use your own face." },
   ],
-  [{ text: "Never miss another call. Aspen answers in seconds — 24/7." }],
+  [{ text: "Never miss a call again. Aspen answers in seconds — 24/7." }],
   [
-    { text: "Start with voice + chat + up to 50 B2B prospects/month for " },
-    { text: "$99/mo", accent: true },
-    { text: "." },
+    { text: "Voice + chat + up to 50 B2B prospects a month — " },
+    { text: "$99/mo.", accent: true },
   ],
 ];
 
