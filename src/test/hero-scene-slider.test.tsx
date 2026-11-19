@@ -29,17 +29,17 @@ const activeSlideId = (container: HTMLElement) =>
   container.querySelector<HTMLElement>("[data-hero-slide][data-active='true']")
     ?.dataset.heroSlide;
 
-// The scene each line index must show, in order (final lineup,
+// The scene each line index must show, in order (SLIDER PACKAGE v2,
 // 2026-11-18): pain (plumber, AC man, roofer, white-haired owner) then
-// relief (older couple, firm owner, manufacturer).
+// relief (husky couple, older couple) closing on Aspen with the owners.
 const EXPECTED_SCENES = [
   "plumber-pain",
   "ac-guy-pain",
   "roofer-pain",
   "manufacturer-pain-whitehair",
+  "couple-husky",
   "couple-relief",
-  "firm-relief-white",
-  "manufacturer-relief-white",
+  "aspen-owners",
 ];
 
 afterEach(() => {

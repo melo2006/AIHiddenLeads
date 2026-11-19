@@ -14,12 +14,12 @@ import rooferPain from "@/assets/hero-scenes/hero-roofer-pain.webp";
 import rooferPainSm from "@/assets/hero-scenes/hero-roofer-pain-sm.webp";
 import manufacturerPainWhitehair from "@/assets/hero-scenes/hero-manufacturer-pain-whitehair.webp";
 import manufacturerPainWhitehairSm from "@/assets/hero-scenes/hero-manufacturer-pain-whitehair-sm.webp";
+import coupleHusky from "@/assets/hero-scenes/hero-couple-husky.webp";
+import coupleHuskySm from "@/assets/hero-scenes/hero-couple-husky-sm.webp";
 import coupleRelief from "@/assets/hero-scenes/hero-couple-relief.webp";
 import coupleReliefSm from "@/assets/hero-scenes/hero-couple-relief-sm.webp";
-import firmReliefWhite from "@/assets/hero-scenes/hero-firm-relief-white.webp";
-import firmReliefWhiteSm from "@/assets/hero-scenes/hero-firm-relief-white-sm.webp";
-import manufacturerReliefWhite from "@/assets/hero-scenes/hero-manufacturer-relief-white.webp";
-import manufacturerReliefWhiteSm from "@/assets/hero-scenes/hero-manufacturer-relief-white-sm.webp";
+import aspenOwners from "@/assets/hero-scenes/hero-aspen-owners.webp";
+import aspenOwnersSm from "@/assets/hero-scenes/hero-aspen-owners-sm.webp";
 
 interface HeroScene {
   id: string;
@@ -37,26 +37,28 @@ interface HeroScene {
   position: string;
 }
 
-// The seven scenes (2026-11-18, owner-approved final lineup): the four
-// pain lines show the missed-call moment — owners caught mid-job while
-// the phone rings unanswered — and the three promise lines show the same
-// world calm, the phones handled. Candid, photorealistic, one campaign
-// grade; signage carries no names or logos. Casting per the owner: one
-// Black owner (the plumber), one Latino owner (the roofer), the rest
-// white — including two white-haired owners (the AC man, the
-// machine-shop owner) and an older couple. Person side alternates
-// against the slogan side: even slides person RIGHT / text LEFT, odd
-// slides person LEFT / text RIGHT (the person-left photos are mirrored
-// versions of the approved generations — no readable text in any of
-// them, so nothing reads backwards).
+// The seven scenes (2026-11-18, owner-approved lineup, SLIDER PACKAGE
+// v2): the four pain lines show the missed-call moment — owners caught
+// mid-job while the phone rings unanswered — and the three promise
+// lines show the same world calm, the phones handled, closing on Aspen
+// herself showing two owners the leads she caught. Candid,
+// photorealistic, one campaign grade; signage carries no names or
+// logos. Casting per the owner: one Black owner (the plumber), one
+// Latino owner (the roofer), the rest white — including two
+// white-haired owners (the AC man, the machine-shop owner), a husky
+// husband-and-wife shop couple, and an older couple. Person side
+// alternates against the slogan side: even slides person RIGHT / text
+// LEFT, odd slides person LEFT / text RIGHT (the person-left photos are
+// mirrored versions of the approved generations — no readable text in
+// any of them, so nothing reads backwards).
 const HERO_SCENES: readonly HeroScene[] = [
   { id: "plumber-pain", src: plumberPain, srcSm: plumberPainSm, position: "72% 25%", alt: "A plumber under a kitchen sink, glancing at her phone ringing on the counter" },
   { id: "ac-guy-pain", src: acGuyPain, srcSm: acGuyPainSm, position: "30% 20%", alt: "An air-conditioning repairman fanning himself in a hot workshop while his desk phone rings" },
   { id: "roofer-pain", src: rooferPain, srcSm: rooferPainSm, position: "62% 12%", alt: "A roofer up on a roof, nail gun in hand, his phone buzzing in his tool belt" },
-  { id: "manufacturer-pain-whitehair", src: manufacturerPainWhitehair, srcSm: manufacturerPainWhitehairSm, position: "30% 18%", alt: "A white-haired machine-shop owner with his hand to his forehead, buried in paper orders" },
+  { id: "manufacturer-pain-whitehair", src: manufacturerPainWhitehair, srcSm: manufacturerPainWhitehairSm, position: "30% 10%", alt: "A white-haired machine-shop owner staring at his phone in disbelief at six missed calls, buried in paper orders" },
+  { id: "couple-husky", src: coupleHusky, srcSm: coupleHuskySm, position: "70% 20%", alt: "A husband-and-wife couple who own a furniture workshop, smiling together among their handmade tables" },
   { id: "couple-relief", src: coupleRelief, srcSm: coupleReliefSm, position: "68% 22%", alt: "An older couple who own a small shop, laughing as they hand a bag to a customer" },
-  { id: "firm-relief-white", src: firmReliefWhite, srcSm: firmReliefWhiteSm, position: "28% 20%", alt: "A firm owner smiling calmly at her laptop in a bright office" },
-  { id: "manufacturer-relief-white", src: manufacturerReliefWhite, srcSm: manufacturerReliefWhiteSm, position: "72% 18%", alt: "A machine-shop owner walking his factory floor with a tablet, smiling" },
+  { id: "aspen-owners", src: aspenOwners, srcSm: aspenOwnersSm, position: "78% 25%", alt: "Aspen showing two kitchen and marble shop owners their answered calls and new leads on a tablet" },
 ];
 
 /**
@@ -66,10 +68,10 @@ const HERO_SCENES: readonly HeroScene[] = [
  *   0 voicemail / don't call back      -> plumber-pain (under the sink, phone lit on the counter)
  *   1 hang up, can't reach a person    -> ac-guy-pain (shirt open in the heat, fanning himself, desk phone ringing)
  *   2 78% abandoned, one missed call   -> roofer-pain (up on the roof, phone buzzing in his belt)
- *   3 owners shocked, ONE missed call  -> manufacturer-pain-whitehair (the one head-in-hand beat)
- *   4 spokespersons / your own face    -> couple-relief (the owners ARE the face, laughing with a customer)
- *   5 never miss another call, 24/7    -> firm-relief-white (calm at her desk, calls handled)
- *   6 $99/mo + B2B prospects           -> manufacturer-relief-white (walking the floor, business humming)
+ *   3 owners shocked, ONE missed call  -> manufacturer-pain-whitehair (staring at his phone — six missed calls — the disbelief beat; the master is pre-mirrored with the owner's speech bubble composited in)
+ *   4 spokespersons / your own face    -> couple-husky (the owners ARE the face of their workshop)
+ *   5 never miss another call, 24/7    -> couple-relief (the older couple, free to laugh with the customer in front of them)
+ *   6 $99/mo + B2B prospects           -> aspen-owners (Aspen showing the cabinet-shop owners their leads on her tablet — the payoff)
  */
 const SCENE_FOR_LINE: readonly number[] = [0, 1, 2, 3, 4, 5, 6];
 
