@@ -21,9 +21,10 @@ interface HeroScene {
   /** 960w WebP for narrow widths. */
   srcSm: string;
   /**
-   * object-position: subjects sit in the right of each frame, so the x
-   * bias keeps them in view when a tall phone crop cuts the sides; the y
-   * bias keeps faces in view when a wide desktop crop cuts top/bottom.
+   * object-position, tuned for the banner band (2026-11-18): the band is
+   * short and wide, so on desktop the crop cuts top/bottom (y bias keeps
+   * each face, all in the upper half, in frame) and on phone it cuts the
+   * sides (x bias keeps each right-of-frame subject in frame).
    */
   position: string;
 }
@@ -36,13 +37,13 @@ interface HeroScene {
 // (manufacturer-pain) uses the head-in-hand stress beat, on the line
 // addressed to owners themselves.
 const HERO_SCENES: readonly HeroScene[] = [
-  { id: "plumber-pain", src: plumberPain, srcSm: plumberPainSm, position: "74% 30%" },
-  { id: "dentist-pain", src: dentistPain, srcSm: dentistPainSm, position: "74% 28%" },
-  { id: "roofer-pain", src: rooferPain, srcSm: rooferPainSm, position: "70% 28%" },
-  { id: "manufacturer-pain", src: manufacturerPain, srcSm: manufacturerPainSm, position: "74% 32%" },
-  { id: "shop-relief", src: shopRelief, srcSm: shopReliefSm, position: "70% 30%" },
-  { id: "firm-relief", src: firmRelief, srcSm: firmReliefSm, position: "78% 30%" },
-  { id: "manufacturer-relief", src: manufacturerRelief, srcSm: manufacturerReliefSm, position: "76% 28%" },
+  { id: "plumber-pain", src: plumberPain, srcSm: plumberPainSm, position: "72% 25%" },
+  { id: "dentist-pain", src: dentistPain, srcSm: dentistPainSm, position: "74% 20%" },
+  { id: "roofer-pain", src: rooferPain, srcSm: rooferPainSm, position: "62% 12%" },
+  { id: "manufacturer-pain", src: manufacturerPain, srcSm: manufacturerPainSm, position: "72% 22%" },
+  { id: "shop-relief", src: shopRelief, srcSm: shopReliefSm, position: "70% 25%" },
+  { id: "firm-relief", src: firmRelief, srcSm: firmReliefSm, position: "76% 20%" },
+  { id: "manufacturer-relief", src: manufacturerRelief, srcSm: manufacturerReliefSm, position: "73% 15%" },
 ];
 
 /**
@@ -64,22 +65,25 @@ export const HERO_LINE_COUNT = SCENE_FOR_LINE.length;
 export const sceneIndexForLine = (lineIndex: number): number =>
   SCENE_FOR_LINE[lineIndex] ?? lineIndex % HERO_SCENES.length;
 
-interface HeroSceneBackdropProps {
+interface HeroSceneBannerProps {
   /** The hero headline's active line index (HeroRotatingHeadline). */
   activeLineIndex: number;
 }
 
 /**
- * Full-bleed photo backdrop for the hero, crossfading in sync with the
- * rotating headline. Dark theme: the scene fills the section under a dark
- * veil. Light theme: the same scene sits in a framed banner (rounded,
- * ringed, shadowed) under a light veil, so ink text stays readable.
- * Decorative only (aria-hidden); only the active scene and the next one
- * are mounted, so first paint loads a single scene and the rest stream in
- * one dwell ahead of their turn. With prefers-reduced-motion the headline
- * never leaves line 0, so the first scene simply stays put.
+ * Photo banner band at the top of the hero, crossfading in sync with the
+ * rotating headline (owner direction, 2026-11-18: a banner — shorter
+ * than the old full-hero backdrop — so the person in each scene reads
+ * clearly; all hero text sits below it on the solid section background).
+ * The photo carries NO darkening veil; the only treatment is a soft fade
+ * at the bottom edge into the section background (background-colored in
+ * both themes, so the band blends into the page). Decorative only
+ * (aria-hidden); only the active scene and the next one are mounted, so
+ * first paint loads a single scene and the rest stream in one dwell
+ * ahead of their turn. With prefers-reduced-motion the headline never
+ * leaves line 0, so the first scene simply stays put.
  */
-const HeroSceneBackdrop = ({ activeLineIndex }: HeroSceneBackdropProps) => {
+const HeroSceneBanner = ({ activeLineIndex }: HeroSceneBannerProps) => {
   const activeScene = sceneIndexForLine(activeLineIndex);
   const [mountedScenes, setMountedScenes] = useState<ReadonlySet<number>>(
     () => new Set([sceneIndexForLine(0), sceneIndexForLine(1)]),
@@ -99,7 +103,7 @@ const HeroSceneBackdrop = ({ activeLineIndex }: HeroSceneBackdropProps) => {
   return (
     <div
       aria-hidden="true"
-      className="pointer-events-none absolute inset-2 overflow-hidden rounded-[1.5rem] shadow-2xl ring-1 ring-foreground/10 sm:inset-3 sm:rounded-[2rem] dark:inset-0 dark:rounded-none dark:shadow-none dark:ring-0"
+      className="relative h-[264px] overflow-hidden rounded-[1.5rem] shadow-xl ring-1 ring-foreground/10 sm:h-[320px] sm:rounded-[2rem] lg:h-[460px]"
     >
       {HERO_SCENES.map((scene, sceneIndex) => {
         if (!mountedScenes.has(sceneIndex)) return null;
@@ -122,15 +126,12 @@ const HeroSceneBackdrop = ({ activeLineIndex }: HeroSceneBackdropProps) => {
           />
         );
       })}
-      {/* Veils, keyed to the theme's own background color so one recipe
-          serves both themes: enough cover behind the left text column for
-          the headline, sub and CTAs to stay legible, opening up toward
-          the right so the people stay visible. */}
-      <div className="absolute inset-0 bg-background/20" />
-      <div className="absolute inset-0 bg-gradient-to-r from-background/85 via-background/60 to-background/30 lg:from-background/90 lg:via-background/55 lg:to-background/10" />
-      <div className="absolute inset-0 bg-gradient-to-b from-background/40 via-transparent to-background/45" />
+      {/* Bottom-edge blend only: the band melts into the section
+          background below it. No veil over the photo itself, so the
+          people stay bright and recognisable. */}
+      <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-background via-background/30 to-transparent sm:h-24" />
     </div>
   );
 };
 
-export default HeroSceneBackdrop;
+export default HeroSceneBanner;

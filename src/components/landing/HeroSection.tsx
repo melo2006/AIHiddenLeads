@@ -8,7 +8,7 @@ import { useNavigate } from "react-router-dom";
 import type { NicheData } from "@/data/nicheData";
 import aspenPortrait from "@/assets/aspen-idle-wave.gif";
 import HeroRotatingHeadline from "@/components/landing/HeroRotatingHeadline";
-import HeroSceneBackdrop from "@/components/landing/HeroSceneBackdrop";
+import HeroSceneBanner from "@/components/landing/HeroSceneBanner";
 
 interface HeroSectionProps {
   niche: NicheData;
@@ -37,28 +37,33 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
 
   return (
     <section className="landing-hero relative overflow-hidden pt-6 sm:pt-8 pb-8 sm:pb-10">
-      <HeroSceneBackdrop activeLineIndex={headlineIndex} />
       <div className="container mx-auto px-5 sm:px-6 relative z-10">
+        {/* Badge — sits above the photo banner on the solid background */}
+        <div className="text-center lg:text-left">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="inline-flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2 rounded-full border border-primary/20 bg-primary/5 mb-4 sm:mb-5"
+          >
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
+            </span>
+            <span className="text-xs sm:text-base font-medium text-primary">
+              {copy.badge}
+            </span>
+          </motion.div>
+        </div>
+
+        {/* Photo banner — the scenes crossfade in sync with the headline;
+            every line of hero text lives below it, never over the photo */}
+        <HeroSceneBanner activeLineIndex={headlineIndex} />
+
         {/* Two-column layout: Text left, Aspen right */}
-        <div className="flex flex-col lg:flex-row items-center gap-8 lg:gap-10">
+        <div className="flex flex-col lg:flex-row items-center gap-8 lg:gap-10 mt-6 sm:mt-8">
           {/* Left column - Main content */}
           <div className="min-w-0 w-full flex-1 text-center lg:text-left">
-            {/* Badge */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              className="inline-flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2 rounded-full border border-primary/20 bg-primary/5 mb-4 sm:mb-5"
-            >
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
-              </span>
-              <span className="text-xs sm:text-base font-medium text-primary">
-                {copy.badge}
-              </span>
-            </motion.div>
-
             {/* Headline — rotates through the five hero lines */}
             <motion.h1
               initial={{ opacity: 0, y: 20 }}
