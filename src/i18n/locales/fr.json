@@ -1449,5 +1449,50 @@
     "look": {
       "phoneHint": "Votre aperçu vous suit en haut de cette page — touchez Aperçu pour voir la page entière."
     }
+  },
+  "wizardSection": {
+    "title1": "Votre propre assistant vocal avec avatar —",
+    "title2": "en ligne en 15 à 20 minutes",
+    "sub": "Créez-le vous-même dans l'assistant de configuration, sans compétences techniques. Alex, notre ingénieur de soutien, vous aide à chaque étape — et la plupart des propriétaires terminent en environ 15 à 20 minutes.",
+    "timeChip": "Environ 15 à 20 minutes",
+    "alexName": "Alex",
+    "alexRole": "Notre ingénieur de soutien",
+    "alexLine": "Avec vous à chaque étape — suivez simplement ses conseils.",
+    "alexAlt": "Alex, notre ingénieur de soutien",
+    "stepsTitle": "Six courtes étapes",
+    "s1": {
+      "title": "Votre entreprise",
+      "desc": "Votre nom, votre métier et votre site Web — un court formulaire."
+    },
+    "s2": {
+      "title": "Apprentissage",
+      "desc": "Votre assistant lit votre site Web et vos documents et apprend vos services, vos prix et vos politiques."
+    },
+    "s3": {
+      "title": "Visage et voix",
+      "desc": "Choisissez un visage dans la bibliothèque et la voix qui ressemble à votre entreprise."
+    },
+    "s4": {
+      "title": "Relisez le brouillon",
+      "desc": "Lisez l'accueil et les réponses qu'elle a préparés, cochez vos services et modifiez ce que vous voulez, dans vos mots."
+    },
+    "s5": {
+      "title": "Voyez-le sur votre site",
+      "desc": "Voyez-la en direct sur votre propre site Web avant n'importe quel visiteur."
+    },
+    "s6": {
+      "title": "Testez et mettez en ligne",
+      "desc": "Branchez votre numéro de téléphone, faites un appel d'essai, puis activez-la."
+    },
+    "shot1Alt": "La première étape de l'assistant de configuration : parlez-nous de votre entreprise",
+    "shot1Caption": "Étape 1 · Votre entreprise",
+    "shot2Alt": "L'étape d'apprentissage de l'assistant : votre site Web devient les connaissances de votre assistant",
+    "shot2Caption": "Étape 2 · Apprentissage — elle lit votre site",
+    "shot3Alt": "L'étape visage et voix de l'assistant : choisissez un visage et une voix",
+    "shot3Caption": "Étape 3 · Visage et voix",
+    "shotsNote": "Écrans réels de l'assistant de configuration, avec une entreprise de plomberie fictive.",
+    "cta": "Commencez votre configuration",
+    "ctaNote": "Choisissez un forfait, et l'assistant s'ouvre — Alex vous guide.",
+    "demoLink": "Ou essayez d'abord la démo gratuite en direct"
   }
 }

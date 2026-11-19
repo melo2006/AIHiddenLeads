@@ -1449,5 +1449,50 @@
     "look": {
       "phoneHint": "Your preview rides along at the top of this page — tap Preview to see the full page."
     }
+  },
+  "wizardSection": {
+    "title1": "Your own voice assistant with an avatar —",
+    "title2": "live in 15 to 20 minutes",
+    "sub": "Create it yourself in the setup wizard, no tech skills needed. Alex, our support engineer, helps you every step of the way — and most owners finish in about 15 to 20 minutes.",
+    "timeChip": "About 15–20 minutes",
+    "alexName": "Alex",
+    "alexRole": "Our support engineer",
+    "alexLine": "With you at every step — just follow his lead.",
+    "alexAlt": "Alex, our support engineer",
+    "stepsTitle": "Six short steps",
+    "s1": {
+      "title": "Your business",
+      "desc": "Your name, your trade and your website — one short form."
+    },
+    "s2": {
+      "title": "Learn",
+      "desc": "Your assistant reads your website and documents and learns your services, prices and policies."
+    },
+    "s3": {
+      "title": "Face & voice",
+      "desc": "Pick a face from the library and the voice that sounds like your business."
+    },
+    "s4": {
+      "title": "Review the draft",
+      "desc": "Read the greeting and answers she drafted, tick your services, and edit anything in plain words."
+    },
+    "s5": {
+      "title": "Look on your site",
+      "desc": "See her live on your own website before any visitor does."
+    },
+    "s6": {
+      "title": "Test & go live",
+      "desc": "Connect your phone number, make a test call, then switch her on."
+    },
+    "shot1Alt": "The setup wizard's first step: tell us about your business",
+    "shot1Caption": "Step 1 · Your business",
+    "shot2Alt": "The setup wizard's Learn step: your website becomes your assistant's knowledge",
+    "shot2Caption": "Step 2 · Learn — she reads your website",
+    "shot3Alt": "The setup wizard's Face & voice step: pick a face and a voice",
+    "shot3Caption": "Step 3 · Face & voice",
+    "shotsNote": "Real screens from the setup wizard, shown with a sample plumbing business.",
+    "cta": "Start your setup",
+    "ctaNote": "Pick a plan, then the wizard opens — Alex walks you through it.",
+    "demoLink": "Or try the free live demo first"
   }
 }

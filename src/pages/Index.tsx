@@ -9,6 +9,7 @@ import SpokespersonSection from "@/components/landing/SpokespersonSection";
 import ServicesGrid from "@/components/landing/ServicesGrid";
 import HowItWorksSection from "@/components/landing/HowItWorksSection";
 import ExamplesGallerySection from "@/components/landing/ExamplesGallerySection";
+import WizardSection from "@/components/landing/WizardSection";
 import PricingSection from "@/components/landing/PricingSection";
 import AddOnPackages from "@/components/landing/AddOnPackages";
 import FAQSection from "@/components/landing/FAQSection";
@@ -40,6 +41,7 @@ const Index = () => {
       <ServicesGrid />
       <MapVisibilitySection />
       <HowItWorksSection />
+      <WizardSection />
       <TryWebsiteCTA />
       <ExamplesGallerySection />
       <PricingSection />

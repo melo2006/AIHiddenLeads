@@ -1449,5 +1449,50 @@
     "look": {
       "phoneHint": "Sua prévia acompanha você no topo desta página — toque em Prévia para ver a página inteira."
     }
+  },
+  "wizardSection": {
+    "title1": "Seu próprio assistente de voz com avatar —",
+    "title2": "no ar em 15 a 20 minutos",
+    "sub": "Crie você mesmo no assistente de configuração, sem precisar de conhecimentos técnicos. Alex, nosso engenheiro de suporte, ajuda você em cada etapa — e a maioria dos proprietários termina em cerca de 15 a 20 minutos.",
+    "timeChip": "Cerca de 15–20 minutos",
+    "alexName": "Alex",
+    "alexRole": "Nosso engenheiro de suporte",
+    "alexLine": "Com você em cada etapa — é só seguir as orientações dele.",
+    "alexAlt": "Alex, nosso engenheiro de suporte",
+    "stepsTitle": "Seis etapas curtas",
+    "s1": {
+      "title": "Sua empresa",
+      "desc": "Seu nome, seu ramo e seu site — um formulário curto."
+    },
+    "s2": {
+      "title": "Aprendizado",
+      "desc": "Seu assistente lê seu site e seus documentos e aprende seus serviços, preços e políticas."
+    },
+    "s3": {
+      "title": "Rosto e voz",
+      "desc": "Escolha um rosto da biblioteca e a voz que combina com a sua empresa."
+    },
+    "s4": {
+      "title": "Revise o rascunho",
+      "desc": "Leia a saudação e as respostas que ela preparou, marque seus serviços e edite o que quiser com suas palavras."
+    },
+    "s5": {
+      "title": "Veja no seu site",
+      "desc": "Veja o assistente ao vivo no seu próprio site antes de qualquer visitante."
+    },
+    "s6": {
+      "title": "Teste e entre no ar",
+      "desc": "Conecte seu número de telefone, faça uma chamada de teste e ative."
+    },
+    "shot1Alt": "A primeira etapa do assistente de configuração: conte-nos sobre a sua empresa",
+    "shot1Caption": "Etapa 1 · Sua empresa",
+    "shot2Alt": "A etapa de aprendizado do assistente: seu site se torna o conhecimento do assistente",
+    "shot2Caption": "Etapa 2 · Aprendizado — ela lê o seu site",
+    "shot3Alt": "A etapa de rosto e voz do assistente: escolha um rosto e uma voz",
+    "shot3Caption": "Etapa 3 · Rosto e voz",
+    "shotsNote": "Telas reais do assistente de configuração, com uma empresa de encanamento de exemplo.",
+    "cta": "Comece sua configuração",
+    "ctaNote": "Escolha um plano e o assistente se abre — o Alex guia você.",
+    "demoLink": "Ou experimente primeiro a demonstração gratuita ao vivo"
   }
 }
