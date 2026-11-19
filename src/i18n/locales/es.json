@@ -1257,6 +1257,18 @@
     "currentAvatar": "Tu avatar actual",
     "zoomHint": "Pellizca, desplázate o arrastra para explorar los detalles."
   },
+  "examplesGallery": {
+    "title": "Vea a Aspen en vivo en sitios web de negocios reales",
+    "sub": "Son simulaciones de ejemplo — sitios web de negocios reales, no nuestros clientes — cada uno con una recepcionista de IA respondiendo en él. Haga clic en cualquiera y la demo comienza en vivo en ese sitio.",
+    "devices": "Cada demo se puede ver en un teléfono móvil, una computadora o una tableta — cada tarjeta muestra las vistas de computadora y de teléfono lado a lado.",
+    "runDemo": "Ver la demo",
+    "scrollHint": "Desplácese dentro del marco para ver los {{count}} ejemplos. Cada demo es una simulación — la recepcionista responde como la recepcionista de ese sitio.",
+    "visitorName": "John Doe",
+    "openDemo": "Ejecutar la demo en vivo en el sitio web de {{name}}",
+    "cardAltDesktop": "Sitio web de {{name}} con la recepcionista de IA respondiendo en él — vista de computadora",
+    "cardAltMobile": "Sitio web de {{name}} con la recepcionista de IA respondiendo en él — vista de teléfono",
+    "presenterLine": "Responde {{name}}"
+  },
   "cta": {
     "tryWebsite": "Prueba tu sitio",
     "bookCall": "Reserva una llamada",

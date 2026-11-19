@@ -23,6 +23,7 @@ import DemoIntakePanel, {
 } from "@/components/landing/DemoIntakePanel";
 import DemoReassuranceStrip from "@/components/landing/DemoReassuranceStrip";
 import BrazilExamples from "@/components/landing/BrazilExamples";
+import ExamplesGallerySection from "@/components/landing/ExamplesGallerySection";
 import aspenPortrait from "@/assets/aspen-video-frame-final.webp";
 import { loadDemoResume, clearDemoResume, type DemoResume } from "@/lib/demoVerification";
 import { useTenantBrand } from "@/components/TenantBrandProvider";
@@ -356,6 +357,19 @@ const TryDemo = ({ variant = "default" }: { variant?: "default" | "br" }) => {
 
         </div>
       </div>
+
+      {/* Business-examples gallery (2026-11-18) — below the demo form
+          on the default /demo page only (the /demo/br variant keeps its
+          own BrazilExamples above the form): visitors who came to try
+          the demo can browse real example sites and open any of them
+          live instead. The gallery's own sample handoff is read by
+          this page's forwarder above, exactly like a landing-page
+          example link. */}
+      {variant === "default" && (
+        <div className="relative z-10 mx-auto mt-8 w-full max-w-6xl overflow-hidden rounded-3xl border border-border/60">
+          <ExamplesGallerySection />
+        </div>
+      )}
 
       {/* Live Aspen on the /demo landing (owner addition, 2026-11-08):
           the same homepage widget Index mounts — standard config (homepage
