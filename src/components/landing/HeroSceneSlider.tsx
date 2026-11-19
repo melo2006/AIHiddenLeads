@@ -56,7 +56,7 @@ interface HeroScene {
 // any of them, so nothing reads backwards).
 const HERO_SCENES: readonly HeroScene[] = [
   { id: "plumber-pain", src: plumberPain, srcSm: plumberPainSm, position: "72% 25%", alt: "A plumber under a kitchen sink, glancing at her phone ringing on the counter" },
-  { id: "ac-guy-pain", src: acGuyPain, srcSm: acGuyPainSm, position: "30% 20%", alt: "An air-conditioning repairman fanning himself in a hot workshop while his desk phone rings, a speech bubble overhead from the frustrated caller who is about to try the next company" },
+  { id: "ac-guy-pain", src: acGuyPain, srcSm: acGuyPainSm, position: "30% 5%", alt: "An air-conditioning repairman fanning himself in a hot workshop while his desk phone rings, a speech bubble overhead from the frustrated caller who is about to try the next company" },
   { id: "roofer-pain", src: rooferPain, srcSm: rooferPainSm, position: "62% 12%", alt: "A roofer up on a roof, nail gun in hand, his phone buzzing in his tool belt" },
   { id: "manufacturer-pain-whitehair", src: manufacturerPainWhitehair, srcSm: manufacturerPainWhitehairSm, position: "30% 10%", alt: "A white-haired machine-shop owner staring at his phone in disbelief at six missed calls, buried in paper orders" },
   { id: "couple-husky", src: coupleHusky, srcSm: coupleHuskySm, position: "70% 20%", alt: "A husband-and-wife couple who own a furniture workshop, smiling together among their handmade tables" },
