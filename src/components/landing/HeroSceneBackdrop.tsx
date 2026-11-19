@@ -1,16 +1,18 @@
 import { useEffect, useState } from "react";
-import roofer from "@/assets/hero-scenes/hero-roofer.webp";
-import rooferSm from "@/assets/hero-scenes/hero-roofer-sm.webp";
-import plumber from "@/assets/hero-scenes/hero-plumber.webp";
-import plumberSm from "@/assets/hero-scenes/hero-plumber-sm.webp";
-import dentist from "@/assets/hero-scenes/hero-dentist.webp";
-import dentistSm from "@/assets/hero-scenes/hero-dentist-sm.webp";
-import manufacturer from "@/assets/hero-scenes/hero-manufacturer.webp";
-import manufacturerSm from "@/assets/hero-scenes/hero-manufacturer-sm.webp";
-import shop from "@/assets/hero-scenes/hero-shop.webp";
-import shopSm from "@/assets/hero-scenes/hero-shop-sm.webp";
-import firm from "@/assets/hero-scenes/hero-firm.webp";
-import firmSm from "@/assets/hero-scenes/hero-firm-sm.webp";
+import plumberPain from "@/assets/hero-scenes/hero-plumber-pain.webp";
+import plumberPainSm from "@/assets/hero-scenes/hero-plumber-pain-sm.webp";
+import dentistPain from "@/assets/hero-scenes/hero-dentist-pain.webp";
+import dentistPainSm from "@/assets/hero-scenes/hero-dentist-pain-sm.webp";
+import rooferPain from "@/assets/hero-scenes/hero-roofer-pain.webp";
+import rooferPainSm from "@/assets/hero-scenes/hero-roofer-pain-sm.webp";
+import manufacturerPain from "@/assets/hero-scenes/hero-manufacturer-pain.webp";
+import manufacturerPainSm from "@/assets/hero-scenes/hero-manufacturer-pain-sm.webp";
+import shopRelief from "@/assets/hero-scenes/hero-shop-relief.webp";
+import shopReliefSm from "@/assets/hero-scenes/hero-shop-relief-sm.webp";
+import firmRelief from "@/assets/hero-scenes/hero-firm-relief.webp";
+import firmReliefSm from "@/assets/hero-scenes/hero-firm-relief-sm.webp";
+import manufacturerRelief from "@/assets/hero-scenes/hero-manufacturer-relief.webp";
+import manufacturerReliefSm from "@/assets/hero-scenes/hero-manufacturer-relief-sm.webp";
 
 interface HeroScene {
   id: string;
@@ -26,31 +28,36 @@ interface HeroScene {
   position: string;
 }
 
-// The six owner-approved scenes (2026-11-18): trades and B2B owners caught
-// mid-work while the phone rings — the "never miss a call" story told
-// visually. Faces are happy; signage carries no names or logos.
+// The seven scenes (2026-11-18, owner-directed pain -> relief arc): the
+// four pain lines show the missed-call moment — owners caught mid-job
+// while the phone rings unanswered — and the three promise lines show
+// the same world calm, the phones handled. Candid, photorealistic, one
+// campaign grade; signage carries no names or logos. Exactly one scene
+// (manufacturer-pain) uses the head-in-hand stress beat, on the line
+// addressed to owners themselves.
 const HERO_SCENES: readonly HeroScene[] = [
-  { id: "roofer", src: roofer, srcSm: rooferSm, position: "80% 32%" },
-  { id: "plumber", src: plumber, srcSm: plumberSm, position: "76% 35%" },
-  { id: "dentist", src: dentist, srcSm: dentistSm, position: "63% 32%" },
-  { id: "manufacturer", src: manufacturer, srcSm: manufacturerSm, position: "84% 35%" },
-  { id: "shop", src: shop, srcSm: shopSm, position: "67% 32%" },
-  { id: "firm", src: firm, srcSm: firmSm, position: "82% 35%" },
+  { id: "plumber-pain", src: plumberPain, srcSm: plumberPainSm, position: "74% 30%" },
+  { id: "dentist-pain", src: dentistPain, srcSm: dentistPainSm, position: "74% 28%" },
+  { id: "roofer-pain", src: rooferPain, srcSm: rooferPainSm, position: "70% 28%" },
+  { id: "manufacturer-pain", src: manufacturerPain, srcSm: manufacturerPainSm, position: "74% 32%" },
+  { id: "shop-relief", src: shopRelief, srcSm: shopReliefSm, position: "70% 30%" },
+  { id: "firm-relief", src: firmRelief, srcSm: firmReliefSm, position: "78% 30%" },
+  { id: "manufacturer-relief", src: manufacturerRelief, srcSm: manufacturerReliefSm, position: "76% 28%" },
 ];
 
 /**
  * Headline index -> scene index. Every locale's heroHeadlines carry the
  * same seven lines in the same order (homepageSalesCopy), so one map
- * serves all languages:
- *   0 voicemail / don't call back      -> plumber (mid-job, phone on the counter)
- *   1 hang up, can't reach a person    -> dentist (chairside, phone ringing)
- *   2 78% abandoned, one missed call   -> roofer (up on the roof)
- *   3 owners shocked, ONE missed call  -> manufacturer (out on the floor)
- *   4 spokespersons / your own face    -> shop (the owners ARE the face)
- *   5 never miss another call, 24/7    -> firm (the office is covered)
- *   6 $99/mo + B2B prospects           -> manufacturer (a B2B seller)
+ * serves all languages. The emotion follows the line:
+ *   0 voicemail / don't call back      -> plumber-pain (under the sink, phone lit on the counter)
+ *   1 hang up, can't reach a person    -> dentist-pain (chairside, desk phone ringing)
+ *   2 78% abandoned, one missed call   -> roofer-pain (up on the roof, phone buzzing in his belt)
+ *   3 owners shocked, ONE missed call  -> manufacturer-pain (the one head-in-hand beat)
+ *   4 spokespersons / your own face    -> shop-relief (the owners ARE the face, laughing with a customer)
+ *   5 never miss another call, 24/7    -> firm-relief (calm at her desk, calls handled)
+ *   6 $99/mo + B2B prospects           -> manufacturer-relief (walking the floor, business humming)
  */
-const SCENE_FOR_LINE: readonly number[] = [1, 2, 0, 3, 4, 5, 3];
+const SCENE_FOR_LINE: readonly number[] = [0, 1, 2, 3, 4, 5, 6];
 
 export const HERO_LINE_COUNT = SCENE_FOR_LINE.length;
 
