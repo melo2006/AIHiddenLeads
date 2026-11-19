@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it, test } from 'vitest';
-import { homepagePacingAction, silenceLadderRung, silenceLadderDue, substantiveCallerTurn, SILENCE_NUDGE_1, SILENCE_NUDGE_2, SILENCE_NUDGE_3 } from '../../supabase/functions/_shared/homepage-pacing';
+import { homepagePacingAction, silenceLadderRung, silenceLadderDue, substantiveCallerTurn, contentFreeCallerTurn, visitorFloorSeconds, SILENCE_NUDGE_1, SILENCE_NUDGE_2, SILENCE_NUDGE_3 } from '../../supabase/functions/_shared/homepage-pacing';
 
 test('soft wrap-up offer starts at seven minutes, once', () => {
   expect(homepagePacingAction(419, 5, false)).toBeNull();
@@ -46,14 +46,24 @@ describe('silenceLadderRung — the mechanical silence ladder (2026-11-16)', () 
     expect(proxy).toContain("event: 'silence_ladder_fire'");
     expect(proxy).toContain('silenceLadderDue({');
     expect(proxy).toContain('modelSpeaking: modelTurnInFlight');
-    // The ladder clock is the VISITOR's silence alone (cadence fix,
-    // 2026-11-17): the either-side max() that restarted the climb
-    // on every model turn is gone, and the raw rung math now lives
-    // behind silenceLadderDue in the shared module.
-    expect(proxy).toContain('const silenceSeconds = (Date.now() - lastRealCallerTurnAt) / 1000');
+    // The ladder clock is the visitor's FLOOR time (2026-11-18):
+    // wall time since the last completed caller turn minus the
+    // model's speaking time inside it, computed by
+    // visitorFloorSeconds in the shared module — never the raw
+    // session-age subtraction that fired the check-in ~4s after
+    // any long greeting ended.
+    expect(proxy).toContain('const silenceSeconds = visitorFloorSeconds({');
+    expect(proxy).not.toContain('const silenceSeconds = (Date.now() - lastRealCallerTurnAt) / 1000');
     expect(proxy).not.toContain('Math.max(lastRealCallerTurnAt, lastModelTurnAt)');
     const pacing = fs.readFileSync(path.join(__dirname, '..', '..', 'supabase/functions/_shared/homepage-pacing.ts'), 'utf8');
     expect(pacing).toContain('return silenceLadderRung(args.silenceSeconds, args.currentRung)');
+    expect(pacing).toContain('export function visitorFloorSeconds');
+  });
+
+  it('the ladder freezes while the client shows a can\'t-hear notice (mic_notice)', () => {
+    const proxy = fs.readFileSync(path.join(__dirname, '..', '..', 'supabase/functions/gemini-live-proxy/index.ts'), 'utf8');
+    expect(proxy).toContain("msg.type === 'mic_notice'");
+    expect(proxy).toContain('cantHearNoticeActive');
   });
 
   it('the client idle check-in/goodbye stages are ignored on sales sessions — the ladder is the single silence owner', () => {
@@ -62,9 +72,10 @@ describe('silenceLadderRung — the mechanical silence ladder (2026-11-16)', () 
     expect(proxy).toContain("(msg.stage === 'checkin' || msg.stage === 'goodbye')");
   });
 
-  it('the episode resets only on a substantive completed turn — never on a raw fragment', () => {
+  it('the episode resets on ANY non-content-free completed turn — the ≥3-word bar is gone (2026-11-18)', () => {
     const proxy = fs.readFileSync(path.join(__dirname, '..', '..', 'supabase/functions/gemini-live-proxy/index.ts'), 'utf8');
-    expect(proxy).toContain('substantiveCallerTurn(completedUtterance) || detectFarewell(completedUtterance)');
+    expect(proxy).toContain('if (!contentFreeCallerTurn(completedUtterance) || detectFarewell(completedUtterance))');
+    expect(proxy).not.toContain('substantiveCallerTurn(completedUtterance)');
     // The fragment handler must not reset the rung: between the
     // inputTranscription branch and the callerUtterance accumulation
     // there is no silenceRung assignment.
@@ -74,7 +85,7 @@ describe('silenceLadderRung — the mechanical silence ladder (2026-11-16)', () 
   });
 });
 
-describe('silenceLadderDue — episode cadence: model turns never restart the climb (2026-11-17)', () => {
+describe('silenceLadderDue — episode cadence in visitor floor time (2026-11-17 cadence; floor clock 2026-11-18)', () => {
   // One pacing tick, with the conversational defaults filled in:
   // Aspen idle, her last turn long settled, no recent ladder fire.
   const due = (over: Partial<Parameters<typeof silenceLadderDue>[0]>) => silenceLadderDue({
@@ -134,7 +145,11 @@ describe('silenceLadderDue — episode cadence: model turns never restart the cl
   });
 });
 
-describe('substantiveCallerTurn — fragments never reset the silence episode (2026-11-16)', () => {
+// substantiveCallerTurn is RETAINED (exported + pinned here) but its
+// ladder role ended 2026-11-18: the reset now keys on
+// contentFreeCallerTurn below. The ≥3-word bar survives only as the
+// record of what counts as a substantive turn for any future use.
+describe('substantiveCallerTurn — the retired ≥3-word reset bar (2026-11-16; ladder role ended 2026-11-18)', () => {
   it('rejects the one-word background fragments from Ron\'s noisy-room retest', () => {
     expect(substantiveCallerTurn('tú')).toBe(false);
     expect(substantiveCallerTurn('¿Qué?')).toBe(false);
@@ -151,5 +166,63 @@ describe('substantiveCallerTurn — fragments never reset the silence episode (2
     expect(substantiveCallerTurn('my name is Robert')).toBe(true);
     expect(substantiveCallerTurn('I run a painting business')).toBe(true);
     expect(substantiveCallerTurn('how much does it cost')).toBe(true);
+  });
+});
+
+describe('contentFreeCallerTurn — wordless fragments are non-turns; real short answers are turns (2026-11-18)', () => {
+  it('two-word real answers are turns — the bc5c110b "I\'m here" case', () => {
+    expect(contentFreeCallerTurn("I'm here")).toBe(false);
+    expect(contentFreeCallerTurn('Estou aqui')).toBe(false);
+    expect(contentFreeCallerTurn('thank you')).toBe(false);
+    expect(contentFreeCallerTurn('go ahead')).toBe(false);
+  });
+
+  it('standalone answers and farewells are turns — a real "yes" or "bye" must never be swallowed', () => {
+    expect(contentFreeCallerTurn('yes')).toBe(false);
+    expect(contentFreeCallerTurn('no')).toBe(false);
+    expect(contentFreeCallerTurn('okay')).toBe(false);
+    expect(contentFreeCallerTurn('bye')).toBe(false);
+    expect(contentFreeCallerTurn('goodbye')).toBe(false);
+    expect(contentFreeCallerTurn('disconnect')).toBe(false);
+    expect(contentFreeCallerTurn('sim')).toBe(false);
+    expect(contentFreeCallerTurn('não')).toBe(false);
+    expect(contentFreeCallerTurn('tchau')).toBe(false);
+  });
+
+  it('wordless garbage and empties are content-free non-turns', () => {
+    expect(contentFreeCallerTurn('')).toBe(true);
+    expect(contentFreeCallerTurn('   ')).toBe(true);
+    expect(contentFreeCallerTurn('tellchis')).toBe(true); // the garbled fragment from session 960a9562
+    expect(contentFreeCallerTurn('disconnected')).toBe(true); // the echo fragment, NOT the farewell "disconnect"
+    expect(contentFreeCallerTurn('tú')).toBe(true);
+    expect(contentFreeCallerTurn('hmm')).toBe(true);
+  });
+});
+
+describe('visitorFloorSeconds — the ladder clock excludes her speaking time (2026-11-18)', () => {
+  const S = 1000;
+  it('the 960a9562 shape: a long opener leaves ~zero floor time when she stops', () => {
+    // Session starts; her greeting + opener runs 80s of model
+    // speech (one turn, still in flight at the read, then done).
+    const start = 1_000_000;
+    // Mid-opener read: 40s of wall time, all of it her speaking.
+    expect(visitorFloorSeconds({ nowMs: start + 40 * S, lastCallerTurnAtMs: start, modelBusyMs: 0, modelTurnInFlight: true, modelTurnStartedAtMs: start })).toBe(0);
+    // Opener ends at 80s; the read 4s later is ~4s of floor — the
+    // old clock read ~84s here and fired rung 3 instantly.
+    expect(visitorFloorSeconds({ nowMs: start + 84 * S, lastCallerTurnAtMs: start, modelBusyMs: 80 * S, modelTurnInFlight: false, modelTurnStartedAtMs: 0 })).toBe(4);
+    // Rung 1 lands 15 floor-seconds after she stops, not before.
+    expect(visitorFloorSeconds({ nowMs: start + 95 * S, lastCallerTurnAtMs: start, modelBusyMs: 80 * S, modelTurnInFlight: false, modelTurnStartedAtMs: 0 })).toBe(15);
+  });
+
+  it('interrupted model speech still counts as her time, not the visitor\'s floor', () => {
+    const start = 500_000;
+    // She spoke 10s, was interrupted (busy folded), the visitor
+    // answered (new anchor), then 20s of quiet.
+    expect(visitorFloorSeconds({ nowMs: start + 50 * S, lastCallerTurnAtMs: start + 30 * S, modelBusyMs: 0, modelTurnInFlight: false, modelTurnStartedAtMs: 0 })).toBe(20);
+  });
+
+  it('never goes negative when bookkeeping races', () => {
+    expect(visitorFloorSeconds({ nowMs: 1000, lastCallerTurnAtMs: 5000, modelBusyMs: 0, modelTurnInFlight: false, modelTurnStartedAtMs: 0 })).toBe(0);
+    expect(visitorFloorSeconds({ nowMs: 9000, lastCallerTurnAtMs: 1000, modelBusyMs: 20000, modelTurnInFlight: false, modelTurnStartedAtMs: 0 })).toBe(0);
   });
 });

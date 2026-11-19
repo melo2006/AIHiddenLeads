@@ -1,8 +1,15 @@
 export type CaptureMode = "handsfree" | "hold";
 export type NoiseFilter = "light" | "balanced" | "strong";
-// Automatic gain can amplify steady engine/wind noise; strong filtering disables it.
+// Automatic gain can amplify steady engine/wind noise; strong
+// filtering used to disable it for that reason. Restored under
+// strong 2026-11-18 (investigation fix plan #3): with AGC off, a
+// quiet speaker — the owner testing in a whisper beside a sleeping
+// partner — sat permanently under the speech gate's bar while the
+// gate sent literal silence in his place; the gate + VAD, not the
+// gain, are the noise defences now. Hold-to-talk keeps AGC off (a
+// deliberately keyed mic does not need help being heard).
 export function microphoneAutoGain(mode: CaptureMode, filter: NoiseFilter) {
-  return mode !== 'hold' && filter !== 'strong';
+  return mode !== 'hold';
 }
 export const noiseThresholds: Record<NoiseFilter, number> = { light: 0.004, balanced: 0.012, strong: 0.025 };
 // Send silence (not dropped frames) below the gate so server speech-end detection keeps working.
@@ -26,21 +33,48 @@ export function microphoneGate(rms: number, filter: NoiseFilter, now: number, op
 // echo, and still gets through in well under half a second. Once open,
 // the gate behaves exactly like the old one (same send threshold, same
 // 450 ms speech-tail hangover), so established turns are never clipped.
+//
+// REVISION (2026-11-18, investigation fix plan #3): the hardening
+// overshot for QUIET speakers. Stacked with AGC-off-under-strong and
+// the provider VAD at LOW, a whispered answer never opened this gate
+// at all — the client sent literal silence for the whole session
+// (owner's sessions 960a9562 / 5b624454: live track, real energy,
+// zero turns). The bars above are re-cut so a quiet voice has a
+// path: opening bar capped at balanced, ~80 ms sustain, AGC restored
+// under strong, speaking bar 1× strong over ~250 ms. Echo protection
+// now rests on the speaking SUSTAIN (echo breaks at her pauses; a
+// person talking over her does not) instead of a 2× level bar.
 // ---------------------------------------------------------------------------
 
 /** Sustained above-bar input required before the gate opens while the
- * visitor has the floor: ~5 capture frames — long enough to swallow a
- * click or a knock, short enough that a real "yes" is never eaten. */
-export const SPEECH_GATE_SUSTAIN_MS = 200;
+ * visitor has the floor. 200 ms until 2026-11-18; cut to ~80 ms by
+ * the investigation fix plan (#3): at 200 ms the gate ate the onset
+ * of exactly the short, quiet answers it must pass ("yes", a name),
+ * and what leaked through arrived as clipped fragments. 80 ms still
+ * swallows a click or a knock (a single frame never opens the gate);
+ * anything longer at speech level is treated as speech. */
+export const SPEECH_GATE_SUSTAIN_MS = 80;
 /** While Aspen is speaking, an interruption must prove itself longer:
  * echo follows her speech envelope and breaks at her natural pauses,
- * so a continuous 400 ms run is what separates a person talking over
- * her from her own voice coming back at her. */
-export const SPEECH_GATE_SPEAKING_SUSTAIN_MS = 400;
-/** The interruption bar while Aspen speaks: twice the STRONG threshold,
- * whatever filter is applied — a manually lightened filter must not
+ * so a continuous ~250 ms run (400 ms until 2026-11-18) is what
+ * separates a person talking over her from her own voice coming
+ * back at her. */
+export const SPEECH_GATE_SPEAKING_SUSTAIN_MS = 250;
+/** The interruption bar while Aspen speaks: the STRONG threshold
+ * itself, whatever filter is applied (2× strong until 2026-11-18 —
+ * with AGC restored and the speaking sustain, 1× strong is the bar
+ * a real interrupter clears and her echo, broken at her pauses,
+ * does not sustain across). A manually lightened filter must not
  * lower the bar her own echo has to clear. */
-export const SPEECH_GATE_SPEAKING_THRESHOLD = noiseThresholds.strong * 2;
+export const SPEECH_GATE_SPEAKING_THRESHOLD = noiseThresholds.strong;
+/** The highest bar the gate may demand to OPEN while the visitor
+ * has the floor: the BALANCED threshold, even when the applied
+ * filter is strong (2026-11-18 fix plan #3 — "drop the strong bar
+ * toward balanced for gate opening"). The strong level still
+ * governs the hangover extension once open, so an established turn
+ * keeps strong-grade noise rejection; only the OPENING is eased,
+ * which is where a quiet voice was being locked out. */
+export const SPEECH_GATE_OPENING_MAX = noiseThresholds.balanced;
 
 export interface SpeechGateState {
   /** Gate is open for the current frame (real audio passes). */
@@ -70,7 +104,7 @@ export function pushSpeechGateFrame(state: SpeechGateState, rms: number, filter:
     const openUntil = rms >= noiseThresholds[filter] ? now + 450 : state.openUntil;
     return { open: true, openUntil, runSince: -1 };
   }
-  const bar = speaking ? SPEECH_GATE_SPEAKING_THRESHOLD : noiseThresholds[filter];
+  const bar = speaking ? SPEECH_GATE_SPEAKING_THRESHOLD : Math.min(noiseThresholds[filter], SPEECH_GATE_OPENING_MAX);
   if (rms < bar) return { open: false, openUntil: state.openUntil, runSince: -1 };
   const runSince = state.runSince >= 0 ? state.runSince : now;
   const sustain = speaking ? SPEECH_GATE_SPEAKING_SUSTAIN_MS : SPEECH_GATE_SUSTAIN_MS;
@@ -163,6 +197,50 @@ export function appliedAmbientLevel(manual: boolean, floor: number): AmbientLeve
  * so a field reading never confuses the two again. */
 export function appliedNoiseFilter(manual: boolean, current: NoiseFilter): NoiseFilter {
   return manual ? current : autoNoiseFilter(current);
+}
+
+// ---------------------------------------------------------------------------
+// DEAD-AIR EXCEPTION to the never-relax policy (2026-11-18,
+// investigation fix plan #3). The never-relax rule protects against
+// her own echo in a quiet room — but it has one fatal shape: a mic
+// delivering real, continuous energy whose level simply never
+// reaches the strong gate (a quiet speaker, a low-gain device).
+// There the gate stays shut for the WHOLE session, the provider
+// hears literal silence, and no amount of visitor speech can ever
+// register — the owner's 2026-11-18 sessions exactly (675 energy
+// frames, gate never opened). When the evidence says energy is
+// flowing yet the gate has NEVER opened well into a session, the
+// applied filter relaxes ONE level, once, mid-session — and the
+// component stamps it in micDiag (relax=) so the field record shows
+// the moment the path opened. Manual picks are the visitor's own
+// choice and are never overridden; a gate that has opened even once
+// proves the path works and earns no relax.
+// ---------------------------------------------------------------------------
+
+/** How long the session must have been live before dead air is
+ * declared: long enough for the greeting plus a real chance to
+ * answer — a slow starter is not a dead path. */
+export const GATE_DEAD_AIR_MIN_LIVE_MS = 20_000;
+/** Watchdog-grade energy frames (micDiag's energy tier) that must
+ * have flowed: proof the mic is alive and producing sound, not a
+ * dead stream (a dead stream is the watchdog's own notice, not a
+ * relax case). */
+export const GATE_DEAD_AIR_MIN_ENERGY_FRAMES = 30;
+
+export function deadAirRelaxedFilter(args: {
+  applied: NoiseFilter;
+  manual: boolean;
+  alreadyRelaxed: boolean;
+  gateEverOpened: boolean;
+  energyFrames: number;
+  liveMs: number;
+}): NoiseFilter | null {
+  if (args.manual || args.alreadyRelaxed || args.gateEverOpened) return null;
+  if (args.liveMs < GATE_DEAD_AIR_MIN_LIVE_MS) return null;
+  if (args.energyFrames < GATE_DEAD_AIR_MIN_ENERGY_FRAMES) return null;
+  if (args.applied === "strong") return "balanced";
+  if (args.applied === "balanced") return "light";
+  return null;
 }
 
 /** How many per-frame RMS samples the rolling window keeps. At the capture

@@ -65,10 +65,14 @@ describe("Batch 1 — mic environment control: capture-loop wiring", () => {
     expect(conversation).toContain("onClick={() => chooseNoiseFilter(value)}");
     const selects = conversation.match(/onValueChange=\{value => chooseNoiseFilter\(value as NoiseFilter\)\}/g) ?? [];
     expect(selects).toHaveLength(2);
-    // No direct setNoiseFilter call remains outside the manual chooser
-    // and the gated auto-pick (the useState destructure is not a call).
+    // No direct setNoiseFilter call remains outside the manual chooser,
+    // the gated auto-pick, and — since 2026-11-18 — the gated dead-air
+    // relax (auto mode only, never marks manual; the useState
+    // destructure is not a call).
     const direct = conversation.match(/setNoiseFilter\(/g) ?? [];
-    expect(direct).toHaveLength(2);
+    expect(direct).toHaveLength(3);
+    expect(conversation).toContain("setNoiseFilter(relaxed);");
+    expect(conversation).toContain("gateRelaxedRef.current = relaxed;");
   });
 
   it("a saved value counts only as a deliberate manual pick (chat-fix6: marker-gated, manual-only persistence)", () => {

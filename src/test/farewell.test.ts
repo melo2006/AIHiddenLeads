@@ -110,7 +110,7 @@ describe('proxy wiring — detection at turnComplete, with cancel paths', () => 
     // Round 2: farewellHandled marks the DELIVERED state, not a
     // once-ever latch — a revival resets it (pinned below), so this
     // same condition arms again on a later goodbye.
-    expect(src).toContain('if (!farewellHandled && !preview && begun && detectFarewell(completedUtterance))');
+    expect(src).toContain('if (!farewellHandled && !preview && begun && !contentFreeCallerTurn(completedUtterance) && detectFarewell(completedUtterance))');
     expect(src).toContain('farewellHandled = true');
   });
 
@@ -563,6 +563,22 @@ describe('detectModelClosing — the model\'s own closing line arms the end (202
     expect(proxy).toContain("event: 'farewell_model_close_armed'");
     expect(proxy).toContain("armFarewellEnd(FAREWELL_END_DELAY_MS, 'model_close')");
     expect(proxy).toContain("endReason === 'connection_closed' && detectModelClosing(completedModelTurn)");
+  });
+});
+
+describe('content-free fragments never arm a farewell (2026-11-18)', () => {
+  it('the echo/garble fragments from the owner\'s sessions are not farewells', () => {
+    // 'disconnected' was the model's echo fragment in 960a9562 —
+    // only the whole-utterance imperative 'disconnect' is a core.
+    expect(detectFarewell('disconnected')).toBe(false);
+    expect(detectFarewell('tellchis')).toBe(false);
+    expect(detectFarewell('disconnect')).toBe(true);
+    expect(detectFarewell('bye')).toBe(true);
+  });
+
+  it('the proxy never arms the farewell end on a content-free turn', () => {
+    const proxy = fs.readFileSync(path.join(__dirname, '..', '..', 'supabase/functions/gemini-live-proxy/index.ts'), 'utf8');
+    expect(proxy).toContain('!contentFreeCallerTurn(completedUtterance) && detectFarewell(completedUtterance)');
   });
 });
 
