@@ -3,7 +3,8 @@ import { Play, RotateCcw, Volume2 } from "lucide-react";
 
 /**
  * Homepage intro video — the founder film (three customers who couldn't get
- * a callback, Aspen explaining the fix, Ron Melo introducing himself).
+ * a callback, the happy payoff case, Aspen explaining the fix, Ron Melo
+ * introducing himself). Current cut: the 2026-11-19 remake.
  *
  * Owner's playback spec (2026-11-18):
  * - When the block scrolls into view it plays automatically, muted
