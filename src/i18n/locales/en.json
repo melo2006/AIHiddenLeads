@@ -1286,6 +1286,11 @@
     "preOrderNote": "Pre-order services activate after setup and testing. No guaranteed sales, savings, callback speed or rankings."
   },
   "wizard": {
+    "ownerPreview": {
+      "open": "Owner preview — open the wizard",
+      "title": "Owner preview",
+      "note": "You're seeing the wizard as an admin. Nothing here bills or goes live for a real business."
+    },
     "suggestMore": "Suggest more",
     "suggestingMore": "Suggesting…",
     "suggestExhausted": "That's everything we have for now — type your own below",

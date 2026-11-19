@@ -1286,6 +1286,11 @@
     "preOrderNote": "Os serviços em pré-encomenda são ativados após a configuração e os testes. Sem garantias de vendas, economia, rapidez de retorno ou classificações."
   },
   "wizard": {
+    "ownerPreview": {
+      "open": "Prévia do proprietário — abrir o assistente",
+      "title": "Prévia do proprietário",
+      "note": "Você está vendo o assistente como administrador. Nada aqui gera cobrança nem coloca um negócio real no ar."
+    },
     "suggestMore": "Sugerir mais",
     "suggestingMore": "Sugerindo…",
     "suggestExhausted": "Isso é tudo o que temos por agora — escreva as suas abaixo",

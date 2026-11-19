@@ -1286,6 +1286,11 @@
     "preOrderNote": "Les services en précommande s'activent après la configuration et les tests. Aucune garantie de ventes, d'économies, de rapidité de rappel ou de classements."
   },
   "wizard": {
+    "ownerPreview": {
+      "open": "Aperçu du propriétaire — ouvrir l'assistant",
+      "title": "Aperçu du propriétaire",
+      "note": "Vous voyez l'assistant en tant qu'administrateur. Rien ici ne facture ni ne met en ligne une entreprise réelle."
+    },
     "suggestMore": "Plus de suggestions",
     "suggestingMore": "Recherche…",
     "suggestExhausted": "C'est tout ce que nous avons pour le moment — ajoutez les vôtres ci-dessous",

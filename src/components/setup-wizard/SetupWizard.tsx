@@ -116,7 +116,7 @@ function SuggestMoreRow({ more, onMore, labels }: { more: MoreState; onMore: () 
 
 type Draft = Record<string, unknown> & { knowledge?: string; theme?: Record<string, string> };
 
-export default function SetupWizard({ preview = false, agentId }: { preview?: boolean; agentId?: string }) {
+export default function SetupWizard({ preview = false, ownerPreview = false, agentId }: { preview?: boolean; ownerPreview?: boolean; agentId?: string }) {
   const { t } = useTranslation();
   const [step, setStep] = useState(0);
   const [maxStep, setMaxStep] = useState(0);
@@ -518,8 +518,17 @@ export default function SetupWizard({ preview = false, agentId }: { preview?: bo
       <div className="mx-auto w-full max-w-7xl space-y-5">
         {preview && (
           <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/40 bg-primary/10 px-3 py-2 text-xs">
-            <strong className="text-primary">Assisted setup</strong>
-            <span className="text-muted-foreground">Saved business drafts · real voice usage · no purchase required</span>
+            {ownerPreview ? (
+              <>
+                <strong className="text-primary">{t("wizard.ownerPreview.title")}</strong>
+                <span className="text-muted-foreground">{t("wizard.ownerPreview.note")}</span>
+              </>
+            ) : (
+              <>
+                <strong className="text-primary">Assisted setup</strong>
+                <span className="text-muted-foreground">Saved business drafts · real voice usage · no purchase required</span>
+              </>
+            )}
             <Select disabled={busy || loading} value={selectedId || "new"} onValueChange={(id) => { void (async () => { setBusy(true); try { if (selectedId && !await save()) return; setDraft(null); setPublished(false); setSelectedId(id === "new" ? undefined : id); setStep(0); setMaxStep(0); setVoiceReady(false); setCalling(false); if(id === "new") setS(EMPTY); } finally { setBusy(false); } })(); }}>
               <SelectTrigger className="ml-auto h-8 w-full sm:w-64" aria-label="Choose business"><SelectValue placeholder="New business" /></SelectTrigger>
               <SelectContent className="z-[130]"><SelectItem value="new">New business</SelectItem>{agents.map(a => <SelectItem key={a.id} value={a.id}>{String(a.draft.businessName)}</SelectItem>)}</SelectContent>
