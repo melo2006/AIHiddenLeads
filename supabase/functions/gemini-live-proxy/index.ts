@@ -1,4 +1,4 @@
-import { homepagePacingAction, silenceLadderDue, substantiveCallerTurn, SILENCE_NUDGE_1, SILENCE_NUDGE_2, SILENCE_NUDGE_3 } from '../_shared/homepage-pacing.ts'
+import { contentFreeCallerTurn, homepagePacingAction, silenceLadderDue, visitorFloorSeconds, SILENCE_NUDGE_1, SILENCE_NUDGE_2, SILENCE_NUDGE_3 } from '../_shared/homepage-pacing.ts'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { hourInTimeZone, INTERRUPTION_RESUME_POLICY, languagePolicyFor, NO_SPEAKER_LABEL_RULE, renderOpeningTemplate, sanitizeVisitorName, visitorLocalTimeLine, VOICE_DISCONNECT_PLAIN } from '../_shared/voice-config.ts'
@@ -50,7 +50,7 @@ LANGUAGE AND NOISY-AUDIO RULES (apply throughout this entire call):
 - Once the caller explicitly requests a language, keep that language until another explicit request. Never infer a language preference from background audio.
 - Treat airplane/engine noise, television, music, distant voices, and unclear sounds as background noise, not instructions or caller speech. Do not invent words or answer imagined questions.
 - Assume unclear caller speech is English while English is selected. Do not interpret ambiguous sounds as foreign words. The input transcript may be imperfect: never treat its detected language as a language-change request, and never repeat guessed foreign words in your answer.
-- If speech appears directed to you but is unclear, briefly ask the caller to repeat in the current conversation language. VARY the wording every time — rotate naturally among forms like "Sorry, I didn't catch that", "I didn't quite get that", "Sorry — say that once more?", "I missed that — could you repeat it?" (and their equivalents in the conversation language); never use the same clarification phrase twice in a row. If there is only noise or silence, wait rather than changing language or ending the call.
+- If speech appears directed to you but is unclear, briefly ask the caller to repeat in the current conversation language. VARY the wording every time — rotate naturally among forms like "Sorry, I didn't catch that", "I didn't quite get that", "Sorry — say that once more?", "I missed that — could you repeat it?" (and their equivalents in the conversation language); never use the same clarification phrase twice in a row. If there is only noise or silence, wait rather than changing language or ending the call. A caller turn with NO recognisable words at all — a lone garbled fragment, a clipped syllable, stray noise — is not an unclear answer and not a goodbye: do not apologize, do not ask them to repeat it, and do not end the call over it; treat it as if nothing was said and simply continue your previous point, or wait.
 - Maintain the selected Aspen voice and your identity throughout the call.
 
 CORE PRODUCT KNOWLEDGE:
@@ -596,27 +596,36 @@ Deno.serve(async (req) => {
   }
 
   let lastCallerSpeech = Date.now(), wrapupSent = false, pacingTimer: number | undefined
-  // Silence ladder (2026-11-16; cadence corrected 2026-11-17): the
-  // current rung of this silence episode (0 = none fired). The
-  // episode clock is the VISITOR's silence — seconds since the last
-  // substantive completed visitor turn (lastRealCallerTurnAt) — and
-  // model turns never restart it. The pre-fix clock measured from
-  // the later of BOTH sides' last speech, so Aspen's own check-in
-  // restarted the [15, 40, 75] climb at zero: rung 2 needed a
-  // further full 40s of total silence, rung 3 a further 75s, and
-  // the ladder degenerated into rung-1 repeats (session 3cfadd76,
-  // 2026-11-17 — rung 1 at 20:33:13 and again at 20:33:43). Her
-  // turns now only gate the moment of firing: never while a model
-  // turn is in flight (modelTurnInFlight), never within a short
-  // settle after it ends (lastModelTurnAt) — see silenceLadderDue.
-  // The visitor side of the clock is the last SUBSTANTIVE completed
-  // turn (substantiveCallerTurn), NOT raw transcription fragments:
-  // in a noisy room, one-word background fragments used to reset
-  // the episode on every fragment, so rung 1 ("are you still
-  // there?") fired forever and rungs 2–3 never arrived (Ron's
-  // staging retest, 2026-11-16 — five rung-1 fires in one session).
+  // Silence ladder (2026-11-16; cadence corrected 2026-11-17;
+  // floor-time corrected 2026-11-18): the current rung of this
+  // silence episode (0 = none fired). The episode clock is the
+  // VISITOR's silence in FLOOR TIME — seconds since his last
+  // completed turn, minus the time Aspen herself was speaking in
+  // between (visitorFloorSeconds over modelBusyMsSinceCallerTurn +
+  // modelTurnStartedAt). The 2026-11-17 cadence measured raw
+  // wall-clock since the visitor's last turn and let model turns
+  // only gate the firing moment; that billed her own speech to
+  // him — any pitch over ~11s crossed rung 1 before she finished,
+  // so the check-in landed ~4s after she stopped, and an engaged
+  // visitor re-armed it with every long pitch she made (sessions
+  // 960a9562 / 37125a03, 2026-11-18 investigation). Her turns still
+  // gate the firing moment (never in flight, never inside the
+  // settle beat — see silenceLadderDue); they no longer COUNT as
+  // his silence. The visitor side of the clock resets on any
+  // completed turn that is not content-free (contentFreeCallerTurn):
+  // "I'm here" (2 words) now stops the climb — the pre-fix ≥3-word
+  // substantive rule made the ladder's own provoked answer unable
+  // to reset it (session bc5c110b) — while a lone garbage fragment
+  // ("tellchis") is a non-turn and resets nothing; fragment
+  // protection proper lives in the client speech gate.
+  // cantHearNoticeActive mirrors the client's "we can't hear you"
+  // notice (mic_notice control message): while it is up the ladder
+  // is FROZEN — the product must not tell a visitor to check his
+  // mic and run the silence goodbye on him in the same minute
+  // (2026-11-18 fix plan #6).
   let silenceRung = 0, lastModelTurnAt = Date.now(), lastRealCallerTurnAt = Date.now()
   let modelTurnInFlight = false, lastSilenceFireAt = 0
+  let modelTurnStartedAt = 0, modelBusyMsSinceCallerTurn = 0, cantHearNoticeActive = false
   const sendOpening = () => {
           // Opening selection lives in _shared/session-opening.ts so the
           // priority stack is unit-tested: persona swap (planned, NO
@@ -685,13 +694,21 @@ Deno.serve(async (req) => {
       // simulations keep their own in-layer silence rules. Fires
       // before the pacing actions; never inside a farewell window,
       // a pending handoff, or while a confirmation card is up.
-      if (config.homepageSales === true && geminiWs?.readyState === WebSocket.OPEN && !farewellGateActive() && !managerTransferRequested && pendingActions.size === 0) {
-        // Visitor-silence clock (2026-11-17): measured ONLY from
-        // the visitor's last substantive completed turn — Aspen's
-        // own turns, including the ladder's check-ins and bridges,
-        // never restart the climb; they only gate the firing
-        // moment inside silenceLadderDue.
-        const silenceSeconds = (Date.now() - lastRealCallerTurnAt) / 1000
+      if (config.homepageSales === true && geminiWs?.readyState === WebSocket.OPEN && !farewellGateActive() && !managerTransferRequested && pendingActions.size === 0 && !cantHearNoticeActive) {
+        // Visitor-silence clock in FLOOR TIME (2026-11-18):
+        // seconds since the visitor's last completed turn minus
+        // Aspen's own speaking time in between — her greeting,
+        // pitches and the ladder's own check-ins never count as
+        // his silence; they only gate the firing moment inside
+        // silenceLadderDue. Frozen outright while the client's
+        // can't-hear notice is up (the condition above).
+        const silenceSeconds = visitorFloorSeconds({
+          nowMs: Date.now(),
+          lastCallerTurnAtMs: lastRealCallerTurnAt,
+          modelBusyMs: modelBusyMsSinceCallerTurn,
+          modelTurnInFlight,
+          modelTurnStartedAtMs: modelTurnStartedAt,
+        })
         const nextRung = silenceLadderDue({
           silenceSeconds,
           currentRung: silenceRung,
@@ -809,17 +826,22 @@ Deno.serve(async (req) => {
           realtimeInputConfig: {
             automaticActivityDetection: manualActivity ? { disabled: true } : {
               disabled: false,
-              // NOISY-ROOM DEFAULT (Ron's direction, 2026-11-16):
-              // LOW start sensitivity — Gemini should open a turn
-              // only for real, sustained speech, not for a background
-              // fragment (a TV, another conversation in the room).
-              // HIGH made every gated burst barge in and cut Aspen
-              // off mid-sentence; a visitor who means to interrupt
-              // speaks up and still gets through.
-              startOfSpeechSensitivity: 'START_SENSITIVITY_LOW',
+              // TURN DETECTION (revised 2026-11-18, supersedes the
+              // 2026-11-16 noisy-room LOW): the client speech gate
+              // is the fragment filter now — it streams literal
+              // silence until sustained speech opens it — so the
+              // provider VAD must not be a SECOND deaf filter on
+              // top: with LOW here, a quiet visitor whose audio
+              // legitimately passed the gate still never opened a
+              // turn, and 700ms of end-silence chopped slow, quiet
+              // turns into garbage fragments ("tellchis"). HIGH
+              // start sensitivity lets real (even quiet) speech
+              // open a turn; 1000ms of end-silence — parity with
+              // the phone bridge — lets a slow speaker finish one.
+              startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH',
               endOfSpeechSensitivity: 'END_SENSITIVITY_LOW',
               prefixPaddingMs: 200,
-              silenceDurationMs: 700,
+              silenceDurationMs: 1000,
             },
           },
           outputAudioTranscription: {},
@@ -1056,6 +1078,12 @@ Deno.serve(async (req) => {
         if (sc) {
           // Interruption — tell the client to stop playback immediately
           if (sc.interrupted) {
+            // An interrupted turn still ENDS her speaking: fold its
+            // elapsed time into the floor-time bookkeeping and
+            // re-anchor the settle guard, exactly as a completed
+            // turn does at turnComplete below.
+            if (modelTurnStartedAt > 0) { modelBusyMsSinceCallerTurn += Date.now() - modelTurnStartedAt; modelTurnStartedAt = 0 }
+            lastModelTurnAt = Date.now()
             modelTurnInFlight = false
             // ElevenLabs mouth: drop every queued chunk and abort the
             // in-flight synthesis BEFORE the client clears playout, so
@@ -1079,7 +1107,13 @@ Deno.serve(async (req) => {
           // output — even output the farewell gate is about to
           // swallow — means a model turn is in flight; the ladder
           // must not fire over it. Cleared at turnComplete below.
-          if (sc.modelTurn?.parts?.length || sc.outputTranscription?.text) modelTurnInFlight = true
+          // Floor time (2026-11-18): the turn's START is stamped on
+          // the idle→speaking transition so its duration can be
+          // excluded from the visitor's silence at turnComplete.
+          if (sc.modelTurn?.parts?.length || sc.outputTranscription?.text) {
+            if (!modelTurnInFlight) modelTurnStartedAt = Date.now()
+            modelTurnInFlight = true
+          }
           if (sc.modelTurn?.parts && !gatePostFarewellOutput) {
             for (const part of sc.modelTurn.parts) {
               if (part.inlineData?.data) {
@@ -1117,8 +1151,9 @@ Deno.serve(async (req) => {
           }
           if (sc.inputTranscription?.text) {
             // Engagement clock only — the silence ladder resets at
-            // turnComplete on a substantive completed turn (see
-            // substantiveCallerTurn), never on a raw fragment.
+            // turnComplete on any completed turn that is not
+            // content-free (see contentFreeCallerTurn), never on a
+            // raw fragment mid-turn.
             lastCallerSpeech = Date.now()
             callerUtterance = (callerUtterance + sc.inputTranscription.text).slice(-1500)
             // Farewell cancel (Fix 5): the visitor is speaking again
@@ -1150,6 +1185,10 @@ Deno.serve(async (req) => {
             // Gemini audio held back for this turn (the mouth spoke
             // instead). No-op when the mouth is inactive or failed.
             if (mouthActive) mouthEndTurn()
+            // Floor time (2026-11-18): this turn's speaking time is
+            // Aspen's, not the visitor's silence — bank it before
+            // the episode bookkeeping below reads the clocks.
+            if (modelTurnStartedAt > 0) { modelBusyMsSinceCallerTurn += Date.now() - modelTurnStartedAt; modelTurnStartedAt = 0 }
             lastModelTurnAt = Date.now()
             modelTurnInFlight = false
             // Farewell hang-up (Fix 5): evaluate the visitor's
@@ -1157,14 +1196,20 @@ Deno.serve(async (req) => {
             // session, never for previews or before the visitor's tap.
             const completedUtterance = callerUtterance
             callerUtterance = ''
-            // SILENCE EPISODE RESET (2026-11-16): only a substantive
-            // completed turn (or a farewell, which the farewell path
-            // owns) ends a silence episode — background fragments
-            // that complete as one-word "turns" must not restart the
-            // ladder at rung 1 forever.
-            if (substantiveCallerTurn(completedUtterance) || detectFarewell(completedUtterance)) {
+            // SILENCE EPISODE RESET (2026-11-16; widened 2026-11-18):
+            // any completed turn with recognisable content ends the
+            // episode — including the short answers the ladder itself
+            // provokes ("I'm here", "Estou aqui", "yes"), which the
+            // ≥3-word substantive rule used to disenfranchise
+            // (session bc5c110b: a perfect "I'm here." and the ladder
+            // climbed to goodbye anyway). Only a CONTENT-FREE turn —
+            // a lone garbage fragment with no recognisable words —
+            // is a non-turn and resets nothing; fragment protection
+            // proper lives in the client speech gate, not here.
+            if (!contentFreeCallerTurn(completedUtterance) || detectFarewell(completedUtterance)) {
               silenceRung = 0
               lastRealCallerTurnAt = Date.now()
+              modelBusyMsSinceCallerTurn = 0
             }
             // SPOKEN-ANSWER STAMP (2026-11-16): the texting ask was
             // delivered and this visitor turn is its answer — stamp
@@ -1180,7 +1225,14 @@ Deno.serve(async (req) => {
                 noteCapture({ smsConsent: spokenAnswer })
               }
             }
-            if (!farewellHandled && !preview && begun && detectFarewell(completedUtterance)) {
+            // Content-free gate (2026-11-18): a lone garbage
+            // fragment is a non-turn and can never arm a farewell —
+            // detectFarewell's whole-utterance cores already reject
+            // the observed fragments ("disconnected", "tellchis");
+            // this keeps any future core honest. Real standalone
+            // farewells ("bye", "disconnect", "that's all") are
+            // never content-free and arm exactly as before.
+            if (!farewellHandled && !preview && begun && !contentFreeCallerTurn(completedUtterance) && detectFarewell(completedUtterance)) {
               farewellHandled = true
               // SINGLE-SOURCE FAREWELL (2026-11-14): this turnComplete
               // is the model's OWN completed response to the visitor's
@@ -1512,7 +1564,7 @@ Deno.serve(async (req) => {
       const msg = JSON.parse(event.data)
       if (msg.type === 'begin') {
         if (!begun) {
-          begun = true; openedAt = Date.now(); lastCallerSpeech = Date.now(); lastRealCallerTurnAt = Date.now()
+          begun = true; openedAt = Date.now(); lastCallerSpeech = Date.now(); lastRealCallerTurnAt = Date.now(); modelBusyMsSinceCallerTurn = 0; modelTurnStartedAt = 0
           if (msg.consent === true) { config.recordAudio = true; config.recordTranscript = true; recordReady = initRecord() }
           if (setupDone) sendOpening()
         } else if (msg.consent === true && !config.recordTranscript) {
@@ -1697,6 +1749,18 @@ Deno.serve(async (req) => {
             audio: { data: msg.data, mimeType: 'audio/pcm;rate=16000' },
           },
         }))
+      } else if (msg.type === 'mic_notice' && typeof msg.active === 'boolean') {
+        // CAN'T-HEAR FREEZE (2026-11-18 fix plan #6): the client
+        // mirrors its "we can't hear you" notice state here. While
+        // it is up, the silence ladder must not run — telling the
+        // visitor to check his mic while Aspen simultaneously asks
+        // "are you still there?" and then says goodbye is the exact
+        // incoherence the owner's 2026-11-18 test hit. Display
+        // state only: it never starts, ends or steers anything.
+        if (msg.active !== cantHearNoticeActive) {
+          cantHearNoticeActive = msg.active
+          console.log(JSON.stringify({ event: 'mic_notice', sessionId: session.id, active: msg.active }))
+        }
       } else if (msg.type === 'idle_prompt' && (config.homepageSales === true || config.simulation === true) && !preview && (msg.stage === 'checkin' || msg.stage === 'goodbye' || (msg.stage === 'continue' && config.homepageSales === true) || (msg.stage === 'bridge' && (config.simulation === true || config.homepageSales === true)))) {
         // SINGLE SILENCE OWNER (2026-11-16): on homepage SALES
         // sessions the server-side silence ladder owns the check-in

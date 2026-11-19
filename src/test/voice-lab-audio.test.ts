@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { microphonePcm, shouldSendMicrophone, microphoneGate, microphoneAutoGain, initialCaptureMode, estimateNoiseFloor, pickNoiseFilterForFloor, ambientLevelForFloor, createAmbientGateState, pushAmbientRms, AMBIENT_WINDOW_MAX_SAMPLES, createSpeechGateState, pushSpeechGateFrame, autoNoiseFilter, appliedAmbientLevel, appliedNoiseFilter, noiseThresholds, SPEECH_GATE_SUSTAIN_MS, SPEECH_GATE_SPEAKING_SUSTAIN_MS, SPEECH_GATE_SPEAKING_THRESHOLD, type NoiseFilter, type SpeechGateState } from "../lib/voiceLabAudio";
+import { microphonePcm, shouldSendMicrophone, microphoneGate, microphoneAutoGain, initialCaptureMode, estimateNoiseFloor, pickNoiseFilterForFloor, ambientLevelForFloor, createAmbientGateState, pushAmbientRms, AMBIENT_WINDOW_MAX_SAMPLES, createSpeechGateState, pushSpeechGateFrame, autoNoiseFilter, appliedAmbientLevel, appliedNoiseFilter, deadAirRelaxedFilter, noiseThresholds, SPEECH_GATE_SUSTAIN_MS, SPEECH_GATE_SPEAKING_SUSTAIN_MS, SPEECH_GATE_SPEAKING_THRESHOLD, SPEECH_GATE_OPENING_MAX, type NoiseFilter, type SpeechGateState } from "../lib/voiceLabAudio";
 
 describe("Voice Lab microphone privacy controls", () => {
-  it('strong filtering does not automatically amplify background noise', () => {
-    expect(microphoneAutoGain('handsfree', 'strong')).toBe(false);
+  it('AGC stays on under strong filtering (restored 2026-11-18 — a quiet speaker must be liftable to the gate bar); hold-to-talk keeps it off', () => {
+    expect(microphoneAutoGain('handsfree', 'strong')).toBe(true);
     expect(microphoneAutoGain('handsfree', 'balanced')).toBe(true);
     expect(microphoneAutoGain('hold', 'balanced')).toBe(false);
+    expect(microphoneAutoGain('hold', 'strong')).toBe(false);
   });
   it("strong noise filtering blocks quiet background sound but lets louder speech through", () => {
     expect(microphoneGate(0.015, "strong", 1000, 0).open).toBe(false);
@@ -192,18 +193,35 @@ describe("speech gate — sustained input to open, higher bar while she speaks",
   it("sustained speech-level input opens the gate after the sustain window", () => {
     const { everOpened, firstOpenAt } = drive([{ rms: 0.08, ms: 600 }], "strong", false);
     expect(everOpened).toBe(true);
-    expect(firstOpenAt).toBe(SPEECH_GATE_SUSTAIN_MS);
+    // The sustain is ~80 ms (2026-11-18); at 50 ms frames the open
+    // lands on the first frame at or past it.
+    expect(firstOpenAt).toBe(Math.ceil(SPEECH_GATE_SUSTAIN_MS / STEP) * STEP);
   });
 
-  it("separated bursts do not accumulate toward opening", () => {
-    // Three 150 ms bursts with quiet gaps: each run is under the
-    // sustain window and a quiet frame resets the run.
+  it("single-frame bursts do not accumulate toward opening", () => {
+    // One-frame (50 ms) bursts with quiet gaps: each run is under
+    // the ~80 ms sustain window and a quiet frame resets the run.
+    // (150 ms bursts DID stay shut under the old 200 ms window;
+    // at the 2026-11-18 sustain they are indistinguishable from a
+    // short real word and open by design — see the "yes" case.)
     const { everOpened } = drive([
-      { rms: 0.08, ms: 150 }, { rms: 0, ms: 100 },
-      { rms: 0.08, ms: 150 }, { rms: 0, ms: 100 },
-      { rms: 0.08, ms: 150 }, { rms: 0, ms: 500 },
+      { rms: 0.08, ms: 50 }, { rms: 0, ms: 100 },
+      { rms: 0.08, ms: 50 }, { rms: 0, ms: 100 },
+      { rms: 0.08, ms: 50 }, { rms: 0, ms: 500 },
     ], "strong", false);
     expect(everOpened).toBe(false);
+  });
+
+  it("a quiet voice under the strong bar still opens the gate — the opening bar is capped at balanced (2026-11-18)", () => {
+    expect(SPEECH_GATE_OPENING_MAX).toBe(noiseThresholds.balanced);
+    // 0.015 sits BELOW the strong threshold (0.025) and above
+    // balanced (0.012): the owner's whispered level. Sustained, it
+    // must open the gate even with the strong filter applied.
+    const { everOpened } = drive([{ rms: 0.015, ms: 400 }], "strong", false);
+    expect(everOpened).toBe(true);
+    // Below balanced it stays shut — room tone is not speech.
+    const quiet = drive([{ rms: 0.008, ms: 1000 }], "strong", false);
+    expect(quiet.everOpened).toBe(false);
   });
 
   it("a short real answer still opens the gate while she is silent", () => {
@@ -213,21 +231,28 @@ describe("speech gate — sustained input to open, higher bar while she speaks",
     expect(everOpened).toBe(true);
   });
 
-  it("the speaking bar is the strong floor ×2, whatever filter is applied", () => {
-    expect(SPEECH_GATE_SPEAKING_THRESHOLD).toBe(noiseThresholds.strong * 2);
-    // 0.03 clears the BALANCED send threshold (0.012) and even the
-    // strong one (0.025) — the exact signal that interrupted Ron at
-    // Balanced — yet sustained for a full two seconds while she
-    // speaks it must never open the gate.
-    const { everOpened } = drive([{ rms: 0.03, ms: 2000 }], "balanced", true);
+  it("the speaking bar is the strong floor itself (×1 since 2026-11-18), whatever filter is applied", () => {
+    expect(SPEECH_GATE_SPEAKING_THRESHOLD).toBe(noiseThresholds.strong);
+    // Below the bar, even a full two seconds while she speaks never
+    // opens the gate.
+    const { everOpened } = drive([{ rms: 0.02, ms: 2000 }], "balanced", true);
     expect(everOpened).toBe(false);
   });
 
+  it("a real voice at the old echo level now interrupts when SUSTAINED — the sustain, not the level, is the echo defence (2026-11-18)", () => {
+    // 0.03 sustained unbroken for 600 ms while she speaks: echo
+    // breaks at her pauses and never sustains like this; a person
+    // talking over her does. It opens after the speaking sustain.
+    const { everOpened, firstOpenAt } = drive([{ rms: 0.03, ms: 600 }], "balanced", true);
+    expect(everOpened).toBe(true);
+    expect(firstOpenAt).toBe(SPEECH_GATE_SPEAKING_SUSTAIN_MS);
+  });
+
   it("speaker echo simulation: periodic low-level bursts while she speaks never interrupt", () => {
-    // Echo follows her speech envelope: bursts above the old gate's
-    // threshold, broken by her natural pauses. Neither the below-bar
+    // Echo follows her speech envelope: bursts above the gate's
+    // bar, broken by her natural pauses. Neither the near-bar
     // pattern (0.035) nor the above-bar-but-broken pattern (0.06 in
-    // 150 ms bursts, under the 400 ms speaking sustain) may open.
+    // 150 ms bursts, under the 250 ms speaking sustain) may open.
     const pattern = (rms: number) => Array.from({ length: 12 }, () => [{ rms, ms: 150 }, { rms: 0.004, ms: 100 }]).flat();
     expect(drive(pattern(0.035), "strong", true).everOpened).toBe(false);
     expect(drive(pattern(0.06), "strong", true).everOpened).toBe(false);
@@ -242,7 +267,7 @@ describe("speech gate — sustained input to open, higher bar while she speaks",
   it("once open, the speech tail extends on the plain threshold and closes after the 450 ms hangover", () => {
     let state = createSpeechGateState();
     // Open while she is silent: 0.08 sustained past the sustain window.
-    for (let t = 0; t <= SPEECH_GATE_SUSTAIN_MS; t += STEP) state = pushSpeechGateFrame(state, 0.08, "strong", t, false);
+    for (let t = 0; t <= 200; t += STEP) state = pushSpeechGateFrame(state, 0.08, "strong", t, false);
     expect(state.open).toBe(true);
     // She starts speaking mid-turn; the visitor's tail at the plain
     // strong threshold still extends the gate (no mid-word clipping).
@@ -290,5 +315,38 @@ describe("auto noise policy — strong and noisy unless the visitor chooses", ()
     expect(appliedNoiseFilter(true, "light")).toBe("light");
     expect(appliedNoiseFilter(true, "balanced")).toBe("balanced");
     expect(appliedNoiseFilter(true, "strong")).toBe("strong");
+  });
+});
+
+// Dead-air exception (2026-11-18): the ONE case where auto mode may
+// relax — energy flowing, gate never opened, well into the session.
+// The owner's sessions are the fixture: 675 energy frames, zero
+// gate opens, zero turns, the whole conversation sent as silence.
+describe("deadAirRelaxedFilter — the dead-air exception to never-relax", () => {
+  const base = { applied: "strong" as NoiseFilter, manual: false, alreadyRelaxed: false, gateEverOpened: false, energyFrames: 675, liveMs: 87_000 };
+
+  it("relaxes strong one level to balanced on the owner's evidence shape", () => {
+    expect(deadAirRelaxedFilter(base)).toBe("balanced");
+  });
+
+  it("never overrides a manual pick, never relaxes twice, never fires once the gate has opened", () => {
+    expect(deadAirRelaxedFilter({ ...base, manual: true })).toBeNull();
+    expect(deadAirRelaxedFilter({ ...base, alreadyRelaxed: true })).toBeNull();
+    expect(deadAirRelaxedFilter({ ...base, gateEverOpened: true })).toBeNull();
+  });
+
+  it("waits for real evidence: 20s live and watchdog-grade energy frames", () => {
+    expect(deadAirRelaxedFilter({ ...base, liveMs: 19_999 })).toBeNull();
+    expect(deadAirRelaxedFilter({ ...base, liveMs: 20_000 })).toBe("balanced");
+    expect(deadAirRelaxedFilter({ ...base, energyFrames: 29 })).toBeNull();
+    expect(deadAirRelaxedFilter({ ...base, energyFrames: 30 })).toBe("balanced");
+    // A truly dead stream (no energy at all) is the watchdog's
+    // case, not a relax case.
+    expect(deadAirRelaxedFilter({ ...base, energyFrames: 0 })).toBeNull();
+  });
+
+  it("steps down one level at a time and stops at light", () => {
+    expect(deadAirRelaxedFilter({ ...base, applied: "balanced" })).toBe("light");
+    expect(deadAirRelaxedFilter({ ...base, applied: "light" })).toBeNull();
   });
 });

@@ -20,7 +20,7 @@ import "@/i18n";
 import { explicitUiLocale, prewarmLocaleMismatch, type UiLocale } from "@/lib/uiLocale";
 import { clearDemoResume } from "@/lib/demoVerification";
 import { FunctionsHttpError } from "@supabase/supabase-js";
-import { microphonePcm, shouldSendMicrophone, microphoneAutoGain, initialCaptureMode, createAmbientGateState, pushAmbientRms, createSpeechGateState, pushSpeechGateFrame, autoNoiseFilter, appliedAmbientLevel, appliedNoiseFilter, type AmbientGateState, type NoiseFilter, type CaptureMode } from "@/lib/voiceLabAudio";
+import { microphonePcm, shouldSendMicrophone, microphoneAutoGain, initialCaptureMode, createAmbientGateState, pushAmbientRms, createSpeechGateState, pushSpeechGateFrame, autoNoiseFilter, appliedAmbientLevel, appliedNoiseFilter, deadAirRelaxedFilter, type AmbientGateState, type NoiseFilter, type CaptureMode } from "@/lib/voiceLabAudio";
 
 import VoiceActionConfirmation, { type VoiceAction } from "./VoiceActionConfirmation";
 import BrowserVoiceHandoff from "@/components/BrowserVoiceHandoff";
@@ -571,6 +571,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // the initializer above requires before honoring a saved value.
   const [noiseFilterManual, setNoiseFilterManual] = useState(false);
   const noiseFilterManualRef = useRef(false);
+  // Dead-air exception (2026-11-18): the filter level the gate's
+  // one mid-session relax dropped to, or null when no relax has
+  // happened this session. Reset at every session start (with the
+  // mic refs below); stamped into micDiag as relax= so the field
+  // record shows whether — and to what — the path was opened.
+  const gateRelaxedRef = useRef<NoiseFilter | null>(null);
   const ambientTrackerRef = useRef<AmbientGateState>(createAmbientGateState(noiseFilter));
   const ambientCheckedAtRef = useRef(0);
   const [ambientFloor, setAmbientFloor] = useState(0);
@@ -612,8 +618,34 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     // keeps measuring; its suggestion is passed to autoNoiseFilter,
     // which holds strong until a manual pick says otherwise.
     if (!noiseFilterManualRef.current) {
-      const autoFilter = autoNoiseFilter(next.filter);
-      if (autoFilter !== noiseFilterRef.current) setNoiseFilter(autoFilter);
+      if (gateRelaxedRef.current) {
+        // The dead-air relax (below) IS this session's auto decision:
+        // the strong-holding auto-pick must not undo it at the next
+        // evaluation.
+      } else {
+        const autoFilter = autoNoiseFilter(next.filter);
+        if (autoFilter !== noiseFilterRef.current) setNoiseFilter(autoFilter);
+        // DEAD-AIR EXCEPTION (2026-11-18 fix plan #3): energy is
+        // flowing (the mic is alive) yet the speech gate has NEVER
+        // opened this session — the applied bar is simply above
+        // this speaker's level, and every word is being sent as
+        // literal silence. Relax ONE level, once, and stamp it;
+        // without this, a quiet speaker has no path in at all.
+        const flow = micFlowRef.current;
+        const relaxed = deadAirRelaxedFilter({
+          applied: noiseFilterRef.current,
+          manual: false,
+          alreadyRelaxed: false,
+          gateEverOpened: micGateHeardRef.current > 0,
+          energyFrames: flow.energyFrames,
+          liveMs: flow.liveSince > 0 ? Date.now() - flow.liveSince : 0,
+        });
+        if (relaxed) {
+          gateRelaxedRef.current = relaxed;
+          setNoiseFilter(relaxed);
+          stampMicDiagRef.current("recovered");
+        }
+      }
     }
   };
   // The environment the dialog presents as in force: in auto mode the
@@ -1215,6 +1247,21 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     return () => window.clearInterval(timer);
   }, []);
 
+  // CAN'T-HEAR FREEZE signal (2026-11-18 fix plan #6): while either
+  // can't-hear notice (the passive hint above, or the zero-input
+  // watchdog) is on screen, the proxy's silence ladder must not run
+  // — the visitor is being told to check his mic; "are you still
+  // there?" and a silence goodbye in the same minute is the exact
+  // incoherence the owner's 2026-11-18 test hit. Mirror the combined
+  // state on every change; the proxy keeps it per-session and the
+  // state dies with the socket, so no clear-on-close is owed here.
+  const cantHearNoticeShown = showMicHint || showMicWatchdog;
+  useEffect(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'mic_notice', active: cantHearNoticeShown }));
+    }
+  }, [cantHearNoticeShown]);
+
   // Zero-input guard evaluator: twice a second, ask the pure helper
   // whether the mic path is dead (startup window, or a mid-session
   // stall after having flowed). Gate passes and input transcriptions
@@ -1518,7 +1565,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     if (!target) return;
     const { sessionId, visitorKey } = target;
     const sink = mediaSinkRef.current?.sink;
-    const extra = `;sink=${sink ? (sink.ready ? 'ready' : 'pending') : 'none'};pctx=${playCtxRef.current?.state ?? 'none'};cap=${captureModeStamp()}`;
+    // A/B self-description (2026-11-18): every stamp names the heard
+    // engine and the proxy host it ran against, so an A/B session
+    // (?heardEngine= × ?voiceProxy=) is identifiable from its own
+    // record without cross-referencing the device.
+    const proxyHost = voiceProxyWsUrl().includes('voice-proxy.') ? 'vps' : 'edge';
+    const extra = `;sink=${sink ? (sink.ready ? 'ready' : 'pending') : 'none'};pctx=${playCtxRef.current?.state ?? 'none'};cap=${captureModeStamp()};eng=${heardEngine()};proxy=${proxyHost}`;
     // The local terminal (volume-speaker fix): which sink the
     // heard voice physically ends in — media element, media
     // stream, or the bare context — rides on the snapshot itself.
@@ -1573,6 +1625,18 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // Teardown reaches the playout end stamp through this mirror
   // (same pattern as stampMicDiagRef below).
   const stampPlayoutDiagRef = useRef(stampPlayoutDiag); stampPlayoutDiagRef.current = stampPlayoutDiag;
+  // A/B TRACE (2026-11-18): while a session is live, re-stamp the
+  // playout diag every 15 s. Signature dedupe means an unchanged
+  // snapshot posts nothing; any counter movement (stalls, joins,
+  // recoveries, terminal flips) lands as a time series on the
+  // session row instead of the single point-in-time snapshot the
+  // choppiness investigation had to work from — the evidence base
+  // for the heard-engine × proxy-host A/B (?heardEngine= ×
+  // ?voiceProxy=, both stamped into every payload's extras).
+  useEffect(() => {
+    const timer = window.setInterval(() => { if (liveRef.current) stampPlayoutDiagRef.current(); }, 15000);
+    return () => window.clearInterval(timer);
+  }, []);
   // Mic zero-input guard (2026-11-14): the INPUT mirror of the
   // playout stamp above. micDiag lands on the PARENT session row at
   // config.micDiag through the same gemini-session diag channel
@@ -1605,7 +1669,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         const status = await navigator.permissions?.query({ name: "microphone" as PermissionName });
         if (status?.state) permission = status.state;
       } catch { /* Permissions API unavailable — 'unknown' stands. */ }
-      const payload = micDiagPayload(sessionId, micDiagStamp({ event, flow, permission, track, inputSec, ambientFloor: ambientTrackerRef.current.floor, noiseFilter: appliedNoiseFilter(noiseFilterManualRef.current, noiseFilterRef.current), silentMic: silentMicFiredRef.current }), Date.now());
+      const payload = micDiagPayload(sessionId, micDiagStamp({ event, flow, permission, track, inputSec, ambientFloor: ambientTrackerRef.current.floor, noiseFilter: gateRelaxedRef.current ?? appliedNoiseFilter(noiseFilterManualRef.current, noiseFilterRef.current), silentMic: silentMicFiredRef.current, gateRelaxed: gateRelaxedRef.current ?? undefined }), Date.now());
       const signature = micDiagSignature(payload);
       if (signature === lastMicDiagRef.current) return;
       lastMicDiagRef.current = signature;
@@ -2945,6 +3009,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     const generation = ++generationRef.current;
     captureRef.current = { mode: captureMode, held: false, muted: false, replaying: false, paused: false };
     micAwaitRef.current = null;
+    gateRelaxedRef.current = null;
     micGateHeardRef.current = 0;
     micTranscriptRef.current = 0;
     micHintLastRef.current = 0;

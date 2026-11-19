@@ -282,6 +282,17 @@ describe("micDiag stamp", () => {
     expect(micDiagDetail(stamp)).toBe("ev=end;perm=granted;track=muted;flow=0;first=-;frames=40;sec=5.1;fired=1");
   });
 
+  it("carries the dead-air relax level as relax= when the gate was relaxed (2026-11-18)", () => {
+    const flow = createMicFlowState();
+    noteMicSessionLive(flow, T0);
+    const stamp = micDiagStamp({ event: "recovered", flow, permission: "granted", track: "live", inputSec: 0, noiseFilter: "balanced", gateRelaxed: "balanced" });
+    expect(micDiagDetail(stamp)).toContain("nf=balanced");
+    expect(micDiagDetail(stamp)).toContain("relax=balanced");
+    // No relax, no field — older stamps stay byte-identical.
+    const plain = micDiagStamp({ event: "recovered", flow, permission: "granted", track: "live", inputSec: 0, noiseFilter: "strong" });
+    expect(micDiagDetail(plain)).not.toContain("relax=");
+  });
+
   it("payload is session-scoped, capped, and dedupes by signature", () => {
     const stamp = micDiagStamp({ event: "start", flow: createMicFlowState(), permission: "unknown", track: "none", inputSec: 0 });
     const a = micDiagPayload("11111111-1111-1111-1111-111111111111", stamp, 123);

@@ -12,8 +12,7 @@ export function homepagePacingAction(elapsed: number, lastCallerSpeechAgo: numbe
 // SILENCE LADDER (Ron's spec, 2026-11-16): the Publish #60 silence
 // ladder existed only as prompt prose and never fired on the voice
 // path. This is the mechanical version, driven by the proxy's pacing
-// timer and keyed on the VISITOR's silence — the cumulative seconds
-// since the visitor's last substantive completed turn:
+// timer and keyed on the VISITOR's silence:
 //   rung 1 (~15s): ONE short "are you still there?" — then wait.
 //   rung 2 (~40s): continue SELLING — one benefit, 20–30 seconds —
 //                  ending in ONE quick yes/no re-engagement question.
@@ -37,6 +36,25 @@ export function homepagePacingAction(elapsed: number, lastCallerSpeechAgo: numbe
 // is in flight and for a short settle beat after it ends (see
 // silenceLadderDue), so Aspen is never talked over and a threshold
 // crossed during her turn fires as soon as she finishes.
+//
+// FLOOR TIME (corrected 2026-11-18, investigation of the owner's
+// live tests): the Nov-17 cadence overshot. Because the clock ran
+// from the visitor's last turn and model turns never touched it,
+// ASPEN'S OWN SPEECH was billed to the visitor: any opener or pitch
+// longer than ~11s put the visitor past rung 1 before she had even
+// finished, so the check-in landed ~4s after she stopped (session
+// 960a9562: greeting → check-in → bridge → goodbye in 87s with ZERO
+// caller turns; session 37125a03: an engaged visitor whose answers
+// reset the episode still ate three rung-1 fires because her long
+// pitch turns re-crossed 15s). The rungs are now measured in
+// VISITOR FLOOR TIME — seconds since the visitor's last completed
+// turn MINUS the time Aspen herself was speaking in between
+// (visitorFloorSeconds, computed by the proxy from its model-turn
+// bookkeeping). The [15, 40, 75] spacing, the in-flight suppression
+// and the settle/gap guards are unchanged; her speech simply no
+// longer counts as his silence. A resumed session re-anchors the
+// same way: the resumption line is a model turn, so the floor clock
+// effectively starts when it ends.
 export const SILENCE_RUNG_SECONDS = [15, 40, 75] as const;
 
 /**
@@ -50,10 +68,85 @@ export const SILENCE_RUNG_SECONDS = [15, 40, 75] as const;
  * 2–3 never arrived. A real turn is at least three words; shorter
  * fragments are still answered by the model normally — they just
  * don't restart the ladder.
+ *
+ * 2026-11-18: the LADDER RESET no longer uses this ≥3-word rule —
+ * it disenfranchised the exact replies the ladder provokes ("I'm
+ * here" / "Estou aqui" are two words and could never stop the
+ * climb; session bc5c110b). The reset now uses
+ * contentFreeCallerTurn: ANY completed turn with recognisable
+ * content resets. This function remains as the stricter substance
+ * notion other paths were pinned against.
  */
 export function substantiveCallerTurn(text: string): boolean {
   const words = (text || '').trim().split(/\s+/).filter(Boolean);
   return words.length >= 3;
+}
+
+// Single words that ARE a complete, meaningful visitor turn when
+// they arrive alone: short answers, greetings, politeness, and the
+// standalone farewell cores (farewell.ts CORES). A one-word turn
+// outside this set ("tellchis", "disconnected") is a clipped
+// fragment of something longer, not a turn in its own right.
+const STANDALONE_TURN_WORDS: ReadonlySet<string> = new Set([
+  'yes', 'no', 'yeah', 'yep', 'yup', 'sure', 'ok', 'okay',
+  'hi', 'hello', 'hey', 'thanks', 'please', 'stop', 'wait',
+  'bye', 'goodbye', 'disconnect', 'adios', 'adeus', 'tchau',
+  'sim', 'nao', 'ola', 'claro', 'vale', 'bueno',
+  'gracias', 'obrigado', 'obrigada',
+]);
+
+/**
+ * Whether a COMPLETED visitor turn is CONTENT-FREE — no recognisable
+ * words, the predictable output of a clipped speech gate (only the
+ * loudest slice of a word crosses, mid-word). Content-free turns are
+ * NON-TURNS everywhere (2026-11-18 fix plan #5): they do not reset
+ * the silence episode, they must not arm farewell detection, and —
+ * per the resume policy in the session instructions — they must not
+ * draw an apology or a "say that again": there was nothing to catch.
+ * A turn is content-free when it is empty, or a single word that is
+ * not a recognised standalone turn (STANDALONE_TURN_WORDS). Two or
+ * more words always carry SOMETHING recognisable ("I'm here",
+ * "Estou aqui", a name plus a word) and are never content-free.
+ * Fragment protection proper lives in the client speech gate; this
+ * is the backstop for what still gets through.
+ */
+export function contentFreeCallerTurn(text: string): boolean {
+  const words = (text || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // strip diacritics: nao/adios fold to their base letters
+    .replace(/[^a-z\s]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean);
+  if (words.length === 0) return true;
+  if (words.length === 1) return !STANDALONE_TURN_WORDS.has(words[0]);
+  return false;
+}
+
+/**
+ * The visitor's silence in FLOOR TIME: wall-clock seconds since the
+ * visitor's last completed turn, minus the time Aspen herself was
+ * speaking in between. The proxy accumulates each model turn's
+ * duration into modelBusyMs as the turn completes (and folds the
+ * in-flight turn's elapsed time in live), so a 30-second greeting
+ * contributes ~0 floor seconds: rung 1 can only fall due after the
+ * visitor has actually held the floor, silent, for the rung's full
+ * threshold. Clamped at zero — bookkeeping skew (a turn that ends
+ * before the visitor's stamp, clock jitter) never yields negative
+ * silence.
+ */
+export function visitorFloorSeconds(args: {
+  nowMs: number;
+  lastCallerTurnAtMs: number;
+  modelBusyMs: number;
+  modelTurnInFlight: boolean;
+  modelTurnStartedAtMs: number;
+}): number {
+  const inFlightMs = args.modelTurnInFlight && args.modelTurnStartedAtMs > 0
+    ? Math.max(0, args.nowMs - args.modelTurnStartedAtMs)
+    : 0;
+  const floorMs = args.nowMs - args.lastCallerTurnAtMs - args.modelBusyMs - inFlightMs;
+  return Math.max(0, floorMs / 1000);
 }
 
 export function silenceLadderRung(silenceSeconds: number, currentRung: number): number {
@@ -75,9 +168,10 @@ export const SILENCE_LADDER_MIN_FIRE_GAP_SECONDS = 8;
 
 /**
  * Whether the ladder should fire on this pacing tick, and which
- * rung. `silenceSeconds` is the VISITOR's silence — seconds since
- * the last substantive completed visitor turn — and model turns
- * never restart it; they only gate the moment of firing:
+ * rung. `silenceSeconds` is the VISITOR's silence in FLOOR TIME
+ * (visitorFloorSeconds: since his last completed turn, Aspen's own
+ * speaking time excluded) — model turns never restart the episode;
+ * they only gate the moment of firing:
  *   - never while a model turn is in flight (don't talk over her);
  *   - never within the settle beat after her turn ends;
  *   - never within the minimum gap after the previous rung fired

@@ -397,6 +397,11 @@ export interface MicDiagStamp {
    *  zero — the 3b30cc34 fact pattern. Optional like the other
    *  gate-context fields; absent on stamps that predate it. */
   silentMic?: boolean;
+  /** The dead-air exception relaxed the applied filter mid-session
+   *  (2026-11-18): energy flowed but the speech gate had never
+   *  opened, so the filter dropped one level to the value named
+   *  here ('balanced' | 'light'). Absent when no relax happened. */
+  gateRelaxed?: string;
 }
 
 /** The compact one-line form stored in the session record, in the
@@ -418,6 +423,7 @@ export function micDiagDetail(s: MicDiagStamp): string {
   if (typeof s.ambientFloor === "number") parts.push(`amb=${s.ambientFloor.toFixed(4)}`);
   if (s.noiseFilter) parts.push(`nf=${s.noiseFilter}`);
   if (s.silentMic) parts.push("silent=1");
+  if (s.gateRelaxed) parts.push(`relax=${s.gateRelaxed}`);
   return parts.join(";");
 }
 
@@ -449,6 +455,7 @@ export function micDiagStamp(args: {
   ambientFloor?: number;
   noiseFilter?: string;
   silentMic?: boolean;
+  gateRelaxed?: string;
 }): MicDiagStamp {
   return {
     event: args.event,
@@ -462,5 +469,6 @@ export function micDiagStamp(args: {
     ...(typeof args.ambientFloor === "number" ? { ambientFloor: args.ambientFloor } : {}),
     ...(args.noiseFilter ? { noiseFilter: args.noiseFilter } : {}),
     ...(args.silentMic ? { silentMic: true } : {}),
+    ...(args.gateRelaxed ? { gateRelaxed: args.gateRelaxed } : {}),
   };
 }
