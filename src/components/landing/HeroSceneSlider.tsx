@@ -38,9 +38,10 @@ interface HeroScene {
 }
 
 // The seven scenes (2026-11-18, owner-approved lineup, SLIDER PACKAGE
-// v2; v3 polish: the AC man and the white-haired owner carry the
-// owner's semi-transparent speech bubbles, and the older couple is
-// mirrored so they stand clear of their right-side slogan): the four
+// v2; v3 polish: the older couple is mirrored so they stand clear of
+// their right-side slogan; the speech bubbles the AC man and the
+// white-haired owner carried in v3/v4 were removed 2026-11-19 on the
+// owner's final call — the photos run clean): the four
 // pain lines show the missed-call moment — owners caught
 // mid-job while the phone rings unanswered — and the three promise
 // lines show the same world calm, the phones handled, closing on Aspen
@@ -56,7 +57,7 @@ interface HeroScene {
 // any of them, so nothing reads backwards).
 const HERO_SCENES: readonly HeroScene[] = [
   { id: "plumber-pain", src: plumberPain, srcSm: plumberPainSm, position: "72% 25%", alt: "A plumber under a kitchen sink, glancing at her phone ringing on the counter" },
-  { id: "ac-guy-pain", src: acGuyPain, srcSm: acGuyPainSm, position: "30% 5%", alt: "An air-conditioning repairman fanning himself in a hot workshop while his desk phone rings, a speech bubble overhead from the frustrated caller who is about to try the next company" },
+  { id: "ac-guy-pain", src: acGuyPain, srcSm: acGuyPainSm, position: "30% 5%", alt: "An air-conditioning repairman fanning himself in a hot workshop while his desk phone rings unanswered" },
   { id: "roofer-pain", src: rooferPain, srcSm: rooferPainSm, position: "62% 12%", alt: "A roofer up on a roof, nail gun in hand, his phone buzzing in his tool belt" },
   { id: "manufacturer-pain-whitehair", src: manufacturerPainWhitehair, srcSm: manufacturerPainWhitehairSm, position: "30% 10%", alt: "A white-haired machine-shop owner staring at his phone in disbelief at six missed calls, buried in paper orders" },
   { id: "couple-husky", src: coupleHusky, srcSm: coupleHuskySm, position: "70% 20%", alt: "A husband-and-wife couple who own a furniture workshop, smiling together among their handmade tables" },
@@ -71,7 +72,7 @@ const HERO_SCENES: readonly HeroScene[] = [
  *   0 voicemail / don't call back      -> plumber-pain (under the sink, phone lit on the counter)
  *   1 hang up, can't reach a person    -> ac-guy-pain (shirt open in the heat, fanning himself, desk phone ringing)
  *   2 78% abandoned, one missed call   -> roofer-pain (up on the roof, phone buzzing in his belt)
- *   3 owners shocked, ONE missed call  -> manufacturer-pain-whitehair (staring at his phone — six missed calls — the disbelief beat; the master is pre-mirrored with the owner's speech bubble composited in)
+ *   3 owners shocked, ONE missed call  -> manufacturer-pain-whitehair (staring at his phone — six missed calls — the disbelief beat; the master is pre-mirrored)
  *   4 spokespersons / your own face    -> couple-husky (the owners ARE the face of their workshop)
  *   5 never miss another call, 24/7    -> couple-relief (the older couple, free to laugh with the customer in front of them; the master is mirrored so the couple stands left, clear of this line's right-side slogan)
  *   6 $99/mo + B2B prospects           -> aspen-owners (Aspen showing the cabinet-shop owners their leads on her tablet — the payoff)
