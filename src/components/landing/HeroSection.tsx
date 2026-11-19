@@ -148,7 +148,20 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
             transition={{ duration: 0.7, delay: 0.3 }}
             className="flex-shrink-0 w-full lg:w-[420px] flex flex-col items-center"
           >
-            <div className="relative">
+            {/* CTA overlap rule: the demo pill sits in normal flow inside a
+                width-capped wrapper, pulled up over the portrait's bottom
+                edge with a negative margin. Its TOP edge is therefore pinned
+                just above the portrait's bottom at every width, language and
+                text-size setting — longer labels (fr-CA) wrap inside the
+                wide pill and grow DOWNWARD into flow space, never up over
+                Aspen's face. (The previous absolute bottom-5 pill was
+                shrink-to-fit-clamped to half the 240px portrait width below
+                lg, wrapped into a tall oval and rode up over her chin/mouth
+                in French.) The cap lives on the wrapper because index.css
+                forces max-width:100% + white-space:normal on section buttons
+                without an aria-label below 1024px, which would override a
+                max-w-* class on the button itself. */}
+            <div className="flex flex-col items-center">
               <button
                 type="button"
                 aria-label="Talk to Aspen"
@@ -161,13 +174,15 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
                   className="aspect-[4/5] w-full max-w-[280px] object-cover object-top rounded-2xl shadow-2xl sm:max-w-[360px] lg:aspect-auto lg:h-auto lg:max-h-[540px] lg:max-w-full"
                 />
               </button>
-              <button
-                type="button"
-                onClick={(event) => { event.stopPropagation(); navigate("/demo"); }}
-                className="absolute bottom-5 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-lg transition-colors hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-              >
-                {i18n.language.startsWith('en') ? 'Try it on your website — free' : copy.demo}
-              </button>
+              <div className="relative z-10 -mt-9 w-full max-w-[300px] sm:max-w-[320px]">
+                <button
+                  type="button"
+                  onClick={() => navigate("/demo")}
+                  className="w-full whitespace-normal rounded-full bg-primary px-6 py-3 text-center text-sm font-semibold leading-snug text-primary-foreground shadow-lg transition-colors hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 sm:text-base"
+                >
+                  {i18n.language.startsWith('en') ? 'Try it on your website — free' : copy.demo}
+                </button>
+              </div>
             </div>
             {i18n.language.startsWith('en') && <p className="mt-3 text-center text-xs text-muted-foreground">Aspen, live on this page — tap to talk</p>}
           </motion.div>
