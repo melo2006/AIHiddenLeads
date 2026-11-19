@@ -4,6 +4,7 @@ import HeroRotatingHeadline, {
   HERO_HEADLINE_LINES,
   HERO_SLIDE_DWELL_MS,
   type HeadlineSegment,
+  type HeroTextPlacement,
   type HeroTextSide,
 } from "@/components/landing/HeroRotatingHeadline";
 import plumberPain from "@/assets/hero-scenes/hero-plumber-pain.webp";
@@ -14,8 +15,8 @@ import rooferPain from "@/assets/hero-scenes/hero-roofer-pain.webp";
 import rooferPainSm from "@/assets/hero-scenes/hero-roofer-pain-sm.webp";
 import manufacturerPainWhitehair from "@/assets/hero-scenes/hero-manufacturer-pain-whitehair.webp";
 import manufacturerPainWhitehairSm from "@/assets/hero-scenes/hero-manufacturer-pain-whitehair-sm.webp";
-import coupleHusky from "@/assets/hero-scenes/hero-couple-husky.webp";
-import coupleHuskySm from "@/assets/hero-scenes/hero-couple-husky-sm.webp";
+import facesMontage from "@/assets/hero-scenes/hero-faces-montage.webp";
+import facesMontageSm from "@/assets/hero-scenes/hero-faces-montage-sm.webp";
 import coupleRelief from "@/assets/hero-scenes/hero-couple-relief.webp";
 import coupleReliefSm from "@/assets/hero-scenes/hero-couple-relief-sm.webp";
 import aspenOwners from "@/assets/hero-scenes/hero-aspen-owners.webp";
@@ -35,6 +36,15 @@ interface HeroScene {
    * on the side opposite the slogan — in frame).
    */
   position: string;
+  /**
+   * Slogan placement override for this scene (default "side": the
+   * alternating side zone). "bottom" moves the slogan into the shaded
+   * bottom band at every breakpoint — for photos whose subjects span
+   * the whole frame (the spokesperson team photo), where any side zone
+   * would cover faces. Encoded per scene so the text moves where the
+   * faces aren't; every other slide keeps the standard placement.
+   */
+  placement?: HeroTextPlacement;
 }
 
 // The seven scenes (2026-11-18, owner-approved lineup, SLIDER PACKAGE
@@ -49,8 +59,11 @@ interface HeroScene {
 // photorealistic, one campaign grade; signage carries no names or
 // logos. Casting per the owner: one Black owner (the plumber), one
 // Latino owner (the roofer), the rest white — including two
-// white-haired owners (the AC man, the machine-shop owner), a husky
-// husband-and-wife shop couple, and an older couple. Person side
+// white-haired owners (the AC man, the machine-shop owner), the
+// eight-face spokesperson team photo (Aspen and Frank in front, with
+// Alex, Monica, Denise, Andy, Diego and James behind them — it
+// replaced the husky workshop couple on 2026-11-19, whose assets stay
+// in the repo unreferenced), and an older couple. Person side
 // alternates against the slogan side: even slides person RIGHT / text
 // LEFT, odd slides person LEFT / text RIGHT (the person-left photos are
 // mirrored versions of the approved generations — no readable text in
@@ -60,7 +73,7 @@ const HERO_SCENES: readonly HeroScene[] = [
   { id: "ac-guy-pain", src: acGuyPain, srcSm: acGuyPainSm, position: "30% 5%", alt: "An air-conditioning repairman fanning himself in a hot workshop while his desk phone rings unanswered" },
   { id: "roofer-pain", src: rooferPain, srcSm: rooferPainSm, position: "62% 12%", alt: "A roofer up on a roof, nail gun in hand, his phone buzzing in his tool belt" },
   { id: "manufacturer-pain-whitehair", src: manufacturerPainWhitehair, srcSm: manufacturerPainWhitehairSm, position: "30% 10%", alt: "A white-haired machine-shop owner staring at his phone in disbelief at six missed calls, buried in paper orders" },
-  { id: "couple-husky", src: coupleHusky, srcSm: coupleHuskySm, position: "70% 20%", alt: "A husband-and-wife couple who own a furniture workshop, smiling together among their handmade tables" },
+  { id: "faces-montage", src: facesMontage, srcSm: facesMontageSm, position: "55% 33%", placement: "bottom", alt: "The AiHiddenLeads spokesperson team — eight live video avatars led by Aspen and Frank, smiling together in a bright office lounge" },
   { id: "couple-relief", src: coupleRelief, srcSm: coupleReliefSm, position: "30% 22%", alt: "An older couple who own a small shop, laughing as they hand a bag to a customer" },
   { id: "aspen-owners", src: aspenOwners, srcSm: aspenOwnersSm, position: "78% 32%", alt: "Aspen showing two kitchen and marble shop owners their answered calls and new leads on a tablet" },
 ];
@@ -73,7 +86,7 @@ const HERO_SCENES: readonly HeroScene[] = [
  *   1 hang up, can't reach a person    -> ac-guy-pain (shirt open in the heat, fanning himself, desk phone ringing)
  *   2 78% abandoned, one missed call   -> roofer-pain (up on the roof, phone buzzing in his belt)
  *   3 owners shocked, ONE missed call  -> manufacturer-pain-whitehair (staring at his phone — six missed calls — the disbelief beat; the master is pre-mirrored)
- *   4 spokespersons / your own face    -> couple-husky (the owners ARE the face of their workshop)
+ *   4 spokespersons / your own face    -> faces-montage (the eight spokesperson models as one team photo; faces span the whole frame, so this scene declares placement "bottom" — the slogan moves into the bottom band where only torsos are, keeping every face visible)
  *   5 never miss another call, 24/7    -> couple-relief (the older couple, free to laugh with the customer in front of them; the master is mirrored so the couple stands left, clear of this line's right-side slogan)
  *   6 $99/mo + B2B prospects           -> aspen-owners (Aspen showing the cabinet-shop owners their leads on her tablet — the payoff)
  */
@@ -87,6 +100,10 @@ export const sceneIndexForLine = (lineIndex: number): number =>
 /** Slogan side per slide: even lines read left, odd lines read right. */
 export const textSideForLine = (lineIndex: number): HeroTextSide =>
   lineIndex % 2 === 0 ? "left" : "right";
+
+/** Slogan placement per slide, from the scene the line shows. */
+export const placementForLine = (lineIndex: number): HeroTextPlacement =>
+  HERO_SCENES[sceneIndexForLine(lineIndex)].placement ?? "side";
 
 /** Horizontal swipe distance (px) that counts as a slide change. */
 const HERO_SWIPE_MIN_PX = 40;
@@ -111,7 +128,9 @@ interface HeroSceneSliderProps {
  * never darkened as a whole. The only treatment is a LIGHT shade behind
  * the slogan's text zone — a side gradient on sm+ (the person's side of
  * the frame stays clear), a bottom strip on phones — under bright white
- * text. The slogan is the page's single h1 (HeroRotatingHeadline).
+ * text. The one exception is the team-photo slide, whose scene declares
+ * placement "bottom": its shade and slogan use the bottom band at every
+ * size, because its eight faces span both sides of the frame. The slogan is the page's single h1 (HeroRotatingHeadline).
  * Only the active scene and the next one are mounted at first, so first
  * paint loads a single scene and the rest stream in one dwell ahead of
  * their turn; a dot-jump mounts its scene on demand.
@@ -203,6 +222,7 @@ const HeroSceneSlider = ({ lines = HERO_HEADLINE_LINES }: HeroSceneSliderProps) 
         const isActive = sceneIndex === activeScene;
         const isFirstScene = sceneIndex === sceneIndexForLine(0);
         const side = textSideForLine(sceneIndex);
+        const placement = scene.placement ?? "side";
         return (
           <div
             key={scene.id}
@@ -224,22 +244,34 @@ const HeroSceneSlider = ({ lines = HERO_HEADLINE_LINES }: HeroSceneSliderProps) 
               style={{ objectPosition: scene.position }}
               className="h-full w-full object-cover"
             />
-            {/* Phone: a soft shade along the bottom only — the slogan
-                strip sits there and the face stays clear up top. */}
-            <div
-              aria-hidden
-              className="pointer-events-none absolute inset-x-0 bottom-0 h-[78%] bg-gradient-to-t from-black/70 via-black/30 to-transparent sm:hidden"
-            />
-            {/* sm+: a light shade behind the slogan's side only; the
-                person's side of the photo is never darkened. */}
-            <div
-              aria-hidden
-              className={`pointer-events-none absolute inset-y-0 hidden w-[64%] to-transparent sm:block ${
-                side === "left"
-                  ? "left-0 bg-gradient-to-r from-black/60 via-black/25"
-                  : "right-0 bg-gradient-to-l from-black/60 via-black/25"
-              }`}
-            />
+            {placement === "bottom" ? (
+              /* Bottom-placement scene (the team photo): one bottom
+                 shade at every size — the slogan band sits there and
+                 every face stays clear above it. */
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-x-0 bottom-0 h-[76%] bg-gradient-to-t from-black/70 via-black/30 to-transparent"
+              />
+            ) : (
+              <>
+                {/* Phone: a soft shade along the bottom only — the slogan
+                    strip sits there and the face stays clear up top. */}
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute inset-x-0 bottom-0 h-[78%] bg-gradient-to-t from-black/70 via-black/30 to-transparent sm:hidden"
+                />
+                {/* sm+: a light shade behind the slogan's side only; the
+                    person's side of the photo is never darkened. */}
+                <div
+                  aria-hidden
+                  className={`pointer-events-none absolute inset-y-0 hidden w-[64%] to-transparent sm:block ${
+                    side === "left"
+                      ? "left-0 bg-gradient-to-r from-black/60 via-black/25"
+                      : "right-0 bg-gradient-to-l from-black/60 via-black/25"
+                  }`}
+                />
+              </>
+            )}
           </div>
         );
       })}
@@ -251,6 +283,7 @@ const HeroSceneSlider = ({ lines = HERO_HEADLINE_LINES }: HeroSceneSliderProps) 
           activeIndex={active}
           lines={lines}
           textSideForLine={textSideForLine}
+          placementForLine={placementForLine}
         />
       </h1>
 

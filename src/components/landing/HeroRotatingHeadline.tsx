@@ -47,6 +47,15 @@ export const HERO_SLIDE_DWELL_MS = 10_000;
 /** Which side of the slide a line's text zone sits on (sm and up). */
 export type HeroTextSide = "left" | "right";
 
+/**
+ * Where a line's slogan zone sits. "side" is the standard alternating
+ * side zone; "bottom" moves the slogan into a shaded band along the
+ * bottom of the slide at every size — used by the slide whose photo is
+ * a wide group portrait with faces across both sides, so the slogan
+ * moves out of the faces' way instead of covering any of them.
+ */
+export type HeroTextPlacement = "side" | "bottom";
+
 interface HeroRotatingHeadlineProps {
   /** The active line index — owned by HeroSceneSlider's rotation state. */
   activeIndex: number;
@@ -58,6 +67,13 @@ interface HeroRotatingHeadlineProps {
    * Below sm the side is ignored: every line sits in the bottom strip.
    */
   textSideForLine?: (lineIndex: number) => HeroTextSide;
+  /**
+   * Slogan placement per line index. Defaults to "side" for every line;
+   * a line whose slide carries a placement override (the spokesperson
+   * team photo) returns "bottom" and its slogan renders in the bottom
+   * band at every breakpoint.
+   */
+  placementForLine?: (lineIndex: number) => HeroTextPlacement;
 }
 
 /**
@@ -67,7 +83,10 @@ interface HeroRotatingHeadlineProps {
  * crossfade with a slight rise (~600ms) in sync with the photo beneath
  * them. Each line's text zone hugs its slide's emptier side (alternating
  * left/right on sm+); on phones every line drops to a shaded strip along
- * the bottom of the slide so the person's face stays clear up top.
+ * the bottom of the slide so the person's face stays clear up top. A
+ * line whose slide declares placement "bottom" (the spokesperson team
+ * photo, faces across the whole frame) keeps that bottom band on sm+
+ * too, at a slightly smaller size, so no face sits behind the slogan.
  * Inactive lines are aria-hidden (no aria-live). Timing, arrows, dots
  * and swipe live in HeroSceneSlider, which owns the active index.
  */
@@ -75,37 +94,56 @@ const HeroRotatingHeadline = ({
   activeIndex,
   lines = HERO_HEADLINE_LINES,
   textSideForLine,
+  placementForLine,
 }: HeroRotatingHeadlineProps) => (
   <span className="grid h-full">
     {lines.map((segments, lineIndex) => {
       const active = lineIndex === activeIndex;
       const side = textSideForLine?.(lineIndex) ?? "left";
+      const placement = placementForLine?.(lineIndex) ?? "side";
       return (
         <span
           key={lineIndex}
           data-line-index={lineIndex}
           data-active={active}
           data-text-side={side}
+          data-text-placement={placement}
           aria-hidden={!active}
-          className={`col-start-1 row-start-1 flex items-end px-14 pb-12 transition-all duration-[600ms] ease-out motion-reduce:transition-none sm:items-center sm:px-20 sm:pb-0 ${
+          className={`col-start-1 row-start-1 flex items-end pb-12 transition-all duration-[600ms] ease-out motion-reduce:transition-none sm:px-20 ${
+            placement === "bottom" ? "px-10 sm:items-end sm:pb-9" : "px-14 sm:items-center sm:pb-0"
+          } ${
             active ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-2 opacity-0"
           }`}
         >
-          <span
-            className={`w-full sm:w-[56%] ${
-              side === "right" ? "sm:ml-auto sm:text-right" : "sm:mr-auto sm:text-left"
-            }`}
-          >
-            {segments.map((segment, segmentIndex) =>
-              segment.accent ? (
-                <span key={segmentIndex} className="text-emerald-400">
-                  {segment.text}
-                </span>
-              ) : (
-                <span key={segmentIndex}>{segment.text}</span>
-              ),
-            )}
-          </span>
+          {placement === "bottom" ? (
+            <span className="w-full text-left text-[1.08rem] leading-[1.15] sm:mx-auto sm:w-[88%] sm:max-w-[68rem] sm:text-center sm:text-[1.55rem] lg:text-[1.65rem]">
+              {segments.map((segment, segmentIndex) =>
+                segment.accent ? (
+                  <span key={segmentIndex} className="text-emerald-400">
+                    {segment.text}
+                  </span>
+                ) : (
+                  <span key={segmentIndex}>{segment.text}</span>
+                ),
+              )}
+            </span>
+          ) : (
+            <span
+              className={`w-full sm:w-[56%] ${
+                side === "right" ? "sm:ml-auto sm:text-right" : "sm:mr-auto sm:text-left"
+              }`}
+            >
+              {segments.map((segment, segmentIndex) =>
+                segment.accent ? (
+                  <span key={segmentIndex} className="text-emerald-400">
+                    {segment.text}
+                  </span>
+                ) : (
+                  <span key={segmentIndex}>{segment.text}</span>
+                ),
+              )}
+            </span>
+          )}
         </span>
       );
     })}

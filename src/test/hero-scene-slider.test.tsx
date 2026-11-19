@@ -30,14 +30,15 @@ const activeSlideId = (container: HTMLElement) =>
     ?.dataset.heroSlide;
 
 // The scene each line index must show, in order (SLIDER PACKAGE v2,
-// 2026-11-18): pain (plumber, AC man, roofer, white-haired owner) then
-// relief (husky couple, older couple) closing on Aspen with the owners.
+// 2026-11-18; slide 4 swapped to the spokesperson team photo
+// 2026-11-19): pain (plumber, AC man, roofer, white-haired owner) then
+// relief (spokesperson team, older couple) closing on Aspen with the owners.
 const EXPECTED_SCENES = [
   "plumber-pain",
   "ac-guy-pain",
   "roofer-pain",
   "manufacturer-pain-whitehair",
-  "couple-husky",
+  "faces-montage",
   "couple-relief",
   "aspen-owners",
 ];
@@ -68,6 +69,17 @@ describe("HeroSceneSlider", () => {
     const { container } = render(<HeroSceneSlider />);
     getLines(container).forEach((line, i) => {
       expect(line.dataset.textSide).toBe(i % 2 === 0 ? "left" : "right");
+    });
+  });
+
+  it("moves only the team-photo slide's slogan to the bottom band", () => {
+    setReducedMotion(false);
+    const { container } = render(<HeroSceneSlider />);
+    getLines(container).forEach((line, i) => {
+      // Slide 4 (the eight-face spokesperson montage) declares
+      // placement "bottom" so its slogan never covers a face; every
+      // other slide keeps the standard side placement.
+      expect(line.dataset.textPlacement).toBe(i === 4 ? "bottom" : "side");
     });
   });
 
