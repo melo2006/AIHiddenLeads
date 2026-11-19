@@ -1286,6 +1286,11 @@
     "preOrderNote": "Los servicios en reserva anticipada se activan después de la configuración y las pruebas. Sin garantías de ventas, ahorros, rapidez de devolución de llamadas ni posicionamiento."
   },
   "wizard": {
+    "ownerPreview": {
+      "open": "Vista previa del propietario — abrir el asistente",
+      "title": "Vista previa del propietario",
+      "note": "Estás viendo el asistente como administrador. Nada de esto factura ni pone en marcha un negocio real."
+    },
     "suggestMore": "Sugerir más",
     "suggestingMore": "Sugiriendo…",
     "suggestExhausted": "Eso es todo lo que tenemos por ahora — escribe las tuyas abajo",
