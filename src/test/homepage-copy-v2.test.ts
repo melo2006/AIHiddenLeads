@@ -24,7 +24,9 @@ test("hero badge is the approved three-beat line in every locale", () => {
 });
 
 test("the rotating hero headlines are untouched by the badge change", () => {
-  expect(heroSource).toContain("HeroRotatingHeadline");
+  // The slogans now live inside the hero slider (HeroSceneSlider renders
+  // HeroRotatingHeadline over each slide's photo); HeroSection wires it.
+  expect(heroSource).toContain("HeroSceneSlider");
   expect(heroSource).toContain("{copy.badge}");
 });
 

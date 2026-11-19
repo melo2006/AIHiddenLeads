@@ -138,11 +138,13 @@
   /* The navbar already reserves its own height. Keep landing bands compact,
      without changing tenant pages or the framed assistant. */
   .landing-page > section { padding-block: 2rem; }
-  .landing-page > .landing-hero { padding-top: 1.5rem; padding-bottom: 2rem; }
+  /* Hero top stays tight under the navbar (owner, 2026-11-18: the old
+     1.5rem/2rem left a big black band above the badge pill). */
+  .landing-page > .landing-hero { padding-top: 0.75rem; padding-bottom: 2rem; }
   .landing-page > .landing-demo-invitation { padding-block: 1rem; }
   @media (min-width: 640px) {
     .landing-page > section { padding-block: 2.5rem; }
-    .landing-page > .landing-hero { padding-top: 2rem; padding-bottom: 2.5rem; }
+    .landing-page > .landing-hero { padding-top: 1rem; padding-bottom: 2.5rem; }
     .landing-page > .landing-demo-invitation { padding-block: 1.25rem; }
   }
   /* Keeps a silently prepared live face decoding off-screen (display:none would stall its frames). */

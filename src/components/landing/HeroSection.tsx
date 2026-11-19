@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import { motion } from "framer-motion";
 import { Phone, Search, Star, Users, Video, Calendar, ArrowRight, MessageSquare } from "lucide-react";
 import { homepageSalesCopy } from "@/data/homepageSalesCopy";
@@ -7,8 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import type { NicheData } from "@/data/nicheData";
 import aspenPortrait from "@/assets/aspen-idle-wave.gif";
-import HeroRotatingHeadline from "@/components/landing/HeroRotatingHeadline";
-import HeroSceneBanner from "@/components/landing/HeroSceneBanner";
+import HeroSceneSlider from "@/components/landing/HeroSceneSlider";
 
 interface HeroSectionProps {
   niche: NicheData;
@@ -22,29 +21,24 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
   // One icon per hero service, in list order; positions past the array
   // fall back to Phone (the same fallback social/website used before).
   const icons = [Phone, Users, Search, Star, Video, Phone, MessageSquare, Phone];
-  // Pause the rotating headline while the visitor hovers it or uses the CTAs.
-  const [rotationPaused, setRotationPaused] = useState(false);
-  const pauseRotation = () => setRotationPaused(true);
-  const resumeRotation = () => setRotationPaused(false);
-  // The photo backdrop crossfades in sync with the rotating headline.
-  const [headlineIndex, setHeadlineIndex] = useState(0);
-  const handleHeadlineIndexChange = useCallback((index: number) => {
-    setHeadlineIndex(index);
-  }, []);
   const openAspen = useCallback(() => {
     window.dispatchEvent(new CustomEvent('open-homepage-aspen', { detail: { mode: 'voice', start: true } }));
   }, []);
 
   return (
-    <section className="landing-hero relative overflow-hidden pt-6 sm:pt-8 pb-8 sm:pb-10">
+    <section className="landing-hero relative overflow-hidden pb-8 sm:pb-10">
       <div className="container mx-auto px-5 sm:px-6 relative z-10">
-        {/* Badge — sits above the photo banner on the solid background */}
+        {/* Badge — sits above the hero slider on the solid background.
+            Top spacing stays tight: it comes from index.css
+            (.landing-page > .landing-hero), since the navbar spacer owns
+            the header offset — the pill + slider sit up close under the
+            header, never clipped by it at scroll 0. */}
         <div className="text-center lg:text-left">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="inline-flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2 rounded-full border border-primary/20 bg-primary/5 mb-4 sm:mb-5"
+            className="inline-flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2 rounded-full border border-primary/20 bg-primary/5 mb-3 sm:mb-4"
           >
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
@@ -56,26 +50,21 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
           </motion.div>
         </div>
 
-        {/* Photo banner — the scenes crossfade in sync with the headline;
-            every line of hero text lives below it, never over the photo */}
-        <HeroSceneBanner activeLineIndex={headlineIndex} />
+        {/* Hero slider — photo band with the rotating slogan (the page
+            h1) overlaid on each slide, realtor-slideshow format: arrows,
+            dots, pause/play, swipe. Everything else lives below it. */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.05 }}
+        >
+          <HeroSceneSlider lines={copy.heroHeadlines} />
+        </motion.div>
 
         {/* Two-column layout: Text left, Aspen right */}
         <div className="flex flex-col lg:flex-row items-center gap-8 lg:gap-10 mt-6 sm:mt-8">
           {/* Left column - Main content */}
           <div className="min-w-0 w-full flex-1 text-center lg:text-left">
-            {/* Headline — rotates through the five hero lines */}
-            <motion.h1
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.1 }}
-              className="text-2xl sm:text-4xl lg:text-5xl font-bold leading-tight mb-5"
-              onMouseEnter={pauseRotation}
-              onMouseLeave={resumeRotation}
-            >
-              <HeroRotatingHeadline paused={rotationPaused} lines={copy.heroHeadlines} onActiveIndexChange={handleHeadlineIndexChange} />
-            </motion.h1>
-
             {/* Subheadline */}
             <motion.p
               initial={{ opacity: 0, y: 20 }}
@@ -92,11 +81,6 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.3 }}
               className="flex w-full min-w-0 flex-col sm:flex-row sm:flex-wrap gap-3 justify-center lg:justify-start mb-5"
-              onMouseEnter={pauseRotation}
-              onMouseLeave={resumeRotation}
-              onFocusCapture={pauseRotation}
-              onBlurCapture={resumeRotation}
-              onPointerDownCapture={pauseRotation}
             >
               <Button
                 onClick={() => navigate("/demo")}

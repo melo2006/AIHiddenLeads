@@ -1,14 +1,12 @@
-import { useEffect, useState } from "react";
-
 export interface HeadlineSegment {
   text: string;
   accent?: boolean;
 }
 
-// The hero headline itself rotates through these seven lines, in order.
-// This is the ENGLISH set, kept as the default; HeroSection passes the
-// localized set for the visitor's language (homepageSalesCopy's
-// heroHeadlines — en / es / pt-BR) via the lines prop.
+// The hero headline rotates through these seven lines, in order. This is
+// the ENGLISH set, kept as the default; HeroSection passes the localized
+// set for the visitor's language (homepageSalesCopy's heroHeadlines —
+// en / es / pt-BR / fr-CA) via the lines prop.
 export const HERO_HEADLINE_LINES: ReadonlyArray<ReadonlyArray<HeadlineSegment>> = [
   [
     { text: "85% of callers who hit " },
@@ -39,92 +37,69 @@ export const HERO_HEADLINE_TEXTS: readonly string[] = HERO_HEADLINE_LINES.map((s
   segments.map((segment) => segment.text).join(""),
 );
 
-// Per-line dwell before the crossfade. The lines run 3–4 wrapped lines, so
-// Ron asked for ~3s more reading time (2026-11-18): 4.5s was too fast to read.
-const DWELL_MS = 7500;
+/**
+ * Per-slide dwell before the hero slider crossfades to the next slide.
+ * The lines run long, and each now sits over a photo the visitor should
+ * have time to take in, so the owner asked for a couple more seconds
+ * over the old 7.5s headline pace (2026-11-18): 10s per slide.
+ */
+export const HERO_SLIDE_DWELL_MS = 10_000;
+
+/** Which side of the slide a line's text zone sits on (sm and up). */
+export type HeroTextSide = "left" | "right";
 
 interface HeroRotatingHeadlineProps {
-  /** Pause cycling (e.g. while the visitor hovers the headline or uses the hero CTAs). */
-  paused?: boolean;
+  /** The active line index — owned by HeroSceneSlider's rotation state. */
+  activeIndex: number;
   /** The lines to rotate, in the visitor's language. Defaults to the English set. */
   lines?: ReadonlyArray<ReadonlyArray<HeadlineSegment>>;
   /**
-   * Optional: notified with the active line index whenever it changes
-   * (including the initial line on mount). HeroSection uses it to keep
-   * the photo backdrop crossfading in sync with the headline.
+   * Text side per line index. The slider alternates sides so the slogan
+   * never covers the person in the photo (even lines left, odd right).
+   * Below sm the side is ignored: every line sits in the bottom strip.
    */
-  onActiveIndexChange?: (index: number) => void;
+  textSideForLine?: (lineIndex: number) => HeroTextSide;
 }
 
 /**
- * Rotating hero headline. All seven lines render stacked in a single grid
- * cell inside the page's h1, so the block always reserves exactly the
- * height of the longest-wrapping line at the current breakpoint and
- * cycling never shifts the layout below it. Lines crossfade with a slight
- * rise (~600ms) instead of jump-cutting. Inactive lines are aria-hidden
- * (no aria-live); with prefers-reduced-motion the first line is static.
+ * The hero slogan layer — the page's single h1, rendered inside the
+ * hero slider over the active slide's photo. All seven lines render
+ * stacked in a single grid cell, so cycling never shifts layout; lines
+ * crossfade with a slight rise (~600ms) in sync with the photo beneath
+ * them. Each line's text zone hugs its slide's emptier side (alternating
+ * left/right on sm+); on phones every line drops to a shaded strip along
+ * the bottom of the slide so the person's face stays clear up top.
+ * Inactive lines are aria-hidden (no aria-live). Timing, arrows, dots
+ * and swipe live in HeroSceneSlider, which owns the active index.
  */
-const HeroRotatingHeadline = ({ paused = false, lines = HERO_HEADLINE_LINES, onActiveIndexChange }: HeroRotatingHeadlineProps) => {
-  const [index, setIndex] = useState(0);
-  const [reducedMotion] = useState(
-    () =>
-      typeof window !== "undefined" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-  );
-
-  useEffect(() => {
-    if (reducedMotion || paused) return;
-    let interval: number | undefined;
-    const stop = () => {
-      if (interval !== undefined) {
-        window.clearInterval(interval);
-        interval = undefined;
-      }
-    };
-    const start = () => {
-      stop();
-      interval = window.setInterval(() => {
-        setIndex((current) => (current + 1) % lines.length);
-      }, DWELL_MS);
-    };
-    const onVisibilityChange = () => {
-      if (document.hidden) {
-        stop();
-      } else {
-        start();
-      }
-    };
-    if (!document.hidden) start();
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    return () => {
-      stop();
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-    };
-  }, [reducedMotion, paused, lines]);
-
-  const activeIndex = reducedMotion ? 0 : index;
-
-  useEffect(() => {
-    onActiveIndexChange?.(activeIndex);
-  }, [activeIndex, onActiveIndexChange]);
-
-  return (
-    <span className="grid">
-      {lines.map((segments, lineIndex) => {
-        const active = lineIndex === activeIndex;
-        return (
+const HeroRotatingHeadline = ({
+  activeIndex,
+  lines = HERO_HEADLINE_LINES,
+  textSideForLine,
+}: HeroRotatingHeadlineProps) => (
+  <span className="grid h-full">
+    {lines.map((segments, lineIndex) => {
+      const active = lineIndex === activeIndex;
+      const side = textSideForLine?.(lineIndex) ?? "left";
+      return (
+        <span
+          key={lineIndex}
+          data-line-index={lineIndex}
+          data-active={active}
+          data-text-side={side}
+          aria-hidden={!active}
+          className={`col-start-1 row-start-1 flex items-end px-14 pb-12 transition-all duration-[600ms] ease-out motion-reduce:transition-none sm:items-center sm:px-20 sm:pb-0 ${
+            active ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-2 opacity-0"
+          }`}
+        >
           <span
-            key={lineIndex}
-            data-line-index={lineIndex}
-            data-active={active}
-            aria-hidden={!active}
-            className={`col-start-1 row-start-1 transition-all duration-[600ms] ease-out ${
-              active ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-2 opacity-0"
+            className={`w-full sm:w-[56%] ${
+              side === "right" ? "sm:ml-auto sm:text-right" : "sm:mr-auto sm:text-left"
             }`}
           >
             {segments.map((segment, segmentIndex) =>
               segment.accent ? (
-                <span key={segmentIndex} className="text-primary">
+                <span key={segmentIndex} className="text-emerald-400">
                   {segment.text}
                 </span>
               ) : (
@@ -132,10 +107,10 @@ const HeroRotatingHeadline = ({ paused = false, lines = HERO_HEADLINE_LINES, onA
               ),
             )}
           </span>
-        );
-      })}
-    </span>
-  );
-};
+        </span>
+      );
+    })}
+  </span>
+);
 
 export default HeroRotatingHeadline;
