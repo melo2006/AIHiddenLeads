@@ -444,7 +444,7 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
             className="inline-flex items-center gap-1.5 whitespace-nowrap text-[10px] font-semibold hover:underline min-[400px]:text-[11px] sm:text-xs"
           >
             <Phone className="hidden h-3.5 w-3.5 shrink-0 sm:block" />
-            1-877-862-4949 · AIWIZ
+            1-877-862-4949 · AI WIZ
           </a>
           <span aria-hidden className="hidden text-primary-foreground/50 sm:inline">
             ·
@@ -454,7 +454,7 @@ const AgentLandingTemplate = ({ vertical }: { vertical: AgentVertical }) => {
             className="inline-flex items-center gap-1.5 whitespace-nowrap text-[10px] font-semibold hover:underline min-[400px]:text-[11px] sm:text-xs"
           >
             <Phone className="hidden h-3.5 w-3.5 shrink-0 sm:block" />
-            1-772-362-4949 · AIWIZ
+            1-772-362-4949 · AI WIZ
           </a>
           {vertical.slug === "realtors" && (
             <>

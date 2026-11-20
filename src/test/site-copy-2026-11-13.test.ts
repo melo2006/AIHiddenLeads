@@ -101,9 +101,9 @@ describe("vanity numbers — digits + letters on display, digits only in hrefs/d
   it("the display constants carry the exact dual forms", () => {
     const lib = read("../lib/phoneDisplay.ts");
     expect(lib).toContain('digits: "1-877-862-4949"');
-    expect(lib).toContain('vanity: "1-877-86-AIWIZ"');
+    expect(lib).toContain('vanity: "1-877-86-AI WIZ"');
     expect(lib).toContain('digits: "1-772-362-4949"');
-    expect(lib).toContain('vanity: "1-772-36-AIWIZ"');
+    expect(lib).toContain('vanity: "1-772-36-AI WIZ"');
     expect(lib).toContain('digits: "786-244-9688"');
     expect(lib).toContain('vanity: "AI-4ALL"');
     expect(lib).toContain('href: "tel:+18778624949"');
@@ -111,7 +111,7 @@ describe("vanity numbers — digits + letters on display, digits only in hrefs/d
     expect(lib).toContain('href: "tel:+17862449688"');
   });
 
-  it("the shared footer shows the AIWIZ pair dual form — and never the 786", () => {
+  it("the shared footer shows the AI WIZ pair dual form — and never the 786", () => {
     const footer = read("../components/landing/Footer.tsx");
     expect(footer).toContain("phoneDisplay");
     expect(footer).toContain("TOLL_FREE_DISPLAY");
@@ -121,7 +121,29 @@ describe("vanity numbers — digits + letters on display, digits only in hrefs/d
   });
 
   it("the Help contact line promotes the vanity form", () => {
-    expect(read("../pages/Help.tsx")).toContain("1-877-862-4949 · 1-877-86-AIWIZ");
+    expect(read("../pages/Help.tsx")).toContain("1-877-862-4949 · 1-877-86-AI WIZ");
+  });
+
+  it("the shared header carries the toll-free call link — vanity text on desktop, tap-to-call icon on phones", () => {
+    const nav = read("../components/landing/LandingNavbar.tsx");
+    expect(nav).toContain("TOLL_FREE_DISPLAY");
+    expect(nav).toContain("TOLL_FREE_DISPLAY.href");
+    expect(nav).toContain("TOLL_FREE_DISPLAY.vanity");
+    expect(nav).toContain('t("nav.callUs")');
+    // Platform hosts only: the platform numbers never render under a
+    // tenant's brand, in the header just as in the footer.
+    expect(nav).toContain("!effectiveBrand");
+  });
+
+  it("the header call label exists in all four locales", () => {
+    for (const rel of [
+      "../i18n/locales/en.json",
+      "../i18n/locales/es.json",
+      "../i18n/locales/pt-BR.json",
+      "../i18n/locales/fr.json",
+    ]) {
+      expect(read(rel)).toContain('"callUs"');
+    }
   });
 
   it("structured data stays digit-only", () => {

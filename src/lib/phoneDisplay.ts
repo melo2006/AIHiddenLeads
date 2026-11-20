@@ -12,15 +12,15 @@
 export const TOLL_FREE_DISPLAY = {
   href: "tel:+18778624949",
   digits: "1-877-862-4949",
-  vanity: "1-877-86-AIWIZ",
-  shortTag: "AIWIZ",
+  vanity: "1-877-86-AI WIZ",
+  shortTag: "AI WIZ",
 } as const;
 
 export const LOCAL_DISPLAY = {
   href: "tel:+17723624949",
   digits: "1-772-362-4949",
-  vanity: "1-772-36-AIWIZ",
-  shortTag: "AIWIZ",
+  vanity: "1-772-36-AI WIZ",
+  shortTag: "AI WIZ",
 } as const;
 
 /** Realtor line — /agents/realtors only; never on the homepage. */

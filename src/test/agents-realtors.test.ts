@@ -246,9 +246,9 @@ describe("realtor landing page — v2 polish batch (2026-11-11)", () => {
   it("slim top contact bar carries the Aspen bridge numbers as tel: links with vanity tags, above the navbar", () => {
     expect(templateSource).toContain("data-agent-contact-bar");
     expect(templateSource).toContain('href="tel:+18778624949"');
-    expect(templateSource).toContain("1-877-862-4949 · AIWIZ");
+    expect(templateSource).toContain("1-877-862-4949 · AI WIZ");
     expect(templateSource).toContain('href="tel:+17723624949"');
-    expect(templateSource).toContain("1-772-362-4949 · AIWIZ");
+    expect(templateSource).toContain("1-772-362-4949 · AI WIZ");
     // The realtor line joins the bar on the realtors vertical only, and
     // the full dual displays land in the realtors-only contact strip.
     expect(templateSource).toContain('href="tel:+17862449688"');

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Menu, X, FileText, Type } from "lucide-react";
+import { Menu, X, FileText, Type, Phone } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
@@ -9,6 +9,7 @@ import ThemeToggle, { ThemePreferenceRow } from "@/components/ThemeToggle";
 import AccountMenu from "@/components/AccountMenu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { resolveTenantBrand, type ResolvedBrand } from "@/lib/clients";
+import { TOLL_FREE_DISPLAY } from "@/lib/phoneDisplay";
 import { useTenantBrand } from "@/components/TenantBrandProvider";
 import { initialsFor } from "@/lib/tenancy";
 
@@ -78,7 +79,7 @@ const LandingNavbar = ({ brand }: { brand?: ResolvedBrand }) => {
                   the mark render at ~13px inside a 36px box. The cropped
                   mark at 40/48px puts the artwork itself at ~33/39px. */}
               <img src="/logo-mark.png" alt="AI Hidden Leads" className="w-10 h-10 shrink-0 sm:w-12 sm:h-12" />
-              <span className="min-w-0 text-sm sm:text-lg leading-tight font-extrabold text-foreground">
+              <span className="min-w-0 truncate text-sm sm:text-lg leading-tight font-extrabold text-foreground">
                 AI <span className="text-primary">Hidden</span> Leads
               </span>
             </>
@@ -112,6 +113,21 @@ const LandingNavbar = ({ brand }: { brand?: ResolvedBrand }) => {
           <LanguageSwitcher />
           <Popover><PopoverTrigger asChild><Button size="icon" variant="ghost" aria-label="Text size" title="Text size"><Type /></Button></PopoverTrigger><PopoverContent className="z-[100] w-72"><TextSizeControl /></PopoverContent></Popover>
           <ThemeToggle />
+          {/* Platform number in the header (Ron's request, 2026-11-20):
+              platform hosts only — like the footer, the platform
+              numbers never render under a tenant's brand. The text
+              joins at xl; below that the icon alone keeps the dense
+              desktop cluster from crowding. */}
+          {!effectiveBrand && (
+            <a
+              href={TOLL_FREE_DISPLAY.href}
+              aria-label={`${t("nav.callUs")} ${TOLL_FREE_DISPLAY.vanity}`}
+              className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <Phone className="h-4 w-4 shrink-0" />
+              <span className="hidden xl:inline">{TOLL_FREE_DISPLAY.vanity}</span>
+            </a>
+          )}
           <Button size="sm" onClick={() => scrollTo("demo-form")}>
             {t("nav.getFreeDemo")}
           </Button>
@@ -120,6 +136,15 @@ const LandingNavbar = ({ brand }: { brand?: ResolvedBrand }) => {
 
         <div className="lg:hidden flex items-center gap-1">
           <LanguageSwitcher />
+          {/* Phone widths get a compact tap-to-call icon instead of
+              the number text (platform hosts only, as above). */}
+          {!effectiveBrand && (
+            <Button asChild size="icon" variant="ghost" className="h-9 w-9 shrink-0 text-muted-foreground hover:text-foreground">
+              <a href={TOLL_FREE_DISPLAY.href} aria-label={`${t("nav.callUs")} ${TOLL_FREE_DISPLAY.vanity}`}>
+                <Phone className="w-5 h-5" />
+              </a>
+            </Button>
+          )}
           <AccountMenu compact />
           <Button size="icon" variant="ghost" aria-label={open ? "Close menu" : "Open menu"} aria-expanded={open} onClick={() => setOpen(!open)} className="shrink-0 text-muted-foreground hover:text-foreground">
             {open ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
