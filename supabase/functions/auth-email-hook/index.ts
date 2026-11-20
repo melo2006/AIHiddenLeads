@@ -92,13 +92,34 @@ function jsonResponse(body: unknown, status: number, extraHeaders: Record<string
 }
 
 function buildConfirmationUrl(emailData: Record<string, any>): string {
-  const siteUrl = (emailData.site_url || SITE_URL).replace(/\/$/, '')
+  // email_data.site_url is NOT the public site URL, despite the name:
+  // gotrue builds the Send Email hook payload with
+  // SiteURL = the Auth server's own external URL
+  // (https://<project-ref>.supabase.co/auth/v1). The verify endpoint
+  // hangs directly off that base as /verify — the same URL gotrue puts
+  // in {{ .ConfirmationURL }}. The previous code appended /auth/verify,
+  // doubling the segment to /auth/v1/auth/verify, which the gateway
+  // rejects with {"message":"No API key found in request"} — every
+  // auth email link (signup, invite, magic link, recovery, email
+  // change) was broken. Fix (2026-11-20): normalise whatever base
+  // arrives (with or without the /auth/v1 suffix) to the project base
+  // and append the canonical /auth/v1/verify path exactly once. If
+  // site_url is ever missing, fall back to the function's own
+  // SUPABASE_URL env (auto-injected by the edge runtime).
+  const rawBase = (
+    emailData.site_url ||
+    Deno.env.get('SUPABASE_URL') ||
+    ''
+  ).replace(/\/$/, '')
+  const projectBase = rawBase.endsWith('/auth/v1')
+    ? rawBase.slice(0, -'/auth/v1'.length)
+    : rawBase
   const params = new URLSearchParams({
     token: emailData.token_hash ?? '',
     type: emailData.email_action_type ?? '',
     redirect_to: emailData.redirect_to ?? '',
   })
-  return `${siteUrl}/auth/verify?${params.toString()}`
+  return `${projectBase}/auth/v1/verify?${params.toString()}`
 }
 
 function buildTemplateElement(
