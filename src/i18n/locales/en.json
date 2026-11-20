@@ -1451,6 +1451,11 @@
       "body": "Plays well with your back office — Salesforce · SAP · Oracle · PeopleSoft · Workday · Amdocs · and hundreds more, connected via Zapier, n8n, or direct API in a guided setup with our team.",
       "cta": "Book a consultation"
     },
+    "consult": {
+      "title": "Want her connected to your own systems — later?",
+      "body": "You don't have to stop here. Finish this setup and see your first working spokesperson in just a few minutes. Deeper integrations — your CRM, ERP, invoices, or your own database — are a phase two we build with you. Book a consultation with our experts whenever you're ready, and we'll scope it together.",
+      "cta": "Book an integration consultation"
+    },
     "look": {
       "phoneHint": "Your preview rides along at the top of this page — tap Preview to see the full page."
     }

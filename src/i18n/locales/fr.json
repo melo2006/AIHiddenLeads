@@ -1451,6 +1451,11 @@
       "body": "Il s'entend bien avec votre arrière-boutique — Salesforce · SAP · Oracle · PeopleSoft · Workday · Amdocs · et des centaines d'autres, connectés via Zapier, n8n ou l'API directe, dans une configuration guidée avec notre équipe.",
       "cta": "Réserver une consultation"
     },
+    "consult": {
+      "title": "Vous voulez la connecter à vos propres systèmes — plus tard ?",
+      "body": "Vous n'avez pas à vous arrêter ici. Terminez cette configuration et voyez votre première porte-parole en action en quelques minutes seulement. Les intégrations plus poussées — votre CRM, ERP, vos factures ou votre propre base de données — sont une phase deux que nous construisons avec vous. Réservez une consultation avec nos experts quand vous serez prêt, et nous définirons le périmètre ensemble.",
+      "cta": "Réserver une consultation d'intégration"
+    },
     "look": {
       "phoneHint": "Votre aperçu vous suit en haut de cette page — touchez Aperçu pour voir la page entière."
     }

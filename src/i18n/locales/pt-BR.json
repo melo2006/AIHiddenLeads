@@ -1451,6 +1451,11 @@
       "body": "Combina com o seu escritório — Salesforce · SAP · Oracle · PeopleSoft · Workday · Amdocs · e centenas de outros, conectados via Zapier, n8n ou API direta, numa configuração guiada com a nossa equipe.",
       "cta": "Agendar uma consulta"
     },
+    "consult": {
+      "title": "Quer conectá-la aos seus próprios sistemas — mais tarde?",
+      "body": "Você não precisa parar aqui. Termine esta configuração e veja sua primeira porta-voz funcionando em apenas alguns minutos. As integrações mais profundas — seu CRM, ERP, faturas ou seu próprio banco de dados — são uma segunda fase que construímos com você. Agende uma consulta com nossos especialistas quando estiver pronto e vamos definir o escopo juntos.",
+      "cta": "Agendar uma consulta de integração"
+    },
     "look": {
       "phoneHint": "Sua prévia acompanha você no topo desta página — toque em Prévia para ver a página inteira."
     }

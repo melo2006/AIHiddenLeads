@@ -75,6 +75,25 @@ function StepHead({ title, hint, help }: { title: string; hint: string; help?: s
   );
 }
 
+/**
+ * Quiet pointer to the phase-two integration consultation, shown at the
+ * end of the Learn step: deeper integrations are scoped with our experts
+ * later — the card is deliberately a secondary, ghost-button action so it
+ * never competes with the wizard's Next button or reads as a roadblock.
+ */
+function IntegrationConsultCard() {
+  const { t } = useTranslation();
+  return (
+    <div className="space-y-2 rounded-xl border border-border p-3">
+      <p className="flex items-center gap-2 text-sm font-semibold"><Link2 className="h-4 w-4 text-primary" />{t("wizard.consult.title")}</p>
+      <p className="text-xs text-muted-foreground">{t("wizard.consult.body")}</p>
+      <Button asChild variant="ghost" size="sm" className="h-8 px-2 text-primary">
+        <Link to="/book"><CalendarCheck className="mr-1.5 h-4 w-4" />{t("wizard.consult.cta")}</Link>
+      </Button>
+    </div>
+  );
+}
+
 /** Checkable suggestion cards: ticking inserts the item's plain sentence into the owner's editable text; unticking removes exactly that sentence. */
 function ChecklistCards({ items, text, onToggle }: { items: ChecklistItem[]; text: string; onToggle: (item: ChecklistItem, on: boolean) => void }) {
   return (
@@ -754,6 +773,8 @@ export default function SetupWizard({ preview = false, ownerPreview = false, age
                     <FieldToolbar textareaRef={notesRef} value={s.businessNotes || ''} onChange={(next) => set({ businessNotes: next })} voice={s.voice} variables={allVariables} summaryText={learnedSummary}
                       onRewrite={(mode) => rewriteField(s.businessNotes || '', mode)} disabled={busy || loading} />
                   </div>
+
+                  <IntegrationConsultCard />
                 </div>
               )}
 
