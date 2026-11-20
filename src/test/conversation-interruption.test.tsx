@@ -69,6 +69,9 @@ describe.each([{ paired: false, mode: 'handsfree' }, { paired: true, mode: 'hand
       fireEvent.keyDown(modeSelect, { key: 'ArrowDown' });
       const holdOption = await view.findByRole('option', { name: 'Noisy place — hold to talk' });
       fireEvent.keyDown(holdOption, { key: 'Enter' });
+      // Mode picks are dialog drafts since 2026-11-20: nothing commits
+      // until "Apply settings" is tapped.
+      fireEvent.click(view.getByRole('button', { name: 'Apply settings' }));
       // The settings dialog overlays the panel while open; close it so the
       // hold button underneath becomes accessible again.
       const dialog = modeSelect.closest('[role="dialog"]');
