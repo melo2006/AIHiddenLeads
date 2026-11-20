@@ -37,6 +37,8 @@ vi.mock('@/integrations/supabase/client', () => ({
         return { data: { subscription: { unsubscribe: () => {} } } };
       },
       signInWithPassword: async () => ({ error: null }),
+      getUser: async () => ({ data: { user: null } }),
+      signOut: async () => ({ error: null }),
       signUp: async () => ({ error: null }),
       exchangeCodeForSession: async () => ({ error: null }),
     },
@@ -61,6 +63,13 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe('/reset-password', () => {
+  it('renders inside the site shell (header + footer, not a bare page)', async () => {
+    renderInRouter(<ResetPassword />);
+    // Footer carries the platform phone numbers; the bare page had neither.
+    expect(await screen.findByText(/1-877-86-AI WIZ/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /send reset link/i })).toBeInTheDocument();
+  });
+
   it('sends the reset email with the /update-password redirect and confirms', async () => {
     renderInRouter(<ResetPassword />);
     fireEvent.change(screen.getByLabelText(/email/i), {
@@ -109,16 +118,41 @@ describe('/update-password', () => {
 
     const next = await screen.findByLabelText(/^new password$/i);
     const confirm = screen.getByLabelText(/confirm new password/i);
-    fireEvent.change(next, { target: { value: 'longenough1' } });
-    fireEvent.change(confirm, { target: { value: 'different99' } });
+    fireEvent.change(next, { target: { value: 'Longenough1!' } });
+    fireEvent.change(confirm, { target: { value: 'Different99!' } });
     fireEvent.submit(screen.getByRole('button', { name: /save new password/i }).closest('form')!);
     expect(await screen.findByRole('alert')).toHaveTextContent(/don't match/i);
     expect(auth.updateUser).not.toHaveBeenCalled();
 
-    fireEvent.change(confirm, { target: { value: 'longenough1' } });
+    fireEvent.change(confirm, { target: { value: 'Longenough1!' } });
     fireEvent.submit(screen.getByRole('button', { name: /save new password/i }).closest('form')!);
-    await waitFor(() => expect(auth.updateUser).toHaveBeenCalledWith({ password: 'longenough1' }));
+    await waitFor(() => expect(auth.updateUser).toHaveBeenCalledWith({ password: 'Longenough1!' }));
     expect(await screen.findByText(/password updated/i)).toBeInTheDocument();
+  });
+
+  it('blocks a password that misses the policy (no special character)', async () => {
+    renderInRouter(<UpdatePassword />);
+    auth.listener!('PASSWORD_RECOVERY', { user: { id: 'u1' } });
+    fireEvent.change(await screen.findByLabelText(/^new password$/i), {
+      target: { value: 'longenough1' },
+    });
+    fireEvent.change(screen.getByLabelText(/confirm new password/i), {
+      target: { value: 'longenough1' },
+    });
+    fireEvent.submit(screen.getByRole('button', { name: /save new password/i }).closest('form')!);
+    expect(await screen.findByRole('alert')).toHaveTextContent(/meet all the rules/i);
+    expect(auth.updateUser).not.toHaveBeenCalled();
+  });
+
+  it('eye toggle shows and hides the typed password', async () => {
+    renderInRouter(<UpdatePassword />);
+    auth.listener!('PASSWORD_RECOVERY', { user: { id: 'u1' } });
+    const next = (await screen.findByLabelText(/^new password$/i)) as HTMLInputElement;
+    expect(next.type).toBe('password');
+    fireEvent.click(screen.getAllByRole('button', { name: /show password/i })[0]);
+    expect(next.type).toBe('text');
+    fireEvent.click(screen.getAllByRole('button', { name: /hide password/i })[0]);
+    expect(next.type).toBe('password');
   });
 
   it('rejects passwords shorter than 8 characters before calling Supabase', async () => {

@@ -52,7 +52,13 @@
       "invalidTitle": "Este enlace no funciona",
       "invalidBody": "Es posible que el enlace haya caducado o ya se haya usado. Pide uno nuevo e inténtalo otra vez.",
       "requestNew": "Pedir un enlace nuevo",
-      "error": "No pudimos guardar tu contraseña nueva. Inténtalo de nuevo."
+      "error": "No pudimos guardar tu contraseña nueva. Inténtalo de nuevo.",
+      "rulesTitle": "Tu contraseña debe incluir:",
+      "ruleLength": "Al menos 8 caracteres",
+      "ruleLetter": "Al menos una letra",
+      "ruleNumber": "Al menos un número",
+      "ruleSymbol": "Al menos un carácter especial (como ! @ # $ %)",
+      "policyNotice": "Tu contraseña aún no cumple todas las reglas."
     }
   },
   "lang": {
@@ -1656,5 +1662,9 @@
       "acceptFailed": "No se pudo aceptar la invitación",
       "welcome": "Bienvenido: tu cuenta de equipo está lista."
     }
+  },
+  "passwordInput": {
+    "show": "Mostrar contraseña",
+    "hide": "Ocultar contraseña"
   }
 }

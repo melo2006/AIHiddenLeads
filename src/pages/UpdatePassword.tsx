@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
+import CustomerPageLayout from "@/components/CustomerPageLayout";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import PasswordInput from "@/components/ui/password-input";
+import { Check } from "lucide-react";
 
 type Phase = "checking" | "ready" | "invalid" | "done";
 
@@ -74,11 +76,26 @@ const UpdatePassword = () => {
     };
   }, []);
 
+  // Password policy (Ron, 2026-11-20 — the professional-companies rule):
+  // 8+ characters with at least one letter, one number and one special
+  // character, shown live under the field with ticks as each rule is met.
+  const rules = [
+    { ok: password.length >= 8, label: t("passwordReset.update.ruleLength") },
+    { ok: /[A-Za-z]/.test(password), label: t("passwordReset.update.ruleLetter") },
+    { ok: /\d/.test(password), label: t("passwordReset.update.ruleNumber") },
+    { ok: /[^A-Za-z0-9]/.test(password), label: t("passwordReset.update.ruleSymbol") },
+  ];
+  const policyOk = rules.every((r) => r.ok);
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (busy) return;
     if (password.length < 8) {
       setNotice(t("passwordReset.update.minLength"));
+      return;
+    }
+    if (!policyOk) {
+      setNotice(t("passwordReset.update.policyNotice"));
       return;
     }
     if (password !== confirm) {
@@ -97,9 +114,9 @@ const UpdatePassword = () => {
   };
 
   return (
-    <main className="min-h-screen grid place-items-center bg-background p-4">
+    <CustomerPageLayout>
+    <main className="grid place-items-center px-4 py-10 sm:py-16">
       <div className="w-full max-w-sm space-y-4">
-        <img src="/logo.png" alt="AI Hidden Leads" className="mx-auto h-12 w-12" />
         {phase === "checking" && (
           <p className="text-center text-sm text-muted-foreground">
             {t("passwordReset.update.checking")}
@@ -147,21 +164,35 @@ const UpdatePassword = () => {
             <form className="space-y-3" onSubmit={submit}>
               <label className="block text-sm">
                 {t("passwordReset.update.newPasswordLabel")}
-                <Input
+                <PasswordInput
                   required
                   minLength={8}
-                  type="password"
                   autoComplete="new-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
               </label>
+              <ul className="space-y-1 text-xs" aria-label={t("passwordReset.update.rulesTitle")}>
+                <li className="text-muted-foreground">{t("passwordReset.update.rulesTitle")}</li>
+                {rules.map((r) => (
+                  <li
+                    key={r.label}
+                    className={
+                      r.ok
+                        ? "flex items-center gap-1.5 font-medium text-primary"
+                        : "flex items-center gap-1.5 text-muted-foreground"
+                    }
+                  >
+                    <Check className="h-3.5 w-3.5" aria-hidden />
+                    {r.label}
+                  </li>
+                ))}
+              </ul>
               <label className="block text-sm">
                 {t("passwordReset.update.confirmPasswordLabel")}
-                <Input
+                <PasswordInput
                   required
                   minLength={8}
-                  type="password"
                   autoComplete="new-password"
                   value={confirm}
                   onChange={(e) => setConfirm(e.target.value)}
@@ -182,6 +213,7 @@ const UpdatePassword = () => {
         )}
       </div>
     </main>
+    </CustomerPageLayout>
   );
 };
 

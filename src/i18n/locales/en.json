@@ -52,7 +52,13 @@
       "invalidTitle": "This reset link doesn't work",
       "invalidBody": "The link may have expired or already been used. Request a fresh one and try again.",
       "requestNew": "Request a new reset link",
-      "error": "We couldn't save your new password. Please try again."
+      "error": "We couldn't save your new password. Please try again.",
+      "rulesTitle": "Your password must include:",
+      "ruleLength": "At least 8 characters",
+      "ruleLetter": "At least one letter",
+      "ruleNumber": "At least one number",
+      "ruleSymbol": "At least one special character (such as ! @ # $ %)",
+      "policyNotice": "Your password doesn't meet all the rules yet."
     }
   },
   "lang": {
@@ -1656,5 +1662,9 @@
       "acceptFailed": "Could not accept the invite",
       "welcome": "Welcome — your team account is ready."
     }
+  },
+  "passwordInput": {
+    "show": "Show password",
+    "hide": "Hide password"
   }
 }

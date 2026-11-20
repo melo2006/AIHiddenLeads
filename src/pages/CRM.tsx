@@ -18,6 +18,7 @@ import { type FormEvent, useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import AccountMenu from "@/components/AccountMenu";
+import PasswordInput from "@/components/ui/password-input";
 import SetupWizard from "@/components/setup-wizard/SetupWizard";
 import VideoAvatarsView from "@/components/crm/VideoAvatarsView";
 import TelephonyAdminView from "@/components/crm/TelephonyAdminView";
@@ -163,8 +164,7 @@ const AdminLogin = ({ onSignedIn }: { onSignedIn: () => void }) => {
               onChange={(e) => setEmail(e.target.value)}
               required
             />
-            <Input
-              type="password"
+            <PasswordInput
               autoComplete="current-password"
               placeholder="Password"
               value={password}

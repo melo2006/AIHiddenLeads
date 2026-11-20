@@ -52,7 +52,13 @@
       "invalidTitle": "Ce lien ne fonctionne pas",
       "invalidBody": "Le lien a peut-être expiré ou a déjà été utilisé. Demandez-en un nouveau et réessayez.",
       "requestNew": "Demander un nouveau lien",
-      "error": "Nous n'avons pas pu enregistrer votre nouveau mot de passe. Réessayez."
+      "error": "Nous n'avons pas pu enregistrer votre nouveau mot de passe. Réessayez.",
+      "rulesTitle": "Votre mot de passe doit comprendre :",
+      "ruleLength": "Au moins 8 caractères",
+      "ruleLetter": "Au moins une lettre",
+      "ruleNumber": "Au moins un chiffre",
+      "ruleSymbol": "Au moins un caractère spécial (comme ! @ # $ %)",
+      "policyNotice": "Votre mot de passe ne respecte pas encore toutes les règles."
     }
   },
   "lang": {
@@ -1656,5 +1662,9 @@
       "acceptFailed": "Impossible d'accepter l'invitation",
       "welcome": "Bienvenue — votre compte d'équipe est prêt."
     }
+  },
+  "passwordInput": {
+    "show": "Afficher le mot de passe",
+    "hide": "Masquer le mot de passe"
   }
 }

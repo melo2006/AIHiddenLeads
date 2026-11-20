@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
+import CustomerPageLayout from "@/components/CustomerPageLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -36,9 +37,9 @@ const ResetPassword = () => {
   };
 
   return (
-    <main className="min-h-screen grid place-items-center bg-background p-4">
+    <CustomerPageLayout>
+    <main className="grid place-items-center px-4 py-10 sm:py-16">
       <div className="w-full max-w-sm space-y-4">
-        <img src="/logo.png" alt="AI Hidden Leads" className="mx-auto h-12 w-12" />
         {sentTo ? (
           <div className="space-y-3 text-center">
             <h1 className="text-lg font-semibold">
@@ -88,6 +89,7 @@ const ResetPassword = () => {
         )}
       </div>
     </main>
+    </CustomerPageLayout>
   );
 };
 

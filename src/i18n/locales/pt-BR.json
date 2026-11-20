@@ -52,7 +52,13 @@
       "invalidTitle": "Este link não funciona",
       "invalidBody": "O link pode ter expirado ou já ter sido usado. Peça um novo e tente novamente.",
       "requestNew": "Pedir um novo link",
-      "error": "Não conseguimos salvar sua nova senha. Tente novamente."
+      "error": "Não conseguimos salvar sua nova senha. Tente novamente.",
+      "rulesTitle": "Sua senha deve incluir:",
+      "ruleLength": "Pelo menos 8 caracteres",
+      "ruleLetter": "Pelo menos uma letra",
+      "ruleNumber": "Pelo menos um número",
+      "ruleSymbol": "Pelo menos um caractere especial (como ! @ # $ %)",
+      "policyNotice": "Sua senha ainda não atende a todas as regras."
     }
   },
   "lang": {
@@ -1656,5 +1662,9 @@
       "acceptFailed": "Não foi possível aceitar o convite",
       "welcome": "Bem-vindo — sua conta de equipe está pronta."
     }
+  },
+  "passwordInput": {
+    "show": "Mostrar senha",
+    "hide": "Ocultar senha"
   }
 }
