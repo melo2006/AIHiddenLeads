@@ -245,21 +245,28 @@ describe("BlobElementPlayout", () => {
     engine.enqueuePcm16(pcm(0.2), 0.1); // first chunk always releases
     await settle();
     expect(h.encoders[0].encoded.length).toBe(1);
-    engine.enqueuePcm16(pcm(0.2), 0.1); // trail 0.2 > target 0.1 → held
+    // The gate is the target PLUS the 0.5 s playout cushion
+    // (2026-11-20): a 0.5 s chunk still fits the reserve
+    // (trail 0.2 ≤ 0.1 + 0.5) and releases; the trail is now 0.7.
+    engine.enqueuePcm16(pcm(0.5), 0.1);
+    await settle();
+    expect(h.encoders[0].encoded.length).toBe(2);
+    engine.enqueuePcm16(pcm(0.2), 0.1); // trail 0.7 > target 0.1 + cushion 0.5 → held
     await settle();
     vi.advanceTimersByTime(120);
     await settle();
-    expect(h.encoders[0].encoded.length).toBe(1);
-    // The first chunk idle-seals and starts playing; as the
-    // playhead advances the trail falls and the held chunk feeds.
+    expect(h.encoders[0].encoded.length).toBe(2);
+    // The fed audio seals into the first file and starts playing;
+    // as the playhead advances the trail falls and the held
+    // chunk feeds.
     vi.advanceTimersByTime(200);
     await settle();
     expect(h.createdUrls.length).toBe(1);
     h.setPlayhead(0.15);
     vi.advanceTimersByTime(80);
     await settle();
-    expect(h.encoders[0].encoded.length).toBe(2);
-    expect(engine.trailSec()).toBeCloseTo(0.25, 5); // fed 0.4 − heard 0.15
+    expect(h.encoders[0].encoded.length).toBe(3);
+    expect(engine.trailSec()).toBeCloseTo(0.75, 5); // fed 0.9 − heard 0.15
     engine.dispose();
   });
 
@@ -509,24 +516,32 @@ describe("BlobElementPlayout — stalls are playback-waiting events", () => {
     const engine = new BlobElementPlayout(h.deps, onFatal);
     await engine.start();
     await settle();
-    // Chunk A encodes into the open segment (unsealed: below the
-    // first-segment target, arrivals not yet idle).
-    engine.enqueuePcm16(pcm(0.2), 0.5);
+    // Chunk A seals into the first file (0.4 s ≥ the 0.3 s
+    // first-segment target) and starts playing — sealed audio is
+    // not drainable, exactly like appended-but-unplayed ranges.
+    engine.enqueuePcm16(pcm(0.4), 0.5);
     await settle();
     expect(h.encoders[0].encoded.length).toBe(1);
-    // Chunk B is held behind the trail gate (target 0.1 < the
-    // 0.2 s trail chunk A left).
+    // Chunk B encodes into the NEW open segment (unsealed: below
+    // the 1.5 s segment target, arrivals not yet idle).
+    engine.enqueuePcm16(pcm(0.3), 0.5);
+    await settle();
+    expect(h.encoders[0].encoded.length).toBe(2);
+    // Chunk C is held behind the trail gate: the 0.7 s trail
+    // chunks A+B left exceeds its gate (target 0.1 + the 0.5 s
+    // playout cushion).
     engine.enqueuePcm16(pcm(0.6), 0.1);
     await settle();
-    expect(h.encoders[0].encoded.length).toBe(1);
-    // The encoder dies: both chunks were accepted but never
-    // played, and both come back, in acceptance order.
+    expect(h.encoders[0].encoded.length).toBe(2);
+    // The encoder dies: chunks B and C were accepted but never
+    // played, and both come back, in acceptance order — the
+    // unsealed segment's chunk first, then the held queue.
     h.encoders[0].fail(new Error("boom"));
     expect(onFatal).toHaveBeenCalledWith("encoder-error");
     const drained = engine.drainPendingPcm();
     expect(drained.length).toBe(2);
-    expect(drained[0].length).toBe(4800); // chunk A: 0.2 s at 24 kHz
-    expect(drained[1].length).toBe(14400); // chunk B: 0.6 s
+    expect(drained[0].length).toBe(7200); // chunk B: 0.3 s at 24 kHz
+    expect(drained[1].length).toBe(14400); // chunk C: 0.6 s
     expect(engine.drainPendingPcm()).toEqual([]); // drains once
     engine.dispose();
   });

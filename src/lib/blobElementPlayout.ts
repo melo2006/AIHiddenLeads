@@ -91,6 +91,7 @@ import { opusHead, webmOpusCluster, webmOpusInitSegment } from "@/lib/webmOpusMu
 import {
   MEDIA_ELEMENT_INPUT_RATE,
   OPUS_ENCODER_RATES,
+  PLAYOUT_CUSHION_SEC,
   opusEncoderConfig,
   upsample2x,
   type AudioEncoderLike,
@@ -464,8 +465,16 @@ export class BlobElementPlayout implements HeardElementEngine {
       // heard backlog is at or under the head chunk's target;
       // the very first chunk always releases. Inside a stall
       // episode the gate rises to the cushion so recovery has
-      // material to seal and play.
-      const gateTarget = this.episode ? Math.max(next.trailTargetSec, EPISODE_GATE_SEC) : next.trailTargetSec;
+      // material to seal and play. The 2026-11-20 playout
+      // cushion (PLAYOUT_CUSHION_SEC) is added on top of every
+      // target: with the old targets the next file sealed only
+      // ~0.1–0.25 s before the playing file ended, so any pump
+      // or encode hiccup (a main thread busy with the avatar's
+      // video) starved the element at the seam — the audible
+      // chop. The cushion seals the next file ~0.5 s earlier;
+      // it is reserve, not delay (the caller subtracts it back
+      // out of its caption/lifecycle delay estimate).
+      const gateTarget = (this.episode ? Math.max(next.trailTargetSec, EPISODE_GATE_SEC) : next.trailTargetSec) + PLAYOUT_CUSHION_SEC;
       if (this.fedEndSec > 0 && this.trailSec() > gateTarget) break;
       this.holdQueue.shift();
       const rate = this.encoderRate ?? MEDIA_ELEMENT_INPUT_RATE;

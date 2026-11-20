@@ -146,6 +146,21 @@ const STALL_FAIL_TICKS = 150; // ~6 s
  *  resuming — comfortably above the pipeline delay that made
  *  the un-cushioned element drip-feed. */
 const REBUFFER_TARGET_SEC = 0.35;
+/** Steady-state playout cushion (Ron-approved, 2026-11-20): both
+ *  heard-element engines add this to every trail-gate target, so
+ *  the encoder runs ~0.5 s further ahead of the playhead and the
+ *  next segment/file is sealed and queued BEFORE the playing one
+ *  ends, instead of sealing on a knife's edge behind it. The
+ *  Gemini stream arrives ~1.3x real time (measured 2026-11-17),
+ *  so the reserve is sustainable. This is RESERVE, not delay: the
+ *  heard timeline is anchored by the segment chain (first file's
+ *  start, then back-to-back), so word timing, the paired lip
+ *  offset and the silence ladder do not move — the caller
+ *  subtracts the cushion back out of its caption/lifecycle delay
+ *  estimate (GeminiConversation's engineDelay), while trailSec()
+ *  keeps reporting the honest buffered-ahead total for the
+ *  session diag. */
+export const PLAYOUT_CUSHION_SEC = 0.5;
 /** Longest a rebuffer may hold speech before resuming with
  *  whatever has landed. */
 const REBUFFER_MAX_TICKS = 62; // ~2.5 s
@@ -888,12 +903,16 @@ export class MediaElementPlayout implements HeardElementEngine {
       // Round 5: inside a stall episode the gate is raised to the
       // rebuffer cushion — the episode exists because the element
       // ran dry, and recovery must be able to rebuild headroom
-      // past the (thinner) steady-state target. Outside episodes
-      // the gate is exactly the round-4 behaviour, so the trail —
-      // and with it the +0.4 s lip offset — is unchanged.
-      const gateTarget = this.episode
-        ? Math.max(next.trailTargetSec, REBUFFER_TARGET_SEC)
-        : next.trailTargetSec;
+      // past the (thinner) steady-state target. The 2026-11-20
+      // playout cushion (PLAYOUT_CUSHION_SEC) is added on top of
+      // every target, in and out of episodes: it is sealed-ahead
+      // reserve, not heard delay — the caller subtracts it back
+      // out of its caption/lifecycle delay estimate, so the
+      // trail's role in the +0.4 s lip offset is unchanged.
+      const gateTarget =
+        (this.episode
+          ? Math.max(next.trailTargetSec, REBUFFER_TARGET_SEC)
+          : next.trailTargetSec) + PLAYOUT_CUSHION_SEC;
       if (this.fedEndSec > 0 && this.trailSec() > gateTarget) break;
       this.holdQueue.shift();
       // Encode at the ladder's winning rate (round 4): at the

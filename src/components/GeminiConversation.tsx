@@ -41,7 +41,7 @@ import { assistantOutput, pairedAudioShouldDegrade, pairedCaptionDelaySec, voice
 import { resolvePairedAudibleMode, resolveHeardEngine, PAIRED_AUDIBLE_STORAGE_KEY, HEARD_ENGINE_STORAGE_KEY, type PairedAudibleMode, type HeardEngine } from '@/lib/pairedAudible';
 import { playoutDiagPayload, playoutDiagSignature, type PlayoutDiagSnapshot, type PlayoutTerminalDiag } from '@/lib/playoutDiag';
 import { createRateWitness, noteRateUtterance, resetRateWitness, type RateWitnessState } from '@/lib/rateWitness';
-import { MediaElementPlayout, MEDIA_ELEMENT_PIPELINE_SEC, type HeardElementEngine } from '@/lib/mediaElementPlayout';
+import { MediaElementPlayout, MEDIA_ELEMENT_PIPELINE_SEC, PLAYOUT_CUSHION_SEC, type HeardElementEngine } from '@/lib/mediaElementPlayout';
 import { BlobElementPlayout } from '@/lib/blobElementPlayout';
 import { combineEngineCounters, engineRearmDecision } from '@/lib/playoutRearm';
 import { PlaybackCaptions, type PlaybackCaption as Caption } from '@/lib/playbackCaptions';
@@ -2724,7 +2724,14 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     // is really heard. Engine-routed chunks are heard later than
     // the schedule by the engine's trail + pipeline, so their
     // caption window shifts by that measured delay instead.
-    const engineDelay = engineRouted ? (mediaElementRef.current?.trailSec() ?? 0) + (mediaElementRef.current?.pipelineSec ?? MEDIA_ELEMENT_PIPELINE_SEC) : 0;
+    // The engines' trail now includes the 2026-11-20 playout
+    // cushion (PLAYOUT_CUSHION_SEC of sealed-ahead reserve).
+    // The reserve does not move the heard timeline — playback is
+    // anchored by the segment chain — so the caption window and
+    // the chunk-end timers below stay on the pre-cushion delay:
+    // subtract the cushion back out of the measured trail. (The
+    // session diag keeps stamping the honest, cushioned trail.)
+    const engineDelay = engineRouted ? Math.max(0, (mediaElementRef.current?.trailSec() ?? 0) - PLAYOUT_CUSHION_SEC) + (mediaElementRef.current?.pipelineSec ?? MEDIA_ELEMENT_PIPELINE_SEC) : 0;
     const captionDelay = pairedCaptionDelaySec(pairedVideo, pairedAudibleMode());
     captionClockRef.current.audio(startAt + captionDelay + engineDelay, playTimeRef.current + captionDelay + engineDelay, captionRun);
     setAspenSpeaking(true);

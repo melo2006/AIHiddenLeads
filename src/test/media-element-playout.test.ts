@@ -203,16 +203,23 @@ describe("MediaElementPlayout", () => {
     engine.enqueuePcm16(pcm(0.2), 0.1); // first chunk always releases; trail now 0.2
     await settle();
     expect(encoders[0].encoded.length).toBe(1);
-    engine.enqueuePcm16(pcm(0.2), 0.1); // trail 0.2 > target 0.1 → held
+    // The gate is the target PLUS the 0.5 s playout cushion
+    // (2026-11-20): a second 0.2 s chunk still fits the reserve
+    // (trail 0.2 ≤ 0.1 + 0.5) and releases; the trail is now 0.7
+    // once a 0.5 s chunk follows it in.
+    engine.enqueuePcm16(pcm(0.5), 0.1);
+    await settle();
+    expect(encoders[0].encoded.length).toBe(2);
+    engine.enqueuePcm16(pcm(0.2), 0.1); // trail 0.7 > target 0.1 + cushion 0.5 → held
     await settle();
     vi.advanceTimersByTime(200);
     await settle();
-    expect(encoders[0].encoded.length).toBe(1);
-    setPlayhead(0.15); // trail falls to 0.05 → the held chunk releases
+    expect(encoders[0].encoded.length).toBe(2);
+    setPlayhead(0.15); // trail falls to 0.55 → back inside the gate, the held chunk releases
     vi.advanceTimersByTime(80);
     await settle();
-    expect(encoders[0].encoded.length).toBe(2);
-    expect(engine.trailSec()).toBeCloseTo(0.25, 5); // fed 0.4 − playhead 0.15
+    expect(encoders[0].encoded.length).toBe(3);
+    expect(engine.trailSec()).toBeCloseTo(0.75, 5); // fed 0.9 − playhead 0.15
     engine.dispose();
   });
 
