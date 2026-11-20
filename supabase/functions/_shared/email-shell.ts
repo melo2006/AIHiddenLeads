@@ -13,6 +13,11 @@
 export const EMAIL_SITE_URL = 'https://aihiddenleads.com';
 // The logo asset the live site itself serves (public/logo.png).
 export const EMAIL_LOGO_URL = `${EMAIL_SITE_URL}/logo.png`;
+// Aspen's face beside the footer promo (owner ask, 2026-11-20: 'a little
+// Aspen face next to the demo… more personable'). A stable public/ asset
+// the live site serves (public/aspen-face.jpg, cropped from the canonical
+// portrait), so the URL never changes across deploys.
+export const EMAIL_ASPEN_FACE_URL = `${EMAIL_SITE_URL}/aspen-face.jpg`;
 export const EMAIL_DEMO_URL = `${EMAIL_SITE_URL}/demo`;
 export const EMAIL_CONTACT = 'info@aihiddenleads.com';
 
@@ -40,12 +45,16 @@ export function emailPromoText(): string {
   ].join('\n');
 }
 
-/** HTML footer promo block: slogan + free-demo pitch + demo button. */
+/** HTML footer promo block: Aspen's face + slogan + free-demo pitch + demo button. */
 export function emailPromoHtml(): string {
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0 4px;background:#ecfdf5;border-radius:10px"><tr><td style="padding:16px 18px">
+<table role="presentation" cellpadding="0" cellspacing="0"><tr>
+<td style="vertical-align:top;width:84px"><img src="${EMAIL_ASPEN_FACE_URL}" alt="Aspen, your AI spokesperson" width="72" height="72" style="width:72px;height:72px;border:0;display:block;border-radius:10px"></td>
+<td style="vertical-align:top">
 <div style="font-size:15px;font-weight:800;color:${EMAIL_INK};margin:0 0 6px">${escHtml(PROMO_SLOGAN)}</div>
 <p style="margin:0 0 12px;font-size:13px;line-height:1.6;color:${EMAIL_INK}">${escHtml(PROMO_PITCH)}</p>
 <a href="${EMAIL_DEMO_URL}" style="display:inline-block;padding:11px 18px;border-radius:8px;background:${EMAIL_GREEN};color:#ffffff;font-weight:700;font-size:14px;text-decoration:none">${escHtml(PROMO_CTA_LABEL)}</a>
+</td></tr></table>
 </td></tr></table>`;
 }
 

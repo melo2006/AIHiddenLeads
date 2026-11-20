@@ -21,6 +21,9 @@ import {
 export const EMAIL_SITE_URL = 'https://aihiddenleads.com'
 // The logo asset the live site itself serves (public/logo.png).
 export const EMAIL_LOGO_URL = `${EMAIL_SITE_URL}/logo.png`
+// Aspen's face beside the footer promo (owner ask, 2026-11-20). Mirrors
+// EMAIL_ASPEN_FACE_URL in ../email-shell.ts.
+export const EMAIL_ASPEN_FACE_URL = `${EMAIL_SITE_URL}/aspen-face.jpg`
 export const EMAIL_DEMO_URL = `${EMAIL_SITE_URL}/demo`
 
 export const PROMO_SLOGAN = 'Never miss a call — or a lead — again.'
@@ -56,14 +59,29 @@ export const BrandHeader = () => (
 
 export const PromoFooter = () => (
   <Section style={promoSection}>
-    <Text style={promoSlogan}>{PROMO_SLOGAN}</Text>
-    <Text style={promoText}>{PROMO_PITCH}</Text>
-    <Button style={promoButton} href={EMAIL_DEMO_URL}>
-      {PROMO_CTA_LABEL}
-    </Button>
+    <Row>
+      <Column style={promoFaceCol}>
+        <Img
+          src={EMAIL_ASPEN_FACE_URL}
+          width="72"
+          height="72"
+          alt="Aspen, your AI spokesperson"
+          style={promoFace}
+        />
+      </Column>
+      <Column>
+        <Text style={promoSlogan}>{PROMO_SLOGAN}</Text>
+        <Text style={promoText}>{PROMO_PITCH}</Text>
+        <Button style={promoButton} href={EMAIL_DEMO_URL}>
+          {PROMO_CTA_LABEL}
+        </Button>
+      </Column>
+    </Row>
   </Section>
 )
 
+const promoFaceCol = { width: '84px', verticalAlign: 'top' as const }
+const promoFace = { display: 'block', border: '0', borderRadius: '10px' }
 const headerSection = {
   borderBottom: `3px solid ${GREEN}`,
   padding: '0 0 12px',

@@ -7,6 +7,7 @@ import {
   EMAIL_LOGO_URL,
   PROMO_PITCH,
   PROMO_SLOGAN,
+  EMAIL_ASPEN_FACE_URL,
   emailPromoText,
   wrapEmailHtml,
 } from "../../supabase/functions/_shared/email-shell";
@@ -35,6 +36,8 @@ describe("shared email shell", () => {
     expect(html).toContain(EMAIL_LOGO_URL);
     expect(EMAIL_LOGO_URL).toBe("https://aihiddenleads.com/logo.png");
     expect(html).toContain(PROMO_SLOGAN);
+    expect(html).toContain(EMAIL_ASPEN_FACE_URL);
+    expect(html).toContain('alt="Aspen, your AI spokesperson"');
     expect(html).toContain(PROMO_PITCH);
     expect(html).toContain(`href="${EMAIL_DEMO_URL}"`);
     expect(EMAIL_DEMO_URL).toBe("https://aihiddenleads.com/demo");
