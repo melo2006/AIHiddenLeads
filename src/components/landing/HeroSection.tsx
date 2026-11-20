@@ -8,7 +8,6 @@ import { useNavigate } from "react-router-dom";
 import type { NicheData } from "@/data/nicheData";
 import aspenPortrait from "@/assets/aspen-idle-wave.gif";
 import HeroSceneSlider from "@/components/landing/HeroSceneSlider";
-import AspenIntroVideo from "@/components/landing/AspenIntroVideo";
 
 interface HeroSectionProps {
   niche: NicheData;
@@ -142,18 +141,16 @@ const HeroSection = ({ niche, onGetDemo }: HeroSectionProps) => {
             </ul>
           </div>
 
-          {/* Right column - founder intro video + Aspen portrait. Desktop:
-              video left of the portrait; phones stack video first, then
-              Aspen. The video is muted-autoplay (3 loops, captions on,
-              speaker button for sound + full controls) — AspenIntroVideo
-              owns that behaviour. */}
+          {/* Right column - Aspen portrait. The old founder intro video
+              that sat beside her here was removed 2026-11-20: the film
+              gallery directly under the hero now carries the homepage's
+              films (the testimonial example stories). */}
           <motion.div
             initial={{ opacity: 0, x: 40 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.7, delay: 0.3 }}
-            className="flex w-full min-w-0 flex-1 flex-col items-center gap-6 lg:flex-row lg:items-center"
+            className="flex w-full min-w-0 flex-1 flex-col items-center justify-center"
           >
-            <AspenIntroVideo />
             <div className="flex w-full flex-col items-center lg:w-[300px] lg:shrink-0">
             {/* CTA overlap rule: the demo pill sits in normal flow inside a
                 width-capped wrapper, pulled up over the portrait's bottom
