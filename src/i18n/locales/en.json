@@ -60,7 +60,7 @@
       "ruleNumber": "At least one number",
       "ruleSymbol": "At least one special character (such as ! @ # $ %)",
       "policyNotice": "Your password doesn't meet all the rules yet.",
-      "samePassword": "That's already your current password. Pick a different one — or just sign in with it."
+      "samePassword": "You can't repeat the same password — your new password must be different from your current one."
     }
   },
   "lang": {

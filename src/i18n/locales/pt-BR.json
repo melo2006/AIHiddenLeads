@@ -60,7 +60,7 @@
       "ruleNumber": "Pelo menos um número",
       "ruleSymbol": "Pelo menos um caractere especial (como ! @ # $ %)",
       "policyNotice": "Sua senha ainda não atende a todas as regras.",
-      "samePassword": "Essa já é a sua senha atual. Escolha uma diferente — ou simplesmente entre com ela."
+      "samePassword": "Você não pode repetir a mesma senha — sua nova senha deve ser diferente da atual."
     }
   },
   "lang": {
