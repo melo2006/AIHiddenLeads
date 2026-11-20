@@ -22,6 +22,37 @@
     "logout": "Se déconnecter",
     "fallbackName": "Compte"
   },
+  "passwordReset": {
+    "request": {
+      "title": "Réinitialisez votre mot de passe",
+      "subtitle": "Entrez le courriel de votre compte et nous vous enverrons un lien pour créer un nouveau mot de passe.",
+      "emailLabel": "Courriel",
+      "sendButton": "Envoyer le lien de réinitialisation",
+      "sending": "Envoi en cours…",
+      "successTitle": "Vérifiez votre courriel",
+      "successBody": "Nous avons envoyé un lien de réinitialisation à {{email}}. Ouvrez-le sur cet appareil pour créer un nouveau mot de passe.",
+      "error": "Nous n'avons pas pu envoyer le courriel de réinitialisation. Vérifiez l'adresse et réessayez.",
+      "backToSignIn": "Retour à la connexion"
+    },
+    "update": {
+      "title": "Créez un nouveau mot de passe",
+      "subtitle": "Choisissez un nouveau mot de passe pour votre compte.",
+      "newPasswordLabel": "Nouveau mot de passe",
+      "confirmPasswordLabel": "Confirmez le nouveau mot de passe",
+      "minLength": "Utilisez au moins 8 caractères.",
+      "mismatch": "Les mots de passe ne correspondent pas.",
+      "saveButton": "Enregistrer le nouveau mot de passe",
+      "saving": "Enregistrement…",
+      "successTitle": "Mot de passe mis à jour",
+      "successBody": "Votre nouveau mot de passe est actif. Vous pouvez maintenant vous connecter avec lui.",
+      "goToSignIn": "Aller à la connexion",
+      "checking": "Vérification de votre lien…",
+      "invalidTitle": "Ce lien ne fonctionne pas",
+      "invalidBody": "Le lien a peut-être expiré ou a déjà été utilisé. Demandez-en un nouveau et réessayez.",
+      "requestNew": "Demander un nouveau lien",
+      "error": "Nous n'avons pas pu enregistrer votre nouveau mot de passe. Réessayez."
+    }
+  },
   "lang": {
     "label": "Langue",
     "en": "English",

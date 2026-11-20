@@ -22,6 +22,37 @@
     "logout": "Log out",
     "fallbackName": "Account"
   },
+  "passwordReset": {
+    "request": {
+      "title": "Reset your password",
+      "subtitle": "Enter the email for your account and we'll send you a link to set a new password.",
+      "emailLabel": "Email",
+      "sendButton": "Send reset link",
+      "sending": "Sending…",
+      "successTitle": "Check your email",
+      "successBody": "We sent a password reset link to {{email}}. Open it on this device to set a new password.",
+      "error": "We couldn't send the reset email. Check the address and try again.",
+      "backToSignIn": "Back to sign in"
+    },
+    "update": {
+      "title": "Set a new password",
+      "subtitle": "Choose a new password for your account.",
+      "newPasswordLabel": "New password",
+      "confirmPasswordLabel": "Confirm new password",
+      "minLength": "Use at least 8 characters.",
+      "mismatch": "Those passwords don't match.",
+      "saveButton": "Save new password",
+      "saving": "Saving…",
+      "successTitle": "Password updated",
+      "successBody": "Your new password is set. You can now sign in with it.",
+      "goToSignIn": "Go to sign in",
+      "checking": "Checking your reset link…",
+      "invalidTitle": "This reset link doesn't work",
+      "invalidBody": "The link may have expired or already been used. Request a fresh one and try again.",
+      "requestNew": "Request a new reset link",
+      "error": "We couldn't save your new password. Please try again."
+    }
+  },
   "lang": {
     "label": "Language",
     "en": "English",

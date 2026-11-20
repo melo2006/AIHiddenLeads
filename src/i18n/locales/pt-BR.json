@@ -22,6 +22,37 @@
     "logout": "Sair",
     "fallbackName": "Conta"
   },
+  "passwordReset": {
+    "request": {
+      "title": "Redefina sua senha",
+      "subtitle": "Digite o e-mail da sua conta e enviaremos um link para criar uma nova senha.",
+      "emailLabel": "E-mail",
+      "sendButton": "Enviar link de redefinição",
+      "sending": "Enviando…",
+      "successTitle": "Verifique seu e-mail",
+      "successBody": "Enviamos um link de redefinição para {{email}}. Abra-o neste dispositivo para criar uma nova senha.",
+      "error": "Não conseguimos enviar o e-mail de redefinição. Confira o endereço e tente novamente.",
+      "backToSignIn": "Voltar para entrar"
+    },
+    "update": {
+      "title": "Crie uma nova senha",
+      "subtitle": "Escolha uma nova senha para a sua conta.",
+      "newPasswordLabel": "Nova senha",
+      "confirmPasswordLabel": "Confirme a nova senha",
+      "minLength": "Use pelo menos 8 caracteres.",
+      "mismatch": "As senhas não coincidem.",
+      "saveButton": "Salvar nova senha",
+      "saving": "Salvando…",
+      "successTitle": "Senha atualizada",
+      "successBody": "Sua nova senha já está ativa. Agora você pode entrar com ela.",
+      "goToSignIn": "Ir para entrar",
+      "checking": "Verificando seu link…",
+      "invalidTitle": "Este link não funciona",
+      "invalidBody": "O link pode ter expirado ou já ter sido usado. Peça um novo e tente novamente.",
+      "requestNew": "Pedir um novo link",
+      "error": "Não conseguimos salvar sua nova senha. Tente novamente."
+    }
+  },
   "lang": {
     "label": "Idioma",
     "en": "Inglês",

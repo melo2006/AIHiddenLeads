@@ -18,6 +18,8 @@ import Checkout from "./pages/Checkout.tsx";
 import CheckoutReturn from "./pages/CheckoutReturn.tsx";
 import ShortLinkRedirect from "./pages/ShortLinkRedirect.tsx";
 import AuthCallback from "./pages/AuthCallback.tsx";
+import ResetPassword from "./pages/ResetPassword.tsx";
+import UpdatePassword from "./pages/UpdatePassword.tsx";
 import CampaignTracking from '@/components/CampaignTracking';
 import { TenantBrandProvider } from "@/components/TenantBrandProvider";
 import ThemeProvider from "@/components/ThemeProvider";
@@ -98,6 +100,8 @@ const App = () => {
             <Route path="/invite/:token" element={<InviteAccept />} />
             <Route path="/d/:slug" element={<ShortLinkRedirect />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/update-password" element={<UpdatePassword />} />
             <Route path="/services/:id" element={<ServiceDetail />} />
             <Route path="/dashboard/*" element={<CRM />} />
             {legacyCrmRedirects.map(({ path, to }) => (

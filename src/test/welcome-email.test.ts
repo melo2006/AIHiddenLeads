@@ -32,7 +32,7 @@ describe("customer welcome email", () => {
   it("is generated from a Supabase recovery link, stamp-gated on app_metadata", () => {
     expect(welcome).toContain("generateLink");
     expect(welcome).toContain("type: 'recovery'");
-    expect(welcome).toContain("/setup?reset=1");
+    expect(welcome).toContain("/update-password");
     expect(welcome).toContain("welcome_sent_at");
     expect(welcome).toContain("already_sent");
   });

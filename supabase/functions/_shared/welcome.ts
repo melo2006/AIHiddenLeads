@@ -29,13 +29,14 @@ export async function maybeSendWelcomeEmail(db: Db, userId: string): Promise<{ s
   if (!user.email) return { sent: false, reason: 'no_email' };
 
   // Secure set-password link: a Supabase Auth recovery action link. It
-  // lands on /setup?reset=1, whose page establishes the recovery session
-  // and lets the client choose their own password (the same destination
-  // the sign-in page's reset flow already uses).
+  // lands on /update-password, the dedicated page that establishes the
+  // recovery session and lets the client choose their own password
+  // (2026-11-20: previously /setup?reset=1, whose inline form remains
+  // as a fallback for welcome emails already sent).
   const { data: link, error: linkErr } = await db.auth.admin.generateLink({
     type: 'recovery',
     email: user.email,
-    options: { redirectTo: `${SITE}/setup?reset=1` },
+    options: { redirectTo: `${SITE}/update-password` },
   });
   const actionLink = link?.properties?.action_link;
   if (linkErr || !actionLink) return { sent: false, reason: 'link_generation_failed' };
