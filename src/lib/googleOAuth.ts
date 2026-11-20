@@ -101,6 +101,83 @@ export async function startGoogleOAuth(options?: {
 }
 
 /**
+ * Initiates Microsoft (Azure) OAuth. Mirrors startGoogleOAuth exactly —
+ * same return-path storage, same /auth/callback redirect, same iframe
+ * popup handoff — with the Azure provider and the scopes Supabase needs
+ * to return the user's email. If the Azure provider is not yet enabled
+ * in Supabase, signInWithOAuth returns an error (it does not throw),
+ * which callers surface through their existing notice/toast paths.
+ */
+export async function startMicrosoftOAuth(options?: {
+  returnPath?: string;
+}): Promise<{ error: Error | null }> {
+  if (typeof window === "undefined") {
+    return { error: new Error("Browser environment required") };
+  }
+
+  if (options?.returnPath) {
+    try {
+      sessionStorage.setItem("customer-auth-return", options.returnPath);
+    } catch {
+      // Ignore storage restrictions
+    }
+  }
+
+  const redirectTo = `${window.location.origin}/auth/callback`;
+  const inIframe = isEmbeddedIframe();
+
+  if (!inIframe) {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "azure",
+      options: {
+        redirectTo,
+        scopes: "email openid profile",
+      },
+    });
+    return { error: error ?? null };
+  }
+
+  // Open a popup synchronously on user click to avoid popup blockers
+  const popup = window.open(
+    "about:blank",
+    "ihl_microsoft_oauth",
+    "width=540,height=680,menubar=no,toolbar=no,location=yes,status=no"
+  );
+
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: "azure",
+    options: {
+      redirectTo,
+      scopes: "email openid profile",
+      skipBrowserRedirect: true,
+    },
+  });
+
+  if (error || !data?.url) {
+    if (popup && !popup.closed) popup.close();
+    return { error: error ?? new Error("Could not generate Microsoft sign-in URL.") };
+  }
+
+  if (popup && !popup.closed) {
+    popup.location.href = data.url;
+    popup.focus();
+    return { error: null };
+  }
+
+  // Fallback if popup was blocked
+  const fallbackPopup = window.open(data.url, "_blank");
+  if (!fallbackPopup) {
+    return {
+      error: new Error(
+        "Popup blocked by browser. Please allow popups for this site or sign in with your email and password below."
+      ),
+    };
+  }
+
+  return { error: null };
+}
+
+/**
  * Listens for OAuth PKCE code or session tokens sent from the AuthCallback popup window
  * and applies them to the current iframe's Supabase client (where the PKCE code_verifier lives).
  */

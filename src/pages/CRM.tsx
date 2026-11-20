@@ -54,7 +54,9 @@ import CampaignResultsView from '@/components/crm/CampaignResultsView';
 import SMSDashboard from "@/components/crm/SMSDashboard";
 import AdHijack from "@/pages/AdHijack";
 
-import { isEmbeddedIframe, listenForOAuthPopupSession, startGoogleOAuth } from "@/lib/googleOAuth";
+import { isEmbeddedIframe, listenForOAuthPopupSession, startGoogleOAuth, startMicrosoftOAuth } from "@/lib/googleOAuth";
+import { useTranslation } from "react-i18next";
+import { MicrosoftLogo } from "@/components/CustomerSignIn";
 
 const ADMIN_EMAIL = "melo2006@gmail.com";
 
@@ -63,12 +65,13 @@ const AdminLogin = ({ onSignedIn }: { onSignedIn: () => void }) => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const inIframe = isEmbeddedIframe();
 
   useEffect(() => {
     return listenForOAuthPopupSession(() => {
-      toast.success("Signed in with Google");
+      toast.success("Signed in");
       onSignedIn();
       navigate("/dashboard/calls", { replace: true });
     });
@@ -87,6 +90,25 @@ const AdminLogin = ({ onSignedIn }: { onSignedIn: () => void }) => {
           ? inIframe
             ? "Please allow popups for this preview to sign in with Google, or use the email + password form below."
             : "The Google window was closed before finishing. Try again, or use the email + password form below."
+          : message,
+      });
+      return;
+    }
+  };
+
+  const handleMicrosoftLogin = async () => {
+    setLoading(true);
+    const { error } = await startMicrosoftOAuth({ returnPath: "/dashboard/calls" });
+    setLoading(false);
+
+    if (error) {
+      const message = error.message || "";
+      const canceled = /cancel|closed|popup|blocked/i.test(message);
+      toast.error(canceled ? "Microsoft sign-in canceled" : "Microsoft sign-in failed", {
+        description: canceled
+          ? inIframe
+            ? "Please allow popups for this preview to sign in with Microsoft, or use the email + password form below."
+            : "The Microsoft window was closed before finishing. Try again, or use the email + password form below."
           : message,
       });
       return;
@@ -120,6 +142,10 @@ const AdminLogin = ({ onSignedIn }: { onSignedIn: () => void }) => {
           <div className="space-y-3">
             <Button type="button" className="w-full" onClick={handleGoogleLogin} disabled={loading}>
               Continue with Google
+            </Button>
+            <Button type="button" variant="outline" className="w-full gap-2" onClick={handleMicrosoftLogin} disabled={loading}>
+              <MicrosoftLogo />
+              {t("account.continueWithMicrosoft")}
             </Button>
             <div className="flex items-center gap-3 text-[10px] uppercase tracking-wider text-muted-foreground">
               <div className="h-px flex-1 bg-border" />

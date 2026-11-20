@@ -10,6 +10,7 @@
   "account": {
     "login": "Entrar",
     "createAccount": "Criar conta",
+    "continueWithMicrosoft": "Continuar com a Microsoft",
     "menu": "Menu da conta",
     "theme": "Tema",
     "themeSystem": "Sistema",
