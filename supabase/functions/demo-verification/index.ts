@@ -9,6 +9,7 @@ import {
   hashVerificationCode,
   maskEmailTarget,
 } from '../_shared/verification-code.ts';
+import { emailPromoText, wrapEmailHtml } from '../_shared/email-shell.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -57,34 +58,20 @@ function buildCodeEmailText(code: string): string {
     "Didn't request this? You can ignore this email.",
     '',
     "Not seeing it? Check your spam or promotions folder — demo codes sometimes land there.",
+    '',
+    emailPromoText(),
   ].join('\n');
 }
 
 function buildCodeEmailHtml(code: string): string {
-  return `<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#f4f4f5;font-family:Arial,Helvetica,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:30px 0;">
-<tr><td align="center">
-<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
-  <tr><td style="padding:30px 30px 10px;text-align:center;">
-    <h1 style="margin:0;font-size:22px;color:#111;">Your demo code</h1>
-    <p style="margin:10px 0 0;font-size:14px;color:#6b7280;line-height:1.6;">Enter this code to unlock your personalized AI Hidden Leads demo. It is good for 10 minutes.</p>
-  </td></tr>
-  <tr><td align="center" style="padding:20px 30px;">
-    <div style="display:inline-block;background:#f0fdf4;border:2px solid #a7f3d0;border-radius:12px;padding:18px 36px;font-size:36px;font-weight:700;letter-spacing:10px;color:#111;">${code}</div>
-  </td></tr>
-  <tr><td style="padding:0 30px 24px;text-align:center;">
-    <p style="font-size:12px;color:#9ca3af;margin:0;line-height:1.6;">Didn't request this? You can ignore this email.<br/>Not seeing the email? Check your spam or promotions folder.</p>
-  </td></tr>
-  <tr><td style="padding:20px 30px;border-top:1px solid #e5e7eb;text-align:center;">
-    <p style="font-size:11px;color:#9ca3af;margin:0;">AI Hidden Leads</p>
-  </td></tr>
-</table>
-</td></tr>
-</table>
-</body></html>`;
+  return wrapEmailHtml({
+    preheader: 'Your AI Hidden Leads demo code',
+    title: 'Your demo code',
+    promo: true,
+    bodyHtml: `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;color:#0f172a">Enter this code to unlock your personalized AI Hidden Leads demo. It is good for 10 minutes.</p>
+<div style="text-align:center;margin:6px 0 16px"><div style="display:inline-block;background:#f0fdf4;border:2px solid #a7f3d0;border-radius:12px;padding:18px 36px;font-size:36px;font-weight:700;letter-spacing:10px;color:#111;">${code}</div></div>
+<p style="font-size:12px;color:#9ca3af;margin:0;line-height:1.6;">Didn't request this? You can ignore this email.<br/>Not seeing the email? Check your spam or promotions folder.</p>`,
+  });
 }
 
 Deno.serve(async (req) => {

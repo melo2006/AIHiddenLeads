@@ -1,9 +1,9 @@
 import { SMTPClient } from 'https://deno.land/x/denomailer@1.6.0/mod.ts';
+import { wrapEmailHtml } from './email-shell.ts';
 
 // Owner-mailbox sending through Hostinger SMTP (portable, no DNS delegation needed).
 export const OWNER_MAILBOX = 'info@aihiddenleads.com';
 const SITE = 'https://aihiddenleads.com';
-const LOGO = `${SITE}/logo.png`;
 const ASPEN = 'https://mrtvqttecdfgphgxeygj.supabase.co/storage/v1/object/public/website-screenshots/email/aspen.jpg';
 const OPT_OUT = 'You received this because you asked AI Hidden Leads to follow up. Reply STOP or "unsubscribe" to this email and we will not contact you again.';
 
@@ -32,21 +32,13 @@ const button = (href: string, label: string, primary = true) =>
   `<a href="${esc(href)}" style="display:inline-block;margin:4px 6px 4px 0;padding:12px 20px;border-radius:8px;font-weight:700;font-size:14px;text-decoration:none;${primary ? `background:${GREEN};color:#ffffff` : `background:#ffffff;color:${GREEN};border:2px solid ${GREEN}`}">${esc(label)}</a>`;
 const row = (k: string, v: string) => `<tr><td style="padding:6px 12px 6px 0;color:${MUTED};font-size:13px;white-space:nowrap;vertical-align:top">${esc(k)}</td><td style="padding:6px 0;color:${INK};font-size:14px;font-weight:600">${v}</td></tr>`;
 
-function layout(o: { preheader: string; title: string; body: string; footer?: string }) {
-  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"></head><body style="margin:0;padding:0;background:#ffffff;font-family:Arial,Helvetica,sans-serif;-webkit-text-size-adjust:100%">
-<span style="display:none;max-height:0;overflow:hidden">${esc(o.preheader)}</span>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;width:100%"><tr><td align="center" style="padding:8px 4px">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;width:100%;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden">
-<tr><td style="background:#ffffff;padding:10px 16px;border-bottom:3px solid ${GREEN}">
-<a href="${SITE}" style="text-decoration:none"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="vertical-align:middle"><img src="${LOGO}" alt="" width="36" height="36" style="width:36px;height:36px;border:0;display:block"></td><td style="vertical-align:middle;padding-left:8px;font-size:20px;line-height:24px;font-weight:800;color:${INK};letter-spacing:-.3px">AI Hidden <span style="color:${GREEN}">Leads</span></td></tr></table></a>
-</td></tr>
-<tr><td style="padding:12px 16px 4px">
-<div style="margin:0 0 10px;font-size:20px;line-height:26px;font-weight:800;color:${INK}">${esc(o.title)}</div>
-${o.body}
-</td></tr>
-<tr><td style="padding:18px 24px;background:#f8fafc;color:${MUTED};font-size:12px;line-height:1.5">
-<strong style="color:${INK}">AI Hidden Leads</strong> · ${link(SITE, 'aihiddenleads.com')} · ${link(`mailto:${OWNER_MAILBOX}`, OWNER_MAILBOX)}${o.footer ? `<br><br>${esc(o.footer)}` : ''}
-</td></tr></table></td></tr></table></body></html>`;
+// The document shell itself lives in email-shell.ts (shared with the
+// string-built emails that cannot import this module's SMTP dependency).
+// `promo: true` adds the free-demo footer block — set on every
+// customer-facing template below; owner-internal alerts (bookingAlert,
+// followupAlert, dailySummary) leave it off.
+function layout(o: { preheader: string; title: string; body: string; footer?: string; promo?: boolean }) {
+  return wrapEmailHtml({ preheader: o.preheader, title: o.title, bodyHtml: o.body, promo: o.promo, footerNote: o.footer });
 }
 
 const p = (s: string) => `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;color:${INK}">${s}</p>`;
@@ -95,7 +87,7 @@ export const bookingConfirmation = (c: Contact & { slotStart: string }, inviteIc
   // .ics attachment — one tap adds it to their calendar.
   ...(inviteIcs ? { attachments: [{ filename: 'ai-hidden-leads-call.ics', content: inviteIcs, contentType: 'text/calendar; method=REQUEST' }] } : {}),
   text: `Hi ${first(c.name)},\n\nYour 30-minute call with AI Hidden Leads is booked for ${et(c.slotStart)} — most calls wrap up in 15–20 minutes.\nWe've attached a calendar invite to this email — open it to add the call to your calendar in one tap.\nWe'll call you${c.phone ? ` at ${c.phone}` : ''}. Need to change it? Just reply to this email.\n\nTry Aspen on your website before the call: ${SITE}/demo\n\n${OPT_OUT}`,
-  html: layout({ preheader: `Your call is booked for ${et(c.slotStart)}`, title: `You're booked, ${first(c.name)}!`, footer: OPT_OUT, body:
+  html: layout({ preheader: `Your call is booked for ${et(c.slotStart)}`, title: `You're booked, ${first(c.name)}!`, footer: OPT_OUT, promo: true, body:
     p(`Your 30-minute call with an AI Hidden Leads specialist is set for (most calls wrap up in 15–20 minutes):`)
     + `<div style="margin:0 0 16px;padding:14px 16px;border-left:4px solid ${GREEN};background:#f8fafc;font-size:16px;font-weight:700;color:${INK}">${esc(et(c.slotStart))}</div>`
     + p(`We've attached a calendar invite to this email — open the attachment to add the call to your calendar in one tap.`)
@@ -107,7 +99,7 @@ export const bookingReminder = (c: Contact & { slotStart: string }): Mail => ({
   to: c.email,
   subject: `Reminder: your AI Hidden Leads call is tomorrow – ${et(c.slotStart)}`,
   text: `Hi ${first(c.name)},\n\nA quick reminder: your 30-minute implementation call with AI Hidden Leads is coming up on ${et(c.slotStart)}.\nWe'll call you${c.phone ? ` at ${c.phone}` : ''}. Need a different time? Just reply to this email and we'll rebook you.\n\nTry Aspen on your website before the call: ${SITE}/demo\n\n${OPT_OUT}`,
-  html: layout({ preheader: `Your call is on ${et(c.slotStart)}`, title: `Tomorrow: your call with AI Hidden Leads`, footer: OPT_OUT, body:
+  html: layout({ preheader: `Your call is on ${et(c.slotStart)}`, title: `Tomorrow: your call with AI Hidden Leads`, footer: OPT_OUT, promo: true, body:
     p(`Hi ${esc(first(c.name))}, a quick reminder — your 30-minute implementation call with an AI Hidden Leads specialist is coming up:`)
     + `<div style="margin:0 0 16px;padding:14px 16px;border-left:4px solid ${GREEN};background:#f8fafc;font-size:16px;font-weight:700;color:${INK}">${esc(et(c.slotStart))}</div>`
     + p(`We'll reach you${c.phone ? ` at ${esc(c.phone)}` : ''}. Need a different time? Just reply to this email and we'll rebook you.`)
@@ -118,7 +110,7 @@ export const bookingNoShowRecovery = (c: Contact & { slotStart: string }): Mail 
   to: c.email,
   subject: `Sorry we missed you – let's rebook your AI Hidden Leads call`,
   text: `Hi ${first(c.name)},\n\nWe had your implementation call booked for ${et(c.slotStart)} and it looks like we missed each other — no problem at all.\nPick a new time that suits you here: ${SITE}/book\n\n${OPT_OUT}`,
-  html: layout({ preheader: `Rebook your implementation call`, title: `Sorry we missed you, ${first(c.name)}`, footer: OPT_OUT, body:
+  html: layout({ preheader: `Rebook your implementation call`, title: `Sorry we missed you, ${first(c.name)}`, footer: OPT_OUT, promo: true, body:
     p(`We had your implementation call booked for ${esc(et(c.slotStart))} and it looks like we missed each other — no problem at all.`)
     + p(`Pick a new time that suits you:`)
     + button(`${SITE}/book`, 'Rebook your call') }),
@@ -140,7 +132,7 @@ export const visitorFollowup = (c: Contact & { screenshot?: string | null; didDe
     to: c.email,
     subject: demo ? `Your website with Aspen – ${c.businessName || 'AI Hidden Leads'}` : 'Thanks for talking with Aspen – AI Hidden Leads',
     text: `Hi ${first(c.name)},\n\nThanks for trying Aspen. As you asked, someone from AI Hidden Leads will follow up with you shortly.\n\nWant to pick a time now? ${SITE}/book\nTry Aspen on your own website: ${SITE}/demo\nStart now from $99/month: ${SITE}/#pricing\n\nJust reply to this email with any questions.\n\n— AI Hidden Leads\n\n${OPT_OUT}`,
-    html: layout({ preheader: demo ? 'See your website with a 24/7 AI receptionist' : 'Thanks for talking with Aspen', title: `Thanks, ${first(c.name)}!`, footer: OPT_OUT, body:
+    html: layout({ preheader: demo ? 'See your website with a 24/7 AI receptionist' : 'Thanks for talking with Aspen', title: `Thanks, ${first(c.name)}!`, footer: OPT_OUT, promo: true, body:
       p(demo
         ? `You just heard Aspen talk about ${esc(c.businessName || 'your business')}. As you asked, someone from our team will follow up with you shortly.`
         : 'Thanks for talking with Aspen. As you asked, someone from our team will follow up with you shortly.')
@@ -224,7 +216,7 @@ export const customerWelcome = (c: { name: string; email: string; setPasswordUrl
   to: c.email,
   subject: 'Welcome to AI Hidden Leads — set your password and meet Aspen',
   text: `Hi ${first(c.name)},\n\nWelcome aboard — your AI Hidden Leads workspace is ready.\n\nFirst, set your password so you can sign in any time with your email (${c.email}) and a password only you know:\n${c.setPasswordUrl}\n\nThat link signs you in to finish setting the password. It expires, so use it soon — you can always request a fresh one from the sign-in page.\n\nWhat Aspen is: your AI receptionist. She answers your website visitors and your phone calls 24/7, books appointments and captures every lead, so callers stop reaching voicemail.\n\nYour first steps (about 10–15 minutes, in your dashboard):\n${FIRST_STEPS.map(([h, d], i) => `${i + 1}. ${h} — ${d}`).join('\n')}\n\nYour dashboard: ${SITE}/account\nYour setup wizard: ${SITE}/setup\nHelp & carrier forwarding guides: ${SITE}/help\n\nQuestions? Reply to this email or call us at (877) 862-4949 — Alex, our setup guide inside the wizard, can also walk you through every step live.\n\nAI Hidden Leads`,
-  html: layout({ preheader: 'Your workspace is ready — set your password to get started', title: `Welcome aboard, ${first(c.name)}!`, body:
+  html: layout({ preheader: 'Your workspace is ready — set your password to get started', title: `Welcome aboard, ${first(c.name)}!`, promo: true, body:
     p('Your AI Hidden Leads workspace is ready. First, set your password so you can sign in any time with your email and a password only you know:')
     + button(c.setPasswordUrl, 'Set my password')
     + p('That link signs you in to finish setting the password. It expires, so use it soon — you can always request a fresh one from the sign-in page.')
@@ -238,7 +230,7 @@ export const onboardingDay1Nudge = (c: { name: string; email: string }): Mail =>
   to: c.email,
   subject: 'One step left: connect your phone number so Aspen can answer',
   text: `Hi ${first(c.name)},\n\nQuick nudge from AI Hidden Leads: your Aspen setup is nearly done, but your phone number is not connected yet — that is the step that lets Aspen answer your business calls (your phone rings first, then she picks up).\n\nIt takes a few minutes in the setup wizard, and the wizard shows the exact forwarding steps for your carrier:\n${SITE}/setup\n\nPrefer a human walkthrough? Reply to this email or call (877) 862-4949.\n\nAI Hidden Leads`,
-  html: layout({ preheader: 'Finish your phone setup so Aspen can answer your calls', title: `One step left, ${first(c.name)}`, body:
+  html: layout({ preheader: 'Finish your phone setup so Aspen can answer your calls', title: `One step left, ${first(c.name)}`, promo: true, body:
     p('Your Aspen setup is nearly done — but your <strong>phone number is not connected yet</strong>. That is the step that lets Aspen answer your business calls: your phone rings first, then she picks up.')
     + p('It takes a few minutes in the setup wizard, which shows the exact forwarding steps for your carrier.')
     + button(`${SITE}/setup`, 'Finish my phone setup')
@@ -248,7 +240,7 @@ export const avatarTrialReminder = (c: { name: string; email: string; trialEnd: 
   to: c.email,
   subject: 'Your free video avatar month ends in 5 days',
   text: `Hi ${first(c.name)},\n\nA quick heads-up: your free month of Aspen's live video avatar ends in 5 days (${c.trialEnd}).\n\nIf you would like to keep the video avatar, it is $79/month from then on — one click in your dashboard, and nothing else changes:\n${SITE}/account\n\nIf you do nothing, the avatar switches off automatically when the free month ends and you will not be charged for it. Aspen keeps answering as a voice assistant either way.\n\nQuestions? Reply to this email or call us at (877) 862-4949.\n\nAI Hidden Leads`,
-  html: layout({ preheader: 'Keep the video avatar for $79/month, or it switches off automatically', title: `Your free avatar month ends in 5 days, ${first(c.name)}`, body:
+  html: layout({ preheader: 'Keep the video avatar for $79/month, or it switches off automatically', title: `Your free avatar month ends in 5 days, ${first(c.name)}`, promo: true, body:
     p(`Your free month of Aspen's <strong>live video avatar</strong> ends in 5 days (${esc(c.trialEnd)}).`)
     + p('Want to keep her face on your website? It is <strong>$79/month</strong> from then on — one click, and nothing else changes:')
     + button(`${SITE}/account`, 'Keep the video avatar — $79/mo')
@@ -258,5 +250,5 @@ export const avatarTrialReminder = (c: { name: string; email: string; trialEnd: 
 export const conversationCopy = (c: {name:string;email:string;url:string}): Mail => ({
   to:c.email, subject:'Your Aspen conversation · private transcript and summary',
   text:`Hi ${first(c.name)},\n\nHere is the private conversation copy you requested: ${c.url}\nThe link expires in seven days. Keep it private; anyone with it can read your transcript and AI summary. AI summaries may contain errors.\n\nThis request does not subscribe you to marketing.\n\nAI Hidden Leads`,
-  html:layout({preheader:'Your requested conversation copy',title:'Your conversation with Aspen',body:p(`Hi ${esc(first(c.name))}, here is the conversation copy you requested.`)+button(c.url,'View transcript & AI summary')+p('This private link expires in seven days. Anyone with the link can read it, so please do not forward it. AI summaries may contain errors.')+p('This request does not subscribe you to marketing.')})
+  html:layout({preheader:'Your requested conversation copy',title:'Your conversation with Aspen',promo:true,body:p(`Hi ${esc(first(c.name))}, here is the conversation copy you requested.`)+button(c.url,'View transcript & AI summary')+p('This private link expires in seven days. Anyone with the link can read it, so please do not forward it. AI summaries may contain errors.')+p('This request does not subscribe you to marketing.')})
 });

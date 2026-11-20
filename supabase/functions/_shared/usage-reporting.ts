@@ -6,6 +6,8 @@
 // No fabricated numbers anywhere: renderers print only what they are
 // passed.
 
+import { emailPromoText, wrapEmailHtml } from './email-shell.ts';
+
 export const PLAN_ALLOWANCES = {
   essentials_monthly: { name: 'Premium', monthlyUsd: 99, minutes: 400 },
   growth_monthly: { name: 'Professional', monthlyUsd: 199, minutes: 1200 },
@@ -315,12 +317,7 @@ export function renderUsageReportHtml(input: UsageReportRenderInput): string {
   const { used, allowance, pct, rows } = reportFigures(input);
   const calls = input.callsAnswered ?? input.totals.byService.phone_voice?.events ?? 0;
   const bodyRows = rows.map(r => `<tr><td style="padding:6px 12px 6px 0;font-size:14px;color:#0f172a">${esc(r.label)}</td><td style="padding:6px 12px;font-size:14px;color:#0f172a;text-align:right">${r.minutes ? `${esc(fmtMin(r.minutes))} min` : '—'}</td><td style="padding:6px 12px;font-size:14px;color:#0f172a;text-align:right">${r.count ? esc(String(r.count)) : '—'}</td><td style="padding:6px 0;font-size:14px;color:#0f172a;text-align:right">${esc(fmtUsd(r.estCostUsd))}</td></tr>`).join('');
-  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;padding:0;background:#ffffff;font-family:Arial,Helvetica,sans-serif">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:16px">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;border:1px solid #e2e8f0;border-radius:12px">
-<tr><td style="padding:20px 24px">
-<div style="font-size:20px;font-weight:800;color:#0f172a">Your Aspen usage — ${esc(input.periodLabel)}</div>
-<p style="font-size:15px;line-height:1.6;color:#0f172a">Hi ${esc(input.orgName || 'there')}, here is what Aspen handled for you in this period.</p>
+  const bodyHtml = `<p style="font-size:15px;line-height:1.6;color:#0f172a">Hi ${esc(input.orgName || 'there')}, here is what Aspen handled for you in this period.</p>
 <p style="font-size:15px;line-height:1.6;color:#0f172a"><strong>Voice minutes used: ${esc(fmtMin(used))} of ${esc(fmtMin(allowance))} (${esc(String(pct))}%)</strong></p>
 <p style="font-size:15px;line-height:1.6;color:#0f172a">Calls answered by Aspen: <strong>${esc(String(calls))}</strong></p>
 <p style="font-size:15px;line-height:1.6;color:#0f172a">Banked rollover minutes available: <strong>${esc(fmtMin(input.balance.bankedMinutes))}</strong> · Minutes remaining (allowance + bank − used): <strong>${esc(fmtMin(input.balance.currentRemaining))}</strong></p>
@@ -330,8 +327,13 @@ ${bodyRows}
 </table>
 <p style="font-size:15px;line-height:1.6;color:#0f172a">Estimated total cost this period: <strong>${esc(fmtUsd(input.totals.totalEstCostUsd))}</strong> (estimate from measured audio, not a provider invoice).</p>
 <p style="margin:18px 0"><a href="${esc(input.dashboardUrl)}" style="display:inline-block;padding:12px 20px;border-radius:8px;background:#10B981;color:#ffffff;font-weight:700;font-size:14px;text-decoration:none">View your usage dashboard</a></p>
-<p style="font-size:12px;color:#475569">AI Hidden Leads · Usage report for ${esc(input.orgName || 'your business')}</p>
-</td></tr></table></td></tr></table></body></html>`;
+<p style="font-size:12px;color:#475569">Usage report for ${esc(input.orgName || 'your business')}</p>`;
+  return wrapEmailHtml({
+    preheader: `Your Aspen usage — ${input.periodLabel}`,
+    title: `Your Aspen usage — ${input.periodLabel}`,
+    bodyHtml,
+    promo: true,
+  });
 }
 
 export function renderUsageReportText(input: UsageReportRenderInput): string {
@@ -353,6 +355,8 @@ export function renderUsageReportText(input: UsageReportRenderInput): string {
     `Estimated total cost this period: ${fmtUsd(input.totals.totalEstCostUsd)} (estimate from measured audio, not a provider invoice).`,
     ``,
     `View your usage dashboard: ${input.dashboardUrl}`,
+    ``,
+    emailPromoText(),
   ];
   return lines.join('\n');
 }

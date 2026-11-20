@@ -14,6 +14,8 @@ import {
   Text,
 } from 'npm:@react-email/components@0.0.22'
 
+import { BrandHeader, PromoFooter } from './shell.tsx'
+
 interface EmailChangeEmailProps {
   siteName: string
   // oldEmail is the user's current address (HookData.OldEmail). For the
@@ -39,6 +41,7 @@ export const EmailChangeEmail = ({
     <Preview>Confirm your email change for {siteName}</Preview>
     <Body style={main}>
       <Container style={container}>
+        <BrandHeader />
         <Heading style={h1}>Confirm your email change</Heading>
         <Text style={text}>
           You requested to change your email address for {siteName} from{' '}
@@ -61,6 +64,7 @@ export const EmailChangeEmail = ({
           If you didn't request this change, please secure your account
           immediately.
         </Text>
+        <PromoFooter />
       </Container>
     </Body>
   </Html>

@@ -37,6 +37,7 @@ import { packForIndustry, mergeChecklistItems, parseChecklistJson, buildMoreItem
 import { normalizeServiceArea } from '../_shared/service-area.ts';
 import { examplePackForSiteUrl } from '../_shared/b2b-example-services.ts';
 import { sendOwnerMail } from '../_shared/hostinger-mail.ts';
+import { emailPromoText, wrapEmailHtml } from '../_shared/email-shell.ts';
 
 async function suggestGreeting(req:Request,input:{businessName:string;industry?:string;websiteUrl?:string;tone?:string}){
   const apiKey = Deno.env.get('GOOGLE_API_KEY'); if(!apiKey) throw Object.assign(new Error('AI is not configured'),{status:500});
@@ -500,8 +501,8 @@ const inviteUrl=(token:string)=>`${SITE_BASE}/invite/${token}`;
 async function sendInviteEmail(opts:{to:string;inviterName:string;companyName:string;kind:string;url:string}):Promise<boolean>{
   try {
     const who=opts.kind==='reseller'?'a reseller account':opts.kind==='staff'?'a team account':'your business account';
-    const text=`${opts.inviterName} has set up ${who} for ${opts.companyName}.\n\nOpen this link to create your sign-in and accept:\n${opts.url}\n\nThe link expires in 7 days. If you weren't expecting this, you can ignore this email.`;
-    const html=`<p style="font-family:Arial,sans-serif;font-size:15px;line-height:1.6;color:#0f172a">${opts.inviterName} has set up ${who} for <strong>${opts.companyName}</strong>.</p><p style="font-family:Arial,sans-serif;font-size:15px;line-height:1.6;color:#0f172a"><a href="${opts.url}">Accept your invitation</a> — the link expires in 7 days.</p><p style="font-family:Arial,sans-serif;font-size:13px;color:#475569">If you weren't expecting this, you can ignore this email.</p>`;
+    const text=`${opts.inviterName} has set up ${who} for ${opts.companyName}.\n\nOpen this link to create your sign-in and accept:\n${opts.url}\n\nThe link expires in 7 days. If you weren't expecting this, you can ignore this email.\n\n${emailPromoText()}`;
+    const html=wrapEmailHtml({ preheader: `${opts.inviterName} set up ${who} for ${opts.companyName}`, title: 'You\u2019re invited', promo: true, bodyHtml: `<p style="font-family:Arial,sans-serif;font-size:15px;line-height:1.6;color:#0f172a">${opts.inviterName} has set up ${who} for <strong>${opts.companyName}</strong>.</p><p style="font-family:Arial,sans-serif;font-size:15px;line-height:1.6;color:#0f172a"><a href="${opts.url}" style="display:inline-block;padding:12px 20px;border-radius:8px;background:#10B981;color:#ffffff;font-weight:700;font-size:14px;text-decoration:none">Accept your invitation</a></p><p style="font-family:Arial,sans-serif;font-size:13px;color:#475569">The link expires in 7 days. If you weren't expecting this, you can ignore this email.</p>` });
     await sendOwnerMail({ to:opts.to, subject:`Your invitation from ${opts.inviterName}`, text, html });
     return true;
   } catch(e) { console.error('invite email failed', e instanceof Error?e.message:e); return false; }
