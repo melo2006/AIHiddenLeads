@@ -236,6 +236,46 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // RBAC Phase 1 (2026-11-20, rbac-admin-design.md §4): campaign
+    // SEND is a permission (campaigns:send), enforced here at the
+    // server boundary — this function previously accepted calls with
+    // no caller check at all. The decision comes from the database
+    // has_permission(); while that migration is not yet applied, the
+    // pre-RBAC platform-admin signals (a voice_platform_roles row, or
+    // the is_admin_email allowlist) decide instead, so the rollout
+    // cannot lock out the people who send campaigns today.
+    const authHeader = req.headers.get('Authorization') ?? '';
+    const anon = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: { user } } = await anon.auth.getUser();
+    if (!user) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Sign in required' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    let sendAllowed = false;
+    try {
+      const { data, error } = await supabase.rpc('has_permission', {
+        _user: user.id, _area: 'campaigns', _action: 'send', _scope_type: 'platform', _scope_id: null,
+      });
+      if (error) throw error;
+      sendAllowed = data === true;
+    } catch {
+      const [{ data: roleRow }, { data: isAdmin }] = await Promise.all([
+        supabase.from('voice_platform_roles').select('role').eq('user_id', user.id).maybeSingle(),
+        supabase.rpc('is_admin_email', { _email: user.email ?? '' }),
+      ]);
+      sendAllowed = Boolean(roleRow) || isAdmin === true;
+    }
+    if (!sendAllowed) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'You do not have permission to send campaigns' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const results: { id: string; success: boolean; error?: string }[] = [];
 
     for (const prospect of prospects) {
@@ -296,6 +336,21 @@ Deno.serve(async (req) => {
 
     const sent = results.filter(r => r.success).length;
     const failed = results.filter(r => !r.success).length;
+
+    // RBAC audit (best-effort): every campaign send lands in the
+    // audit log the Team page reads. A missing audit table (migration
+    // not applied yet) never fails a send that already happened.
+    try {
+      await supabase.from('audit_log').insert({
+        actor_user_id: user.id,
+        action: 'campaign.sent',
+        area: 'campaigns',
+        target_type: 'campaign',
+        target_id: null,
+        scope_type: 'platform',
+        summary: { recipients: prospects.length, sent, failed, subject },
+      });
+    } catch { /* audit is a record, not a gate */ }
 
     return new Response(
       JSON.stringify({ success: true, sent, failed, results }),

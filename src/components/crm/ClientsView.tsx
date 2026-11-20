@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ChevronDown, ChevronUp, Link2, Unlink } from 'lucide-react';
+import { ChevronDown, ChevronUp, Link2, RotateCcw, Trash2, Unlink } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   shapeClients, suggestProspectMatch,
@@ -32,9 +33,30 @@ interface ProspectsResult {
 }
 
 function ClientDetail({ client, prospects, linkable, showLeadLink = true }: { client: ClientViewModel; prospects: ProspectLite[]; linkable: boolean; showLeadLink?: boolean }) {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [pick, setPick] = useState('');
   const [busy, setBusy] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+
+  // RBAC Phase 1: soft delete / restore. The voice-agents function
+  // enforces clients:delete server-side (Owner-only in the matrix);
+  // this block is only the shortcut that calls it. Platform scope
+  // only — resellers never see it (showLeadLink is false there).
+  const setDeleted = async (deleted: boolean) => {
+    setBusy(true);
+    const { data, error } = await supabase.functions.invoke('voice-agents', {
+      body: { action: deleted ? 'deleteClient' : 'restoreClient', organizationId: client.organizationId },
+    });
+    setBusy(false);
+    setConfirmingDelete(false);
+    if (error || (data as { error?: string })?.error) {
+      toast.error(t('team.clients.actionFailed'), { description: (data as { error?: string })?.error || error?.message });
+      return;
+    }
+    toast.success(deleted ? t('team.clients.deleteSuccess') : t('team.clients.restoreSuccess'));
+    await queryClient.invalidateQueries({ queryKey: ['clients'] });
+  };
 
   const linked = client.linkedProspectId ? prospects.find((p) => p.id === client.linkedProspectId) ?? null : null;
   const suggestion = useMemo(
@@ -154,6 +176,37 @@ function ClientDetail({ client, prospects, linkable, showLeadLink = true }: { cl
         )}
       </div>
       )}
+
+      {showLeadLink && (
+        <div className="rounded-lg border border-destructive/40 p-3">
+          <p className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">{t('team.clients.dangerTitle')}</p>
+          {client.deletedAt ? (
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span>{t('team.clients.deletedNotice', { date: formatDate(client.deletedAt) })}</span>
+              <Button size="sm" variant="outline" className="h-7 px-2 text-[11px]" disabled={busy} onClick={() => void setDeleted(false)}>
+                <RotateCcw className="mr-1 h-3 w-3" /> {t('team.clients.restore')}
+              </Button>
+            </div>
+          ) : confirmingDelete ? (
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span>{t('team.clients.deleteConfirm')}</span>
+              <Button size="sm" variant="destructive" className="h-7 px-2 text-[11px]" disabled={busy} onClick={() => void setDeleted(true)}>
+                {t('team.clients.delete')}
+              </Button>
+              <Button size="sm" variant="outline" className="h-7 px-2 text-[11px]" disabled={busy} onClick={() => setConfirmingDelete(false)}>
+                {t('team.clients.cancel')}
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="text-muted-foreground">{t('team.clients.deleteHint')}</span>
+              <Button size="sm" variant="outline" className="h-7 px-2 text-[11px]" disabled={busy} onClick={() => setConfirmingDelete(true)}>
+                <Trash2 className="mr-1 h-3 w-3" /> {t('team.clients.delete')}
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -246,6 +299,7 @@ const ClientsView = ({ scope = 'platform' }: { scope?: 'platform' | 'reseller' }
                     <td className="px-4 py-3">
                       {client.businessName}
                       {client.isDemo && <Badge variant="secondary" className="ml-2 text-[10px]">Demo</Badge>}
+                      {client.deletedAt && <Badge variant="destructive" className="ml-2 text-[10px]">Deleted</Badge>}
                     </td>
                     <td className="px-4 py-3">{client.planLabel}</td>
                     <td className="px-4 py-3">

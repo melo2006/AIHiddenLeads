@@ -22,6 +22,7 @@ import SetupWizard from "@/components/setup-wizard/SetupWizard";
 import VideoAvatarsView from "@/components/crm/VideoAvatarsView";
 import TelephonyAdminView from "@/components/crm/TelephonyAdminView";
 import ClientsView from "@/components/crm/ClientsView";
+import TeamView from "@/components/crm/TeamView";
 import TenantsView from "@/components/crm/TenantsView";
 import RateCardView from "@/components/crm/RateCardView";
 import TenantShell from "@/components/crm/TenantShell";
@@ -282,6 +283,7 @@ const CRM = () => {
               <Route path="sessions" element={<TabbedPage tabs={[{ id: "demos", label: "Demo sessions", el: <DemoSessionsView /> }, { id: "calls", label: "Call history", el: <CallHistoryView /> }]} />} />
               <Route path="page-visitors" element={<PageVisitorsView />} />
               <Route path="clients" element={<ClientsView />} />
+              <Route path="team" element={<TeamView />} />
               <Route path="tenants" element={<TenantsView />} />
               <Route path="rate-card" element={<RateCardView />} />
               <Route path="imported" element={<ImportedListsView />} />

@@ -30,6 +30,7 @@ const TranscriptPage = lazy(() => import("./pages/TranscriptPage.tsx"));
 const VoiceLab = lazy(() => import("./pages/VoiceLab.tsx"));
 const SharedDemo = lazy(() => import("./pages/SharedDemo.tsx"));
 const InviteAccept = lazy(() => import("./pages/InviteAccept.tsx"));
+const StaffInviteAccept = lazy(() => import("./pages/StaffInviteAccept.tsx"));
 const ClientVoiceAgent = lazy(() => import("./pages/ClientVoiceAgent.tsx"));
 const BookCall = lazy(() => import("./pages/BookCall.tsx"));
 const BookingCalendar = lazy(() => import("./pages/BookingCalendar.tsx"));
@@ -98,6 +99,7 @@ const App = () => {
             <Route path="/agent/:id" element={<ClientVoiceAgent />} />
             <Route path="/demo-share/:token" element={<SharedDemo />} />
             <Route path="/invite/:token" element={<InviteAccept />} />
+            <Route path="/staff-invite/:token" element={<StaffInviteAccept />} />
             <Route path="/d/:slug" element={<ShortLinkRedirect />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/reset-password" element={<ResetPassword />} />

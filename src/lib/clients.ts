@@ -38,6 +38,9 @@ export interface ClientPayload {
   /** Phase 2.5: this customer belongs to a seeded demo org —
    *  presentation data, never a real (or billed) customer. */
   isDemo?: boolean | null;
+  /** RBAC Phase 1 (2026-11-20): soft-delete stamp on the org.
+   *  Null/absent = not deleted (or the column is not applied yet). */
+  organizationDeletedAt?: string | null;
 }
 
 export interface ClientViewModel {
@@ -65,6 +68,8 @@ export interface ClientViewModel {
   linkedProspectId: string | null;
   /** Seeded presentation account (Phase 2.5 demo world). */
   isDemo: boolean;
+  /** RBAC soft delete: when the client was deleted, else null. */
+  deletedAt: string | null;
 }
 
 /** Plan display names — the same names/prices the customer sees in
@@ -103,6 +108,7 @@ export function shapeClientRow(p: ClientPayload): ClientViewModel {
     joinedAt: p.joinedAt ?? null,
     linkedProspectId: p.linkedProspectId ?? null,
     isDemo: p.isDemo === true,
+    deletedAt: p.organizationDeletedAt ?? null,
   };
 }
 

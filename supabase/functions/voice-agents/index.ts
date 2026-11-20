@@ -111,13 +111,16 @@ const configSchema = z.object({ phoneSetup:phoneSetupStateSchema.optional(), not
   // names, and they ride the same save/publish path as every other field.
   customVariables:z.array(z.object({ id:z.string().min(1).max(60), name:z.string().min(2).max(40).regex(/^[a-z][a-zA-Z0-9_]*$/), label:z.string().min(1).max(80), source:z.enum(['call','caller-id','chat','lookup']), example:z.string().max(120) })).max(20).optional(),
   lookupTables:z.array(z.object({ id:z.string().min(1).max(80), label:z.string().min(1).max(255), keyColumn:z.string().min(1).max(120), speakableColumns:z.array(z.string().min(1).max(120)).max(30) })).max(10).optional() });
-const requestSchema = z.object({ action:z.enum(['suggestKnowledge','suggestIndustry','suggestGreeting','suggestServices','suggestGuardrails','suggestServiceArea','list','usage','pricing','create','save','publish','source','refresh','removeSource','member','rollback','share','unshare','onboarding','phoneSetup','searchNumbers','provisionNumber','duplicate','usageSummary','clients','myBranding','myTenancy','tenants','updateTenant','rateCard','saveRateCard','tenantClients','resellerConsole','inviteCreate','inviteList','inviteRevoke','invitePreview','inviteAccept','saveBranding','demoStatus','seedDemoData','removeDemoData','resellerRetail','saveResellerRetail','tenantRetail','currencyRates','saveCurrencyRates','resellerCatalog','saveResellerCatalog','tenantBranding','setSubdomain','discoverPages','rewriteText']), phoneSetup:phoneSetupInputSchema.optional(), numberQuery:z.object({ areaCode:z.string().regex(/^\d{3}$/).optional(), zip:z.string().regex(/^\d{5}$/).optional(), contains:z.string().max(10).optional(), limit:z.number().int().min(1).max(25).optional() }).optional(), excludeIds:z.array(z.string().min(1).max(120)).max(60).optional(), excludeLabels:z.array(z.string().min(1).max(120)).max(60).optional(), round:z.number().int().min(0).max(10).optional(), confirmTestCall:z.enum(['phone','agent']).optional(), agentId:z.string().uuid().optional(), mode:z.enum(['website','generic']).default('website'), subNiche:z.string().max(160).optional(), businessNotes:z.string().max(6000).optional(), industry:z.string().max(80).optional(), tone:z.string().max(40).optional(), slug:z.string().min(3).max(80).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(), sourceId:z.string().uuid().optional(), config:configSchema.optional(), businessName:z.string().min(1).max(160).optional(), userEmail:z.string().email().optional(), kind:z.enum(['url','document']).optional(), label:z.string().min(1).max(255).optional(), url:z.string().max(2000).optional(), storagePath:z.string().max(500).optional(), text:z.string().max(4000).optional(), rewriteMode:z.enum(['warmer','shorter']).optional(), pricing:z.object({model:z.literal('gemini-3.8-live'),inputAudioPerMinute:z.number().finite().min(0).max(100),outputAudioPerMinute:z.number().finite().min(0).max(100),source:z.string().url().max(2000)}).optional(),
+const requestSchema = z.object({ action:z.enum(['suggestKnowledge','suggestIndustry','suggestGreeting','suggestServices','suggestGuardrails','suggestServiceArea','list','usage','pricing','create','save','publish','source','refresh','removeSource','member','rollback','share','unshare','onboarding','phoneSetup','searchNumbers','provisionNumber','duplicate','usageSummary','clients','myBranding','myTenancy','tenants','updateTenant','rateCard','saveRateCard','tenantClients','resellerConsole','inviteCreate','inviteList','inviteRevoke','invitePreview','inviteAccept','saveBranding','demoStatus','seedDemoData','removeDemoData','resellerRetail','saveResellerRetail','tenantRetail','currencyRates','saveCurrencyRates','resellerCatalog','saveResellerCatalog','tenantBranding','setSubdomain','discoverPages','rewriteText','teamRoles','teamList','teamInvite','teamRevokeInvite','teamSetRole','teamSetActive','teamAudit','staffInvitePreview','staffInviteAccept','deleteClient','restoreClient']), phoneSetup:phoneSetupInputSchema.optional(), numberQuery:z.object({ areaCode:z.string().regex(/^\d{3}$/).optional(), zip:z.string().regex(/^\d{5}$/).optional(), contains:z.string().max(10).optional(), limit:z.number().int().min(1).max(25).optional() }).optional(), excludeIds:z.array(z.string().min(1).max(120)).max(60).optional(), excludeLabels:z.array(z.string().min(1).max(120)).max(60).optional(), round:z.number().int().min(0).max(10).optional(), confirmTestCall:z.enum(['phone','agent']).optional(), agentId:z.string().uuid().optional(), mode:z.enum(['website','generic']).default('website'), subNiche:z.string().max(160).optional(), businessNotes:z.string().max(6000).optional(), industry:z.string().max(80).optional(), tone:z.string().max(40).optional(), slug:z.string().min(3).max(80).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(), sourceId:z.string().uuid().optional(), config:configSchema.optional(), businessName:z.string().min(1).max(160).optional(), userEmail:z.string().email().optional(), kind:z.enum(['url','document']).optional(), label:z.string().min(1).max(255).optional(), url:z.string().max(2000).optional(), storagePath:z.string().max(500).optional(), text:z.string().max(4000).optional(), rewriteMode:z.enum(['warmer','shorter']).optional(), pricing:z.object({model:z.literal('gemini-3.8-live'),inputAudioPerMinute:z.number().finite().min(0).max(100),outputAudioPerMinute:z.number().finite().min(0).max(100),source:z.string().url().max(2000)}).optional(),
   // Multi-tenant Phase 2 (2026-11-18): tenancy / invites / rate card.
   organizationId:z.string().uuid().optional(), inviteId:z.string().uuid().optional(), inviteKind:z.enum(['reseller','client','staff']).optional(), companyName:z.string().min(1).max(160).optional(), inviteRole:z.enum(['admin','editor','viewer']).optional(), inviteToken:z.string().min(16).max(200).optional(), status:z.enum(['active','suspended']).optional(), limits:z.unknown().optional(), rateCard:z.unknown().optional(), branding:z.unknown().optional(),
   // Multi-tenant Phase 2.5 (2026-11-18): demo tenants / retail / currency / catalog.
   retailPrices:z.unknown().optional(), customerCurrency:z.string().min(3).max(3).optional(), rates:z.unknown().optional(), catalog:z.unknown().optional(),
   // Reseller subdomains (2026-11-18, design §12.2).
-  subdomain:z.string().max(80).nullable().optional() });
+  subdomain:z.string().max(80).nullable().optional(),
+  // RBAC Phase 1 (2026-11-20): team administration + client soft delete.
+  roleKey:z.string().min(1).max(60).optional(), assignmentId:z.string().uuid().optional(),
+  targetUserId:z.string().uuid().optional(), active:z.boolean().optional() });
 const json = (data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
 
 // ---------------------------------------------------------------------------
@@ -220,13 +223,20 @@ async function buildClients(db:any,orgFilter:Set<string>|null){
   const userIds=[...new Set(rows.map((w:any)=>w.user_id))] as string[];
   let orgs:OrgRow[]=[];
   if(orgIds.length) {
-    const rich=await db.from('voice_organizations').select('id,name,parent_organization_id,type,status,is_demo').in('id',orgIds);
-    if(rich.error) {
-      const mid=await db.from('voice_organizations').select('id,name,parent_organization_id,type,status').in('id',orgIds);
-      if(mid.error) { const base=await db.from('voice_organizations').select('id,name').in('id',orgIds); if(base.error) throw base.error; orgs=(base.data || []) as OrgRow[]; }
-      else orgs=(mid.data || []) as OrgRow[];
+    // Newest set first: deleted_at arrives with the RBAC soft-delete
+    // update (manual SQL 2026-11-20); until it is applied the older
+    // sets answer and deleted reads as "not deleted".
+    const richDel=await db.from('voice_organizations').select('id,name,parent_organization_id,type,status,is_demo,deleted_at').in('id',orgIds);
+    if(!richDel.error) orgs=(richDel.data || []) as OrgRow[];
+    else {
+      const rich=await db.from('voice_organizations').select('id,name,parent_organization_id,type,status,is_demo').in('id',orgIds);
+      if(rich.error) {
+        const mid=await db.from('voice_organizations').select('id,name,parent_organization_id,type,status').in('id',orgIds);
+        if(mid.error) { const base=await db.from('voice_organizations').select('id,name').in('id',orgIds); if(base.error) throw base.error; orgs=(base.data || []) as OrgRow[]; }
+        else orgs=(mid.data || []) as OrgRow[];
+      }
+      else orgs=(rich.data || []) as OrgRow[];
     }
-    else orgs=(rich.data || []) as OrgRow[];
   }
   const orgById=new Map(orgs.map(o=>[o.id,o]));
   const parentIds=[...new Set(orgs.map(o=>o.parent_organization_id).filter(Boolean))] as string[];
@@ -268,6 +278,7 @@ async function buildClients(db:any,orgFilter:Set<string>|null){
       joinedAt:w.created_at || u?.createdAt || null,
       linkedProspectId:linkedProspectByOrg.get(w.organization_id) || null,
       isDemo:isDemoOrg(org),
+      organizationDeletedAt:(org as any)?.deleted_at || null,
     };
   });
 }
@@ -495,6 +506,62 @@ async function sendInviteEmail(opts:{to:string;inviterName:string;companyName:st
     return true;
   } catch(e) { console.error('invite email failed', e instanceof Error?e.message:e); return false; }
 }
+
+// ---------------------------------------------------------------------------
+// RBAC Phase 1 (2026-11-20, rbac-admin-design.md): platform team
+// administration. The rules live in the database — has_permission(),
+// assign_staff_role() and set_staff_active() in
+// supabase/migrations/20261120120000_rbac_admin.sql — and these actions
+// are the only write path to them. Until that migration is applied the
+// team actions answer RBAC_SQL_MSG instead of failing obscurely, the
+// same posture as the subdomain phase.
+// ---------------------------------------------------------------------------
+const RBAC_SQL_MSG='This turns on once the team permissions database update is applied.';
+const RBAC_DELETE_SQL_MSG='This turns on once the client soft-delete database update is applied.';
+const staffInviteUrl=(token:string)=>`${SITE_BASE}/staff-invite/${token}`;
+
+async function sendStaffInviteEmail(opts:{to:string;roleName:string;url:string}):Promise<boolean>{
+  try {
+    const text=`You have been invited to join the AI Hidden Leads team as ${opts.roleName}.\n\nOpen this link to create your sign-in and accept:\n${opts.url}\n\nThe link expires in 7 days. If you weren't expecting this, you can ignore this email.`;
+    const html=`<p style="font-family:Arial,sans-serif;font-size:15px;line-height:1.6;color:#0f172a">You have been invited to join the <strong>AI Hidden Leads</strong> team as <strong>${opts.roleName}</strong>.</p><p style="font-family:Arial,sans-serif;font-size:15px;line-height:1.6;color:#0f172a"><a href="${opts.url}">Accept your invitation</a> — the link expires in 7 days.</p><p style="font-family:Arial,sans-serif;font-size:13px;color:#475569">If you weren't expecting this, you can ignore this email.</p>`;
+    await sendOwnerMail({ to:opts.to, subject:'Your invitation to join the AI Hidden Leads team', text, html });
+    return true;
+  } catch(e) { console.error('staff invite email failed', e instanceof Error?e.message:e); return false; }
+}
+
+/** has_permission() with rollout semantics: true/false when the RBAC
+ *  migration is live; null when it is not applied yet (RPC missing),
+ *  so callers can fall back to the pre-RBAC platform-admin check. */
+async function rbacHas(db:any,userId:string,area:string,action:string):Promise<boolean|null>{
+  try {
+    const {data,error}=await db.rpc('has_permission',{_user:userId,_area:area,_action:action,_scope_type:'platform',_scope_id:null});
+    if(error) return null;
+    return data===true;
+  } catch { return null; }
+}
+
+/** Read access to the team surface: a real RBAC grant wins; a person
+ *  with NO assignment at all (pre-migration state) falls back to the
+ *  legacy platform-admin row so rollout never hides the page from the
+ *  people who run the platform today. Writes never use this fallback —
+ *  they go through the guarded RPCs. */
+async function rbacReadAccess(db:any,userId:string,admin:boolean,area:string):Promise<boolean>{
+  const granted=await rbacHas(db,userId,area,'view');
+  if(granted===true) return true;
+  if(granted===false) {
+    const {count}=await db.from('staff_assignments').select('id',{count:'exact',head:true}).eq('user_id',userId);
+    if((count || 0)>0) return false; // has assignments, just not this grant
+  }
+  return admin;
+}
+
+/** Best-effort audit write for actions enforced outside the RPCs
+ *  (campaign send, client delete). Never fails the action itself. */
+async function rbacAudit(db:any,actor:string,action:string,area:string,targetType:string,targetId:string,summary:Record<string,unknown>):Promise<void>{
+  try {
+    await db.from('audit_log').insert({actor_user_id:actor,action,area,target_type:targetType,target_id:targetId,scope_type:'platform',summary});
+  } catch { /* audit table not applied yet — the action still stands */ }
+}
 Deno.serve(async req=>{
   if(req.method==='OPTIONS') return new Response('ok',{headers:corsHeaders});
   if(req.method!=='POST') return json({error:'POST required'},405);
@@ -534,6 +601,16 @@ Deno.serve(async req=>{
       if(inv.inviter_organization_id) { const {data:o}=await db.from('voice_organizations').select('name').eq('id',inv.inviter_organization_id).maybeSingle(); if(o?.name) inviterName=o.name; }
       else if(inv.organization_id && inv.kind!=='reseller') { const {data:o}=await db.from('voice_organizations').select('name').eq('id',inv.organization_id).maybeSingle(); if(o?.name) inviterName=o.name; }
       return json({preview:{kind:inv.kind,companyName:inv.company_name || 'your business',inviterName,status:inviteStatusAt(inv)}});
+    }
+    if(peek?.action==='staffInvitePreview') {
+      // RBAC Phase 1: same pre-auth posture as invitePreview — reveals
+      // only the role name and the invite status, never the email.
+      if(!peek.inviteToken) return json({error:'Invite link required'},400);
+      const {data:inv,error:invErr}=await db.from('staff_invites').select('role_id,status,expires_at').eq('token_hash',await sha256(peek.inviteToken)).maybeSingle();
+      if(invErr) return json({error:RBAC_SQL_MSG},400);
+      if(!inv) return json({error:'This invite link is not valid.'},404);
+      const {data:roleRow}=await db.from('roles').select('name').eq('id',inv.role_id).maybeSingle();
+      return json({preview:{roleName:roleRow?.name || 'Team member',status:inviteStatusAt(inv)}});
     }
     const token=req.headers.get('Authorization')?.replace(/^Bearer\s+/i,'');
     if(!token) return json({error:'Sign in required'},401);
@@ -894,6 +971,165 @@ Deno.serve(async req=>{
       if(mErr) throw mErr;
       const {error}=await db.from('tenant_invites').update({status:'accepted',accepted_by:user.id,accepted_at:new Date().toISOString()}).eq('id',inv.id); if(error) throw error;
       return json({success:true,kind:inv.kind,organizationId:inv.organization_id});
+    }
+    // -----------------------------------------------------------------
+    // RBAC Phase 1 (2026-11-20): platform team administration.
+    // Reads accept the rollout fallback (rbacReadAccess); every write
+    // goes through the guarded database RPCs, which enforce the
+    // hierarchy rules and write the audit rows.
+    // -----------------------------------------------------------------
+    if(body.action==='teamRoles') {
+      if(!(await rbacReadAccess(db,user.id,admin,'team'))) return json({error:'Team access required'},403);
+      const {data:roleRows,error:rErr}=await db.from('roles').select('id,key,name,rank,scope_type').eq('scope_type','platform').order('rank',{ascending:false});
+      if(rErr) return json({error:RBAC_SQL_MSG},400);
+      const {data:permRows,error:pErr}=await db.from('role_permissions').select('role_id,area,action');
+      if(pErr) return json({error:RBAC_SQL_MSG},400);
+      const permsByRole=new Map<string,string[]>();
+      for(const p of permRows || []) {
+        const list=permsByRole.get(p.role_id) || [];
+        list.push(`${p.area}:${p.action}`);
+        permsByRole.set(p.role_id,list);
+      }
+      // The caller's own effective platform role, for UI affordances.
+      let myRoleKey:string|null=null;
+      const {data:myRows}=await db.from('staff_assignments').select('role_id,roles(key)').eq('user_id',user.id).eq('scope_type','platform').eq('active',true);
+      const myKey=(myRows?.[0] as any)?.roles?.key as string|undefined;
+      if(myKey) myRoleKey=myKey;
+      else if(admin) {
+        // No assignment yet (rollout): the break-glass allowlist maps
+        // to Owner, any other legacy platform admin maps to Admin.
+        let isOwner=false;
+        try { const r=await db.rpc('is_owner_user',{_user:user.id}); isOwner=r.data===true; } catch { isOwner=false; }
+        myRoleKey=isOwner?'owner':'admin';
+      }
+      return json({roles:(roleRows || []).map(r=>({key:r.key,name:r.name,rank:r.rank,permissions:permsByRole.get(r.id) || []})),myRoleKey});
+    }
+    if(body.action==='teamList') {
+      if(!(await rbacReadAccess(db,user.id,admin,'team'))) return json({error:'Team access required'},403);
+      const {data:rows,error:aErr}=await db.from('staff_assignments')
+        .select('id,user_id,role_id,active,invited_by,created_at,roles(key,name,rank)')
+        .eq('scope_type','platform').order('created_at',{ascending:true});
+      if(aErr) return json({error:RBAC_SQL_MSG},400);
+      const userById=new Map<string,{email:string|null;name:string|null;lastSignInAt:string|null}>();
+      for(let page=1;page<=20;page++) { const {data,error}=await db.auth.admin.listUsers({page,perPage:100}); if(error) throw error; for(const u of data.users) userById.set(u.id,{email:u.email || null,name:(u.user_metadata?.full_name as string) || (u.user_metadata?.name as string) || null,lastSignInAt:(u as any).last_sign_in_at || null}); if(data.users.length<100) break; }
+      const {data:invRows}=await db.from('staff_invites').select('id,email,role_id,status,expires_at,created_at,email_sent,roles(key,name)').eq('scope_type','platform').order('created_at',{ascending:false}).limit(100);
+      return json({
+        members:(rows || []).map((r:any)=>({assignmentId:r.id,userId:r.user_id,email:userById.get(r.user_id)?.email || null,name:userById.get(r.user_id)?.name || null,roleKey:r.roles?.key || null,roleName:r.roles?.name || null,active:r.active,lastActiveAt:userById.get(r.user_id)?.lastSignInAt || null,createdAt:r.created_at})),
+        invites:(invRows || []).map((i:any)=>({id:i.id,email:i.email,roleKey:i.roles?.key || null,roleName:i.roles?.name || null,status:inviteStatusAt(i),expiresAt:i.expires_at,createdAt:i.created_at,emailSent:i.email_sent})),
+      });
+    }
+    if(body.action==='teamInvite') {
+      if(!body.userEmail || !body.roleKey) return json({error:'Email and role are required'},400);
+      const granted=await rbacHas(db,user.id,'team','manage');
+      if(granted!==true) return json({error:granted===null?RBAC_SQL_MSG:'You do not have permission to manage the team'},granted===null?400:403);
+      const {data:roleRow,error:roleErr}=await db.from('roles').select('id,key,name,rank').eq('key',body.roleKey).maybeSingle();
+      if(roleErr) return json({error:RBAC_SQL_MSG},400);
+      if(!roleRow) return json({error:'Unknown role'},400);
+      if(roleRow.key==='owner') return json({error:'The Owner role cannot be granted'},400);
+      // Mirror of the RPC guards, checked at invite time (the RPC
+      // checks again when the invite is accepted).
+      const {data:actorRank}=await db.rpc('staff_actor_rank',{_user:user.id,_scope_type:'platform',_scope_id:null});
+      if(typeof actorRank==='number' && roleRow.rank>actorRank) return json({error:'You cannot grant a role higher than your own'},403);
+      if(roleRow.key==='admin') {
+        const {data:isOwner}=await db.rpc('is_owner_user',{_user:user.id});
+        if(isOwner!==true) return json({error:'Only the Owner can grant the Admin role'},403);
+      }
+      const email=body.userEmail.toLowerCase();
+      const token=<redacted>(crypto.getRandomValues(new Uint8Array(32))).map(b=>b.toString(16).padStart(2,'0')).join('');
+      const {data:invite,error:invErr}=await db.from('staff_invites').insert({
+        email, role_id:roleRow.id, scope_type:'platform',
+        token_hash:await sha256(token), status:'pending',
+        expires_at:new Date(Date.now()+INVITE_EXPIRY_MS).toISOString(), invited_by:user.id,
+      }).select().single();
+      if(invErr) throw invErr;
+      const url=staffInviteUrl(token);
+      const emailSent=await sendStaffInviteEmail({to:email,roleName:roleRow.name,url});
+      if(emailSent) await db.from('staff_invites').update({email_sent:true}).eq('id',invite.id);
+      await rbacAudit(db,user.id,'staff.invited','team','user',email,{role:roleRow.key,emailSent});
+      // The link is ALWAYS returned (same rule as tenant invites):
+      // when the email can't go out, the inviter sends it themselves.
+      return json({invite:{id:invite.id,email,roleKey:roleRow.key,status:'pending',expiresAt:invite.expires_at},inviteUrl:url,emailSent});
+    }
+    if(body.action==='teamRevokeInvite') {
+      if(!body.inviteId) return json({error:'Invite required'},400);
+      const granted=await rbacHas(db,user.id,'team','manage');
+      if(granted!==true) return json({error:granted===null?RBAC_SQL_MSG:'You do not have permission to manage the team'},granted===null?400:403);
+      const {data:inv}=await db.from('staff_invites').select('id,email,status').eq('id',body.inviteId).maybeSingle();
+      if(!inv) return json({error:'Invite not found'},404);
+      if(inv.status!=='pending') return json({error:'Only a pending invite can be revoked'},400);
+      const {error}=await db.from('staff_invites').update({status:'revoked'}).eq('id',inv.id); if(error) throw error;
+      await rbacAudit(db,user.id,'staff.invite_revoked','team','user',inv.email,{});
+      return json({success:true});
+    }
+    if(body.action==='teamSetRole') {
+      if(!body.targetUserId || !body.roleKey) return json({error:'User and role are required'},400);
+      const {error:rpcErr}=await db.rpc('assign_staff_role',{_actor:user.id,_target_user:body.targetUserId,_role_key:body.roleKey,_scope_type:'platform',_scope_id:null});
+      if(rpcErr) {
+        if(/function|does not exist/i.test(rpcErr.message || '')) return json({error:RBAC_SQL_MSG},400);
+        return json({error:rpcErr.message},403);
+      }
+      return json({success:true});
+    }
+    if(body.action==='teamSetActive') {
+      if(!body.assignmentId || typeof body.active!=='boolean') return json({error:'Assignment and state are required'},400);
+      const {error:rpcErr}=await db.rpc('set_staff_active',{_actor:user.id,_assignment_id:body.assignmentId,_active:body.active});
+      if(rpcErr) {
+        if(/function|does not exist/i.test(rpcErr.message || '')) return json({error:RBAC_SQL_MSG},400);
+        return json({error:rpcErr.message},403);
+      }
+      return json({success:true});
+    }
+    if(body.action==='teamAudit') {
+      if(!(await rbacReadAccess(db,user.id,admin,'audit'))) return json({error:'Audit access required'},403);
+      const {data:rows,error:auErr}=await db.from('audit_log').select('id,actor_user_id,action,area,target_type,target_id,summary,created_at').eq('scope_type','platform').order('created_at',{ascending:false}).limit(100);
+      if(auErr) return json({error:RBAC_SQL_MSG},400);
+      const actorIds=[...new Set((rows || []).map((r:any)=>r.actor_user_id).filter(Boolean))] as string[];
+      const emailById=new Map<string,string>();
+      if(actorIds.length) {
+        for(let page=1;page<=20;page++) { const {data,error}=await db.auth.admin.listUsers({page,perPage:100}); if(error) break; for(const u of data.users) if(actorIds.includes(u.id)) emailById.set(u.id,u.email || ''); if(data.users.length<100) break; }
+      }
+      return json({entries:(rows || []).map((r:any)=>({id:r.id,actorEmail:r.actor_user_id?emailById.get(r.actor_user_id) || null:null,action:r.action,area:r.area,targetType:r.target_type,targetId:r.target_id,summary:r.summary,createdAt:r.created_at}))});
+    }
+    if(body.action==='staffInviteAccept') {
+      if(!body.inviteToken) return json({error:'Invite link required'},400);
+      const {data:inv,error:invErr}=await db.from('staff_invites').select('*').eq('token_hash',await sha256(body.inviteToken)).maybeSingle();
+      if(invErr) return json({error:RBAC_SQL_MSG},400);
+      if(!inv) return json({error:'This invite link is not valid.'},404);
+      const status=inviteStatusAt(inv);
+      if(status==='expired') return json({error:'This invite has expired. Ask for a new one.'},400);
+      if(status!=='pending') return json({error:'This invite is no longer available.'},400);
+      if((user.email || '').toLowerCase()!==String(inv.email).toLowerCase())
+        return json({error:'This invite was sent to a different email address. Sign in with the invited email.'},403);
+      const {data:roleRow}=await db.from('roles').select('key').eq('id',inv.role_id).maybeSingle();
+      if(!roleRow) return json({error:'This invite is incomplete. Ask for a new one.'},400);
+      // The assignment itself is written by the guarded RPC, with the
+      // inviter as the actor — their rights are re-checked NOW, not
+      // just as they stood when the invite was created.
+      const {error:rpcErr}=await db.rpc('assign_staff_role',{_actor:inv.invited_by,_target_user:user.id,_role_key:roleRow.key,_scope_type:inv.scope_type,_scope_id:inv.scope_id});
+      if(rpcErr) return json({error:rpcErr.message},403);
+      const {error}=await db.from('staff_invites').update({status:'accepted',accepted_by:user.id,accepted_at:new Date().toISOString()}).eq('id',inv.id); if(error) throw error;
+      return json({success:true,roleKey:roleRow.key});
+    }
+    if(body.action==='deleteClient' || body.action==='restoreClient') {
+      // RBAC proof surface (design §4): client delete is a soft delete
+      // and Owner-only in the matrix (clients:delete). Enforced HERE,
+      // server-side — the Clients view button is only a shortcut.
+      if(!admin) return json({error:'Administrator access required'},403);
+      const granted=await rbacHas(db,user.id,'clients','delete');
+      if(granted!==true) return json({error:granted===null?RBAC_SQL_MSG:'Only the Owner can delete a client'},granted===null?400:403);
+      if(!body.organizationId) return json({error:'Organization required'},400);
+      const org=await loadOrg(db,body.organizationId); if(!org) return json({error:'Organization not found'},404);
+      const deleting=body.action==='deleteClient';
+      const patch:Record<string,unknown>=deleting
+        ? {deleted_at:new Date().toISOString(),status:'suspended'}
+        : {deleted_at:null,status:'active'};
+      const {error}=await db.from('voice_organizations').update(patch).eq('id',org.id);
+      if(error) {
+        if(/deleted_at/.test(error.message || '')) return json({error:RBAC_DELETE_SQL_MSG},400);
+        throw error;
+      }
+      await rbacAudit(db,user.id,deleting?'client.deleted':'client.restored','clients','organization',org.id,{businessName:org.name});
+      return json({success:true});
     }
     if(body.action==='saveBranding') {
       if(!body.organizationId) return json({error:'Organization required'},400);
