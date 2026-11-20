@@ -55,10 +55,12 @@
       "error": "We couldn't save your new password. Please try again.",
       "rulesTitle": "Your password must include:",
       "ruleLength": "At least 8 characters",
-      "ruleLetter": "At least one letter",
+      "ruleLowercase": "At least one lowercase letter",
+      "ruleUppercase": "At least one uppercase letter",
       "ruleNumber": "At least one number",
       "ruleSymbol": "At least one special character (such as ! @ # $ %)",
-      "policyNotice": "Your password doesn't meet all the rules yet."
+      "policyNotice": "Your password doesn't meet all the rules yet.",
+      "samePassword": "That's already your current password. Pick a different one — or just sign in with it."
     }
   },
   "lang": {

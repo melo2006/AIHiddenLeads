@@ -55,10 +55,12 @@
       "error": "No pudimos guardar tu contraseña nueva. Inténtalo de nuevo.",
       "rulesTitle": "Tu contraseña debe incluir:",
       "ruleLength": "Al menos 8 caracteres",
-      "ruleLetter": "Al menos una letra",
+      "ruleLowercase": "Al menos una letra minúscula",
+      "ruleUppercase": "Al menos una letra mayúscula",
       "ruleNumber": "Al menos un número",
       "ruleSymbol": "Al menos un carácter especial (como ! @ # $ %)",
-      "policyNotice": "Tu contraseña aún no cumple todas las reglas."
+      "policyNotice": "Tu contraseña aún no cumple todas las reglas.",
+      "samePassword": "Esa ya es tu contraseña actual. Elige una diferente, o simplemente inicia sesión con ella."
     }
   },
   "lang": {

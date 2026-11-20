@@ -81,7 +81,8 @@ const UpdatePassword = () => {
   // character, shown live under the field with ticks as each rule is met.
   const rules = [
     { ok: password.length >= 8, label: t("passwordReset.update.ruleLength") },
-    { ok: /[A-Za-z]/.test(password), label: t("passwordReset.update.ruleLetter") },
+    { ok: /[a-z]/.test(password), label: t("passwordReset.update.ruleLowercase") },
+    { ok: /[A-Z]/.test(password), label: t("passwordReset.update.ruleUppercase") },
     { ok: /\d/.test(password), label: t("passwordReset.update.ruleNumber") },
     { ok: /[^A-Za-z0-9]/.test(password), label: t("passwordReset.update.ruleSymbol") },
   ];
@@ -107,7 +108,15 @@ const UpdatePassword = () => {
     const { error } = await supabase.auth.updateUser({ password });
     setBusy(false);
     if (error) {
-      setNotice(t("passwordReset.update.error"));
+      // GoTrue's same_password refusal confused the owner on 2026-11-20:
+      // he re-typed the password he had set an hour earlier and got only
+      // a generic failure. Name it plainly instead.
+      const code = (error as { code?: string }).code ?? "";
+      setNotice(
+        code === "same_password"
+          ? t("passwordReset.update.samePassword")
+          : t("passwordReset.update.error")
+      );
       return;
     }
     setPhase("done");

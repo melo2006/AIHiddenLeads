@@ -55,10 +55,12 @@
       "error": "Nous n'avons pas pu enregistrer votre nouveau mot de passe. Réessayez.",
       "rulesTitle": "Votre mot de passe doit comprendre :",
       "ruleLength": "Au moins 8 caractères",
-      "ruleLetter": "Au moins une lettre",
+      "ruleLowercase": "Au moins une lettre minuscule",
+      "ruleUppercase": "Au moins une lettre majuscule",
       "ruleNumber": "Au moins un chiffre",
       "ruleSymbol": "Au moins un caractère spécial (comme ! @ # $ %)",
-      "policyNotice": "Votre mot de passe ne respecte pas encore toutes les règles."
+      "policyNotice": "Votre mot de passe ne respecte pas encore toutes les règles.",
+      "samePassword": "C'est déjà votre mot de passe actuel. Choisissez-en un autre — ou connectez-vous simplement avec celui-ci."
     }
   },
   "lang": {

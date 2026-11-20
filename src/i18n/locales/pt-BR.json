@@ -55,10 +55,12 @@
       "error": "Não conseguimos salvar sua nova senha. Tente novamente.",
       "rulesTitle": "Sua senha deve incluir:",
       "ruleLength": "Pelo menos 8 caracteres",
-      "ruleLetter": "Pelo menos uma letra",
+      "ruleLowercase": "Pelo menos uma letra minúscula",
+      "ruleUppercase": "Pelo menos uma letra maiúscula",
       "ruleNumber": "Pelo menos um número",
       "ruleSymbol": "Pelo menos um caractere especial (como ! @ # $ %)",
-      "policyNotice": "Sua senha ainda não atende a todas as regras."
+      "policyNotice": "Sua senha ainda não atende a todas as regras.",
+      "samePassword": "Essa já é a sua senha atual. Escolha uma diferente — ou simplesmente entre com ela."
     }
   },
   "lang": {
