@@ -727,6 +727,51 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const signInAction = limitReached && error ? <a href={`/account?next=${encodeURIComponent(window.location.pathname + window.location.search)}`} className="inline-flex w-fit items-center rounded-md border border-primary px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/10">{t("panel.signInAdmin")}</a> : null;
   const [endedByVisitor, setEndedByVisitor] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  // Voice-settings Apply (owner ask, 2026-11-20): the settings dialog
+  // used to apply every pick the instant it was made, with no confirm
+  // and no feedback. Noise filtering and speaker volume genuinely apply
+  // live and stay instant; the MICROPHONE and CONVERSATION MODE picks
+  // in the dialog are now DRAFTS — they commit only when the visitor
+  // taps "Apply settings", the button flashes "Applied ✓", and closing
+  // the dialog without applying discards the drafts (they re-sync from
+  // the live values on the next open). The Voice Lab page's inline rows
+  // keep their direct wiring — the dialog is the customer surface.
+  const [draftMicrophone, setDraftMicrophone] = useState("default");
+  const [draftCaptureMode, setDraftCaptureMode] = useState<CaptureMode>("handsfree");
+  const [settingsJustApplied, setSettingsJustApplied] = useState(false);
+  const appliedTimerRef = useRef<number | null>(null);
+  const startAfterApplyRef = useRef(false);
+  const settingsPending = draftMicrophone !== microphone || draftCaptureMode !== captureMode;
+  useEffect(() => {
+    if (showSettings) {
+      setDraftMicrophone(microphone);
+      setDraftCaptureMode(captureMode);
+      setSettingsJustApplied(false);
+    }
+    // Sync on open only — the live values are read at open time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showSettings]);
+  const applyVoiceSettings = () => {
+    if (draftMicrophone !== microphone) setMicrophone(draftMicrophone);
+    if (draftCaptureMode !== captureMode) {
+      if (draftCaptureMode === "hold") pauseCapture(); else endHold();
+      captureRef.current.mode = draftCaptureMode;
+      setCaptureMode(draftCaptureMode);
+    }
+    setSettingsJustApplied(true);
+    if (appliedTimerRef.current) window.clearTimeout(appliedTimerRef.current);
+    appliedTimerRef.current = window.setTimeout(() => setSettingsJustApplied(false), 2500);
+  };
+  // "Start call with these settings" commits pending drafts first, then
+  // starts once the committed values have rendered (startConversation
+  // reads microphone/captureMode from state).
+  useEffect(() => {
+    if (!startAfterApplyRef.current) return;
+    startAfterApplyRef.current = false;
+    setShowSettings(false);
+    void startConversation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [microphone, captureMode]);
   // LAYOUT REFINEMENT (Scalone batch Item 8b): a wide landscape panel
   // merges the Voice/Type toggle row and the transport row into ONE
   // row (see landscapeControlRow). JS-driven rather than a CSS
@@ -5514,7 +5559,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             <div>
               <label className="text-[11px] font-semibold text-muted-foreground">{t("voice.microphone")}</label>
               <div className="mt-1 flex gap-2">
-                <Select value={microphone} onValueChange={setMicrophone} disabled={phase !== "idle"}>
+                <Select value={draftMicrophone} onValueChange={setDraftMicrophone} disabled={phase !== "idle"}>
                   <SelectTrigger aria-label={t("voice.microphone")} className="h-8 min-w-0 flex-1 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="default">{t("voice.systemDefaultMic")}</SelectItem>
@@ -5530,7 +5575,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             </div>
             <div>
               <label className="text-[11px] font-semibold text-muted-foreground">{t("voice.conversationMode")}</label>
-              <Select value={captureMode} onValueChange={(value) => { const next = value as CaptureMode; if (next === "hold") pauseCapture(); else endHold(); captureRef.current.mode = next; setCaptureMode(next); }}>
+              <Select value={draftCaptureMode} onValueChange={(value) => setDraftCaptureMode(value as CaptureMode)}>
                 <SelectTrigger aria-label={t("voice.conversationMode")} className="mt-1 h-8 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="handsfree">{t("voice.handsFree")}</SelectItem>
@@ -5556,12 +5601,20 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
               </div>
               <input id="aspen-speaker-volume" type="range" min={0} max={100} step={1} value={Math.round(playbackVolume * 100)} onChange={(e) => applyPlaybackVolume(Number(e.target.value) / 100)} aria-label={t("voice.speakerVolume")} className="w-full accent-primary" />
             </div>
+            <div className="space-y-2 border-t border-border pt-3">
+              <p className="text-[11px] text-muted-foreground">{t("voice.settingsApplyHint")}</p>
+              {settingsPending && <p role="status" className="text-[11px] font-semibold text-foreground">{t("voice.settingsPendingHint")}</p>}
+              <Button className="w-full" onClick={applyVoiceSettings} disabled={!settingsPending && !settingsJustApplied} aria-label={t("voice.applySettings")}>
+                {settingsJustApplied ? t("voice.settingsApplied") : t("voice.applySettings")}
+              </Button>
+              {settingsJustApplied && <p role="status" className="text-[11px] text-muted-foreground">{t("voice.settingsAppliedDetail")}</p>}
+            </div>
             {draft && (
               <Button variant="outline" size="sm" className="h-8 text-xs" disabled={phase !== "idle"} onClick={() => void startConversation(true)} aria-label={t("voice.previewVoice")} title={t("voice.previewVoice")}>
                 <Play className="mr-1.5 h-3.5 w-3.5" /> {t("voice.previewVoice")}
               </Button>
             )}
-            {phase === "idle" && <Button className="w-full" onClick={() => { setShowSettings(false); void startConversation(); }}><Mic className="mr-1.5 h-4 w-4" />{t("voice.startCallWithSettings")}</Button>}
+            {phase === "idle" && <Button className="w-full" onClick={() => { if (settingsPending) { applyVoiceSettings(); startAfterApplyRef.current = true; } else { setShowSettings(false); void startConversation(); } }}><Mic className="mr-1.5 h-4 w-4" />{t("voice.startCallWithSettings")}</Button>}
           </div></DialogContent></Dialog>
         )}
         </div>
