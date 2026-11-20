@@ -8,6 +8,7 @@ import { PERSONAS, type PersonaBoundary, type PersonaId } from '../../supabase/f
 import {
   ALEX_HAND_BACK_ANCHORS,
   BOUNDARY_ANCHORS,
+  DOORWAY_ANNOUNCEMENT_ANCHORS,
   DROP_APOLOGY_VARIANTS,
 } from '../../supabase/functions/_shared/session-opening';
 import { INTRO_BOUNDARIES, type IntroBoundary } from '../../supabase/functions/_shared/team-intro';
@@ -52,21 +53,23 @@ export interface SwapState {
   /** Visitor lines that look like a step-out request, awaiting Sara's
    *  reply (the soft B2 trigger). */
   pendingStepout: boolean;
-  /** STRUCTURAL doorway trigger (2026-11-09 hardening): the doorway
-   *  swap used to arm ONLY on Aspen speaking the exact anchor phrase
-   *  ("stepping into simulation mode") — a paraphrase ("let's step
-   *  into the simulation", or skipping the phrase entirely) silently
-   *  skipped Sara and the session ran the whole simulation solo in
-   *  Aspen's voice. Set by noteDoorwayEngagement from a VISITOR line:
-   *  once the host's greeting turn has completed and the visitor
-   *  engages, the simulation IS beginning — boundaryForAssistantLine
-   *  then returns 'doorway' for Aspen's NEXT finalized line whatever
-   *  words it uses (the anchor remains as an earlier net). Only the
-   *  business-demo simulation chain can carry it — noteDoorwayEngagement
-   *  is phase-'host'-scoped and GeminiConversation folds it only
-   *  while the simulation chain is live (swap chain class marker), so
-   *  homepage/explainer sessions never set it. Cleared when the
-   *  doorway executes; one-shot via state.done. */
+  /** STRUCTURAL doorway trigger (2026-11-09 hardening; ANNOUNCEMENT
+   *  GATE added 2026-11-20 — owner's live T&S Roofing example run:
+   *  the visitor engaged after the greeting and Sara appeared with
+   *  no spoken pass, because the original rule executed the doorway
+   *  on Aspen's NEXT finalized line whatever words it used). Set by
+   *  noteDoorwayEngagement from a VISITOR line once the host's
+   *  greeting turn has completed: the visitor engaging means the
+   *  simulation is beginning, so Sara's face pre-stages and the
+   *  doorway arms — but since 2026-11-20 the swap itself EXECUTES
+   *  only on a line where Aspen announces the pass (see
+   *  lineAnnouncesDoorway): engagement alone no longer cuts over.
+   *  Only the business-demo simulation chain can carry it —
+   *  noteDoorwayEngagement is phase-'host'-scoped and
+   *  GeminiConversation folds it only while the simulation chain is
+   *  live (swap chain class marker), so homepage/explainer sessions
+   *  never set it. Cleared when the doorway executes; one-shot via
+   *  state.done. */
   pendingDoorway: boolean;
   /** Visitor asked for Alex / setup help / a staff meeting — the
    *  VISITOR-armed meet-alex trigger (2026-11-09, Parkland forensics:
@@ -285,6 +288,23 @@ export const PRESENTER_HAND_BACK_ANCHORS: Partial<Record<PersonaId, string[]>> =
   diego: ['bring diego back'],
 };
 
+/** Does this assistant line ANNOUNCE the pass to Sara? (Announcement
+ *  gate, 2026-11-20 — see DOORWAY_ANNOUNCEMENT_ANCHORS in
+ *  session-opening.ts.) True when the line carries an announcement
+ *  anchor (the scripted "Now, meet Sara — … Can I transfer you to
+ *  Sara now?" introduction or a close paraphrase) or a legacy
+ *  doorway anchor (the simulation-entry announcement — that line IS
+ *  the transition in the legacy script). Topic mentions of Sara or
+ *  of the simulation without the pass being announced do NOT count:
+ *  the visitor must HEAR that Sara is being brought in before she
+ *  arrives. */
+export function lineAnnouncesDoorway(text: string): boolean {
+  const line = normalize(text);
+  if (!line) return false;
+  return DOORWAY_ANNOUNCEMENT_ANCHORS.some(a => line.includes(normalize(a)))
+    || BOUNDARY_ANCHORS.doorway.some(a => line.includes(normalize(a)));
+}
+
 export function boundaryForAssistantLine(text: string, state: SwapState): PersonaBoundary | null {
   const line = normalize(text);
   if (!line) return null;
@@ -336,15 +356,27 @@ export function boundaryForAssistantLine(text: string, state: SwapState): Person
   // topic mentions, and it beats the doorway below — a line that
   // introduces Alex is the handoff, whatever the visitor asked for.
   if (state.phase === 'host' && !state.done.includes('meet-alex') && MEET_ALEX_STRONG_ANCHORS.some(a => line.includes(normalize(a)))) return 'meet-alex';
-  // Structural doorway (2026-11-09 hardening): the greeting turn
-  // completed and the visitor engaged (state.pendingDoorway, set by
-  // noteDoorwayEngagement from a VISITOR line), so Aspen's next line
-  // enters the simulation — whatever words it uses. The anchor match
-  // below remains as the earlier net (it can still arm mid-line,
-  // before any visitor engagement); this rule is what makes the
-  // handoff independent of her phrasing.
-  if (state.phase === 'host' && state.pendingDoorway && !state.done.includes('doorway')) return 'doorway';
-  if (state.phase === 'host' && BOUNDARY_ANCHORS.doorway.some(a => line.includes(normalize(a)))) return 'doorway';
+  // ANNOUNCEMENT-GATED doorway (2026-11-20 — owner's live T&S
+  // Roofing example run: Aspen greeted, the visitor said "yes,
+  // continue", and Sara appeared with NO spoken pass, because the
+  // 2026-11-09 structural rule below executed the doorway on
+  // Aspen's next line whatever it said). The swap now executes
+  // ONLY on a line where Aspen announces the pass — the scripted
+  // Sara introduction or a close paraphrase (lineAnnouncesDoorway).
+  // state.pendingDoorway (visitor engagement) still pre-stages
+  // Sara's face and arms the doorway so the cut-over is instant
+  // when the announcement lands, but engagement alone no longer
+  // cuts over: an unannounced line leaves Aspen hosting, and her
+  // instructions (SWAP_HOST_YIELD_BAR) make the announcement her
+  // required next beat. The legacy risk this gate re-opens — Aspen
+  // never announcing and the demo stalling in the host phase — is
+  // bounded by her script: the announcement is a verbatim scripted
+  // beat, the visitor can always force it by asking for Sara (the
+  // host-phase named-person rule ends in the same line), and a
+  // stalled host is recoverable in conversation, while an
+  // unannounced Sara was a broken promise on every early-engagement
+  // run.
+  if (state.phase === 'host' && !state.done.includes('doorway') && lineAnnouncesDoorway(text)) return 'doorway';
   // Visitor-armed summon-aspen (Scalone batch Item 2): the visitor
   // asked for Aspen by name or asked an AI Hidden Leads pricing /
   // platform question (state.pendingAspen, set by noteAspenIntent
@@ -557,13 +589,18 @@ export function noteAspenIntent(state: SwapState, text: string): SwapState {
 
 /** Fold a finalized VISITOR line into the swap state for the
  *  STRUCTURAL doorway trigger (2026-11-09 hardening — the pendingAlex
- *  pattern applied to the host → Sara handoff). The rule: while the
- *  business-demo chain is in phase 'host', once the host's greeting /
- *  opening turn has completed (the component passes greetingDone —
- *  it tracks completed assistant turns) and a finalized visitor line
- *  arrives, the visitor engaging IS the simulation beginning — set
- *  pendingDoorway and Aspen's next finalized line returns 'doorway'
- *  from boundaryForAssistantLine, anchor or no anchor.
+ *  pattern applied to the host → Sara handoff; ANNOUNCEMENT GATE
+ *  added 2026-11-20). The rule: while the business-demo chain is in
+ *  phase 'host', once the host's greeting / opening turn has
+ *  completed (the component passes greetingDone — it tracks
+ *  completed assistant turns) and a finalized visitor line arrives,
+ *  the visitor engaging IS the simulation beginning — set
+ *  pendingDoorway so Sara's face pre-stages and the doorway arms.
+ *  Since 2026-11-20 the flag no longer EXECUTES the swap by itself:
+ *  boundaryForAssistantLine returns 'doorway' only for a line where
+ *  Aspen announces the pass (lineAnnouncesDoorway), so Sara never
+ *  arrives unannounced the way she did in the owner's T&S Roofing
+ *  example run.
  *  Scoped so nothing else can set it: any phase other than 'host'
  *  (the intro family included — its phases never equal 'host') is
  *  untouched, a visitor line before any assistant turn is untouched,

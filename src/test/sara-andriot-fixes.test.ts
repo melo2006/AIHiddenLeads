@@ -175,10 +175,18 @@ describe('Bug 3 — Aspen\'s handoff line ends with the explicit transfer questi
     expect(DEMO_INVITE_OPENING_SWAP).toContain(DEMO_SITE_SARA_INTRO);
   });
 
-  it('the host yield beats make her wait for the answer before the handoff proceeds', () => {
+  it('the host yield beats make the SPOKEN introduction the handover trigger (owner rule, 2026-11-20)', () => {
+    // The handoff used to "proceed on their reply" to the transfer
+    // question — in machinery terms it fired on whatever line came
+    // next, which is how Sara arrived unannounced in the owner's
+    // live example run. The contract now: Sara arrives only after
+    // the introduction is spoken, and right after it.
     expect(SWAP_HOST_YIELD_BAR).toContain('Can I transfer you to Sara now?');
-    expect(SWAP_HOST_YIELD_BAR).toContain('wait for their answer');
-    expect(demoSalesSource).toContain('the handoff proceeds on their reply');
+    expect(SWAP_HOST_YIELD_BAR).toContain('an unannounced Sara is a broken demo');
+    expect(SWAP_HOST_YIELD_BAR).toContain('she arrives right after you speak it');
+    expect(SWAP_HOST_YIELD_BAR).not.toContain('wait for their answer');
+    expect(demoSalesSource).toContain('Sara arrives right after you speak it');
+    expect(demoSalesSource).not.toContain('the handoff proceeds on their reply');
   });
 });
 

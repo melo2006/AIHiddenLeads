@@ -269,7 +269,14 @@ describe('client state machine', () => {
     expect(boundaryForAssistantLine(TEAM_INTRO_BEAT_SARA, inPhase('intro-sara'))).toBe('intro-return-1');
     expect(boundaryForAssistantLine(TEAM_INTRO_BEAT_BRIDGE_ALEX, inPhase('intro-host'))).toBe('intro-alex');
     expect(boundaryForAssistantLine(TEAM_INTRO_BEAT_ALEX, inPhase('intro-alex'))).toBe('intro-return-2');
-    expect(boundaryForAssistantLine(TEAM_INTRO_BEAT_BRIDGE_SARA, inPhase('host'))).toBeNull();
+    // ANNOUNCEMENT GATE (2026-11-20): in the SIMULATION family's
+    // 'host' phase the bridge line is no longer inert — "meet Sara"
+    // is the doorway announcement anchor there, so the line yields
+    // 'doorway'. The families stay disjoint by chain class (an
+    // intro session never sits in phase 'host'); what changed is
+    // only that a simulation host who speaks this sentence has, in
+    // fact, announced the pass — and Sara may now arrive.
+    expect(boundaryForAssistantLine(TEAM_INTRO_BEAT_BRIDGE_SARA, inPhase('host'))).toBe('doorway');
     expect(boundaryForAssistantLine(TEAM_INTRO_BEAT_BRIDGE_SARA, inPhase('intro-host'))).toBeNull();
   });
   test('the once-per-session latch closes every intro anchor', () => {

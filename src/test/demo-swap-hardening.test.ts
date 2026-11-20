@@ -19,14 +19,32 @@
 //    line yields 'doorway' whatever words it uses — the pendingAlex
 //    pattern from the Alex trigger (publish #12) applied to the
 //    doorway. The widened anchor set (C) stays as the earlier net.
+//
+// D) ANNOUNCEMENT GATE (2026-11-20 — owner's live T&S Roofing
+//    example run) — rule (B) overshot: the visitor engaged right
+//    after the greeting ("yes, I'm here, continue"), the doorway
+//    executed on Aspen's next line — a short host reply — and Sara
+//    appeared with NO spoken pass, the exact announcement the
+//    script exists to deliver. pendingDoorway now only pre-stages
+//    Sara's face and arms the doorway; the swap EXECUTES solely on
+//    a line where Aspen announces the pass (lineAnnouncesDoorway:
+//    the scripted Sara introduction or a close paraphrase, or the
+//    legacy entry announcement). Her composed instructions
+//    (SWAP_HOST_YIELD_BAR + the follow-up beats) make that
+//    announcement her required, verbatim next beat, so the gate
+//    cannot stall the demo in practice — and a visitor asking for
+//    Sara by name lands on the same line by the host-phase rule.
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, test } from 'vitest';
 import {
-  boundaryForAssistantLine, INITIAL_SWAP_STATE, noteDoorwayEngagement,
+  boundaryForAssistantLine, INITIAL_SWAP_STATE, lineAnnouncesDoorway, noteDoorwayEngagement,
   type SwapState,
 } from '@/lib/personaSwap';
-import { BOUNDARY_ANCHORS } from '../../supabase/functions/_shared/session-opening';
+import { BOUNDARY_ANCHORS, DOORWAY_ANNOUNCEMENT_ANCHORS } from '../../supabase/functions/_shared/session-opening';
+import {
+  DEMO_SITE_SARA_INTRO, SIMULATION_PROMPT_SWAP_PARENT, SWAP_HOST_YIELD_BAR,
+} from '../../supabase/functions/_shared/voice-config';
 
 const read = (rel: string) => fs.readFileSync(path.join(__dirname, '..', '..', rel), 'utf8');
 const host = (extra: Partial<SwapState> = {}): SwapState => ({ ...INITIAL_SWAP_STATE, phase: 'host', ...extra });
@@ -70,12 +88,18 @@ describe('A — gemini-session greeting gating (source pins)', () => {
 });
 
 describe('B — structural doorway (pendingDoorway)', () => {
-  test('host + greeting done + visitor line → next Aspen line yields doorway with NO anchor text', () => {
+  test('host + greeting done + visitor line → the flag sets (pre-stage/arm only, post-2026-11-20 gate)', () => {
     const state = noteDoorwayEngagement(host(), true);
     expect(state.pendingDoorway).toBe(true);
-    // A pure paraphrase — no anchor phrase of any kind.
-    expect(boundaryForAssistantLine("Great — let's take a look at your website together.", state)).toBe('doorway');
-    expect(boundaryForAssistantLine('Sure, happy to show you around.', state)).toBe('doorway');
+    // ANNOUNCEMENT GATE (D): engagement alone no longer executes —
+    // a pure paraphrase with no announcement of the pass yields NO
+    // doorway. (Pre-gate this asserted 'doorway' for both lines;
+    // that behaviour is the owner's 2026-11-20 defect.)
+    expect(boundaryForAssistantLine("Great — let's take a look at your website together.", state)).toBeNull();
+    expect(boundaryForAssistantLine('Sure, happy to show you around.', state)).toBeNull();
+    // The same engaged state DOES execute the moment Aspen
+    // announces the pass.
+    expect(boundaryForAssistantLine('Now, meet Sara — she will walk you through your site. Can I transfer you to Sara now?', state)).toBe('doorway');
   });
 
   test('visitor line BEFORE any assistant turn → no flag', () => {
@@ -111,6 +135,72 @@ describe('B — structural doorway (pendingDoorway)', () => {
 
   test('initial state carries no pending doorway', () => {
     expect(INITIAL_SWAP_STATE.pendingDoorway).toBe(false);
+  });
+});
+
+describe('D — announcement gate (2026-11-20): Sara never arrives unannounced', () => {
+  test("the owner's repro: greeting, visitor go-ahead, short host reply → NO doorway", () => {
+    // Ron's T&S Roofing example run, step for step: Aspen greeted,
+    // he answered the greeting, she replied briefly — and Sara was
+    // simply THERE. The engaged flag is set, but without an
+    // announcement nothing executes.
+    const state = noteDoorwayEngagement(host(), true);
+    expect(state.pendingDoorway).toBe(true);
+    expect(boundaryForAssistantLine("Yes, I'm here — let's keep going.", state)).toBeNull();
+    expect(boundaryForAssistantLine('Wonderful. So, a little about us first.', state)).toBeNull();
+  });
+
+  test('the scripted introduction itself executes the doorway — no flag needed', () => {
+    expect(DEMO_SITE_SARA_INTRO).toContain('Sara');
+    expect(DEMO_SITE_SARA_INTRO).toContain('Can I transfer you to Sara now?');
+    expect(lineAnnouncesDoorway(DEMO_SITE_SARA_INTRO)).toBe(true);
+    expect(boundaryForAssistantLine(DEMO_SITE_SARA_INTRO, host())).toBe('doorway');
+    expect(boundaryForAssistantLine(DEMO_SITE_SARA_INTRO, host({ pendingDoorway: true }))).toBe('doorway');
+  });
+
+  test('close paraphrases of the pass announce it too', () => {
+    const lines = [
+      "Let me pass you to Sara — she'll show you how this works on your site.",
+      "I'll hand you over to Sara now.",
+      "Let me bring Sara in — she'll take it from here.",
+      'Introducing Sara, your demo receptionist.',
+    ];
+    for (const line of lines) {
+      expect(lineAnnouncesDoorway(line)).toBe(true);
+      expect(boundaryForAssistantLine(line, host({ pendingDoorway: true }))).toBe('doorway');
+    }
+  });
+
+  test('topic mentions of Sara or the simulation do NOT announce the pass', () => {
+    const chatter = [
+      'Sara is the receptionist who will run your demo in a moment.',
+      'Our receptionist handles calls just like this.',
+      'This simulation shows how I would answer your visitors.',
+      'The demo takes about two minutes of learning from your site.',
+    ];
+    for (const line of chatter) {
+      expect(lineAnnouncesDoorway(line)).toBe(false);
+      expect(boundaryForAssistantLine(line, host({ pendingDoorway: true }))).toBeNull();
+    }
+  });
+
+  test('the announcement anchors name the pass, not just Sara', () => {
+    expect(DOORWAY_ANNOUNCEMENT_ANCHORS).toContain('meet sara');
+    expect(DOORWAY_ANNOUNCEMENT_ANCHORS).toContain('transfer you to sara');
+    expect(DOORWAY_ANNOUNCEMENT_ANCHORS).toContain('pass you to sara');
+    for (const a of DOORWAY_ANNOUNCEMENT_ANCHORS) expect(a).toContain('sara');
+  });
+
+  test('presenter chains stay solo: an announcement-shaped line arms nothing there', () => {
+    const presenterState: SwapState = { ...INITIAL_SWAP_STATE, phase: 'host', presenter: 'frank' };
+    expect(boundaryForAssistantLine(DEMO_SITE_SARA_INTRO, presenterState)).toBeNull();
+  });
+
+  test('the composed swap-parent prompt carries the gate and the scripted line', () => {
+    expect(SWAP_HOST_YIELD_BAR).toContain('an unannounced Sara is a broken demo');
+    expect(SWAP_HOST_YIELD_BAR).toContain('she arrives right after you speak it');
+    expect(SIMULATION_PROMPT_SWAP_PARENT).toContain(DEMO_SITE_SARA_INTRO);
+    expect(SIMULATION_PROMPT_SWAP_PARENT).toContain('BEAT 3 IS THE HANDOVER');
   });
 });
 

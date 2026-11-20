@@ -93,6 +93,37 @@ export const BOUNDARY_ANCHORS: Record<PersonaBoundary, string[]> = {
 /** Alex's own hand-back phrasing (his guest segment prompt teaches it). */
 export const ALEX_HAND_BACK_ANCHORS = BOUNDARY_ANCHORS.return;
 
+/** DOORWAY ANNOUNCEMENT anchors (owner fix, 2026-11-20 — Ron's live
+ *  T&S Roofing example run: Aspen greeted, the visitor said "yes,
+ *  continue", and Sara simply APPEARED — the structural doorway had
+ *  executed on Aspen's next line whatever it said, so the spoken
+ *  pass the script promises was never delivered). The doorway swap
+ *  now executes ONLY on a line where Aspen actually announces the
+ *  pass to Sara: the scripted introduction (DEMO_SITE_SARA_INTRO in
+ *  voice-config.ts — "Now, meet Sara — … Can I transfer you to Sara
+ *  now?") or a close paraphrase of it. The legacy doorway anchors
+ *  above (the simulation-entry announcement) count as an
+ *  announcement too — that line IS the transition in the legacy
+ *  script. A line that merely mentions Sara, or the simulation,
+ *  without announcing the pass is NOT an announcement. Kept beside
+ *  BOUNDARY_ANCHORS: the client's boundary matcher reads both from
+ *  here. */
+export const DOORWAY_ANNOUNCEMENT_ANCHORS: string[] = [
+  'meet sara',
+  'transfer you to sara',
+  'pass you to sara',
+  'pass you over to sara',
+  'hand you to sara',
+  'hand you over to sara',
+  'introduce you to sara',
+  'introducing sara',
+  'bring sara in',
+  'bring in sara',
+  'over to sara',
+  'sara will take it from here',
+  'sara will take over from here',
+];
+
 /** The rotating drop-apology variants, in rotation order. Each blames
  *  our side or the network in general — never the visitor's connection. */
 export const DROP_APOLOGY_VARIANTS: string[] = [

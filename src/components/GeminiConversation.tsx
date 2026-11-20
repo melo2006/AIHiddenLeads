@@ -31,7 +31,7 @@ import { classifyMicrophoneFailure, isEmbeddedContext } from "@/lib/embeddedCont
 import {campaignVisit, trackCampaignEvent} from '@/lib/campaignTracking';
 import { salesPlans, type SalesPlan } from '@/lib/salesActions';
 import SimliAvatar, { SOUND_BLOCKED, isVideoStartFailure, type SimliAvatarHandle } from '@/components/SimliAvatar';
-import { BOUNDARY_TARGET, boundaryTargetFor, boundedSettle, boundaryForAssistantLine, buildSwapRecap, chainIsMidSegment, chainStashTarget, cutoverAudioSync, cutoverMode, cutoverReady, dequeueSwapExecution, dropApologyVariant, enqueueSwapExecution, faceLivenessOnLive, faceLivenessOnNotLive, faceLivenessOnStartSettled, gateWaitContinues, INITIAL_SWAP_STATE, introYieldOnVisitorLine, micAudioPasses, noteAlexIntent, noteAspenIntent, noteDoorwayEngagement, noteSegmentFailure, otherFaceSlot, pendingExecutionBoundary, pendingRetryBoundary, PHASE_AFTER_BOUNDARY, PHASE_ENTRY, PRESTAGE_START_TIMEOUT_MS, prestageWatchDecision, reconnectTarget, recordSwapDiag, retryArmStamp, segmentAttemptsFor, segmentConnectRetryAllowed, segmentTokenStale, SEGMENT_TOKEN_TTL_MS, swapBridgeDue, swapDiagPersistPayload, swapFallbackLine, swapWatchdogAction, SWAP_CROSSFADE_MS, SWAP_GATE_POLL_MS, SWAP_GATE_WAIT_MS, swapRecapFacts, SWAP_DIAG_PERSIST_EVENTS, visitorSignalsStepOut, type ChainStash, type FaceSlot, type PersonaBoundary, type PersonaId, type StagedFaceLiveness, type SwapDiagEntry, type SwapPhase, type SwapState } from '@/lib/personaSwap';
+import { BOUNDARY_TARGET, boundaryTargetFor, boundedSettle, boundaryForAssistantLine, buildSwapRecap, chainIsMidSegment, chainStashTarget, cutoverAudioSync, cutoverMode, cutoverReady, dequeueSwapExecution, dropApologyVariant, enqueueSwapExecution, faceLivenessOnLive, faceLivenessOnNotLive, faceLivenessOnStartSettled, gateWaitContinues, INITIAL_SWAP_STATE, introYieldOnVisitorLine, lineAnnouncesDoorway, micAudioPasses, noteAlexIntent, noteAspenIntent, noteDoorwayEngagement, noteSegmentFailure, otherFaceSlot, pendingExecutionBoundary, pendingRetryBoundary, PHASE_AFTER_BOUNDARY, PHASE_ENTRY, PRESTAGE_START_TIMEOUT_MS, prestageWatchDecision, reconnectTarget, recordSwapDiag, retryArmStamp, segmentAttemptsFor, segmentConnectRetryAllowed, segmentTokenStale, SEGMENT_TOKEN_TTL_MS, swapBridgeDue, swapDiagPersistPayload, swapFallbackLine, swapWatchdogAction, SWAP_CROSSFADE_MS, SWAP_GATE_POLL_MS, SWAP_GATE_WAIT_MS, swapRecapFacts, SWAP_DIAG_PERSIST_EVENTS, visitorSignalsStepOut, type ChainStash, type FaceSlot, type PersonaBoundary, type PersonaId, type StagedFaceLiveness, type SwapDiagEntry, type SwapPhase, type SwapState } from '@/lib/personaSwap';
 import { PERSONAS, SARA_FACE_ID } from '../../supabase/functions/_shared/personas';
 import { presenterForExampleLeadId } from '@/data/realtorExamplePinnedLeads';
 import { ALEX_FACE_ID } from '../../supabase/functions/_shared/alex-guide';
@@ -3601,13 +3601,20 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
                 // yields 'summon-aspen' via boundaryForAssistantLine
                 // and the swap follows that line.
                 armSwapRef.current('summon-aspen');
-              } else if (state.pendingDoorway && state.phase === 'host' && !state.armed.includes('doorway') && !state.done.includes('doorway')) {
+              } else if (state.pendingDoorway && state.phase === 'host' && !state.armed.includes('doorway') && !state.done.includes('doorway') && lineAnnouncesDoorway(completedLine)) {
                 // Structural doorway late arm — same pattern as
                 // meet-alex above: the visitor engaged after the
                 // greeting, but this line completed without anything
-                // staged (e.g. a one-turn host phase). Arm now; the
-                // flag STAYS set, so her NEXT line still yields
-                // 'doorway' via boundaryForAssistantLine.
+                // staged. ANNOUNCEMENT GATE (2026-11-20): the arm now
+                // requires the completed line to have ANNOUNCED the
+                // pass (lineAnnouncesDoorway) — engagement alone must
+                // never arm, because the readiness executor executes
+                // an armed doorway on stage readiness, and an
+                // engagement-armed doorway is how Sara arrived
+                // unannounced in the owner's live example run. The
+                // flag STAYS set, so when her announcement line does
+                // complete, it arms (here or at the streaming site)
+                // and yields 'doorway' via boundaryForAssistantLine.
                 armSwapRef.current('doorway');
               }
               // Team intro yield (design §3.3 rules 2–3): if the visitor
@@ -3970,8 +3977,9 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
               // Visitor-armed summon-aspen late arm — same rule as the
               // main socket: arm now, flag stays set for her next line.
               armSwapRef.current('summon-aspen');
-            } else if (state.pendingDoorway && state.phase === 'host' && !state.armed.includes('doorway') && !state.done.includes('doorway')) {
-              // Structural doorway late arm — same rule as the main socket.
+            } else if (state.pendingDoorway && state.phase === 'host' && !state.armed.includes('doorway') && !state.done.includes('doorway') && lineAnnouncesDoorway(completedLine)) {
+              // Structural doorway late arm — same rule as the main
+              // socket, announcement gate included (2026-11-20).
               armSwapRef.current('doorway');
             }
             // Team intro yield — same rule as the main socket (design §3.3).
