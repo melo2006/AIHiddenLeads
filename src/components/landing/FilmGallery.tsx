@@ -1,5 +1,5 @@
-import { useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Play } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, Play, X } from "lucide-react";
 
 /**
  * Film gallery (2026-11-20) — the testimonial-style example films,
@@ -14,10 +14,12 @@ import { ChevronLeft, ChevronRight, Play } from "lucide-react";
  *
  * Playback is a YouTube facade: each card/spotlight shows its LOCAL
  * poster + play button, and no iframe exists in the DOM until a tap.
- * The tap swaps the poster for the standard YouTube player
- * (youtube-nocookie embed, autoplay on, controls + fullscreen from
- * the player itself). Only one film plays at a time — opening
- * another resets the previous one back to its facade.
+ * The SPOTLIGHT plays inline in its phone frame (large enough for the
+ * full YouTube chrome). ROW films open in a big lightbox player
+ * instead — YouTube hides the seek bar and fullscreen button on
+ * small embeds, so a tapped card must never play squeezed into its
+ * card (Ron's correction, 2026-11-20). Only one film plays at a
+ * time — opening another resets the previous one back to its facade.
  *
  * Copy is hardcoded English, following the hero's English strings.
  */
@@ -114,6 +116,37 @@ interface FilmPlayerProps {
  * and NO iframe in the DOM. Active: the youtube-nocookie embed with
  * autoplay; the standard player supplies controls and fullscreen.
  */
+/** The poster facade shared by the spotlight frame and the row cards. */
+const FilmPosterButton = ({
+  film,
+  onPlay,
+}: {
+  film: Film;
+  onPlay: () => void;
+}) => (
+  <button
+    type="button"
+    onClick={onPlay}
+    aria-label={`Play ${film.narrator}'s story — ${film.business}`}
+    className="group relative block aspect-[9/16] h-full w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
+  >
+    <img
+      src={film.poster}
+      alt={`${film.narrator} of ${film.business} — story poster`}
+      loading="lazy"
+      className="block h-full w-full object-cover"
+    />
+    <span className="absolute inset-0 flex items-center justify-center bg-black/10 transition-colors group-hover:bg-black/25">
+      <span className="flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xl transition-transform group-hover:scale-105">
+        <Play className="ml-1 h-6 w-6" aria-hidden="true" />
+      </span>
+    </span>
+    <span className="absolute bottom-2.5 right-2.5 rounded-full bg-black/60 px-2 py-0.5 text-xs font-semibold text-white">
+      {film.runtime}
+    </span>
+  </button>
+);
+
 const FilmPlayer = ({ film, active, onPlay }: FilmPlayerProps) => {
   if (active) {
     return (
@@ -127,28 +160,106 @@ const FilmPlayer = ({ film, active, onPlay }: FilmPlayerProps) => {
       />
     );
   }
+  return <FilmPosterButton film={film} onPlay={onPlay} />;
+};
+
+/**
+ * Big player for row films. At card size YouTube strips its own seek
+ * bar and fullscreen button, so a row tap opens this lightbox: the
+ * standard player at near-full height with every control, plus our
+ * own close (X, backdrop tap, Escape) and prev/next story stepping.
+ */
+const FilmLightbox = ({
+  film,
+  onClose,
+  onPrev,
+  onNext,
+}: {
+  film: Film;
+  onClose: () => void;
+  onPrev: () => void;
+  onNext: () => void;
+}) => {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [onClose]);
+
   return (
-    <button
-      type="button"
-      onClick={onPlay}
-      aria-label={`Play ${film.narrator}'s story — ${film.business}`}
-      className="group relative block aspect-[9/16] h-full w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
+    <div
+      data-film-lightbox
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${film.narrator} — ${film.business} video player`}
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm"
+      onClick={onClose}
     >
-      <img
-        src={film.poster}
-        alt={`${film.narrator} of ${film.business} — story poster`}
-        loading="lazy"
-        className="block h-full w-full object-cover"
-      />
-      <span className="absolute inset-0 flex items-center justify-center bg-black/10 transition-colors group-hover:bg-black/25">
-        <span className="flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xl transition-transform group-hover:scale-105">
-          <Play className="ml-1 h-6 w-6" aria-hidden="true" />
-        </span>
-      </span>
-      <span className="absolute bottom-2.5 right-2.5 rounded-full bg-black/60 px-2 py-0.5 text-xs font-semibold text-white">
-        {film.runtime}
-      </span>
-    </button>
+      <div
+        className="flex max-h-full flex-col items-center"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-3 flex w-full items-center justify-between gap-4">
+          <p className="min-w-0 truncate text-sm font-semibold text-white sm:text-base">
+            {film.narrator} — {film.business}
+            <span className="ml-2 font-normal text-white/60">
+              {film.industry} · {film.runtime}
+            </span>
+          </p>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close player"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+          >
+            <X className="h-5 w-5" aria-hidden="true" />
+          </button>
+        </div>
+        <div className="overflow-hidden rounded-2xl bg-black shadow-2xl">
+          <iframe
+            key={film.slug}
+            src={`https://www.youtube-nocookie.com/embed/${film.youtubeId}?autoplay=1&rel=0`}
+            title={`${film.narrator} — ${film.business} story`}
+            allow="accelerometer; autoplay; encrypted-media; picture-in-picture"
+            allowFullScreen
+            className="block aspect-[9/16] max-h-[74dvh] w-auto max-w-[92vw] bg-black"
+          />
+        </div>
+        <div className="mt-3 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onPrev}
+            aria-label="Previous story"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+          >
+            <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+          </button>
+          <a
+            href={`https://www.youtube.com/watch?v=${film.youtubeId}`}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-full bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+          >
+            Watch on YouTube
+          </a>
+          <button
+            type="button"
+            onClick={onNext}
+            aria-label="Next story"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+          >
+            <ChevronRight className="h-5 w-5" aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+    </div>
   );
 };
 
@@ -192,12 +303,12 @@ const FilmSpotlight = ({ film, active, onPlay }: FilmPlayerProps) => (
   </div>
 );
 
-const FilmCard = ({ film, active, onPlay }: FilmPlayerProps) => (
+const FilmCard = ({ film, onPlay }: { film: Film; onPlay: () => void }) => (
   <article
     data-film-card={film.slug}
     className="w-[200px] shrink-0 snap-start overflow-hidden rounded-2xl border border-border bg-card shadow-sm sm:w-[220px] lg:w-[240px]"
   >
-    <FilmPlayer film={film} active={active} onPlay={onPlay} />
+    <FilmPosterButton film={film} onPlay={onPlay} />
     <div className="px-3 py-3">
       <p className="text-sm font-semibold leading-snug text-foreground">
         {film.narrator} — {film.business}
@@ -225,6 +336,16 @@ const FilmGallery = () => {
     active: playing === film.slug,
     onPlay: () => setPlaying(film.slug),
   });
+
+  // A playing ROW film lives in the lightbox, never inside its card.
+  const activeRowIndex = rest.findIndex((f) => f.slug === playing);
+  const activeRowFilm = activeRowIndex >= 0 ? rest[activeRowIndex] : null;
+  const stepRowFilm = (direction: 1 | -1) => {
+    if (activeRowIndex < 0) return;
+    const next =
+      rest[(activeRowIndex + direction + rest.length) % rest.length];
+    setPlaying(next.slug);
+  };
 
   return (
     <section
@@ -268,11 +389,23 @@ const FilmGallery = () => {
             className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             {rest.map((film) => (
-              <FilmCard key={film.slug} {...playerProps(film)} />
+              <FilmCard
+                key={film.slug}
+                film={film}
+                onPlay={() => setPlaying(film.slug)}
+              />
             ))}
           </div>
         </div>
       </div>
+      {activeRowFilm && (
+        <FilmLightbox
+          film={activeRowFilm}
+          onClose={() => setPlaying(null)}
+          onPrev={() => stepRowFilm(-1)}
+          onNext={() => stepRowFilm(1)}
+        />
+      )}
     </section>
   );
 };

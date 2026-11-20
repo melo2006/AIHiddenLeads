@@ -83,4 +83,16 @@ describe("film gallery placement + playback rules (2026-11-20)", () => {
     expect(section).toContain("data-film-gallery-scroll");
     expect(section).toContain("snap-x");
   });
+
+  it("row films open in the big lightbox player, never squeezed into their card (Ron, 2026-11-20)", () => {
+    const section = read("components/landing/FilmGallery.tsx");
+    // YouTube strips its seek bar + fullscreen button on small embeds,
+    // so a row tap gets the standard player at near-full height, with
+    // our own close affordances and prev/next story stepping.
+    expect(section).toContain("data-film-lightbox");
+    expect(section).toContain('aria-label="Close player"');
+    expect(section).toContain('"Escape"');
+    expect(section).toContain("max-h-[74dvh]");
+    expect(section).toContain("Watch on YouTube");
+  });
 });
