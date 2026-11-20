@@ -3,6 +3,27 @@ export function avatarAudioReady(pending: boolean, queuedLocalChunks: number): b
 }
 
 /**
+ * TAKEOVER RE-SYNC decision (2026-11-20 — the voice-first lip lag):
+ * a voice-first segment's face attaches mid-turn through the
+ * takeover, which flips chunk routing to paired. While the segment
+ * ran voice-first, its chunks played LOCAL on the voice-only trail
+ * with an unshifted schedule chained through the caller's
+ * playTimeRef, and the face received nothing — so at the flip the
+ * paired relationship (PAIRED_CAPTION_DELAY_SEC) does not exist:
+ * the queue is running, not drained, and voiceChunkStartAt applies
+ * its shift only at a drained queue, so the face's lips would trail
+ * the voice for the rest of the turn. If any chunk already played
+ * locally, the takeover must re-prime the offset — flush the heard
+ * engine and reset the schedule anchor — so the next chunk restarts
+ * drained and shifted, the same instant the face starts receiving
+ * it. If nothing played yet, the flip is clean as-is: the first
+ * chunk routes paired from the start and acquires the shift itself.
+ */
+export function takeoverShouldResync(pending: boolean, localChunksPlayed: number): boolean {
+  return pending && localChunksPlayed > 0;
+}
+
+/**
  * Whether a silently pre-staged face may be activated / taken over —
  * the paired-audio guard's liveness verdict (SimliAvatar's activate
  * and cutoverAudioSync). A face that is not live is never ready, in

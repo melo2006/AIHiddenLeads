@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { avatarAudioReady, faceActivationReady, nextVoiceChunkStart } from '@/lib/avatarAudioTransition';
+import { avatarAudioReady, faceActivationReady, nextVoiceChunkStart, takeoverShouldResync } from '@/lib/avatarAudioTransition';
 describe('avatar audio switch', () => {
   it('never inserts a new video delay between queued speech chunks', () => {
     expect(nextVoiceChunkStart(1, 1.2)).toBe(1.2);
@@ -12,6 +12,27 @@ describe('avatar audio switch', () => {
   });
   it('never activates a face which is not ready', () => {
     expect(avatarAudioReady(false, 0)).toBe(false);
+  });
+});
+
+describe('takeover re-sync decision (2026-11-20 — the voice-first lip lag)', () => {
+  // While a segment ran voice-first, its voice played local on an
+  // unshifted schedule and the face received nothing; at the
+  // takeover flip the paired +0.4 s offset does not exist and a
+  // running queue can never acquire it (voiceChunkStartAt shifts
+  // only at a drained queue — pinned in paired-audible.test.ts).
+  // The takeover must therefore re-prime the offset — but only
+  // when the voice is actually ahead of the face.
+  it('a pending segment whose voice already played locally needs the re-sync', () => {
+    expect(takeoverShouldResync(true, 1)).toBe(true);
+    expect(takeoverShouldResync(true, 17)).toBe(true);
+  });
+  it('a pending segment with nothing played yet flips clean — no re-sync, no beat in the voice', () => {
+    expect(takeoverShouldResync(true, 0)).toBe(false);
+  });
+  it('no pending segment → never a re-sync, whatever the count', () => {
+    expect(takeoverShouldResync(false, 0)).toBe(false);
+    expect(takeoverShouldResync(false, 9)).toBe(false);
   });
 });
 

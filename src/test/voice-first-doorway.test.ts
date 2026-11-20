@@ -25,6 +25,15 @@
 //     explicit script lock (beats in order, drifted framings banned);
 //     the non-swap opening is untouched; Sara's doorway opening
 //     carries the role lock banning any AiHiddenLeads/Maxdream pitch.
+//  8. TAKEOVER RE-SYNC (2026-11-20 — Ron's retest: Sara's voice
+//     started on time but her face arrived late and her lips then
+//     trailed her voice for her whole opening) — while the segment
+//     ran voice-first, the voice played local on an unshifted
+//     schedule and the face received nothing, so the paired +0.4 s
+//     offset never existed at the flip. The takeover now re-primes
+//     it (engine flush + schedule-anchor reset) after the deferred
+//     sync and before the pending clears, so the first paired chunk
+//     restarts on a drained queue and acquires the shift.
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, test } from 'vitest';
@@ -209,6 +218,55 @@ describe('6 — mid-segment face takeover (source pins)', () => {
     const handler = convo.slice(convo.indexOf('const handleFaceLiveChange'), convo.indexOf('const mainFaceLayer'));
     expect(handler).toContain('segmentFacePendingRef.current');
     expect(handler).toContain('runFaceTakeoverRef.current(slot)');
+  });
+});
+
+describe('8 — takeover re-sync (source pins)', () => {
+  test('the re-sync is consulted AFTER the deferred sync succeeds and BEFORE the pending clears / avatarLive flips', () => {
+    const syncAt = takeoverBody.indexOf('cutoverAudioSync(sync)');
+    const resyncAt = takeoverBody.indexOf('takeoverShouldResync(');
+    const clearAt = takeoverBody.indexOf('segmentFacePendingRef.current = null;');
+    const flipAt = takeoverBody.indexOf('avatarLiveRef.current = true;');
+    expect(syncAt).toBeGreaterThanOrEqual(0);
+    expect(resyncAt).toBeGreaterThan(syncAt);
+    expect(clearAt).toBeGreaterThan(resyncAt);
+    expect(flipAt).toBeGreaterThan(clearAt);
+    // The decision reads the live pending + the local-chunk ledger.
+    expect(takeoverBody).toContain('takeoverShouldResync(segmentFacePendingRef.current != null, voiceFirstLocalChunksRef.current)');
+    expect(convo).toContain('takeoverShouldResync, voiceChunkStartAt');
+  });
+  test('the re-sync performs exactly the clearPlayback pair: engine flush + schedule-anchor reset', () => {
+    const resyncAt = takeoverBody.indexOf('takeoverShouldResync(');
+    const flushAt = takeoverBody.indexOf('mediaElementRef.current?.flush();');
+    const anchorAt = takeoverBody.indexOf('playTimeRef.current = playCtxRef.current?.currentTime ?? 0;');
+    const clearAt = takeoverBody.indexOf('segmentFacePendingRef.current = null;');
+    expect(flushAt).toBeGreaterThan(resyncAt);
+    expect(anchorAt).toBeGreaterThan(resyncAt);
+    expect(clearAt).toBeGreaterThan(flushAt);
+    expect(clearAt).toBeGreaterThan(anchorAt);
+    // The pair is REUSED, not reinvented: clearPlayback performs the
+    // same two operations for an interrupt.
+    const clearBody = convo.slice(convo.indexOf('const clearPlayback = useCallback'), convo.indexOf('const pauseCapture = useCallback'));
+    expect(clearBody).toContain('mediaElementRef.current?.flush();');
+    expect(clearBody).toContain('playTimeRef.current = playCtxRef.current?.currentTime ?? 0;');
+    // And the re-sync names itself in the swap trace.
+    expect(takeoverBody).toContain("event: 'face-takeover-resync'");
+  });
+  test('the re-sync is a re-prime, not an interrupt: no caption clear, no avatar buffer clear in the takeover', () => {
+    expect(takeoverBody).not.toContain('captionClockRef.current.clear()');
+    expect(takeoverBody).not.toContain('avatarRef.current?.clear()');
+  });
+  test('the ledger: chunks are counted at the schedule commit while pending, and reset where the pending is created', () => {
+    const startAt = playBody.indexOf('const startAt = voiceChunkStartAt');
+    const countAt = playBody.indexOf('if (facePending) voiceFirstLocalChunksRef.current += 1;');
+    const commitAt = playBody.indexOf('playTimeRef.current = startAt + buffer.duration;');
+    expect(startAt).toBeGreaterThanOrEqual(0);
+    expect(countAt).toBeGreaterThan(startAt);
+    expect(commitAt).toBeGreaterThan(countAt);
+    const pendAt = execBody.indexOf('segmentFacePendingRef.current = { boundary, persona: incoming, slot: staged.slot };');
+    const resetAt = execBody.indexOf('voiceFirstLocalChunksRef.current = 0;');
+    expect(pendAt).toBeGreaterThanOrEqual(0);
+    expect(resetAt).toBeGreaterThan(pendAt);
   });
 });
 

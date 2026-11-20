@@ -37,7 +37,7 @@ import { presenterForExampleLeadId } from '@/data/realtorExamplePinnedLeads';
 import { ALEX_FACE_ID } from '../../supabase/functions/_shared/alex-guide';
 import type { VideoAvatar } from '../../supabase/functions/_shared/video-avatar';
 import { PersonPortrait, PersonaNameLabel } from '@/components/FloatingPersonFrame';
-import { assistantOutput, pairedAudioShouldDegrade, pairedCaptionDelaySec, voiceChunkStartAt, PAIRED_CAPTION_DELAY_SEC } from '@/lib/avatarAudioTransition';
+import { assistantOutput, pairedAudioShouldDegrade, pairedCaptionDelaySec, takeoverShouldResync, voiceChunkStartAt, PAIRED_CAPTION_DELAY_SEC } from '@/lib/avatarAudioTransition';
 import { resolvePairedAudibleMode, resolveHeardEngine, PAIRED_AUDIBLE_STORAGE_KEY, HEARD_ENGINE_STORAGE_KEY, type PairedAudibleMode, type HeardEngine } from '@/lib/pairedAudible';
 import { playoutDiagPayload, playoutDiagSignature, type PlayoutDiagSnapshot, type PlayoutTerminalDiag } from '@/lib/playoutDiag';
 import { createRateWitness, noteRateUtterance, resetRateWitness, type RateWitnessState } from '@/lib/rateWitness';
@@ -431,6 +431,14 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
    *  row id of each boundary's current attempt, so a resolution can be
    *  persisted onto the ATTEMPT'S OWN row (server-visible diag). */
   const segmentFacePendingRef = useRef<{ boundary: PersonaBoundary; persona: PersonaId; slot: FaceSlot } | null>(null);
+  /** TAKEOVER RE-SYNC LEDGER (2026-11-20): how many chunks the
+   *  CURRENT voice-first segment has already scheduled locally
+   *  (playPcmChunk counts them at its schedule commit, where the
+   *  engine-hold early-return can no longer double-count or skip
+   *  one). Reset where the pending record is created in
+   *  executeSwap; consulted by the takeover (takeoverShouldResync)
+   *  to decide whether the paired offset needs re-priming. */
+  const voiceFirstLocalChunksRef = useRef(0);
   const faceTakeoverBusyRef = useRef(false);
   const [stageGeneration, setStageGeneration] = useState(0);
   const attemptSessionRef = useRef<Partial<Record<PersonaBoundary, { sessionId: string; attempt: number }>>>({});
@@ -2714,6 +2722,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         stampPlayoutDiag();
       }
     }
+    // TAKEOVER RE-SYNC LEDGER (2026-11-20): a chunk committed to
+    // the schedule while a face attach is pending is voice already
+    // ahead of the (absent) face — the takeover consults this
+    // count to decide its re-sync. Counted HERE, at the schedule
+    // commit, so an engine-held chunk counts exactly once (when it
+    // is released and actually scheduled), never on arrival.
+    if (facePending) voiceFirstLocalChunksRef.current += 1;
     playTimeRef.current = startAt + buffer.duration;
     // On the stream path the visitor hears Simli's stream, not this
     // local schedule; shift the caption window by the paired-path
@@ -4176,6 +4191,30 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       // handed over while the sync ran.
       if (segmentFacePendingRef.current !== pending) return;
       if (swapStateRef.current.persona !== pending.persona) return;
+      // TAKEOVER RE-SYNC (2026-11-20 — the voice-first lip lag):
+      // if the segment's voice already played locally while its
+      // face was pending, the paired +0.4 s offset was never
+      // established — the schedule chained unshifted through
+      // playTimeRef and the face received nothing, so at this flip
+      // the queue is running (not drained) and the face's lips
+      // would trail the voice for the rest of the turn. Re-prime
+      // the offset with the same two operations clearPlayback
+      // performs: flush the heard engine (dropping its
+      // voice-only-paced reserve) and reset the schedule anchor,
+      // so the NEXT chunk starts a fresh run on a drained queue —
+      // voiceChunkStartAt applies the paired shift to it, the
+      // engine rebuilds under the paired trail target, and Simli
+      // receives that same chunk at the same instant (the pending
+      // clears just below, so it routes paired). The cost is one
+      // short beat in the voice at the attach moment instead of a
+      // turn-long lip lag. This is a re-prime, NOT an interrupt:
+      // captions are not cleared and sounding graph sources are
+      // left to finish on their own schedule.
+      if (takeoverShouldResync(segmentFacePendingRef.current != null, voiceFirstLocalChunksRef.current)) {
+        mediaElementRef.current?.flush();
+        playTimeRef.current = playCtxRef.current?.currentTime ?? 0;
+        recordSwapDiag({ event: 'face-takeover-resync', boundary: pending.boundary, persona: pending.persona, detail: `localChunks=${voiceFirstLocalChunksRef.current}` });
+      }
       segmentFacePendingRef.current = null;
       avatarLiveRef.current = true;
       if (slot === 'second') setSecondFace(face => (face && face.boundary === pending.boundary ? { ...face, revealed: true } : face));
@@ -4407,6 +4446,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           // live nor starting, kick ONE bounded revival start on the
           // SAME instance (never a second Simli session).
           segmentFacePendingRef.current = { boundary, persona: incoming, slot: staged.slot };
+          voiceFirstLocalChunksRef.current = 0;
           recordSwapDiag({ event: 'voice-first-cutover', boundary, persona: incoming, attempt: segmentAttemptsFor(swapStateRef.current, boundary) + 1, detail: voiceFirstReason });
           persistSwapDiagRef.current({ event: 'voice-first-cutover', boundary, persona: incoming, attempt: segmentAttemptsFor(swapStateRef.current, boundary) + 1, reason: voiceFirstReason, faceState: staged.faceFailed ? 'failed' : 'not-ready' });
           kickFaceRevivalRef.current(staged.slot);

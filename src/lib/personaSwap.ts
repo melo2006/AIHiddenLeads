@@ -1219,6 +1219,13 @@ export interface SwapDiagEntry {
     // pending face later attached mid-segment via the takeover
     // watcher (deferred audio sync + routing flip).
     | 'voice-first-cutover' | 'face-takeover'
+    // Takeover re-sync (2026-11-20): the takeover found the segment's
+    // voice already ahead of the face (chunks played locally while
+    // the attach pended) and re-primed the paired +0.4 s offset —
+    // engine flush + schedule-anchor reset — before flipping the
+    // routing (client-trace only, like 'bridge': a mid-segment
+    // timing repair, not an attempt resolution, so never persisted).
+    | 'face-takeover-resync'
     // Publish #62 (2026-11-15): a voice-first takeover whose audio
     // sync reported the face not-live — the attach refusal that used
     // to return silently, stranding the segment voice-over-portrait
