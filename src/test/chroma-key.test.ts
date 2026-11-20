@@ -16,7 +16,43 @@ describe("live face background cut-out", () => {
   });
 });
 
-import { opaqueBounds, centeringShift } from '@/lib/chromaKey';
+import { opaqueBounds, centeringShift, SARA_CHROMA_KEY_PROFILE } from '@/lib/chromaKey';
+
+/** Composite one keyed pixel over a white page, exactly as the browser
+ *  does with the shader's premultiplied output (despill applied first). */
+const overWhite = (r: number, g: number, b: number, low?: number, high?: number) => {
+  const a = chromaAlpha(r, g, b, low, high);
+  return [r, despill(r, g, b), b].map(c => c * a + (1 - a));
+};
+
+describe("dark detail is subject, not padding (2026-11-20 zombie-eyes fix)", () => {
+  it("still keys true black padding fully transparent", () => {
+    expect(chromaAlpha(0, 0, 0)).toBe(0);
+    expect(chromaAlpha(0.01, 0.01, 0.01)).toBe(0); // encoder ringing on black
+    expect(chromaAlpha(0.02, 0.02, 0.02)).toBeLessThan(0.3);
+  });
+  it("keeps pupils, lashes and shadowed dark hair opaque", () => {
+    expect(chromaAlpha(0.05, 0.04, 0.035)).toBe(1); // pupil
+    expect(chromaAlpha(0.055, 0.045, 0.04)).toBe(1); // shadowed dark hair (Sara, Denise, Monica)
+    // Lash line: the old 0.02–0.06 black band left this at ≈0.16 alpha.
+    expect(chromaAlpha(0.03, 0.026, 0.022)).toBeGreaterThan(0.7);
+  });
+  it("composites eye detail over a white page as dark, not washed out", () => {
+    for (const px of [[0.05, 0.04, 0.035], [0.03, 0.026, 0.022]] as const) {
+      const [r, g, b] = overWhite(px[0], px[1], px[2]);
+      expect(Math.max(r, g, b)).toBeLessThan(0.3);
+    }
+  });
+  it("Sara's rebalanced profile restores her hair-edge blends while still suppressing the halo pixel", () => {
+    const { low, high } = SARA_CHROMA_KEY_PROFILE;
+    // 70% key green / 30% skin — a wispy hair-edge blend.
+    expect(chromaAlpha(0.28, 0.93, 0.2, low, high)).toBeGreaterThan(0.2);
+    expect(chromaAlpha(0.28, 0.93, 0.2, low, high)).toBeGreaterThan(chromaAlpha(0.28, 0.93, 0.2, 0.16, 0.26));
+    // The Nov-13 halo pixel stays ~3x more transparent than under the shared default.
+    expect(chromaAlpha(0.2, 0.9, 0.2, low, high)).toBeLessThan(0.15);
+    expect(chromaAlpha(0.2, 0.9, 0.2, low, high)).toBeLessThan(chromaAlpha(0.2, 0.9, 0.2));
+  });
+});
 describe('person re-centring', () => {
   it('shifts a right-offset person back to centre', () => {
     const w = 10, h = 2, d = new Uint8ClampedArray(w * h * 4);

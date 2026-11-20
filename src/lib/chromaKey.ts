@@ -23,13 +23,34 @@ export const CHROMA_HIGH = 0.22;
  * Simli face asset, the durable fix is a cleaner Sara face render on
  * the Simli side; this only stops the worst of it showing. Aspen and
  * Alex keep the default profile byte-for-byte.
+ *
+ * REBALANCED 2026-11-20 (+0.04 → +0.02): the full erosion overshot.
+ * On white pages it ate Sara's hair edges — the see-through half of
+ * Ron's "page through her hair… looks like a zombie" report (T&S
+ * Roofing demo, white site; first asked 2026-11-18, re-reported
+ * 2026-11-20). The eye/lash half of that fix now comes from the
+ * tightened black band below (her lashes and dark hair were being
+ * keyed as "padding"), and residual fringe on light pages is
+ * absorbed by the soft backdrop painted behind the keyed canvas
+ * (SimliAvatar's .simli-keyed-backdrop, light theme only). A halved
+ * erosion stays for her baked-in halo.
  */
-export const SARA_CHROMA_KEY_PROFILE = { low: 0.16, high: 0.26 } as const;
+export const SARA_CHROMA_KEY_PROFILE = { low: 0.14, high: 0.24 } as const;
 /** Optional per-call key thresholds (CbCr distance band). */
 export interface ChromaKeyProfile { low: number; high: number; }
-/** Simli may pad the frame with pure black outside the backdrop; treat near-black padding as transparent too. */
-export const BLACK_LOW = 0.02;
-export const BLACK_HIGH = 0.06;
+/** Simli may pad the frame with pure black outside the backdrop; treat near-black padding as transparent too.
+ *  The band must end BELOW the darkest real facial detail. The original
+ *  0.02–0.06 band sat exactly on pupils, lash lines, brows and shadowed
+ *  dark hair (max-channel ≈ 0.03–0.06), multiplying their alpha by
+ *  0–0.84 — invisible on dark pages, but on light pages the page showed
+ *  through eyes and hair (Ron's "zombie" report, 2026-11-20). True
+ *  encoder padding is essentially 0 (ringing lifts it to ≈0.01), so the
+ *  band now spans 0.01–0.04: pure black still keys fully, a pupil at
+ *  max ≥ 0.04 is fully opaque, and a lash pixel at 0.03 keeps ≈0.74
+ *  alpha instead of ≈0.16. Applies to every persona — the band is
+ *  shared by the JS reference and the shader. */
+export const BLACK_LOW = 0.01;
+export const BLACK_HIGH = 0.04;
 function cbcr(r: number, g: number, b: number): [number, number] {
   return [-0.168736 * r - 0.331264 * g + 0.5 * b, 0.5 * r - 0.418688 * g - 0.081312 * b];
 }

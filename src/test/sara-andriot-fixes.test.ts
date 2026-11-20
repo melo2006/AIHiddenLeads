@@ -296,13 +296,17 @@ describe('Bug 6 — Sara chroma-key profile', () => {
     expect(CHROMA_HIGH).toBe(0.22);
   });
 
-  it('a halo pixel semi-transparent under the default band is transparent under Sara\'s', () => {
+  it('a halo pixel semi-transparent under the default band stays strongly suppressed under Sara\'s', () => {
     // (0.2, 0.9, 0.2): CbCr distance ≈ 0.16 from key green — inside the
-    // default band (semi-alpha fringe), below Sara's shifted band.
+    // default band (semi-alpha fringe), at the foot of Sara's band.
     expect(chromaAlpha(0.2, 0.9, 0.2)).toBeGreaterThan(0.15);
-    // The pixel's distance (≈0.160) sits at the very foot of Sara's
-    // shifted band: alpha ≈ 0 (vs 0.35 semi-opaque under the default).
-    expect(chromaAlpha(0.2, 0.9, 0.2, SARA_CHROMA_KEY_PROFILE.low, SARA_CHROMA_KEY_PROFILE.high)).toBeLessThan(0.001);
+    // 2026-11-20 rebalance: Sara's band shifted +0.04 → +0.02 (the full
+    // erosion ate her hair edges on white pages — Ron's see-through
+    // report). The halo pixel now lands at ≈0.11 alpha instead of ≈0:
+    // still ~3x more transparent than the default band's ≈0.35.
+    const sara = chromaAlpha(0.2, 0.9, 0.2, SARA_CHROMA_KEY_PROFILE.low, SARA_CHROMA_KEY_PROFILE.high);
+    expect(sara).toBeLessThan(0.15);
+    expect(sara).toBeLessThan(chromaAlpha(0.2, 0.9, 0.2) / 2);
   });
 
   it('subject pixels and the key colour itself behave identically under both profiles', () => {

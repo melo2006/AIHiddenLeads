@@ -880,6 +880,13 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
   const faceOpacity = concealed || fadedOut ? 0 : 1;
   const frame = (
     <div aria-label="Video avatar" role="img" className={`${unboxed ? 'absolute inset-0' : inline ? "relative mx-auto" : `fixed z-[120] ${POSITION[avatar.position]}`} ${visible ? "" : "hidden"} ${concealed ? 'pointer-events-none' : ''} ${unboxed ? '' : `overflow-hidden ${SHAPE[avatar.shape]} ${keyed ? '' : 'border-2 border-primary/50 bg-card shadow-2xl'}`}`} style={{ opacity: faceOpacity, transition: 'opacity 300ms ease-in-out', ...(layer !== undefined ? { zIndex: layer } : {}), ...(unboxed ? {} : { width: avatar.size, height: avatar.size, maxWidth: "70vw", maxHeight: "70vw" }) }}>
+      {/* Light-theme backing for the keyed face (2026-11-20): the still
+          portrait's soft backdrop, painted behind the keyed canvas so
+          semi-transparent hair/edge pixels composite over a controlled
+          mid-tone instead of raw page white (Ron's "page through her
+          hair" on white demo sites). The CSS scopes the paint to the
+          light theme; in the dark theme it paints nothing. */}
+      {keyed && <div aria-hidden className="simli-keyed-backdrop" />}
       <video ref={videoRef} data-live-face-source autoPlay playsInline muted className={`h-full w-full ${unboxed ? 'object-cover object-top aspen-person-live-media' : 'object-contain'} ${keyed || unboxed && state !== 'live' ? 'absolute inset-0 opacity-0 pointer-events-none' : ''}`} />
       <canvas ref={canvasRef} data-live-face-source aria-hidden className={`h-full w-full ${unboxed ? 'object-cover object-top aspen-person-live-media' : 'object-contain'} ${keyed ? 'relative' : 'hidden'}`} />
       <audio ref={audioRef} autoPlay muted />
