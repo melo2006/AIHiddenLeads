@@ -55,6 +55,12 @@ export const B2B_EXAMPLE_PINNED_LEADS: B2BExamplePinnedLead[] = [
   { slug: "mjm-manufacturing", business: "MJM Manufacturing", domain: "mjmmfg.com", url: "https://mjmmfg.com/", leadId: "a265677d-75ca-4a5b-a4c4-55c6a1591f5c", presenter: "Andy" },
   { slug: "westway-towing", business: "Westway Towing", domain: "westwaytowing.com", url: "https://westwaytowing.com/", leadId: "2604bee5-0436-4149-b8fa-d032883081d6", presenter: "Alex" },
   { slug: "lan-infotech", business: "LAN Infotech", domain: "laninfotech.com", url: "https://laninfotech.com/", leadId: "79ca6c55-723c-4b3b-ae2f-b5c84b4e6bbe", presenter: "Brown-haired preset lady" },
+  { slug: "john-the-plumber", business: "John the Plumber", domain: "johntheplumberfl.com", url: "https://johntheplumberfl.com/", leadId: "44690ce7-fb21-4486-bf32-68cfbeaee119", presenter: "Andy" },
+  { slug: "septic-doctor", business: "The Septic Doctor", domain: "thesepticdoctor.com", url: "https://thesepticdoctor.com/", leadId: "ad030a46-ba0d-446c-9bb6-56d24f434adc", presenter: "Alex" },
+  { slug: "mamas-boy-air", business: "Mama's Boy Air", domain: "mamasboyair.com", url: "https://www.mamasboyair.com/", leadId: "2a9c2684-c90d-4462-a6be-b69ae7125be8", presenter: "Sara" },
+  { slug: "evo-air", business: "Evo Air", domain: "evo-air.com", url: "https://evo-air.com/", leadId: "55035708-5a9f-4f0c-a834-1b98eaf3c07a", presenter: "Andy" },
+  { slug: "john-orthodontics", business: "John Orthodontics", domain: "johnortho.com", url: "https://johnortho.com/", leadId: "798b24ff-76c0-4c4d-a806-37c6035cd05d", presenter: "Sara" },
+  { slug: "jj-dental", business: "JJ Dental", domain: "jjdentalpractice.com", url: "https://www.jjdentalpractice.com/", leadId: "993487b4-a883-421b-bf43-62040ed11f9a", presenter: "Alex" },
 ];
 
 const hostOf = (raw: string): string | null => {
