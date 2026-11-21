@@ -36,9 +36,15 @@ const Index = () => {
       {/* Film gallery — directly under the hero (Ron's placement call,
           2026-11-20): the testimonial example films, spotlight + row. */}
       <FilmGallery />
-      {/* Meet the team — a compact trust strip under the film gallery
-          (moved down one slot by the gallery, 2026-11-20; its original
-          directly-under-hero placement was Ron's call, 2026-11-09). */}
+      {/* Live demo examples — directly under the film gallery (Ron's
+          placement call, 2026-11-21): a visitor who just watched the
+          films can immediately open a demo on a real business website.
+          Previously sat near the bottom, after the wizard section,
+          where Ron could not find it on his phone. */}
+      <ExamplesGallerySection />
+      {/* Meet the team — a compact trust strip (originally directly
+          under the hero, Ron's call 2026-11-09; moved down by the film
+          gallery 2026-11-20 and by the examples gallery 2026-11-21). */}
       <TeamSection />
       <StatsSection niche={selectedNiche} />
       <AvatarGallerySection />
@@ -48,7 +54,6 @@ const Index = () => {
       <HowItWorksSection />
       <WizardSection />
       <TryWebsiteCTA />
-      <ExamplesGallerySection />
       <PricingSection />
       <AddOnPackages />
       <FAQSection />

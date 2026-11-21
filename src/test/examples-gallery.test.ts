@@ -43,6 +43,16 @@ describe("examples gallery placement (2026-11-18)", () => {
     expect(index).not.toContain("DemoDifferentiator");
   });
 
+  it("the homepage gallery sits directly below the film gallery (Ron's placement call, 2026-11-21)", () => {
+    const index = read("pages/Index.tsx");
+    const films = index.indexOf("<FilmGallery />");
+    const examples = index.indexOf("<ExamplesGallerySection />");
+    const team = index.indexOf("<TeamSection />");
+    expect(films).toBeGreaterThan(-1);
+    expect(examples).toBeGreaterThan(films);
+    expect(team).toBeGreaterThan(examples);
+  });
+
   it("the before/after phone mockups are gone from the stats section", () => {
     const stats = read("components/landing/StatsSection.tsx");
     expect(stats).not.toContain("old-website-phone");
