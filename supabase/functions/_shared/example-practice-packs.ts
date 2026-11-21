@@ -41,7 +41,9 @@ export type ExamplePracticeType =
   | 'building-services'
   | 'it-services'
   | 'pools'
-  | 'landscaping';
+  | 'landscaping'
+  | 'distribution'
+  | 'towing';
 
 /** Slug → practice type for every pinned example (14 realtors share
  * one pack). Kept explicit so a new example earns a pack only when
@@ -77,6 +79,11 @@ export const EXAMPLE_PRACTICE_TYPE_BY_SLUG: Record<string, ExamplePracticeType> 
   'it-yall': 'it-services',
   'essig-pools': 'pools',
   'prestige-landscape': 'landscaping',
+  'tropic-supply': 'distribution',
+  'royal-electrical-supply': 'distribution',
+  'mjm-manufacturing': 'manufacturing',
+  'westway-towing': 'towing',
+  'lan-infotech': 'it-services',
 };
 
 /** Fallback by B2B niche for a future example whose slug is not in
@@ -110,6 +117,8 @@ export const EXAMPLE_PRACTICE_LABELS: Record<ExamplePracticeType, string> = {
   'it-services': 'IT Services & Support',
   'pools': 'Pool Builder & Pool Service',
   'landscaping': 'Landscaping & Lawn Care',
+  'distribution': 'Wholesale Distribution & Supply',
+  'towing': 'Towing & Roadside Service',
 };
 
 const GUIDE_RULES = `How to use this guide: it describes how this kind of business USUALLY works, so you can converse naturally, anticipate the caller's next question, and offer the usual next step (a call-back, an appointment, an estimate visit, a service call). It is NOT a source of facts about this specific business. Never quote prices, hours, warranties, timelines, staff names, or policies from this guide — those come only from the business's own knowledge above, and when the two differ, the business's own knowledge always wins. When you don't know a business-specific fact, say so warmly and offer to take a message or arrange a call-back rather than guessing.`;
@@ -198,6 +207,18 @@ How the work usually flows: maintenance is quoted after seeing the property — 
 What to capture: name, phone, property address, what they need (maintenance, design/install, trees, irrigation, cleanup), property basics if they offer them (corner lot, gated community, HOA), and any timing driver (a party coming up, an HOA notice, a home sale).
 Good receptionist moves: ask what prompted the call — an HOA letter and a dream garden are different conversations; offer the property visit as the next step; for storm damage or a fallen limb, treat it as urgent and capture the address first.
 Never promise: a monthly maintenance rate before the property visit, that a plant or lawn problem is a specific disease or pest, or a start date — the visit confirms all of it.`,
+
+  'distribution': `What callers usually want: contractors and trade buyers checking whether a part or material is in stock; placing an order for counter pickup or delivery to the shop or job site; opening a trade account or asking how account pricing works; asking which product fits a job, or what substitutes for something unavailable; checking the status of an existing order or delivery.
+How the work usually flows: most orders are phoned in, ordered online, or placed at the sales counter, then picked at will-call or delivered. Stock questions hinge on the exact part number, brand, size, or spec — a good counter team will ask for those before checking. Bigger project quotes and bid work usually go to an inside or outside sales rep who calls back with pricing. New trade accounts typically involve a short application and a credit review before terms are set.
+What to capture: caller name, company name, phone, whether they have an account (and the account name if they do), part numbers or a plain description with brand, size, and quantity, which location they want for pickup or the delivery address, and how urgent it is — a crew standing idle costs them money.
+Good receptionist moves: treat every caller as a pro whose time is billable; get the part details early because that is what the counter will ask first; offer to have the counter or their sales rep call back with stock and pricing rather than guessing; for an order-status call, capture the company name plus any order or PO number they mention.
+Never promise: that an item is in stock, a price (trade pricing depends on the account), a delivery time, or credit terms — the counter and sales team confirm all of those.`,
+
+  'towing': `What callers usually want: a tow right now — a car that will not start, a flat tire, keys locked inside, a dead battery, or a vehicle after an accident; a scheduled tow or transport for a fleet, a dealer, or a project; property managers and businesses asking about parking enforcement or removing an abandoned vehicle; drivers checking where their towed vehicle is stored and how to retrieve it.
+How the work usually flows: a dispatcher takes the location and vehicle details, assigns the nearest suitable truck, and the driver heads out — callers are usually given a realistic arrival window by dispatch, not by the person answering. Accident and police-ordered tows follow the officer's direction at the scene. Towed vehicles go to a storage lot, and retrieval normally requires proof of ownership and ID.
+What to capture: caller name and the best callback number (they are usually on a cell phone), the exact location — street, direction of travel, nearest cross street or landmark — the vehicle year, make, model, and color, what happened, where the vehicle needs to go, and whether a motor club, insurance, or fleet account is involved if they offer it.
+Good receptionist moves: safety first — if anyone is hurt or the vehicle is blocking traffic in a dangerous spot, tell them to call emergency services first and move somewhere safe, then take the details. Stay calm and unhurried with stressed callers, confirm the location twice, and reassure them a dispatcher is getting their details right away.
+Never promise: an exact arrival minute, a tow price, or that insurance or a motor club will cover the tow — dispatch confirms timing and the office confirms coverage and cost.`,
 };
 
 /** Build the prompt layer for one practice type. The marker string
