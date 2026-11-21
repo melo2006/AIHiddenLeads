@@ -8,12 +8,13 @@ import { EXAMPLE_THUMBS, EXAMPLE_THUMBS_MOBILE } from "./examplesGalleryThumbs";
  * for the realtor page, now on the homepage (replacing the
  * before/after phones block) and under the /demo form.
  *
- * Every card is a REAL in-session capture of that business's website
- * with the receptionist panel open on it (desktop + plain phone views
- * side by side, no phone-frame graphic, panel lower-right at the
- * larger size, captions off on the majority — the standing gallery
- * rules). Examples without a real capture are not rendered at all —
- * no placeholders, no redrawn composites.
+ * Every card is a REAL capture of that business's website: the
+ * original set are in-session captures with the receptionist panel
+ * open on it; the 2026-11-21 refreshed cards are shot from the
+ * stored demo captures the demos themselves run on. Desktop + plain
+ * phone views side by side, no phone-frame graphic. Examples
+ * without a real capture are not rendered at all — no placeholders,
+ * no redrawn composites.
  *
  * Clicking a card launches that example's LIVE demo through the same
  * /demo sample handoff the realtor page uses (sample=1 + the pinned

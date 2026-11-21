@@ -4,6 +4,15 @@
  * B2B captures: 2026-11-18 in-session shoot). An example whose
  * capture files are absent simply has no entry and is filtered out
  * of the gallery — never rendered with a placeholder.
+ *
+ * 2026-11-21 re-shoot: the stills whose in-session shots had caught
+ * the scan-summary fallback or an unloaded site (desktop: Cusack,
+ * Perez, Andriot, Saperstein, Steinberg, Melrose; mobile: Spodak,
+ * Cusack, Perez, Sexsmith, Andriot, Walter, Martinez) were re-shot
+ * from the leads' current stored demo captures — the same captures
+ * the demos themselves run on (Perez mobile from her stored mobile
+ * capture; the other mobile stills from the desktop capture the
+ * phone demo falls back to).
  */
 
 import thumbSpodakDentalMobile from "@/assets/b2b-example-spodak-dental-mobile.webp";
