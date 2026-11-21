@@ -25,6 +25,7 @@ import { FunctionsHttpError } from "@supabase/supabase-js";
 import { microphonePcm, pcmToBase64, shouldSendMicrophone, microphoneAutoGain, initialCaptureMode, createAmbientGateState, pushAmbientRms, createSpeechGateState, pushSpeechGateFrame, autoNoiseFilter, appliedAmbientLevel, appliedNoiseFilter, deadAirRelaxedFilter, type AmbientGateState, type NoiseFilter, type CaptureMode } from "@/lib/voiceLabAudio";
 
 import VoiceActionConfirmation, { type VoiceAction } from "./VoiceActionConfirmation";
+import DemoStartConfirmation from "./DemoStartConfirmation";
 import BrowserVoiceHandoff from "@/components/BrowserVoiceHandoff";
 import { voiceIdleAction, homepageWalkthroughDue, type VoiceIdleStage } from '@/lib/voiceIdle';
 import { voiceDisconnectMessage } from '@/lib/voiceDisconnect';
@@ -511,6 +512,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const pendingActionRef = useRef<VoiceAction | null>(null);
   const trackPendingAction = (action: VoiceAction | null) => { pendingActionRef.current = action; setPendingAction(action); };
   const [actionNotice, setActionNotice] = useState('');
+  // VOICE DEMO START (2026-11-21): once the proxy confirms the
+  // visitor's demo really started, its entry card lives here — a
+  // persistent "building / tap to enter" affordance that survives
+  // the rest of the conversation until the visitor enters or
+  // dismisses it. Data-driven only: the proxy sends demoPath solely
+  // for a started homepage demo, so no other surface ever shows it.
+  const [demoCard, setDemoCard] = useState<{ demoPath: string; websiteUrl: string } | null>(null);
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
   const deadlineRef = useRef(0);
   // SESSION CEILING warning (2026-11-21, item 8): the proxy warns
@@ -3687,7 +3695,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             trackPendingAction(null);
             break;
           case "action_result":
-            setActionNotice(msg.error ? String(msg.error) : msg.calendarConfirmed ? "Appointment confirmed on the AI Hidden Leads sales calendar." : msg.saved ? "Your confirmed follow-up details are saved." : "No action taken.");
+            if (msg.started && typeof msg.demoPath === "string") setDemoCard({ demoPath: msg.demoPath, websiteUrl: typeof msg.websiteUrl === "string" ? msg.websiteUrl : "" });
+            setActionNotice(msg.error ? String(msg.error) : msg.started ? "Your demo is building — tap the card below to step into it." : msg.calendarConfirmed ? "Appointment confirmed on the AI Hidden Leads sales calendar." : msg.saved ? "Your confirmed follow-up details are saved." : "No action taken.");
             break;
           case "audio":
             idleRef.current.generating = true;
@@ -4153,7 +4162,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         case "confirm_action": trackPendingAction(msg as unknown as VoiceAction); setWaitingAction(null); break;
         case "cancel_action": if (pendingActionRef.current) setWaitingAction(pendingActionRef.current); trackPendingAction(null); break;
         case "action_result":
-          setActionNotice(msg.error ? String(msg.error) : msg.calendarConfirmed ? "Appointment confirmed on the AI Hidden Leads sales calendar." : msg.saved ? "Your confirmed follow-up details are saved." : "No action taken.");
+          if (msg.started && typeof msg.demoPath === "string") setDemoCard({ demoPath: msg.demoPath, websiteUrl: typeof msg.websiteUrl === "string" ? msg.websiteUrl : "" });
+          setActionNotice(msg.error ? String(msg.error) : msg.started ? "Your demo is building — tap the card below to step into it." : msg.calendarConfirmed ? "Appointment confirmed on the AI Hidden Leads sales calendar." : msg.saved ? "Your confirmed follow-up details are saved." : "No action taken.");
           break;
         case "audio":
           idleRef.current.generating = true;
@@ -5240,7 +5250,24 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       if (socketOpen) handoffReturnRef.current = null;
     }
   };
-  const confirmation = pendingAction ? <VoiceActionConfirmation key={pendingAction.id} action={pendingAction} onAnswer={(approved, contact) => { wsRef.current?.send(JSON.stringify({type:'confirm_action',id:pendingAction.id,approved,contact})); if (approved) setWaitingAction(null); else setWaitingAction(pendingAction); trackPendingAction(null); }}/> : null;
+  const confirmation = pendingAction ? (pendingAction.action === 'request_demo_start'
+    ? <DemoStartConfirmation key={pendingAction.id} action={pendingAction} onAnswer={(approved, demo) => { wsRef.current?.send(JSON.stringify({type:'confirm_action',id:pendingAction.id,approved,demo})); if (approved) setWaitingAction(null); else setWaitingAction(pendingAction); trackPendingAction(null); }}/>
+    : <VoiceActionConfirmation key={pendingAction.id} action={pendingAction} onAnswer={(approved, contact) => { wsRef.current?.send(JSON.stringify({type:'confirm_action',id:pendingAction.id,approved,contact})); if (approved) setWaitingAction(null); else setWaitingAction(pendingAction); trackPendingAction(null); }}/>) : null;
+  // VOICE DEMO START entry card (2026-11-21): shown once the proxy
+  // confirms the demo started. A plain anchor the VISITOR taps —
+  // sales actions never navigate a live conversation automatically —
+  // opening the /demo-site experience in a new tab while this
+  // conversation stays live here.
+  const demoEntryCard = demoCard ? (
+    <div className="flex items-center gap-2 self-start rounded-xl border border-primary/40 bg-primary/10 px-3 py-2">
+      <div className="min-w-0">
+        <p className="text-xs font-semibold text-primary">{t("panel.demoBuilding")}</p>
+        {demoCard.websiteUrl && <p className="max-w-[220px] truncate text-[11px] text-muted-foreground">{demoCard.websiteUrl}</p>}
+      </div>
+      <a href={demoCard.demoPath} target="_blank" rel="noreferrer" className="shrink-0 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90">{t("panel.demoEnter")}</a>
+      <button type="button" aria-label={t("panel.demoDismiss")} onClick={() => setDemoCard(null)} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-primary/20 hover:text-foreground"><X className="h-4 w-4" /></button>
+    </div>
+  ) : null;
   // Publish #68: the dismissed form's way back. One tap sends
   // reopen_action; the proxy re-issues the same card (a fresh
   // confirm_action lands and the card renders above). Rendered only
@@ -5763,6 +5790,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
         {confirmation}
         {formWaitingChip}
+        {demoEntryCard}
         {actionNotice && <p role="status" className="text-xs text-primary">{actionNotice}</p>}
         {swapNotice && <p role="status" className="text-xs text-primary">{swapNotice}</p>}
         {videoFallback && <p role="status" className="text-[11px] text-muted-foreground">{t("voice.videoFallback", { name: speakerName })}</p>}
@@ -5933,6 +5961,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         <Card className="p-4 space-y-3">
           {confirmation}
           {formWaitingChip}
+          {demoEntryCard}
         {actionNotice && <p role="status" className="text-xs text-primary">{actionNotice}</p>}
         {swapNotice && <p role="status" className="text-xs text-primary">{swapNotice}</p>}
         {videoFallback && <p role="status" className="text-xs text-muted-foreground">{t("voice.videoFallback", { name: speakerName })}</p>}

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { confirmedVisitorContact, contactReadback } from '../../supabase/functions/_shared/visitor-followup';
-export interface VoiceAction { id: string; action: string; contact?: { name: string; email: string; phone: string }; slotStart?: string }
+export interface VoiceAction { id: string; action: string; contact?: { name: string; email: string; phone: string }; slotStart?: string; demo?: { websiteUrl: string; name: string; email: string } }
 export default function VoiceActionConfirmation({ action, onAnswer }: { action: VoiceAction; onAnswer: (approved: boolean, contact?: unknown) => void }) {
   const { t } = useTranslation();
   const [contact, setContact] = useState(action.contact || { name: '', email: '', phone: '' });

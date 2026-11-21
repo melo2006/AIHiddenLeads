@@ -253,8 +253,8 @@ describe('proxy wiring — form re-presentation (defect 1)', () => {
     const at = proxySource.indexOf("call.name === 're_present_confirmation_card'");
     const branch = proxySource.slice(at, proxySource.indexOf("call.name === 'request_platform_followup'", at));
     expect(branch).toContain('if (!lastCardAction)');
-    expect(branch).toContain('pendingActions.set(reopenId,{call:{id:reopenId,name:lastCardAction.name},slotStart:lastCardAction.slotStart,synthetic:true});');
-    expect(branch).toContain("clientSocket.send(JSON.stringify({type:'confirm_action',id:reopenId,action:lastCardAction.name,contact:lastCardAction.contact,slotStart:lastCardAction.slotStart}));");
+    expect(branch).toContain('pendingActions.set(reopenId,{call:{id:reopenId,name:lastCardAction.name},slotStart:lastCardAction.slotStart,synthetic:true,demo:lastCardAction.demo});');
+    expect(branch).toContain("clientSocket.send(JSON.stringify({type:'confirm_action',id:reopenId,action:lastCardAction.name,contact:lastCardAction.contact,slotStart:lastCardAction.slotStart,demo:lastCardAction.demo}));");
     expect(branch).toContain('respond({presented:true,action:lastCardAction.name');
   });
 
