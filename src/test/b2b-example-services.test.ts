@@ -16,9 +16,9 @@ import {
 
 const EXPECTED_NICHE_COUNTS: Record<string, number> = {
   dentist: 3,
-  roofer: 1,
+  roofer: 2,
   hvac: 3,
-  lawyer: 1,
+  lawyer: 3,
   plumber: 3,
   pavers: 1,
   manufacturer: 3,
@@ -28,18 +28,22 @@ const EXPECTED_NICHE_COUNTS: Record<string, number> = {
   "field-service": 3,
   distributor: 2,
   towing: 1,
+  electrician: 2,
+  medspa: 1,
+  veterinary: 1,
+  chiropractic: 1,
 };
 
 describe("b2b example services packs", () => {
-  it("carries exactly 28 packs (16 original + Wave 3's 5 + AZ Pools + Wave 1's big-three 6, all added under Ron's approved mix, 2026-11-21)", () => {
-    expect(CLIENT_PACKS).toHaveLength(28);
+  it("carries exactly 36 packs (28 through waves 1+3 and AZ Pools + wave-2's 8: electrical x2, legal x2, roofing, med spa, veterinary, chiropractic)", () => {
+    expect(CLIENT_PACKS).toHaveLength(36);
     const counts: Record<string, number> = {};
     for (const pack of CLIENT_PACKS) counts[pack.niche] = (counts[pack.niche] ?? 0) + 1;
     expect(counts).toEqual(EXPECTED_NICHE_COUNTS);
     const slugs = CLIENT_PACKS.map((p) => p.slug);
-    expect(new Set(slugs).size).toBe(28);
+    expect(new Set(slugs).size).toBe(36);
     const urls = CLIENT_PACKS.map((p) => normalizeExampleSiteUrl(p.url));
-    expect(new Set(urls).size).toBe(28);
+    expect(new Set(urls).size).toBe(36);
   });
 
   it("keeps the client and server copies in lockstep", () => {

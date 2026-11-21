@@ -14,11 +14,11 @@ import { B2B_EXAMPLE_PINNED_LEADS } from "../data/b2bExamplePinnedLeads";
 const read = (rel: string) => readFileSync(resolve(__dirname, "..", rel), "utf8");
 
 describe("examples gallery data (2026-11-18)", () => {
-  it("combines all 28 B2B and all 14 realtor pinned examples", () => {
+  it("combines all 36 B2B and all 14 realtor pinned examples", () => {
     expect(EXAMPLES_GALLERY).toHaveLength(
       B2B_EXAMPLE_PINNED_LEADS.length + REALTOR_EXAMPLE_PINNED_LEADS.length,
     );
-    expect(EXAMPLES_GALLERY.filter((e) => e.kind === "b2b")).toHaveLength(28);
+    expect(EXAMPLES_GALLERY.filter((e) => e.kind === "b2b")).toHaveLength(36);
     expect(EXAMPLES_GALLERY.filter((e) => e.kind === "realtor")).toHaveLength(14);
   });
 
@@ -74,6 +74,14 @@ describe("examples gallery categories (Ron's business-first mix, 2026-11-21)", (
     "evo-air": "home-services",
     "john-orthodontics": "health-dental",
     "jj-dental": "health-dental",
+    "tole-electric": "home-services",
+    "bos-generators": "home-services",
+    "levine-family-law": "legal",
+    "meltzer-bell": "legal",
+    "robson-industrial": "home-services",
+    "amaira-medspa": "health-dental",
+    "central-broward-vet": "health-dental",
+    "chiangwell-medical": "health-dental",
   };
 
   it("every example carries exactly the category its trade belongs to", () => {
@@ -99,9 +107,9 @@ describe("examples gallery categories (Ron's business-first mix, 2026-11-21)", (
     }
     expect(Object.fromEntries(counts)).toEqual({
       "real-estate": 14,
-      "home-services": 11,
-      "health-dental": 3,
-      legal: 1,
+      "home-services": 14,
+      "health-dental": 6,
+      legal: 3,
       manufacturing: 3,
       marine: 2,
       auto: 3,
