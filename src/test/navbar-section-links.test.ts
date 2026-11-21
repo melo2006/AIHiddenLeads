@@ -24,12 +24,15 @@ const SECTION_LINKS: Array<[id: string, key: string]> = [
 describe("navbar section links (2026-11-21)", () => {
   const nav = read("components/landing/LandingNavbar.tsx");
 
-  it("desktop bar and mobile menu both carry all nine section links", () => {
+  it("one stacked sectionLinks list carries all nine links, rendered by both menus", () => {
+    // Ron's follow-up (2026-11-21): the links must be STACKED in a
+    // menu, not spread across the header bar. Both the desktop
+    // dropdown and the mobile panel render this single list.
     for (const [id, key] of SECTION_LINKS) {
-      // Desktop: a scrollTo button. Mobile: an entry in the menu array.
-      expect(nav, `desktop ${id}`).toContain(`scrollTo("${id}")`);
-      expect(nav, `mobile ${id}`).toContain(`{ id: "${id}", label: t("${key}"`);
+      expect(nav, `link ${id}`).toContain(`{ id: "${id}", label: t("${key}"`);
     }
+    expect(nav.match(/sectionLinks\.map/g)).toHaveLength(2);
+    expect(nav).toContain('t("nav.menu", "Menu")');
   });
 
   it("every target section exists with a matching id", () => {

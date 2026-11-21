@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Menu, X, FileText, Type, Phone } from "lucide-react";
+import { Menu, X, FileText, Type, Phone, ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
@@ -31,6 +31,7 @@ const LandingNavbar = ({ brand }: { brand?: ResolvedBrand }) => {
   const location=useLocation();
   const navigate=useNavigate();
   const [open, setOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const { t } = useTranslation();
 
   useEffect(() => {
@@ -42,9 +43,26 @@ const LandingNavbar = ({ brand }: { brand?: ResolvedBrand }) => {
 
   const scrollTo = (id: string) => {
     setOpen(false);
+    setMenuOpen(false);
     if(location.pathname !== '/') { navigate(`/#${id}`); return; }
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
   };
+
+  // Section jump links live in ONE stacked menu (Ron's call,
+  // 2026-11-21): spread across the bar they ate the whole header on
+  // smaller screens. The desktop dropdown and the mobile panel both
+  // render this same list, stacked.
+  const sectionLinks = [
+    { id: "services", label: t("nav.services") },
+    { id: "customers", label: t("nav.customers", "Customers") },
+    { id: "examples", label: t("nav.examples", "Examples") },
+    { id: "benefits", label: t("nav.benefits", "Benefits") },
+    { id: "avatar-gallery", label: t("nav.avatars", "Avatars") },
+    { id: "how-it-works", label: t("nav.howItWorks") },
+    { id: "pricing", label: t("nav.pricing") },
+    { id: "testimonials", label: t("nav.testimonials") },
+    { id: "faq", label: t("nav.faq", "Help / FAQ") },
+  ];
 
   return (
     <>
@@ -87,41 +105,38 @@ const LandingNavbar = ({ brand }: { brand?: ResolvedBrand }) => {
         </Link>
 
         <div className="hidden lg:flex items-center gap-4 xl:gap-6">
-          <button onClick={() => scrollTo("services")} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-            {t("nav.services")}
-          </button>
-          <button onClick={() => scrollTo("customers")} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-            {t("nav.customers", "Customers")}
-          </button>
-          <button onClick={() => scrollTo("examples")} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-            {t("nav.examples", "Examples")}
-          </button>
-          <button onClick={() => scrollTo("benefits")} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-            {t("nav.benefits", "Benefits")}
-          </button>
-          <button onClick={() => scrollTo("avatar-gallery")} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-            {t("nav.avatars", "Avatars")}
-          </button>
-          <button onClick={() => scrollTo("how-it-works")} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-            {t("nav.howItWorks")}
-          </button>
-          <button onClick={() => scrollTo("pricing")} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-            {t("nav.pricing")}
-          </button>
-          <button onClick={() => scrollTo("testimonials")} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-            {t("nav.testimonials")}
-          </button>
-          <button onClick={() => scrollTo("faq")} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-            {t("nav.faq", "Help / FAQ")}
-          </button>
-          <Link
-            to="/transcript"
-            className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
-            title="Video transcript"
-          >
-            <FileText className="h-3.5 w-3.5" />
-            Script
-          </Link>
+          <Popover open={menuOpen} onOpenChange={setMenuOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="sm" aria-label={t("nav.menu", "Menu")} aria-expanded={menuOpen} className="text-sm text-muted-foreground hover:text-foreground">
+                <Menu className="h-4 w-4" />
+                {t("nav.menu", "Menu")}
+                <ChevronDown className="h-3.5 w-3.5" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="z-[100] w-60 p-2">
+              <div className="flex flex-col">
+                {sectionLinks.map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => scrollTo(item.id)}
+                    className="w-full rounded-md px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-secondary"
+                  >
+                    {item.label}
+                  </button>
+                ))}
+                <div className="my-1 border-t border-border" />
+                <Link
+                  to="/transcript"
+                  onClick={() => setMenuOpen(false)}
+                  className="flex w-full items-center gap-1.5 rounded-md px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                  title="Video transcript"
+                >
+                  <FileText className="h-3.5 w-3.5" />
+                  Script
+                </Link>
+              </div>
+            </PopoverContent>
+          </Popover>
           <LanguageSwitcher />
           <Popover><PopoverTrigger asChild><Button size="icon" variant="ghost" aria-label="Text size" title="Text size"><Type /></Button></PopoverTrigger><PopoverContent className="z-[100] w-72"><TextSizeControl /></PopoverContent></Popover>
           <ThemeToggle />
@@ -173,17 +188,7 @@ const LandingNavbar = ({ brand }: { brand?: ResolvedBrand }) => {
             the menu open. Clicking the scrim closes the menu. */}
         <div aria-hidden onClick={() => setOpen(false)} className="fixed inset-0 top-14 z-[80] bg-foreground/10 sm:top-16" />
         <div role="dialog" aria-label="Menu" className="fixed bottom-0 right-0 top-14 z-[85] w-[min(88vw,360px)] space-y-1 overflow-y-auto overscroll-contain border-l border-border bg-background px-4 py-3 shadow-2xl sm:top-16">
-          {[
-            { id: "services", label: t("nav.services") },
-            { id: "customers", label: t("nav.customers", "Customers") },
-            { id: "examples", label: t("nav.examples", "Examples") },
-            { id: "benefits", label: t("nav.benefits", "Benefits") },
-            { id: "avatar-gallery", label: t("nav.avatars", "Avatars") },
-            { id: "how-it-works", label: t("nav.howItWorks") },
-            { id: "pricing", label: t("nav.pricing") },
-            { id: "testimonials", label: t("nav.testimonials") },
-            { id: "faq", label: t("nav.faq", "Help / FAQ") },
-          ].map((item) => (
+          {sectionLinks.map((item) => (
             <Button variant="ghost"
               key={item.id}
               onClick={() => scrollTo(item.id)}
