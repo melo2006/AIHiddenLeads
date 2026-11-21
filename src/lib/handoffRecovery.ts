@@ -79,6 +79,21 @@ export function reusableMicStream<T extends MicStreamLike>(
   return null;
 }
 
+/** The start path's microphone request — ALWAYS a promise. A live
+ *  retained stream is adopted as-is (wrapped in Promise.resolve);
+ *  only a null retained stream runs the fresh-request factory.
+ *  (2026-11-21, homepage-test item 11b: the composition used to be
+ *  `retainedMic ?? getUserMedia(...)` annotated Promise<MediaStream> —
+ *  with a retained stream the value WAS the raw stream, and the
+ *  caller's .then() on it threw "dg.then is not a function" on every
+ *  handoff return, killing the return session.) */
+export function micRequestPromise<T>(
+  retained: T | null | undefined,
+  freshRequest: () => Promise<T>,
+): Promise<T> {
+  return retained ? Promise.resolve(retained) : freshRequest();
+}
+
 let retainedHandoffMic: MicStreamLike | null = null;
 
 /** Stash the live pre-handoff stream instead of stopping its
