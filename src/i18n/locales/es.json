@@ -954,6 +954,7 @@
     "aspenTranscript": "Transcripción de Aspen",
     "transcriptLabel": "Transcripción de la conversación",
     "demoTimeRemaining": "Tiempo restante de la demo",
+    "sessionEndingSoon": "Terminando pronto — sigue hablando para continuar",
     "play": "Iniciar",
     "end": "Terminar",
     "mute": "Silenciar",

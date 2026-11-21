@@ -9,6 +9,94 @@ export function homepagePacingAction(elapsed: number, lastCallerSpeechAgo: numbe
   return null;
 }
 
+// SESSION CEILING (2026-11-21, homepage-test item 8): the authorized
+// max_seconds (900s for homepage-sales and lead/prospect sessions) used
+// to be a HARD cut — the proxy's session timer closed the socket at
+// exactly that mark, mid-word if necessary, with no wrap-up, while
+// the pacing close above could end an engaged-feeling call at ~10
+// minutes on a transcription-only signal. The ceiling is now a SOFT
+// deadline owned by this state machine (driven from the proxy's
+// pacing tick):
+//   - at deadline − WRAPUP_LEAD: ONE wrap-up injection (finish the
+//     current thought, offer the booking / demo / email next step);
+//   - at deadline − WARNING_LEAD: the client is told to show a
+//     visible "ending soon" warning with the real deadline;
+//   - at the deadline: if EITHER side has spoken within
+//     ENGAGED_WINDOW_SECONDS the deadline EXTENDS by
+//     EXTENSION_SECONDS (the wrap-up/warning cycle re-arms) and the
+//     client is told the new deadline — an active conversation never
+//     dies at the mark;
+//   - only at the ABSOLUTE cap, or at a deadline reached with no
+//     recent activity on either side, does the session close — and
+//     by then the wrap-up path has already run.
+// Activity includes raw visitor mic activity (item 4), not just
+// completed transcriptions, so a visitor mid-sentence counts.
+export const SESSION_ABSOLUTE_CAP_SECONDS = 3600;
+export const SESSION_EXTENSION_SECONDS = 300;
+export const SESSION_WRAPUP_LEAD_SECONDS = 120;
+export const SESSION_WARNING_LEAD_SECONDS = 60;
+
+export interface SessionCeilingState {
+  /** Current soft deadline, in elapsed seconds from session start. */
+  deadlineSeconds: number;
+  /** The absolute cap (elapsed seconds): no extension past this. */
+  capSeconds: number;
+  wrapupInjected: boolean;
+  warningSent: boolean;
+  closing: boolean;
+}
+
+export function freshSessionCeilingState(softSeconds: number): SessionCeilingState {
+  const soft = Math.max(60, Math.floor(softSeconds) || 900);
+  return {
+    deadlineSeconds: soft,
+    capSeconds: Math.max(soft, SESSION_ABSOLUTE_CAP_SECONDS),
+    wrapupInjected: false,
+    warningSent: false,
+    closing: false,
+  };
+}
+
+/**
+ * One pacing tick of the ceiling machine. Returns the action the
+ * proxy must perform, mutating only through the returned state:
+ *   'wrapup' — inject the wrap-up guidance (once per deadline);
+ *   'warn'   — tell the client to show the ending-soon warning;
+ *   'extend' — push the deadline out (state already extended; the
+ *              proxy tells the client the new deadline);
+ *   'close'  — end the session now (wrap-up already ran at the
+ *              lead marks, unless the cap arrived first);
+ *   null     — nothing due.
+ */
+export function sessionCeilingAction(
+  state: SessionCeilingState,
+  elapsedSeconds: number,
+  lastActivityAgoSeconds: number,
+): { action: 'wrapup' | 'warn' | 'extend' | 'close' | null; state: SessionCeilingState } {
+  if (state.closing) return { action: null, state };
+  const remaining = state.deadlineSeconds - elapsedSeconds;
+  if (remaining <= 0) {
+    const active = lastActivityAgoSeconds <= ENGAGED_WINDOW_SECONDS;
+    if (active && elapsedSeconds < state.capSeconds) {
+      const extended = {
+        ...state,
+        deadlineSeconds: Math.min(state.capSeconds, state.deadlineSeconds + SESSION_EXTENSION_SECONDS),
+        wrapupInjected: false,
+        warningSent: false,
+      };
+      return { action: 'extend', state: extended };
+    }
+    return { action: 'close', state: { ...state, closing: true } };
+  }
+  if (!state.wrapupInjected && remaining <= SESSION_WRAPUP_LEAD_SECONDS) {
+    return { action: 'wrapup', state: { ...state, wrapupInjected: true } };
+  }
+  if (!state.warningSent && remaining <= SESSION_WARNING_LEAD_SECONDS) {
+    return { action: 'warn', state: { ...state, warningSent: true } };
+  }
+  return { action: null, state };
+}
+
 // SILENCE LADDER (Ron's spec, 2026-11-16): the Publish #60 silence
 // ladder existed only as prompt prose and never fired on the voice
 // path. This is the mechanical version, driven by the proxy's pacing
