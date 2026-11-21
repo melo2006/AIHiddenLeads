@@ -52,4 +52,12 @@ export const B2B_EXAMPLE_PINNED_LEADS: B2BExamplePinnedLead[] = [
   { slug: "evo-air", domain: "evo-air.com", url: "https://evo-air.com/", leadId: "55035708-5a9f-4f0c-a834-1b98eaf3c07a" },
   { slug: "john-orthodontics", domain: "johnortho.com", url: "https://johnortho.com/", leadId: "798b24ff-76c0-4c4d-a806-37c6035cd05d" },
   { slug: "jj-dental", domain: "jjdentalpractice.com", url: "https://www.jjdentalpractice.com/", leadId: "993487b4-a883-421b-bf43-62040ed11f9a" },
+  { slug: "tole-electric", domain: "toleelectric.com", url: "https://toleelectric.com/", leadId: "919ace5c-c8ac-4505-b2d6-acd7ea8b4793" },
+  { slug: "bos-generators", domain: "bosgenerators.com", url: "https://www.bosgenerators.com/", leadId: "27055c8b-2965-42db-a1ad-97ade337c44d" },
+  { slug: "levine-family-law", domain: "levinefamilylaw.com", url: "https://www.levinefamilylaw.com/", leadId: "3f410cf0-5b89-4e8d-9f6d-f7d735b7bce6" },
+  { slug: "meltzer-bell", domain: "browardcriminalteam.com", url: "https://www.browardcriminalteam.com/", leadId: "810010c2-d16f-483a-829e-2902368dce31" },
+  { slug: "robson-industrial", domain: "robsonindustrial.com", url: "https://www.robsonindustrial.com/", leadId: "8e5e6bd8-3eac-4f4d-aa60-841c8d6c0755" },
+  { slug: "amaira-medspa", domain: "amairamedspa.com", url: "https://amairamedspa.com/", leadId: "b0f7801e-9c36-4ff6-9ccb-1177ba2842bb" },
+  { slug: "central-broward-vet", domain: "centralbrowardvet.com", url: "https://centralbrowardvet.com/", leadId: "e7ae9865-237e-498c-b81f-bf6a1d04d221" },
+  { slug: "chiangwell-medical", domain: "chiangwellmedical.com", url: "https://www.chiangwellmedical.com/", leadId: "3e88cdcb-9365-444c-9b7d-5462b9dfe714" },
 ];

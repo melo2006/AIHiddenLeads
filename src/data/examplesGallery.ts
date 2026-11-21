@@ -92,6 +92,12 @@ const NICHE_CATEGORIES: Record<string, GalleryCategory> = {
   towing: "auto",
   distributor: "business-services",
   "b2b-services": "business-services",
+  // Wave 2 (2026-11-21): electricians are a home trade; med spa,
+  // veterinary and chiropractic are health practices.
+  electrician: "home-services",
+  medspa: "health-dental",
+  veterinary: "health-dental",
+  chiropractic: "health-dental",
 };
 
 export interface GalleryExample {

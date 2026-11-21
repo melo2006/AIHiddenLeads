@@ -61,6 +61,14 @@ export const B2B_EXAMPLE_PINNED_LEADS: B2BExamplePinnedLead[] = [
   { slug: "evo-air", business: "Evo Air", domain: "evo-air.com", url: "https://evo-air.com/", leadId: "55035708-5a9f-4f0c-a834-1b98eaf3c07a", presenter: "Andy" },
   { slug: "john-orthodontics", business: "John Orthodontics", domain: "johnortho.com", url: "https://johnortho.com/", leadId: "798b24ff-76c0-4c4d-a806-37c6035cd05d", presenter: "Sara" },
   { slug: "jj-dental", business: "JJ Dental", domain: "jjdentalpractice.com", url: "https://www.jjdentalpractice.com/", leadId: "993487b4-a883-421b-bf43-62040ed11f9a", presenter: "Alex" },
+  { slug: "tole-electric", business: "Tole Electric", domain: "toleelectric.com", url: "https://toleelectric.com/", leadId: "919ace5c-c8ac-4505-b2d6-acd7ea8b4793", presenter: "Andy" },
+  { slug: "bos-generators", business: "Bo's Generators", domain: "bosgenerators.com", url: "https://www.bosgenerators.com/", leadId: "27055c8b-2965-42db-a1ad-97ade337c44d", presenter: "Andy" },
+  { slug: "levine-family-law", business: "Levine Family Law", domain: "levinefamilylaw.com", url: "https://www.levinefamilylaw.com/", leadId: "3f410cf0-5b89-4e8d-9f6d-f7d735b7bce6", presenter: "Sara" },
+  { slug: "meltzer-bell", business: "Meltzer & Bell", domain: "browardcriminalteam.com", url: "https://www.browardcriminalteam.com/", leadId: "810010c2-d16f-483a-829e-2902368dce31", presenter: "Alex" },
+  { slug: "robson-industrial", business: "Robson Industrial Group", domain: "robsonindustrial.com", url: "https://www.robsonindustrial.com/", leadId: "8e5e6bd8-3eac-4f4d-aa60-841c8d6c0755", presenter: "Andy" },
+  { slug: "amaira-medspa", business: "Amaira Med Spa & Surgical", domain: "amairamedspa.com", url: "https://amairamedspa.com/", leadId: "b0f7801e-9c36-4ff6-9ccb-1177ba2842bb", presenter: "Sara" },
+  { slug: "central-broward-vet", business: "Central Broward Animal Hospital", domain: "centralbrowardvet.com", url: "https://centralbrowardvet.com/", leadId: "e7ae9865-237e-498c-b81f-bf6a1d04d221", presenter: "Brown-haired preset lady" },
+  { slug: "chiangwell-medical", business: "ChiangWell Medical", domain: "chiangwellmedical.com", url: "https://www.chiangwellmedical.com/", leadId: "3e88cdcb-9365-444c-9b7d-5462b9dfe714", presenter: "Alex" },
 ];
 
 const hostOf = (raw: string): string | null => {

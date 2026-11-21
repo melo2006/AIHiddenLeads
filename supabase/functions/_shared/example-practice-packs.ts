@@ -43,7 +43,13 @@ export type ExamplePracticeType =
   | 'pools'
   | 'landscaping'
   | 'distribution'
-  | 'towing';
+  | 'towing'
+  | 'electrical'
+  | 'family-law'
+  | 'criminal-defense'
+  | 'med-spa'
+  | 'veterinary'
+  | 'chiropractic';
 
 /** Slug → practice type for every pinned example (14 realtors share
  * one pack). Kept explicit so a new example earns a pack only when
@@ -91,6 +97,14 @@ export const EXAMPLE_PRACTICE_TYPE_BY_SLUG: Record<string, ExamplePracticeType> 
   'evo-air': 'hvac',
   'john-orthodontics': 'dental',
   'jj-dental': 'dental',
+  'tole-electric': 'electrical',
+  'bos-generators': 'electrical',
+  'levine-family-law': 'family-law',
+  'meltzer-bell': 'criminal-defense',
+  'robson-industrial': 'roofing',
+  'amaira-medspa': 'med-spa',
+  'central-broward-vet': 'veterinary',
+  'chiangwell-medical': 'chiropractic',
 };
 
 /** Fallback by B2B niche for a future example whose slug is not in
@@ -101,12 +115,19 @@ const PRACTICE_TYPE_BY_NICHE: Record<string, ExamplePracticeType> = {
   dentist: 'dental',
   roofer: 'roofing',
   hvac: 'hvac',
-  lawyer: 'personal-injury-law',
   plumber: 'plumbing',
   pavers: 'pavers-hardscape',
   manufacturer: 'manufacturing',
   marine: 'marine',
   'auto-repair': 'auto-repair',
+  electrician: 'electrical',
+  medspa: 'med-spa',
+  veterinary: 'veterinary',
+  chiropractic: 'chiropractic',
+  // 'lawyer' deliberately has NO fallback since 2026-11-21: with
+  // personal-injury, family-law and criminal-defense packs all live,
+  // the niche no longer maps to exactly one practice type — a future
+  // law example earns its pack through the slug table above.
 };
 
 export const EXAMPLE_PRACTICE_LABELS: Record<ExamplePracticeType, string> = {
@@ -126,6 +147,12 @@ export const EXAMPLE_PRACTICE_LABELS: Record<ExamplePracticeType, string> = {
   'landscaping': 'Landscaping & Lawn Care',
   'distribution': 'Wholesale Distribution & Supply',
   'towing': 'Towing & Roadside Service',
+  'electrical': 'Electrical Contractor',
+  'family-law': 'Law Firm — Family Law',
+  'criminal-defense': 'Law Firm — Criminal Defense',
+  'med-spa': 'Med Spa & Aesthetics',
+  'veterinary': 'Veterinary Clinic & Animal Hospital',
+  'chiropractic': 'Chiropractic Clinic',
 };
 
 const GUIDE_RULES = `How to use this guide: it describes how this kind of business USUALLY works, so you can converse naturally, anticipate the caller's next question, and offer the usual next step (a call-back, an appointment, an estimate visit, a service call). It is NOT a source of facts about this specific business. Never quote prices, hours, warranties, timelines, staff names, or policies from this guide — those come only from the business's own knowledge above, and when the two differ, the business's own knowledge always wins. When you don't know a business-specific fact, say so warmly and offer to take a message or arrange a call-back rather than guessing.`;
@@ -226,6 +253,42 @@ How the work usually flows: a dispatcher takes the location and vehicle details,
 What to capture: caller name and the best callback number (they are usually on a cell phone), the exact location — street, direction of travel, nearest cross street or landmark — the vehicle year, make, model, and color, what happened, where the vehicle needs to go, and whether a motor club, insurance, or fleet account is involved if they offer it.
 Good receptionist moves: safety first — if anyone is hurt or the vehicle is blocking traffic in a dangerous spot, tell them to call emergency services first and move somewhere safe, then take the details. Stay calm and unhurried with stressed callers, confirm the location twice, and reassure them a dispatcher is getting their details right away.
 Never promise: an exact arrival minute, a tow price, or that insurance or a motor club will cover the tow — dispatch confirms timing and the office confirms coverage and cost.`,
+
+  'electrical': `What callers usually want: a partial or total power outage in the home; a breaker that keeps tripping or a panel that feels hot or buzzes; flickering lights; an outlet or switch that stopped working or sparks; ceiling fan, lighting, or EV charger installation; a standby generator that won't start; electrical items flagged on a home inspection or insurance report that need fixing before a sale or renewal.
+How the work usually flows: repair calls start with a service visit — the electrician troubleshoots, explains what they found, and quotes the repair before doing the work. Installations and panel upgrades are quoted after seeing the panel and the home's load, and permitted work goes through the local inspection process. True emergencies (a burning smell, sparking, a hot panel) are treated as safety calls first and paperwork second.
+What to capture: name, phone, service address, what's happening and where in the home, whether power is out entirely or in just one area, anything hot, sparking, or smelling like burning, and how long it's been going on.
+Good receptionist moves: for burning smells, sparking, or a hot panel, tell the caller to stop using that circuit, keep away from a panel that feels hot, and call emergency services if there's smoke or fire — then capture the details fast. For an outage, ask kindly whether the whole street is out (a utility problem) or just their home.
+Never promise: a diagnosis, a repair price before the visit, that a panel does or doesn't need replacing, or an exact arrival time — offer the earliest service visit.`,
+
+  'family-law': `What callers usually want: they're thinking about divorce or have just been served; they have a custody or timesharing worry; child support or alimony questions; they need to change an existing order after a job loss, a move, or a change in the child's life; sometimes they're frightened by conflict at home and simply want to know their options. Many callers are emotional, calling on a break at work, and afraid their spouse will find out they called.
+How the work usually flows: it starts with a confidential consultation — the attorney hears the situation, explains the process and the road ahead, and only then talks about representation and fees. Callers are often told to gather documents (recent tax returns, pay stubs, bank and mortgage statements, any existing court orders) and not to move money, change locks, or put agreements in writing before getting advice.
+What to capture: name, a safe phone number and whether it is safe to leave a message or send a text there, a one-line description of the matter (divorce, custody, support, modification), whether anything has already been filed or served, any court dates they mention, and whether there are urgent safety concerns. Never press for the whole story.
+Good receptionist moves: be calm, private, and unhurried; make clear the consultation is confidential; ask about safe contact methods early — it matters in these cases; if someone describes immediate danger, encourage them to call emergency services first.
+Never promise: legal advice or an outcome (custody results, support amounts, who keeps the house) — only the attorney can evaluate and advise.`,
+
+  'criminal-defense': `What callers usually want: they (or their child, spouse, or partner) were just arrested or released on bond; they received a court date or a notice to appear; a detective wants to ask a few questions; they've learned there's a warrant out for them; a DUI stop the night before; often it's a frightened family member calling, sometimes late at night, wanting to know what happens next and what a lawyer costs.
+How the work usually flows: it starts with a confidential consultation, often free, where the attorney hears what happened and explains the charge, the process, and the possible paths. In this field callers are commonly told not to discuss the case with police, investigators, or anyone else — and not to post about it — before speaking with the attorney. Bond, first-appearance, and arraignment timing are explained by the firm based on the actual case and county.
+What to capture: name and best phone, who the client is if the caller is family, the charge in a sentence if they know it, the county, whether the person is in custody or out, and any court date or paperwork deadline they mention. Keep it brief — the details belong with the attorney.
+Good receptionist moves: stay calm and completely nonjudgmental; reassure the caller the conversation is confidential; when someone is in custody, move quickly and capture the essentials first; offer the earliest consultation or an urgent call-back from the team.
+Never promise: that charges will be dropped or reduced, any outcome, a bail amount, or legal advice — and never advise a caller yourself on whether to speak with police; that guidance comes from the attorney.`,
+
+  'med-spa': `What callers usually want: booking Botox or filler; asking what a treatment costs or whether there's a special running; laser hair removal questions; a consultation for skin concerns (wrinkles, sun spots, acne scars, loss of firmness); body contouring curiosity; whether a treatment hurts and how much downtime follows; gift cards and first-visit questions.
+How the work usually flows: most injectable and device treatments start with a consultation — a provider looks at the skin or the area, talks through the caller's goals, and recommends a plan, because the right treatment and amount differ from person to person. Some treatments happen the same visit when the provider agrees; others are scheduled as a series of sessions. Any preparation or aftercare instructions come from the provider — repeat only what the business's own knowledge states.
+What to capture: name, phone, what they're interested in, whether they're a new or returning client, any timing driver (a wedding, photos, a vacation), and previous treatments they mention.
+Good receptionist moves: be warm and zero-judgment — many callers are nervous or shy about asking; offer the consultation as the natural first step; mention current specials ONLY if the business's own knowledge lists them.
+Never promise: a per-unit or per-session price as a quote, specific results, that a treatment is right for them, or medical clearance — the provider decides at the consultation.`,
+
+  'veterinary': `What callers usually want: booking a wellness visit or vaccinations; their pet is sick or hurt (not eating, vomiting, limping, a wound) and they're scared; dental cleaning questions; spay or neuter scheduling; prescription refills, records, or transferring from another vet; boarding or grooming at hospitals that offer them; and sometimes end-of-life questions, which deserve great gentleness.
+How the work usually flows: routine care is booked into exam appointments; sick pets are triaged by phone — the symptoms and how long they've been going on — and offered the earliest urgent slot or a same-day visit if the hospital offers one. Surgeries and dentals are scheduled procedures, usually with a morning drop-off and a written estimate first at many hospitals. Life-threatening emergencies (trouble breathing, collapse, being hit by a car, swallowing something toxic, a male cat straining and unable to urinate) are directed to come in immediately, or to the nearest emergency hospital when the clinic is closed.
+What to capture: owner's name and phone, pet's name, species, breed, age and weight if they know it, what's happening and since when, whether the pet is eating, drinking, and urinating normally, and any known toxin exposure.
+Good receptionist moves: lead with empathy — the caller may be crying; get the symptoms and a callback number early in case the call drops; for emergencies, give the come-now direction first and take the remaining details second.
+Never promise: a diagnosis, what treatment will cost before the exam, that a pet will be fine, or a surgery outcome — offer the exam and the written estimate the hospital provides.`,
+
+  'chiropractic': `What callers usually want: back or neck pain that won't quit; a recent car accident (callers often ask about being evaluated promptly after a crash — route the specifics to the clinic); headaches, sciatica, or a pinched nerve; a sports or workout injury; whether the clinic takes their health insurance or auto insurance; how many visits they'll need.
+How the work usually flows: it starts with an evaluation visit — history, an exam, and any imaging the clinic arranges — before a treatment plan is set. The doctor then recommends a plan (a series of adjustments is common for accident and chronic cases, sometimes with therapies such as decompression, massage, or laser alongside), and progress is re-checked along the way.
+What to capture: name, phone, what's hurting and since when, whether it followed an accident or injury (and the date), whether they've had imaging or care elsewhere, and insurance details if they want coverage checked.
+Good receptionist moves: be sympathetic — callers are often in real pain and sometimes a little skeptical; offer the earliest evaluation appointment; for accident callers, gently note that being seen promptly matters and let the clinic explain the insurance side.
+Never promise: a diagnosis, that treatment will fix a condition, a number of visits, or that insurance will pay — the doctor evaluates first and the clinic confirms coverage.`,
 };
 
 /** Build the prompt layer for one practice type. The marker string
