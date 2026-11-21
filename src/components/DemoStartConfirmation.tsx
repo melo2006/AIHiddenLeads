@@ -28,12 +28,19 @@ export interface DemoStartValues { websiteUrl: string; name: string; email: stri
  * visualViewport so the card — and its sticky action footer — stays
  * above the phone keyboard while the visitor edits the address.
  */
-export default function DemoStartConfirmation({ action, onAnswer }: { action: VoiceAction; onAnswer: (approved: boolean, demo?: DemoStartValues) => void }) {
+export default function DemoStartConfirmation({ action, onAnswer, onDraftChange }: { action: VoiceAction; onAnswer: (approved: boolean, demo?: DemoStartValues) => void; onDraftChange?: (values: DemoStartValues) => void }) {
   const { t } = useTranslation();
   const [websiteUrl, setWebsiteUrl] = useState(action.demo?.websiteUrl || '');
   const [name, setName] = useState(action.demo?.name || '');
   const [email, setEmail] = useState(action.demo?.email || '');
   const [error, setError] = useState('');
+  // Item 5 form fix (2026-11-21): this card already refused
+  // non-explicit dismissals, but its values still lived and died
+  // with the mount — a provider cancellation or a teardown took
+  // the visitor's corrected address with it. Every edit now lifts
+  // to the parent's draft, and a re-issued card opens with the
+  // corrections in place (same discipline as the follow-up card).
+  useEffect(() => { onDraftChange?.({ websiteUrl, name, email }); }, [websiteUrl, name, email, onDraftChange]);
   // visualViewport: the visible height/offset with the soft keyboard
   // open. Null on browsers without it — the dvh fallback then rules.
   const [viewport, setViewport] = useState<{ height: number; offsetTop: number } | null>(null);

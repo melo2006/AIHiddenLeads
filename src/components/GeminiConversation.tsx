@@ -20,12 +20,12 @@ import "@/i18n";
 import { explicitUiLocale, prewarmLocaleMismatch, type UiLocale } from "@/lib/uiLocale";
 import { warmSessionUnusable } from "@/lib/warmSession";
 import { faceGateAction, lateFaceAction, FACE_REFUSAL_WINDOW_MS, type FaceStartOutcome, type FaceStartSettlement } from "@/lib/faceStartGate";
-import { clearDemoResume } from "@/lib/demoVerification";
+import { clearDemoResume, normalizeDictatedEmail, normalizeDictatedPhone } from "@/lib/demoVerification";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { microphonePcm, pcmToBase64, shouldSendMicrophone, microphoneAutoGain, initialCaptureMode, createAmbientGateState, pushAmbientRms, createSpeechGateState, pushSpeechGateFrame, autoNoiseFilter, appliedAmbientLevel, appliedNoiseFilter, deadAirRelaxedFilter, type AmbientGateState, type NoiseFilter, type CaptureMode } from "@/lib/voiceLabAudio";
 
 import VoiceActionConfirmation, { type VoiceAction } from "./VoiceActionConfirmation";
-import DemoStartConfirmation from "./DemoStartConfirmation";
+import DemoStartConfirmation, { type DemoStartValues } from "./DemoStartConfirmation";
 import BrowserVoiceHandoff from "@/components/BrowserVoiceHandoff";
 import { voiceIdleAction, homepageWalkthroughDue, type VoiceIdleStage } from '@/lib/voiceIdle';
 import { voiceDisconnectMessage } from '@/lib/voiceDisconnect';
@@ -512,7 +512,64 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // move it into the waiting slot when a cancellation lands.
   const [waitingAction, setWaitingAction] = useState<VoiceAction | null>(null);
   const pendingActionRef = useRef<VoiceAction | null>(null);
-  const trackPendingAction = (action: VoiceAction | null) => { pendingActionRef.current = action; setPendingAction(action); };
+  // ITEM 5 FORM FIX (2026-11-21) — two halves, both living here
+  // because every card arrives through trackPendingAction (both
+  // sockets funnel into it):
+  //
+  // (1) NORMALIZED PREFILL. The proxy already cleans the model's
+  // raw tool args server-side (_shared/contact-normalize.ts); the
+  // same cleanup runs here too, so a card that reaches the client
+  // by any path shows the assembled candidate ("melo2006 at gmail
+  // dot com" → melo2006@gmail.com), never raw transcription
+  // fragments. The appointment card is exempt on both sides: its
+  // contact is the already-confirmed store, not raw args.
+  //
+  // (2) DRAFT PERSISTENCE. A card's edits used to live in the card
+  // component's mount-scoped state: any unmount — a provider
+  // cancel_action, a teardown, the dismissal itself — took the
+  // visitor's corrections with it, and a re-issued card restarted
+  // from the model's original values. Drafts now live HERE, keyed
+  // by action type, each remembering the issued values it started
+  // from (base) beside the visitor's latest edits (values). A card
+  // that comes back with the SAME base (the chip's reopen, the
+  // model's re-presentation, a post-swap re-issue) renders with the
+  // edits in place; a card carrying DIFFERENT details retires the
+  // stale draft and starts from its own values. Consent is never
+  // part of a draft — it is re-given on every presentation.
+  type ContactValues = { name: string; email: string; phone: string };
+  interface CardDraft<T> { base: T; values: T }
+  const [contactDrafts, setContactDrafts] = useState<Partial<Record<string, CardDraft<ContactValues>>>>({});
+  const contactDraftsRef = useRef<Partial<Record<string, CardDraft<ContactValues>>>>({});
+  const [demoDraft, setDemoDraft] = useState<CardDraft<DemoStartValues> | null>(null);
+  const demoDraftRef = useRef<CardDraft<DemoStartValues> | null>(null);
+  const trackContactDraft = (actionType: string, draft: CardDraft<ContactValues> | null) => {
+    const next = { ...contactDraftsRef.current };
+    if (draft) next[actionType] = draft; else delete next[actionType];
+    contactDraftsRef.current = next; setContactDrafts(next);
+  };
+  const trackDemoDraft = (draft: CardDraft<DemoStartValues> | null) => { demoDraftRef.current = draft; setDemoDraft(draft); };
+  const normalizePendingAction = (action: VoiceAction): VoiceAction => {
+    if (action.action === 'request_platform_appointment') return action;
+    const next = { ...action };
+    if (next.contact) next.contact = { ...next.contact, email: normalizeDictatedEmail(next.contact.email), phone: normalizeDictatedPhone(next.contact.phone) };
+    if (next.demo) next.demo = { ...next.demo, email: normalizeDictatedEmail(next.demo.email) };
+    return next;
+  };
+  const retireStaleDraft = (action: VoiceAction) => {
+    if (action.demo) {
+      const draft = demoDraftRef.current;
+      if (draft && (draft.base.websiteUrl !== action.demo.websiteUrl || draft.base.name !== action.demo.name || draft.base.email !== action.demo.email)) trackDemoDraft(null);
+      return;
+    }
+    if (!action.contact || action.action === 'request_platform_appointment') return;
+    const draft = contactDraftsRef.current[action.action];
+    if (draft && (draft.base.name !== action.contact.name || draft.base.email !== action.contact.email || draft.base.phone !== action.contact.phone)) trackContactDraft(action.action, null);
+  };
+  const trackPendingAction = (action: VoiceAction | null) => {
+    const normalized = action ? normalizePendingAction(action) : null;
+    if (normalized) retireStaleDraft(normalized);
+    pendingActionRef.current = normalized; setPendingAction(normalized);
+  };
   const [actionNotice, setActionNotice] = useState('');
   // VOICE DEMO START (2026-11-21): once the proxy confirms the
   // visitor's demo really started, its entry card lives here — a
@@ -2412,6 +2469,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     if (endSignalTimerRef.current !== null) { window.clearTimeout(endSignalTimerRef.current); endSignalTimerRef.current = null; }
     trackPendingAction(null);
     setWaitingAction(null);
+    // Item 5 form fix: the session's card drafts die with it — a
+    // later session's card must never open with a stranger's edits.
+    // (The swap partial teardown below deliberately keeps them: the
+    // parent survives a cut-over, and the base check at arrival
+    // decides whether a re-issued card is the same card coming back.)
+    contactDraftsRef.current = {}; setContactDrafts({});
+    demoDraftRef.current = null; setDemoDraft(null);
     deadlineRef.current = 0;
     setRemainingSeconds(null);
     // Handoff-leg recovery (2026-11-14): a teardown that lands
@@ -3714,7 +3778,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           // unresolved, every frame is silence too — the host hears no
           // new visitor turn, so she cannot generate her next scripted
           // beat into the handover (retest #3's A2/A3 stall).
-          const pcm = microphonePcm(micAudioPasses({ swapHold: swapHoldRef.current !== null, openingGate, noiseGateOpen: gate.open, holdToTalk: capture.mode === "hold" }) ? input : new Float32Array(input.length), e.inputBuffer.sampleRate);
+          // Confirmation hold (item 5 form fix, 2026-11-21): while a
+          // confirmation card is on screen, frames are silence too —
+          // the visitor's spoken correction otherwise reached Gemini
+          // and could cancel the tool call the card belongs to,
+          // deleting the form mid-edit.
+          const pcm = microphonePcm(micAudioPasses({ swapHold: swapHoldRef.current !== null, openingGate, noiseGateOpen: gate.open, holdToTalk: capture.mode === "hold", confirmationHold: pendingActionRef.current !== null }) ? input : new Float32Array(input.length), e.inputBuffer.sampleRate);
           ws.send(JSON.stringify({ type: "audio", data: pcmToBase64(pcm) }));
         };
         source.connect(node);
@@ -4183,7 +4252,9 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         // Swap hold (handover fix): same silence rule on the segment
         // socket — a boundary armed from inside a segment (step-out,
         // meet-alex) holds this persona's mic until it resolves.
-        const pcm = microphonePcm(micAudioPasses({ swapHold: swapHoldRef.current !== null, openingGate, noiseGateOpen: gate.open, holdToTalk: capture.mode === "hold" }) ? input : new Float32Array(input.length), e.inputBuffer.sampleRate);
+        // Confirmation hold (item 5 form fix, 2026-11-21): same
+        // silence rule while a confirmation card is on screen.
+        const pcm = microphonePcm(micAudioPasses({ swapHold: swapHoldRef.current !== null, openingGate, noiseGateOpen: gate.open, holdToTalk: capture.mode === "hold", confirmationHold: pendingActionRef.current !== null }) ? input : new Float32Array(input.length), e.inputBuffer.sampleRate);
         ws.send(JSON.stringify({ type: "audio", data: pcmToBase64(pcm) }));
       };
       source.connect(node);
@@ -5334,9 +5405,31 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       if (socketOpen) handoffReturnRef.current = null;
     }
   };
+  // ITEM 5 FORM FIX (2026-11-21): the card renders with the lifted
+  // draft's values when one belongs to it (retireStaleDraft vetted
+  // the base at arrival), and every edit lifts back up as it is
+  // typed, so the card component's own state is only a mirror of
+  // the parent-held draft — an unmount can no longer take the
+  // visitor's corrections with it. A confirmed answer retires the
+  // draft; a dismissal keeps it for the re-presentation.
+  const liftContactDraft = (values: ContactValues) => {
+    if (!pendingAction || pendingAction.action === 'request_demo_start') return;
+    const existing = contactDraftsRef.current[pendingAction.action];
+    const base = existing?.base ?? pendingAction.contact;
+    if (!base) return;
+    if (existing && existing.values.name === values.name && existing.values.email === values.email && existing.values.phone === values.phone) return;
+    trackContactDraft(pendingAction.action, { base, values });
+  };
+  const liftDemoDraft = (values: DemoStartValues) => {
+    const existing = demoDraftRef.current;
+    const base = existing?.base ?? (pendingAction?.demo ? { websiteUrl: pendingAction.demo.websiteUrl, name: pendingAction.demo.name, email: pendingAction.demo.email } : undefined);
+    if (!base) return;
+    if (existing && existing.values.websiteUrl === values.websiteUrl && existing.values.name === values.name && existing.values.email === values.email) return;
+    trackDemoDraft({ base, values });
+  };
   const confirmation = pendingAction ? (pendingAction.action === 'request_demo_start'
-    ? <DemoStartConfirmation key={pendingAction.id} action={pendingAction} onAnswer={(approved, demo) => { wsRef.current?.send(JSON.stringify({type:'confirm_action',id:pendingAction.id,approved,demo})); if (approved) setWaitingAction(null); else setWaitingAction(pendingAction); trackPendingAction(null); }}/>
-    : <VoiceActionConfirmation key={pendingAction.id} action={pendingAction} onAnswer={(approved, contact) => { wsRef.current?.send(JSON.stringify({type:'confirm_action',id:pendingAction.id,approved,contact})); if (approved) setWaitingAction(null); else setWaitingAction(pendingAction); trackPendingAction(null); }}/>) : null;
+    ? <DemoStartConfirmation key={pendingAction.id} action={demoDraft ? { ...pendingAction, demo: demoDraft.values } : pendingAction} onAnswer={(approved, demo) => { wsRef.current?.send(JSON.stringify({type:'confirm_action',id:pendingAction.id,approved,demo})); if (approved) { setWaitingAction(null); trackDemoDraft(null); } else setWaitingAction(pendingAction); trackPendingAction(null); }} onDraftChange={liftDemoDraft}/>
+    : <VoiceActionConfirmation key={pendingAction.id} action={contactDrafts[pendingAction.action] ? { ...pendingAction, contact: contactDrafts[pendingAction.action]!.values } : pendingAction} onAnswer={(approved, contact) => { wsRef.current?.send(JSON.stringify({type:'confirm_action',id:pendingAction.id,approved,contact})); if (approved) { setWaitingAction(null); trackContactDraft(pendingAction.action, null); } else setWaitingAction(pendingAction); trackPendingAction(null); }} onDraftChange={liftContactDraft}/>) : null;
   // VOICE DEMO START entry card (2026-11-21): shown once the proxy
   // confirms the demo started. A plain anchor the VISITOR taps —
   // sales actions never navigate a live conversation automatically —

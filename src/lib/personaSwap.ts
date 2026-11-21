@@ -1134,9 +1134,18 @@ export function faceNotLiveIsDeath(liveness: StagedFaceLiveness): boolean {
  *  everything: while a swap is armed and unresolved, the host's mic
  *  sends silence frames — the same trick the opening gate uses — so
  *  the model hears no new visitor turn and generates no further
- *  scripted beats into the handover stall. */
-export function micAudioPasses(input: { swapHold: boolean; openingGate: boolean; noiseGateOpen: boolean; holdToTalk: boolean }): boolean {
+ *  scripted beats into the handover stall. The confirmation hold
+ *  (item 5 form fix, 2026-11-21) is the same trick for a different
+ *  stall: while a confirmation card is on screen, the visitor's
+ *  speech — a spoken correction, a side remark — reached Gemini and
+ *  could cancel the very tool call the card belongs to, deleting the
+ *  form mid-edit. Silence frames keep the stream's clock running
+ *  while the card is up; the mic goes live again the moment it
+ *  closes. It overrides hold-to-talk too: a held button must not
+ *  talk over an open card. */
+export function micAudioPasses(input: { swapHold: boolean; openingGate: boolean; noiseGateOpen: boolean; holdToTalk: boolean; confirmationHold?: boolean }): boolean {
   if (input.swapHold) return false;
+  if (input.confirmationHold) return false;
   if (input.holdToTalk) return true;
   return input.noiseGateOpen && !input.openingGate;
 }

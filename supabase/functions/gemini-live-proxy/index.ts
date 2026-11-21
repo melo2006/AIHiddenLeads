@@ -13,6 +13,7 @@ import { checkTimeAvailability, parseDayPart, preferredDatesFor, resolveNamedTim
 import { sendBookingConfirmations } from '../_shared/booking-confirm.ts'
 import { platformBookingInstruction } from '../_shared/phone-demo.ts'
 import { confirmedVisitorContact, CONTACT_READBACK_POLICY, CAPTURE_RITUAL_POLICY, CARD_REPRESENT_POLICY } from '../_shared/visitor-followup.ts'
+import { normalizePendingContact } from '../_shared/contact-normalize.ts'
 import { capturedContactFromUnknown, capturedContactBlock, mergeCapturedContact, promptVisitorDetails, type CapturedContact } from '../_shared/captured-contact.ts'
 import { freshConsentAskState, syncConsentAskState, consentAskTurnDecision, spokenTextingAnswer, CONSENT_ASK_TOOL_DIRECTIVE, CONSENT_ASK_NUDGE, CONSENT_RECORD_NUDGE, type ConsentAskState } from '../_shared/consent-ask.ts'
 import { armCaptureGateFromRecap, captureGateDirective, captureGateRecordDirective, captureGateTurnDecision, freshCaptureGateState, noteVisitorUtterance, spellbackCorrectionNudge, type CaptureGateState } from '../_shared/capture-gate.ts'
@@ -1219,7 +1220,16 @@ Deno.serve(async (req) => {
               if (call.name === 'request_platform_appointment' && (!slotStart || !Number.isFinite(Date.parse(slotStart)))) { respond({error:'Choose a valid ISO appointment time from availability.'}); continue; }
               pendingActions.set(call.id,{call:{id:call.id,name:call.name},slotStart});
               if (call.name === 'request_platform_appointment') bookingGateTools.cardPresented = true;
-              const contact = call.name !== 'request_platform_appointment' ? {name: typeof call.args?.name === 'string' ? call.args.name.slice(0,100) : '',email: typeof call.args?.email === 'string' ? call.args.email.slice(0,255) : '',phone: typeof call.args?.phone === 'string' ? call.args.phone.slice(0,30) : ''} : confirmedContact;
+              // Item 5 form fix (2026-11-21): the model's raw args
+              // used to become the card's prefill untouched (length
+              // truncation only), so a spelled-out email arrived as
+              // transcription garbage. Dictated email/phone now run
+              // through the cleanup first — the card, the
+              // re-presentation record and the capture below all
+              // carry the cleaned candidate, labelled as heard on
+              // screen. The appointment card is exempt: its contact
+              // is the already-confirmed store, not raw args.
+              const contact = call.name !== 'request_platform_appointment' ? normalizePendingContact({name: typeof call.args?.name === 'string' ? call.args.name.slice(0,100) : '',email: typeof call.args?.email === 'string' ? call.args.email.slice(0,255) : '',phone: typeof call.args?.phone === 'string' ? call.args.phone.slice(0,30) : ''}) : confirmedContact;
               // Publish #68: remember the card for re-presentation,
               // and record the verbally captured details behind it —
               // the args ARE the capture the ritual just confirmed,

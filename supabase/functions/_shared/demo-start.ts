@@ -22,6 +22,8 @@
 // nothing to send a code to, so the card links without gate=1 and
 // Aspen can offer the link by email through the normal follow-up.
 
+import { normalizeDictatedEmail } from './contact-normalize.ts';
+
 export const DEMO_START_TOOL_NAME = 'request_demo_start';
 
 /** Mirrors DEMO_CONSENT_DISCLOSURE_VERSION in src/lib/demoVerification.ts
@@ -100,7 +102,9 @@ const asTrimmedString = (value: unknown, max: number): string =>
 /** The confirmation card's prefill: the tool's arguments first (they
  *  are what Aspen just heard), then anything already captured this
  *  visit, else empty. Truncated to the same limits the follow-up
- *  card uses. */
+ *  card uses. The email runs through the dictated-email cleanup
+ *  (item 5 form fix, 2026-11-21) like every other card's prefill —
+ *  a spelled-out address arrives assembled, not as raw fragments. */
 export function demoStartCardFromArgs(
   args: Record<string, unknown> | undefined,
   captured: { name?: string; email?: string } | null,
@@ -108,7 +112,7 @@ export function demoStartCardFromArgs(
   return {
     websiteUrl: asTrimmedString(args?.websiteUrl, 255),
     name: asTrimmedString(args?.name, 100) || asTrimmedString(captured?.name, 100),
-    email: asTrimmedString(args?.email, 255) || asTrimmedString(captured?.email, 255),
+    email: normalizeDictatedEmail(asTrimmedString(args?.email, 255) || asTrimmedString(captured?.email, 255)),
   };
 }
 

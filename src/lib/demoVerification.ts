@@ -397,6 +397,30 @@ export function normalizeDictatedEmail(raw: string): string {
     .replace(/\.$/, '');
 }
 
+/**
+ * The phone counterpart of normalizeDictatedEmail (item 5 form fix,
+ * 2026-11-21): the model's raw tool argument for a dictated number —
+ * digit words ("nine five four…"), punctuation, a leading country 1 —
+ * becomes the plain digit string the confirmation form should show,
+ * reduced to the last 10 digits (the server's capture-gate rule: a
+ * leading country 1 is not identity). A value with no digits at all
+ * is returned trimmed but untouched — cleanup never destroys what
+ * the visitor can still correct by hand. The Deno port lives in
+ * supabase/functions/_shared/contact-normalize.ts; the two are kept
+ * in step by test (src/test/item5-form-persistence.test.tsx).
+ */
+export function normalizeDictatedPhone(raw: string): string {
+  if (!raw) return '';
+  const wordDigits = raw
+    .toLowerCase()
+    .split(/[\s,.\-()]+/)
+    .map((token) => DIGIT_WORDS[token] ?? token)
+    .join(' ');
+  const digits = wordDigits.replace(/\D/g, '');
+  if (!digits) return raw.trim();
+  return digits.length > 10 ? digits.slice(-10) : digits;
+}
+
 // ---------------------------------------------------------------------------
 // Resume persistence (localStorage, fail-silent)
 // ---------------------------------------------------------------------------

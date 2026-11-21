@@ -308,7 +308,11 @@ describe('client wiring — the waiting chip (defect 1b)', () => {
   });
 
   it('a dismissal moves the card into the waiting slot; a confirm retires it', () => {
-    expect(clientSource).toContain('if (approved) setWaitingAction(null); else setWaitingAction(pendingAction);');
+    // Item 5 form fix (2026-11-21): a confirm now also retires the
+    // parent-held draft; a dismissal keeps both the waiting slot
+    // and the draft for the re-presentation.
+    expect(clientSource).toContain('if (approved) { setWaitingAction(null); trackDemoDraft(null); } else setWaitingAction(pendingAction);');
+    expect(clientSource).toContain('if (approved) { setWaitingAction(null); trackContactDraft(pendingAction.action, null); } else setWaitingAction(pendingAction);');
   });
 
   it('a provider cancellation also leaves the chip behind', () => {
