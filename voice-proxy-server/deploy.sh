@@ -57,6 +57,10 @@ FUNCTIONS_SRC="${REPO_ROOT}/supabase/functions"
 # and the demo-flow build added demo-start.ts to the proxy's imports;
 # both are self-contained (no imports of their own). The VPS copy had
 # been stale at the 2026-11-18 deploy (809a0e7) without either.
+# 2026-11-21 (later): +1 (46 → 47) — email-shell.ts, imported by the
+# current hostinger-mail.ts; found by tracing the proxy's full
+# transitive import closure (47 modules) after the redeploy
+# crash-looped on exactly this missing file.
 # NOTE: `deno cache` (step 4) is NOT a reliable closure authority —
 # server.ts loads the function entry through a dynamic import, which the
 # static cache pass does not traverse (the 2026-11-15 deploy cached
@@ -84,6 +88,7 @@ SHARED_CLOSURE=(
   discovery-gate.ts
   drift-watch.ts
   elevenlabs-mouth.ts
+  email-shell.ts
   farewell.ts
   followup.ts
   guarded-search.ts
