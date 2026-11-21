@@ -32,6 +32,8 @@ import { voiceDisconnectMessage } from '@/lib/voiceDisconnect';
 import { voiceProxyWsUrl } from '@/lib/voiceProxy';
 import { classifyMicrophoneFailure, isEmbeddedContext } from "@/lib/embeddedContext";
 import {campaignVisit, trackCampaignEvent} from '@/lib/campaignTracking';
+import { currentPageContext, type PageContext } from '@/lib/pageContext';
+import { samePageContext, sanitizePageContext } from '../../supabase/functions/_shared/page-context';
 import { salesPlans, type SalesPlan } from '@/lib/salesActions';
 import SimliAvatar, { SOUND_BLOCKED, isVideoStartFailure, type SimliAvatarHandle } from '@/components/SimliAvatar';
 import { BOUNDARY_TARGET, boundaryTargetFor, boundedSettle, boundaryForAssistantLine, buildSwapRecap, chainIsMidSegment, chainStashTarget, cutoverAudioSync, cutoverMode, cutoverReady, dequeueSwapExecution, dropApologyVariant, enqueueSwapExecution, faceLivenessOnLive, faceLivenessOnNotLive, faceLivenessOnStartSettled, gateWaitContinues, INITIAL_SWAP_STATE, introYieldOnVisitorLine, lineAnnouncesDoorway, micAudioPasses, noteAlexIntent, noteAspenIntent, noteDoorwayEngagement, noteSegmentFailure, otherFaceSlot, pendingExecutionBoundary, pendingRetryBoundary, PHASE_AFTER_BOUNDARY, PHASE_ENTRY, PRESTAGE_START_TIMEOUT_MS, prestageWatchDecision, reconnectTarget, recordSwapDiag, retryArmStamp, segmentAttemptsFor, segmentConnectRetryAllowed, segmentTokenStale, SEGMENT_TOKEN_TTL_MS, swapBridgeDue, swapDiagPersistPayload, swapFallbackLine, swapWatchdogAction, SWAP_CROSSFADE_MS, SWAP_GATE_POLL_MS, SWAP_GATE_WAIT_MS, swapRecapFacts, SWAP_DIAG_PERSIST_EVENTS, visitorSignalsStepOut, type ChainStash, type FaceSlot, type PersonaBoundary, type PersonaId, type StagedFaceLiveness, type SwapDiagEntry, type SwapPhase, type SwapState } from '@/lib/personaSwap';
@@ -1237,6 +1239,59 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   };
 
   const wsRef = useRef<WebSocket | null>(null);
+  // PAGE FEED (homepage-test item 6, 2026-11-21): while a homepage
+  // SALES session is live, this feed reports the visitor's current
+  // page to the proxy ({type:'page_context'} — see
+  // _shared/page-context.ts). `last` is the last IN-TAB context
+  // sent; new-tab sales actions are reported separately (via:'tab')
+  // and never overwrite it, so the visitor coming back to this tab
+  // is not mistaken for a fresh navigation. The feed self-terminates
+  // when its socket is no longer the live one (stop/reconnect), so
+  // no teardown path has to remember it.
+  const pageFeedRef = useRef<{ ws: WebSocket; timer: number; debounce: number; last: PageContext | null } | null>(null);
+  const stopPageFeed = () => {
+    const feed = pageFeedRef.current;
+    if (!feed) return;
+    pageFeedRef.current = null;
+    window.clearInterval(feed.timer);
+    window.clearTimeout(feed.debounce);
+  };
+  const sendPageContext = (ws: WebSocket, ctx: PageContext, via?: 'tab') => {
+    if (ws.readyState !== WebSocket.OPEN) return;
+    try { ws.send(JSON.stringify({ type: 'page_context', ...ctx, ...(via ? { via } : {}) })); } catch { /* socket closing */ }
+  };
+  const startPageFeed = (ws: WebSocket) => {
+    stopPageFeed();
+    const feed: { ws: WebSocket; timer: number; debounce: number; last: PageContext | null } = { ws, timer: 0, debounce: 0, last: currentPageContext() };
+    pageFeedRef.current = feed;
+    feed.timer = window.setInterval(() => {
+      if (pageFeedRef.current !== feed || wsRef.current !== ws) { stopPageFeed(); return; }
+      const next = currentPageContext();
+      if (!next || samePageContext(next, feed.last)) return;
+      window.clearTimeout(feed.debounce);
+      feed.debounce = window.setTimeout(() => {
+        if (pageFeedRef.current !== feed) return;
+        feed.last = next;
+        sendPageContext(ws, next);
+      }, 1200);
+    }, 1000);
+  };
+  // Sales actions in the panel (Start now / Book a quick call / Try
+  // your website) open their page in a NEW tab; AspenSalesActions
+  // announces the destination on this window event, and the live
+  // session's feed forwards it so Aspen can acknowledge the tab and
+  // keep helping in this one. No live sales feed → the event is
+  // inert (previews, tenant demos, chat mode).
+  useEffect(() => {
+    const onSalesNav = (event: Event) => {
+      const feed = pageFeedRef.current;
+      if (!feed) return;
+      const ctx = sanitizePageContext({ path: (event as CustomEvent<{ path?: unknown }>).detail?.path });
+      if (ctx) sendPageContext(feed.ws, ctx, 'tab');
+    };
+    window.addEventListener('aspen-sales-nav', onSalesNav);
+    return () => window.removeEventListener('aspen-sales-nav', onSalesNav);
+  }, []);
   const micStreamRef = useRef<MediaStream | null>(null);
   const micCtxRef = useRef<AudioContext | null>(null);
   const playCtxRef = useRef<AudioContext | null>(null);
@@ -3371,7 +3426,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         if (warm) warmLocaleRef.current = locale;
         return voiceSessionHeaders().then(headers => {
           if (generation !== generationRef.current) throw new Error('Demo start cancelled.');
-          return supabase.functions.invoke("gemini-session", { headers, body: { visitorKey: key, agentId, leadId, prospectId, draft, preview, voice: previewVoice || voice, model: testModel, campaign:campaignVisit(), hour: new Date().getHours(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, locale, visitorName, consent: !warm && consentReadyRef.current, prewarm: warm, share: shareToken, resumeContext, reconnect: reconnecting && !!resumeContext, verification, invite, sample, guide } });
+          return supabase.functions.invoke("gemini-session", { headers, body: { visitorKey: key, agentId, leadId, prospectId, draft, preview, voice: previewVoice || voice, model: testModel, campaign:campaignVisit(), page: currentPageContext(), hour: new Date().getHours(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, locale, visitorName, consent: !warm && consentReadyRef.current, prewarm: warm, share: shareToken, resumeContext, reconnect: reconnecting && !!resumeContext, verification, invite, sample, guide } });
         });
       };
       const [initialSession, stream, ,] = await Promise.all([
@@ -3520,6 +3575,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       setHandoffToken(authorized.handoffToken || null);
       const ws = new WebSocket(`${voiceProxyWsUrl()}?token=${encodeURIComponent(authorized.token)}&capture=${captureMode}${warm ? '&hold=1' : ''}`);
       wsRef.current = ws;
+      // PAGE FEED (item 6): homepage-sales sessions report the
+      // visitor's page as it changes. A warm (pre-tap) socket is
+      // included: the proxy stores pre-begin updates silently and
+      // only injects once the session has begun, and the feed is
+      // already running when the warm session activates on this
+      // same socket. Every other session shape never starts it.
+      if (authorized.homepageSales === true && !preview) startPageFeed(ws);
       // Stale-prewarm guard: keep the warm session's own socket
       // handle so the tap-time freshness check (lib/warmSession)
       // reads THIS socket's state, not whatever wsRef points at later.

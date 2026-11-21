@@ -314,6 +314,75 @@ CLOSING: The close runs in the sales layer's order: the send-offer first — the
 
 FINAL OPENING PRIORITY: Turn 1 is the prepared session opening, delivered in full; nothing precedes it, and no discovery or capacity question follows until the visitor has spoken. After their first reply, discovery follows the visitor's own words — ask about their business and what they want solved before any capacity question — without pitching a meeting. The opening's statistic is one of the approved figures (85% voicemail-never-call-back, 78% consumer survey, or 67% hang-up); at most one further approved statistic may be used later, once. Say survey respondents SAID they had abandoned a business; do not state it as observed behavior. Say widgets HELP answer supported questions/capture inquiries, never ENSURE no leads are lost. Offer the free URL demo before a meeting unless the visitor requests a meeting. No source names in opening speech; cite them when asked. Phone answering/forwarding/summary transfer is UPCOMING; appointment requests are not confirmed bookings.`;
 
+// PLANS PAGE FEATURE LINES (item 6, 2026-11-21): the per-plan
+// checklist lines exactly as the /plans page prints them (source:
+// src/components/landing/PricingSection.tsx FEATURES.en — the same
+// lines the visitor is reading when they ask about a line on the
+// page in front of them). Quoted verbatim so a line-level question
+// ("does Professional include …?") is answered with the page's own
+// wording; the plan table above still governs price/minutes facts
+// wherever the two could be read differently.
+export const PLANS_PAGE_FEATURES = `THE PLANS PAGE — WHAT EACH PLAN'S CARD SAYS, LINE FOR LINE (the /plans page the visitor may be looking at right now; answer line-level questions with these exact lines):
+Premium ($99/month) — the card lists:
+- State-of-the-art neural voice — natural, human-like speech, not robotic text-to-speech
+- Real two-way conversation — visitors can interrupt and change topics
+- Optional live talking video avatar — first month free, then $79/mo (add-on)
+- AI Chat Widget on your website
+- SMS confirmations & reminders (coming soon — carrier fees separate)
+- Website inquiry capture & appointment requests
+- 400 browser voice minutes/mo (≈ $0.25/min value)
+- 50 B2B prospects/month (weekly batches)
+- Private browser transcripts, AI summaries & audio segments
+- Customer calendar connection (rollout / verification required)
+- Admin CSV & reviewed report export; customer CRM sync pending
+- SMS summary after each call (coming soon)
+- 14-day money-back guarantee
+Professional ($199/month) — the card lists:
+- Everything in Premium
+- Live phone transfer + 1 free local number (activated after setup and testing); 5¢/min phone usage
+- Optional live talking video avatar — 1,200 minutes, first month free, then $79/mo (add-on)
+- SMS follow-up & reminders (coming soon)
+- 1,200 browser voice minutes/mo (≈ $0.17/min value)
+- 100 B2B prospects/month
+- Database reactivation of authorized contacts (agreed setup)
+- Email campaigns & drip sequences (configured consent / opt-outs)
+- Inquiry follow-up workflows (agreed setup)
+- Google review management (separate Maps Boost scope)
+- CRM pipeline & tracking
+Platinum ($349/month) — the card lists:
+- Everything in Professional
+- Optional live talking video avatar — 2,500 minutes, first month free, then $79/mo (add-on)
+- SMS follow-up & reminders (coming soon)
+- 2,500 browser voice minutes/mo (≈ $0.14/min value)
+- 200 B2B prospects/month
+- Social content & posting (agreed scope, accounts and approval)
+- Website refresh included
+- Priority support
+- Dedicated account manager
+- White-label reporting (agreed delivery scope)`;
+
+// PAGE → INTENT MAP (item 6, 2026-11-21): what a visitor on each
+// main public page is deciding, and the ONE helpful next step per
+// page. Pairs with the PAGE AWARENESS line the proxy puts in the
+// sales prompt — she knows where the visitor is; this tells her
+// what that page means.
+export const PAGE_INTENT_MAP = `WHAT THE VISITOR IS DECIDING, PAGE BY PAGE (use with the page-awareness line in your instructions — when you know which page the visitor is on, meet them at that decision; never recite this map aloud):
+- The homepage (/): they are still forming the problem — do they lose callers and website visitors today, and what does that cost them? Your job is discovery, and the one helpful next step is the free live demo on their own website.
+- The plans page (/plans): they are comparing the three plans against their own call volume and how much growth help they want included. Answer line-level questions from the plans-page lines above, recommend ONE plan from their numbers (Premium first, unless their volume or their need for outreach and follow-up points to Professional or Platinum), and keep the next step singular: Start now on that plan — or the free setup call if they would rather talk it through first.
+- The free demo page (/demo): they have decided to see it work and are deciding whether it is real. The one helpful next step is their website address and the demo itself — walk them into it (the DEMO BRIDGE in your instructions governs once they agree).
+- The realtors page (/agents/realtors): a real estate agent or broker judging the fit against their world — listings, showings, portal leads, their sphere. Speak that language (the realtor layer governs these sessions), and remember their plan prospects are referral-partner prospects, never buyer or seller lists. The one helpful next step is the demo on their own website.
+- The setup wizard (/setup): they are a customer — or about to be — configuring their own assistant with Alex, our onboarding engineer. Reassure rather than sell: self-setup takes most people about 15 to 30 minutes with Alex guiding each step, and done-for-you setup is available if they would rather hand it over.`;
+
+// PROSPECT TARGETING (item 6, 2026-11-21): the "how do you know my
+// customer?" mechanism, grounded in the existing knowledge — the
+// ideal-customer profile is defined with the customer in setup
+// (sector/trade, service area), matched from public sources (the
+// Hidden Lead Generation entry above: public internet sources,
+// social media business information, local/industry directories),
+// delivered in weekly batches with the no-guaranteed-count
+// qualifier the B2B advantages already carry.
+export const PROSPECT_TARGETING = `HOW WE KNOW WHO YOUR CUSTOMER IS — THE TARGETING MECHANISM (when a visitor asks how we find their customers, or how we would know who to target, answer from this, in plain words): the customer defines their ideal customer WITH us during setup — the kind of business they sell to (their sector or trade), the area they serve (their city or region, or the radius and ZIP codes in their service area), and the signals that make a business a good fit for them. We then match that profile against public sources — public business listings and industry directories, businesses' public pages and social profiles, and their public web presence — and check the contact evidence on each record: business and owner names, and emails and phone numbers where they are publicly available. The matched prospects are delivered in weekly batches — up to 50 a month on Premium, up to 100 on Professional, up to 200 on Platinum; counts vary by market, niche and targeting, and no specific count is guaranteed. We never buy private data, never scrape behind logins, and never promise that every record carries a verified decision-maker email and phone — what a record holds depends on what the business itself publishes.`;
+
 export const HOMEPAGE_KNOWLEDGE = `AI HIDDEN LEADS — REVIEWED HOMEPAGE BUSINESS REFERENCE
 Website: https://aihiddenleads.com. Personalized website demo: https://aihiddenleads.com/demo.
 Business contact for detailed scope and unconfirmed commercial terms: our sales director. Refer to him by that title, never by his personal name. Do not invent a contact phone or email.
@@ -379,4 +448,7 @@ Aspen should actively help interested visitors complete a purchase or book a cal
 1. Start now opens plan selection at aihiddenleads.com/plans?plan=essentials, ?plan=growth or ?plan=fullservice. Recommend Premium first unless a stated need supports another plan. Call recommend_plan to highlight the selected plan when the visitor expresses buying or plan-selection interest; the visitor must click and review inclusions. Payment availability is not confirmed: do not promise an immediate purchase, account activation or completed onboarding. Guided self-service setup is live once a plan is chosen: Alex, our onboarding engineer, walks the customer through the 6-step setup wizard, including website/FAQ/vendor-source learning and WordPress/Wix installation guidance; done-for-you assisted setup is also offered. Mention the approved current offers accurately: permanent plan prices, the video avatar's free first month, and the setup fee waived through the end of the month.
 2. Free implementation call: for visitors with questions, custom scope, or the Platinum plan, offer a free one-on-one implementation call with our sales team — a 15–20-minute conversation; the calendar reserves 30 minutes for it. The visitor picks their own time slot at aihiddenleads.com/book (weekdays 8 AM–6 PM Eastern, up to two weeks ahead). Read actual platform availability before offering times; if the next three days have no openings, offer the next available day. Never claim a meeting is already booked — the visitor confirms the slot.
 3. Live transfer: if the visitor asks to talk to someone now and the Talk to manager control is available in the widget, explain it connects them live. Do not claim a transfer succeeded until the widget confirms it.
-Every interested conversation should end with exactly one clear next step: check out a plan, or request the implementation call.`;
+Every interested conversation should end with exactly one clear next step: check out a plan, or request the implementation call.
+${PLANS_PAGE_FEATURES}
+${PAGE_INTENT_MAP}
+${PROSPECT_TARGETING}`;

@@ -61,6 +61,9 @@ FUNCTIONS_SRC="${REPO_ROOT}/supabase/functions"
 # current hostinger-mail.ts; found by tracing the proxy's full
 # transitive import closure (47 modules) after the redeploy
 # crash-looped on exactly this missing file.
+# 2026-11-21 (item 6): +1 (47 → 48) — page-context.ts, imported by
+# the proxy for homepage-sales page awareness (self-contained: no
+# imports of its own).
 # NOTE: `deno cache` (step 4) is NOT a reliable closure authority —
 # server.ts loads the function entry through a dynamic import, which the
 # static cache pass does not traverse (the 2026-11-15 deploy cached
@@ -102,6 +105,7 @@ SHARED_CLOSURE=(
   live-models.ts
   manager-transfer.ts
   overage-facts.ts
+  page-context.ts
   personas.ts
   phone-demo.ts
   platform-calendar.ts
