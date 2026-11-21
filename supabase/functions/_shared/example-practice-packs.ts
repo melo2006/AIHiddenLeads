@@ -78,6 +78,7 @@ export const EXAMPLE_PRACTICE_TYPE_BY_SLUG: Record<string, ExamplePracticeType> 
   'ak-building-services': 'building-services',
   'it-yall': 'it-services',
   'essig-pools': 'pools',
+  'az-pools': 'pools',
   'prestige-landscape': 'landscaping',
   'tropic-supply': 'distribution',
   'royal-electrical-supply': 'distribution',

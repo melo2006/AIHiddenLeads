@@ -5,7 +5,7 @@
  * receptionist answering on them, shown as live demos a visitor can
  * open. Two proven sets feed it:
  *
- *  - the 16 general-business (B2B) pinned examples
+ *  - the 22 general-business (B2B) pinned examples
  *    (src/data/b2bExamplePinnedLeads.ts + b2bExampleServices.ts for
  *    the niche label and city), and
  *  - the 14 realtor pinned examples
