@@ -19,6 +19,7 @@ import { useTranslation } from "react-i18next";
 import "@/i18n";
 import { explicitUiLocale, prewarmLocaleMismatch, type UiLocale } from "@/lib/uiLocale";
 import { warmSessionUnusable } from "@/lib/warmSession";
+import { faceGateAction, lateFaceAction, FACE_REFUSAL_WINDOW_MS, type FaceStartOutcome, type FaceStartSettlement } from "@/lib/faceStartGate";
 import { clearDemoResume } from "@/lib/demoVerification";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { microphonePcm, pcmToBase64, shouldSendMicrophone, microphoneAutoGain, initialCaptureMode, createAmbientGateState, pushAmbientRms, createSpeechGateState, pushSpeechGateFrame, autoNoiseFilter, appliedAmbientLevel, appliedNoiseFilter, deadAirRelaxedFilter, type AmbientGateState, type NoiseFilter, type CaptureMode } from "@/lib/voiceLabAudio";
@@ -432,6 +433,16 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
    *  row id of each boundary's current attempt, so a resolution can be
    *  persisted onto the ATTEMPT'S OWN row (server-visible diag). */
   const segmentFacePendingRef = useRef<{ boundary: PersonaBoundary; persona: PersonaId; slot: FaceSlot } | null>(null);
+  /** VOICE-FIRST PARENT START (2026-11-21): the parent session's own
+   *  face start is still in flight while the conversation already
+   *  runs on voice alone. While set, playPcmChunk routes this
+   *  session's chunks locally (the same routing the segment pending
+   *  record above produces); the start gate's late-settle handler —
+   *  or the warm activation's re-kick — clears it when the face
+   *  lands or degrades to the voice-only fallback. Reset in teardown
+   *  alongside segmentFacePendingRef so a stale pending can never
+   *  leak into a later session. */
+  const parentFacePendingRef = useRef(false);
   /** TAKEOVER RE-SYNC LEDGER (2026-11-20): how many chunks the
    *  CURRENT voice-first segment has already scheduled locally
    *  (playPcmChunk counts them at its schedule commit, where the
@@ -2295,6 +2306,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     // map die with the chain too — a stale pending must never let a
     // later session's face attach into a dead segment.
     segmentFacePendingRef.current = null;
+    parentFacePendingRef.current = false;
     faceTakeoverBusyRef.current = false;
     attemptSessionRef.current = {};
     walkthroughRef.current = {text:'', continued:false};
@@ -2603,7 +2615,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     // The takeover flips avatarLiveRef only AFTER the deferred audio
     // sync resolves, so the first paired chunk is always post-sync —
     // the flip is safe chunk-by-chunk.
-    const facePending = segmentFacePendingRef.current != null;
+    const facePending = segmentFacePendingRef.current != null || parentFacePendingRef.current;
     const output = facePending ? 'local' as const : assistantOutput(avatarRequestedRef.current, avatarLiveRef.current, captureRef.current.replaying);
     let pairedVideo = output !== 'local';
     // LOCAL-FIRST PAIRED PLAYOUT (volume-stream fix, 2026-11-14):
@@ -3190,7 +3202,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       // A video-start failure (startup timeout after the retries, or the provider
       // dropping the session mid-startup) degrades to a voice-only session instead of
       // aborting the call. Refusals, sound blocks and cancels still reject as before.
-      const faceReady: Promise<{ started: boolean; fallback: boolean }> = avatarRequestedRef.current
+      const faceReady: Promise<FaceStartOutcome> = avatarRequestedRef.current
         ? startFace(generation, warm).then(
             (ok) => ({ started: ok, fallback: false }),
             (err: unknown) => {
@@ -3199,6 +3211,36 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             },
           )
         : Promise.resolve({ started: true, fallback: false });
+      // VOICE-FIRST DECOUPLING (2026-11-21, lib/faceStartGate): the
+      // face start above runs CONCURRENTLY but no longer gates the
+      // voice socket. It used to sit inside the Promise.all below,
+      // so the WebSocket was created only after Simli's first
+      // displayed frame — and on the prewarm path the held session's
+      // `ready` was downstream of the face too, so a slow face on a
+      // phone ate the tap's 15 s activation race and produced "The
+      // voice service did not respond in time" against a healthy
+      // voice service. The settlement is tracked instead: the gate
+      // below applies a settled face's outcome exactly as before,
+      // and a still-starting face lets the conversation proceed on
+      // voice alone (parentFacePendingRef routes chunks locally)
+      // and attaches when it lands — a late settlement can degrade
+      // to the voice-only fallback but can never fail the start.
+      const faceSettlement: FaceStartSettlement = { settled: false, outcome: null, error: null };
+      let faceGatePassed = false;
+      let markFaceSettled: () => void = () => {};
+      const faceSettled = new Promise<void>((resolve) => { markFaceSettled = resolve; });
+      const applyLateFaceSettle = () => {
+        if (generation !== generationRef.current) return;
+        parentFacePendingRef.current = false;
+        if (lateFaceAction(faceSettlement) === 'fallback') engageVideoFallback();
+        // 'attach': startFace already latched avatarLiveRef and the
+        // avatar's own live report drives the shell's faceLive
+        // state; chunk routing flips paired from the next chunk.
+      };
+      void faceReady.then(
+        (outcome) => { faceSettlement.settled = true; faceSettlement.outcome = outcome; markFaceSettled(); if (faceGatePassed) applyLateFaceSettle(); },
+        (err: unknown) => { faceSettlement.settled = true; faceSettlement.error = err; markFaceSettled(); if (faceGatePassed) applyLateFaceSettle(); },
+      );
       let visitorKey = crypto.randomUUID();
       try { localStorage.setItem("gemini-visitor-key", visitorKey); } catch { /* ignore */ }
       // Prepare the server's business snapshot alongside permission/audio setup, only after a tap.
@@ -3252,17 +3294,31 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           return supabase.functions.invoke("gemini-session", { headers, body: { visitorKey: key, agentId, leadId, prospectId, draft, preview, voice: previewVoice || voice, model: testModel, campaign:campaignVisit(), hour: new Date().getHours(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, locale, visitorName, consent: !warm && consentReadyRef.current, prewarm: warm, share: shareToken, resumeContext, reconnect: reconnecting && !!resumeContext, verification, invite, sample, guide } });
         });
       };
-      const [initialSession, stream, , , faceOutcome] = await Promise.all([
+      const [initialSession, stream, ,] = await Promise.all([
         requestSession(visitorKey),
         microphoneReady,
         playResume,
         micResume,
-        faceReady,
       ]);
-      if (!faceOutcome.started) {
-        if (!faceOutcome.fallback) throw new Error('The moving face could not connect. Please press play to try again.');
-        engageVideoFallback();
+      // REFUSAL WINDOW (lib/faceStartGate): a face that has not
+      // settled yet gets a short bounded wait before the gate goes
+      // voice-first — long enough for a definitive token refusal
+      // (one fast HTTP round trip, marked final, never retried) to
+      // land and stay the hard error it has always been, far too
+      // short for a healthy face start (token + LiveKit connect +
+      // first frame) to be mistaken for one.
+      if (!faceSettlement.settled) {
+        await Promise.race([faceSettled, new Promise<void>((resolve) => { window.setTimeout(resolve, FACE_REFUSAL_WINDOW_MS); })]);
+        if (generation !== generationRef.current) { stream?.getTracks().forEach(t => t.stop()); return; }
       }
+      faceGatePassed = true;
+      const faceGate = faceGateAction(faceSettlement);
+      if (faceGate === 'fail') {
+        if (faceSettlement.error != null) throw faceSettlement.error;
+        throw new Error('The moving face could not connect. Please press play to try again.');
+      }
+      if (faceGate === 'fallback') engageVideoFallback();
+      if (faceGate === 'voice-first' && avatarRequestedRef.current) parentFacePendingRef.current = true;
       let session = initialSession;
       if (session.data?.allowed === false && session.data?.code === 'VISITOR_DAILY_LIMIT') {
         visitorKey = crypto.randomUUID();
@@ -4937,7 +4993,25 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       if (stream) void refreshMicrophones();
       if (!ready) throw new Error("The voice service did not respond in time. Please try again.");
       await faceSound;
-      if (avatarRequestedRef.current && !avatarLiveRef.current) throw new Error('The moving face could not connect. Please press play to try again.');
+      // VOICE-FIRST DECOUPLING (2026-11-21): a face that is not live
+      // at activation no longer fails the start (this throw was the
+      // 'The moving face could not connect' dead end). A face still
+      // starting from the prewarm (parentFacePendingRef set by its
+      // start gate) attaches when it lands. A face that was live at
+      // prewarm and dropped during the idle wait is re-kicked ONCE
+      // here — start() tears the stale client down itself — and
+      // attaches the same way; if the re-kick settles without a live
+      // face, the session continues voice-only on the portrait via
+      // the fallback instead of erroring.
+      if (avatarRequestedRef.current && !avatarLiveRef.current && !parentFacePendingRef.current) {
+        parentFacePendingRef.current = true;
+        const settleRekick = () => {
+          if (generation !== generationRef.current) return;
+          parentFacePendingRef.current = false;
+          if (!avatarLiveRef.current) engageVideoFallback();
+        };
+        void startFace(generation, false).then(settleRekick, settleRekick);
+      }
       if (playCtx.state !== 'running' || (stream && micCtx.state !== 'running')) throw new Error(AUDIO_TAP_NEEDED);
       if (wsRef.current?.readyState !== WebSocket.OPEN) throw new Error("The connection closed before the session started. Try again.");
       wsRef.current.send(JSON.stringify({ type: 'begin', consent: true }));
