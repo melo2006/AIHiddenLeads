@@ -342,6 +342,32 @@ export function extractSpokenCode(text: string): string | null {
 }
 
 // ---------------------------------------------------------------------------
+// Website URL cleanup (pure) — the voice demo-start confirmation
+// (2026-11-21) corrects the address Aspen heard in place. These are
+// the demo intake's own helpers (DemoIntakePanel.tsx), shared here so
+// the voice form validates and normalizes exactly the way the /demo
+// form does; the Deno port lives in
+// supabase/functions/_shared/demo-start.ts.
+// ---------------------------------------------------------------------------
+
+export function normalizeDemoUrl(raw: string): string {
+  let url = raw.trim().replace(/^["']+|["']+$/g, '').trim();
+  url = url.replace(/^(?:https?:\/\/)/i, '');
+  url = url.replace(/\/+$/, '');
+  if (!url) return raw.trim();
+  return `https://${url}`;
+}
+
+export function looksLikeDomain(value: string): boolean {
+  const host = value
+    .trim()
+    .replace(/^(?:https?:\/\/)/i, '')
+    .replace(/^www\./i, '')
+    .split(/[/?#]/)[0];
+  return /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$/.test(host);
+}
+
+// ---------------------------------------------------------------------------
 // Dictated email cleanup (pure)
 // ---------------------------------------------------------------------------
 

@@ -33,6 +33,7 @@ import { MANAGER_HANDOFF_DELAY_MS, MANAGER_TRANSFER_POLICY, managerTransferAnnou
 import { handoffReturnInstruction, handoffReturnOutcome } from '../_shared/handoff-return.ts'
 import { BROWSER_MINUTES_OVERAGE_POLICY } from '../_shared/overage-facts.ts'
 import { guardedSearchPolicyFor, guardedSearchToolEntriesFor } from '../_shared/guarded-search.ts'
+import { DEMO_CONSENT_DISCLOSURE_VERSION, DEMO_START_CLIENT_ERROR, DEMO_START_FALLBACK_TOOL_RESPONSE, DEMO_START_TOOL_DECLARATION, demoStartApplies, demoStartCardFromArgs, demoStartToolSuccessResponse, startDemoForVisitor, type DemoStartCard } from '../_shared/demo-start.ts'
 import { FAREWELL_END_DELAY_MS, FAREWELL_REPEAT_END_DELAY_MS, detectFarewell, detectFarewellLeadIn, detectFarewellPersistence, detectFarewellSoftClose, detectModelClosing, farewellSpeakerName, hasPresenterStamp } from '../_shared/farewell.ts'
 import { CONTACT_SAVE_CLIENT_ERROR, CONTACT_SAVE_FALLBACK_TOOL_RESPONSE, saveConfirmedFollowup } from '../_shared/contact-save.ts'
 import { elevenLabsTtsEventFromSession, logUsageEvent, videoAvatarEventFromSession, webVoiceEventFromSession } from '../_shared/usage-ledger.ts'
@@ -169,6 +170,11 @@ Deno.serve(async (req) => {
   // gate is deliberately separate from config.platformFollowup: tenant
   // and homepage transfer sessions may not carry platform follow-up.
   const managerTransferAvailable = transferDestination(config) !== null && !preview && config.sharedDemo !== true
+  // VOICE DEMO START (2026-11-21, homepage-test items 9 + 10): the
+  // request_demo_start tool is declared on homepage SALES sessions
+  // only (see _shared/demo-start.ts) — the one path by which a voice
+  // conversation can really create the visitor's demo lead.
+  const demoStartAvailable = demoStartApplies({ homepageSales: config.homepageSales, simulation: config.simulation, preview })
   const managerTransferBlock = managerTransferAvailable ? `\n${MANAGER_TRANSFER_POLICY}` : ''
   // Browser-minutes overage pin (Handoff improvement batch,
   // 2026-11-12): appended ONLY on homepage-sales sessions — the
@@ -221,7 +227,7 @@ Deno.serve(async (req) => {
   let goAwayTimer: ReturnType<typeof setTimeout> | undefined
   let releaseSocket: (() => void) | undefined
   EdgeRuntime.waitUntil(new Promise<void>(resolve => { releaseSocket = resolve }))
-  const pendingActions = new Map<string, { call: {id:string;name:string}; slotStart?:string; synthetic?:boolean }>()
+  const pendingActions = new Map<string, { call: {id:string;name:string}; slotStart?:string; synthetic?:boolean; demo?: DemoStartCard }>()
   // Tool calls the provider cancelled while their on-screen
   // confirmation was still up (Batch 1, Fix 7b): the descriptor is
   // kept here so a visitor confirmation that was already in flight
@@ -342,7 +348,7 @@ Deno.serve(async (req) => {
   // and the client's panel chip both re-issue THIS card, never a
   // re-ask. A completed confirm clears it, so a finished save or
   // booking can never be duplicated by a stray re-present.
-  let lastCardAction: { name: string; contact?: {name:string;email:string;phone:string}; slotStart?: string } | null = null
+  let lastCardAction: { name: string; contact?: {name:string;email:string;phone:string}; slotStart?: string; demo?: DemoStartCard } | null = null
   let reopenCounter = 0
   // Voice-asked manager transfer (Fix 3): once per session — the flag
   // guards repeat tool calls, the timer delivers {type:'start_handoff'}
@@ -832,6 +838,7 @@ Deno.serve(async (req) => {
             {name:'check_time',description:'Check the exact time the visitor named for an AI Hidden Leads appointment. Returns bookable true with the slot, or bookable false with a reason and nearest real alternatives.',parameters:{type:'OBJECT',properties:{date:{type:'STRING',description:'ET calendar date the visitor named, YYYY-MM-DD.'},time:{type:'STRING',description:'ET wall time the visitor named, e.g. "2:30 PM".'},iso:{type:'STRING',description:'Full ISO datetime instead of date+time, when known.'}}}},
             {name:'book_call',description:'Book the AI Hidden Leads implementation call server-side in an exact slot from get_availability or check_time, using contact details ALREADY confirmed on this session (request_platform_followup) — never re-ask for them. Use ONLY when the visitor will not use the on-screen confirmation. The result reports per-channel confirmation outcomes; claim only what it confirms.',parameters:{type:'OBJECT',properties:{slotStart:{type:'STRING'},smsConsent:{type:'BOOLEAN',description:"The visitor's answer to the confirmation-text permission ask; omit when the demo form already recorded one (the server then uses the stored answer)."}},required:['slotStart']}},
             ] : []),
+            ...(demoStartAvailable ? [DEMO_START_TOOL_DECLARATION] : []),
           ]}, ...guardedSearchToolEntriesFor(config)],
           realtimeInputConfig: {
             automaticActivityDetection: manualActivity ? { disabled: true } : {
@@ -928,7 +935,7 @@ Deno.serve(async (req) => {
             // journaled (name only, never args) — before this, a
             // session that silently called tools left no trace
             // anywhere and booking stalls were undiagnosable.
-            if (call.name === 'platform_availability' || call.name === 'get_availability' || call.name === 'check_time' || call.name === 'book_call' || call.name === 'request_platform_followup' || call.name === 'request_platform_appointment') console.info('platform tool', JSON.stringify({ sessionId: session.id, tool: call.name }));
+            if (call.name === 'platform_availability' || call.name === 'get_availability' || call.name === 'check_time' || call.name === 'book_call' || call.name === 'request_platform_followup' || call.name === 'request_platform_appointment' || call.name === 'request_demo_start') console.info('platform tool', JSON.stringify({ sessionId: session.id, tool: call.name }));
             // Any tool activity means the conversation is continuing:
             // a pending farewell end is cancelled (Fix 5).
             // DOUBLE-CLOSE GATE exception (2026-11-14): on a presenter
@@ -1059,9 +1066,24 @@ Deno.serve(async (req) => {
               if (pendingActions.size > 0) { respond({error:'A visitor confirmation is already on screen.'}); continue; }
               if (!lastCardAction) { respond({error:'No confirmation form has been shown yet in this session, so there is nothing to bring back. Offer the follow-up or booking first and show its form in the usual way.'}); continue; }
               const reopenId = `reopen-${++reopenCounter}`;
-              pendingActions.set(reopenId,{call:{id:reopenId,name:lastCardAction.name},slotStart:lastCardAction.slotStart,synthetic:true});
-              clientSocket.send(JSON.stringify({type:'confirm_action',id:reopenId,action:lastCardAction.name,contact:lastCardAction.contact,slotStart:lastCardAction.slotStart}));
+              pendingActions.set(reopenId,{call:{id:reopenId,name:lastCardAction.name},slotStart:lastCardAction.slotStart,synthetic:true,demo:lastCardAction.demo});
+              clientSocket.send(JSON.stringify({type:'confirm_action',id:reopenId,action:lastCardAction.name,contact:lastCardAction.contact,slotStart:lastCardAction.slotStart,demo:lastCardAction.demo}));
               respond({presented:true,action:lastCardAction.name,instruction:'The form is back on the visitor screen with the same details. Wait for them to confirm or close it there; do not re-ask for any detail.'});
+            } else if (call.name === 'request_demo_start') {
+              // VOICE DEMO START (2026-11-21): the tool itself only
+              // OPENS the confirmation card — the lead is created in
+              // the confirm handler, after the visitor has seen and
+              // corrected the address Aspen heard. The card is
+              // remembered for re-presentation like every other card,
+              // and the details behind it are captured for the visit
+              // (Publish #68 rules), so a dismissal loses nothing.
+              if (!demoStartAvailable) { respond({error:'Unsupported action.'}); continue; }
+              if (pendingActions.size > 0) { respond({error:'A visitor confirmation is already pending.'}); continue; }
+              const demoCard = demoStartCardFromArgs(call.args as Record<string, unknown> | undefined, capturedContact);
+              pendingActions.set(call.id,{call:{id:call.id,name:call.name},demo:demoCard});
+              lastCardAction = { name: call.name, contact: {name: demoCard.name, email: demoCard.email, phone: ''}, demo: demoCard };
+              if (demoCard.name || demoCard.email) noteCapture({ name: demoCard.name || undefined, email: demoCard.email || undefined });
+              clientSocket.send(JSON.stringify({type:'confirm_action',id:call.id,action:call.name,demo:demoCard}));
             } else if (call.name === 'request_platform_followup' || call.name === 'request_platform_appointment' || call.name === 'request_conversation_copy') {
               if (pendingActions.size > 0) { respond({error:'A visitor confirmation is already pending.'}); continue; }
               if (call.name === 'request_platform_appointment' && !confirmedContact) { respond({error:'Ask the visitor to confirm contact details first.'}); continue; }
@@ -1673,6 +1695,61 @@ Deno.serve(async (req) => {
               const mailContact={...contact,businessName:String(config.businessName||'')};
               void trySend(followupAlert(mailContact)); void trySend(visitorFollowup({...mailContact,screenshot:saved.lead?.website_screenshot ?? undefined,didDemo:!!session.prospect_id}));
             }
+          } else if (action.call.name === 'request_demo_start') {
+            // VOICE DEMO START (2026-11-21): the visitor confirmed
+            // the address on the card — NOW the lead is created, via
+            // the same create_demo_lead RPC the /demo intake uses,
+            // the gate code is sent when the card carried an email
+            // (the intake's own sequence), and the scan is invoked
+            // so the build is genuinely running before the visitor
+            // taps the entry card the client is about to show. The
+            // orchestration lives in _shared/demo-start.ts with the
+            // writers injected; the session adopts the created lead
+            // so a later follow-up save attaches to it instead of
+            // landing lead-less.
+            const submittedDemo = (msg as { demo?: unknown }).demo;
+            const submitted = submittedDemo && typeof submittedDemo === 'object' ? submittedDemo as Record<string, unknown> : {};
+            const card: DemoStartCard = {
+              websiteUrl: typeof submitted.websiteUrl === 'string' ? submitted.websiteUrl : action.demo?.websiteUrl ?? '',
+              name: typeof submitted.name === 'string' ? submitted.name : action.demo?.name ?? '',
+              email: typeof submitted.email === 'string' ? submitted.email : action.demo?.email ?? '',
+            };
+            const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
+            const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+            const started = await startDemoForVisitor({
+              createLead: async (args) => { const { data, error } = await db.rpc('create_demo_lead', args); return { data: typeof data === 'string' ? data : null, error }; },
+              sendGateCode: async (leadId, email) => {
+                try {
+                  const res = await fetch(`${supabaseUrl}/functions/v1/demo-verification`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${serviceKey}`, 'apikey': serviceKey }, body: JSON.stringify({ action: 'request-code', leadId, channel: 'email', target: email, disclosureVersion: DEMO_CONSENT_DISCLOSURE_VERSION }) });
+                  if (!res.ok) return { ok: false };
+                  const body = await res.json().catch(() => null) as { ok?: unknown } | null;
+                  return { ok: body?.ok !== false };
+                } catch { return { ok: false }; }
+              },
+              invokeScan: async (leadId, websiteUrl, businessName) => {
+                try {
+                  const res = await fetch(`${supabaseUrl}/functions/v1/scan-website`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${serviceKey}`, 'apikey': serviceKey }, body: JSON.stringify({ leadId, websiteUrl, businessName, initialNiche: 'general', language: typeof config.uiLocale === 'string' ? config.uiLocale : 'en', secondaryUrls: [], uploadedFiles: [], crawlDepth: 1 }) });
+                  return { ok: res.ok };
+                } catch { return { ok: false }; }
+              },
+            }, card);
+            if (!started.ok) {
+              // Honest on both channels, like the contact save: the
+              // model gets the fallback instruction (no technical
+              // confession, no phantom build), the client an honest
+              // marker. The card stays re-presentable — a retry is
+              // one chip tap away.
+              console.error('voice demo start failed', JSON.stringify({ sessionId: session.id, stage: started.stage }));
+              response = { ...DEMO_START_FALLBACK_TOOL_RESPONSE };
+              clientResult = { started: false, error: DEMO_START_CLIENT_ERROR };
+            } else {
+              session.lead_id = started.leadId;
+              if (card.name || card.email) noteCapture({ name: card.name || undefined, email: card.email || undefined, confirmed: true });
+              lastCardAction = null;
+              response = demoStartToolSuccessResponse(started);
+              clientResult = { started: true, demoPath: started.demoPath, websiteUrl: started.websiteUrl };
+              console.info('voice demo started', JSON.stringify({ sessionId: session.id, leadId: started.leadId, gate: started.gate, scanInvoked: started.scanInvoked }));
+            }
           } else {
             // request_platform_appointment: book with the contact the
             // CARD just submitted — the exact name/email/phone the
@@ -1727,7 +1804,11 @@ Deno.serve(async (req) => {
           // no report (nothing was promised), and an armed farewell
           // owns the close, so nothing is injected over it.
           if (msg.approved === true && !(response as {error?:unknown}).error && !farewellTimer) {
-            const note = action.call.name === 'request_platform_appointment'
+            const note = action.call.name === 'request_demo_start'
+              ? (clientResult as { started?: unknown } | null)?.started === true
+                ? 'The visitor reopened the demo form from the panel and confirmed it — their demo is building and the entry card is on their screen. Tell them briefly that their demo is building and to tap the card to step into it, then continue naturally.'
+                : 'The visitor reopened the demo form from the panel and confirmed it, but the demo could not be started just now. Apologize briefly and honestly, and offer the "Try it on your website — free" button on this page or a demo link by email instead. Do not claim a demo is building.'
+              : action.call.name === 'request_platform_appointment'
               ? 'The visitor reopened the appointment form from the panel and confirmed it — the appointment is booked. Confirm the day and time briefly, then continue naturally.'
               : action.call.name === 'request_conversation_copy'
                 ? 'The visitor reopened the form from the panel and confirmed it — their conversation copy will be emailed to them after the call. Thank them briefly and continue.'
@@ -1746,8 +1827,8 @@ Deno.serve(async (req) => {
         // already on screen: the tap is simply inert.
         if (lastCardAction && pendingActions.size === 0) {
           const reopenId = `reopen-${++reopenCounter}`;
-          pendingActions.set(reopenId,{call:{id:reopenId,name:lastCardAction.name},slotStart:lastCardAction.slotStart,synthetic:true});
-          clientSocket.send(JSON.stringify({type:'confirm_action',id:reopenId,action:lastCardAction.name,contact:lastCardAction.contact,slotStart:lastCardAction.slotStart}));
+          pendingActions.set(reopenId,{call:{id:reopenId,name:lastCardAction.name},slotStart:lastCardAction.slotStart,synthetic:true,demo:lastCardAction.demo});
+          clientSocket.send(JSON.stringify({type:'confirm_action',id:reopenId,action:lastCardAction.name,contact:lastCardAction.contact,slotStart:lastCardAction.slotStart,demo:lastCardAction.demo}));
         }
         return;
       } else if (msg.type === 'audio'  && typeof msg.data === 'string' && msg.data.length <= 48000 && /^[A-Za-z0-9+/=]+$/.test(msg.data)) {
