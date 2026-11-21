@@ -1,12 +1,20 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { EXAMPLES_GALLERY, type GalleryExample } from "@/data/examplesGallery";
+import { ChevronDown, ChevronUp } from "lucide-react";
+import {
+  EXAMPLES_GALLERY,
+  GALLERY_CATEGORY_ORDER,
+  orderExamplesForDefaultView,
+  type GalleryCategory,
+  type GalleryExample,
+} from "@/data/examplesGallery";
 import { EXAMPLE_THUMBS, EXAMPLE_THUMBS_MOBILE } from "./examplesGalleryThumbs";
 
 /**
  * Business-examples gallery (2026-11-18) — the section Ron approved
- * for the realtor page, now on the homepage (replacing the
- * before/after phones block) and under the /demo form.
+ * for the realtor page, now on the homepage (directly below the film
+ * gallery since 2026-11-21) and under the /demo form.
  *
  * Every card is a REAL capture of that business's website: the
  * original set are in-session captures with the receptionist panel
@@ -20,15 +28,61 @@ import { EXAMPLE_THUMBS, EXAMPLE_THUMBS_MOBILE } from "./examplesGalleryThumbs";
  * /demo sample handoff the realtor page uses (sample=1 + the pinned
  * leadId, so the pre-scanned demo opens without a fresh scan).
  *
- * The grid sits in a bounded-height scroll frame on sm+ screens (two
- * rows visible, the rest scroll inside the frame so the section never
- * swallows the page); on phones it flows naturally in one column.
+ * Mix + layout (Ron's call, 2026-11-21): the wall used to read as a
+ * real-estate gallery with a couple of businesses mixed in. Now the
+ * default view is business-first (diverse B2B examples lead, at most
+ * three realtor cards in the first screenful), a category filter row
+ * lets a visitor jump straight to their own industry, and the grid
+ * is contained — the first screenful of cards shows, with a
+ * "Show all" button expanding the rest in place instead of the
+ * section sprawling down the page. Under the grid, a strip names
+ * other industries Aspen answers for; those are plain text, NOT
+ * demos — the live demos are the cards, and the strip's button runs
+ * the free demo on the visitor's own website.
  */
+
+/** Cards shown before the "Show all" expand (3 rows on desktop). */
+const GALLERY_PAGE_SIZE = 9;
+
+const CATEGORY_LABEL_KEYS: Record<GalleryCategory, string> = {
+  "real-estate": "examplesGallery.catRealEstate",
+  "home-services": "examplesGallery.catHomeServices",
+  "health-dental": "examplesGallery.catHealthDental",
+  legal: "examplesGallery.catLegal",
+  manufacturing: "examplesGallery.catManufacturing",
+  marine: "examplesGallery.catMarine",
+  auto: "examplesGallery.catAuto",
+  "business-services": "examplesGallery.catBusinessServices",
+};
+
+type CategoryFilter = GalleryCategory | "all";
+
 const ExamplesGallerySection = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const [activeCategory, setActiveCategory] = useState<CategoryFilter>("all");
+  const [expanded, setExpanded] = useState(false);
 
   const visible = EXAMPLES_GALLERY.filter((example) => EXAMPLE_THUMBS[example.slug]);
+
+  // A filter chip renders only for a category with at least one
+  // rendered example — no dead filters.
+  const presentCategories = GALLERY_CATEGORY_ORDER.filter((category) =>
+    visible.some((example) => example.category === category),
+  );
+
+  const inCategory =
+    activeCategory === "all" ? null : visible.filter((example) => example.category === activeCategory);
+  const filtered =
+    inCategory && inCategory.length > 0 ? inCategory : orderExamplesForDefaultView(visible);
+  const shown = expanded ? filtered : filtered.slice(0, GALLERY_PAGE_SIZE);
+
+  const niches = (t("examplesGallery.moreNiches", { returnObjects: true }) as string[]) || [];
+
+  const selectCategory = (category: CategoryFilter) => {
+    setActiveCategory(category);
+    setExpanded(false);
+  };
 
   const runExampleDemo = (example: GalleryExample) => {
     const params = new URLSearchParams({
@@ -41,6 +95,13 @@ const ExamplesGallerySection = () => {
   };
 
   if (visible.length === 0) return null;
+
+  const chipClass = (active: boolean) =>
+    `rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+      active
+        ? "border-primary bg-primary text-primary-foreground"
+        : "border-border bg-background text-foreground hover:border-primary/60"
+    }`;
 
   return (
     <section
@@ -60,12 +121,43 @@ const ExamplesGallerySection = () => {
             {t("examplesGallery.devices")}
           </p>
         </div>
+
+        <div
+          data-examples-gallery-filters
+          className="max-w-5xl mx-auto mb-4 flex flex-wrap justify-center gap-2"
+        >
+          <button
+            type="button"
+            aria-pressed={activeCategory === "all"}
+            onClick={() => selectCategory("all")}
+            className={chipClass(activeCategory === "all")}
+          >
+            {t("examplesGallery.filterAll")}
+            <span className="opacity-70"> ({visible.length})</span>
+          </button>
+          {presentCategories.map((category) => {
+            const count = visible.filter((example) => example.category === category).length;
+            return (
+              <button
+                key={category}
+                type="button"
+                aria-pressed={activeCategory === category}
+                onClick={() => selectCategory(category)}
+                className={chipClass(activeCategory === category)}
+              >
+                {t(CATEGORY_LABEL_KEYS[category])}
+                <span className="opacity-70"> ({count})</span>
+              </button>
+            );
+          })}
+        </div>
+
         <div className="max-w-5xl mx-auto rounded-2xl border border-border bg-card p-3 sm:p-4">
           <div
-            data-examples-gallery-scroll
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:max-h-[528px] sm:overflow-y-auto sm:pr-1"
+            data-examples-gallery-grid
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
           >
-            {visible.map((example) => (
+            {shown.map((example) => (
               <button
                 key={example.slug}
                 type="button"
@@ -108,10 +200,54 @@ const ExamplesGallerySection = () => {
               </button>
             ))}
           </div>
+          {filtered.length > GALLERY_PAGE_SIZE && (
+            <div className="pt-4 text-center">
+              <button
+                type="button"
+                aria-expanded={expanded}
+                onClick={() => setExpanded((value) => !value)}
+                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                {expanded
+                  ? t("examplesGallery.showLess")
+                  : t("examplesGallery.showAll", { count: filtered.length })}
+                {expanded ? (
+                  <ChevronUp className="h-4 w-4" aria-hidden />
+                ) : (
+                  <ChevronDown className="h-4 w-4" aria-hidden />
+                )}
+              </button>
+            </div>
+          )}
         </div>
-        <p className="mt-4 text-center text-xs text-muted-foreground">
-          {t("examplesGallery.scrollHint", { count: visible.length })}
-        </p>
+
+        <div className="max-w-5xl mx-auto mt-6 rounded-2xl border border-border bg-card p-5 sm:p-6 text-center">
+          <h3 className="text-xl sm:text-2xl font-bold mb-2">
+            {t("examplesGallery.moreTitle")}
+          </h3>
+          <p className="mx-auto max-w-2xl text-muted-foreground text-sm sm:text-base">
+            {t("examplesGallery.moreText")}
+          </p>
+          {niches.length > 0 && (
+            <ul className="mt-4 flex flex-wrap justify-center gap-1.5">
+              {niches.map((niche) => (
+                <li
+                  key={niche}
+                  className="rounded-full border border-border bg-background px-3 py-1 text-xs text-muted-foreground"
+                >
+                  {niche}
+                </li>
+              ))}
+            </ul>
+          )}
+          <button
+            type="button"
+            onClick={() => navigate("/demo")}
+            className="mt-5 inline-flex items-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            {t("examplesGallery.moreCta")}
+          </button>
+        </div>
       </div>
     </section>
   );
