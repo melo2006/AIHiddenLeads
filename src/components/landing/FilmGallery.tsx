@@ -102,6 +102,17 @@ export const FILMS: Film[] = [
     youtubeId: "MAHdsTRkKtI",
     poster: "/videos/testimonials/linda-chiro.jpg",
   },
+  {
+    slug: "ray-machine-shop",
+    narrator: "Ray",
+    business: "Delgado Precision",
+    industry: "Machine Shop",
+    runtime: "2:16",
+    blurb:
+      "Two years of paid ads sent visitors to a silent website. Now Aspen books them — and Ray wakes up to a filled calendar.",
+    youtubeId: "dM-bXS4Mg9c",
+    poster: "/videos/testimonials/ray-machine-shop.jpg",
+  },
 ];
 
 interface FilmPlayerProps {

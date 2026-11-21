@@ -7,8 +7,8 @@ import { FILMS } from "../components/landing/FilmGallery";
 const read = (rel: string) => readFileSync(resolve(__dirname, "..", rel), "utf8");
 
 describe("film gallery data (2026-11-20)", () => {
-  it("carries the six testimonial films, Frank's solo story in the spotlight slot", () => {
-    expect(FILMS).toHaveLength(6);
+  it("carries the seven testimonial films, Frank's solo story in the spotlight slot", () => {
+    expect(FILMS).toHaveLength(7);
     expect(FILMS[0].slug).toBe("frank-pool");
     expect(FILMS.map((f) => f.slug)).toEqual([
       "frank-pool",
@@ -17,11 +17,12 @@ describe("film gallery data (2026-11-20)", () => {
       "karen-dental",
       "mike-roofing",
       "linda-chiro",
+      "ray-machine-shop",
     ]);
   });
 
   it("every film carries its live YouTube id and a local poster under /videos/testimonials/", () => {
-    // The six films are published on the AI Hidden Leads channel
+    // The films are published on the AI Hidden Leads channel
     // (@AIHiddenLeads, 2026-11-20); ids pinned so a swap is a deliberate edit.
     expect(FILMS.map((f) => f.youtubeId)).toEqual([
       "fHr843l4C_A",
@@ -30,6 +31,7 @@ describe("film gallery data (2026-11-20)", () => {
       "rugB-2MmitM",
       "LVUvQdQT8_0",
       "MAHdsTRkKtI",
+      "dM-bXS4Mg9c",
     ]);
     for (const film of FILMS) {
       expect(film.youtubeId).toMatch(/^[\w-]{11}$/);
