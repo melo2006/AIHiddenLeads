@@ -37,4 +37,9 @@ export const B2B_EXAMPLE_PINNED_LEADS: B2BExamplePinnedLead[] = [
   { slug: "it-yall", domain: "ityall.com", url: "https://www.ityall.com/", leadId: "490134ef-bccd-4ee4-b64e-94ac391dba20" },
   { slug: "essig-pools", domain: "essigpools.com", url: "https://essigpools.com/", leadId: "720da556-14df-44d6-83f8-f3e6b778176e" },
   { slug: "prestige-landscape", domain: "prestigelandscapedesign.com", url: "https://www.prestigelandscapedesign.com/", leadId: "a5459029-5431-4dbc-8f80-ccd8b2b34754" },
+  { slug: "tropic-supply", domain: "tropicsupply.com", url: "https://www.tropicsupply.com/", leadId: "3c7f0d98-f17e-4440-9cf9-b038bb2ac777" },
+  { slug: "royal-electrical-supply", domain: "royalelectricalsupply.com", url: "https://royalelectricalsupply.com/", leadId: "57565033-d9d3-4e39-8dc1-5f5c25dbe83c" },
+  { slug: "mjm-manufacturing", domain: "mjmmfg.com", url: "https://mjmmfg.com/", leadId: "a265677d-75ca-4a5b-a4c4-55c6a1591f5c" },
+  { slug: "westway-towing", domain: "westwaytowing.com", url: "https://westwaytowing.com/", leadId: "2604bee5-0436-4149-b8fa-d032883081d6" },
+  { slug: "lan-infotech", domain: "laninfotech.com", url: "https://laninfotech.com/", leadId: "79ca6c55-723c-4b3b-ae2f-b5c84b4e6bbe" },
 ];
