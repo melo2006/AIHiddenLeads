@@ -885,8 +885,14 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
           semi-transparent hair/edge pixels composite over a controlled
           mid-tone instead of raw page white (Ron's "page through her
           hair" on white demo sites). The CSS scopes the paint to the
-          light theme; in the dark theme it paints nothing. */}
-      {keyed && <div aria-hidden className="simli-keyed-backdrop" />}
+          light theme; in the dark theme it paints nothing.
+          SARA ONLY (2026-11-21, homepage-test item 3): the defect
+          that motivated the backdrop was Sara's hair/eyes; painted
+          behind EVERY keyed face it read on the homepage as a light
+          translucent film/box around Aspen, who used to be fully
+          transparent. The div now renders for persona==='sara' only —
+          every other face keeps true transparency. */}
+      {keyed && persona === 'sara' && <div aria-hidden className="simli-keyed-backdrop" />}
       <video ref={videoRef} data-live-face-source autoPlay playsInline muted className={`h-full w-full ${unboxed ? 'object-cover object-top aspen-person-live-media' : 'object-contain'} ${keyed || unboxed && state !== 'live' ? 'absolute inset-0 opacity-0 pointer-events-none' : ''}`} />
       <canvas ref={canvasRef} data-live-face-source aria-hidden className={`h-full w-full ${unboxed ? 'object-cover object-top aspen-person-live-media' : 'object-contain'} ${keyed ? 'relative' : 'hidden'}`} />
       <audio ref={audioRef} autoPlay muted />

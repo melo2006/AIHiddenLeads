@@ -54,7 +54,8 @@ import { clearAllVisitMemory, visitMemoryAppend, visitMemoryDelete, visitMemoryG
 import { shouldShowMicHint } from '@/lib/micAudibility';
 import { createMicFlowState, MIC_MUTED_START_GRACE_MS, MIC_SILENT_MIN_LOUD_FRAMES, micDiagPayload, micDiagSignature, micDiagStamp, micInputSeconds, micTrackStartVerdict, noteMicFrame, noteMicSessionLive, noteMicWatchdogFired, shouldShowMicWatchdog, shouldShowSilentMicNotice, type MicDiagEvent, type MicTrackState } from '@/lib/micWatchdog';
 import { createPlayoutStartupWatch, heardEngineWhy, STARTUP_BLOCKED_AFTER_MS, STARTUP_CHECK_AFTER_MS, startupDiagPayload, startupDiagSignature, type PlayoutProbe, type StartupDiagEvent, type StartupVerdict } from '@/lib/playoutStartup';
-import { clearRetainedHandoffMic, fitHandoffRecap, handoffDiagPayload, handoffDiagSignature, handoffVisitFact, isHandoffAnnouncement, micStreamIsLive, retainHandoffMic, reusableMicStream, stripHandoffAnnouncement, takeRetainedHandoffMic, type HandoffDiagEvent, type HandoffDiagMic, type HandoffDiagOutcome } from '@/lib/handoffRecovery';
+import { clearRetainedHandoffMic, fitHandoffRecap, handoffDiagPayload, handoffDiagSignature, handoffVisitFact, isHandoffAnnouncement, micRequestPromise, micStreamIsLive, retainHandoffMic, reusableMicStream, stripHandoffAnnouncement, takeRetainedHandoffMic, type HandoffDiagEvent, type HandoffDiagMic, type HandoffDiagOutcome } from '@/lib/handoffRecovery';
+import { consumeEndConversationSignal, endSignalVisibleChunk, END_SIGNAL_DRAIN_POLL_MS, END_SIGNAL_MAX_WAIT_MS } from '@/lib/endConversation';
 import { windowRecapLines } from '../../supabase/functions/_shared/recap-builder';
 import { createMediaSink, mediaPlaybackNode, type MediaSink } from '@/lib/mediaSink';
 import { clampPlaybackVolume, effectivePlaybackLevel, loadPlaybackVolume, savePlaybackVolume } from '@/lib/playbackVolume';
@@ -1224,6 +1225,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const isPreviewRef = useRef(false);
   const aspenLineRef = useRef("");
   const userLineRef = useRef("");
+  // End-signal close (2026-11-21, homepage-test item 1, client
+  // half): endSignalRef latches when the assistant's line carries
+  // END_CONVERSATION_SIGNAL (src/lib/endConversation.ts); the timer
+  // is the pending post-farewell close, cancelled by any new
+  // visitor speech (they changed their mind) or by teardown.
+  const endSignalRef = useRef(false);
+  const endSignalTimerRef = useRef<number | null>(null);
   const captureRef = useRef({ mode: "handsfree" as CaptureMode, held: false, muted: false, replaying: false, paused: false });
   const currentAudioRef = useRef<string[]>([]);
   const lastAudioRef = useRef<string[]>([]);
@@ -2311,6 +2319,9 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     attemptSessionRef.current = {};
     walkthroughRef.current = {text:'', continued:false};
     idleRef.current = { enabled: false, stage: 'waiting', quietSince: 0, generating: false, requestedAt: 0, sales: false };
+    // A pending end-signal close dies with the session it belonged to.
+    endSignalRef.current = false;
+    if (endSignalTimerRef.current !== null) { window.clearTimeout(endSignalTimerRef.current); endSignalTimerRef.current = null; }
     trackPendingAction(null);
     setWaitingAction(null);
     deadlineRef.current = 0;
@@ -2460,6 +2471,36 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     setAudioNeedsTap(false);
     setEndedByVisitor(true);
   }, [stopEverything]);
+
+  /** End-signal close (2026-11-21, homepage-test item 1, client
+   *  half — src/lib/endConversation.ts): the assistant's completed
+   *  line carried END_CONVERSATION_SIGNAL, i.e. the visitor asked
+   *  for the end and she has said her farewell. Close as soon as
+   *  the farewell's audio drains, and never later than
+   *  END_SIGNAL_MAX_WAIT_MS after the turn — a requested end must
+   *  not fall back into the ~60 s silence ladder (her goodbye used
+   *  to RESET the silence clock, so the ladder ran in full). The
+   *  end itself is endByVisitor: a model-signalled end IS a
+   *  visitor-requested end. */
+  const closeOnEndSignal = useCallback(() => {
+    if (endSignalTimerRef.current !== null) return;
+    const deadline = Date.now() + END_SIGNAL_MAX_WAIT_MS;
+    const tick = () => {
+      endSignalTimerRef.current = null;
+      if (!endSignalRef.current || !liveRef.current) return;
+      const drained = sourcesRef.current.size === 0 && !idleRef.current.generating;
+      if (drained || Date.now() >= deadline) { endSignalRef.current = false; endByVisitor(); return; }
+      endSignalTimerRef.current = window.setTimeout(tick, END_SIGNAL_DRAIN_POLL_MS);
+    };
+    endSignalTimerRef.current = window.setTimeout(tick, END_SIGNAL_DRAIN_POLL_MS);
+  }, [endByVisitor]);
+
+  /** A visitor who speaks again after asking for the end changed
+   *  their mind: drop the latched signal and any pending close. */
+  const cancelEndSignalClose = useCallback(() => {
+    endSignalRef.current = false;
+    if (endSignalTimerRef.current !== null) { window.clearTimeout(endSignalTimerRef.current); endSignalTimerRef.current = null; }
+  }, []);
 
   /** START OVER (Ron, 2026-11-16): end whatever is live, wipe the
    * visit's memory (see resetVisitForNewVisitor) and put the panel
@@ -3256,9 +3297,14 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       // stream (or none stashed) → the fresh ask, unchanged.
       const stashedMic = preview || warm || micStreamIsLive(micStreamRef.current) ? null : takeRetainedHandoffMic<MediaStream>();
       const retainedMic = preview || warm ? null : reusableMicStream(micStreamRef.current, stashedMic);
-      const micRequest: Promise<MediaStream> = retainedMic ?? navigator.mediaDevices.getUserMedia({
+      // Item 11b (2026-11-21): the request is composed through
+      // micRequestPromise so a retained stream is wrapped in
+      // Promise.resolve — the old `retainedMic ?? getUserMedia(...)`
+      // left micRequest holding the raw stream, and .then() on it
+      // threw "dg.then is not a function" on the handoff return.
+      const micRequest: Promise<MediaStream> = micRequestPromise(retainedMic, () => navigator.mediaDevices.getUserMedia({
         audio: { deviceId: microphone === "default" ? undefined : { exact: microphone }, echoCancellation: true, noiseSuppression: true, autoGainControl: microphoneAutoGain(captureMode, noiseFilterRef.current) },
-      });
+      }));
       const microphoneReady = preview || warm ? Promise.resolve(null) : micRequest.then(stream => {
         if (generation !== generationRef.current) { stream.getTracks().forEach(t => t.stop()); return null; }
         micStreamRef.current = stream;
@@ -3629,6 +3675,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             if (!captureRef.current.paused) playPcmChunk(msg.data as string);
             break;
           case "interrupted":
+            // A barge-in during the farewell = changed mind.
+            if (endSignalRef.current) cancelEndSignalClose();
             clearPlayback();
             flushLine("assistant");
             // Team intro bridge yield (design §3.3 rule 2): a TRUE
@@ -3642,7 +3690,17 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             break;
           case "aspen_transcript":
             aspenLineRef.current += msg.text as string;
-            captionClockRef.current.text(msg.text as string);
+            // End-signal (2026-11-21, item 1): consume the prompt
+            // layer's END_CONVERSATION_SIGNAL from the accumulated
+            // line BEFORE it can reach the caption clock, the live
+            // partial or the stored transcript; the close itself
+            // fires at turn_complete (closeOnEndSignal).
+            {
+              const consumed = consumeEndConversationSignal(aspenLineRef.current);
+              if (consumed.signalled) endSignalRef.current = true;
+              aspenLineRef.current = consumed.visible;
+            }
+            captionClockRef.current.text(endSignalVisibleChunk(msg.text as string));
             setPartialAspen(aspenLineRef.current);
             // Avatar swap: watch the GROWING line for a boundary anchor —
             // arming mid-line is what gives the incoming persona its
@@ -3653,6 +3711,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             }
             break;
           case "user_transcript":
+            // Speaking again after asking for the end = changed mind.
+            if (endSignalRef.current) cancelEndSignalClose();
             micTranscriptRef.current = Date.now();
             micAwaitRef.current = null;
             walkthroughRef.current.continued = false;
@@ -3787,6 +3847,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
                 if (sourcesRef.current.size === 0) stopEverything();
               }
             }
+            // End-signal close (2026-11-21, item 1): the completed
+            // line carried END_CONVERSATION_SIGNAL — the farewell
+            // has been flushed; close promptly after it plays
+            // instead of entering the silence ladder.
+            if (endSignalRef.current && liveRef.current) closeOnEndSignal();
             break;
           }
           case "error":
@@ -3895,7 +3960,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       if (generation === generationRef.current) startingRef.current = false;
       window.clearTimeout(startupTimeout);
     }
-  }, [voice, microphone, captureMode, refreshMicrophones, playPcmChunk, clearPlayback, flushLine, stopEverything, agentId, leadId, prospectId, draft, previewVoice, previewAudioContext, visitorName, consent, testModel, shareToken, sample, onRecommendedPlan, videoAvatar, startFace, recoverFromProviderClosed]);
+  }, [voice, microphone, captureMode, refreshMicrophones, playPcmChunk, clearPlayback, flushLine, stopEverything, closeOnEndSignal, cancelEndSignalClose, agentId, leadId, prospectId, draft, previewVoice, previewAudioContext, visitorName, consent, testModel, shareToken, sample, onRecommendedPlan, videoAvatar, startFace, recoverFromProviderClosed]);
 
   startConversationRef.current = startConversation;
   useEffect(() => stopEverything, [stopEverything]);
@@ -4054,6 +4119,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           if (!captureRef.current.paused) playPcmChunk(msg.data as string);
           break;
         case "interrupted":
+          // A barge-in during the farewell = changed mind.
+          if (endSignalRef.current) cancelEndSignalClose();
           clearPlayback();
           flushLine("assistant");
           // Team intro bridge yield — same rule as the main socket.
@@ -4065,7 +4132,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           break;
         case "aspen_transcript": {
           aspenLineRef.current += msg.text as string;
-          captionClockRef.current.text(msg.text as string);
+          // End-signal — same rule as the main socket: consume the
+          // signal from the accumulated line before display/storage.
+          const consumed = consumeEndConversationSignal(aspenLineRef.current);
+          if (consumed.signalled) endSignalRef.current = true;
+          aspenLineRef.current = consumed.visible;
+          captionClockRef.current.text(endSignalVisibleChunk(msg.text as string));
           setPartialAspen(aspenLineRef.current);
           if (swapEnabledRef.current && liveRef.current) {
             const boundary = boundaryForAssistantLine(aspenLineRef.current, swapStateRef.current);
@@ -4074,6 +4146,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           break;
         }
         case "user_transcript":
+          // Speaking again after asking for the end = changed mind.
+          if (endSignalRef.current) cancelEndSignalClose();
           micTranscriptRef.current = Date.now();
           micAwaitRef.current = null;
           walkthroughRef.current.continued = false;
@@ -4150,6 +4224,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             }
           }
           if (!swapHandled) { flushLine("user"); flushLine("assistant"); }
+          // End-signal close — same rule as the main socket.
+          if (endSignalRef.current && liveRef.current) closeOnEndSignal();
           break;
         }
         case "error":
@@ -4212,7 +4288,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         setStatus("Conversation ended. Press Start to begin again.");
       }
     };
-  }, [agentId, captureMode, clearPlayback, flushLine, onRecommendedPlan, playPcmChunk, stopEverything, recoverFromProviderClosed]);
+  }, [agentId, captureMode, clearPlayback, flushLine, onRecommendedPlan, playPcmChunk, stopEverything, closeOnEndSignal, cancelEndSignalClose, recoverFromProviderClosed]);
   connectSegmentSocketRef.current = connectSegmentSocket;
 
   /** VOICE-FIRST FACE TAKEOVER (voice-first batch, 2026-11-10 —

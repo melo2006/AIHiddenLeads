@@ -243,7 +243,12 @@
      keyer's semi-transparent hair/edge pixels composite over a
      controlled mid-tone instead of whatever white the page behind the
      widget happens to be. The dark theme paints NOTHING here — the
-     keyed face floats on the page exactly as it did before. */
+     keyed face floats on the page exactly as it did before.
+     SARA ONLY (2026-11-21, homepage-test item 3): SimliAvatar renders
+     this div only for persona==='sara' (her hair/eyes motivated it);
+     behind any other face the full-frame tint read as a translucent
+     film around a face that used to be fully transparent. These rules
+     therefore only ever apply inside Sara's frame. */
   .simli-keyed-backdrop { position: absolute; inset: 0; pointer-events: none; }
   :root:not(.dark) .simli-keyed-backdrop { background: radial-gradient(115% 100% at 50% 0%, hsl(var(--primary) / 0.10), hsl(var(--muted) / 0.35) 78%); }
   /* Floating states (Ron's phone test, 2026-11-14): wherever the portrait
