@@ -1,6 +1,10 @@
 {
   "nav": {
     "services": "Services",
+    "customers": "Customers",
+    "examples": "Examples",
+    "benefits": "Benefits",
+    "avatars": "Avatars",
     "howItWorks": "How It Works",
     "pricing": "Pricing",
     "testimonials": "Testimonials",

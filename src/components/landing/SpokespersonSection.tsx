@@ -40,7 +40,7 @@ const SpokespersonSection = () => {
   const { i18n } = useTranslation();
   const copy = homepageSalesCopy(i18n.language);
   const pt = i18n.language.startsWith('pt'); const es = i18n.language.startsWith('es'); const fr = i18n.language.startsWith('fr');
-  return <section className="py-12 sm:py-16"><div className="container mx-auto px-5 sm:px-6">
+  return <section id="spokesperson" className="py-12 sm:py-16"><div className="container mx-auto px-5 sm:px-6">
     <div className="flex flex-col md:flex-row items-center gap-8 lg:gap-12">
       <div className="w-full md:w-1/2 flex justify-center">
         <img
