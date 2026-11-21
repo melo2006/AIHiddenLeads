@@ -502,7 +502,11 @@ export class MediaElementPlayout implements HeardElementEngine {
           resolve(true);
         });
       });
-      if (!opened || this.disposed) return this.fail("sourceopen-timeout");
+      // Disposed mid-start: a corpse resolves false silently —
+      // its late fatal must never reach the conversation's fatal
+      // handler (see BlobElementPlayout.start, item-2 fix).
+      if (this.disposed) return false;
+      if (!opened) return this.fail("sourceopen-timeout");
       this.sourceBuffer = mediaSource.addSourceBuffer(MSE_TYPE);
       // The init segment goes out first, ahead of any cluster. The
       // CodecPrivate is the self-built OpusHead (pre-skip 0),

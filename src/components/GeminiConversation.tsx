@@ -952,7 +952,20 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     // ?heardEngine=element opt-in selected it. Both implement
     // HeardElementEngine, so the lifecycle below (fatal flip,
     // hold drain, level inheritance) is shared verbatim.
+    // Item-2 fix (2026-11-21): the engine this lifecycle's fatal
+    // callback belongs to. A fatal is honoured only while that
+    // engine is still the conversation's current engine — a
+    // retired engine's LATE fatal (its async start unwinding
+    // after a restart disposed it) must never kill its healthy
+    // successor. The pre-fix handler read mediaElementRef.current
+    // blind, so one corpse could mark the slot 'failed' and
+    // settle the new session on the media-stream sink (Ron's
+    // resumed session de935733, efail=exception from the first
+    // stamp, the sink's rate witness sagging 0.68..0.96 all
+    // session — the deeper, slower "different person").
+    const lifecycle = { engine: null as HeardElementEngine | null };
     const onEngineFatal = (reason: string) => {
+      if (lifecycle.engine && mediaElementRef.current !== lifecycle.engine) return;
       // The engine died. What happens next is the Publish #62
       // recovery guard's decision (lib/playoutRearm.ts):
       //  - 'rearm' (blob engine, stall-class death, budget left):
@@ -1047,6 +1060,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     engine = heardEngine() === 'blob'
       ? new BlobElementPlayout(undefined, onEngineFatal)
       : new MediaElementPlayout(undefined, onEngineFatal);
+    lifecycle.engine = engine;
     mediaElementRef.current = engine;
     void engine.start().then((ok) => {
       if (mediaElementRef.current !== engine) return;
@@ -3049,7 +3063,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const replayLastMessage = useCallback(async () => {
     if (!lastAudioRef.current.length || captureRef.current.paused || captureRef.current.replaying) return;
     try {
-      if (!playCtxRef.current || playCtxRef.current.state === "closed") playCtxRef.current = new AudioContext();
+      if (!playCtxRef.current || playCtxRef.current.state === "closed") playCtxRef.current = new AudioContext({ sampleRate: 24000 });
       await playCtxRef.current.resume();
       pauseCapture();
       clearPlayback();
@@ -3223,7 +3237,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
     try {
       // Unlock audio while still inside the user's click, before permissions/network awaits.
-      const playCtx = preview && previewAudioContext?.state !== 'closed' && previewAudioContext ? previewAudioContext : new AudioContext();
+      const playCtx = preview && previewAudioContext?.state !== 'closed' && previewAudioContext ? previewAudioContext : new AudioContext({ sampleRate: 24000 });
       playCtxRef.current = playCtx;
       // Prime the media-routed playback sink while the tap's user
       // activation is fresh, so her voice can play through the audio
@@ -5102,7 +5116,15 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     const generation = generationRef.current;
     setPhase("connecting"); setStatus("Connecting…"); setError(null); setAudioNeedsTap(false); setLimitReached(false); setEndedByVisitor(false); setSwapNotice('');
     // All unlocks start synchronously inside the tap.
-    const playCtx = playCtxRef.current && playCtxRef.current.state !== 'closed' ? playCtxRef.current : new AudioContext();
+    // Item-2 fix (2026-11-21): the play context is pinned to the
+    // content's native 24 kHz on EVERY creation path. This warm
+    // path previously created it unpinned (48 kHz on Ron's
+    // phone — crate=48000 in the session record), so the whole
+    // fallback graph, including the MediaStream sink that
+    // bridges engine re-arms, ran behind a gratuitous resample;
+    // every sagging media-stream stamp in the Nov 15/21 records
+    // sits on a 48 kHz context.
+    const playCtx = playCtxRef.current && playCtxRef.current.state !== 'closed' ? playCtxRef.current : new AudioContext({ sampleRate: 24000 });
     playCtxRef.current = playCtx;
     const playResume = playCtx.resume();
     const micCtx = new AudioContext({ sampleRate: 16000 });

@@ -306,6 +306,38 @@ describe("BlobElementPlayout", () => {
     engine.dispose();
   });
 
+  it("an engine disposed while its start probe is in flight resolves false and never fires the fatal callback", async () => {
+    // Item-2 (2026-11-21, session de935733): a session restart
+    // disposed the engine mid-probe; the pre-fix start() then
+    // failed it with "exception", and the conversation's fatal
+    // handler settled the SUCCESSOR session on the media-stream
+    // sink. A corpse must unwind silently.
+    let releaseProbe: (supported: boolean) => void = () => {};
+    const probe = new Promise<boolean>((resolve) => { releaseProbe = resolve; });
+    const onFatal = vi.fn();
+    const { deps } = makeDeps({ encoderSupported: () => probe });
+    const engine = new BlobElementPlayout(deps, onFatal);
+    const started = engine.start();
+    engine.dispose();
+    releaseProbe(true);
+    expect(await started).toBe(false);
+    expect(onFatal).not.toHaveBeenCalled();
+    expect(engine.failed).toBe(false);
+    expect(engine.failureReason).toBe(null);
+  });
+
+  it("a genuine start-phase exception on a live engine still reports fatal 'exception' (the re-arm guard's input)", async () => {
+    const onFatal = vi.fn();
+    const { deps } = makeDeps({
+      createEncoder: () => { throw new Error("encoder construction blew up"); },
+    });
+    const engine = new BlobElementPlayout(deps, onFatal);
+    expect(await engine.start()).toBe(false);
+    expect(onFatal).toHaveBeenCalledWith("exception");
+    expect(engine.failureReason).toBe("exception");
+    engine.dispose();
+  });
+
   it("fails when no encoder ladder rung is supported", async () => {
     const onFatal = vi.fn();
     const { deps } = makeDeps({ encoderSupported: async () => false });
