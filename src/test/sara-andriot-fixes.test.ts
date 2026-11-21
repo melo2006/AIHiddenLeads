@@ -319,6 +319,15 @@ describe('Bug 6 — Sara chroma-key profile', () => {
   it('only Sara\'s stream keys with the shifted profile', () => {
     expect(simli).toContain("persona === 'sara' ? SARA_CHROMA_KEY_PROFILE : undefined");
   });
+
+  it('only Sara\'s frame paints the keyed backdrop (2026-11-21, homepage-test item 3)', () => {
+    // The 2026-11-20 backdrop was added for Sara's hair/eyes but
+    // rendered behind EVERY keyed face, where it read as a light
+    // translucent film around Aspen on the homepage. It is now
+    // gated to her persona only; every other face stays transparent.
+    expect(simli).toContain("{keyed && persona === 'sara' && <div aria-hidden className=\"simli-keyed-backdrop\" />}");
+    expect(simli).not.toContain('{keyed && <div aria-hidden className="simli-keyed-backdrop" />}');
+  });
 });
 
 describe('Forensics 1 — the segment opening CONFIG is her own in-role line (proven Bug 2 root cause)', () => {

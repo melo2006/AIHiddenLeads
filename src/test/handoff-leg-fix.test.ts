@@ -25,6 +25,7 @@ import {
   handoffVisitFact,
   hasRetainedHandoffMic,
   isHandoffAnnouncement,
+  micRequestPromise,
   micStreamIsLive,
   retainHandoffMic,
   reusableMicStream,
@@ -214,8 +215,31 @@ describe('client wiring — GeminiConversation', () => {
   it('the return start adopts the retained stream before any fresh getUserMedia', () => {
     expect(src).toContain('takeRetainedHandoffMic<MediaStream>()');
     expect(src).toContain('reusableMicStream(micStreamRef.current, stashedMic)');
-    expect(src).toContain('const micRequest: Promise<MediaStream> = retainedMic ?? navigator.mediaDevices.getUserMedia({');
+    // Item 11b (2026-11-21): the composition goes through
+    // micRequestPromise — the old pin asserted the buggy
+    // `retainedMic ?? getUserMedia(...)` line verbatim, which left
+    // micRequest holding the raw stream whenever one was retained.
+    expect(src).toContain('const micRequest: Promise<MediaStream> = micRequestPromise(retainedMic, () => navigator.mediaDevices.getUserMedia({');
+    expect(src).not.toContain('const micRequest: Promise<MediaStream> = retainedMic ??');
+    // The helper itself is the corrected composition: a retained
+    // stream is wrapped in Promise.resolve, never composed raw.
+    const recovery = read('src/lib/handoffRecovery.ts');
+    expect(recovery).toContain('return retained ? Promise.resolve(retained) : freshRequest();');
     expect(src).toContain('if (retainedMic && stream === retainedMic) handoffMicReusedRef.current = true;');
+  });
+
+  it('micRequestPromise resolves a live retained stream instead of throwing, and only asks fresh when none is retained', async () => {
+    const { stream } = fakeStream('live');
+    const fresh = vi.fn(async () => fakeStream('live').stream);
+    // The retained path EXECUTED (the old composition threw
+    // "dg.then is not a function" here): the promise resolves to
+    // the very stream that was retained, and no fresh ask runs.
+    await expect(micRequestPromise(stream, fresh)).resolves.toBe(stream);
+    expect(fresh).not.toHaveBeenCalled();
+    // No retained stream → the fresh request runs and its result wins.
+    const freshStream = fakeStream('live').stream;
+    await expect(micRequestPromise(null, async () => freshStream)).resolves.toBe(freshStream);
+    await expect(micRequestPromise(undefined, async () => freshStream)).resolves.toBe(freshStream);
   });
 
   it('a mid-leg teardown retains the mic stream instead of stopping it, and stamps the interruption', () => {
