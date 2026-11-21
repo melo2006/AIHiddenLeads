@@ -3,16 +3,21 @@ import {
   REALTOR_EXAMPLE_PINNED_LEADS,
   applyPinnedServiceArea,
 } from '../_shared/realtor-example-pinned-leads.ts';
+import { B2B_EXAMPLE_PINNED_LEADS } from '../_shared/b2b-example-pinned-leads.ts';
 
-// Weekly refresh for the PINNED realtor demo-example leads
-// (pinned-example-leads build, 2026-11-13).
+// Weekly refresh for ALL PINNED demo-example leads — the 14 realtor
+// pins plus the 36 B2B pins (extended 2026-11-21; the original
+// 2026-11-13 build covered the realtor roster only, so the B2B
+// examples' stored knowledge could only age).
 //
-// Each /agents/realtors example enters its demo through ONE pinned
-// leads row whose scan is stored and reused, instead of a fresh
-// ~2-minute scan per visitor. This function re-runs scan-website
-// IN PLACE on a pinned lead (same lead id, same row — the scan
-// overwrites website_content / screenshots / brand fields), so the
-// stored knowledge tracks the agent's live site.
+// Each example enters its demo through ONE pinned leads row whose
+// scan is stored and reused, instead of a fresh ~2-minute scan per
+// visitor. This function re-runs scan-website IN PLACE on a pinned
+// lead (same lead id, same row — the scan overwrites website_content
+// / screenshots / brand fields, subject to scan-website's own
+// content-overwrite guard, which keeps the stored knowledge when a
+// rescan starves), so the stored knowledge tracks the business's
+// live site.
 //
 // website_url is the ONE field a refresh must never move: a pinned
 // lead's stored URL stays at the pinned map's value (the business's
@@ -63,8 +68,37 @@ import {
 // When that secret is set, callers must present it as the
 // x-example-refresh-secret header (the followup-sweep pattern); when
 // unset, calls are accepted like the project's other sweeps.
+// ARMING STATE, verified 2026-11-21: the secret is NOT set (a probe
+// call without the header reaches the slug filter instead of the
+// 403 gate) and the weekly cron has never fired (no pinned row
+// carries a refresh-shaped update from its first scheduled slot,
+// Sun 2026-11-16 08:00 UTC) — the schedule remains unarmed until
+// someone runs the deploy step in the migration.
 
 const json = (d: unknown, status = 200) => new Response(JSON.stringify(d), { status, headers: { 'Content-Type': 'application/json' } });
+
+// The unified refresh roster. Realtor pins carry the optional
+// pinned-fact fields (serviceArea / consentBannerVerified /
+// forceCoveredView); B2B pins record none, so for them those
+// assertions below simply never fire — the per-lead flow (scan in
+// place + pinned-URL re-assert) is identical for every pin.
+interface ExampleRefreshTarget {
+  slug: string;
+  leadId: string;
+  url: string;
+  serviceArea?: string;
+  consentBannerVerified?: boolean;
+  forceCoveredView?: boolean;
+}
+
+const ALL_EXAMPLE_PINNED_LEADS: ExampleRefreshTarget[] = [
+  ...REALTOR_EXAMPLE_PINNED_LEADS,
+  ...B2B_EXAMPLE_PINNED_LEADS.map((entry) => ({
+    slug: entry.slug,
+    leadId: entry.leadId,
+    url: entry.url,
+  })),
+];
 
 Deno.serve(async (req) => {
   const secret = Deno.env.get('EXAMPLE_REFRESH_SECRET');
@@ -79,7 +113,7 @@ Deno.serve(async (req) => {
   let body: { slug?: string; leadId?: string } = {};
   try { body = await req.json(); } catch { /* empty body = refresh all (manual) */ }
 
-  const targets = REALTOR_EXAMPLE_PINNED_LEADS.filter((entry) =>
+  const targets = ALL_EXAMPLE_PINNED_LEADS.filter((entry) =>
     body.leadId ? entry.leadId === body.leadId : body.slug ? entry.slug === body.slug : true,
   );
   if (targets.length === 0) return json({ ok: false, reason: 'no_matching_pinned_lead' }, 404);

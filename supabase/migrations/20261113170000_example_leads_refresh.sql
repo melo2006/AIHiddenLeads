@@ -19,6 +19,16 @@
 -- one lead in place via scan-website, so no single function
 -- invocation has to outlive a scan.
 --
+-- Roster updated 2026-11-21: the refresh function now covers ALL
+-- pinned examples (14 realtors + 36 B2B), so the VALUES list below
+-- names all 50 slugs (the original list named 13 and omitted
+-- julie-melrose). ARMING STATE, verified 2026-11-21: this deploy
+-- step has NOT been run — EXAMPLE_REFRESH_SECRET is not set on the
+-- function (a headerless probe reaches the slug filter, not the 403
+-- gate) and the job has never fired (no pinned row carries a
+-- refresh-shaped update from Sun 2026-11-16 08:00 UTC, its first
+-- would-be slot).
+--
 --   SELECT cron.schedule(
 --     'refresh-example-leads-weekly',
 --     '0 8 * * 0',
@@ -32,6 +42,7 @@
 --        FROM (VALUES
 --          ('aurelia-perez'),
 --          ('ann-chamberlain'),
+--          ('julie-melrose'),
 --          ('ashley-cusack'),
 --          ('mauricio-barba'),
 --          ('michael-martinez'),
@@ -42,7 +53,43 @@
 --          ('ray-miramontes'),
 --          ('danielle-lazier'),
 --          ('richard-steinberg'),
---          ('gian-sexsmith')
+--          ('gian-sexsmith'),
+--          ('spodak-dental'),
+--          ('ts-roofing'),
+--          ('cool-air-usa'),
+--          ('madalon-law'),
+--          ('paradise-plumbing'),
+--          ('national-brick-pavers'),
+--          ('anco-precision'),
+--          ('ast-manufacturing'),
+--          ('cable-marine'),
+--          ('a2z-marine'),
+--          ('prestige-auto'),
+--          ('autoscope'),
+--          ('ak-building-services'),
+--          ('it-yall'),
+--          ('essig-pools'),
+--          ('az-pools'),
+--          ('prestige-landscape'),
+--          ('tropic-supply'),
+--          ('royal-electrical-supply'),
+--          ('mjm-manufacturing'),
+--          ('westway-towing'),
+--          ('lan-infotech'),
+--          ('john-the-plumber'),
+--          ('septic-doctor'),
+--          ('mamas-boy-air'),
+--          ('evo-air'),
+--          ('john-orthodontics'),
+--          ('jj-dental'),
+--          ('tole-electric'),
+--          ('bos-generators'),
+--          ('levine-family-law'),
+--          ('meltzer-bell'),
+--          ('robson-industrial'),
+--          ('amaira-medspa'),
+--          ('central-broward-vet'),
+--          ('chiangwell-medical')
 --        ) AS t(slug); $$
 --   );
 --
