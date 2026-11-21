@@ -1,32 +1,31 @@
 import { ExternalLink, Globe } from "lucide-react";
 import { useEffect, useState } from "react";
-import { DemoLeadData, extractNavigationLabels, getImageSrc, getSiteName, normalizeWebsiteUrl } from "./demoResultsUtils";
+import { DemoLeadData, extractNavigationLabels, getResponsiveScreenshotSrc, getSiteName, normalizeWebsiteUrl } from "./demoResultsUtils";
 
 interface BeforePreviewProps {
   leadData: DemoLeadData;
 }
 
-/** Pick the best screenshot for the current viewport */
+/** Pick the best screenshot for the current viewport (shared picker:
+ *  getResponsiveScreenshotSrc owns the variant order, including the
+ *  2026-11-21 phone order — real mobile, then full-page desktop,
+ *  then tablet). */
 function useResponsiveScreenshot(leadData: DemoLeadData): string | null {
-  const [src, setSrc] = useState<string | null>(() => {
-    const w = typeof window !== "undefined" ? window.innerWidth : 1024;
-    if (w <= 480 && leadData.screenshotMobile) return getImageSrc(leadData.screenshotMobile);
-    if (w <= 820 && leadData.screenshotTablet) return getImageSrc(leadData.screenshotTablet);
-    return getImageSrc(leadData.screenshot);
-  });
+  const { screenshot, screenshotTablet, screenshotMobile } = leadData;
+  const [src, setSrc] = useState<string | null>(() =>
+    getResponsiveScreenshotSrc(
+      { screenshot, screenshotTablet, screenshotMobile },
+      typeof window !== "undefined" ? window.innerWidth : 1024,
+    ),
+  );
 
   useEffect(() => {
-    const pick = () => {
-      const w = window.innerWidth;
-      if (w <= 480 && leadData.screenshotMobile) return getImageSrc(leadData.screenshotMobile);
-      if (w <= 820 && leadData.screenshotTablet) return getImageSrc(leadData.screenshotTablet);
-      return getImageSrc(leadData.screenshot);
-    };
-    const handler = () => setSrc(pick());
+    const variants = { screenshot, screenshotTablet, screenshotMobile };
+    const handler = () => setSrc(getResponsiveScreenshotSrc(variants, window.innerWidth));
     handler();
     window.addEventListener("resize", handler);
     return () => window.removeEventListener("resize", handler);
-  }, [leadData.screenshot, leadData.screenshotTablet, leadData.screenshotMobile]);
+  }, [screenshot, screenshotTablet, screenshotMobile]);
 
   return src;
 }

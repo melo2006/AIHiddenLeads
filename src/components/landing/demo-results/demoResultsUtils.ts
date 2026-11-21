@@ -100,12 +100,54 @@ export const withCacheKey = (value: string | null, cacheKey?: string) => {
   return `${value}${separator}v=${encodeURIComponent(cacheKey)}`;
 };
 
+/**
+ * A stored screenshot value counts as a REAL capture only when it is
+ * a non-empty value that is not the generated placeholder — the
+ * data:image/svg+xml "CAPTURED WEBSITE SUMMARY" card scan-website
+ * stores when no capture could be taken (the same signal
+ * isGeneratedPlaceholderScreenshot reads in src/lib/demoInvite.ts and
+ * the server's screenshot-banner-guard uses). A placeholder is not a
+ * picture of the business's site, so the picker treats it as absent
+ * and falls through to a real variant.
+ */
+const isRealCaptureValue = (value?: string | null): value is string =>
+  typeof value === "string" && value.length > 0 && !value.startsWith("data:image/svg+xml");
+
 export const getResponsiveScreenshotSrc = (
   leadData: Pick<DemoLeadData, "screenshot" | "screenshotTablet" | "screenshotMobile">,
   viewportWidth: number,
 ) => {
-  if (viewportWidth <= 480 && leadData.screenshotMobile) {
-    return getImageSrc(leadData.screenshotMobile);
+  if (viewportWidth <= 480) {
+    // PHONE ORDER (demo capture fix, 2026-11-21): a real MOBILE
+    // capture wins first — it is the only variant framed for the
+    // phone. Behind it, the full-page DESKTOP capture outranks the
+    // tablet variant: the tablet capture is a single viewport-height
+    // shot, and for a site whose hero is one tall photo (Richard
+    // Steinberg Team) that one viewport can be all sky — no name, no
+    // nav, no content — while the full-page desktop capture carries
+    // the branding and the whole page. The same order rescues sites
+    // the capture browser cannot reach at the tablet viewport
+    // (Michael Martinez: the stored tablet shot is the host's
+    // bot-check page; the desktop capture is the real site). A lead
+    // whose desktop value is only the generated placeholder falls
+    // through to its tablet capture (Danielle Lazier), as before.
+    if (isRealCaptureValue(leadData.screenshotMobile)) {
+      return getImageSrc(leadData.screenshotMobile);
+    }
+    if (isRealCaptureValue(leadData.screenshot)) {
+      return getImageSrc(leadData.screenshot);
+    }
+    if (isRealCaptureValue(leadData.screenshotTablet)) {
+      return getImageSrc(leadData.screenshotTablet);
+    }
+    // Nothing real stored: keep the historical precedence so the
+    // caller's own fallbacks (placeholder card, live view) engage
+    // exactly as they did before.
+    return (
+      getImageSrc(leadData.screenshotMobile) ??
+      getImageSrc(leadData.screenshotTablet) ??
+      getImageSrc(leadData.screenshot)
+    );
   }
 
   if (viewportWidth <= 820 && leadData.screenshotTablet) {
