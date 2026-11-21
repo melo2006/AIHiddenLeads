@@ -343,11 +343,21 @@ export class BlobElementPlayout implements HeardElementEngine {
         /* attachment is best-effort; playback does not depend on it */
       }
       if (!this.startEncoder()) return this.fail("no-encoder");
-      if (this.disposed) return this.fail("exception");
+      // Disposed mid-start (a session restart raced the async
+      // probe and tore this instance down): this engine is a
+      // corpse — resolve false WITHOUT firing the fatal callback.
+      // Firing it (the pre-fix behaviour, reason "exception") let
+      // a dead engine's late start mark the conversation's engine
+      // slot failed and settle the SUCCESSOR's session on the
+      // media-stream sink for its whole life (Ron's 2026-11-21
+      // resume session de935733: eng=failed/efail=exception from
+      // the first stamp, rw sagging 0.68..0.96 throughout).
+      if (this.disposed) return false;
       this.ready = true;
       this.ensurePump();
       return true;
     } catch {
+      if (this.disposed) return false;
       return this.fail("exception");
     }
   }

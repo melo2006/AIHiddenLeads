@@ -12,6 +12,14 @@
 // These tests pin: stall-class blob deaths re-arm while budget
 // lasts, escalate to the reconnect path when it is spent, and
 // everything else settles exactly as before.
+//
+// Item-2 extension (2026-11-21, session de935733): a START-phase
+// "exception" death settled a whole resumed session on the same
+// sink (rw 0.68..0.96 on every stamp). "exception" is produced
+// only inside BlobElementPlayout.start(), so it is rearmable
+// under the same budget; these tests pin that too, plus the
+// stale-fatal guard that keeps a retired engine's late fatal
+// from killing its successor.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
@@ -23,6 +31,8 @@ import {
 
 const read = (rel: string) => readFileSync(new URL(rel, import.meta.url), "utf8");
 const conversation = read("../components/GeminiConversation.tsx");
+const blobEngine = read("../lib/blobElementPlayout.ts");
+const mseEngine = read("../lib/mediaElementPlayout.ts");
 const sliceBetween = (text: string, start: string, end: string) => {
   const a = text.indexOf(start);
   const b = text.indexOf(end, a + start.length);
@@ -45,9 +55,22 @@ describe("engineRearmDecision", () => {
   });
 
   it("platform/config deaths settle: a fresh instance would hit the same wall", () => {
-    for (const reason of ["unsupported", "encoder-unsupported", "no-encoder", "encoder-error", "encode-exception", "mux-exception", "exception", "encoder-restart"]) {
+    for (const reason of ["unsupported", "encoder-unsupported", "no-encoder", "encoder-error", "encode-exception", "mux-exception", "encoder-restart"]) {
       expect(engineRearmDecision({ kind: "blob", reason, rearmAttempts: 0 })).toBe("settle");
     }
+  });
+
+  it("a start-phase exception re-arms under the same budget, then escalates to reconnect — it never settles on the sink", () => {
+    // Item-2 (session de935733): "exception" is produced only by
+    // BlobElementPlayout.start()'s catch-all — a lifecycle race
+    // or transient construction contention in the start window,
+    // not a platform fact a fresh instance would meet unchanged.
+    expect(engineRearmDecision({ kind: "blob", reason: "exception", rearmAttempts: 0 })).toBe("rearm");
+    expect(engineRearmDecision({ kind: "blob", reason: "exception", rearmAttempts: MAX_BLOB_ENGINE_REARMS - 1 })).toBe("rearm");
+    expect(engineRearmDecision({ kind: "blob", reason: "exception", rearmAttempts: MAX_BLOB_ENGINE_REARMS })).toBe("reconnect");
+    // The MSE opt-in keeps its documented sink fallback even for
+    // a start-phase death: the guard protects the DEFAULT engine.
+    expect(engineRearmDecision({ kind: "mse", reason: "exception", rearmAttempts: 0 })).toBe("settle");
   });
 
   it("the MSE opt-in and the no-engine case settle exactly as before the guard", () => {
@@ -55,8 +78,8 @@ describe("engineRearmDecision", () => {
     expect(engineRearmDecision({ kind: null, reason: "element-stalled", rearmAttempts: 0 })).toBe("settle");
   });
 
-  it("the re-armable set is exactly the two stall-class reasons, and the budget is bounded", () => {
-    expect([...BLOB_REARMABLE_REASONS].sort()).toEqual(["element-error", "element-stalled"]);
+  it("the re-armable set is exactly the stall-class pair plus the start-phase exception, and the budget is bounded", () => {
+    expect([...BLOB_REARMABLE_REASONS].sort()).toEqual(["element-error", "element-stalled", "exception"]);
     expect(MAX_BLOB_ENGINE_REARMS).toBe(2);
     // A caller-supplied cap is honoured (the policy stays pure).
     expect(engineRearmDecision({ kind: "blob", reason: "element-stalled", rearmAttempts: 0, maxRearms: 0 })).toBe("reconnect");
@@ -127,5 +150,25 @@ describe("playout recovery guard contracts (GeminiConversation)", () => {
 
   it("the guard adds no new diag stamp call sites (the pinned count of five stands)", () => {
     expect(count(conversation, "stampPlayoutDiag();")).toBe(5);
+  });
+
+  it("a retired engine's late fatal is ignored: the handler honours only the current engine's fatal", () => {
+    const fatal = sliceBetween(conversation, "const onEngineFatal", "engine = heardEngine() === 'blob'");
+    expect(fatal).toContain("if (lifecycle.engine && mediaElementRef.current !== lifecycle.engine) return;");
+    expect(conversation).toContain("lifecycle.engine = engine;");
+  });
+
+  it("a disposed engine's start resolves false WITHOUT firing its fatal callback, in both engines", () => {
+    // The blob engine's disposed check used to fail("exception")
+    // — a corpse killing its successor's session (de935733).
+    expect(blobEngine).toContain("if (this.disposed) return false;\n      this.ready = true;");
+    expect(blobEngine).not.toContain('if (this.disposed) return this.fail("exception")');
+    expect(blobEngine).toContain("} catch {\n      if (this.disposed) return false;\n      return this.fail(\"exception\");");
+    expect(mseEngine).toContain("if (this.disposed) return false;\n      if (!opened) return this.fail(\"sourceopen-timeout\");");
+  });
+
+  it("every play AudioContext is created at the content's native 24 kHz — no unpinned play context remains", () => {
+    expect(count(conversation, "new AudioContext({ sampleRate: 24000 })")).toBe(5);
+    expect(count(conversation, "new AudioContext()")).toBe(0);
   });
 });
