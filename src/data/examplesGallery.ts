@@ -23,6 +23,12 @@
  * (REALTOR_EXAMPLE_PRESENTERS); B2B examples run the standard Aspen
  * flow server-side — their pinned-leads `presenter` field is an
  * unwired proposal, so the gallery says Aspen for all of them.
+ *
+ * Each entry also carries ONE filter category (2026-11-21): realtors
+ * are "real-estate"; B2B entries derive theirs from their pack's
+ * niche. The section's default view is business-first (see
+ * orderExamplesForDefaultView) — real estate is one category among
+ * many, not the majority of the wall.
  */
 import {
   REALTOR_EXAMPLE_PINNED_LEADS,
@@ -32,10 +38,64 @@ import { REALTOR_VERTICAL } from "@/data/agentVerticals";
 import { B2B_EXAMPLE_PINNED_LEADS } from "@/data/b2bExamplePinnedLeads";
 import { B2B_EXAMPLE_PACKS } from "@/data/b2bExampleServices";
 
+/**
+ * Filter categories for the gallery (Ron's mix call, 2026-11-21): the
+ * grid is business-first, with real estate as ONE category among many
+ * instead of the majority of the wall. Every example carries exactly
+ * one category; the section renders a filter chip only for categories
+ * that have at least one rendered example.
+ */
+export type GalleryCategory =
+  | "real-estate"
+  | "home-services"
+  | "health-dental"
+  | "legal"
+  | "manufacturing"
+  | "marine"
+  | "auto"
+  | "business-services";
+
+/** Chip order in the filter row (after the "All" chip). */
+export const GALLERY_CATEGORY_ORDER: GalleryCategory[] = [
+  "real-estate",
+  "home-services",
+  "health-dental",
+  "legal",
+  "manufacturing",
+  "marine",
+  "auto",
+  "business-services",
+];
+
+/**
+ * B2B pack niche → gallery category. The packs' own niche vocabulary
+ * (b2bExampleServices.ts) is the source; pool building/service and
+ * landscaping crews are field-service home trades, so they sit with
+ * the other home services. An unmapped future niche falls back to
+ * business services rather than vanishing — the data test pins every
+ * current example's category explicitly, so a new niche fails there
+ * first and gets a deliberate home here.
+ */
+const NICHE_CATEGORIES: Record<string, GalleryCategory> = {
+  dentist: "health-dental",
+  roofer: "home-services",
+  hvac: "home-services",
+  plumber: "home-services",
+  pavers: "home-services",
+  "field-service": "home-services",
+  lawyer: "legal",
+  manufacturer: "manufacturing",
+  marine: "marine",
+  "auto-repair": "auto",
+  "b2b-services": "business-services",
+};
+
 export interface GalleryExample {
   /** Unique across both sets (realtor slugs and B2B slugs never collide). */
   slug: string;
   kind: "b2b" | "realtor";
+  /** Filter category this example belongs to (exactly one). */
+  category: GalleryCategory;
   /** Business / agent name shown on the card. */
   name: string;
   /** Card sub-line: "City, ST · Niche" (B2B) or "City · Real estate" (realtor). */
@@ -72,6 +132,7 @@ const b2bExamples: GalleryExample[] = B2B_EXAMPLE_PINNED_LEADS.map((entry) => {
   return {
     slug: entry.slug,
     kind: "b2b" as const,
+    category: (pack && NICHE_CATEGORIES[pack.niche]) || "business-services",
     name: entry.business,
     detail: [place, niche].filter(Boolean).join(" · "),
     url: entry.url,
@@ -88,6 +149,7 @@ const realtorExamples: GalleryExample[] = REALTOR_EXAMPLE_PINNED_LEADS.map((entr
   return {
     slug: entry.slug,
     kind: "realtor" as const,
+    category: "real-estate" as const,
     name: entry.agent,
     detail: [city, "Real estate"].filter(Boolean).join(" · "),
     url: entry.url,
@@ -111,3 +173,24 @@ export const EXAMPLES_GALLERY: GalleryExample[] = (() => {
   }
   return out;
 })();
+
+/**
+ * Default ("All") view ordering (Ron's mix call, 2026-11-21): diverse
+ * businesses lead — the first screenful is six general businesses
+ * with at most three real-estate cards woven in, then the remaining
+ * businesses, then the remaining realtors. Nothing is dropped or
+ * hidden; the full realtor set is one filter tap away and also
+ * appears further down the expanded "All" view. Applied to whatever
+ * subset is actually rendered (examples with a real capture), so the
+ * business-first shape holds even while some captures are missing.
+ */
+export const orderExamplesForDefaultView = (examples: GalleryExample[]): GalleryExample[] => {
+  const b2b = examples.filter((example) => example.kind === "b2b");
+  const realtors = examples.filter((example) => example.kind === "realtor");
+  return [
+    ...b2b.slice(0, 6),
+    ...realtors.slice(0, 3),
+    ...b2b.slice(6),
+    ...realtors.slice(3),
+  ];
+};
