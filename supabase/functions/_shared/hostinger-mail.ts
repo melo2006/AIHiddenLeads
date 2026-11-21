@@ -263,3 +263,16 @@ export const conversationCopy = (c: {name:string;email:string;url:string}): Mail
   text:`Hi ${first(c.name)},\n\nHere is the private conversation copy you requested: ${c.url}\nThe link expires in seven days. Keep it private; anyone with it can read your transcript and AI summary. AI summaries may contain errors.\n\nPlans start at $99/month — book another demo: ${SITE}/demo · Get started: ${SITE}/plans\n\nThis request does not subscribe you to marketing.\n\nAI Hidden Leads`,
   html:layout({preheader:'Your requested conversation copy',title:'Your conversation with Aspen',promo:true,body:p(`Hi ${esc(first(c.name))}, here is the conversation copy you requested.`)+button(c.url,'View transcript & AI summary')+p('This private link expires in seven days. Anyone with the link can read it, so please do not forward it. AI summaries may contain errors.')+conversationCtaBlock()+p('This request does not subscribe you to marketing.')})
 });
+
+// Support ticket alert (Help & Support page, 2026-11-21): every ticket
+// the /help form creates lands in the owner mailbox with its reference,
+// so a ticket is never only a database row. Owner-internal (no promo
+// block), reply button goes straight to the visitor's email.
+export const supportTicketAlert = (t: { reference: string; name: string; businessName?: string; email: string; topic: string; urgency: string; message: string }): Mail => ({
+  to: OWNER_MAILBOX,
+  subject: `Support ticket ${t.reference} · ${t.topic} · ${t.urgency}`,
+  text: `A visitor sent a support ticket from the Help & Support page.\n\nReference: ${t.reference}\nTopic: ${t.topic}\nUrgency: ${t.urgency}\nName: ${t.name}\nBusiness: ${t.businessName || 'not given'}\nEmail: ${t.email}\n\nMessage:\n${t.message}\n\nThe ticket is saved in the support_tickets table. Reply to this email to answer the visitor.`,
+  html: layout({ preheader: `Ticket ${t.reference} — ${t.topic} (${t.urgency})`, title: '🎫 New support ticket', body:
+    `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 18px">${row('Reference', esc(t.reference))}${row('Topic', esc(t.topic))}${row('Urgency', esc(t.urgency))}${row('Name', esc(t.name))}${row('Business', esc(t.businessName || 'not given'))}${row('Email', link(`mailto:${t.email}`, t.email))}</table>`
+    + p(esc(t.message)) + button(`mailto:${t.email}?subject=${encodeURIComponent(`Re: Support ticket ${t.reference}`)}`, 'Reply to visitor') + p('The ticket is saved in the support_tickets table with status “open”.') }),
+});
