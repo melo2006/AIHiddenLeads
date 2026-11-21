@@ -284,6 +284,21 @@ export function microphonePcm(input: Float32Array, sampleRate: number): Int16Arr
   return output;
 }
 
+/**
+ * Base64 for a PCM16 frame without the byte-by-byte string concatenation the
+ * mic handlers used to run per frame (one `+=` per byte, on the main thread,
+ * ~8×/second). Chunked fromCharCode is the encoding the clean-room test app
+ * proved out on 2026-11-20; output is byte-identical to the slow loop.
+ */
+export function pcmToBase64(pcm: Int16Array): string {
+  const bytes = new Uint8Array(pcm.buffer, pcm.byteOffset, pcm.byteLength);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 8192) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+  }
+  return btoa(binary);
+}
+
 // Every new voice session starts hands-free. The persisted "voice-capture-mode"
 // preference is deliberately NOT consulted here: a session that once ended in
 // hold mode used to make every later session silently start in hold-to-talk,

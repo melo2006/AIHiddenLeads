@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { microphonePcm, shouldSendMicrophone, microphoneGate, microphoneAutoGain, initialCaptureMode, estimateNoiseFloor, pickNoiseFilterForFloor, ambientLevelForFloor, createAmbientGateState, pushAmbientRms, AMBIENT_WINDOW_MAX_SAMPLES, createSpeechGateState, pushSpeechGateFrame, autoNoiseFilter, appliedAmbientLevel, appliedNoiseFilter, deadAirRelaxedFilter, noiseThresholds, SPEECH_GATE_SUSTAIN_MS, SPEECH_GATE_SPEAKING_SUSTAIN_MS, SPEECH_GATE_SPEAKING_THRESHOLD, SPEECH_GATE_OPENING_MAX, type NoiseFilter, type SpeechGateState } from "../lib/voiceLabAudio";
+import { microphonePcm, pcmToBase64, shouldSendMicrophone, microphoneGate, microphoneAutoGain, initialCaptureMode, estimateNoiseFloor, pickNoiseFilterForFloor, ambientLevelForFloor, createAmbientGateState, pushAmbientRms, AMBIENT_WINDOW_MAX_SAMPLES, createSpeechGateState, pushSpeechGateFrame, autoNoiseFilter, appliedAmbientLevel, appliedNoiseFilter, deadAirRelaxedFilter, noiseThresholds, SPEECH_GATE_SUSTAIN_MS, SPEECH_GATE_SPEAKING_SUSTAIN_MS, SPEECH_GATE_SPEAKING_THRESHOLD, SPEECH_GATE_OPENING_MAX, type NoiseFilter, type SpeechGateState } from "../lib/voiceLabAudio";
 
 describe("Voice Lab microphone privacy controls", () => {
   it('AGC stays on under strong filtering (restored 2026-11-18 — a quiet speaker must be liftable to the gate bar); hold-to-talk keeps it off', () => {
@@ -348,5 +348,21 @@ describe("deadAirRelaxedFilter — the dead-air exception to never-relax", () =>
   it("steps down one level at a time and stops at light", () => {
     expect(deadAirRelaxedFilter({ ...base, applied: "balanced" })).toBe("light");
     expect(deadAirRelaxedFilter({ ...base, applied: "light" })).toBeNull();
+  });
+});
+describe("pcmToBase64 (audio-path slim, 2026-11-20)", () => {
+  it("is byte-identical to the old byte-by-byte btoa loop, including past one chunk", () => {
+    const slow = (pcm: Int16Array) => {
+      const bytes = new Uint8Array(pcm.buffer);
+      let binary = "";
+      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+      return btoa(binary);
+    };
+    const small = new Int16Array([-32768, -1, 0, 1, 32767, 12345, -23456]);
+    expect(pcmToBase64(small)).toBe(slow(small));
+    const big = new Int16Array(4096);
+    for (let i = 0; i < big.length; i++) big[i] = (i * 37) % 65536 - 32768;
+    expect(pcmToBase64(big)).toBe(slow(big));
+    expect(pcmToBase64(new Int16Array(0))).toBe("");
   });
 });

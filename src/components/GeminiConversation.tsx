@@ -20,7 +20,7 @@ import "@/i18n";
 import { explicitUiLocale, prewarmLocaleMismatch, type UiLocale } from "@/lib/uiLocale";
 import { clearDemoResume } from "@/lib/demoVerification";
 import { FunctionsHttpError } from "@supabase/supabase-js";
-import { microphonePcm, shouldSendMicrophone, microphoneAutoGain, initialCaptureMode, createAmbientGateState, pushAmbientRms, createSpeechGateState, pushSpeechGateFrame, autoNoiseFilter, appliedAmbientLevel, appliedNoiseFilter, deadAirRelaxedFilter, type AmbientGateState, type NoiseFilter, type CaptureMode } from "@/lib/voiceLabAudio";
+import { microphonePcm, pcmToBase64, shouldSendMicrophone, microphoneAutoGain, initialCaptureMode, createAmbientGateState, pushAmbientRms, createSpeechGateState, pushSpeechGateFrame, autoNoiseFilter, appliedAmbientLevel, appliedNoiseFilter, deadAirRelaxedFilter, type AmbientGateState, type NoiseFilter, type CaptureMode } from "@/lib/voiceLabAudio";
 
 import VoiceActionConfirmation, { type VoiceAction } from "./VoiceActionConfirmation";
 import BrowserVoiceHandoff from "@/components/BrowserVoiceHandoff";
@@ -1715,7 +1715,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     // below is async.
     const flow = { ...micFlowRef.current };
     const track = micTrackStamp();
-    const inputSec = micInputSeconds(flow.frames, 2048, micCtxRef.current?.sampleRate ?? 16000);
+    const inputSec = micInputSeconds(flow.frames, micNodeRef.current?.bufferSize ?? 2048, micCtxRef.current?.sampleRate ?? 16000);
     void (async () => {
       let permission = "unknown";
       try {
@@ -2585,11 +2585,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
     const samples = new Int16Array(bytes.buffer);
-    const floats = new Float32Array(samples.length);
-    for (let i = 0; i < samples.length; i++) floats[i] = samples[i] / 32768;
 
-    const buffer = ctx.createBuffer(1, floats.length, 24000);
-    buffer.getChannelData(0).set(floats);
+    // AUDIO-PATH SLIM (2026-11-20): write samples straight into the audio
+    // buffer's channel — the old code built an intermediate Float32Array
+    // and copied it a second time, per chunk, on the main thread.
+    const buffer = ctx.createBuffer(1, samples.length, 24000);
+    const channel = buffer.getChannelData(0);
+    for (let i = 0; i < samples.length; i++) channel[i] = samples[i] / 32768;
     const source = ctx.createBufferSource();
     source.buffer = buffer;
     // VOICE-FIRST ROUTING (voice-first batch, 2026-11-10): while a
@@ -3431,16 +3433,24 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         void micCtx.resume();
         const source = micCtx.createMediaStreamSource(stream);
         micSourceRef.current = source;
-        const node = micCtx.createScriptProcessor(2048, 1, 1);
+        // AUDIO-PATH SLIM (clean-room proof, 2026-11-20): 4096-sample frames
+        // halve the main-thread callback rate vs 2048 (~4/s vs ~8/s at
+        // 16 kHz) — the clean-room app ran 4096 end-to-end with perfect
+        // smoothness on the same phone/model/face. The gate math below is
+        // time-based (performance.now), so the wider window changes
+        // nothing it decides; frames simply arrive in bigger, rarer chunks.
+        const node = micCtx.createScriptProcessor(4096, 1, 1);
         micNodeRef.current = node;
         let frame = 0;
         let speechGate = createSpeechGateState();
         node.onaudioprocess = (e) => {
           if (!liveRef.current || handoffRef.current || ws.readyState !== WebSocket.OPEN) return;
           const input = e.inputBuffer.getChannelData(0);
-          const rms = Math.sqrt(input.reduce((sum, x) => sum + x * x, 0) / input.length);
+          let sumSq = 0;
+          for (let i = 0; i < input.length; i++) sumSq += input[i] * input[i];
+          const rms = Math.sqrt(sumSq / input.length);
           feedAmbientSample(rms);
-          if (++frame % 4 === 0) {
+          if (++frame % 2 === 0) {
             setMicLevel(Math.min(100, Math.round(rms * 500)));
           }
           const capture = captureRef.current;
@@ -3475,10 +3485,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           // new visitor turn, so she cannot generate her next scripted
           // beat into the handover (retest #3's A2/A3 stall).
           const pcm = microphonePcm(micAudioPasses({ swapHold: swapHoldRef.current !== null, openingGate, noiseGateOpen: gate.open, holdToTalk: capture.mode === "hold" }) ? input : new Float32Array(input.length), e.inputBuffer.sampleRate);
-          const bytes = new Uint8Array(pcm.buffer);
-          let binary = "";
-          for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-          ws.send(JSON.stringify({ type: "audio", data: btoa(binary) }));
+          ws.send(JSON.stringify({ type: "audio", data: pcmToBase64(pcm) }));
         };
         source.connect(node);
         node.connect(micCtx.destination);
@@ -3862,16 +3869,20 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       void micCtx.resume();
       const source = micCtx.createMediaStreamSource(stream);
       micSourceRef.current = source;
-      const node = micCtx.createScriptProcessor(2048, 1, 1);
+      // AUDIO-PATH SLIM (clean-room proof, 2026-11-20): 4096-sample frames,
+      // same change as the parent capture loop — see the note there.
+      const node = micCtx.createScriptProcessor(4096, 1, 1);
       micNodeRef.current = node;
       let frame = 0;
       let speechGate = createSpeechGateState();
       node.onaudioprocess = (e) => {
         if (!liveRef.current || handoffRef.current || ws.readyState !== WebSocket.OPEN) return;
         const input = e.inputBuffer.getChannelData(0);
-        const rms = Math.sqrt(input.reduce((sum, x) => sum + x * x, 0) / input.length);
+        let sumSq = 0;
+        for (let i = 0; i < input.length; i++) sumSq += input[i] * input[i];
+        const rms = Math.sqrt(sumSq / input.length);
         feedAmbientSample(rms);
-        if (++frame % 4 === 0) setMicLevel(Math.min(100, Math.round(rms * 500)));
+        if (++frame % 2 === 0) setMicLevel(Math.min(100, Math.round(rms * 500)));
         const capture = captureRef.current;
         if (capture.paused) return;
         if (!shouldSendMicrophone(capture.mode, capture.held, capture.muted, capture.replaying)) return;
@@ -3894,10 +3905,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         // socket — a boundary armed from inside a segment (step-out,
         // meet-alex) holds this persona's mic until it resolves.
         const pcm = microphonePcm(micAudioPasses({ swapHold: swapHoldRef.current !== null, openingGate, noiseGateOpen: gate.open, holdToTalk: capture.mode === "hold" }) ? input : new Float32Array(input.length), e.inputBuffer.sampleRate);
-        const bytes = new Uint8Array(pcm.buffer);
-        let binary = "";
-        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-        ws.send(JSON.stringify({ type: "audio", data: btoa(binary) }));
+        ws.send(JSON.stringify({ type: "audio", data: pcmToBase64(pcm) }));
       };
       source.connect(node);
       node.connect(micCtx.destination);
