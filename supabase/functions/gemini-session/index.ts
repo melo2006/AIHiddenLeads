@@ -17,6 +17,7 @@ import { examplePresenterForSlug } from '../_shared/realtor-example-pinned-leads
 import { TEAM_INTRO_TEACHING, isIntroBoundary, teamIntroGreetingFor } from '../_shared/team-intro.ts';
 import { realtorLandingApplies, stampHomepageSales, stampRealtorLanding } from '../_shared/homepage-knowledge.ts';
 import { buildExampleListingsLayer, examplePackBySlug, examplePackForSiteUrl, stampExampleListings } from '../_shared/realtor-example-listings.ts';
+import { examplePracticeLayerForType, examplePracticeTypeForSiteUrl, stampExamplePractice } from '../_shared/example-practice-packs.ts';
 import { PUBLIC_PATHS } from '../_shared/report-context.ts';
 import { sanitizePageContext } from '../_shared/page-context.ts';
 import { normalizeUiLocale, resolveDemoStartLocale, startingLanguageForUiLocale, type UiLocale } from '../_shared/conversation-language.ts';
@@ -292,6 +293,17 @@ Deno.serve(async req=>{
     // never receive it; a parent without the marker passes nothing
     // and its segment builds stay byte-identical.
     const examplePack=b.personaSegment.persona==='sara'?examplePackBySlug((parent.exampleListings as {slug?:unknown}|undefined)?.slug):null;
+    // EXAMPLE PRACTICE PACK, segment leg (2026-11-21): the parent's
+    // stamped examplePractice marker (server-stored at the parent's
+    // own authorization, never client-supplied) rebuilds the same
+    // general-practice layer for Sara's fresh-built segment prompt,
+    // riding in the same layer slot as the listings layer — the two
+    // concatenate when both exist. Sara only, exactly like listings;
+    // a parent without the marker passes nothing and its segment
+    // builds stay byte-identical.
+    const practiceLayer=b.personaSegment.persona==='sara'?examplePracticeLayerForType((parent.examplePractice as {type?:unknown}|undefined)?.type):null;
+    const listingsLayer=examplePack?{layer:buildExampleListingsLayer(examplePack)}:undefined;
+    const segmentLayer=[listingsLayer?.layer, practiceLayer].filter(Boolean).join('\n');
     // PRESENTER PARENT (Alex handoff fix, 2026-11-14): when the parent
     // is a whole-demo presenter (its config carries the demoPresenter
     // stamp from its own authorization), Alex's guest prompt names
@@ -299,7 +311,7 @@ Deno.serve(async req=>{
     // back, and the client's presenter matcher arms the return on
     // that phrase. Aspen parents pass undefined and keep the stock
     // guest prompt byte-identical.
-    const built=personaSegmentPrompt(b.personaSegment.persona,b.personaSegment.boundary,businessName,String(parent.systemPrompt || ''),b.personaSegment.persona==='alex'?alexDemoGuestConfig(businessName,parent.demoPresenter?presenterAlexGuestPrompt(parent.demoPresenter as PersonaId):undefined):undefined,parent.teamIntroSeen===true,undefined,examplePack?{layer:buildExampleListingsLayer(examplePack)}:undefined);
+    const built=personaSegmentPrompt(b.personaSegment.persona,b.personaSegment.boundary,businessName,String(parent.systemPrompt || ''),b.personaSegment.persona==='alex'?alexDemoGuestConfig(businessName,parent.demoPresenter?presenterAlexGuestPrompt(parent.demoPresenter as PersonaId):undefined):undefined,parent.teamIntroSeen===true,undefined,segmentLayer?{layer:segmentLayer}:undefined);
     config={
       ...parent,
       name:persona.displayName,
@@ -480,6 +492,19 @@ Deno.serve(async req=>{
     // match alone earns nothing, and every non-sample simulation stays
     // byte-identical.
     if(examplePack) stampExampleListings(config, examplePack, presenter ? { presenter: true } : undefined);
+    // EXAMPLE PRACTICE PACK (2026-11-21, Ron's enrichment order): a
+    // session on one of the pinned example sites — matched against the
+    // site URL stored on the lead row THIS function fetched, never a
+    // client-supplied URL, the same trust pattern as the listings
+    // stamp — additionally carries the general-practice guide for that
+    // kind of business, so the simulated receptionist converses like a
+    // finished implementation (usual questions, usual flow, what to
+    // capture) while the business's own facts still come only from its
+    // own scanned knowledge. The guide is industry-general by
+    // construction and states so in its own text. A site that is not a
+    // known example resolves to null and stays byte-identical.
+    const practiceType=examplePracticeTypeForSiteUrl(siteUrl);
+    if(practiceType) stampExamplePractice(config, practiceType);
     // DEMO START LANGUAGE (Publish #66): explicit site pick > the scanned
     // site's own detected language > English. A detected start is recorded
     // on detectedSiteLocale so the final assembly stamps it (with
