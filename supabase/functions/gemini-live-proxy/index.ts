@@ -25,6 +25,7 @@ import { callReview } from '../_shared/call-review.ts'
 import { demoPacingAction, DEMO_SALES_POLICY, SALES_ACTION_POLICY, salesRecommendation } from '../_shared/demo-sales.ts'
 import { HOMEPAGE_OPENING_PRIORITY } from '../_shared/homepage-knowledge.ts'
 import { finalizeRecord } from '../_shared/conversation-records.ts'
+import { mergeTranscriptTurns, transcriptTurnsToText } from '../_shared/transcript-turns.ts'
 import { pcmWav } from '../_shared/recording-audio.ts'
 import { languageLockFor, requestedConversationLanguage, startingLanguageForUiLocale } from '../_shared/conversation-language.ts'
 import { transferDestination } from '../_shared/browser-handoff.ts'
@@ -471,7 +472,9 @@ Deno.serve(async (req) => {
   const checkpointRecording=async(final=false)=>{
     await recordReady;if(!recordId)return;
     for(const speaker of ['caller','assistant'] as const){const chunks=audioChunks[speaker].splice(0);if(!chunks.length)continue;const path=`${recordId}/${String(audioIndex++).padStart(5,'0')}-${speaker}.wav`;const {error}=await db.storage.from('conversation-recordings').upload(path,pcmWav(chunks,speaker==='caller'?16000:24000),{contentType:'audio/wav'});if(error){console.error('audio checkpoint failed',error.message);continue;}audioPaths.push({speaker,path});}
-    const {error}=await db.from('conversation_records').update({transcript:[...transcript],audio_paths:[...audioPaths],...(final?{status:'ended',ended_at:new Date().toISOString()}: {})}).eq('id',recordId);
+    // Item 12: persist merged turns, not the raw streaming chunks —
+    // every reader (copy page, email, admin) renders stored turns.
+    const {error}=await db.from('conversation_records').update({transcript:mergeTranscriptTurns(transcript),audio_paths:[...audioPaths],...(final?{status:'ended',ended_at:new Date().toISOString()}: {})}).eq('id',recordId);
     if(error)console.error('record checkpoint failed');
   };
   const queueRecording=(final=false)=>{audioWork=audioWork.then(()=>checkpointRecording(final)).catch(()=>{console.error('record checkpoint unavailable');});return audioWork;};
@@ -589,12 +592,12 @@ Deno.serve(async (req) => {
   const persistUsage = async () => {
     if(closed)return;
     await queueRecording();
-    const { error } = await db.from('gemini_voice_sessions').update({ status: 'live', duration_seconds: Math.round((Date.now()-started)/1000), last_activity_at: new Date().toISOString(), usage: usage(), ...(config.recordTranscript ? {transcript} : {}) }).eq('id',session.id)
+    const { error } = await db.from('gemini_voice_sessions').update({ status: 'live', duration_seconds: Math.round((Date.now()-started)/1000), last_activity_at: new Date().toISOString(), usage: usage(), ...(config.recordTranscript ? {transcript:mergeTranscriptTurns(transcript)} : {}) }).eq('id',session.id)
     if (error) console.error('usage checkpoint failed',error.message)
     if(!preview&&!closed){
       const review=config.recordTranscript&&config.homepageSales ? callReview(transcript) : null;
       const {data:previous}=await db.from('call_history').select('metadata').eq('retell_call_id',`gemini_${session.id}`).maybeSingle();
-      const {error:historyError}=await db.from('call_history').upsert({retell_call_id:`gemini_${session.id}`,lead_id:session.lead_id,prospect_id:session.prospect_id,business_name:String(config.businessName),call_status:'live',duration_seconds:Math.round((Date.now()-started)/1000),transcript:config.recordTranscript?transcript.map(t=>`${t.role}: ${t.text}`).join('\n'):null,...(review?{summary:review.summary}:{}),metadata:{...previous?.metadata,provider:'gemini',session_id:session.id,campaign:config.campaign||null,transcript_consent:config.recordTranscript,review,usage:usage()}},{onConflict:'retell_call_id'});
+      const {error:historyError}=await db.from('call_history').upsert({retell_call_id:`gemini_${session.id}`,lead_id:session.lead_id,prospect_id:session.prospect_id,business_name:String(config.businessName),call_status:'live',duration_seconds:Math.round((Date.now()-started)/1000),transcript:config.recordTranscript?transcriptTurnsToText(mergeTranscriptTurns(transcript)):null,...(review?{summary:review.summary}:{}),metadata:{...previous?.metadata,provider:'gemini',session_id:session.id,campaign:config.campaign||null,transcript_consent:config.recordTranscript,review,usage:usage()}},{onConflict:'retell_call_id'});
       if(historyError)console.error('call checkpoint failed',historyError.message);
     }
   }
@@ -612,7 +615,7 @@ Deno.serve(async (req) => {
     const duration = Math.round((Date.now() - started) / 1000)
     EdgeRuntime.waitUntil((async () => {
       await queueRecording(true);
-      const { error } = await db.from('gemini_voice_sessions').update({ status: 'ended', ended_at: new Date().toISOString(), last_activity_at: new Date().toISOString(), duration_seconds: duration, usage: usage(), last_error: `${endReason} (code ${closeCode})${farewellEndPath ? ` farewell_path=${farewellEndPath}` : ''}${requestedEndPath ? ` requested_end_path=${requestedEndPath}` : ''}`, transcript: config.recordTranscript ? transcript : [] }).eq('id', session.id)
+      const { error } = await db.from('gemini_voice_sessions').update({ status: 'ended', ended_at: new Date().toISOString(), last_activity_at: new Date().toISOString(), duration_seconds: duration, usage: usage(), last_error: `${endReason} (code ${closeCode})${farewellEndPath ? ` farewell_path=${farewellEndPath}` : ''}${requestedEndPath ? ` requested_end_path=${requestedEndPath}` : ''}`, transcript: config.recordTranscript ? mergeTranscriptTurns(transcript) : [] }).eq('id', session.id)
       if (error) console.error('session persistence failed', error.message)
       // Usage ledger (Usage Reporting Suite): failure-isolated — logUsageEvent
       // never throws, and the extra try/catch keeps finalize untouched either way.
@@ -630,7 +633,7 @@ Deno.serve(async (req) => {
       if (!preview) {
         const review = config.recordTranscript && config.homepageSales ? callReview(transcript) : null;
         const {data:previous}=await db.from('call_history').select('metadata').eq('retell_call_id',`gemini_${session.id}`).maybeSingle();
-        const {error:historyError} = await db.from('call_history').upsert({ retell_call_id: `gemini_${session.id}`, lead_id: session.lead_id, prospect_id: session.prospect_id, business_name: String(config.businessName), call_status: 'ended', duration_seconds: duration, started_at: new Date(started).toISOString(), ended_at: new Date().toISOString(), transcript: config.recordTranscript ? transcript.map(t => `${t.role}: ${t.text}`).join('\n') : null, ...(review ? {summary:review.summary,key_points:review.interest} : {}), metadata: { ...previous?.metadata, provider: 'gemini', session_id: session.id, agent_id: session.agent_id, campaign:config.campaign || null, transcript_consent: config.recordTranscript, end_reason:endReason,close_code:closeCode,farewell_end_path:farewellEndPath || null,requested_end_path:requestedEndPath || null,farewell_repeats:farewellRepeats,farewell_revivals:farewellRevivals,review,usage: usage() } },{onConflict:'retell_call_id'})
+        const {error:historyError} = await db.from('call_history').upsert({ retell_call_id: `gemini_${session.id}`, lead_id: session.lead_id, prospect_id: session.prospect_id, business_name: String(config.businessName), call_status: 'ended', duration_seconds: duration, started_at: new Date(started).toISOString(), ended_at: new Date().toISOString(), transcript: config.recordTranscript ? transcriptTurnsToText(mergeTranscriptTurns(transcript)) : null, ...(review ? {summary:review.summary,key_points:review.interest} : {}), metadata: { ...previous?.metadata, provider: 'gemini', session_id: session.id, agent_id: session.agent_id, campaign:config.campaign || null, transcript_consent: config.recordTranscript, end_reason:endReason,close_code:closeCode,farewell_end_path:farewellEndPath || null,requested_end_path:requestedEndPath || null,farewell_repeats:farewellRepeats,farewell_revivals:farewellRevivals,review,usage: usage() } },{onConflict:'retell_call_id'})
         if (historyError) console.error('call history persistence',historyError.message)
       }
       if(recordId)await finalizeRecord(db,recordId);

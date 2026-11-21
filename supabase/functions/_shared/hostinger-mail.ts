@@ -247,8 +247,19 @@ export const avatarTrialReminder = (c: { name: string; email: string; trialEnd: 
     + p('If you do nothing, the avatar <strong>switches off automatically</strong> when the free month ends and you will not be charged for it. Aspen keeps answering as a voice assistant either way.')
     + p('Questions? Reply to this email or call us at (877) 862-4949.') }),
 });
+// The CTA block mirrors the one on the conversation-copy page (shared
+// renderer: src/components/ConversationFormatted.tsx) — same heading,
+// same two actions. The branded banner header and footer band come
+// from the email shell via layout(); the transcript itself never
+// travels by email, only the expiring private link (house rule).
+const conversationCtaBlock = () => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 18px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px"><tr><td style="padding:16px 18px" align="center">
+<div style="font-size:17px;font-weight:800;color:${INK};margin-bottom:6px">Plans start at $99/mo</div>
+<p style="margin:0 0 12px;font-size:14px;line-height:1.5;color:${MUTED}">Aspen answers your calls and website visitors 24/7, so leads stop going to voicemail.</p>
+${button(`${SITE}/demo`, 'Book another demo')}${button(`${SITE}/plans`, 'Get started', false)}
+</td></tr></table>`;
+
 export const conversationCopy = (c: {name:string;email:string;url:string}): Mail => ({
   to:c.email, subject:'Your Aspen conversation · private transcript and summary',
-  text:`Hi ${first(c.name)},\n\nHere is the private conversation copy you requested: ${c.url}\nThe link expires in seven days. Keep it private; anyone with it can read your transcript and AI summary. AI summaries may contain errors.\n\nThis request does not subscribe you to marketing.\n\nAI Hidden Leads`,
-  html:layout({preheader:'Your requested conversation copy',title:'Your conversation with Aspen',promo:true,body:p(`Hi ${esc(first(c.name))}, here is the conversation copy you requested.`)+button(c.url,'View transcript & AI summary')+p('This private link expires in seven days. Anyone with the link can read it, so please do not forward it. AI summaries may contain errors.')+p('This request does not subscribe you to marketing.')})
+  text:`Hi ${first(c.name)},\n\nHere is the private conversation copy you requested: ${c.url}\nThe link expires in seven days. Keep it private; anyone with it can read your transcript and AI summary. AI summaries may contain errors.\n\nPlans start at $99/month — book another demo: ${SITE}/demo · Get started: ${SITE}/plans\n\nThis request does not subscribe you to marketing.\n\nAI Hidden Leads`,
+  html:layout({preheader:'Your requested conversation copy',title:'Your conversation with Aspen',promo:true,body:p(`Hi ${esc(first(c.name))}, here is the conversation copy you requested.`)+button(c.url,'View transcript & AI summary')+p('This private link expires in seven days. Anyone with the link can read it, so please do not forward it. AI summaries may contain errors.')+conversationCtaBlock()+p('This request does not subscribe you to marketing.')})
 });

@@ -4,11 +4,15 @@
 // (components/crm/ConversationDetail.tsx) consumes what this module
 // derives from the stored record payload:
 //
-//   · mergeTranscriptFragments — the voice proxy stores Gemini's streamed
-//     output/input transcriptions as one {role, text} entry per fragment
-//     ("Good afternoon, and" / "thanks for calling" / …). Reading those
-//     raw is troubleshooting data, not a conversation; consecutive
-//     same-speaker fragments merge back into the turn that was spoken.
+//   · mergeTranscriptFragments / mergeTranscriptTurns — the voice proxy
+//     used to store Gemini's streamed output/input transcriptions as
+//     one {role, text} entry per fragment ("Good afternoon, and" /
+//     "thanks for calling" / …). Reading those raw is troubleshooting
+//     data, not a conversation; consecutive same-speaker fragments
+//     merge back into the turn that was spoken. Since item 12
+//     (2026-11-21) the proxy merges at persistence time too
+//     (_shared/transcript-turns.ts); these render-time merges keep
+//     legacy chunked records readable and are no-ops on stored turns.
 //   · parseTranscriptString — call_history stores the same fragments as
 //     one "role: text" line per fragment; this rebuilds the fragments.
 //   · parseConversationSummary — the record's summary JSON. Summaries
@@ -52,25 +56,62 @@ export function speakerOf(role: string): { speaker: DialogueSpeaker; label: stri
   return { speaker: 'other', label };
 }
 
+interface MergedTurnCore {
+  /** The first fragment's role, verbatim. */
+  role: string;
+  text: string;
+  fragmentCount: number;
+}
+
+/** The one merge rule, shared by both render helpers below: consecutive
+ *  fragments from the same speaker group merge into a single turn,
+ *  joined with one space; empty fragments are dropped. KEEP IN SYNC
+ *  with the Deno twin — mergeTranscriptTurns in
+ *  supabase/functions/_shared/transcript-turns.ts implements the
+ *  identical rule at persistence time in the voice proxy, so new
+ *  records are stored as turns and these helpers only re-merge legacy
+ *  chunked records (and stay a no-op on already-merged ones). */
+function mergeTurnCore(
+  fragments: readonly TranscriptFragment[] | null | undefined,
+): MergedTurnCore[] {
+  const turns: MergedTurnCore[] = [];
+  let lastGroup: string | null = null;
+  for (const fragment of fragments ?? []) {
+    const text = (fragment?.text ?? '').trim();
+    if (!text) continue;
+    const { speaker, label } = speakerOf(fragment?.role ?? '');
+    const group = `${speaker}|${label}`;
+    const last = turns[turns.length - 1];
+    if (last && lastGroup === group) {
+      last.text = `${last.text} ${text}`;
+      last.fragmentCount += 1;
+    } else {
+      turns.push({ role: fragment?.role ?? '', text, fragmentCount: 1 });
+      lastGroup = group;
+    }
+  }
+  return turns;
+}
+
+/** Merge consecutive same-speaker fragments into turns, keeping the
+ *  stored {role, text} shape (first fragment's role wins). This is the
+ *  shared render-time merge for surfaces that render stored fragments
+ *  directly (the public conversation-copy page). */
+export function mergeTranscriptTurns(
+  fragments: readonly TranscriptFragment[] | null | undefined,
+): TranscriptFragment[] {
+  return mergeTurnCore(fragments).map(({ role, text }) => ({ role, text }));
+}
+
 /** Merge consecutive fragments from the same speaker into single turns.
  *  Fragments are joined with one space; empty fragments are dropped. */
 export function mergeTranscriptFragments(
   fragments: readonly TranscriptFragment[] | null | undefined,
 ): DialogueTurn[] {
-  const turns: DialogueTurn[] = [];
-  for (const fragment of fragments ?? []) {
-    const text = (fragment?.text ?? '').trim();
-    if (!text) continue;
-    const { speaker, label } = speakerOf(fragment?.role ?? '');
-    const last = turns[turns.length - 1];
-    if (last && last.speaker === speaker && last.label === label) {
-      last.text = `${last.text} ${text}`;
-      last.fragmentCount += 1;
-    } else {
-      turns.push({ speaker, label, text, fragmentCount: 1 });
-    }
-  }
-  return turns;
+  return mergeTurnCore(fragments).map(({ role, text, fragmentCount }) => {
+    const { speaker, label } = speakerOf(role);
+    return { speaker, label, text, fragmentCount };
+  });
 }
 
 const KNOWN_LINE_ROLES = new Set([...CALLER_ROLES, ...ASSISTANT_ROLES, 'system']);
