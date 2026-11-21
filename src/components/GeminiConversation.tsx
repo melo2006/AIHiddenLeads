@@ -5211,7 +5211,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         {demoCard.websiteUrl && <p className="max-w-[220px] truncate text-[11px] text-muted-foreground">{demoCard.websiteUrl}</p>}
       </div>
       <a href={demoCard.demoPath} target="_blank" rel="noreferrer" className="shrink-0 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90">{t("panel.demoEnter")}</a>
-      <button type="button" aria-label={t("panel.demoDismiss")} onClick={() => setDemoCard(null)} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"><X className="h-4 w-4" /></button>
+      <button type="button" aria-label={t("panel.demoDismiss")} onClick={() => setDemoCard(null)} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-primary/20 hover:text-foreground"><X className="h-4 w-4" /></button>
     </div>
   ) : null;
   // Publish #68: the dismissed form's way back. One tap sends
