@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Menu, X, FileText, Type, Phone, ChevronDown } from "lucide-react";
+import { Menu, X, FileText, Type, Phone, ChevronDown, LifeBuoy } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
@@ -134,6 +134,15 @@ const LandingNavbar = ({ brand }: { brand?: ResolvedBrand }) => {
                   <FileText className="h-3.5 w-3.5" />
                   Script
                 </Link>
+                <Link
+                  to="/help"
+                  onClick={() => setMenuOpen(false)}
+                  className="flex w-full items-center gap-1.5 rounded-md px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                  title="Help & Support"
+                >
+                  <LifeBuoy className="h-3.5 w-3.5" />
+                  {t("nav.help", "Help")}
+                </Link>
               </div>
             </PopoverContent>
           </Popover>
@@ -197,6 +206,13 @@ const LandingNavbar = ({ brand }: { brand?: ResolvedBrand }) => {
               {item.label}
             </Button>
           ))}
+          <Link
+            to="/help"
+            onClick={() => setOpen(false)}
+            className="block w-full text-left px-3 py-3 rounded-lg text-base font-medium text-foreground hover:bg-secondary transition-all"
+          >
+            {t("nav.help", "Help")}
+          </Link>
           <Link
             to="/transcript"
             onClick={() => setOpen(false)}

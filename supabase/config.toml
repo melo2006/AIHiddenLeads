@@ -51,6 +51,11 @@ project_id = "mrtvqttecdfgphgxeygj"
     verify_jwt = false
   [functions.send-outreach-sms]
     verify_jwt = false
+  # The /help ticket form submits without supabase-js auth headers; the
+  # function validates the payload itself and writes with the service
+  # role (support_tickets is service-role only).
+  [functions.support-ticket]
+    verify_jwt = false
   [functions.telephony-stream]
     verify_jwt = false
   [functions.telephony-voice]

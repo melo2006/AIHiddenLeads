@@ -10,6 +10,7 @@
     "pricing": "Preços",
     "testimonials": "Depoimentos",
     "faq": "Ajuda / Perguntas",
+    "help": "Ajuda",
     "getFreeDemo": "Ver Demo Grátis",
     "callUs": "Ligue para nós"
   },
@@ -795,6 +796,7 @@
   "footer": {
     "privacy": "Política de Privacidade",
     "terms": "Termos de Uso",
+    "help": "Ajuda e suporte",
     "smsConsent": "Ao usar nossos serviços, você consente em receber SMS da AI Hidden Leads. A frequência varia. Responda STOP pra cancelar. Responda HELP pra ajuda. Podem ser aplicadas taxas de SMS e dados. O consentimento não é condição de compra.",
     "copyright": "Geração de leads e automação de vendas com IA.",
     "rights": "Todos os direitos reservados."
