@@ -16,8 +16,8 @@ import { REALTOR_EXAMPLE_PACKS } from '../../supabase/functions/_shared/realtor-
 const ALL_TYPES = Object.keys(EXAMPLE_PRACTICE_PACKS) as ExamplePracticeType[];
 
 describe('example practice packs — coverage', () => {
-  test('every pinned example slug has a practice type (35 examples)', () => {
-    expect(Object.keys(EXAMPLE_PRACTICE_TYPE_BY_SLUG)).toHaveLength(35);
+  test('every pinned example slug has a practice type (36 examples)', () => {
+    expect(Object.keys(EXAMPLE_PRACTICE_TYPE_BY_SLUG)).toHaveLength(36);
     for (const pack of [...REALTOR_EXAMPLE_PACKS, ...B2B_EXAMPLE_PACKS]) {
       expect(EXAMPLE_PRACTICE_TYPE_BY_SLUG[pack.slug], pack.slug).toBeTruthy();
     }

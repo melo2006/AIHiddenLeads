@@ -48,6 +48,7 @@ export const B2B_EXAMPLE_PINNED_LEADS: B2BExamplePinnedLead[] = [
   { slug: "ak-building-services", business: "AK Building Services", domain: "akbuildingservices.com", url: "https://www.akbuildingservices.com/", leadId: "2102b305-b788-425b-8985-1f958e4691ed", presenter: "Aspen" },
   { slug: "it-yall", business: "IT Y'ALL", domain: "ityall.com", url: "https://www.ityall.com/", leadId: "490134ef-bccd-4ee4-b64e-94ac391dba20", presenter: "Brown-haired preset lady" },
   { slug: "essig-pools", business: "Essig Pools", domain: "essigpools.com", url: "https://essigpools.com/", leadId: "720da556-14df-44d6-83f8-f3e6b778176e", presenter: "Aspen" },
+  { slug: "az-pools", business: "AZ Pools LLC", domain: "azpoolsllc.com", url: "https://azpoolsllc.com/", leadId: "e7f6deed-0e9c-4915-a2e2-1330d0478390", presenter: "Sara" },
   { slug: "prestige-landscape", business: "Prestige Landscape & Design", domain: "prestigelandscapedesign.com", url: "https://www.prestigelandscapedesign.com/", leadId: "a5459029-5431-4dbc-8f80-ccd8b2b34754", presenter: "Sara" },
   { slug: "tropic-supply", business: "Tropic Supply", domain: "tropicsupply.com", url: "https://www.tropicsupply.com/", leadId: "3c7f0d98-f17e-4440-9cf9-b038bb2ac777", presenter: "Aspen" },
   { slug: "royal-electrical-supply", business: "Royal Electrical Supply", domain: "royalelectricalsupply.com", url: "https://royalelectricalsupply.com/", leadId: "57565033-d9d3-4e39-8dc1-5f5c25dbe83c", presenter: "Sara" },

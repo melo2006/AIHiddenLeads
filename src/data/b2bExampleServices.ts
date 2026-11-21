@@ -1,4 +1,4 @@
-// B2B EXAMPLE SERVICES PACKS (2026-11-13): for each of the 16 one-click
+// B2B EXAMPLE SERVICES PACKS (2026-11-13): for each of the 17 one-click
 // demo examples in the general-business set, the services the simulated
 // Aspen leads with when a demo session runs on that site — the analog of
 // the realtor listings packs. Services were extracted from each
@@ -377,6 +377,28 @@ export const B2B_EXAMPLE_PACKS: B2BExamplePack[] = [
     ],
   },
   {
+    slug: "az-pools",
+    url: "https://azpoolsllc.com/",
+    businessName: "AZ Pools LLC",
+    niche: "field-service",
+    nicheLabel: "Pool construction, cleaning & repair",
+    city: "Miami",
+    state: "FL",
+    serviceArea: "Miami-Dade, Broward and Palm Beach counties — Miami to Palm Beach",
+    services: [
+      { name: "New Pool Construction", descriptor: "Custom new pools and outdoor living — design, permits and build by one licensed crew (Florida Certified Pool/Spa Contractor CPC1461393).", source: "site" },
+      { name: "Pool Cleaning", descriptor: "Weekly cleaning with full water chemistry and equipment checks — and a photo report after every visit.", source: "site" },
+      { name: "Pool Maintenance Plans", descriptor: "Chemistry, cleaning and equipment care on a flat monthly rate, with plans that change with the seasons.", source: "site" },
+      { name: "Pool Repair", descriptor: "Cracks, tile, skimmers, plumbing and decks — diagnosed honestly and fixed for South Florida ground and water.", source: "site" },
+      { name: "Equipment Repair", descriptor: "Pumps, filters, heaters and salt cells repaired or replaced, with straight math on which one makes sense.", source: "site" },
+      { name: "Leak Detection", descriptor: "Pressure, dye and acoustic testing to pinpoint a leak before anyone digs.", source: "site" },
+      { name: "Pool Renovation", descriptor: "Resurfacing, tile, coping, decking, lighting and equipment done as one project by one licensed crew.", source: "site" },
+      { name: "Pool Automation", descriptor: "Pump, heater, lights, valves and sanitation on one controller you run from your phone.", source: "site" },
+      { name: "Green Pool Recovery", descriptor: "Bringing a green or cloudy pool back — weekly service clients get storm recovery at a discounted rate.", source: "site" },
+      { name: "Pergolas & Outdoor Living", descriptor: "Pergolas and outdoor living built along with the pool.", source: "site" },
+    ],
+  },
+  {
     slug: "prestige-landscape",
     url: "https://www.prestigelandscapedesign.com/",
     businessName: "Prestige Landscape & Design",
@@ -529,7 +551,7 @@ export function normalizeExampleSiteUrl(raw: unknown): string {
 }
 
 /** The example pack for a simulated site's URL, or null when the site
- * is not one of the 16 known B2B examples. */
+ * is not one of the 17 known B2B examples. */
 export function examplePackForSiteUrl(siteUrl: unknown): B2BExamplePack | null {
   const key = normalizeExampleSiteUrl(siteUrl);
   if (!key) return null;

@@ -11,7 +11,10 @@
  * Created 2026-11-13: one lead per example domain via the public
  * create_demo_lead RPC (same arguments an example click used), then
  * one scan-website run per lead. All 16 reached scan_status='enriched'
- * with real storage-bucket screenshots.
+ * with real storage-bucket screenshots. A 17th (az-pools — AZ Pools
+ * LLC, the full-service pool company: construction + weekly cleaning
+ * + repair) was added the same way on 2026-11-21 and also reached
+ * scan_status='enriched'.
  */
 export interface B2BExamplePinnedLead {
   slug: string;
@@ -36,6 +39,7 @@ export const B2B_EXAMPLE_PINNED_LEADS: B2BExamplePinnedLead[] = [
   { slug: "ak-building-services", domain: "akbuildingservices.com", url: "https://www.akbuildingservices.com/", leadId: "2102b305-b788-425b-8985-1f958e4691ed" },
   { slug: "it-yall", domain: "ityall.com", url: "https://www.ityall.com/", leadId: "490134ef-bccd-4ee4-b64e-94ac391dba20" },
   { slug: "essig-pools", domain: "essigpools.com", url: "https://essigpools.com/", leadId: "720da556-14df-44d6-83f8-f3e6b778176e" },
+  { slug: "az-pools", domain: "azpoolsllc.com", url: "https://azpoolsllc.com/", leadId: "e7f6deed-0e9c-4915-a2e2-1330d0478390" },
   { slug: "prestige-landscape", domain: "prestigelandscapedesign.com", url: "https://www.prestigelandscapedesign.com/", leadId: "a5459029-5431-4dbc-8f80-ccd8b2b34754" },
   { slug: "tropic-supply", domain: "tropicsupply.com", url: "https://www.tropicsupply.com/", leadId: "3c7f0d98-f17e-4440-9cf9-b038bb2ac777" },
   { slug: "royal-electrical-supply", domain: "royalelectricalsupply.com", url: "https://royalelectricalsupply.com/", leadId: "57565033-d9d3-4e39-8dc1-5f5c25dbe83c" },
