@@ -64,6 +64,11 @@ FUNCTIONS_SRC="${REPO_ROOT}/supabase/functions"
 # 2026-11-21 (item 6): +1 (47 → 48) — page-context.ts, imported by
 # the proxy for homepage-sales page awareness (self-contained: no
 # imports of its own).
+# 2026-11-21 (item 6 deploy): +1 (48 → 49) — transcript-turns.ts,
+# imported by the proxy since PR #34 (item 12) but never added to
+# this list; the VPS had been running the pre-#34 build (0868dd9),
+# so the item-6 redeploy was the first to crash-loop on it. Full
+# transitive re-trace at 27a2e14: 49 modules, this is the only gap.
 # NOTE: `deno cache` (step 4) is NOT a reliable closure authority —
 # server.ts loads the function entry through a dynamic import, which the
 # static cache pass does not traverse (the 2026-11-15 deploy cached
@@ -114,6 +119,7 @@ SHARED_CLOSURE=(
   session-opening.ts
   session-resumption.ts
   team-intro.ts
+  transcript-turns.ts
   twilio-sms.ts
   usage-ledger.ts
   visitor-followup.ts
