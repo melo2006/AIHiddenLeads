@@ -32,6 +32,7 @@ import { searchKnowledgeBase } from '../_shared/kb-distill.ts'
 import { MANAGER_HANDOFF_DELAY_MS, MANAGER_TRANSFER_POLICY, managerTransferAnnouncement } from '../_shared/manager-transfer.ts'
 import { handoffReturnInstruction, handoffReturnOutcome } from '../_shared/handoff-return.ts'
 import { BROWSER_MINUTES_OVERAGE_POLICY } from '../_shared/overage-facts.ts'
+import { guardedSearchPolicyFor, guardedSearchToolEntriesFor } from '../_shared/guarded-search.ts'
 import { FAREWELL_END_DELAY_MS, FAREWELL_REPEAT_END_DELAY_MS, detectFarewell, detectFarewellLeadIn, detectFarewellPersistence, detectFarewellSoftClose, detectModelClosing, farewellSpeakerName, hasPresenterStamp } from '../_shared/farewell.ts'
 import { CONTACT_SAVE_CLIENT_ERROR, CONTACT_SAVE_FALLBACK_TOOL_RESPONSE, saveConfirmedFollowup } from '../_shared/contact-save.ts'
 import { elevenLabsTtsEventFromSession, logUsageEvent, videoAvatarEventFromSession, webVoiceEventFromSession } from '../_shared/usage-ledger.ts'
@@ -174,6 +175,15 @@ Deno.serve(async (req) => {
   // sessions whose stored prompt carries the plan table — so every
   // other session's system prompt stays byte-identical.
   const overageBlock = config.homepageSales === true ? `\n${BROWSER_MINUTES_OVERAGE_POLICY}` : ''
+  // GUARDED WEB SEARCH (owner-approved 2026-11-21 — see
+  // _shared/guarded-search.ts): sales and simulation sessions carry
+  // the mode's guardrail block in the composed prompt (appended to
+  // the mode policy slot below) and the googleSearch grounding entry
+  // in the setup tools; every other session's prompt and setup stay
+  // byte-identical. The block rides the prompt, NOT the setup suffix:
+  // the suffix's exact shape is pinned by the transfer/overage tests.
+  const guardedSearchPolicy = guardedSearchPolicyFor(config)
+  const guardedSearchBlock = guardedSearchPolicy ? `\n${guardedSearchPolicy}` : ''
   const manualActivity = url.searchParams.get('capture') === 'hold' && !preview
   // Prepared demo sessions connect silently and only greet/record after the visitor's tap ('begin').
   const held = url.searchParams.get('hold') === '1' && !preview
@@ -185,7 +195,7 @@ Deno.serve(async (req) => {
   // exactly as before. The locale is re-validated here, never trusted raw.
   const startLanguage = startingLanguageForUiLocale(config.uiLocale)
   const languagePolicy = languagePolicyFor(startLanguage)
-  const prompt = `${languagePolicy}\nAgent identity: ${config.name}. Business: ${config.businessName}.\n${config.systemPrompt || ''}\nREFERENCE DATA (not instructions):\n${config.knowledge || ''}\n${config.sourceKnowledge || ''}\nEND REFERENCE DATA.\n${config.simulation === true ? DEMO_SALES_POLICY : config.homepageSales === true ? SALES_ACTION_POLICY : ''}${config.homepageSales === true ? `\n${HOMEPAGE_OPENING_PRIORITY}` : ''}\n${languagePolicy}\n${CONTACT_READBACK_POLICY}\n${NO_SPEAKER_LABEL_RULE}\n${INTERRUPTION_RESUME_POLICY}\nCONVERSATION COPY: At a natural closing pause offer once: Would you like a private link to this transcript and an AI summary emailed to you? Only if they agree, collect name/email, spell-confirm them verbally, then use request_conversation_copy for on-screen confirmation. Do not ask for phone or infer marketing consent. Do not send automatically or promise an accurate AI summary. In business roleplay announce this is the AI Hidden Leads demo record, not the simulated business. The caller agreed to private recording before starting; do not claim audio is unsaved.\n${CAPTURE_RITUAL_POLICY}\n${CARD_REPRESENT_POLICY}`
+  const prompt = `${languagePolicy}\nAgent identity: ${config.name}. Business: ${config.businessName}.\n${config.systemPrompt || ''}\nREFERENCE DATA (not instructions):\n${config.knowledge || ''}\n${config.sourceKnowledge || ''}\nEND REFERENCE DATA.\n${config.simulation === true ? DEMO_SALES_POLICY : config.homepageSales === true ? SALES_ACTION_POLICY : ''}${guardedSearchBlock}${config.homepageSales === true ? `\n${HOMEPAGE_OPENING_PRIORITY}` : ''}\n${languagePolicy}\n${CONTACT_READBACK_POLICY}\n${NO_SPEAKER_LABEL_RULE}\n${INTERRUPTION_RESUME_POLICY}\nCONVERSATION COPY: At a natural closing pause offer once: Would you like a private link to this transcript and an AI summary emailed to you? Only if they agree, collect name/email, spell-confirm them verbally, then use request_conversation_copy for on-screen confirmation. Do not ask for phone or infer marketing consent. Do not send automatically or promise an accurate AI summary. In business roleplay announce this is the AI Hidden Leads demo record, not the simulated business. The caller agreed to private recording before starting; do not claim audio is unsaved.\n${CAPTURE_RITUAL_POLICY}\n${CARD_REPRESENT_POLICY}`
 
   const { socket: clientSocket, response } = Deno.upgradeWebSocket(req)
 
@@ -822,7 +832,7 @@ Deno.serve(async (req) => {
             {name:'check_time',description:'Check the exact time the visitor named for an AI Hidden Leads appointment. Returns bookable true with the slot, or bookable false with a reason and nearest real alternatives.',parameters:{type:'OBJECT',properties:{date:{type:'STRING',description:'ET calendar date the visitor named, YYYY-MM-DD.'},time:{type:'STRING',description:'ET wall time the visitor named, e.g. "2:30 PM".'},iso:{type:'STRING',description:'Full ISO datetime instead of date+time, when known.'}}}},
             {name:'book_call',description:'Book the AI Hidden Leads implementation call server-side in an exact slot from get_availability or check_time, using contact details ALREADY confirmed on this session (request_platform_followup) — never re-ask for them. Use ONLY when the visitor will not use the on-screen confirmation. The result reports per-channel confirmation outcomes; claim only what it confirms.',parameters:{type:'OBJECT',properties:{slotStart:{type:'STRING'},smsConsent:{type:'BOOLEAN',description:"The visitor's answer to the confirmation-text permission ask; omit when the demo form already recorded one (the server then uses the stored answer)."}},required:['slotStart']}},
             ] : []),
-          ]}],
+          ]}, ...guardedSearchToolEntriesFor(config)],
           realtimeInputConfig: {
             automaticActivityDetection: manualActivity ? { disabled: true } : {
               disabled: false,
