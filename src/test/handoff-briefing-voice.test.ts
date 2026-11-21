@@ -7,16 +7,33 @@
 // owner action derives it from the handoff id), and <Play>s it
 // inside the existing press-1 <Gather>. Every failure falls back
 // to the previous Twilio <Say> briefing — pinned here.
+//
+// Item 11 fix (2026-11-21): Ron's Nov 21 test STILL heard the
+// carrier voice — synthesis started only at visitor-join and the
+// owner leg's single lookup lost the race, silently. Synthesis
+// now ARMS at token issuance (all three spoken lines), the join
+// pass is a logged backup, the owner leg polls ~4 s before
+// falling back, and every failure is logged with its reason —
+// all pinned below. (Three wiring pins from the 2026-11-12 batch
+// were stale after the 2026-11-16 language batch rewrote the
+// call shapes; they are rewritten here to the current shapes.)
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  BRIEFING_OWNER_POLL_BUDGET_MS,
+  BRIEFING_OWNER_POLL_STEP_MS,
   HANDOFF_BRIEFING_BUCKET,
   HANDOFF_BRIEFING_TTS_MODEL,
   HANDOFF_BRIEFING_VOICE,
   handoffBriefingPath,
+  handoffConnectingPath,
+  handoffStayPath,
   managerBriefingText,
+  pollForBriefingUrl,
+  storeHandoffBriefing,
   synthesizeBriefingWav,
+  synthesizeBriefingWavDetailed,
   ttsPcmFromResponse,
 } from '../../supabase/functions/_shared/handoff-briefing-voice';
 
@@ -104,34 +121,206 @@ describe('synthesizeBriefingWav — synthesis with a stubbed fetch', () => {
   });
 });
 
-describe('browser-voice-handoff wiring — generation, playback, fallback', () => {
+describe('fixed-line storage paths (Item 11)', () => {
+  it('connecting and stay lines get their own deterministic paths beside the briefing', () => {
+    expect(handoffConnectingPath('abc-123')).toBe('handoff-briefings/abc-123-connecting.wav');
+    expect(handoffStayPath('abc-123')).toBe('handoff-briefings/abc-123-stay.wav');
+  });
+});
+
+describe('synthesizeBriefingWavDetailed — every failure carries its reason', () => {
+  const okFetch = (async () => ({
+    ok: true,
+    json: async () => ({ candidates: [{ content: { parts: [{ inlineData: { data: 'AAECAw==' } }] } }] }),
+  })) as unknown as typeof fetch;
+
+  it('success: wav present, failure null', async () => {
+    const out = await synthesizeBriefingWavDetailed('Hello Ron.', { apiKey: 'k', fetchImpl: okFetch });
+    expect(out.wav).not.toBeNull();
+    expect(out.failure).toBeNull();
+  });
+
+  it('no API key → no_api_key; blank text → empty_text', async () => {
+    expect((await synthesizeBriefingWavDetailed('Hello.', { apiKey: '', fetchImpl: okFetch })).failure).toBe('no_api_key');
+    expect((await synthesizeBriefingWavDetailed('   ', { apiKey: 'k', fetchImpl: okFetch })).failure).toBe('empty_text');
+  });
+
+  it('HTTP failure → http_error with the status and a detail snippet', async () => {
+    const httpFail = (async () => ({ ok: false, status: 404, text: async () => 'model not found', json: async () => ({}) })) as unknown as typeof fetch;
+    const out = await synthesizeBriefingWavDetailed('Hello.', { apiKey: 'k', fetchImpl: httpFail });
+    expect(out.wav).toBeNull();
+    expect(out.failure).toBe('http_error');
+    expect(out.httpStatus).toBe(404);
+    expect(out.detail).toContain('model not found');
+  });
+
+  it('OK response without audio → no_audio_in_payload; a throwing fetch → fetch_exception', async () => {
+    const badPayload = (async () => ({ ok: true, json: async () => ({ candidates: [] }) })) as unknown as typeof fetch;
+    expect((await synthesizeBriefingWavDetailed('Hello.', { apiKey: 'k', fetchImpl: badPayload })).failure).toBe('no_audio_in_payload');
+    const throwing = (async () => { throw new Error('network down'); }) as unknown as typeof fetch;
+    const out = await synthesizeBriefingWavDetailed('Hello.', { apiKey: 'k', fetchImpl: throwing });
+    expect(out.failure).toBe('fetch_exception');
+    expect(out.detail).toContain('network down');
+  });
+});
+
+describe('storeHandoffBriefing — synthesize, store, and LOG every outcome', () => {
+  const okFetch = (async () => ({
+    ok: true,
+    json: async () => ({ candidates: [{ content: { parts: [{ inlineData: { data: 'AAECAw==' } }] } }] }),
+  })) as unknown as typeof fetch;
+  const capture = () => {
+    const events: { event: string; fields: Record<string, unknown> }[] = [];
+    return { events, log: (event: string, fields: Record<string, unknown>) => { events.push({ event, fields }); } };
+  };
+
+  it('stores the WAV and logs handoff_briefing_stored with the byte count', async () => {
+    const { events, log } = capture();
+    const uploads: { path: string; bytes: number }[] = [];
+    const ok = await storeHandoffBriefing({
+      handoffId: 'h-1', line: 'briefing', path: 'handoff-briefings/h-1.wav', text: 'Hello Ron.', apiKey: 'k',
+      upload: async (path, wav) => { uploads.push({ path, bytes: wav.length }); return { error: null }; },
+      log, fetchImpl: okFetch,
+    });
+    expect(ok).toBe(true);
+    expect(uploads).toEqual([{ path: 'handoff-briefings/h-1.wav', bytes: 48 }]);
+    expect(events).toEqual([{ event: 'handoff_briefing_stored', fields: { handoffId: 'h-1', line: 'briefing', bytes: 48 } }]);
+  });
+
+  it('a synthesis failure is logged WITH its reason and never reaches upload', async () => {
+    const { events, log } = capture();
+    let uploaded = false;
+    const ok = await storeHandoffBriefing({
+      handoffId: 'h-2', line: 'briefing', path: 'p.wav', text: 'Hello.', apiKey: '',
+      upload: async () => { uploaded = true; return { error: null }; },
+      log, fetchImpl: okFetch,
+    });
+    expect(ok).toBe(false);
+    expect(uploaded).toBe(false);
+    expect(events).toEqual([{ event: 'handoff_briefing_synthesis_failed', fields: { handoffId: 'h-2', line: 'briefing', reason: 'no_api_key' } }]);
+  });
+
+  it('an HTTP failure logs http_error with the status', async () => {
+    const { events, log } = capture();
+    const httpFail = (async () => ({ ok: false, status: 500, text: async () => 'boom', json: async () => ({}) })) as unknown as typeof fetch;
+    const ok = await storeHandoffBriefing({
+      handoffId: 'h-3', line: 'connecting', path: 'p.wav', text: 'Connecting.', apiKey: 'k',
+      upload: async () => ({ error: null }), log, fetchImpl: httpFail,
+    });
+    expect(ok).toBe(false);
+    expect(events[0].event).toBe('handoff_briefing_synthesis_failed');
+    expect(events[0].fields).toMatchObject({ reason: 'http_error', httpStatus: 500 });
+  });
+
+  it('an upload failure is logged as its own event', async () => {
+    const { events, log } = capture();
+    const ok = await storeHandoffBriefing({
+      handoffId: 'h-4', line: 'stay', path: 'p.wav', text: 'Stay.', apiKey: 'k',
+      upload: async () => ({ error: { message: 'bucket denied' } }),
+      log, fetchImpl: okFetch,
+    });
+    expect(ok).toBe(false);
+    expect(events).toEqual([{ event: 'handoff_briefing_upload_failed', fields: { handoffId: 'h-4', line: 'stay', detail: 'bucket denied' } }]);
+  });
+});
+
+describe('pollForBriefingUrl — the owner leg waits, bounded', () => {
+  const fakeClock = () => {
+    let t = 0;
+    return { now: () => t, sleep: async (ms: number) => { t += ms; } };
+  };
+
+  it('the defaults are the bounded ~4 s poll', () => {
+    expect(BRIEFING_OWNER_POLL_BUDGET_MS).toBe(4000);
+    expect(BRIEFING_OWNER_POLL_STEP_MS).toBe(650);
+  });
+
+  it('a first-lookup hit returns immediately, one attempt', async () => {
+    const clock = fakeClock();
+    const out = await pollForBriefingUrl({ lookup: async () => ({ url: 'https://x/y.wav', error: null }), ...clock });
+    expect(out).toEqual({ url: 'https://x/y.wav', attempts: 1, waitedMs: 0, lastError: null });
+  });
+
+  it('a briefing that lands mid-poll still wins', async () => {
+    const clock = fakeClock();
+    let calls = 0;
+    const out = await pollForBriefingUrl({
+      lookup: async () => { calls++; return calls < 3 ? { url: null, error: 'not found' } : { url: 'https://x/y.wav', error: null }; },
+      ...clock,
+    });
+    expect(out.url).toBe('https://x/y.wav');
+    expect(out.attempts).toBe(3);
+    expect(out.waitedMs).toBe(1300);
+  });
+
+  it('a genuine miss stops at the budget and surfaces the last error', async () => {
+    const clock = fakeClock();
+    const out = await pollForBriefingUrl({ lookup: async () => ({ url: null, error: 'Object not found' }), ...clock });
+    expect(out.url).toBeNull();
+    expect(out.attempts).toBe(8); // t = 0, 650, …, 3900, 4550 — first attempt past the 4000 budget returns
+    expect(out.waitedMs).toBe(4550);
+    expect(out.lastError).toBe('Object not found');
+  });
+});
+
+describe('browser-voice-handoff wiring — arm-time synthesis, backup, poll, fallback', () => {
   const src = read('supabase/functions/browser-voice-handoff/index.ts');
 
-  it('generation fires at conference join (summary frozen, phone still ringing), fire-and-forget', () => {
-    expect(src).toContain('EdgeRuntime.waitUntil((async()=>{');
-    expect(src).toContain('synthesizeBriefingWav(managerBriefingText(handoff),{apiKey:Deno.env.get(\'GOOGLE_API_KEY\')||\'\'})');
-    expect(src).toContain('db.storage.from(HANDOFF_BRIEFING_BUCKET).upload(handoffBriefingPath(handoff.id),wav,{contentType:\'audio/wav\',upsert:true})');
-    expect(src.indexOf('synthesizeBriefingWav')).toBeLessThan(src.indexOf("if(action==='owner')"));
+  it('synthesis ARMS at token issuance, just before the JWT is returned — not at visitor-join', () => {
+    expect(src).toContain("EdgeRuntime.waitUntil(armBriefingVoice(h,'token'));");
+    // In the JSON token action: after the not_requested gate, before the JWT goes out.
+    expect(src.indexOf("armBriefingVoice(h,'token')")).toBeGreaterThan(src.indexOf("if(h.status!=='not_requested')"));
+    expect(src.indexOf("armBriefingVoice(h,'token')")).toBeLessThan(src.indexOf('return json({token:token.toJwt()})'));
+  });
+
+  it('the arm synthesizes all three spoken lines and stores them via the logging helper', () => {
+    expect(src).toContain('storeHandoffBriefing({handoffId:handoff.id,line:l.line,path:l.path,text:l.text,apiKey,upload:briefingUpload})');
+    expect(src).toContain('handoffBriefingPath(handoff.id)');
+    expect(src).toContain('handoffConnectingPath(handoff.id)');
+    expect(src).toContain('handoffStayPath(handoff.id)');
+    expect(src).toContain("console.info('handoff_briefing_armed'");
+    expect(src).toContain("db.storage.from(HANDOFF_BRIEFING_BUCKET).upload(path,wav,{contentType:'audio/wav',upsert:true})");
+  });
+
+  it('conference join is only a backup: it checks storage and re-arms solely on a miss, logged either way', () => {
+    expect(src).toContain("console.info('handoff_briefing_join_check'");
+    expect(src).toContain("if(!existing.url)await armBriefingVoice(handoff,'join');");
+    expect(src).not.toContain('synthesizeBriefingWav(');
+  });
+
+  it('the owner leg POLLS for the briefing and logs the lookup outcome before any fallback', () => {
+    expect(src).toContain('pollForBriefingUrl({lookup:()=>signedBriefingUrl(handoffBriefingPath(handoff.id))})');
+    expect(src).toContain("console.info('handoff_briefing_owner_lookup'");
+    expect(src).toContain("console.info('handoff_briefing_fallback_say'");
+    expect(src).toContain("reason:'not_stored_after_poll'");
   });
 
   it('the owner leg plays the signed URL inside the same press-1 Gather when it exists', () => {
-    expect(src).toContain('createSignedUrl(handoffBriefingPath(handoff.id),600)');
+    expect(src).toContain('createSignedUrl(path,600)');
     expect(src).toContain('`<Play>${escapeXml(briefingAudio)}</Play>`');
     expect(src).toContain('input="dtmf" numDigits="1"');
     expect(src).toContain('${gatherInner}</Gather><Hangup/>');
   });
 
   it('the Twilio <Say> briefing remains the fallback, from the same shared text builder', () => {
-    expect(src).toContain('const briefing=managerBriefingText(handoff);');
-    expect(src).toContain('`<Say>${escapeXml(briefing)}</Say>`');
+    expect(src).toContain('const briefing=managerBriefingText(handoff,briefingLang);');
+    expect(src).toContain('`<Say language="${briefingSayLanguage(briefingLang)}">${escapeXml(briefing)}</Say>`');
+  });
+
+  it("the connecting line plays Aspen's voice when stored, else the <Say> line", () => {
+    expect(src).toContain('`<Play>${escapeXml(connectingLookup.url)}</Play>`');
+    expect(src).toContain('handoffConnectingLine(acceptLang)');
+    expect(src).toContain("line:'connecting'");
+  });
+
+  it("the visitor leg plays the stay line in Aspen's voice when stored, else the <Say> line", () => {
+    expect(src).toContain('`<Play>${escapeXml(stayLookup.url)}</Play>`');
+    expect(src).toContain('handoffStayLine(stayLang)');
+    expect(src).toContain("line:'stay'");
+    expect(src).not.toContain('Please stay here while I connect you with the manager.');
   });
 
   it('Fix 4 stays intact: Twilio callbacks still validate the request signature in-function', () => {
     expect(src).toContain('twilio.validateRequest(authToken,req.headers.get(\'x-twilio-signature\')||\'\',publicUrl,params)');
-  });
-
-  it('the visitor leg carries the stay-until-connected line', () => {
-    expect(src).toContain("<Say>Please stay here — I'll stay on until you're connected with the manager, then I'll step away.</Say>");
-    expect(src).not.toContain('Please stay here while I connect you with the manager.');
   });
 });

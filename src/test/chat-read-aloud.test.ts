@@ -36,7 +36,9 @@ describe("chat-read-aloud function — source contract", () => {
     expect(briefing).toContain("responseModalities: ['AUDIO']");
     expect(briefing).toContain("speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: opts.voice || HANDOFF_BRIEFING_VOICE } } }");
     expect(briefing).toContain("export const HANDOFF_BRIEFING_TTS_MODEL = 'gemini-3.1-flash-tts-preview'");
-    expect(briefing).toContain("return pcmWav([pcm], 24000);");
+    // Item 11 (2026-11-21): the wrap now lives in the detailed core
+    // (synthesizeBriefingWavDetailed); the plain helper delegates.
+    expect(briefing).toContain("return { wav: pcmWav([pcm], 24000), failure: null };");
   });
 
   it("returns the WAV bytes as audio/wav and keeps the key server-side", () => {
