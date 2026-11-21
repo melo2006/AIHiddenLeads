@@ -118,19 +118,21 @@ test('composed homepage sales prompt carries guarded search and no no-browse con
 
 // 2026-11-21 homepage test, items 5 + 10 (prompt layer): the DEMO
 // BRIDGE used to (a) announce a two-minute in-conversation build that
-// no machinery can perform from a homepage session, and (b) in the
+// no machinery could perform from a homepage session, and (b) in the
 // live seed, order contact capture EARLY while it "loads" — the exact
-// opposite of Ron's END-ASK rule. Until the real request_demo_start
-// tool ships, the bridge points the visitor at the on-page demo path
-// that actually exists and states the capture discipline in full.
-test('demo bridge points at the real demo button and never announces an in-session build', () => {
+// opposite of Ron's END-ASK rule. The stop-gap pointed the visitor at
+// the on-page demo button; the real request_demo_start tool has now
+// shipped (same day), so the bridge drives the tool, narrates ONLY
+// tool-confirmed status, and keeps the button as the honest fallback.
+test('demo bridge drives the demo-start tool and narrates only tool-confirmed status', () => {
   const bridge = HOMEPAGE_SALES_PROMPT.slice(
     HOMEPAGE_SALES_PROMPT.indexOf('DEMO BRIDGE'),
     HOMEPAGE_SALES_PROMPT.indexOf('OPENING AND POSITIONING'),
   );
-  expect(bridge).toContain('POINT THEM TO THE DEMO BUTTON');
+  expect(bridge).toContain('START THEIR DEMO WITH THE TOOL');
+  expect(bridge).toContain('request_demo_start');
+  expect(bridge).toContain('Narrate ONLY what the tool result says');
   expect(bridge).toContain("Try it on your website — free");
-  expect(bridge).toContain('you cannot start a build, run a scan or watch progress from here');
   expect(bridge).not.toContain('ANNOUNCE THE BUILD');
   expect(bridge).not.toContain("I'm pulling up your website right now");
   expect(bridge).not.toContain('WHILE IT LOADS');
