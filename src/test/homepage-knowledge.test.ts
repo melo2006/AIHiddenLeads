@@ -1,7 +1,9 @@
 // @vitest-environment node
 import { expect, test } from 'vitest';
-import { HOMEPAGE_PLANS, HOMEPAGE_ADDONS, HOMEPAGE_KNOWLEDGE, HOMEPAGE_SALES_PROMPT, TEAM_FACTS } from '../../supabase/functions/_shared/homepage-knowledge';
+import { HOMEPAGE_PLANS, HOMEPAGE_ADDONS, HOMEPAGE_KNOWLEDGE, HOMEPAGE_SALES_LAYER, HOMEPAGE_SALES_PROMPT, TEAM_FACTS } from '../../supabase/functions/_shared/homepage-knowledge';
 import { businessDemoConfig } from '../../supabase/functions/_shared/voice-config';
+import { SALES_ACTION_POLICY } from '../../supabase/functions/_shared/demo-sales';
+import { GUARDED_SEARCH_SALES_POLICY, guardedSearchPolicyFor } from '../../supabase/functions/_shared/guarded-search';
 
 test('Premium has the approved price, minutes and leads', () => {
   expect(HOMEPAGE_PLANS.find(p => p.name === 'Premium')).toEqual({name:'Premium',monthlyUsd:99,setupUsd:99,browserVoiceMinutes:400,perMinEquivUsd:0.25,leadsPerMonth:50});
@@ -87,6 +89,67 @@ test('knowledge carries the current website services list', () => {
   expect(HOMEPAGE_KNOWLEDGE).toContain('25-point Map & AI Audit Report is free');
   expect(HOMEPAGE_KNOWLEDGE).toContain('ChatGPT, Gemini and Claude');
 });
+// 2026-11-21 homepage test, item 7: Ron asked for the ATP Finals
+// schedule and Aspen refused — "I cannot access the internet" — even
+// though guarded search was live. The wiring was correct; the seeded
+// STAY ON SCRIPT block still told her "You cannot browse or search the
+// web. Politely decline off-topic requests…", and the model followed
+// the instruction over the tool. This pins the composed homepage
+// SALES prompt (exactly as reseed-homepage-agent stores it and
+// gemini-live-proxy assembles it) so the contradiction cannot return:
+// the guarded-search block is present and no no-browse /
+// decline-off-topic string survives anywhere in the composition.
+test('composed homepage sales prompt carries guarded search and no no-browse contradiction', () => {
+  const composed = [
+    HOMEPAGE_SALES_PROMPT,
+    SALES_ACTION_POLICY,
+    HOMEPAGE_SALES_LAYER,
+    HOMEPAGE_KNOWLEDGE,
+    guardedSearchPolicyFor({ homepageSales: true, simulation: false }),
+  ].join('\n');
+  expect(guardedSearchPolicyFor({ homepageSales: true, simulation: false })).toBe(GUARDED_SEARCH_SALES_POLICY);
+  expect(composed).toContain('WEB SEARCH — GUARDED');
+  expect(composed).toContain('You can check the live web');
+  expect(composed).not.toContain('You cannot browse or search the web');
+  expect(composed).not.toContain('cannot browse or search the web');
+  expect(composed).not.toContain('Politely decline off-topic requests');
+  expect(composed).not.toContain('decline off-topic requests');
+});
+
+// 2026-11-21 homepage test, items 5 + 10 (prompt layer): the DEMO
+// BRIDGE used to (a) announce a two-minute in-conversation build that
+// no machinery can perform from a homepage session, and (b) in the
+// live seed, order contact capture EARLY while it "loads" — the exact
+// opposite of Ron's END-ASK rule. Until the real request_demo_start
+// tool ships, the bridge points the visitor at the on-page demo path
+// that actually exists and states the capture discipline in full.
+test('demo bridge points at the real demo button and never announces an in-session build', () => {
+  const bridge = HOMEPAGE_SALES_PROMPT.slice(
+    HOMEPAGE_SALES_PROMPT.indexOf('DEMO BRIDGE'),
+    HOMEPAGE_SALES_PROMPT.indexOf('OPENING AND POSITIONING'),
+  );
+  expect(bridge).toContain('POINT THEM TO THE DEMO BUTTON');
+  expect(bridge).toContain("Try it on your website — free");
+  expect(bridge).toContain('you cannot start a build, run a scan or watch progress from here');
+  expect(bridge).not.toContain('ANNOUNCE THE BUILD');
+  expect(bridge).not.toContain("I'm pulling up your website right now");
+  expect(bridge).not.toContain('WHILE IT LOADS');
+  expect(HOMEPAGE_SALES_PROMPT).not.toContain("give me your website address, and in about two minutes I'll show you");
+});
+
+test('demo bridge states the END-ASK capture discipline in full', () => {
+  const bridge = HOMEPAGE_SALES_PROMPT.slice(
+    HOMEPAGE_SALES_PROMPT.indexOf('DEMO BRIDGE'),
+    HOMEPAGE_SALES_PROMPT.indexOf('OPENING AND POSITIONING'),
+  );
+  expect(bridge).toContain('NEVER CAPTURE');
+  expect(bridge).toContain('happens ONCE, at the END');
+  expect(bridge).toContain('pass to their manager, a colleague, or the owner');
+  expect(bridge).toContain('ONE ask only');
+  expect(bridge).toContain('a decline closes warmly');
+  expect(bridge).not.toContain('CONTACT DETAILS EARLY');
+});
+
 test('homepage reference never becomes the simulated business knowledge', () => {
   const simulation = businessDemoConfig('Example Bank', 'Bank account evidence', {knowledge:HOMEPAGE_KNOWLEDGE});
   expect(simulation.knowledge).toBe('');

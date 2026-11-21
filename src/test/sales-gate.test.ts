@@ -410,7 +410,7 @@ describe('Publish #79 — prompt-level half: the sales layer now times capture t
   it('the demo bridge no longer collects early — step 2 qualifies, step 6 carries the end-ask', () => {
     expect(HOMEPAGE_SALES_PROMPT).not.toContain('CONTACT DETAILS EARLY');
     expect(HOMEPAGE_SALES_PROMPT).not.toContain('Nothing else, no spam');
-    expect(HOMEPAGE_SALES_PROMPT).toContain('WHILE IT LOADS, QUALIFY — NEVER CAPTURE');
+    expect(HOMEPAGE_SALES_PROMPT).toContain('QUALIFY WHILE YOU TALK — NEVER CAPTURE');
     expect(HOMEPAGE_SALES_PROMPT).toContain('the END-ASK: offer to send them the demo link and a copy of this conversation');
     expect(HOMEPAGE_SALES_PROMPT).toContain('pass to their manager, a colleague, or the owner');
   });
