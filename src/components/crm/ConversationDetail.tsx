@@ -7,6 +7,7 @@ import {
   parseConversationSummary, wavDurationSeconds,
   type DialogueTurn, type TranscriptFragment,
 } from '@/lib/conversationDetail';
+import { SummaryNeedsSteps } from '@/components/ConversationFormatted';
 
 // Shared conversation-record detail: (a) AI summary card, (b) one
 // per-call playback control, (c) dialogue bubbles with the stored
@@ -15,7 +16,12 @@ import {
 // Used by ConversationRecordsView, the PageVisitorsView expansion, and
 // the Call History / Demo History call cards — the surfaces that used
 // to render fragments one-per-line with a bare <audio> per segment.
-// Presentation only: capture and storage are untouched.
+// Presentation only: capture and storage are untouched. Item 12
+// (2026-11-21): the summary card's needs/next steps are the shared
+// SummaryNeedsSteps bullets from components/ConversationFormatted, so
+// admin and the public copy page format a summary identically; the
+// turn merge below shares its rule with the proxy's persistence-time
+// merge (_shared/transcript-turns.ts).
 
 export interface ConversationAudioSegment {
   speaker: string;
@@ -284,12 +290,10 @@ export default function ConversationDetail({
             {parsedSummary.leadReason && (
               <p className="text-[11px] text-muted-foreground italic">Lead reason: {parsedSummary.leadReason}</p>
             )}
-            {parsedSummary.needs.length > 0 && (
-              <p className="text-xs text-muted-foreground">Needs: {parsedSummary.needs.join(' · ')}</p>
-            )}
-            {parsedSummary.nextSteps.length > 0 && (
-              <p className="text-xs text-muted-foreground">Next steps: {parsedSummary.nextSteps.join(' · ')}</p>
-            )}
+            {/* Needs / next steps render as the same bulleted lists the
+                public copy page shows (shared SummaryNeedsSteps,
+                item 12) instead of one " · "-joined line. */}
+            <SummaryNeedsSteps needs={parsedSummary.needs} nextSteps={parsedSummary.nextSteps} />
           </>
         ) : (
           <p className="text-sm text-muted-foreground">No AI summary yet.</p>
