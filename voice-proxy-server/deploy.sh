@@ -73,6 +73,10 @@ FUNCTIONS_SRC="${REPO_ROOT}/supabase/functions"
 # imported by the proxy (dictated-contact cleanup for the
 # confirmation cards) and by demo-start.ts, which is no longer
 # self-contained.
+# 2026-11-21 (callerTone clamp): +1 (50 → 51) — summary-normalize.ts,
+# imported by conversation-records.ts so an out-of-enum callerTone /
+# leadRating from the summary model can never discard a whole
+# summary at the Zod parse (self-contained: no imports of its own).
 # NOTE: `deno cache` (step 4) is NOT a reliable closure authority —
 # server.ts loads the function entry through a dynamic import, which the
 # static cache pass does not traverse (the 2026-11-15 deploy cached
@@ -123,6 +127,7 @@ SHARED_CLOSURE=(
   sales-gate.ts
   session-opening.ts
   session-resumption.ts
+  summary-normalize.ts
   team-intro.ts
   transcript-turns.ts
   twilio-sms.ts

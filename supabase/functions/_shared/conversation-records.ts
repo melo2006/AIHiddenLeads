@@ -1,5 +1,6 @@
 import { z } from 'npm:zod@3';
 import { sendOwnerMail, conversationCopy } from './hostinger-mail.ts';
+import { normalizeSummaryJson } from './summary-normalize.ts';
 
 export const digest = async (text: string) => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)))).map(b => b.toString(16).padStart(2, '0')).join('');
 // The tone / intent / lead fields are optional additions (2026-11-17):
@@ -43,7 +44,7 @@ export async function summarizeRecord(db: any, record: any) {
     });
     if (!res.ok) { const e = new Error(`AI summary request failed (${res.status})`); (e as { statusCode?: number }).statusCode = res.status; throw e; }
     const data = await res.json();
-    const summary = SummarySchema.parse(JSON.parse(data.choices?.[0]?.message?.content || ''));
+    const summary = SummarySchema.parse(normalizeSummaryJson(JSON.parse(data.choices?.[0]?.message?.content || '')));
     if (!summary) throw new Error('AI returned no summary');
     const { error } = await db.from('conversation_records').update({ summary, summary_status: 'ready', summary_error: null }).eq('id', record.id);
     if (error) throw new Error('Summary could not be saved');
