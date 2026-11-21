@@ -513,6 +513,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const [actionNotice, setActionNotice] = useState('');
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
   const deadlineRef = useRef(0);
+  // SESSION CEILING warning (2026-11-21, item 8): the proxy warns
+  // ~60s before a soft deadline that will not extend (session_warning)
+  // and reports extensions (session_extended), which also move
+  // deadlineRef so the countdown pill never hits zero mid-talk.
+  const [limitWarning, setLimitWarning] = useState(false);
   const [consentReady,setConsentReady]=useState(consentOnOpen);
   const consentReadyRef=useRef(consentOnOpen);
   // True while the voice is held back so it starts together with the moving face.
@@ -814,6 +819,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const showMicHintRef = useRef(false);
   const micAwaitRef = useRef<number | null>(null);
   const micGateHeardRef = useRef(0);
+  // Last RAW MIC ACTIVITY forward to the proxy (2026-11-21, item 4):
+  // the speech gate hears the visitor talking long before a completed
+  // transcription exists; the throttled {type:'mic_activity'} control
+  // message keys the proxy's silence/engagement clocks to it so a
+  // visitor mid-sentence is never read as silent.
+  const lastMicActivitySentRef = useRef(0);
   const micTranscriptRef = useRef(0);
   const micHintLastRef = useRef(0);
   const sessionRecoveringRef = useRef(false);
@@ -2358,6 +2369,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     setHeld(false);
     setReplaying(false);
     setPaused(false);
+    setLimitWarning(false);
     if (micNodeRef.current) { micNodeRef.current.onaudioprocess = null; micNodeRef.current.disconnect(); }
     micNodeRef.current = null;
     micSourceRef.current = null;
@@ -3594,6 +3606,17 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           if (gate.open && sourcesRef.current.size === 0 && !idleRef.current.generating) {
             idleRef.current.stage = 'waiting';
             idleRef.current.quietSince = Date.now();
+            // RAW MIC ACTIVITY → PROXY (2026-11-21, item 4): under
+            // exactly the conditions that reset this idle driver,
+            // tell the proxy the visitor is audibly talking —
+            // throttled to one message per 2s — so its silence
+            // ladder and pacing clocks never read a mid-sentence
+            // visitor as silent while the provider VAD is still
+            // holding his turn open.
+            if (Date.now() - lastMicActivitySentRef.current >= 2000) {
+              lastMicActivitySentRef.current = Date.now();
+              try { ws.send(JSON.stringify({ type: "mic_activity" })); } catch { /* socket closing */ }
+            }
           }
           // Opening gate: until Aspen's first turn completes, every frame is
           // silence — ambient noise and side remarks cannot interrupt the
@@ -3860,6 +3883,20 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             setError(String(msg.message || "Voice service error"));
             stopEverything();
             break;
+          case "session_warning": {
+            // SESSION CEILING (2026-11-21, item 8): the soft deadline
+            // is ~a minute out and will not extend unless the
+            // conversation stays active — show the warning pill and
+            // adopt the server's real deadline for the countdown.
+            if (typeof msg.deadlineEpochMs === "number" && msg.deadlineEpochMs > 0) deadlineRef.current = msg.deadlineEpochMs;
+            setLimitWarning(true);
+            break;
+          }
+          case "session_extended": {
+            if (typeof msg.deadlineEpochMs === "number" && msg.deadlineEpochMs > 0) deadlineRef.current = msg.deadlineEpochMs;
+            setLimitWarning(false);
+            break;
+          }
           case "closed": {
             if (liveRef.current) {
               // A provider code means the provider died (and the
@@ -4045,6 +4082,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         if (gate.open && sourcesRef.current.size === 0 && !idleRef.current.generating) {
           idleRef.current.stage = 'waiting';
           idleRef.current.quietSince = Date.now();
+          // RAW MIC ACTIVITY → PROXY (2026-11-21, item 4): same
+          // forward as the parent socket's capture loop — see the
+          // note there. Segment sessions pace identically.
+          if (Date.now() - lastMicActivitySentRef.current >= 2000) {
+            lastMicActivitySentRef.current = Date.now();
+            try { ws.send(JSON.stringify({ type: "mic_activity" })); } catch { /* socket closing */ }
+          }
         }
         let openingGate = openingGateRef.current;
         if (openingGate && performance.now() - openingGateSinceRef.current >= OPENING_GATE_FAILSAFE_MS) {
@@ -4231,6 +4275,16 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         case "error":
           setError(String(msg.message || "Voice service error"));
           stopEverything();
+          break;
+        case "session_warning":
+          // SESSION CEILING (2026-11-21, item 8): same handling as
+          // the main socket — see the note there.
+          if (typeof msg.deadlineEpochMs === "number" && msg.deadlineEpochMs > 0) deadlineRef.current = msg.deadlineEpochMs;
+          setLimitWarning(true);
+          break;
+        case "session_extended":
+          if (typeof msg.deadlineEpochMs === "number" && msg.deadlineEpochMs > 0) deadlineRef.current = msg.deadlineEpochMs;
+          setLimitWarning(false);
           break;
         case "closed": {
           if (liveRef.current) {
@@ -5659,6 +5713,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             <RefreshCw className="h-3.5 w-3.5" />
           </button>
           {remainingSeconds !== null && <span data-testid="demo-timer-pill" title={`${t("voice.demoTimeRemaining")}: ${Math.floor(remainingSeconds/60)}:${String(remainingSeconds%60).padStart(2,'0')}`} aria-label={`${t("voice.demoTimeRemaining")}: ${Math.floor(remainingSeconds/60)}:${String(remainingSeconds%60).padStart(2,'0')}`} className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-background/95 px-2 py-0.5 text-[11px] leading-tight text-muted-foreground"><Timer className="h-3 w-3" />{Math.floor(remainingSeconds/60)}:{String(remainingSeconds%60).padStart(2,'0')}</span>}
+          {/* SESSION CEILING warning (2026-11-21, item 8): visible
+              amber pill beside the countdown when the proxy reports
+              the soft deadline is near and the conversation is not
+              active enough to extend it — never a silent cut. */}
+          {limitWarning && remainingSeconds !== null && <span data-testid="session-limit-warning" className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-500/60 bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium leading-tight text-amber-700 dark:text-amber-300">{t("voice.sessionEndingSoon")}</span>}
           {/* The captions toggle used to live at this row's end as a
               word pill labelled "Captions" (2026-11-14). Chat-fix4
               (2026-11-16) moved it into the merged control row as

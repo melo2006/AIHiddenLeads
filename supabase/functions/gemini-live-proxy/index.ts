@@ -1,4 +1,4 @@
-import { contentFreeCallerTurn, homepagePacingAction, silenceLadderDue, visitorFloorSeconds, SILENCE_NUDGE_1, SILENCE_NUDGE_2, SILENCE_NUDGE_3 } from '../_shared/homepage-pacing.ts'
+import { contentFreeCallerTurn, homepagePacingAction, silenceLadderDue, visitorFloorSeconds, freshSessionCeilingState, sessionCeilingAction, SESSION_ABSOLUTE_CAP_SECONDS, SILENCE_NUDGE_1, SILENCE_NUDGE_2, SILENCE_NUDGE_3, type SessionCeilingState } from '../_shared/homepage-pacing.ts'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { hourInTimeZone, INTERRUPTION_RESUME_POLICY, languagePolicyFor, NO_SPEAKER_LABEL_RULE, renderOpeningTemplate, sanitizeVisitorName, visitorLocalTimeLine, VOICE_DISCONNECT_PLAIN } from '../_shared/voice-config.ts'
@@ -33,7 +33,7 @@ import { MANAGER_HANDOFF_DELAY_MS, MANAGER_TRANSFER_POLICY, managerTransferAnnou
 import { handoffReturnInstruction, handoffReturnOutcome } from '../_shared/handoff-return.ts'
 import { BROWSER_MINUTES_OVERAGE_POLICY } from '../_shared/overage-facts.ts'
 import { guardedSearchPolicyFor, guardedSearchToolEntriesFor } from '../_shared/guarded-search.ts'
-import { FAREWELL_END_DELAY_MS, FAREWELL_REPEAT_END_DELAY_MS, detectFarewell, detectFarewellLeadIn, detectFarewellPersistence, detectFarewellSoftClose, detectModelClosing, farewellSpeakerName, hasPresenterStamp } from '../_shared/farewell.ts'
+import { FAREWELL_END_DELAY_MS, FAREWELL_REPEAT_END_DELAY_MS, detectEndIntent, detectFarewell, detectFarewellLeadIn, detectFarewellPersistence, detectFarewellSoftClose, detectModelClosing, farewellSpeakerName, hasPresenterStamp } from '../_shared/farewell.ts'
 import { CONTACT_SAVE_CLIENT_ERROR, CONTACT_SAVE_FALLBACK_TOOL_RESPONSE, saveConfirmedFollowup } from '../_shared/contact-save.ts'
 import { elevenLabsTtsEventFromSession, logUsageEvent, videoAvatarEventFromSession, webVoiceEventFromSession } from '../_shared/usage-ledger.ts'
 import { bytesToBase64, createSpeechChunker, elevenLabsMouthVoiceId, elevenLabsTtsCostUsd, mergePcmCarry } from '../_shared/elevenlabs-mouth.ts'
@@ -386,7 +386,48 @@ Deno.serve(async (req) => {
     farewellTimer = setTimeout(() => {
       farewellTimer = undefined
       if (closed) return
+      // A visitor-requested end (item 1) owns the close and its
+      // recorded reason: a farewell arm scheduled before the request
+      // landed must not overwrite visitor_requested with
+      // visitor_goodbye — the requested end's own timer closes.
+      if (visitorRequestedEnd) return
       endReason = 'visitor_goodbye'; closeCode = 1000; farewellEndPath = path
+      if (clientSocket.readyState === WebSocket.OPEN) clientSocket.send(JSON.stringify({ type: 'closed', reason: `Call ended — thanks for talking with ${speakerDisplayName}.` }))
+      closeAll()
+    }, delayMs)
+  }
+  // VISITOR-REQUESTED END (2026-11-21, homepage-test item 1): the
+  // deterministic end path for an explicit end request — the
+  // end_conversation tool, or the detectEndIntent backstop on the
+  // visitor's completed utterance. Distinct from the farewell arm
+  // above: the recorded reason is visitor_requested, the end is
+  // FINAL (no revival — the visitor asked for it outright, so later
+  // speech never cancels it), and the pacing tick stands down while
+  // it is pending. The close itself normally lands sooner than the
+  // timer: the model's goodbye carries [[END_CONVERSATION]] and the
+  // client closes on the signal within ~2s of the turn (its
+  // end_session then finds endReason already visitor_requested and
+  // does not overwrite it). The timer is the backstop for a goodbye
+  // that never completes. injectGoodbye is for the backstop path,
+  // where the model has not necessarily closed yet: ONE instruction
+  // turn orders the single goodbye + token.
+  let visitorRequestedEnd = false
+  let requestedEndTimer: ReturnType<typeof setTimeout> | undefined
+  let requestedEndPath = ''
+  const triggerRequestedEnd = (path: string, delayMs: number, injectGoodbye = false) => {
+    if (visitorRequestedEnd || closed) return
+    visitorRequestedEnd = true
+    requestedEndPath = path
+    endReason = 'visitor_requested'
+    console.log(JSON.stringify({ event: 'end_conversation', sessionId: session.id, path }))
+    if (injectGoodbye && geminiWs?.readyState === WebSocket.OPEN) {
+      geminiWs.send(JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text: 'The visitor has clearly asked to end this conversation. End it now: say ONE short, warm goodbye line, append the exact token [[END_CONVERSATION]] at the very end of that line, and then stop. Do not ask a question, do not offer anything new, and do not start another topic.' }] }], turnComplete: true } }))
+    }
+    clearTimeout(requestedEndTimer)
+    requestedEndTimer = setTimeout(() => {
+      requestedEndTimer = undefined
+      if (closed) return
+      closeCode = 1000
       if (clientSocket.readyState === WebSocket.OPEN) clientSocket.send(JSON.stringify({ type: 'closed', reason: `Call ended — thanks for talking with ${speakerDisplayName}.` }))
       closeAll()
     }, delayMs)
@@ -560,12 +601,12 @@ Deno.serve(async (req) => {
     if (mouthActive) mouthInterrupt()
     releaseSocket?.()
     clearTimeout(sessionTimer); clearTimeout(goAwayTimer); clearInterval(pacingTimer)
-    clearTimeout(handoffStartTimer); cancelFarewellEnd()
+    clearTimeout(handoffStartTimer); cancelFarewellEnd(); clearTimeout(requestedEndTimer)
     clearInterval(heartbeat)
     const duration = Math.round((Date.now() - started) / 1000)
     EdgeRuntime.waitUntil((async () => {
       await queueRecording(true);
-      const { error } = await db.from('gemini_voice_sessions').update({ status: 'ended', ended_at: new Date().toISOString(), last_activity_at: new Date().toISOString(), duration_seconds: duration, usage: usage(), last_error: `${endReason} (code ${closeCode})${farewellEndPath ? ` farewell_path=${farewellEndPath}` : ''}`, transcript: config.recordTranscript ? transcript : [] }).eq('id', session.id)
+      const { error } = await db.from('gemini_voice_sessions').update({ status: 'ended', ended_at: new Date().toISOString(), last_activity_at: new Date().toISOString(), duration_seconds: duration, usage: usage(), last_error: `${endReason} (code ${closeCode})${farewellEndPath ? ` farewell_path=${farewellEndPath}` : ''}${requestedEndPath ? ` requested_end_path=${requestedEndPath}` : ''}`, transcript: config.recordTranscript ? transcript : [] }).eq('id', session.id)
       if (error) console.error('session persistence failed', error.message)
       // Usage ledger (Usage Reporting Suite): failure-isolated — logUsageEvent
       // never throws, and the extra try/catch keeps finalize untouched either way.
@@ -583,7 +624,7 @@ Deno.serve(async (req) => {
       if (!preview) {
         const review = config.recordTranscript && config.homepageSales ? callReview(transcript) : null;
         const {data:previous}=await db.from('call_history').select('metadata').eq('retell_call_id',`gemini_${session.id}`).maybeSingle();
-        const {error:historyError} = await db.from('call_history').upsert({ retell_call_id: `gemini_${session.id}`, lead_id: session.lead_id, prospect_id: session.prospect_id, business_name: String(config.businessName), call_status: 'ended', duration_seconds: duration, started_at: new Date(started).toISOString(), ended_at: new Date().toISOString(), transcript: config.recordTranscript ? transcript.map(t => `${t.role}: ${t.text}`).join('\n') : null, ...(review ? {summary:review.summary,key_points:review.interest} : {}), metadata: { ...previous?.metadata, provider: 'gemini', session_id: session.id, agent_id: session.agent_id, campaign:config.campaign || null, transcript_consent: config.recordTranscript, end_reason:endReason,close_code:closeCode,farewell_end_path:farewellEndPath || null,farewell_repeats:farewellRepeats,farewell_revivals:farewellRevivals,review,usage: usage() } },{onConflict:'retell_call_id'})
+        const {error:historyError} = await db.from('call_history').upsert({ retell_call_id: `gemini_${session.id}`, lead_id: session.lead_id, prospect_id: session.prospect_id, business_name: String(config.businessName), call_status: 'ended', duration_seconds: duration, started_at: new Date(started).toISOString(), ended_at: new Date().toISOString(), transcript: config.recordTranscript ? transcript.map(t => `${t.role}: ${t.text}`).join('\n') : null, ...(review ? {summary:review.summary,key_points:review.interest} : {}), metadata: { ...previous?.metadata, provider: 'gemini', session_id: session.id, agent_id: session.agent_id, campaign:config.campaign || null, transcript_consent: config.recordTranscript, end_reason:endReason,close_code:closeCode,farewell_end_path:farewellEndPath || null,requested_end_path:requestedEndPath || null,farewell_repeats:farewellRepeats,farewell_revivals:farewellRevivals,review,usage: usage() } },{onConflict:'retell_call_id'})
         if (historyError) console.error('call history persistence',historyError.message)
       }
       if(recordId)await finalizeRecord(db,recordId);
@@ -606,6 +647,16 @@ Deno.serve(async (req) => {
   }
 
   let lastCallerSpeech = Date.now(), wrapupSent = false, pacingTimer: number | undefined
+  // SESSION CEILING (2026-11-21, homepage-test item 8 — see
+  // sessionCeilingAction in _shared/homepage-pacing.ts): on
+  // homepage-sales and simulation sessions the authorized
+  // max_seconds is a SOFT deadline run by the pacing tick — a
+  // wrap-up path as it approaches, a visible client warning, and
+  // an extension while either side is still talking — instead of
+  // the old hard cut at the mark. The plain session timer set in
+  // onopen remains as the absolute-cap backstop only.
+  const ceilingSession = (config.homepageSales === true || config.simulation === true) && !preview
+  let ceiling: SessionCeilingState | null = null
   // Silence ladder (2026-11-16; cadence corrected 2026-11-17;
   // floor-time corrected 2026-11-18): the current rung of this
   // silence episode (0 = none fired). The episode clock is the
@@ -687,8 +738,40 @@ Deno.serve(async (req) => {
   let openedAt = Date.now()
   clientSocket.onopen = () => {
     openedAt = Date.now()
+    if (ceilingSession) ceiling = freshSessionCeilingState(session.max_seconds)
     if ((config.homepageSales === true || config.simulation === true) && !preview) pacingTimer = setInterval(() => {
       if (!begun) return
+      // A visitor-requested end owns the close: no ladder rung, no
+      // pacing injection and no ceiling action may talk over the
+      // goodbye or revive the session.
+      if (visitorRequestedEnd) return
+      // SESSION CEILING (2026-11-21, item 8): the soft-deadline
+      // machine — see sessionCeilingAction in homepage-pacing.ts.
+      // Stands down while another end already owns the close (a
+      // farewell armed or delivered, a transfer connecting, an end
+      // reason already recorded).
+      if (ceiling && !farewellHandled && farewellTimer === undefined && !managerTransferRequested && endReason === 'connection_closed') {
+        const elapsed = (Date.now() - openedAt) / 1000
+        const activityAgo = modelTurnInFlight ? 0 : (Date.now() - Math.max(lastCallerSpeech, lastModelTurnAt)) / 1000
+        const ceilingStep = sessionCeilingAction(ceiling, elapsed, activityAgo)
+        ceiling = ceilingStep.state
+        if (ceilingStep.action === 'wrapup' && geminiWs?.readyState === WebSocket.OPEN && !farewellGateActive()) {
+          const wrapupText = config.simulation === true
+            ? 'We are nearing the time limit for this demo session. At the next natural pause, finish your current thought and wrap up warmly with a brief goodbye. Do not start a new topic.'
+            : 'We are nearing the time limit for this session. At the next natural pause, begin wrapping up: finish your current thought, then offer ONE next step — booking a 15 to 20 minute setup call, trying the free live demo on their own website, or having a copy of this conversation emailed to them — and say a warm goodbye. Do not start a new topic.'
+          geminiWs.send(JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text: wrapupText }] }], turnComplete: true } }))
+        } else if (ceilingStep.action === 'warn' && clientSocket.readyState === WebSocket.OPEN) {
+          clientSocket.send(JSON.stringify({ type: 'session_warning', secondsRemaining: Math.max(0, Math.ceil(ceiling.deadlineSeconds - elapsed)), deadlineEpochMs: openedAt + ceiling.deadlineSeconds * 1000 }))
+        } else if (ceilingStep.action === 'extend') {
+          console.log(JSON.stringify({ event: 'session_extended', sessionId: session.id, deadlineSeconds: ceiling.deadlineSeconds }))
+          if (clientSocket.readyState === WebSocket.OPEN) clientSocket.send(JSON.stringify({ type: 'session_extended', secondsRemaining: Math.max(0, Math.ceil(ceiling.deadlineSeconds - elapsed)), deadlineEpochMs: openedAt + ceiling.deadlineSeconds * 1000 }))
+        } else if (ceilingStep.action === 'close') {
+          endReason = 'time_limit'
+          if (clientSocket.readyState === WebSocket.OPEN) clientSocket.send(JSON.stringify({ type: 'closed', reason: 'Voice time limit reached' }))
+          closeAll()
+          return
+        }
+      }
       if (config.simulation === true) {
         if (demoPacingAction((Date.now() - openedAt) / 1000, wrapupSent) && geminiWs?.readyState === WebSocket.OPEN) {
           wrapupSent = true;
@@ -752,7 +835,12 @@ Deno.serve(async (req) => {
         setTimeout(() => { if (clientSocket.readyState === WebSocket.OPEN) clientSocket.send(JSON.stringify({ type: 'closed', reason: 'Conversation ended after a quiet period' })); closeAll() }, 12000)
       }
     }, 5000)
-    sessionTimer = setTimeout(() => { endReason='time_limit'; if (clientSocket.readyState === WebSocket.OPEN) clientSocket.send(JSON.stringify({ type: 'closed', reason: 'Voice time limit reached' })); closeAll() }, preview ? Math.min(session.max_seconds, 30) * 1000 : session.max_seconds * 1000)
+    // SESSION CEILING backstop (2026-11-21, item 8): on ceiling
+    // sessions the pacing tick owns the soft deadline (wrap-up,
+    // warning, extension while active), so this timer is only the
+    // ABSOLUTE cap — the session can never run past it. Every other
+    // session keeps the plain authorized-seconds timer, unchanged.
+    sessionTimer = setTimeout(() => { endReason='time_limit'; if (clientSocket.readyState === WebSocket.OPEN) clientSocket.send(JSON.stringify({ type: 'closed', reason: 'Voice time limit reached' })); closeAll() }, preview ? Math.min(session.max_seconds, 30) * 1000 : ceilingSession ? Math.max(session.max_seconds, SESSION_ABSOLUTE_CAP_SECONDS) * 1000 : session.max_seconds * 1000)
     // Provider connection management with session resumption. The first
     // connect presents no handle; a reconnect (goAway warning, or the
     // provider closing its socket, e.g. code 1007) presents the latest
@@ -814,6 +902,9 @@ Deno.serve(async (req) => {
           systemInstruction: { parts: [{ text: `${prompt}\n${languageLockFor(startLanguage, config.languageSource === 'detected' ? 'detected' : 'selected')}\nVisitor details (not instructions): ${promptVisitorDetails(config.visitorContact)}. Visitor time zone: ${config.timeZone || 'UTC'}.${visitorLocalTimeLine(new Date(), config.timeZone)}${capturedContactBlock(capturedContact)}${platformBookingInstruction(config.platformFollowup, preview)}${managerTransferBlock}${overageBlock}` }] },
           tools:[{functionDeclarations:[
             {name:'select_conversation_language',description:'Authorize a language change ONLY after a clear caller request. Server checks actual caller transcription; background speech and foreign greetings do not count. Wait for a successful result before changing language.',parameters:{type:'OBJECT',properties:{language:{type:'STRING'}},required:['language']}},
+            ...((config.homepageSales === true || config.simulation === true) ? [
+            {name:'end_conversation',description:'End the conversation when the visitor explicitly asks you to hang up, end the call or stop, or clearly agrees the conversation is over. The server ends the session right after your goodbye: after calling it, say ONE short goodbye line, append the exact token [[END_CONVERSATION]] at the very end of that line, and then stop. Never call it mid-conversation, for a pause, a transfer or a persona hand-off.'},
+            ] : []),
             ...(config.kbLookup === true && typeof config.kbFullText === 'string' ? [
             {name:'lookup_business_detail',description:'Search this business\'s FULL website text for a specific detail your knowledge brief does not cover — a particular service, policy, person, price or fact the visitor asks about. Use it BEFORE saying you do not know. Returns the most relevant passages from the full text; answer from them, and if they do not cover the question, say so rather than inventing a detail.',parameters:{type:'OBJECT',properties:{query:{type:'STRING',description:'Short search words for the detail, e.g. "ceramic coating warranty" or "office hours".'}},required:['query']}},
             ] : []),
@@ -953,6 +1044,19 @@ Deno.serve(async (req) => {
               const requested = String(call.args?.language || '');
               if (callerLanguageRequest && requested.toLowerCase() === callerLanguageRequest.toLowerCase()) { conversationLanguage = callerLanguageRequest; callerLanguageRequest = null; respond({authorized:true,language:conversationLanguage}); }
               else respond({authorized:false,language:conversationLanguage,error:'No explicit caller language request was verified. Stay in the current language.'});
+            } else if (call.name === 'end_conversation') {
+              // VISITOR-REQUESTED END (2026-11-21, item 1b): dispatched
+              // BEFORE the platformFollowup gate below — homepage and
+              // simulation sessions must always be able to end on the
+              // visitor's word, whether or not they carry platform
+              // follow-up. The proxy records visitor_requested and
+              // arms the end at once; the tool response orders the
+              // single goodbye + token, and the client closes on the
+              // token within ~2s of that turn (the armed timer is
+              // only the backstop).
+              if (config.homepageSales !== true && config.simulation !== true) { respond({error:'Ending the conversation is not available in this session.'}); continue; }
+              triggerRequestedEnd('tool', 12000);
+              respond({ended:true,instruction:'Say ONE short goodbye line now, append the exact token [[END_CONVERSATION]] at the very end of that line, and then stop. Do not ask a question or start a new topic.'});
             } else if (call.name === 'request_manager_transfer') {
               // Dispatched BEFORE the platformFollowup gate below: the
               // transfer tool has its own availability gate (a saved
@@ -1312,6 +1416,29 @@ Deno.serve(async (req) => {
               // deliberately continues — never re-arm over those.
               armFarewellEnd(FAREWELL_END_DELAY_MS, 'timer')
             }
+            // END-INTENT BACKSTOP (2026-11-21, homepage-test item
+            // 1c): the close must not depend on the model choosing
+            // the end_conversation tool. Runs AFTER the farewell
+            // classification above: detectFarewell owns the clean
+            // whole-utterance goodbye (the model's closing line is
+            // already the answer there, and farewellHandled now
+            // marks it); this catches the EMBEDDED request it
+            // deliberately rejects — "please hang up now", "that's
+            // all I needed, thanks" — in the session languages. If
+            // the model's just-completed turn already closed (token
+            // carried, or a terminal closing line), arm the
+            // requested end on the farewell cadence with no further
+            // word; otherwise ONE injected turn orders the single
+            // goodbye + token and the armed timer backstops it.
+            // Never on a content-free fragment, never once a
+            // farewell episode owns the close.
+            if (!preview && begun && !visitorRequestedEnd && !farewellHandled && !contentFreeCallerTurn(completedUtterance) && !detectFarewell(completedUtterance) && detectEndIntent(completedUtterance)) {
+              if (modelTurnText.includes('[[END_CONVERSATION]]') || detectModelClosing(modelTurnText)) {
+                triggerRequestedEnd('backstop_model_closed', FAREWELL_END_DELAY_MS)
+              } else {
+                triggerRequestedEnd('backstop', 12000, true)
+              }
+            }
             // TEXTING-CONSENT ASK (Publish #70): judge the turn that
             // just completed against the ask debt. Blocked while a
             // farewell owns the close (armed or delivered), while a
@@ -1358,7 +1485,7 @@ Deno.serve(async (req) => {
             })
             captureGate = gateDecision.state
             let gateInjected = false
-            if (gateDecision.inject) {
+            if (gateDecision.inject && !visitorRequestedEnd) {
               gateInjected = true
               const text = gateDecision.inject === 'gate'
                 ? captureGateDirective(gateDecision.facts)
@@ -1377,7 +1504,7 @@ Deno.serve(async (req) => {
                 blocked: preview || farewellHandled || farewellTimer !== undefined || managerTransferRequested || pendingActions.size > 0,
               })
               consentAsk = decision.state
-              if (decision.inject) {
+              if (decision.inject && !visitorRequestedEnd) {
                 consentInjected = true
                 const text = decision.inject === 'ask' ? CONSENT_ASK_NUDGE : CONSENT_RECORD_NUDGE
                 geminiWs?.send(JSON.stringify({clientContent:{turns:[{role:'user',parts:[{text}]}],turnComplete:true}}))
@@ -1409,7 +1536,7 @@ Deno.serve(async (req) => {
                 blocked: preview || farewellHandled || farewellTimer !== undefined || managerTransferRequested || pendingActions.size > 0 || gateInjected || consentInjected,
               })
               discoveryGate = discoveryDecision.state
-              if (discoveryDecision.inject) {
+              if (discoveryDecision.inject && !visitorRequestedEnd) {
                 const text = discoveryDecision.inject === 'short-gate'
                   ? shortGateDirective(discoveryGate, discoveryGate.shortGateRepeat)
                   : discoveryDecision.inject === 'short-gate-purpose'
@@ -1455,7 +1582,7 @@ Deno.serve(async (req) => {
                 blocked: preview || farewellHandled || farewellTimer !== undefined || managerTransferRequested || pendingActions.size > 0 || gateInjected || consentInjected,
               })
               salesGate = salesDecision.state
-              if (salesDecision.inject) {
+              if (salesDecision.inject && !visitorRequestedEnd) {
                 salesGateInjected = true
                 const text = salesDecision.inject === 'early-ask'
                   ? earlyAskDirective(salesGate.earlyAskCorrections >= 2)
@@ -1489,7 +1616,7 @@ Deno.serve(async (req) => {
                 blocked: preview || farewellHandled || farewellTimer !== undefined || managerTransferRequested || pendingActions.size > 0 || gateInjected || consentInjected || salesGateInjected,
               })
               bookingGate = bookingDecision.state
-              if (bookingDecision.inject) {
+              if (bookingDecision.inject && !visitorRequestedEnd) {
                 bookingInjected = true
                 console.info('booking gate', JSON.stringify({ sessionId: session.id, inject: bookingDecision.inject, stern: bookingDecision.stern }));
                 const text = bookingDecision.inject === 'commitment'
@@ -1510,7 +1637,7 @@ Deno.serve(async (req) => {
             // on a claimed boundary is re-judged next turn (the caps
             // are per kind per session, so at most one correction
             // each ever fires).
-            if (!preview && !farewellHandled && !gateInjected && !consentInjected && !salesGateInjected && !bookingInjected && pendingActions.size === 0) {
+            if (!preview && !farewellHandled && !visitorRequestedEnd && !gateInjected && !consentInjected && !salesGateInjected && !bookingInjected && pendingActions.size === 0) {
               const wrongName = identityDriftName(completedModelTurn, String(config.name || ''))
               if (wrongName && !driftWatch.identityCorrected) {
                 driftWatch = { ...driftWatch, identityCorrected: true }
@@ -1771,6 +1898,31 @@ Deno.serve(async (req) => {
           cantHearNoticeActive = msg.active
           console.log(JSON.stringify({ event: 'mic_notice', sessionId: session.id, active: msg.active }))
         }
+      } else if (msg.type === 'mic_activity') {
+        // RAW MIC ACTIVITY (2026-11-21, homepage-test item 4): the
+        // client speech gate hears the visitor TALKING long before
+        // the provider's VAD closes a turn and a completed
+        // transcription exists — a visitor speaking continuously
+        // (no ≥1s pause) produced no completed turn at all, so the
+        // ladder's floor clock and the pacing engagement clock both
+        // read him as silent and Aspen asked "are you still there?"
+        // mid-sentence. The client forwards its gate-open signal
+        // (throttled; the same signal that resets its own idle
+        // driver, under the same conditions — gate open, no
+        // playback, not generating), and the proxy keys BOTH clocks
+        // to it: the engagement stamp always moves, and while no
+        // model turn is in flight the ladder's floor anchor moves
+        // too, so floor time cannot accumulate while he is audibly
+        // speaking. The rung itself is untouched — only a completed
+        // turn resets an episode — and TRUE silence is unaffected:
+        // no activity, no anchor movement, the approved ladder runs
+        // exactly as before. Display/activity state only: it never
+        // starts or ends anything by itself.
+        lastCallerSpeech = Date.now()
+        if (!modelTurnInFlight) {
+          lastRealCallerTurnAt = Date.now()
+          modelBusyMsSinceCallerTurn = 0
+        }
       } else if (msg.type === 'idle_prompt' && (config.homepageSales === true || config.simulation === true) && !preview && (msg.stage === 'checkin' || msg.stage === 'goodbye' || (msg.stage === 'continue' && config.homepageSales === true) || (msg.stage === 'bridge' && (config.simulation === true || config.homepageSales === true)))) {
         // SINGLE SILENCE OWNER (2026-11-16): on homepage SALES
         // sessions the server-side silence ladder owns the check-in
@@ -1884,7 +2036,7 @@ Deno.serve(async (req) => {
             blocked: preview || farewellHandled || farewellTimer !== undefined || managerTransferRequested || pendingActions.size > 0,
           })
           salesGate = preArm.state
-          if (preArm.inject === 'end-ask-prearm') {
+          if (preArm.inject === 'end-ask-prearm' && !visitorRequestedEnd) {
             preArmed = true
             geminiWs.send(JSON.stringify({ clientContent: { turns: [
               { role: 'user', parts: [{ text: endAskPreArmDirective() }] },

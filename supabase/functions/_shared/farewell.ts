@@ -264,6 +264,86 @@ export function detectFarewellPersistence(utterance: string): boolean {
   return PERSISTENCE_ANCHORS.some((a) => a.test(text));
 }
 
+// ---------------------------------------------------------------------------
+// END-INTENT BACKSTOP (2026-11-21, homepage-test item 1): detectFarewell
+// above is WHOLE-UTTERANCE by design, so an explicit end request buried
+// in a longer sentence ("please hang up now, I've got to run", "okay
+// that's all I needed, thank you") never armed any end at all — Ron
+// asked Aspen to hang up, she said goodbye, and the session lingered
+// ~60 s while the silence ladder ran. detectEndIntent is the wider
+// net for exactly those EMBEDDED requests: any one clear end anchor
+// anywhere in a completed utterance counts, in the session languages
+// (EN/ES/PT/FR). It stays guarded — a prohibition ("don't hang up"),
+// a not-ready, a "before you hang up…" preface to a NEW question, a
+// topic question, or third-party reported speech all reject — because
+// a false positive here hangs up on a visitor who wanted to keep
+// talking. Used by the proxy at turnComplete alongside (never instead
+// of) detectFarewell; a match records end reason visitor_requested.
+// ---------------------------------------------------------------------------
+
+/** Longest utterance that can carry an embedded end request — beyond
+ *  it the visitor is telling a story, not asking to stop. */
+export const END_INTENT_MAX_WORDS = 30;
+
+// Clear end anchors (normalized text: diacritics stripped, apostrophes
+// removed). Any ONE is enough — the request may sit anywhere in the
+// sentence, unlike detectFarewell's whole-utterance cores.
+const END_INTENT_ANCHORS: RegExp[] = [
+  /\bhang up\b/, /\bhung up\b/,
+  /\bend (the |this )?call\b/, /\bend (the |this )?conversation\b/,
+  /\bdisconnect( me)?\b/, /\bstop the call\b/,
+  /\bgoodbye\b/, /\bgood bye\b/,
+  /\bthats all\b/, /\bthat is all\b/, /\bthats it\b/, /\bthat is it\b/,
+  /\bim done\b/, /\bi am done\b/, /\bwe are done\b/, /\bwere done\b/,
+  // Spanish
+  /\bcuelga\b/, /\bcuelgue\b/, /\btermina( la)? llamada\b/, /\bterminar la llamada\b/,
+  /\beso es todo\b/, /\badios\b/, /\bdesconecta( me)?\b/, /\bdesconectame\b/,
+  // Portuguese
+  /\bdeslig/, /\bencerra( a)? chamada\b/, /\bencerrar a chamada\b/,
+  /\be so isso\b/, /\btchau\b/, /\badeus\b/, /\bdesconecta( me)?\b/,
+  // French
+  /\braccroch/, /\btermine l appel\b/, /\bterminer l appel\b/,
+  /\bc est tout\b/, /\bau revoir\b/, /\bdeconnecte( moi)?\b/,
+];
+
+// Embedded-request rejects: the visitor does NOT want the end (yet),
+// is prefacing a new question with the ending, is reporting someone
+// else's goodbye, or is attaching a new request.
+const END_INTENT_GUARDS: RegExp[] = [
+  /\b(dont|do not|never) (hang up|disconnect|end|say)\b/, // don't hang up / don't end the call
+  /\bnot (ready|going|hanging|done|finished)\b/, // I'm not ready / not done yet
+  /\b(im|i am) not\b/, // I'm not hanging up / I'm not done
+  /\bbefore you (hang up|go|end|disconnect)\b/, // before you hang up, what's…?
+  /\b(he|she|they) said\b/, /\b(my|the|our) [a-z]+ said\b/, // reported speech
+  /\b(want|wanted) to ask\b/, /\bi have a question\b/, /\banother question\b/, /\bone more (thing|question)\b/,
+  /\btell me\b/, /\bwhat about\b/, /\bhow about\b/, // a new topic opening
+  /\bbut (first|also|wait)\b/, // that's all, but first…
+];
+
+// A question about a TOPIC is a new request, not an end demand; a
+// question about the ENDING itself ("aren't you going to hang up?")
+// still counts. Mirrors the persistence detector's split.
+const END_INTENT_TOPIC_QUESTION = /\b(what|whats|when|where|which|who|how much|how many|how long|can you|do you|does|is there|are there)\b/;
+const END_INTENT_DEMAND = /\b(hang up|hung up|hanging up|still there|still on)\b/;
+
+/**
+ * True when a COMPLETED visitor utterance clearly asks to end the
+ * conversation — an explicit end anchor anywhere in the sentence
+ * ("hang up", "end the call", "that's all", "goodbye", plus the
+ * ES/PT/FR equivalents) — subject to the guards above. Wider than
+ * detectFarewell by design (embedded, not whole-utterance); never
+ * use it on fragments, only on completed turns.
+ */
+export function detectEndIntent(utterance: string): boolean {
+  if (typeof utterance !== 'string') return false;
+  const text = normalize(utterance);
+  if (!text) return false;
+  if (text.split(' ').length > END_INTENT_MAX_WORDS) return false;
+  if (END_INTENT_GUARDS.some((g) => g.test(text))) return false;
+  if (utterance.includes('?') && END_INTENT_TOPIC_QUESTION.test(text) && !END_INTENT_DEMAND.test(text)) return false;
+  return END_INTENT_ANCHORS.some((a) => a.test(text));
+}
+
 const SOFT_RESIDUES = new Set([
   'you too', 'same to you', 'take care', 'sounds good',
   'good day', 'have a good day', 'have a great day', 'have a wonderful day',

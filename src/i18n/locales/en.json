@@ -944,6 +944,7 @@
     "aspenTranscript": "Aspen transcript",
     "transcriptLabel": "Conversation transcript",
     "demoTimeRemaining": "Demo time remaining",
+    "sessionEndingSoon": "Ending soon — keep talking to continue",
     "play": "Play",
     "end": "End",
     "mute": "Mute",
