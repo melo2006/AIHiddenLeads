@@ -46,4 +46,10 @@ export const B2B_EXAMPLE_PINNED_LEADS: B2BExamplePinnedLead[] = [
   { slug: "mjm-manufacturing", domain: "mjmmfg.com", url: "https://mjmmfg.com/", leadId: "a265677d-75ca-4a5b-a4c4-55c6a1591f5c" },
   { slug: "westway-towing", domain: "westwaytowing.com", url: "https://westwaytowing.com/", leadId: "2604bee5-0436-4149-b8fa-d032883081d6" },
   { slug: "lan-infotech", domain: "laninfotech.com", url: "https://laninfotech.com/", leadId: "79ca6c55-723c-4b3b-ae2f-b5c84b4e6bbe" },
+  { slug: "john-the-plumber", domain: "johntheplumberfl.com", url: "https://johntheplumberfl.com/", leadId: "44690ce7-fb21-4486-bf32-68cfbeaee119" },
+  { slug: "septic-doctor", domain: "thesepticdoctor.com", url: "https://thesepticdoctor.com/", leadId: "ad030a46-ba0d-446c-9bb6-56d24f434adc" },
+  { slug: "mamas-boy-air", domain: "mamasboyair.com", url: "https://www.mamasboyair.com/", leadId: "2a9c2684-c90d-4462-a6be-b69ae7125be8" },
+  { slug: "evo-air", domain: "evo-air.com", url: "https://evo-air.com/", leadId: "55035708-5a9f-4f0c-a834-1b98eaf3c07a" },
+  { slug: "john-orthodontics", domain: "johnortho.com", url: "https://johnortho.com/", leadId: "798b24ff-76c0-4c4d-a806-37c6035cd05d" },
+  { slug: "jj-dental", domain: "jjdentalpractice.com", url: "https://www.jjdentalpractice.com/", leadId: "993487b4-a883-421b-bf43-62040ed11f9a" },
 ];

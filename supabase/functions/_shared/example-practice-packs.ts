@@ -85,6 +85,12 @@ export const EXAMPLE_PRACTICE_TYPE_BY_SLUG: Record<string, ExamplePracticeType> 
   'mjm-manufacturing': 'manufacturing',
   'westway-towing': 'towing',
   'lan-infotech': 'it-services',
+  'john-the-plumber': 'plumbing',
+  'septic-doctor': 'plumbing',
+  'mamas-boy-air': 'hvac',
+  'evo-air': 'hvac',
+  'john-orthodontics': 'dental',
+  'jj-dental': 'dental',
 };
 
 /** Fallback by B2B niche for a future example whose slug is not in

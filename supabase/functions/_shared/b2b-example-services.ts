@@ -1,4 +1,4 @@
-// B2B EXAMPLE SERVICES PACKS (2026-11-13): for each of the 17 one-click
+// B2B EXAMPLE SERVICES PACKS (2026-11-13): for each of the 28 one-click
 // demo examples in the general-business set, the services the simulated
 // Aspen leads with when a demo session runs on that site — the analog of
 // the realtor listings packs. Services were extracted from each
@@ -531,6 +531,133 @@ export const B2B_EXAMPLE_PACKS: B2BExamplePack[] = [
       { name: "Work From Home Solutions", descriptor: "Secure remote-work setups for distributed teams.", source: "site" },
     ],
   },
+  {
+    slug: "john-the-plumber",
+    url: "https://johntheplumberfl.com/",
+    businessName: "John the Plumber",
+    niche: "plumber",
+    nicheLabel: "Plumbing company",
+    city: "Pompano Beach",
+    state: "FL",
+    hours: "Monday - Friday: 7:30 a.m. - 5 p.m. / Emergency service 24/7",
+    serviceArea: "Broward County and Boca Raton",
+    services: [
+      { name: "Plumbing Repair & Replacement", descriptor: "Leaks, fixtures and piping — repaired or replaced, done right the first time.", source: "site" },
+      { name: "Water Heaters", descriptor: "Water heater repair and replacement.", source: "site" },
+      { name: "Drain Cleaning", descriptor: "Clogged drains cleared fast.", source: "site" },
+      { name: "Hydro-Jetting", descriptor: "High-pressure hydro-jetting for stubborn blockages and buildup.", source: "site" },
+      { name: "Camera Inspection", descriptor: "Video camera inspection that finds the real cause before any digging.", source: "site" },
+      { name: "Boiler Services", descriptor: "Boiler installation, repair and service.", source: "site" },
+      { name: "Same-Day Service", descriptor: "Same-day plumbing appointments across Broward.", source: "site" },
+      { name: "24/7 Emergency Plumbing", descriptor: "Emergency plumbers around the clock — nights, weekends and holidays.", source: "site" },
+    ],
+  },
+  {
+    slug: "septic-doctor",
+    url: "https://thesepticdoctor.com/",
+    businessName: "The Septic Doctor",
+    niche: "plumber",
+    nicheLabel: "Septic & drain specialist",
+    city: "Miami",
+    state: "FL",
+    hours: "Emergency service 24/7",
+    serviceArea: "Miami-Dade, Broward and Palm Beach counties",
+    services: [
+      { name: "Septic Pumping", descriptor: "Septic tank pumping that keeps the whole system healthy.", source: "site" },
+      { name: "Septic Cleaning", descriptor: "Full septic tank cleaning.", source: "site" },
+      { name: "Septic Repair", descriptor: "Repairs for failing or damaged septic systems.", source: "site" },
+      { name: "Septic Maintenance", descriptor: "Ongoing maintenance that prevents backups and failures.", source: "site" },
+      { name: "Septic Inspections", descriptor: "Septic system inspections with a clear report of what was found.", source: "site" },
+      { name: "Septic Installation", descriptor: "New septic system installation.", source: "site" },
+      { name: "Drain Field Installation", descriptor: "New drain field installation.", source: "site" },
+      { name: "Drain Field Repair", descriptor: "Drain field repair for systems that are backing up or pooling.", source: "site" },
+      { name: "24/7 Emergency Service", descriptor: "Emergency septic help around the clock.", source: "site" },
+    ],
+  },
+  {
+    slug: "mamas-boy-air",
+    url: "https://www.mamasboyair.com/",
+    businessName: "Mama's Boy Air",
+    niche: "hvac",
+    nicheLabel: "HVAC company",
+    city: "Boca Raton",
+    state: "FL",
+    hours: "Emergency service 24/7",
+    serviceArea: "Fort Lauderdale to Boynton Beach",
+    services: [
+      { name: "AC Repair", descriptor: "Find the real cause and fix it right the first time — the price up front, before any work starts.", source: "site" },
+      { name: "24/7 Emergency AC Repair", descriptor: "No cooling at 10 p.m. on a Saturday? Emergency repair day or night, 365 days a year, with no overtime charge.", source: "site" },
+      { name: "AC Installation", descriptor: "New systems sized to your home — Trane, Carrier, Lennox, Daikin and more.", source: "site" },
+      { name: "Maintenance Plans (Comfort Club)", descriptor: "Two tune-ups a year with a 27-point inspection on every visit.", source: "site" },
+      { name: "AC Tune-Ups", descriptor: "One-visit tune-ups with a 27-point inspection — no plan required.", source: "site" },
+      { name: "Heating & Heat Pumps", descriptor: "Heat pump and heat strip repair for the few nights Boca actually gets cold.", source: "site" },
+      { name: "Commercial HVAC", descriptor: "Repair, replacement and scheduled maintenance for offices, retail and other local businesses.", source: "site" },
+      { name: "Honest Second Opinions", descriptor: "Told you need a new system? A straight second opinion — if a single part fixes it, that's all you pay for.", source: "site" },
+    ],
+  },
+  {
+    slug: "evo-air",
+    url: "https://evo-air.com/",
+    businessName: "Evo Air",
+    niche: "hvac",
+    nicheLabel: "Commercial HVAC company",
+    city: "Miami",
+    state: "FL",
+    hours: "Monday - Friday: 7:30 a.m. - 4:30 p.m. / Emergency service 24/7",
+    serviceArea: "Miami, Plantation and South Florida businesses",
+    services: [
+      { name: "Commercial AC Service", descriptor: "Air conditioning for businesses — about 95% of the work is commercial.", source: "site" },
+      { name: "Commercial AC Repair", descriptor: "Commercial AC repair with 24/7 emergency response.", source: "site" },
+      { name: "Commercial AC Installation", descriptor: "New commercial system installation and replacement.", source: "site" },
+      { name: "Chiller Service", descriptor: "Chiller service for large commercial systems.", source: "site" },
+      { name: "Cooling Towers", descriptor: "Cooling tower service and maintenance.", source: "site" },
+      { name: "Heat Pumps", descriptor: "Commercial heat pump systems, serviced and installed.", source: "site" },
+      { name: "Ductless Systems", descriptor: "Ductless systems for spaces ductwork can't reach.", source: "site" },
+      { name: "Maintenance Agreements", descriptor: "Scheduled maintenance agreements that keep systems running and budgets predictable.", source: "site" },
+      { name: "Property Manager Programs", descriptor: "HVAC service programs for property managers with multiple buildings.", source: "site" },
+    ],
+  },
+  {
+    slug: "john-orthodontics",
+    url: "https://johnortho.com/",
+    businessName: "John Orthodontics",
+    niche: "dentist",
+    nicheLabel: "Orthodontic practice",
+    city: "Coral Springs",
+    state: "FL",
+    hours: "Monday & Tuesday: 9 a.m. - 5:30 p.m. / Wednesday & Thursday: 8 a.m. - 5 p.m. / Friday: Closed / Saturday: Monthly appointments",
+    services: [
+      { name: "Metal Braces (Pitts 21)", descriptor: "Pitts 21 self-ligating metal braces.", source: "site" },
+      { name: "Clear Braces", descriptor: "Clear braces that straighten without the metal look.", source: "site" },
+      { name: "Invisalign", descriptor: "Invisalign clear aligners for adults.", source: "site" },
+      { name: "Invisalign Teen", descriptor: "Invisalign made for teenagers.", source: "site" },
+      { name: "Early Treatment", descriptor: "Early orthodontic treatment for children.", source: "site" },
+      { name: "Adult Treatment", descriptor: "Orthodontic treatment for adults at any age.", source: "site" },
+      { name: "Retainers", descriptor: "Retainers that keep the new smile in place.", source: "site" },
+      { name: "Orthognathic Surgery", descriptor: "Jaw surgery coordinated with orthodontic treatment when alignment needs it.", source: "site" },
+      { name: "Free First Consultation", descriptor: "The first consultation is free.", source: "site" },
+    ],
+  },
+  {
+    slug: "jj-dental",
+    url: "https://www.jjdentalpractice.com/",
+    businessName: "JJ Dental",
+    niche: "dentist",
+    nicheLabel: "Dental practice",
+    city: "Fort Lauderdale",
+    state: "FL",
+    hours: "Monday - Friday: 8 a.m. - 5 p.m.",
+    services: [
+      { name: "Dental Exams", descriptor: "Complete dental exams that catch problems early.", source: "site" },
+      { name: "Professional Cleanings", descriptor: "Gentle professional cleanings.", source: "site" },
+      { name: "Teeth Whitening", descriptor: "Professional whitening for a visibly brighter smile.", source: "site" },
+      { name: "Smile Makeovers", descriptor: "Full smile makeovers combining cosmetic treatments.", source: "site" },
+      { name: "Dental Crowns", descriptor: "Crowns that protect and restore damaged teeth.", source: "site" },
+      { name: "Fillings", descriptor: "Fillings for cavities, matched to your natural teeth.", source: "site" },
+      { name: "Dental Implants", descriptor: "Implants that replace missing teeth permanently.", source: "site" },
+      { name: "Teeth Straightening", descriptor: "Teeth straightening options for an aligned smile.", source: "site" },
+    ],
+  },
 ];
 
 /** Normalize a site URL for example matching: host without "www." plus
@@ -550,7 +677,7 @@ export function normalizeExampleSiteUrl(raw: unknown): string {
 }
 
 /** The example pack for a simulated site's URL, or null when the site
- * is not one of the 17 known B2B examples. */
+ * is not one of the 28 known B2B examples. */
 export function examplePackForSiteUrl(siteUrl: unknown): B2BExamplePack | null {
   const key = normalizeExampleSiteUrl(siteUrl);
   if (!key) return null;

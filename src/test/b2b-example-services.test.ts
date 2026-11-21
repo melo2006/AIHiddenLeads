@@ -15,11 +15,11 @@ import {
 } from "../../supabase/functions/_shared/b2b-example-services";
 
 const EXPECTED_NICHE_COUNTS: Record<string, number> = {
-  dentist: 1,
+  dentist: 3,
   roofer: 1,
-  hvac: 1,
+  hvac: 3,
   lawyer: 1,
-  plumber: 1,
+  plumber: 3,
   pavers: 1,
   manufacturer: 3,
   marine: 2,
@@ -31,15 +31,15 @@ const EXPECTED_NICHE_COUNTS: Record<string, number> = {
 };
 
 describe("b2b example services packs", () => {
-  it("carries exactly 22 packs (16 original + Wave 3's 5 + AZ Pools, the full-service pool example added 2026-11-21)", () => {
-    expect(CLIENT_PACKS).toHaveLength(22);
+  it("carries exactly 28 packs (16 original + Wave 3's 5 + AZ Pools + Wave 1's big-three 6, all added under Ron's approved mix, 2026-11-21)", () => {
+    expect(CLIENT_PACKS).toHaveLength(28);
     const counts: Record<string, number> = {};
     for (const pack of CLIENT_PACKS) counts[pack.niche] = (counts[pack.niche] ?? 0) + 1;
     expect(counts).toEqual(EXPECTED_NICHE_COUNTS);
     const slugs = CLIENT_PACKS.map((p) => p.slug);
-    expect(new Set(slugs).size).toBe(22);
+    expect(new Set(slugs).size).toBe(28);
     const urls = CLIENT_PACKS.map((p) => normalizeExampleSiteUrl(p.url));
-    expect(new Set(urls).size).toBe(22);
+    expect(new Set(urls).size).toBe(28);
   });
 
   it("keeps the client and server copies in lockstep", () => {
