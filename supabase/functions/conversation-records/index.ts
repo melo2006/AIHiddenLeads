@@ -2,11 +2,12 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { z } from 'npm:zod@3';
 import { digest, finalizeRecord } from '../_shared/conversation-records.ts';
+import { COPY_TOKEN_MAX_LENGTH, COPY_TOKEN_MIN_LENGTH, resolveConversationCopy } from '../_shared/conversation-copy.ts';
 const json=(d:unknown,s=200)=>new Response(JSON.stringify(d),{status:s,headers:{...corsHeaders,'Content-Type':'application/json','Cache-Control':'no-store'}});
 const schema=z.discriminatedUnion('action',[
  z.object({action:z.literal('list')}),z.object({action:z.literal('read'),id:z.string().uuid()}),
  z.object({action:z.literal('summarize'),id:z.string().uuid()}),
- z.object({action:z.literal('copy'),token:z.string().min(50).max(100)}),
+ z.object({action:z.literal('copy'),token:z.string().min(COPY_TOKEN_MIN_LENGTH).max(COPY_TOKEN_MAX_LENGTH)}),
  z.object({action:z.literal('chat'),capability:z.string().min(32).max(100),businessName:z.string().max(200),role:z.enum(['user','assistant']),content:z.string().min(1).max(20000),agreed:z.literal(true)}),
  z.object({action:z.literal('chatCopy'),capability:z.string().min(32).max(100),email:z.string().email().max(255),consent:z.literal(true)}),
 ]);
@@ -17,10 +18,8 @@ Deno.serve(async req=>{
   const p=schema.safeParse(await req.json());if(!p.success)return json({error:'Invalid request'},400);const b=p.data;
   const db=createClient(Deno.env.get('SUPABASE_URL')||'',Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')||'');
   if(b.action==='copy'){
-   const {data:link}=await db.from('conversation_copy_links').select('record_id').eq('token_hash',await digest(b.token)).is('revoked_at',null).gt('expires_at',new Date().toISOString()).maybeSingle();
-   if(!link)return json({error:'This private link has expired or was revoked.'},404);
-   const {data:r}=await db.from('conversation_records').select('business_name,transcript,summary,summary_status,created_at').eq('id',link.record_id).single();
-   return r?json({record:{...r,summary:r.summary?{summary:r.summary.summary,needs:r.summary.needs,nextSteps:r.summary.nextSteps}:null}}):json({error:'Conversation unavailable'},404);
+   const res=await resolveConversationCopy(db,b.token);
+   return res.status===200?json({record:res.record}):json({error:res.error},res.status);
   }
   if(b.action==='chatCopy'){
    const {data:r}=await db.from('conversation_records').select('id,copy_requested_at').eq('session_ref',`chat_${await digest(b.capability)}`).maybeSingle();
