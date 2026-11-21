@@ -61,7 +61,13 @@ describe("examples gallery categories (Ron's business-first mix, 2026-11-21)", (
     "ak-building-services": "business-services",
     "it-yall": "business-services",
     "essig-pools": "home-services",
+    "az-pools": "home-services",
     "prestige-landscape": "home-services",
+    "tropic-supply": "business-services",
+    "royal-electrical-supply": "business-services",
+    "mjm-manufacturing": "manufacturing",
+    "westway-towing": "auto",
+    "lan-infotech": "business-services",
   };
 
   it("every example carries exactly the category its trade belongs to", () => {
@@ -87,13 +93,13 @@ describe("examples gallery categories (Ron's business-first mix, 2026-11-21)", (
     }
     expect(Object.fromEntries(counts)).toEqual({
       "real-estate": 14,
-      "home-services": 6,
+      "home-services": 7,
       "health-dental": 1,
       legal: 1,
-      manufacturing: 2,
+      manufacturing: 3,
       marine: 2,
-      auto: 2,
-      "business-services": 2,
+      auto: 3,
+      "business-services": 5,
     });
   });
 

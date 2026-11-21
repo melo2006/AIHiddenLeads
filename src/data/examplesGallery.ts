@@ -87,6 +87,10 @@ const NICHE_CATEGORIES: Record<string, GalleryCategory> = {
   manufacturer: "manufacturing",
   marine: "marine",
   "auto-repair": "auto",
+  // Towing is a vehicle service — it sits with Auto. Wholesale
+  // distributors are business-to-business services, not makers.
+  towing: "auto",
+  distributor: "business-services",
   "b2b-services": "business-services",
 };
 
