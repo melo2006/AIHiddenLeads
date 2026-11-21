@@ -74,7 +74,7 @@ describe("film gallery placement + playback rules (2026-11-20)", () => {
   it("playback is a YouTube facade: no iframe until tapped, no local <video> at all", () => {
     const section = read("components/landing/FilmGallery.tsx");
     expect(section).toContain(
-      "https://www.youtube-nocookie.com/embed/${film.youtubeId}?autoplay=1&rel=0",
+      "https://www.youtube-nocookie.com/embed/${film.youtubeId}?autoplay=1&playsinline=1&rel=0",
     );
     expect(section).toContain("<iframe");
     expect(section).toContain("allowFullScreen");
@@ -94,7 +94,11 @@ describe("film gallery placement + playback rules (2026-11-20)", () => {
     expect(section).toContain("data-film-lightbox");
     expect(section).toContain('aria-label="Close player"');
     expect(section).toContain('"Escape"');
-    expect(section).toContain("max-h-[74dvh]");
+    // The player box needs a DEFINITE width: with width:auto the iframe
+    // has no intrinsic ratio, and Android Chrome collapsed it to ~zero
+    // height (black lightbox, Ron 2026-11-21). 41.6dvh = 74dvh × 9/16,
+    // so the 9/16 frame still lands at most 74dvh tall.
+    expect(section).toContain("min(92vw, 41.6dvh)");
     expect(section).toContain("Watch on YouTube");
   });
 });

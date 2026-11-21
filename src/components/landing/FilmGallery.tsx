@@ -163,9 +163,9 @@ const FilmPlayer = ({ film, active, onPlay }: FilmPlayerProps) => {
     return (
       <iframe
         key={film.slug}
-        src={`https://www.youtube-nocookie.com/embed/${film.youtubeId}?autoplay=1&rel=0`}
+        src={`https://www.youtube-nocookie.com/embed/${film.youtubeId}?autoplay=1&playsinline=1&rel=0`}
         title={`${film.narrator} — ${film.business} story`}
-        allow="accelerometer; autoplay; encrypted-media; picture-in-picture"
+        allow="accelerometer; autoplay; encrypted-media; fullscreen; picture-in-picture"
         allowFullScreen
         className="block aspect-[9/16] h-full w-full bg-black"
       />
@@ -233,14 +233,17 @@ const FilmLightbox = ({
             <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
-        <div className="overflow-hidden rounded-2xl bg-black shadow-2xl">
+        <div
+          className="overflow-hidden rounded-2xl bg-black shadow-2xl"
+          style={{ width: "min(92vw, 41.6dvh)" }}
+        >
           <iframe
             key={film.slug}
-            src={`https://www.youtube-nocookie.com/embed/${film.youtubeId}?autoplay=1&rel=0`}
+            src={`https://www.youtube-nocookie.com/embed/${film.youtubeId}?autoplay=1&playsinline=1&rel=0`}
             title={`${film.narrator} — ${film.business} story`}
-            allow="accelerometer; autoplay; encrypted-media; picture-in-picture"
+            allow="accelerometer; autoplay; encrypted-media; fullscreen; picture-in-picture"
             allowFullScreen
-            className="block aspect-[9/16] max-h-[74dvh] w-auto max-w-[92vw] bg-black"
+            className="block aspect-[9/16] w-full bg-black"
           />
         </div>
         <div className="mt-3 flex items-center gap-2">
@@ -252,14 +255,6 @@ const FilmLightbox = ({
           >
             <ChevronLeft className="h-5 w-5" aria-hidden="true" />
           </button>
-          <a
-            href={`https://www.youtube.com/watch?v=${film.youtubeId}`}
-            target="_blank"
-            rel="noreferrer"
-            className="rounded-full bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
-          >
-            Watch on YouTube
-          </a>
           <button
             type="button"
             onClick={onNext}
@@ -269,6 +264,14 @@ const FilmLightbox = ({
             <ChevronRight className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
+        <a
+          href={`https://www.youtube.com/watch?v=${film.youtubeId}`}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-2 text-xs text-white/50 underline underline-offset-2 transition-colors hover:text-white/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+        >
+          Watch on YouTube
+        </a>
       </div>
     </div>
   );
