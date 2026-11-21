@@ -69,6 +69,10 @@ FUNCTIONS_SRC="${REPO_ROOT}/supabase/functions"
 # this list; the VPS had been running the pre-#34 build (0868dd9),
 # so the item-6 redeploy was the first to crash-loop on it. Full
 # transitive re-trace at 27a2e14: 49 modules, this is the only gap.
+# 2026-11-21 (item 5 form fix): +1 (49 → 50) — contact-normalize.ts,
+# imported by the proxy (dictated-contact cleanup for the
+# confirmation cards) and by demo-start.ts, which is no longer
+# self-contained.
 # NOTE: `deno cache` (step 4) is NOT a reliable closure authority —
 # server.ts loads the function entry through a dynamic import, which the
 # static cache pass does not traverse (the 2026-11-15 deploy cached
@@ -87,6 +91,7 @@ SHARED_CLOSURE=(
   captured-contact.ts
   carrier-guides.ts
   consent-ask.ts
+  contact-normalize.ts
   contact-save.ts
   context-compression.ts
   conversation-language.ts

@@ -41,7 +41,7 @@ test('proxy confirm handler creates the lead through the existing demo pipeline'
 });
 
 test('client renders the demo confirmation card and the persistent entry card', () => {
-  expect(conversation).toContain("import DemoStartConfirmation from \"./DemoStartConfirmation\"");
+  expect(conversation).toContain("import DemoStartConfirmation, { type DemoStartValues } from \"./DemoStartConfirmation\"");
   expect(conversation).toContain("pendingAction.action === 'request_demo_start'");
   expect(conversation).toContain('JSON.stringify({type:\'confirm_action\',id:pendingAction.id,approved,demo})');
   expect(conversation).toContain('setDemoCard({ demoPath: msg.demoPath');
