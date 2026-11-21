@@ -1,6 +1,10 @@
 {
   "nav": {
     "services": "Servicios",
+    "customers": "Clientes",
+    "examples": "Ejemplos",
+    "benefits": "Beneficios",
+    "avatars": "Avatares",
     "howItWorks": "Cómo Funciona",
     "pricing": "Precios",
     "testimonials": "Testimonios",

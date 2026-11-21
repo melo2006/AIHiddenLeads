@@ -44,6 +44,7 @@ const ExamplesGallerySection = () => {
 
   return (
     <section
+      id="examples"
       data-examples-gallery
       className="border-b border-primary/20 bg-background py-12 sm:py-16"
     >

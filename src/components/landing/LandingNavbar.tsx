@@ -86,9 +86,21 @@ const LandingNavbar = ({ brand }: { brand?: ResolvedBrand }) => {
           )}
         </Link>
 
-        <div className="hidden lg:flex items-center gap-6">
+        <div className="hidden lg:flex items-center gap-4 xl:gap-6">
           <button onClick={() => scrollTo("services")} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
             {t("nav.services")}
+          </button>
+          <button onClick={() => scrollTo("customers")} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+            {t("nav.customers", "Customers")}
+          </button>
+          <button onClick={() => scrollTo("examples")} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+            {t("nav.examples", "Examples")}
+          </button>
+          <button onClick={() => scrollTo("benefits")} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+            {t("nav.benefits", "Benefits")}
+          </button>
+          <button onClick={() => scrollTo("avatar-gallery")} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+            {t("nav.avatars", "Avatars")}
           </button>
           <button onClick={() => scrollTo("how-it-works")} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
             {t("nav.howItWorks")}
@@ -163,6 +175,10 @@ const LandingNavbar = ({ brand }: { brand?: ResolvedBrand }) => {
         <div role="dialog" aria-label="Menu" className="fixed bottom-0 right-0 top-14 z-[85] w-[min(88vw,360px)] space-y-1 overflow-y-auto overscroll-contain border-l border-border bg-background px-4 py-3 shadow-2xl sm:top-16">
           {[
             { id: "services", label: t("nav.services") },
+            { id: "customers", label: t("nav.customers", "Customers") },
+            { id: "examples", label: t("nav.examples", "Examples") },
+            { id: "benefits", label: t("nav.benefits", "Benefits") },
+            { id: "avatar-gallery", label: t("nav.avatars", "Avatars") },
             { id: "how-it-works", label: t("nav.howItWorks") },
             { id: "pricing", label: t("nav.pricing") },
             { id: "testimonials", label: t("nav.testimonials") },
