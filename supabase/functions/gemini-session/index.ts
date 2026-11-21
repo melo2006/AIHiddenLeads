@@ -18,6 +18,7 @@ import { TEAM_INTRO_TEACHING, isIntroBoundary, teamIntroGreetingFor } from '../_
 import { realtorLandingApplies, stampHomepageSales, stampRealtorLanding } from '../_shared/homepage-knowledge.ts';
 import { buildExampleListingsLayer, examplePackBySlug, examplePackForSiteUrl, stampExampleListings } from '../_shared/realtor-example-listings.ts';
 import { PUBLIC_PATHS } from '../_shared/report-context.ts';
+import { sanitizePageContext } from '../_shared/page-context.ts';
 import { normalizeUiLocale, resolveDemoStartLocale, startingLanguageForUiLocale, type UiLocale } from '../_shared/conversation-language.ts';
 import { voiceForLocaleSession } from '../_shared/locale-voices.ts';
 import { buildTranscriptRecap } from '../_shared/recap-builder.ts';
@@ -60,7 +61,7 @@ const handoffDiagSchema=z.object({sessionId:z.string().uuid(),detail:z.string().
 // same shape as micDiag; sessions whose startup was never watched
 // (previews) simply never stamp.
 const startupDiagSchema=z.object({sessionId:z.string().uuid(),detail:z.string().max(400),at:z.number().optional()});
-const schema=z.object({ visitorKey:z.string().min(16).max(100), model:z.string().max(100).optional(), agentId:z.string().uuid().optional(), leadId:z.string().uuid().optional(), prospectId:z.string().uuid().optional(), draft:z.boolean().default(false), preview:z.boolean().default(false), voice:z.enum(VOICES as [string,...string[]]).optional(), hour:z.number().int().min(0).max(23).optional(), visitorName:z.string().max(100).default(''), timeZone:z.string().max(100).default('UTC'), locale:z.string().max(10).optional(), campaign:z.object({visitId:z.string().uuid(),source:z.string().max(100),campaign:z.string().max(100),entryPath:z.enum(PUBLIC_PATHS).optional()}).nullable().optional(), consent:z.boolean().default(false), verification:z.enum(['pending','verified']).optional(), invite:z.boolean().optional(), sample:z.boolean().optional(), guide:z.enum(['alex']).optional(), share:z.string().max(100).optional(), resumeContext:z.string().max(16000).optional(), reconnect:z.boolean().default(false), prewarm:z.boolean().default(false), personaSegment:personaSegmentSchema.optional(), swapDiag:swapDiagSchema.optional(), playoutDiag:playoutDiagSchema.optional(), micDiag:micDiagSchema.optional(), handoffDiag:handoffDiagSchema.optional(), startupDiag:startupDiagSchema.optional() });
+const schema=z.object({ visitorKey:z.string().min(16).max(100), model:z.string().max(100).optional(), agentId:z.string().uuid().optional(), leadId:z.string().uuid().optional(), prospectId:z.string().uuid().optional(), draft:z.boolean().default(false), preview:z.boolean().default(false), voice:z.enum(VOICES as [string,...string[]]).optional(), hour:z.number().int().min(0).max(23).optional(), visitorName:z.string().max(100).default(''), timeZone:z.string().max(100).default('UTC'), locale:z.string().max(10).optional(), campaign:z.object({visitId:z.string().uuid(),source:z.string().max(100),campaign:z.string().max(100),entryPath:z.enum(PUBLIC_PATHS).optional()}).nullable().optional(), page:z.object({path:z.string().max(100),section:z.string().max(40).optional(),title:z.string().max(160).optional()}).nullable().optional(), consent:z.boolean().default(false), verification:z.enum(['pending','verified']).optional(), invite:z.boolean().optional(), sample:z.boolean().optional(), guide:z.enum(['alex']).optional(), share:z.string().max(100).optional(), resumeContext:z.string().max(16000).optional(), reconnect:z.boolean().default(false), prewarm:z.boolean().default(false), personaSegment:personaSegmentSchema.optional(), swapDiag:swapDiagSchema.optional(), playoutDiag:playoutDiagSchema.optional(), micDiag:micDiagSchema.optional(), handoffDiag:handoffDiagSchema.optional(), startupDiag:startupDiagSchema.optional() });
 const json=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
 export async function hash(value:string) { return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)))).map(b=>b.toString(16).padStart(2,'0')).join(''); }
 Deno.serve(async req=>{
@@ -571,6 +572,21 @@ Deno.serve(async req=>{
     // shape is regression-tested directly.
     if(realtorLandingApplies(agent.slug, b.campaign)) {
       stampRealtorLanding(config);
+    }
+    // PAGE AWARENESS STAMP (homepage-test item 6, 2026-11-21): a
+    // homepage session carries the page the visitor is viewing, so
+    // the proxy can put it in Aspen's live context ("The visitor is
+    // currently viewing…") and track it as they move. The client's
+    // `page` payload is re-validated here against the page-context
+    // recognized set (page-context.ts — wider than the campaign
+    // milestone list: it includes /plans and every public marketing
+    // route); the campaign entryPath is the fallback when a client
+    // sends no page payload. Homepage agent only: tenant agents and
+    // the lead/prospect simulation branches never reach this line,
+    // so simulations keep their own world byte-for-byte.
+    if(agent.slug==='aspen-homepage') {
+      const pageContext = sanitizePageContext(b.page) ?? (b.campaign?.entryPath ? sanitizePageContext({ path: b.campaign.entryPath }) : null);
+      if(pageContext) config.pageContext = pageContext;
     }
   }
   // ELEVENLABS LIVE VOICE strip (2026-11-17): persona segments inherit
