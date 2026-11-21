@@ -18,6 +18,7 @@ import { useTranslation } from "react-i18next";
 // locale resources exist wherever the panel mounts (same singleton in the app).
 import "@/i18n";
 import { explicitUiLocale, prewarmLocaleMismatch, type UiLocale } from "@/lib/uiLocale";
+import { warmSessionUnusable } from "@/lib/warmSession";
 import { clearDemoResume } from "@/lib/demoVerification";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { microphonePcm, pcmToBase64, shouldSendMicrophone, microphoneAutoGain, initialCaptureMode, createAmbientGateState, pushAmbientRms, createSpeechGateState, pushSpeechGateFrame, autoNoiseFilter, appliedAmbientLevel, appliedNoiseFilter, deadAirRelaxedFilter, type AmbientGateState, type NoiseFilter, type CaptureMode } from "@/lib/voiceLabAudio";
@@ -444,7 +445,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const attemptSessionRef = useRef<Partial<Record<PersonaBoundary, { sessionId: string; attempt: number }>>>({});
   const knownNameRef = useRef('');
   const sessionStartedAtRef = useRef(0);
-  const warmRef = useRef<{ ready: Promise<boolean>; ok: boolean; activated: boolean; goLive?: () => void } | null>(null);
+  const warmRef = useRef<{ ready: Promise<boolean>; ok: boolean; activated: boolean; goLive?: () => void; readyAt: number | null; socket: WebSocket | null } | null>(null);
   // The UI locale the held warm session was AUTHORIZED under (captured
   // at its gemini-session invoke, byte-identical to what was sent). A
   // language switch after the prewarm leaves the held session in the
@@ -3049,6 +3050,20 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const startConversation = useCallback(async (preview = false, warm = false) => {
     // A silently prepared session only needs the tap's audio/microphone unlock.
     if (!preview && !warm && warmRef.current) {
+      // STALE-PREWARM GUARD (2026-11-21): a held, never-begun
+      // connection dies silently within ~150 s (proven server-side
+      // 2026-11-20) and the browser socket can sit half-open through
+      // the death — no close event, readyState still OPEN — so the
+      // tap must not trust the warm session on existence alone. If
+      // its socket is gone or it became ready too long ago, tear the
+      // warm attempt down and fall through to a normal cold start
+      // below; the visitor's tap just works. A fresh, live warm
+      // session activates exactly as before (see lib/warmSession).
+      const warmStale = !warmRef.current.activated && warmSessionUnusable({
+        activated: warmRef.current.activated,
+        readyAt: warmRef.current.readyAt,
+        socketReadyState: warmRef.current.socket ? warmRef.current.socket.readyState : null,
+      }, Date.now());
       // LANGUAGE GUARD (2026-11-18, Ron's French live test): the held
       // session was authorized at prewarm time, in the language picked
       // at that moment. If the visitor has since changed the site
@@ -3059,7 +3074,9 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       // session already activated is a live conversation, never
       // discarded here: mid-session switches stay with the explicit
       // spoken-request tool, as before.
-      if (!warmRef.current.activated && prewarmLocaleMismatch(warmLocaleRef.current, explicitUiLocale())) {
+      if (warmStale) {
+        stopEverything();
+      } else if (!warmRef.current.activated && prewarmLocaleMismatch(warmLocaleRef.current, explicitUiLocale())) {
         stopEverything();
       } else { await activateWarmRef.current(); return; }
     }
@@ -3069,7 +3086,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     if (!preview && !warm && !consentReadyRef.current) { setConsentReady(false); return; }
     startingRef.current = true;
     let resolveWarm: (ok: boolean) => void = () => {};
-    if (warm) warmRef.current = { ready: new Promise<boolean>(r => { resolveWarm = r; }), ok: false, activated: false };
+    if (warm) warmRef.current = { ready: new Promise<boolean>(r => { resolveWarm = r; }), ok: false, activated: false, readyAt: null, socket: null };
     const warmState = warmRef.current;
     // Before the tap, failures stay invisible and the tap falls back to a normal start.
     const silentWarm = () => warm && !!warmState && !warmState.activated;
@@ -3367,6 +3384,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       setHandoffToken(authorized.handoffToken || null);
       const ws = new WebSocket(`${voiceProxyWsUrl()}?token=${encodeURIComponent(authorized.token)}&capture=${captureMode}${warm ? '&hold=1' : ''}`);
       wsRef.current = ws;
+      // Stale-prewarm guard: keep the warm session's own socket
+      // handle so the tap-time freshness check (lib/warmSession)
+      // reads THIS socket's state, not whatever wsRef points at later.
+      if (warm && warmState) warmState.socket = ws;
 
       ws.onopen = () => !silentWarm() && setStatus(preview ? "Voice connected · generating your greeting…" : "Connecting…");
 
@@ -3507,7 +3528,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             // counting for the structural doorway starts over.
             assistantTurnsRef.current = 0;
             if (warm && warmState) {
-              warmState.goLive = goLive; warmState.ok = true; resolveWarm(true);
+              warmState.goLive = goLive; warmState.ok = true; warmState.readyAt = Date.now(); resolveWarm(true);
               if (!warmState.activated) { setStatus("Ready to talk"); onPrewarmedRef.current?.(true); }
               break;
             }
@@ -3735,6 +3756,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
       ws.onerror = () => {
         if (generation !== generationRef.current) return;
+        // Stale-prewarm guard: the warm socket dying before
+        // activation clears the warm state outright, so a later tap
+        // cold-starts instead of reusing the corpse.
+        if (warm && warmState && warmRef.current === warmState && !warmState.activated) { failWarm(); return; }
         if (silentWarm()) { failWarm(); return; }
         resolveWarm(false);
         setError("Could not connect to the voice service.");
@@ -3743,6 +3768,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       ws.onclose = (event) => {
         clearTimeout(readyTimeout);
         if (generation !== generationRef.current) return;
+        // Stale-prewarm guard: same clearing on close, ahead of the
+        // live-session branches — an un-activated warm session is
+        // never a live drop to recover.
+        if (warm && warmState && warmRef.current === warmState && !warmState.activated) { failWarm(); return; }
         if (liveRef.current) {
           // F4 CHAIN SNAPSHOT BEFORE TEARDOWN (fluidity batch,
           // 2026-11-10): snapshot the swap chain BEFORE stopEverything
