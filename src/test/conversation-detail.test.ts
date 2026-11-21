@@ -251,7 +251,14 @@ describe('server summarizer contract (source pins)', () => {
     expect(src).toContain('rather than guessing');
   });
   test('the recipient copy action still strips the summary to the public shape', () => {
+    // The copy branch delegates to the shared resolver (2026-11-21,
+    // extracted so the branch is executed by conversation-copy.test.ts);
+    // the strip itself lives in _shared/conversation-copy.ts now.
     const fn = readFileSync('supabase/functions/conversation-records/index.ts', 'utf8');
-    expect(fn).toContain('summary:r.summary?{summary:r.summary.summary,needs:r.summary.needs,nextSteps:r.summary.nextSteps}:null');
+    expect(fn).toContain('resolveConversationCopy(db,b.token)');
+    const shared = readFileSync('supabase/functions/_shared/conversation-copy.ts', 'utf8');
+    expect(shared).toContain('summary: r.summary');
+    expect(shared).toContain('{ summary: r.summary.summary, needs: r.summary.needs, nextSteps: r.summary.nextSteps }');
+    expect(shared).not.toContain('outreachDraft:');
   });
 });
