@@ -62,10 +62,40 @@ export const SARA_CHROMA_KEY_PROFILE = { low: 0.14, high: 0.24 } as const;
  * backdrop fills the frame edge-to-edge (verified on the captured
  * frames) — and true black (0) still keys fully transparent. Every
  * other persona keeps the shared bands byte-for-byte.
+ *
+ * ROUND 2 — DARK-CORE FILL (2026-11-22, Ron's live retest after the
+ * band narrowing: "hair looks okay but not 100% — two small areas
+ * still transparent over her head and her hair"). Forensics on 12
+ * fresh RAW frames from the live Aurelia demo: the residue is NOT
+ * the band edge and NOT chroma wisps. Every one of the 2,069
+ * remaining sub-0.5-alpha subject pixels (0.058% of subject) has
+ * max-channel 0 or 1 of 255 — the video encoder's dead zone crushes
+ * the darkest cores of her hair masses (the parting/top of her head
+ * and the masses beside both ears — Ron's two areas) to pure black,
+ * mottled through regions that otherwise sit at 2–3/255. No
+ * per-pixel threshold can rescue a (0,0,0) hair pixel — it is
+ * indistinguishable from padding black — but spatially it is
+ * unmistakable: a crushed pixel sits within 2 texels of hair at
+ * ≥3/255. So Monica's profile adds a dark-core fill: the black
+ * factor reads the max channel over the pixel's ring neighbourhood
+ * (radius 2, 8 directions, shader + JS mirror in chromaAlphaSpatial).
+ * Measured on the 12 frames: sub-0.5 subject pixels 2,069 → 0,
+ * subject pixels under alpha 0.98 fall 6,135 → 63 (0.002%), and the
+ * fill touches NOTHING else — the chroma factor still gates every
+ * pixel, so her backdrop (distance 0.082) keys to 0 exactly as
+ * before, the partial-chroma edge band is unchanged (0 pixels
+ * altered), and a uniform crushed field with no brighter subject
+ * within the ring (a 9×9 field of (1,0,0)) stays at alpha ≈0.10 —
+ * the fill rescues holes INSIDE subject masses, it does not lift
+ * the floor for genuinely dark regions. True black fields still
+ * key fully transparent.
  */
-export const MONICA_CHROMA_KEY_PROFILE = { low: CHROMA_LOW, high: CHROMA_HIGH, blackLow: 0.002, blackHigh: 0.012 } as const;
-/** Optional per-call key thresholds (CbCr distance band + near-black padding band). */
-export interface ChromaKeyProfile { low: number; high: number; blackLow?: number; blackHigh?: number; }
+export const MONICA_CHROMA_KEY_PROFILE = { low: CHROMA_LOW, high: CHROMA_HIGH, blackLow: 0.002, blackHigh: 0.012, darkFillRadius: 2 } as const;
+/** Optional per-call key thresholds (CbCr distance band + near-black padding band).
+ *  `darkFillRadius` (texels, Monica only) turns on the dark-core fill:
+ *  the black factor then reads the ring-neighbourhood max channel —
+ *  see the round-2 note on MONICA_CHROMA_KEY_PROFILE. */
+export interface ChromaKeyProfile { low: number; high: number; blackLow?: number; blackHigh?: number; darkFillRadius?: number; }
 /** The per-persona key profile: Sara and Monica ('latina') carry their
  *  own measured profiles (see above); every other persona — Aspen
  *  included — keys with the shared defaults (undefined). */
@@ -104,16 +134,62 @@ export function chromaAlpha(r: number, g: number, b: number, low: number = CHROM
   return smooth(low, high, Math.hypot(cb - KCB, cr - KCR)) * smooth(blackLow, blackHigh, Math.max(r, g, b));
 }
 
+const RING_OFFSETS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]] as const;
+
+/** Alpha for the pixel at (x, y) of an RGBA buffer under a profile,
+ *  mirroring the shader exactly. With the profile's `darkFillRadius`
+ *  (Monica), the black factor reads the brightest channel over the
+ *  ring neighbourhood at that radius (clamp-to-edge, like the
+ *  shader's CLAMP_TO_EDGE sampling) instead of the pixel's own —
+ *  the dark-core fill documented on MONICA_CHROMA_KEY_PROFILE.
+ *  The chroma factor always reads the centre pixel, so backdrop and
+ *  edge blends are untouched. Without a fill radius this reduces
+ *  exactly to chromaAlpha. */
+export function chromaAlphaSpatial(data: Uint8ClampedArray, w: number, h: number, x: number, y: number, profile?: ChromaKeyProfile): number {
+  const low = profile?.low ?? CHROMA_LOW;
+  const high = profile?.high ?? CHROMA_HIGH;
+  const blackLow = profile?.blackLow ?? BLACK_LOW;
+  const blackHigh = profile?.blackHigh ?? BLACK_HIGH;
+  const radius = profile?.darkFillRadius ?? 0;
+  const i = (y * w + x) * 4;
+  const r = data[i] / 255, g = data[i + 1] / 255, b = data[i + 2] / 255;
+  if (!radius) return chromaAlpha(r, g, b, low, high, blackLow, blackHigh);
+  let mx = Math.max(r, g, b);
+  for (const [dx, dy] of RING_OFFSETS) {
+    const nx = Math.min(w - 1, Math.max(0, x + dx * radius));
+    const ny = Math.min(h - 1, Math.max(0, y + dy * radius));
+    const j = (ny * w + nx) * 4;
+    mx = Math.max(mx, data[j] / 255, data[j + 1] / 255, data[j + 2] / 255);
+  }
+  const [cb, cr] = cbcr(r, g, b);
+  return smooth(low, high, Math.hypot(cb - KCB, cr - KCR)) * smooth(blackLow, blackHigh, mx);
+}
+
 /** Removes green spill from hair and shoulder edges. */
 export function despill(r: number, g: number, b: number): number {
   return Math.min(g, Math.max(r, b));
 }
 
 const VERT = `attribute vec2 p;varying vec2 uv;void main(){uv=vec2((p.x+1.)/2.,(1.-p.y)/2.);gl_Position=vec4(p,0.,1.);}`;
-const fragSource = (low: number, high: number, blackLow: number = BLACK_LOW, blackHigh: number = BLACK_HIGH) => `precision mediump float;varying vec2 uv;uniform sampler2D t;
+const fragSource = (low: number, high: number, blackLow: number = BLACK_LOW, blackHigh: number = BLACK_HIGH, darkFillRadius: number = 0) => {
+  if (!darkFillRadius) return `precision mediump float;varying vec2 uv;uniform sampler2D t;
 vec2 cc(vec3 c){return vec2(-0.168736*c.r-0.331264*c.g+0.5*c.b,0.5*c.r-0.418688*c.g-0.081312*c.b);}
 void main(){vec4 c=texture2D(t,uv);float d=distance(cc(c.rgb),cc(vec3(0.,1.,0.)));float a=smoothstep(${low.toFixed(3)},${high.toFixed(3)},d);float mx=max(c.r,max(c.g,c.b));a*=smoothstep(${blackLow.toFixed(3)},${blackHigh.toFixed(3)},mx);
 c.g=min(c.g,max(c.r,c.b));gl_FragColor=vec4(c.rgb*a,a);}`;
+  // Dark-core fill variant (Monica): the black factor reads the ring
+  // neighbourhood's brightest channel (radius in texels via uTexel);
+  // the chroma factor still reads the centre pixel only. Mirrors
+  // chromaAlphaSpatial sample-for-sample.
+  return `precision mediump float;varying vec2 uv;uniform sampler2D t;uniform vec2 uTexel;
+vec2 cc(vec3 c){return vec2(-0.168736*c.r-0.331264*c.g+0.5*c.b,0.5*c.r-0.418688*c.g-0.081312*c.b);}
+float ringMx(vec2 o){vec3 s=texture2D(t,uv+o).rgb;return max(s.r,max(s.g,s.b));}
+void main(){vec4 c=texture2D(t,uv);float d=distance(cc(c.rgb),cc(vec3(0.,1.,0.)));float a=smoothstep(${low.toFixed(3)},${high.toFixed(3)},d);float mx=max(c.r,max(c.g,c.b));
+vec2 o=uTexel*${darkFillRadius.toFixed(1)};
+mx=max(mx,ringMx(vec2(o.x,0.)));mx=max(mx,ringMx(vec2(-o.x,0.)));mx=max(mx,ringMx(vec2(0.,o.y)));mx=max(mx,ringMx(vec2(0.,-o.y)));
+mx=max(mx,ringMx(vec2(o.x,o.y)));mx=max(mx,ringMx(vec2(o.x,-o.y)));mx=max(mx,ringMx(vec2(-o.x,o.y)));mx=max(mx,ringMx(vec2(-o.x,-o.y)));
+a*=smoothstep(${blackLow.toFixed(3)},${blackHigh.toFixed(3)},mx);
+c.g=min(c.g,max(c.r,c.b));gl_FragColor=vec4(c.rgb*a,a);}`;
+};
 const FRAG = fragSource(CHROMA_LOW, CHROMA_HIGH);
 
 /** Starts drawing the keyed video into the canvas; returns a stop function. Returns null when WebGL is unavailable. */
@@ -139,10 +215,13 @@ export function startChromaKey(video: HTMLVideoElement, canvas: HTMLCanvasElemen
   const shader = (type: number, src: string) => { const s = gl.createShader(type)!; gl.shaderSource(s, src); gl.compileShader(s); return s; };
   const prog = gl.createProgram()!;
   gl.attachShader(prog, shader(gl.VERTEX_SHADER, VERT));
-  gl.attachShader(prog, shader(gl.FRAGMENT_SHADER, profile ? fragSource(profile.low, profile.high, profile.blackLow, profile.blackHigh) : FRAG));
+  gl.attachShader(prog, shader(gl.FRAGMENT_SHADER, profile ? fragSource(profile.low, profile.high, profile.blackLow, profile.blackHigh, profile.darkFillRadius) : FRAG));
   gl.linkProgram(prog);
   if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return null;
   gl.useProgram(prog);
+  // Dark-core fill variant only: texel size for the ring offsets.
+  const texelLoc = gl.getUniformLocation(prog, 'uTexel');
+  if (texelLoc) gl.uniform2f(texelLoc, 1 / canvas.width, 1 / canvas.height);
   const buf = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, buf);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
@@ -169,7 +248,7 @@ export function startChromaKey(video: HTMLVideoElement, canvas: HTMLCanvasElemen
   const draw = () => {
     if (stopped) return;
     if (video.videoWidth && video.readyState >= 2) {
-      if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) { canvas.width = video.videoWidth; canvas.height = video.videoHeight; }
+      if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) { canvas.width = video.videoWidth; canvas.height = video.videoHeight; if (texelLoc) gl.uniform2f(texelLoc, 1 / canvas.width, 1 / canvas.height); }
       gl.viewport(0, 0, canvas.width, canvas.height);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
       gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
