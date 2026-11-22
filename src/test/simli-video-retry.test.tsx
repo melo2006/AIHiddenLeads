@@ -13,7 +13,7 @@ vi.mock('simli-client', () => ({ LogLevel: { ERROR: 0 }, SimliClient: class {
   }
   on(event: string, callback: () => void) { mocks.events.set(event, callback); } start = mocks.start; stop = async () => {}; sendAudioData = mocks.send; ClearBuffer() {}
 } }));
-vi.mock('@/lib/chromaKey', () => ({ startChromaKey: () => () => {} }));
+vi.mock('@/lib/chromaKey', () => ({ startChromaKey: () => () => {}, chromaKeyProfileForPersona: () => undefined }));
 const avatar = { provider: 'simli' as const, enabled: true, faceId: 'test', position: 'bottom-right' as const, size: 200, shape: 'square' as const };
 
 describe('video startup retry', () => {

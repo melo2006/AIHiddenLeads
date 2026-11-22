@@ -65,7 +65,7 @@ vi.mock('simli-client', () => ({
     ClearBuffer() {}
   },
 }));
-vi.mock('@/lib/chromaKey', () => ({ startChromaKey: () => () => {}, SARA_CHROMA_KEY_PROFILE: { low: 0.16, high: 0.26 } }));
+vi.mock('@/lib/chromaKey', () => ({ startChromaKey: () => () => {}, chromaKeyProfileForPersona: () => undefined, SARA_CHROMA_KEY_PROFILE: { low: 0.16, high: 0.26 } }));
 
 const avatar = { provider: 'simli' as const, enabled: true, faceId: 'test', position: 'bottom-right' as const, size: 200, shape: 'square' as const };
 

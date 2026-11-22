@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 const mocks = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock('@/integrations/supabase/client', () => ({ supabase: { functions: { invoke: mocks.invoke } } }));
 vi.mock('simli-client', () => ({ LogLevel: { ERROR: 0 }, SimliClient: class {} }));
-vi.mock('@/lib/chromaKey', () => ({ startChromaKey: () => () => {} }));
+vi.mock('@/lib/chromaKey', () => ({ startChromaKey: () => () => {}, chromaKeyProfileForPersona: () => undefined }));
 import { FunctionsHttpError } from '@supabase/supabase-js';
 import { sessionToken, VIDEO_SLOW } from '@/components/SimliAvatar';
 

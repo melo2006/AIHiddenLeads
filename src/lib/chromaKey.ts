@@ -36,8 +36,44 @@ export const CHROMA_HIGH = 0.22;
  * erosion stays for her baked-in halo.
  */
 export const SARA_CHROMA_KEY_PROFILE = { low: 0.14, high: 0.24 } as const;
-/** Optional per-call key thresholds (CbCr distance band). */
-export interface ChromaKeyProfile { low: number; high: number; }
+/**
+ * Monica-scoped key profile (2026-11-22 — Ron's Aurelia Perez phone
+ * screenshots: the page showing THROUGH streaks of Monica's hair
+ * beside her cheeks and at her hairline on light sites). Forensics on
+ * her RAW live frames (768×768, captured from the video element, not
+ * the keyed canvas): her Simli backdrop is the standard key green —
+ * uniformly (0, 0.847, 0) after encoding, CbCr distance 0.082 from
+ * pure green, keying fully transparent — so the face asset and the
+ * backdrop are NOT the problem, and her chroma band stays the shared
+ * default. The leak is the BLACK padding band below: the darkest
+ * cores of her hair strands sit at max-channel 0.012–0.031, INSIDE
+ * the shared 0.01–0.04 band, so ~2.4% of her subject pixels (alpha
+ * mean 0.35, 100% black-band-caused, zero chroma-caused) composite
+ * as bright streaks over light pages. Aspen's blonde hair never
+ * enters the band; Sara's residual leak is absorbed by her
+ * light-theme backdrop (Monica has none — the backdrop div is
+ * Sara-only since 2026-11-21). This profile narrows ONLY the black
+ * band for Monica's stream (0.002–0.012): measured on her frames,
+ * subject pixels under alpha 0.5 fall ~34× (1.71% → 0.05%), her
+ * median dark-hair pixel (0.020) becomes fully opaque, and the
+ * darkest strand population (max-channel 3/255) keys opaque instead
+ * of sparkling over white. The narrowing is safe for HER stream
+ * specifically because it carries no letterbox padding at all — the
+ * backdrop fills the frame edge-to-edge (verified on the captured
+ * frames) — and true black (0) still keys fully transparent. Every
+ * other persona keeps the shared bands byte-for-byte.
+ */
+export const MONICA_CHROMA_KEY_PROFILE = { low: CHROMA_LOW, high: CHROMA_HIGH, blackLow: 0.002, blackHigh: 0.012 } as const;
+/** Optional per-call key thresholds (CbCr distance band + near-black padding band). */
+export interface ChromaKeyProfile { low: number; high: number; blackLow?: number; blackHigh?: number; }
+/** The per-persona key profile: Sara and Monica ('latina') carry their
+ *  own measured profiles (see above); every other persona — Aspen
+ *  included — keys with the shared defaults (undefined). */
+export function chromaKeyProfileForPersona(persona?: string): ChromaKeyProfile | undefined {
+  if (persona === 'sara') return SARA_CHROMA_KEY_PROFILE;
+  if (persona === 'latina') return MONICA_CHROMA_KEY_PROFILE;
+  return undefined;
+}
 /** Simli may pad the frame with pure black outside the backdrop; treat near-black padding as transparent too.
  *  The band must end BELOW the darkest real facial detail. The original
  *  0.02–0.06 band sat exactly on pupils, lash lines, brows and shadowed
@@ -60,10 +96,12 @@ const smooth = (e0: number, e1: number, x: number) => { const t = Math.min(1, Ma
 
 /** Alpha (0 transparent … 1 opaque) for one pixel with channels in 0..1.
  *  `low`/`high` override the key band (see SARA_CHROMA_KEY_PROFILE);
- *  omitted, the shared defaults apply exactly as before. */
-export function chromaAlpha(r: number, g: number, b: number, low: number = CHROMA_LOW, high: number = CHROMA_HIGH): number {
+ *  `blackLow`/`blackHigh` override the padding band (see
+ *  MONICA_CHROMA_KEY_PROFILE); omitted, the shared defaults apply
+ *  exactly as before. */
+export function chromaAlpha(r: number, g: number, b: number, low: number = CHROMA_LOW, high: number = CHROMA_HIGH, blackLow: number = BLACK_LOW, blackHigh: number = BLACK_HIGH): number {
   const [cb, cr] = cbcr(r, g, b);
-  return smooth(low, high, Math.hypot(cb - KCB, cr - KCR)) * smooth(BLACK_LOW, BLACK_HIGH, Math.max(r, g, b));
+  return smooth(low, high, Math.hypot(cb - KCB, cr - KCR)) * smooth(blackLow, blackHigh, Math.max(r, g, b));
 }
 
 /** Removes green spill from hair and shoulder edges. */
@@ -72,9 +110,9 @@ export function despill(r: number, g: number, b: number): number {
 }
 
 const VERT = `attribute vec2 p;varying vec2 uv;void main(){uv=vec2((p.x+1.)/2.,(1.-p.y)/2.);gl_Position=vec4(p,0.,1.);}`;
-const fragSource = (low: number, high: number) => `precision mediump float;varying vec2 uv;uniform sampler2D t;
+const fragSource = (low: number, high: number, blackLow: number = BLACK_LOW, blackHigh: number = BLACK_HIGH) => `precision mediump float;varying vec2 uv;uniform sampler2D t;
 vec2 cc(vec3 c){return vec2(-0.168736*c.r-0.331264*c.g+0.5*c.b,0.5*c.r-0.418688*c.g-0.081312*c.b);}
-void main(){vec4 c=texture2D(t,uv);float d=distance(cc(c.rgb),cc(vec3(0.,1.,0.)));float a=smoothstep(${low.toFixed(3)},${high.toFixed(3)},d);float mx=max(c.r,max(c.g,c.b));a*=smoothstep(${BLACK_LOW.toFixed(3)},${BLACK_HIGH.toFixed(3)},mx);
+void main(){vec4 c=texture2D(t,uv);float d=distance(cc(c.rgb),cc(vec3(0.,1.,0.)));float a=smoothstep(${low.toFixed(3)},${high.toFixed(3)},d);float mx=max(c.r,max(c.g,c.b));a*=smoothstep(${blackLow.toFixed(3)},${blackHigh.toFixed(3)},mx);
 c.g=min(c.g,max(c.r,c.b));gl_FragColor=vec4(c.rgb*a,a);}`;
 const FRAG = fragSource(CHROMA_LOW, CHROMA_HIGH);
 
@@ -101,7 +139,7 @@ export function startChromaKey(video: HTMLVideoElement, canvas: HTMLCanvasElemen
   const shader = (type: number, src: string) => { const s = gl.createShader(type)!; gl.shaderSource(s, src); gl.compileShader(s); return s; };
   const prog = gl.createProgram()!;
   gl.attachShader(prog, shader(gl.VERTEX_SHADER, VERT));
-  gl.attachShader(prog, shader(gl.FRAGMENT_SHADER, profile ? fragSource(profile.low, profile.high) : FRAG));
+  gl.attachShader(prog, shader(gl.FRAGMENT_SHADER, profile ? fragSource(profile.low, profile.high, profile.blackLow, profile.blackHigh) : FRAG));
   gl.linkProgram(prog);
   if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return null;
   gl.useProgram(prog);

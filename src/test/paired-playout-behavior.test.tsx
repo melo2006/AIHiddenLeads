@@ -44,7 +44,7 @@ vi.mock('simli-client', () => ({
     ClearBuffer() {}
   },
 }));
-vi.mock('@/lib/chromaKey', () => ({ startChromaKey: () => () => {}, SARA_CHROMA_KEY_PROFILE: { low: 0.16, high: 0.26 } }));
+vi.mock('@/lib/chromaKey', () => ({ startChromaKey: () => () => {}, chromaKeyProfileForPersona: () => undefined, SARA_CHROMA_KEY_PROFILE: { low: 0.16, high: 0.26 } }));
 
 class FakeAudioContext {
   state = 'running';
