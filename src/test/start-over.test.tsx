@@ -49,11 +49,11 @@ describe('resetVisitForNewVisitor', () => {
   it('keeps device preferences: captions, voice, proxy override survive', () => {
     localStorage.setItem('aspen-widget-captions', 'off');
     localStorage.setItem('gemini-aspen-voice', 'Kore');
-    localStorage.setItem('voice-proxy-host-v2', 'vps');
+    localStorage.setItem('voice-proxy-host-v3', 'vps');
     resetVisitForNewVisitor();
     expect(localStorage.getItem('aspen-widget-captions')).toBe('off');
     expect(localStorage.getItem('gemini-aspen-voice')).toBe('Kore');
-    expect(localStorage.getItem('voice-proxy-host-v2')).toBe('vps');
+    expect(localStorage.getItem('voice-proxy-host-v3')).toBe('vps');
   });
 
   it('never throws when storage is empty', () => {
