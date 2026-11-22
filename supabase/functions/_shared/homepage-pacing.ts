@@ -284,3 +284,42 @@ export function silenceLadderDue(args: {
 export const SILENCE_NUDGE_1 = 'The visitor has been quiet for a while. Say one short line only, warmly: "Are you still there?" Then stop and wait for them to speak.';
 export const SILENCE_NUDGE_2 = 'The visitor is still quiet. Continue selling, briefly: give ONE real benefit of the service in about twenty seconds — for example that the video avatar greets every visitor face to face, or that no call or website question ever goes unanswered — then end with ONE quick yes-or-no question: "Want me to show you how it would look on your own website?" Then stop and wait.';
 export const SILENCE_NUDGE_3 = 'The visitor is still quiet. Wrap up warmly in one or two short sentences: offer to send them the demo link so they can try it any time, thank them for their time, and say goodbye. Do not ask a question.';
+
+// CLIENT IDLE-PROMPT GUARD (2026-11-22 — Ron's Aurelia Perez test
+// calls): simulation sessions take their silence check-ins from
+// the CLIENT's idle driver (the idle_prompt channel), whose clock
+// is the browser's speech gate — a gate that misses soft speech,
+// speech under playback echo, and speech the provider nonetheless
+// transcribed. Twice in one call the check-in ("Are you still
+// there? Take your time…") landed while the visitor was actively
+// mid-flow, appended to the presenter's own substantive answer.
+// The proxy holds the authoritative activity clocks — raw mic
+// activity (the mic_activity channel), the last completed caller
+// turn (the provider's own transcription), the last model turn —
+// so a client check-in that contradicts them is suppressed here:
+// a silence prompt may only ever key off ACTUAL inactivity.
+export const IDLE_CHECKIN_ACTIVITY_WINDOW_MS = 20_000;
+export const IDLE_CHECKIN_MODEL_SETTLE_MS = 15_000;
+
+/**
+ * Whether a client-driven silence check-in / silence goodbye must
+ * be SUPPRESSED because the caller is not actually inactive:
+ * a model turn is in flight (the injection would merge into it),
+ * the caller was audibly active (mic activity) or completed a
+ * turn within the activity window, or the model finished a turn
+ * within the settle window (the two clocks disagree — the
+ * server's wins).
+ */
+export function silenceCheckinSuppressed(args: {
+  now: number;
+  lastCallerSpeechAt: number;
+  lastCallerTurnAt: number;
+  lastModelTurnAt: number;
+  modelTurnInFlight: boolean;
+}): boolean {
+  if (args.modelTurnInFlight) return true;
+  if (args.now - args.lastCallerSpeechAt < IDLE_CHECKIN_ACTIVITY_WINDOW_MS) return true;
+  if (args.now - args.lastCallerTurnAt < IDLE_CHECKIN_ACTIVITY_WINDOW_MS) return true;
+  if (args.now - args.lastModelTurnAt < IDLE_CHECKIN_MODEL_SETTLE_MS) return true;
+  return false;
+}

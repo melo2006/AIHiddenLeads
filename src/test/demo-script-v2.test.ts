@@ -53,7 +53,10 @@ test('C1b: the entry sequence runs the beats in order (incl. the no-disclaimer-i
   // "never open the role with how can I help you" law: the in-role
   // greeting now CLOSES with the question — a bare opening with it,
   // detached from the greeting, is still banned.
-  expect(SIMULATION_PROMPT).toContain('thanks for calling. How can I help you?');
+  // Defect-3 fix (2026-11-22): the greeting now NAMES the business as the
+  // business being called — the old pin ("thanks for calling. How can I
+  // help you?") encoded the shape that greeted the business as the caller.
+  expect(SIMULATION_PROMPT).toContain('thanks for calling {businessName}. How can I help you?');
   expect(SIMULATION_PROMPT).toContain('never a bare opening on its own');
   expect(SIMULATION_PROMPT).toContain('30 to 45 second overview');
   // Publish #67 extension (Ron, 2026-11-15): the overview no longer
@@ -69,7 +72,7 @@ test('C1b: the entry sequence runs the beats in order (incl. the no-disclaimer-i
 
 test('C6: transfer/booking honesty line is present, once-per-conversation per topic', () => {
   expect(SIMULATION_PROMPT).toContain('TRANSFERS AND BOOKINGS — THE HONESTY LINE');
-  expect(SIMULATION_PROMPT).toContain('In your live setup I would warm-transfer you to the owner right here — in this demo I cannot complete the transfer');
+  expect(SIMULATION_PROMPT).toContain('In your live setup I would make a warm transfer to the owner right here — in this demo I cannot complete the transfer');
   expect(SIMULATION_PROMPT).toContain('In your live setup that appointment would go straight into the real calendar');
   expect(SIMULATION_PROMPT).toContain('without repeating the disclaimer');
 });
@@ -129,7 +132,7 @@ test('C9: phone demo doorway — announcement, pause, in-role greeting, bounded 
   expect(PHONE_DEMO_HOST_POLICY).toContain('a slow count of 3 in silence');
   expect(PHONE_DEMO_HOST_POLICY).toContain("I'm Aspen — thanks for calling");
   expect(PHONE_DEMO_HOST_POLICY).toContain('20 to 30 second overview of the business built ONLY from the facts the caller stated');
-  expect(PHONE_DEMO_HOST_POLICY).toContain('In your live setup I would warm-transfer you right here — in this demo I cannot complete the transfer');
+  expect(PHONE_DEMO_HOST_POLICY).toContain('In your live setup I would make a warm transfer right here — in this demo I cannot complete the transfer');
   expect(PHONE_DEMO_HOST_POLICY).toContain('Ask for their genuine reaction first');
   expect(PHONE_DEMO_HOST_POLICY).toContain('did you like it?');
 });

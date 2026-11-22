@@ -73,17 +73,17 @@ The visitor is John.
 Host (Aspen from AI Hidden Leads) said: "Good morning, John. I am Aspen from AI Hidden Leads — welcome, and thanks for trying the demo I built for Jean-Luc Andriot Realty. It matters because in a 2025 survey, 78% of 1,000 U.S. consumers said they had abandoned a business after an unanswered call. Now, meet Sara — she'll walk you through your site, playing your own receptionist. Can I transfer you to Sara now?"
 Visitor said: "Yes, go ahead."`;
 
-const GREETING_LINE = "Good morning, Jean-Luc Andriot Realty — I'm Sara, thanks for calling. How can I help you?";
+const GREETING_LINE = "Good morning — I'm Sara, thanks for calling Jean-Luc Andriot Realty. How can I help you?";
 const RESUME_LINE = "Welcome back — this is Sara, Jean-Luc Andriot Realty's receptionist. Let's pick up right where we left off.";
 
 describe('Bug 2 — Sara segment entry greeting is deterministic', () => {
   it('the segment greeting template renders server-side with the segment timezone hour', () => {
     const built = personaSegmentPrompt('sara', 'doorway', 'Jean-Luc Andriot Realty', SIMULATION_PROMPT);
-    expect(built.greeting).toBe("{timeGreeting}, {businessName} — I'm Sara, thanks for calling. How can I help you?");
+    expect(built.greeting).toBe("{timeGreeting} — I'm Sara, thanks for calling {businessName}. How can I help you?");
     const cfg = { businessName: 'Jean-Luc Andriot Realty', name: 'Aspen' };
     expect(renderOpeningTemplate(built.greeting, cfg, 9, '')).toBe(GREETING_LINE);
-    expect(renderOpeningTemplate(built.greeting, cfg, 13, '')).toBe("Good afternoon, Jean-Luc Andriot Realty — I'm Sara, thanks for calling. How can I help you?");
-    expect(renderOpeningTemplate(built.greeting, cfg, 19, '')).toBe("Good evening, Jean-Luc Andriot Realty — I'm Sara, thanks for calling. How can I help you?");
+    expect(renderOpeningTemplate(built.greeting, cfg, 13, '')).toBe("Good afternoon — I'm Sara, thanks for calling Jean-Luc Andriot Realty. How can I help you?");
+    expect(renderOpeningTemplate(built.greeting, cfg, 19, '')).toBe("Good evening — I'm Sara, thanks for calling Jean-Luc Andriot Realty. How can I help you?");
   });
 
   it('gemini-session stamps the rendered line and the proxy forwards it', () => {
@@ -361,7 +361,10 @@ describe('Forensics 1 — the segment opening CONFIG is her own in-role line (pr
     // Generic demos too (Ron's second run stamped businessName
     // "Business"): the segment opening is right without a named pack.
     const generic = renderOpeningTemplate(built.greeting, { businessName: 'Business', name: 'Aspen' }, 9, '');
-    expect(generic).toBe("Good morning, Business — I'm Sara, thanks for calling. How can I help you?");
+    // Defect-3 fix (2026-11-22): the greeting names the business as the
+    // business being called — the old pin ("Good morning, Business — …")
+    // encoded the shape that greeted the business as the caller.
+    expect(generic).toBe("Good morning — I'm Sara, thanks for calling Business. How can I help you?");
   });
 
   it('gemini-session assigns the rendered segment line to config.opening (never the sales template)', () => {
