@@ -64,6 +64,14 @@ export interface ConfirmedFollowupInput {
   prospectId: string | null;
   businessName: string;
   contact: { name: string; email: string; phone: string };
+  /** How the consent behind this save was given (2026-11-22):
+   *  'verbal' when the visitor agreed IN WORDS and the card
+   *  completed itself on that spoken yes (Ron's rule — the
+   *  transcript is the evidence trail), 'card' for the ordinary
+   *  tick-and-tap. Recorded on the call_history metadata so the
+   *  record never claims a tap that did not happen. Absent =
+   *  legacy callers, stored as 'card'. */
+  consentSource?: 'verbal' | 'card';
 }
 
 export type ConfirmedFollowupSave =
@@ -102,7 +110,7 @@ export async function saveConfirmedFollowup(
     caller_email: input.contact.email,
     caller_phone: input.contact.phone || null,
     call_status: 'live',
-    metadata: { provider: 'gemini', session_id: input.sessionId, followup_consent_at: new Date().toISOString() },
+    metadata: { provider: 'gemini', session_id: input.sessionId, followup_consent_at: new Date().toISOString(), followup_consent_source: input.consentSource === 'verbal' ? 'verbal' : 'card' },
   }));
   attempts.history = history.attempts;
   if (history.result.error) return { ok: false, stage: 'history', attempts };

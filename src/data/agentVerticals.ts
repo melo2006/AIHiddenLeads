@@ -371,7 +371,13 @@ export const REALTOR_VERTICAL: AgentVertical = {
     intro:
       "No typing needed — pick an example realtor website and watch the demo run on it live:",
     placeholder: "Pick an example realtor website…",
-    visitorName: "John Doe",
+    // SAMPLE CALLER NAME (2026-11-22): a generic placeholder, never
+    // a plausible person's name — the old "John Doe" here is what
+    // Monica greeted Ron with ("Good morning, John") in a sample
+    // session where he had given no name. Sample sessions now drop
+    // the link name server-side too (gemini-session); this is the
+    // client-side belt to that suspenders.
+    visitorName: "Visitor",
     groups: [
       {
         area: "Broward County, FL",

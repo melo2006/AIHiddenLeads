@@ -192,7 +192,13 @@ describe('card + proxy source pins (Publish #65)', () => {
   const proxySource = read('supabase/functions/gemini-live-proxy/index.ts');
 
   it('the appointment payload gains smsConsent; the other cards keep the old shape', () => {
-    expect(cardSource).toContain("onAnswer(true, appointment ? { ...valid, consent: true, smsConsent } : { ...valid, consent: true });");
+    // 2026-11-22 (capture/consent fix, item 1): both payload shapes
+    // now also spread `...source` — empty for a tap, and
+    // { consentSource: 'verbal' } when the card completed itself on
+    // the visitor's spoken yes. smsConsent still rides ONLY the
+    // appointment payload, exactly as this pin has always required.
+    expect(cardSource).toContain("onAnswer(true, appointment ? { ...valid, consent: true, smsConsent, ...source } : { ...valid, consent: true, ...source });");
+    expect(cardSource).toContain("const source = voiceDrivenRef.current ? { consentSource: 'verbal' as const } : {};");
     expect(cardSource).toContain('Text me this confirmation');
     // The opt-in starts unticked and only shows with a phone present.
     expect(cardSource).toContain('const [smsConsent, setSmsConsent] = useState(false);');

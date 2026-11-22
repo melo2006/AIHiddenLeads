@@ -30,6 +30,7 @@ import BrowserVoiceHandoff from "@/components/BrowserVoiceHandoff";
 import { voiceIdleAction, homepageWalkthroughDue, type VoiceIdleStage } from '@/lib/voiceIdle';
 import { voiceDisconnectMessage } from '@/lib/voiceDisconnect';
 import { voiceProxyWsUrl } from '@/lib/voiceProxy';
+import { cardCompletesVerbally, detectVerbalFollowupConsent, detectVerbalSendAgreement } from "@/lib/verbalConsent";
 import { classifyMicrophoneFailure, isEmbeddedContext } from "@/lib/embeddedContext";
 import {campaignVisit, trackCampaignEvent} from '@/lib/campaignTracking';
 import { currentPageContext, type PageContext } from '@/lib/pageContext';
@@ -512,6 +513,29 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // move it into the waiting slot when a cancellation lands.
   const [waitingAction, setWaitingAction] = useState<VoiceAction | null>(null);
   const pendingActionRef = useRef<VoiceAction | null>(null);
+  // CAPTURE/CONSENT FIX (2026-11-22) — items 1 & 3 state.
+  // verbalConsentActionId: the card the visitor has already agreed
+  // to IN WORDS (lib/verbalConsent.ts heard it in their line); the
+  // card renders with verbalConsent and completes itself. The ref
+  // mirrors it for the teardown callbacks.
+  const [verbalConsentActionId, setVerbalConsentActionId] = useState<string | null>(null);
+  const verbalConsentActionIdRef = useRef<string | null>(null);
+  const armVerbalConsent = (id: string) => { verbalConsentActionIdRef.current = id; setVerbalConsentActionId(id); };
+  // The visitor's most recent FINALIZED line: a spoken agreement
+  // often lands just before the card appears (the presenter asks,
+  // the visitor says "go ahead", THEN the tool call shows the
+  // form) — trackPendingAction checks it at arrival.
+  const lastUserLineRef = useRef<{ text: string; at: number } | null>(null);
+  const partialConsentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Drop-recovery card preservation (item 3): cardDropRecoveryRef
+  // is set by the socket-close path when a reconnect will follow;
+  // cardPreservedRef marks a card the teardowns moved to the
+  // waiting slot so goLive can re-open it on the new session;
+  // reopenVerbalRef carries a preserved card's verbal arming across
+  // the re-issue (the re-issued card gets a new id).
+  const cardDropRecoveryRef = useRef(false);
+  const cardPreservedRef = useRef(false);
+  const reopenVerbalRef = useRef(false);
   // ITEM 5 FORM FIX (2026-11-21) — two halves, both living here
   // because every card arrives through trackPendingAction (both
   // sockets funnel into it):
@@ -569,7 +593,37 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     const normalized = action ? normalizePendingAction(action) : null;
     if (normalized) retireStaleDraft(normalized);
     pendingActionRef.current = normalized; setPendingAction(normalized);
+    if (normalized && cardCompletesVerbally(normalized.action)) {
+      // VERBAL CONSENT AT ARRIVAL (item 1, 2026-11-22): the
+      // agreement may already have been spoken — either this card
+      // is the re-issue of a preserved, verbally-armed card, or
+      // the visitor's last finalized line (spoken just before the
+      // card appeared) was an explicit send/go-ahead agreement.
+      // Either way the card opens already completing itself.
+      if (reopenVerbalRef.current) { reopenVerbalRef.current = false; armVerbalConsent(normalized.id); }
+      else { const last = lastUserLineRef.current; if (last && Date.now() - last.at < 25000 && detectVerbalSendAgreement(last.text)) armVerbalConsent(normalized.id); }
+    }
   };
+  // VERBAL CONSENT, LIVE LINE (item 1): a finalized or still-
+  // accumulating visitor line that agrees completes an open
+  // follow-up/copy card by itself — the presenter is blocked on
+  // the card's outstanding tool call and cannot act on the spoken
+  // yes, so the client does it for her.
+  const checkVerbalConsentLine = (text: string) => {
+    const action = pendingActionRef.current;
+    if (!action || !cardCompletesVerbally(action.action)) return;
+    if (detectVerbalFollowupConsent(text)) armVerbalConsent(action.id);
+  };
+  const schedulePartialConsentCheck = () => {
+    if (partialConsentTimerRef.current) clearTimeout(partialConsentTimerRef.current);
+    partialConsentTimerRef.current = setTimeout(() => { checkVerbalConsentLine(userLineRef.current); }, 900);
+  };
+  // MIC HOLD (item 1): appointment and demo-start cards keep the
+  // confirmation hold — their facts are not a yes/no question.
+  // Follow-up and copy cards NO LONGER mute the visitor: their
+  // spoken agreement is exactly what completes them, and muting it
+  // was why Ron's "go ahead" reached nobody.
+  const cardBlocksMic = (action: VoiceAction | null): boolean => !!action && !cardCompletesVerbally(action.action);
   const [actionNotice, setActionNotice] = useState('');
   // VOICE DEMO START (2026-11-21): once the proxy confirms the
   // visitor's demo really started, its entry card lives here — a
@@ -1619,7 +1673,15 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     const ref = role === "user" ? userLineRef : aspenLineRef;
     const text = ref.current.trim();
     if (text) {
-      if (role === "user") onUserTranscriptRef.current?.(text);
+      if (role === "user") {
+        onUserTranscriptRef.current?.(text);
+        // CAPTURE/CONSENT FIX (2026-11-22): remember the finalized
+        // line (a card arriving moments later checks it for a
+        // spoken agreement) and, if a consent card is already open,
+        // let the line complete it.
+        lastUserLineRef.current = { text, at: Date.now() };
+        checkVerbalConsentLine(text);
+      }
       // Swap sessions: stamp the speaking persona on the finalized line
       // so the transcript's name label follows the speaker across
       // handoffs. Read at flush time — a swap's partial teardown flushes
@@ -2467,15 +2529,34 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     // A pending end-signal close dies with the session it belonged to.
     endSignalRef.current = false;
     if (endSignalTimerRef.current !== null) { window.clearTimeout(endSignalTimerRef.current); endSignalTimerRef.current = null; }
+    // CAPTURE CARD SURVIVAL (item 3, 2026-11-22): a teardown that
+    // is part of a DROP RECOVERY — the provider-closed path sets
+    // sessionRecoveringRef before calling here; the socket-close
+    // path sets cardDropRecoveryRef — must not kill an unanswered
+    // capture card. Ron's follow-up form vanished mid-read in the
+    // 04:35 drop and no amount of asking brought it back. The card
+    // moves to the waiting slot (its chip stays in the panel), the
+    // drafts stay with it, and goLive re-opens the card itself on
+    // the reconnected session. Every other teardown (visitor end,
+    // unmount, fresh start) clears exactly as before.
+    const preserveCard = sessionRecoveringRef.current || cardDropRecoveryRef.current;
+    cardDropRecoveryRef.current = false;
+    if (preserveCard && pendingActionRef.current) {
+      if (pendingActionRef.current.id === verbalConsentActionIdRef.current) reopenVerbalRef.current = true;
+      setWaitingAction(pendingActionRef.current);
+      cardPreservedRef.current = true;
+    }
     trackPendingAction(null);
-    setWaitingAction(null);
-    // Item 5 form fix: the session's card drafts die with it — a
-    // later session's card must never open with a stranger's edits.
-    // (The swap partial teardown below deliberately keeps them: the
-    // parent survives a cut-over, and the base check at arrival
-    // decides whether a re-issued card is the same card coming back.)
-    contactDraftsRef.current = {}; setContactDrafts({});
-    demoDraftRef.current = null; setDemoDraft(null);
+    if (!preserveCard) {
+      setWaitingAction(null);
+      // Item 5 form fix: the session's card drafts die with it — a
+      // later session's card must never open with a stranger's edits.
+      // (The swap partial teardown below deliberately keeps them: the
+      // parent survives a cut-over, and the base check at arrival
+      // decides whether a re-issued card is the same card coming back.)
+      contactDraftsRef.current = {}; setContactDrafts({});
+      demoDraftRef.current = null; setDemoDraft(null);
+    }
     deadlineRef.current = 0;
     setRemainingSeconds(null);
     // Handoff-leg recovery (2026-11-14): a teardown that lands
@@ -2586,8 +2667,20 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     // socket being torn down — the successor session re-issues from
     // the durable captured facts if the visitor asks, never from a
     // chip pointing at a dead session's form.
+    // CAPTURE CARD SURVIVAL (item 3, 2026-11-22): on a DROP
+    // RECOVERY (sessionRecoveringRef / cardDropRecoveryRef set by
+    // the caller) the unanswered card survives into the waiting
+    // slot exactly as in the full teardown — the #68 rule above
+    // governs genuine cut-overs only.
+    const preserveCard = sessionRecoveringRef.current || cardDropRecoveryRef.current;
+    cardDropRecoveryRef.current = false;
+    if (preserveCard && pendingActionRef.current) {
+      if (pendingActionRef.current.id === verbalConsentActionIdRef.current) reopenVerbalRef.current = true;
+      setWaitingAction(pendingActionRef.current);
+      cardPreservedRef.current = true;
+    }
     trackPendingAction(null);
-    setWaitingAction(null);
+    if (!preserveCard) setWaitingAction(null);
     deadlineRef.current = 0;
     setRemainingSeconds(null);
     setHandoffToken(null);
@@ -3251,6 +3344,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       return;
     }
     sessionRecoveringRef.current = false;
+    // Recovery is spent: the preserved card's session is gone, so
+    // its chip retires with the error (2026-11-22).
+    cardPreservedRef.current = false;
+    setWaitingAction(null);
     setError(voiceDisconnectMessage(code, ''));
   }, [stopEverything, partialTeardownForSwap]);
   const startConversation = useCallback(async (preview = false, warm = false) => {
@@ -3704,6 +3801,18 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         if(!preview)void trackCampaignEvent('voice_started');
         setPhase(preview ? "preview" : "live");
         setStatus(preview ? "Preparing greeting audio…" : captureMode === "hold" ? "Live — hold to talk" : "Live — hands-free");
+        // CAPTURE CARD RETURN (item 3, 2026-11-22): a card that was
+        // open when the previous socket dropped — and preserved by
+        // the teardown — re-opens ITSELF on this new session; the
+        // visitor never has to ask for the form back. The proxy
+        // re-issues it from its stamp-seeded re-presentable card
+        // (or the card this session already showed); if nothing is
+        // re-presentable, the waiting chip simply stays as the
+        // manual path.
+        if (cardPreservedRef.current) {
+          cardPreservedRef.current = false;
+          try { wsRef.current?.send(JSON.stringify({ type: 'reopen_action' })); } catch { /* the chip remains */ }
+        }
         // F3 PRE-STAGE — MOVED (voice-first batch, 2026-11-10):
         // warming Sara's face at go-live left it ~87–109 s old at
         // the doorway gate (Aspen's opening runs that long), its
@@ -3783,7 +3892,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           // the visitor's spoken correction otherwise reached Gemini
           // and could cancel the tool call the card belongs to,
           // deleting the form mid-edit.
-          const pcm = microphonePcm(micAudioPasses({ swapHold: swapHoldRef.current !== null, openingGate, noiseGateOpen: gate.open, holdToTalk: capture.mode === "hold", confirmationHold: pendingActionRef.current !== null }) ? input : new Float32Array(input.length), e.inputBuffer.sampleRate);
+          const pcm = microphonePcm(micAudioPasses({ swapHold: swapHoldRef.current !== null, openingGate, noiseGateOpen: gate.open, holdToTalk: capture.mode === "hold", confirmationHold: cardBlocksMic(pendingActionRef.current) }) ? input : new Float32Array(input.length), e.inputBuffer.sampleRate);
           ws.send(JSON.stringify({ type: "audio", data: pcmToBase64(pcm) }));
         };
         source.connect(node);
@@ -3896,6 +4005,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             idleRef.current.stage = 'waiting';
             idleRef.current.quietSince = Date.now();
             userLineRef.current += msg.text as string;
+            // VERBAL CONSENT (item 1): while a consent card is open
+            // the model is blocked on its tool call, so the visitor's
+            // line may never finalize — check the accumulating line
+            // on a short debounce and let a spoken yes complete the
+            // card from here.
+            schedulePartialConsentCheck();
             setPartialUser(userLineRef.current);
             // Soft B2 trigger: the visitor ending the try-out arms the
             // step-out late; Sara's reply still covers the swap.
@@ -4095,11 +4210,18 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           // its snapshot for the reconnected parent's arming block.
           const chainSnap = snapshotChainState();
           if (chainSnap && chainIsMidSegment(chainSnap.state) && (event.code === 1006 || event.code === 1011)) {
+            // Item 3 (2026-11-22): this partial teardown IS a drop
+            // recovery — an unanswered card survives it.
+            cardDropRecoveryRef.current = true;
             partialTeardownForSwap();
             dropRecoverRef.current();
             return;
           }
           if (chainSnap) chainDropSnapshotRef.current = chainSnap;
+          // Item 3 (2026-11-22): when a reconnect will follow this
+          // drop, the teardown must preserve an unanswered card —
+          // flag it BEFORE stopEverything runs.
+          if ((event.code === 1006 || event.code === 1011) && reconnectRef.current.count < 3) cardDropRecoveryRef.current = true;
           stopEverything();
           // Hosting can drop long-lived sockets (1006/1011); quietly resume the same conversation a few times.
           if ((event.code === 1006 || event.code === 1011) && reconnectRef.current.count < 3) {
@@ -4254,7 +4376,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         // meet-alex) holds this persona's mic until it resolves.
         // Confirmation hold (item 5 form fix, 2026-11-21): same
         // silence rule while a confirmation card is on screen.
-        const pcm = microphonePcm(micAudioPasses({ swapHold: swapHoldRef.current !== null, openingGate, noiseGateOpen: gate.open, holdToTalk: capture.mode === "hold", confirmationHold: pendingActionRef.current !== null }) ? input : new Float32Array(input.length), e.inputBuffer.sampleRate);
+        const pcm = microphonePcm(micAudioPasses({ swapHold: swapHoldRef.current !== null, openingGate, noiseGateOpen: gate.open, holdToTalk: capture.mode === "hold", confirmationHold: cardBlocksMic(pendingActionRef.current) }) ? input : new Float32Array(input.length), e.inputBuffer.sampleRate);
         ws.send(JSON.stringify({ type: "audio", data: pcmToBase64(pcm) }));
       };
       source.connect(node);
@@ -4355,6 +4477,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           idleRef.current.stage = 'waiting';
           idleRef.current.quietSince = Date.now();
           userLineRef.current += msg.text as string;
+          // VERBAL CONSENT (item 1): same accumulating-line check as
+          // the parent socket — a spoken yes completes an open
+          // consent card even mid-line.
+          schedulePartialConsentCheck();
           setPartialUser(userLineRef.current);
           if (swapEnabledRef.current && liveRef.current && swapStateRef.current.phase === 'simulation' && visitorSignalsStepOut(userLineRef.current)) {
             swapStateRef.current = { ...swapStateRef.current, pendingStepout: true };
@@ -5427,9 +5553,14 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     if (existing && existing.values.websiteUrl === values.websiteUrl && existing.values.name === values.name && existing.values.email === values.email) return;
     trackDemoDraft({ base, values });
   };
+  // ITEM 4 (2026-11-22): the card's "as heard" note names the
+  // presenter of THIS session — the same computation speakerName
+  // does below for the status line (a presenter session speaks as
+  // the pinned example's presenter while the persona is 'aspen').
+  const cardPresenterName = presenterPersona && activePersona === 'aspen' ? PERSONAS[presenterPersona].displayName : PERSONAS[activePersona].displayName;
   const confirmation = pendingAction ? (pendingAction.action === 'request_demo_start'
     ? <DemoStartConfirmation key={pendingAction.id} action={demoDraft ? { ...pendingAction, demo: demoDraft.values } : pendingAction} onAnswer={(approved, demo) => { wsRef.current?.send(JSON.stringify({type:'confirm_action',id:pendingAction.id,approved,demo})); if (approved) { setWaitingAction(null); trackDemoDraft(null); } else setWaitingAction(pendingAction); trackPendingAction(null); }} onDraftChange={liftDemoDraft}/>
-    : <VoiceActionConfirmation key={pendingAction.id} action={contactDrafts[pendingAction.action] ? { ...pendingAction, contact: contactDrafts[pendingAction.action]!.values } : pendingAction} onAnswer={(approved, contact) => { wsRef.current?.send(JSON.stringify({type:'confirm_action',id:pendingAction.id,approved,contact})); if (approved) { setWaitingAction(null); trackContactDraft(pendingAction.action, null); } else setWaitingAction(pendingAction); trackPendingAction(null); }} onDraftChange={liftContactDraft}/>) : null;
+    : <VoiceActionConfirmation key={pendingAction.id} action={contactDrafts[pendingAction.action] ? { ...pendingAction, contact: contactDrafts[pendingAction.action]!.values } : pendingAction} presenterName={cardPresenterName} verbalConsent={verbalConsentActionId === pendingAction.id} onAnswer={(approved, contact) => { wsRef.current?.send(JSON.stringify({type:'confirm_action',id:pendingAction.id,approved,contact})); if (verbalConsentActionIdRef.current === pendingAction.id) { verbalConsentActionIdRef.current = null; setVerbalConsentActionId(null); } if (approved) { setWaitingAction(null); trackContactDraft(pendingAction.action, null); } else setWaitingAction(pendingAction); trackPendingAction(null); }} onDraftChange={liftContactDraft}/>) : null;
   // VOICE DEMO START entry card (2026-11-21): shown once the proxy
   // confirms the demo started. A plain anchor the VISITOR taps —
   // sales actions never navigate a live conversation automatically —

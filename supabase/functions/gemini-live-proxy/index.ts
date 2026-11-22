@@ -14,7 +14,7 @@ import { sendBookingConfirmations } from '../_shared/booking-confirm.ts'
 import { platformBookingInstruction } from '../_shared/phone-demo.ts'
 import { confirmedVisitorContact, CONTACT_READBACK_POLICY, CAPTURE_RITUAL_POLICY, CARD_REPRESENT_POLICY } from '../_shared/visitor-followup.ts'
 import { normalizePendingContact } from '../_shared/contact-normalize.ts'
-import { capturedContactFromUnknown, capturedContactBlock, mergeCapturedContact, promptVisitorDetails, type CapturedContact } from '../_shared/captured-contact.ts'
+import { capturedContactFromUnknown, capturedContactBlock, mergeCapturedContact, promptVisitorDetails, rePresentableCardFromStamp, type CapturedContact } from '../_shared/captured-contact.ts'
 import { freshConsentAskState, syncConsentAskState, consentAskTurnDecision, spokenTextingAnswer, CONSENT_ASK_TOOL_DIRECTIVE, CONSENT_ASK_NUDGE, CONSENT_RECORD_NUDGE, type ConsentAskState } from '../_shared/consent-ask.ts'
 import { armCaptureGateFromRecap, captureGateDirective, captureGateRecordDirective, captureGateTurnDecision, freshCaptureGateState, noteVisitorUtterance, spellbackCorrectionNudge, type CaptureGateState } from '../_shared/capture-gate.ts'
 import { armDiscoveryGate, budgetBracketDirective, budgetRangeDirective, budgetRecapDirective, discoveryGateTurnDecision, freshDiscoveryGateState, gateViolationDirective, greetingOnceDirective, nameKnownDirective, namePreemptDirective, nameReleaseDirective, recapCompletenessDirective, seedNameFromFacts, shortGateDirective, shortGatePurposeDirective, type DiscoveryGateState } from '../_shared/discovery-gate.ts'
@@ -615,6 +615,16 @@ Deno.serve(async (req) => {
   // re-ask. A completed confirm clears it, so a finished save or
   // booking can never be duplicated by a stray re-present.
   let lastCardAction: { name: string; contact?: {name:string;email:string;phone:string}; slotStart?: string; demo?: DemoStartCard } | null = null
+  // RESUMED CARD SEED (2026-11-22): a follow-up card in flight when
+  // the previous socket dropped was invisible to THIS session —
+  // lastCardAction starts empty on every connect, so the panel chip
+  // and re_present_confirmation_card both answered "no form has
+  // been shown" while the visitor was still owed one (Ron's Aurelia
+  // retest: the form vanished in the 04:35 drop and begging could
+  // not bring it back). The durable stamp carries the capture
+  // across reconnects; seed the re-presentable card from it so the
+  // card's STATE, not just its words, survives the resume.
+  lastCardAction = rePresentableCardFromStamp(capturedContact, config.platformFollowup) ?? lastCardAction
   let reopenCounter = 0
   // Voice-asked manager transfer (Fix 3): once per session — the flag
   // guards repeat tool calls, the timer delivers {type:'start_handoff'}
@@ -2083,6 +2093,13 @@ Deno.serve(async (req) => {
           }
           else if (action.call.name === 'request_platform_followup') {
             const contact=confirmedVisitorContact(msg.contact);
+            // VERBAL CONSENT SOURCE (2026-11-22): when the card
+            // completed itself on the visitor's spoken yes, the
+            // client marks consentSource 'verbal' — the save
+            // records it as such, so the consent trail never claims
+            // a tap that did not happen (the transcript is the
+            // evidence). Anything else is the ordinary card path.
+            const consentSource=(msg.contact as { consentSource?: unknown } | undefined)?.consentSource === 'verbal' ? 'verbal' as const : 'card' as const;
             // Fix 7: the save lives in _shared/contact-save.ts — each
             // write is retried once, and a session with no lead row
             // (homepage / prospect-only) still records the confirmed
@@ -2092,7 +2109,7 @@ Deno.serve(async (req) => {
               readLead: async () => { const {data,error}=await db.from('leads').select('full_name,email,phone,website_screenshot').eq('id',session.lead_id as string).single(); return {data,error}; },
               updateLead: async (fields) => { const {error}=await db.from('leads').update(fields).eq('id',session.lead_id as string); return {error}; },
               upsertHistory: async (row) => { const {error}=await db.from('call_history').upsert(row,{onConflict:'retell_call_id'}); return {error}; },
-            },{sessionId:session.id,leadId:session.lead_id ?? null,prospectId:session.prospect_id ?? null,businessName:String(config.businessName),contact});
+            },{sessionId:session.id,leadId:session.lead_id ?? null,prospectId:session.prospect_id ?? null,businessName:String(config.businessName),contact,consentSource});
             if (!saved.ok) {
               // Still failed after the retry: the model gets the
               // fallback (details live in this call's record; no
@@ -2102,12 +2119,26 @@ Deno.serve(async (req) => {
               response={...CONTACT_SAVE_FALLBACK_TOOL_RESPONSE};
               clientResult={saved:false,keptInCallRecord:true,error:CONTACT_SAVE_CLIENT_ERROR};
             } else {
-              confirmedContact=contact; response={saved:true,platform:'AI Hidden Leads'};
+              confirmedContact=contact;
               // Publish #68: the on-screen confirmation makes this
               // the visit's durable, confirmed capture.
               noteCapture({...contact,confirmed:true}); lastCardAction=null;
               const mailContact={...contact,businessName:String(config.businessName||'')};
-              void trySend(followupAlert(mailContact)); void trySend(visitorFollowup({...mailContact,screenshot:saved.lead?.website_screenshot ?? undefined,didDemo:!!session.prospect_id}));
+              void trySend(followupAlert(mailContact));
+              // FOLLOW-UP EMAIL IS REAL — INCLUDING IN DEMOS
+              // (2026-11-22, item 5): the visitor email goes out on
+              // every confirmed save through the same Hostinger SMTP
+              // path live sessions use; demo/sample sessions were
+              // never excluded — Ron's run sent nothing only because
+              // his confirm never completed. It is AWAITED now so
+              // the tool result tells the presenter the truth: sent
+              // → she may say so in one line; not sent → the honest
+              // line, and never a claim of a message that did not
+              // go out.
+              const emailSent=await trySend(visitorFollowup({...mailContact,screenshot:saved.lead?.website_screenshot ?? undefined,didDemo:!!session.prospect_id}));
+              response={saved:true,platform:'AI Hidden Leads',emailSent,instruction: emailSent
+                ? 'The visitor\'s details are saved and the follow-up email has just been sent to their email address. Say ONE short line confirming that — for example "You\'re all set, I\'ve just sent that email over to you" — in the session language, then continue naturally. Do NOT read their email address or phone number back again: they already confirmed them, and a confirmed detail is never re-read.'
+                : 'The visitor\'s details are saved, but the follow-up email could not be sent just now. Do NOT claim an email or a text was sent. Say one short honest line — their details are saved and the team will follow up from this conversation — then continue naturally. Do NOT read their details back again.'};
             }
           } else if (action.call.name === 'request_demo_start') {
             // VOICE DEMO START (2026-11-21): the visitor confirmed
