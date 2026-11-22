@@ -14,11 +14,11 @@ import { B2B_EXAMPLE_PINNED_LEADS } from "../data/b2bExamplePinnedLeads";
 const read = (rel: string) => readFileSync(resolve(__dirname, "..", rel), "utf8");
 
 describe("examples gallery data (2026-11-18)", () => {
-  it("combines all 36 B2B and all 14 realtor pinned examples", () => {
+  it("combines all 38 B2B and all 14 realtor pinned examples", () => {
     expect(EXAMPLES_GALLERY).toHaveLength(
       B2B_EXAMPLE_PINNED_LEADS.length + REALTOR_EXAMPLE_PINNED_LEADS.length,
     );
-    expect(EXAMPLES_GALLERY.filter((e) => e.kind === "b2b")).toHaveLength(36);
+    expect(EXAMPLES_GALLERY.filter((e) => e.kind === "b2b")).toHaveLength(38);
     expect(EXAMPLES_GALLERY.filter((e) => e.kind === "realtor")).toHaveLength(14);
   });
 
@@ -82,6 +82,8 @@ describe("examples gallery categories (Ron's business-first mix, 2026-11-21)", (
     "amaira-medspa": "health-dental",
     "central-broward-vet": "health-dental",
     "chiangwell-medical": "health-dental",
+    "solaris-financial": "business-services",
+    "freedom-insurance": "business-services",
   };
 
   it("every example carries exactly the category its trade belongs to", () => {
@@ -113,7 +115,7 @@ describe("examples gallery categories (Ron's business-first mix, 2026-11-21)", (
       manufacturing: 3,
       marine: 2,
       auto: 3,
-      "business-services": 5,
+      "business-services": 7,
     });
   });
 

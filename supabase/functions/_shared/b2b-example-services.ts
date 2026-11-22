@@ -21,7 +21,7 @@ export interface B2BExamplePack {
   slug: string;
   url: string;
   businessName: string;
-  /** Composition slot key: dentist | roofer | hvac | lawyer | plumber | pavers | manufacturer | marine | auto-repair | b2b-services | field-service | distributor | towing | electrician | medspa | veterinary | chiropractic */
+  /** Composition slot key: dentist | roofer | hvac | lawyer | plumber | pavers | manufacturer | marine | auto-repair | b2b-services | field-service | distributor | towing | electrician | medspa | veterinary | chiropractic | mortgage-broker | insurance-broker */
   niche: string;
   nicheLabel: string;
   city: string;
@@ -826,6 +826,51 @@ export const B2B_EXAMPLE_PACKS: B2BExamplePack[] = [
       { name: "Massage Therapy", descriptor: "Therapeutic massage alongside chiropractic care.", source: "site" },
       { name: "IV Therapy", descriptor: "IV therapy for hydration, energy and recovery.", source: "site" },
       { name: "D.O.T. Physicals", descriptor: "Department of Transportation physical exams for commercial drivers.", source: "site" },
+    ],
+  },
+  {
+    slug: "solaris-financial",
+    url: "https://solarisfg.com/",
+    businessName: "Solaris Financial Group",
+    niche: "mortgage-broker",
+    nicheLabel: "Mortgage broker",
+    city: "Winter Haven",
+    state: "FL",
+    serviceArea: "Winter Haven and Central Florida — Orlando, Tampa and buyers across Florida",
+    services: [
+      { name: "Home Purchase Loans", descriptor: "Tailored mortgage products matched to each borrower's unique financial needs.", source: "site" },
+      { name: "Refinancing", descriptor: "Refinance options designed to save money and improve overall financial well-being.", source: "site" },
+      { name: "HyperSpeed HELOC", descriptor: "Their named home-equity line of credit program, for tapping the value in a home you already own.", source: "site" },
+      { name: "Reverse Mortgage", descriptor: "Reverse mortgages for homeowners 62+, including the FHA-insured program — keep ownership while you access your equity.", source: "site" },
+      { name: "First Time Homebuyer Course", descriptor: "A webcourse that guides first-time buyers through the essential steps of buying a home.", source: "site" },
+      { name: "Down Payment Assistance Programs", descriptor: "Help finding the down payment assistance programs a buyer may qualify for.", source: "site" },
+      { name: "Credit Building Guidance", descriptor: "Guidance on building credit toward qualifying for a home loan.", source: "site" },
+      { name: "Personalized Consultations", descriptor: "One-on-one guidance from a loan officer — in person, by phone or by video.", source: "site" },
+      { name: "Mortgage Calculator", descriptor: "On-site calculator to estimate a monthly principal-and-interest payment and see how much you may qualify for.", source: "site" },
+      { name: "Buyer Representation", descriptor: "Property listing, marketing and buyer representation through the firm's real estate side.", source: "site" },
+    ],
+  },
+  {
+    slug: "freedom-insurance",
+    url: "https://freedominsurancefinancial.com/",
+    businessName: "Freedom Insurance Financial",
+    niche: "insurance-broker",
+    nicheLabel: "Insurance broker",
+    city: "Kissimmee",
+    state: "FL",
+    hours: "Monday - Friday: 8:30 AM - 6 PM / Saturday: 10 AM - 4 PM",
+    serviceArea: "Based in Kissimmee, serving families and businesses across Florida and nationwide",
+    services: [
+      { name: "Health Insurance", descriptor: "Health coverage for individuals and families, including Obamacare (ACA) plans.", source: "site" },
+      { name: "Medicare", descriptor: "Medicare guidance and plans, explained in plain language.", source: "site" },
+      { name: "Life Insurance", descriptor: "Life insurance to protect a family's future and income.", source: "site" },
+      { name: "Homeowners Insurance", descriptor: "Coverage for your home — the agency works for you, not the carrier, to find coverage that is right for you.", source: "site" },
+      { name: "Auto Insurance", descriptor: "Auto coverage matched to the driver and the vehicle, with rates shopped across carriers.", source: "site" },
+      { name: "Flood Insurance", descriptor: "Flood coverage for Florida homes — coverage that is right for the property, at a rate that fits.", source: "site" },
+      { name: "Business Insurance", descriptor: "Business owners policies (BOP), commercial auto, professional liability and surety bonds for Florida businesses.", source: "site" },
+      { name: "Vision & Dental Insurance", descriptor: "Vision and dental plans for individuals, families and employer groups.", source: "site" },
+      { name: "Retirement Plans & 401(k)", descriptor: "Retirement plans and 401(k) options, including group plans for employers.", source: "site" },
+      { name: "Financial Planning", descriptor: "Financial advice, annuities and savings plans for long-term goals, including college savings.", source: "site" },
     ],
   },
 ];

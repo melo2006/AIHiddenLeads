@@ -49,7 +49,9 @@ export type ExamplePracticeType =
   | 'criminal-defense'
   | 'med-spa'
   | 'veterinary'
-  | 'chiropractic';
+  | 'chiropractic'
+  | 'mortgage-broker'
+  | 'insurance-broker';
 
 /** Slug → practice type for every pinned example (14 realtors share
  * one pack). Kept explicit so a new example earns a pack only when
@@ -105,6 +107,8 @@ export const EXAMPLE_PRACTICE_TYPE_BY_SLUG: Record<string, ExamplePracticeType> 
   'amaira-medspa': 'med-spa',
   'central-broward-vet': 'veterinary',
   'chiangwell-medical': 'chiropractic',
+  'solaris-financial': 'mortgage-broker',
+  'freedom-insurance': 'insurance-broker',
 };
 
 /** Fallback by B2B niche for a future example whose slug is not in
@@ -124,6 +128,8 @@ const PRACTICE_TYPE_BY_NICHE: Record<string, ExamplePracticeType> = {
   medspa: 'med-spa',
   veterinary: 'veterinary',
   chiropractic: 'chiropractic',
+  'mortgage-broker': 'mortgage-broker',
+  'insurance-broker': 'insurance-broker',
   // 'lawyer' deliberately has NO fallback since 2026-11-21: with
   // personal-injury, family-law and criminal-defense packs all live,
   // the niche no longer maps to exactly one practice type — a future
@@ -153,6 +159,8 @@ export const EXAMPLE_PRACTICE_LABELS: Record<ExamplePracticeType, string> = {
   'med-spa': 'Med Spa & Aesthetics',
   'veterinary': 'Veterinary Clinic & Animal Hospital',
   'chiropractic': 'Chiropractic Clinic',
+  'mortgage-broker': 'Mortgage Broker',
+  'insurance-broker': 'Insurance Broker & Agency',
 };
 
 const GUIDE_RULES = `How to use this guide: it describes how this kind of business USUALLY works, so you can converse naturally, anticipate the caller's next question, and offer the usual next step (a call-back, an appointment, an estimate visit, a service call). It is NOT a source of facts about this specific business. Never quote prices, hours, warranties, timelines, staff names, or policies from this guide — those come only from the business's own knowledge above, and when the two differ, the business's own knowledge always wins. When you don't know a business-specific fact, say so warmly and offer to take a message or arrange a call-back rather than guessing.`;
@@ -290,6 +298,18 @@ How the work usually flows: it starts with an evaluation visit — history, an e
 What to capture: name, phone, what's hurting and since when, whether it followed an accident or injury (and the date), whether they've had imaging or care elsewhere, and insurance details if they want coverage checked.
 Good receptionist moves: be sympathetic — callers are often in real pain and sometimes a little skeptical; offer the earliest evaluation appointment; for accident callers, gently note that being seen promptly matters and let the clinic explain the insurance side.
 Never promise: a diagnosis, that treatment will fix a condition, a number of visits, or that insurance will pay — the doctor evaluates first and the clinic confirms coverage.`,
+
+  'mortgage-broker': `What callers usually want: first-time buyers asking how much house they can afford and how to get pre-approved; homeowners asking whether refinancing would lower their payment or shorten their term; people who just found a home and need a lender who can move fast; questions about down payment help, what credit score they need, and which loan type fits them (conventional, FHA, VA, USDA, jumbo); existing borrowers checking where their loan stands.
+How the work usually flows: almost everything starts with a conversation or an application — income, debts, credit, and the price range they are looking at — so a loan officer can say what the caller qualifies for and issue the pre-approval letter that sellers and agents take seriously. From there a purchase loan moves through processing, appraisal, underwriting, and closing, with the loan officer updating the borrower at each step. Rates move with the market and depend on the borrower's profile, so they are always quoted live by the loan officer, never guessed at the front desk.
+What to capture: name, best phone, email, whether they are buying or refinancing, the price range or loan amount if they offer it, whether they already have a home under contract (and any closing deadline — that makes the call urgent), whether they are pre-approved anywhere yet, and the best time for a loan officer call-back.
+Good receptionist moves: treat a signed contract or a closing deadline as urgent and say so; with first-time buyers, be patient and explain the next step in plain words — many are nervous and do not know the vocabulary yet; offer the consultation or application call as the natural next step, in person, by phone, or by video when the business's own knowledge offers those.
+Never promise: an interest rate, an approval, a monthly payment figure, a closing date, or that a particular loan program's rules will fit them — only the loan officer can run the numbers, and underwriting decides approvals.`,
+
+  'insurance-broker': `What callers usually want: a quote on auto, home, health, or life insurance; a homeowner whose renewal premium jumped and wants their coverage shopped; a new driver, a new home, a new baby, or a move changing what a family needs covered; business owners asking about general liability, a business owners policy, or coverage a landlord, lender, or contract requires; existing clients adding a vehicle, asking for a certificate of insurance, or needing to start a claim.
+How the work usually flows: a quote starts with the details an agent needs to shop carriers — for auto, the drivers and vehicles; for a home, the address, age, and roof; for health, who is covered and any doctors or prescriptions that matter. An independent agency compares several carriers and comes back with options rather than one take-it-or-leave-it price. Policy changes and certificates are usually quick once the agent has the policy in front of them; claims are reported to the carrier, with the agency helping the client through the process.
+What to capture: name, best phone, email, what they want quoted or changed, the first details the agent will ask for (vehicle or property basics, current carrier and renewal date if they offer them), any deadline — a closing date, a renewal date, a contract start — and whether they are already a client.
+Good receptionist moves: a closing date or a renewal landing this week makes the call urgent — say so and capture the deadline early; reassure shoppers that comparing carriers for them is exactly how an independent agency works; after an accident or storm damage, stay calm, capture what happened in a sentence, and get them to the agent or the carrier's claims line following the business's own knowledge.
+Never promise: a premium, that a carrier will accept them, that a claim will be covered, or that a policy can be bound on the spot — the agent confirms coverage and pricing with the carriers.`,
 };
 
 /** Build the prompt layer for one practice type. The marker string

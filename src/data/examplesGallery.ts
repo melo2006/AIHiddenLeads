@@ -98,6 +98,11 @@ const NICHE_CATEGORIES: Record<string, GalleryCategory> = {
   medspa: "health-dental",
   veterinary: "health-dental",
   chiropractic: "health-dental",
+  // Mortgage and insurance brokers are professional/financial
+  // services for businesses and families — they sit with the other
+  // business services (2026-11-22, gallery 50 → 52).
+  "mortgage-broker": "business-services",
+  "insurance-broker": "business-services",
 };
 
 export interface GalleryExample {
