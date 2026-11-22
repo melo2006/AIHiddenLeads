@@ -1101,7 +1101,15 @@ describe('Publish #82 — defect 3: the doorway name — pre-emptive order and c
   });
 
   it('gemini-session composes presenter parents with the seeded visitor name', () => {
-    expect(geminiSessionSource).toContain('presenterSimulationPrompt(presenter, sanitizeVisitorName(');
+    // 2026-11-22 (capture/consent fix, item 6): the seeded name now
+    // flows through seededVisitorName — the sanitized visitor name,
+    // except that a SAMPLE session's link-supplied name is dropped
+    // (it is the demo link's built-in caller identity, not a name
+    // the visitor gave; Monica greeted Ron "Good morning, John"
+    // with it). The composition still receives exactly the seeded,
+    // sanitized name.
+    expect(geminiSessionSource).toContain('presenterSimulationPrompt(presenter, seededVisitorName)');
+    expect(geminiSessionSource).toContain("const seededVisitorName = sanitizeVisitorName((b.sample === true ? '' : b.visitorName) || String(visitorContact.name || ''));");
   });
 });
 

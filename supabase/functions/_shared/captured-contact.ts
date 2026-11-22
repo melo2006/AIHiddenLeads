@@ -119,6 +119,32 @@ export function mergeCapturedContact(
 }
 
 /**
+ * The card a RESUMED session may re-issue (2026-11-22, Ron's
+ * Aurelia retest): the durable stamp proves a follow-up capture
+ * was in flight when the previous socket dropped — details given,
+ * card shown or owed, never confirmed on screen. Seeding the new
+ * session's re-presentable card from the stamp means the panel
+ * chip and the re_present tool work across the reconnect instead
+ * of answering "no form has been shown in this session" while the
+ * visitor is still looking at the hole the form left. Only the
+ * follow-up card is seedable: it is the one card fully described
+ * by the stamp (name + email; the phone rides along). Appointment
+ * cards need a slot the stamp does not carry, and a confirmed
+ * stamp is finished business — never re-issued.
+ */
+export function rePresentableCardFromStamp(
+  contact: CapturedContact | null,
+  platformFollowup: unknown,
+): { name: 'request_platform_followup'; contact: { name: string; email: string; phone: string } } | null {
+  if (!contact || contact.confirmed || platformFollowup !== true) return null;
+  if (!contact.name || !contact.email) return null;
+  return {
+    name: 'request_platform_followup',
+    contact: { name: contact.name, email: contact.email, phone: contact.phone },
+  };
+}
+
+/**
  * The ONLY rendering of a session's visitorContact that may reach
  * a prompt (Publish #74, 2026-11-15). visitorContact originates on
  * the demo-lead row: its email/phone are the DEMO FORM SUBMITTER's
@@ -167,5 +193,16 @@ export function capturedContactBlock(contact: CapturedContact | null): string {
   const confirmation = contact.confirmed
     ? 'These details were confirmed by the visitor on screen earlier in this visit.'
     : 'These details were captured in conversation but are NOT yet confirmed on screen: before any platform save or booking, show the confirmation card pre-filled with them (request_platform_followup) — one tap finishes it, and the details themselves are never re-asked.';
-  return `\nALREADY CAPTURED FOR THIS VISITOR (recorded earlier in this visit and carried across reconnects — treat as held, because it is): ${facts.join(' ')} ${consent} ${confirmation} Never say or imply that you do not have any detail listed here, and never ask the visitor to repeat one. A detail NOT listed here has not been captured yet. If the visitor corrects a detail, take the correction, read it back, and record it the same way as a fresh capture.`;
+  // READ-BACK STATE (2026-11-22, Ron's Aurelia retest): a resumed
+  // segment inherited the prior segment's WORDS (the recap) but not
+  // the state of what was already confirmed — Monica re-ran the
+  // email read-back from scratch after the reconnect, on top of a
+  // segment that had already read the same address back three times
+  // in one turn. Every detail in this stamp was read back and
+  // confirmed at the moment it was captured (that is what the
+  // capture ritual does before recording), so the stamp itself is
+  // the proof the read-back is DONE: state it as settled law, not
+  // as a suggestion.
+  const readback = 'READ-BACK STATE: every detail listed here was already read back to the visitor and confirmed by them at the moment it was captured — the read-back is DONE. Never read any of them back again, never re-confirm them, and never re-run the capture ritual for a detail listed here, in this session or after any reconnect. If the on-screen confirmation is still owed, show the card with these exact details — do not re-run the verbal read-back first.';
+  return `\nALREADY CAPTURED FOR THIS VISITOR (recorded earlier in this visit and carried across reconnects — treat as held, because it is): ${facts.join(' ')} ${consent} ${confirmation} ${readback} Never say or imply that you do not have any detail listed here, and never ask the visitor to repeat one. A detail NOT listed here has not been captured yet. If the visitor corrects a detail, take the correction, read the corrected detail back once, and record it the same way as a fresh capture.`;
 }

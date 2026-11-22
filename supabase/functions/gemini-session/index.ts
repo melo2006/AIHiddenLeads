@@ -433,7 +433,19 @@ Deno.serve(async req=>{
     // identical to before. The verification branch composes from
     // whichever base applies — Act 1's own text is unchanged either
     // way, and its session still ends at the code gate.
-    config={...(presenter ? businessDemoConfig(businessName,kbSlim.sessionKnowledge,{...(published ?? {}),name:presenter.displayName,voice:presenterVoice ?? presenter.voiceName,simulationPrompt:presenterSimulationPrompt(presenter, sanitizeVisitorName(b.visitorName || String(visitorContact.name || '')))}) : swapEnabled ? businessDemoConfigSwapParent(businessName,kbSlim.sessionKnowledge,published) : businessDemoConfig(businessName,kbSlim.sessionKnowledge,published)), visitorContact, platformFollowup:true};
+    // SAMPLE-NAME SUPPRESSION (2026-11-22, Ron's Aurelia retest):
+    // a sample session's visitorName is the demo link's built-in
+    // caller identity ("John Doe" from the examples grid) — a name
+    // the system supplied, NOT one the visitor gave. Monica greeted
+    // Ron "Good morning, John" with it. In a sample session the
+    // link name is dropped everywhere a SPOKEN name is seeded: the
+    // presenter prompt and the greeting fall back to the stored
+    // contact name only (a placeholder sentinel there sanitizes to
+    // no name at all). The real intake path — a visitor who typed
+    // their own name — is untouched, as is the call_history
+    // caller_name record below (record-keeping, never spoken).
+    const seededVisitorName = sanitizeVisitorName((b.sample === true ? '' : b.visitorName) || String(visitorContact.name || ''));
+    config={...(presenter ? businessDemoConfig(businessName,kbSlim.sessionKnowledge,{...(published ?? {}),name:presenter.displayName,voice:presenterVoice ?? presenter.voiceName,simulationPrompt:presenterSimulationPrompt(presenter, seededVisitorName)}) : swapEnabled ? businessDemoConfigSwapParent(businessName,kbSlim.sessionKnowledge,published) : businessDemoConfig(businessName,kbSlim.sessionKnowledge,published)), visitorContact, platformFollowup:true};
     // KB SLIM (Publish #85b): only a distilled session carries the
     // lookup stamp — the full text rides OUTSIDE the prompt (never
     // in sourceKnowledge) so the proxy can answer
@@ -675,7 +687,7 @@ Deno.serve(async req=>{
   // propagated zone the same way.
   const effectiveTimeZone=segmentParentId?segmentTimeZone((parentRowRef as {config?:Record<string,unknown>}|undefined)?.config,b.timeZone):b.timeZone;
   const greetingHour=hourInTimeZone(new Date(),effectiveTimeZone) ?? b.hour;
-  const greetingName=sanitizeVisitorName(b.visitorName || String((config.visitorContact as Record<string,unknown>|undefined)?.name || ''));
+  const greetingName=sanitizeVisitorName((b.sample === true ? '' : b.visitorName) || String((config.visitorContact as Record<string,unknown>|undefined)?.name || ''));
   // SERVER-SIDE RECAP SYNTHESIS (Publish #63, 2026-11-15): the
   // client-side recap lives in the page's visit memory; a reload (or
   // a dropped call that reopens the demo) arrives with NO recap at

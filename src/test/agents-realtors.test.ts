@@ -321,7 +321,10 @@ describe("realtor landing page — one-click example demos (2026-11-12)", () => 
       "No typing needed — pick an example realtor website and watch the demo run on it live:",
     );
     expect(examples?.placeholder).toBe("Pick an example realtor website…");
-    expect(examples?.visitorName).toBe("John Doe");
+    // 2026-11-22: was "John Doe" — the plausible fake name is what
+    // a presenter greeted a real visitor with in a sample session.
+    // Sample links carry a generic placeholder now.
+    expect(examples?.visitorName).toBe("Visitor");
     expect(examples?.groups.map((group) => group.area)).toEqual([
       "Broward County, FL",
       "Miami-Dade County, FL",

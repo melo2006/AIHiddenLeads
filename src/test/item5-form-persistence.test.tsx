@@ -204,7 +204,14 @@ describe('item 5 form fix — source pins', () => {
   });
 
   it('both mic loops hold for an open card, read from the pending-action ref', () => {
-    expect(conversationSource.split('confirmationHold: pendingActionRef.current !== null').length - 1).toBe(2);
+    // 2026-11-22 (capture/consent fix, item 1): the hold now runs
+    // through cardBlocksMic — appointment/demo-start cards still
+    // mute the visitor, but follow-up/copy cards no longer do,
+    // because the visitor's SPOKEN agreement is what completes
+    // them (the old blanket hold is why a verbal "go ahead"
+    // reached nobody while the form was up).
+    expect(conversationSource.split('confirmationHold: cardBlocksMic(pendingActionRef.current)').length - 1).toBe(2);
+    expect(conversationSource).toContain('const cardBlocksMic = (action: VoiceAction | null): boolean => !!action && !cardCompletesVerbally(action.action);');
   });
 
   it('the proxy normalizes the pending contact before the card is created', () => {
