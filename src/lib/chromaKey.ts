@@ -34,8 +34,23 @@ export const CHROMA_HIGH = 0.22;
  * absorbed by the soft backdrop painted behind the keyed canvas
  * (SimliAvatar's .simli-keyed-backdrop, light theme only). A halved
  * erosion stays for her baked-in halo.
+ *
+ * AUDIT ADDENDUM (2026-11-22, the all-avatar audit): Sara's profile
+ * never received Monica's black-band treatment — it overrides only
+ * the chroma band, so her dark detail still keyed on the SHARED
+ * black band. Measured on 22 RAW frames captured from her live
+ * doorway segment (Cool Air USA demo): 5,990 subject pixels under
+ * alpha 0.5 (0.110%) — 5,946 black-band + 44 encoder-crushed — in
+ * her bun, hairline and brows, plus 33,370 subject pixels (0.613%)
+ * under 0.98. The same two defects as Monica, in the same order.
+ * Her profile therefore gains the same remedy, keeping her chroma
+ * band untouched: blackLow/blackHigh 0.002–0.012 and the radius-2
+ * dark-core fill → sub-0.5 AND sub-0.98 subject pixels both 0
+ * across the 22 frames. Safe for her stream: no letterbox padding
+ * (frame edges 0% near-black), chroma factor still gates the fill,
+ * true black still keys fully transparent.
  */
-export const SARA_CHROMA_KEY_PROFILE = { low: 0.14, high: 0.24 } as const;
+export const SARA_CHROMA_KEY_PROFILE = { low: 0.14, high: 0.24, blackLow: 0.002, blackHigh: 0.012, darkFillRadius: 2 } as const;
 /**
  * Monica-scoped key profile (2026-11-22 — Ron's Aurelia Perez phone
  * screenshots: the page showing THROUGH streaks of Monica's hair
@@ -91,17 +106,72 @@ export const SARA_CHROMA_KEY_PROFILE = { low: 0.14, high: 0.24 } as const;
  * key fully transparent.
  */
 export const MONICA_CHROMA_KEY_PROFILE = { low: CHROMA_LOW, high: CHROMA_HIGH, blackLow: 0.002, blackHigh: 0.012, darkFillRadius: 2 } as const;
+/**
+ * Denise-scoped key profile ('black-professional-lady', 2026-11-22 —
+ * the all-avatar audit Ron ordered after Monica's fix; her Ann
+ * Chamberlain demo frames are the worst of the roster). Forensics on
+ * 12 RAW live frames under the SHARED defaults: 159,465 subject
+ * pixels under alpha 0.5 — 4.39% of her subject, against Monica's
+ * 1.71% pre-fix. The leak map is her hair exactly: the long dark
+ * masses beside her face. Cause split: 125,311 black-band pixels
+ * (her shadowed hair reads max-channel 3–6/255, inside the shared
+ * 0.01–0.04 band) + 34,154 encoder-crushed pixels (≤1/255). The
+ * narrowed band alone (Monica's values) clears the band half and
+ * leaves every crushed pixel; her crushed pockets are far WIDER
+ * than Monica's — her hair masses are larger and darker — so the
+ * dark-core fill needs a wider ring: measured radius sweep under
+ * the narrowed band, sub-0.5 subject pixels across the 12 frames —
+ * radius 2: 6,156 · 6: 243 · 8: 98 (0.0027%), with subject pixels
+ * under alpha 0.98 at 830 (0.023%). Radius 8 it is; the shader cost
+ * is the same 8 taps at any radius. Safe for her stream by the same
+ * evidence as Monica: her frames carry NO letterbox padding (frame
+ * edges 0% near-black; the backdrop fills edge-to-edge), the chroma
+ * factor still gates every pixel so her backdrop keys to 0 exactly,
+ * and true black still keys fully transparent.
+ */
+export const DENISE_CHROMA_KEY_PROFILE = { low: CHROMA_LOW, high: CHROMA_HIGH, blackLow: 0.002, blackHigh: 0.012, darkFillRadius: 8 } as const;
+/**
+ * Diego-scoped key profile (2026-11-22, same audit; Mauricio Barba
+ * demo frames). 12 RAW frames under the shared defaults: 2,998
+ * subject pixels under alpha 0.5 (0.086%) — 2,995 black-band (his
+ * dark hair and jaw shadow at max-channel 4–6/255) + 3 crushed.
+ * The narrowed band alone leaves the 3 crushed pixels; adding the
+ * radius-2 dark-core fill (Monica's exact values) takes him to
+ * zero — sub-0.5 AND sub-0.98 subject pixels both 0 across the 12
+ * frames. No letterbox padding in his stream (edges 0% near-black).
+ */
+export const DIEGO_CHROMA_KEY_PROFILE = { low: CHROMA_LOW, high: CHROMA_HIGH, blackLow: 0.002, blackHigh: 0.012, darkFillRadius: 2 } as const;
+/**
+ * James-scoped key profile (2026-11-22, same audit; Jean-Luc
+ * Andriot demo frames). 12 RAW frames under the shared defaults:
+ * 330 subject pixels under alpha 0.5 (0.0096%), ALL of them
+ * black-band — a hairline sliver at max-channel 5–6/255 — and ZERO
+ * encoder-crushed pixels, so the narrowed band alone is the whole
+ * remedy (→ 0 sub-0.5; one subject pixel under 0.98 in 3.43M). No
+ * dark-core fill: the audit proves no crushed cores for him, and
+ * unproven machinery stays off. No letterbox padding in his
+ * stream (edges 0% near-black).
+ */
+export const JAMES_CHROMA_KEY_PROFILE = { low: CHROMA_LOW, high: CHROMA_HIGH, blackLow: 0.002, blackHigh: 0.012 } as const;
 /** Optional per-call key thresholds (CbCr distance band + near-black padding band).
- *  `darkFillRadius` (texels, Monica only) turns on the dark-core fill:
+ *  `darkFillRadius` (texels; Monica 2, Denise 8, Sara 2) turns on the dark-core fill:
  *  the black factor then reads the ring-neighbourhood max channel —
  *  see the round-2 note on MONICA_CHROMA_KEY_PROFILE. */
 export interface ChromaKeyProfile { low: number; high: number; blackLow?: number; blackHigh?: number; darkFillRadius?: number; }
-/** The per-persona key profile: Sara and Monica ('latina') carry their
- *  own measured profiles (see above); every other persona — Aspen
- *  included — keys with the shared defaults (undefined). */
+/** The per-persona key profile: Sara, Monica ('latina'), Denise
+ *  ('black-professional-lady'), Diego and James carry their own
+ *  measured profiles (see above); every other persona — Aspen and
+ *  Frank included — keys with the shared defaults (undefined). The
+ *  2026-11-22 all-avatar audit measured Frank at zero leak and
+ *  Aspen's blonde hair entirely clear of the black band (her only
+ *  sub-0.5 pixels are a sub-visible neck-shadow sliver and earring
+ *  specks, 0.06% — not the hair defect), so neither is touched. */
 export function chromaKeyProfileForPersona(persona?: string): ChromaKeyProfile | undefined {
   if (persona === 'sara') return SARA_CHROMA_KEY_PROFILE;
   if (persona === 'latina') return MONICA_CHROMA_KEY_PROFILE;
+  if (persona === 'black-professional-lady') return DENISE_CHROMA_KEY_PROFILE;
+  if (persona === 'diego') return DIEGO_CHROMA_KEY_PROFILE;
+  if (persona === 'james') return JAMES_CHROMA_KEY_PROFILE;
   return undefined;
 }
 /** Simli may pad the frame with pure black outside the backdrop; treat near-black padding as transparent too.
@@ -138,7 +208,7 @@ const RING_OFFSETS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1]
 
 /** Alpha for the pixel at (x, y) of an RGBA buffer under a profile,
  *  mirroring the shader exactly. With the profile's `darkFillRadius`
- *  (Monica), the black factor reads the brightest channel over the
+ *  (Monica, Denise, Sara), the black factor reads the brightest channel over the
  *  ring neighbourhood at that radius (clamp-to-edge, like the
  *  shader's CLAMP_TO_EDGE sampling) instead of the pixel's own —
  *  the dark-core fill documented on MONICA_CHROMA_KEY_PROFILE.
@@ -176,7 +246,7 @@ const fragSource = (low: number, high: number, blackLow: number = BLACK_LOW, bla
 vec2 cc(vec3 c){return vec2(-0.168736*c.r-0.331264*c.g+0.5*c.b,0.5*c.r-0.418688*c.g-0.081312*c.b);}
 void main(){vec4 c=texture2D(t,uv);float d=distance(cc(c.rgb),cc(vec3(0.,1.,0.)));float a=smoothstep(${low.toFixed(3)},${high.toFixed(3)},d);float mx=max(c.r,max(c.g,c.b));a*=smoothstep(${blackLow.toFixed(3)},${blackHigh.toFixed(3)},mx);
 c.g=min(c.g,max(c.r,c.b));gl_FragColor=vec4(c.rgb*a,a);}`;
-  // Dark-core fill variant (Monica): the black factor reads the ring
+  // Dark-core fill variant (Monica, Denise, Sara): the black factor reads the ring
   // neighbourhood's brightest channel (radius in texels via uTexel);
   // the chroma factor still reads the centre pixel only. Mirrors
   // chromaAlphaSpatial sample-for-sample.
