@@ -7,7 +7,7 @@ import { SimliClient, LogLevel } from "simli-client";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { pcm24kTo16k, type VideoAvatar } from "../../supabase/functions/_shared/video-avatar";
-import { startChromaKey, SARA_CHROMA_KEY_PROFILE } from "@/lib/chromaKey";
+import { startChromaKey, chromaKeyProfileForPersona } from "@/lib/chromaKey";
 import { clampPlaybackVolume } from "@/lib/playbackVolume";
 import { applySinkIdToElement } from "@/lib/speakerOutput";
 import { PairedPlayout, pairedSoundAudible, type PairedPlaybackLevel } from "@/lib/pairedPlayout";
@@ -636,9 +636,10 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
           check();
         })]);
         // Cut the green backdrop out so she floats over the page like her static photo.
-        // Sara's stream keys with her own profile (pale halo/fringing on her
-        // source frames — see SARA_CHROMA_KEY_PROFILE); everyone else defaults.
-        if (chromaKey && canvasRef.current) { const stopFn = startChromaKey(videoRef.current, canvasRef.current, persona === 'sara' ? SARA_CHROMA_KEY_PROFILE : undefined); if (stopFn) { keyStopRef.current = stopFn; setKeyed(true); } }
+        // Sara and Monica ('latina') key with their own measured profiles
+        // (see SARA_/MONICA_CHROMA_KEY_PROFILE in lib/chromaKey); everyone
+        // else — Aspen included — uses the shared defaults.
+        if (chromaKey && canvasRef.current) { const stopFn = startChromaKey(videoRef.current, canvasRef.current, chromaKeyProfileForPersona(persona)); if (stopFn) { keyStopRef.current = stopFn; setKeyed(true); } }
         // Draw the first keyed frame before enabling the paired audio output.
         await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
         if (lifecycle !== lifecycleRef.current) return false;

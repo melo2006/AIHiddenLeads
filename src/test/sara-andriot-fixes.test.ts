@@ -316,8 +316,11 @@ describe('Bug 6 — Sara chroma-key profile', () => {
     expect(chromaAlpha(0.85, 0.6, 0.45, SARA_CHROMA_KEY_PROFILE.low, SARA_CHROMA_KEY_PROFILE.high)).toBe(1);
   });
 
-  it('only Sara\'s stream keys with the shifted profile', () => {
-    expect(simli).toContain("persona === 'sara' ? SARA_CHROMA_KEY_PROFILE : undefined");
+  it('persona streams key through the per-persona profile router (Sara shifted; Monica black-band-narrowed since 2026-11-22)', () => {
+    expect(simli).toContain('chromaKeyProfileForPersona(persona)');
+    const chroma = read('src/lib/chromaKey.ts');
+    expect(chroma).toContain("if (persona === 'sara') return SARA_CHROMA_KEY_PROFILE;");
+    expect(chroma).toContain("if (persona === 'latina') return MONICA_CHROMA_KEY_PROFILE;");
   });
 
   it('only Sara\'s frame paints the keyed backdrop (2026-11-21, homepage-test item 3)', () => {

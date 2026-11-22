@@ -23,7 +23,7 @@ vi.mock('@/lib/voiceSessionAuth', () => ({ voiceSessionHeaders: async () => unde
 vi.mock('@/lib/campaignTracking', () => ({ campaignVisit: () => null, trackCampaignEvent: async () => {} }));
 vi.mock('@/components/ai-elements/message', () => ({ Message: ({ children }: React.PropsWithChildren) => <div>{children}</div>, MessageContent: ({ children }: React.PropsWithChildren) => <div>{children}</div>, MessageResponse: ({ children }: React.PropsWithChildren) => <div>{children}</div> }));
 vi.mock('simli-client', () => ({ LogLevel: { ERROR: 0 }, SimliClient: class { on() {} async start() {} async stop() {} sendAudioData() {} ClearBuffer() {} } }));
-vi.mock('@/lib/chromaKey', () => ({ startChromaKey: () => () => {} }));
+vi.mock('@/lib/chromaKey', () => ({ startChromaKey: () => () => {}, chromaKeyProfileForPersona: () => undefined }));
 vi.mock('@/components/SimliAvatar', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/components/SimliAvatar')>();
   const MockAvatar = forwardRef<SimliAvatarHandle, Record<string, unknown>>(function MockAvatar(_, ref) {

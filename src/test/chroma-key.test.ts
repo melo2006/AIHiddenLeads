@@ -16,7 +16,43 @@ describe("live face background cut-out", () => {
   });
 });
 
-import { opaqueBounds, centeringShift, SARA_CHROMA_KEY_PROFILE } from '@/lib/chromaKey';
+import { opaqueBounds, centeringShift, SARA_CHROMA_KEY_PROFILE, MONICA_CHROMA_KEY_PROFILE, chromaKeyProfileForPersona } from '@/lib/chromaKey';
+
+describe("Monica's dark hair is subject, not padding (2026-11-22 see-through hair fix)", () => {
+  const M = MONICA_CHROMA_KEY_PROFILE;
+  const alphaM = (r: number, g: number, b: number) => chromaAlpha(r, g, b, M.low, M.high, M.blackLow, M.blackHigh);
+  it("keys her encoded key-green backdrop fully transparent (the asset is not the problem)", () => {
+    // Her live backdrop measures (0, 0.847, 0) after encoding — CbCr
+    // distance 0.082 from pure green, far below the key band.
+    expect(alphaM(0, 0.847, 0)).toBe(0);
+  });
+  it("keeps her measured dark-hair pixels opaque — they leaked under the shared band", () => {
+    // Pixel values sampled from Monica's RAW live frames (2026-11-22),
+    // in the hair masses beside her cheeks.
+    expect(alphaM(0.020, 0.012, 0.008)).toBe(1); // her median leaked hair pixel
+    expect(alphaM(0.016, 0.004, 0.000)).toBeGreaterThan(0.9);
+    expect(alphaM(0.027, 0.016, 0.012)).toBe(1);
+    // The defect, for the record: the shared padding band ate them.
+    expect(chromaAlpha(0.020, 0.012, 0.008)).toBeLessThan(0.3);
+    expect(chromaAlpha(0.016, 0.004, 0.000)).toBeLessThan(0.15);
+  });
+  it("still keys true black fully transparent under her profile (her stream has no padding, but black is black)", () => {
+    expect(alphaM(0, 0, 0)).toBe(0);
+    expect(alphaM(0.002, 0.002, 0.002)).toBe(0);
+    expect(alphaM(0.004, 0.004, 0.004)).toBeLessThan(0.15);
+  });
+  it("composites her dark hair over a white page as hair, not a bright streak", () => {
+    const a = alphaM(0.020, 0.012, 0.008);
+    expect(Math.max(0.020 * a + (1 - a), 0.012 * a + (1 - a), 0.008 * a + (1 - a))).toBeLessThan(0.3);
+  });
+  it("routes only sara and latina to per-persona profiles; Aspen keeps the shared defaults", () => {
+    expect(chromaKeyProfileForPersona('latina')).toBe(MONICA_CHROMA_KEY_PROFILE);
+    expect(chromaKeyProfileForPersona('sara')).toBe(SARA_CHROMA_KEY_PROFILE);
+    expect(chromaKeyProfileForPersona('aspen')).toBeUndefined();
+    expect(chromaKeyProfileForPersona('frank')).toBeUndefined();
+    expect(chromaKeyProfileForPersona(undefined)).toBeUndefined();
+  });
+});
 
 /** Composite one keyed pixel over a white page, exactly as the browser
  *  does with the shader's premultiplied output (despill applied first). */
