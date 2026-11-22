@@ -44,7 +44,7 @@ export const FILMS: Film[] = [
     runtime: "1:57",
     blurb:
       "Three pool companies never answered. The fourth had Aspen — and booked him on the spot.",
-    youtubeId: "fHr843l4C_A",
+    youtubeId: "XQnYtHZ1TFQ",
     poster: "/videos/testimonials/frank-pool.jpg",
   },
   {
@@ -66,7 +66,7 @@ export const FILMS: Film[] = [
     runtime: "1:51",
     blurb:
       "The calls Dave's marina used to miss after hours now get answered, booked, and summarized.",
-    youtubeId: "jXHLFQ0fgiE",
+    youtubeId: "wiXKEIXqjUM",
     poster: "/videos/testimonials/dave-marine.jpg",
   },
   {
