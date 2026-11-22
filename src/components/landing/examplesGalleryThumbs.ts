@@ -35,11 +35,20 @@
  * business's stored site capture at the true anchored position:
  * evo-air, septic-doctor, jj-dental (same-session frames),
  * michael-martinez, richard-steinberg desktop, spodak-dental
- * mobile. Parked (no stored backdrop and/or no usable panel
- * capture on disk; cards keep their previous still or stay
- * unlisted): it-yall, lan-infotech, john-the-plumber,
- * levine-family-law, meltzer-bell, ak-building-services desktop,
- * danielle-lazier, richard-steinberg mobile, septic-doctor mobile,
+ * mobile.
+ *
+ * 2026-11-21 panel re-shoot, third batch: the parked B2B stills
+ * were finished WITHOUT visiting any live business site — real
+ * in-session panel blocks from the slugs' own Nov-21 session
+ * frames composited over the businesses' stored demo captures
+ * (pulled from the demo-capture store) at the true anchored
+ * position: it-yall, lan-infotech, john-the-plumber,
+ * levine-family-law, meltzer-bell (desktop + mobile),
+ * ak-building-services (desktop) and septic-doctor (mobile).
+ * B2B stills are now complete (36/36 desktop + mobile). Still
+ * parked (no clean keyable current-design panel frame exists in
+ * any stored capture; cards keep their previous still):
+ * danielle-lazier (desktop + mobile), richard-steinberg mobile,
  * and the James-presenter mobile stills (logan-walter,
  * gian-sexsmith, jean-luc-andriot).
  */
@@ -86,6 +95,7 @@ import thumbRichardSteinbergMobile from "@/assets/realtor-example-richard-steinb
 import thumbRichardSteinberg from "@/assets/realtor-example-richard-steinberg.webp";
 
 import thumbA2zMarine from "@/assets/b2b-example-a2z-marine.webp";
+import thumbAkBuildingServices from "@/assets/b2b-example-ak-building-services.webp";
 import thumbAmairaMedspa from "@/assets/b2b-example-amaira-medspa.webp";
 import thumbAncoPrecision from "@/assets/b2b-example-anco-precision.webp";
 import thumbAstManufacturing from "@/assets/b2b-example-ast-manufacturing.webp";
@@ -95,10 +105,15 @@ import thumbCableMarine from "@/assets/b2b-example-cable-marine.webp";
 import thumbCentralBrowardVet from "@/assets/b2b-example-central-broward-vet.webp";
 import thumbChiangwellMedical from "@/assets/b2b-example-chiangwell-medical.webp";
 import thumbEvoAir from "@/assets/b2b-example-evo-air.webp";
+import thumbItYall from "@/assets/b2b-example-it-yall.webp";
 import thumbJjDental from "@/assets/b2b-example-jj-dental.webp";
 import thumbJohnOrthodontics from "@/assets/b2b-example-john-orthodontics.webp";
+import thumbJohnThePlumber from "@/assets/b2b-example-john-the-plumber.webp";
+import thumbLanInfotech from "@/assets/b2b-example-lan-infotech.webp";
+import thumbLevineFamilyLaw from "@/assets/b2b-example-levine-family-law.webp";
 import thumbMadalonLaw from "@/assets/b2b-example-madalon-law.webp";
 import thumbMamasBoyAir from "@/assets/b2b-example-mamas-boy-air.webp";
+import thumbMeltzerBell from "@/assets/b2b-example-meltzer-bell.webp";
 import thumbMjmManufacturing from "@/assets/b2b-example-mjm-manufacturing.webp";
 import thumbPrestigeAuto from "@/assets/b2b-example-prestige-auto.webp";
 import thumbPrestigeLandscape from "@/assets/b2b-example-prestige-landscape.webp";
@@ -119,16 +134,22 @@ import thumbCableMarineMobile from "@/assets/b2b-example-cable-marine-mobile.web
 import thumbCentralBrowardVetMobile from "@/assets/b2b-example-central-broward-vet-mobile.webp";
 import thumbChiangwellMedicalMobile from "@/assets/b2b-example-chiangwell-medical-mobile.webp";
 import thumbEvoAirMobile from "@/assets/b2b-example-evo-air-mobile.webp";
+import thumbItYallMobile from "@/assets/b2b-example-it-yall-mobile.webp";
 import thumbJjDentalMobile from "@/assets/b2b-example-jj-dental-mobile.webp";
 import thumbJohnOrthodonticsMobile from "@/assets/b2b-example-john-orthodontics-mobile.webp";
+import thumbJohnThePlumberMobile from "@/assets/b2b-example-john-the-plumber-mobile.webp";
+import thumbLanInfotechMobile from "@/assets/b2b-example-lan-infotech-mobile.webp";
+import thumbLevineFamilyLawMobile from "@/assets/b2b-example-levine-family-law-mobile.webp";
 import thumbMadalonLawMobile from "@/assets/b2b-example-madalon-law-mobile.webp";
 import thumbMamasBoyAirMobile from "@/assets/b2b-example-mamas-boy-air-mobile.webp";
+import thumbMeltzerBellMobile from "@/assets/b2b-example-meltzer-bell-mobile.webp";
 import thumbMjmManufacturingMobile from "@/assets/b2b-example-mjm-manufacturing-mobile.webp";
 import thumbNationalBrickPaversMobile from "@/assets/b2b-example-national-brick-pavers-mobile.webp";
 import thumbPrestigeAutoMobile from "@/assets/b2b-example-prestige-auto-mobile.webp";
 import thumbPrestigeLandscapeMobile from "@/assets/b2b-example-prestige-landscape-mobile.webp";
 import thumbRobsonIndustrialMobile from "@/assets/b2b-example-robson-industrial-mobile.webp";
 import thumbRoyalElectricalSupplyMobile from "@/assets/b2b-example-royal-electrical-supply-mobile.webp";
+import thumbSepticDoctorMobile from "@/assets/b2b-example-septic-doctor-mobile.webp";
 import thumbToleElectricMobile from "@/assets/b2b-example-tole-electric-mobile.webp";
 import thumbTropicSupplyMobile from "@/assets/b2b-example-tropic-supply-mobile.webp";
 import thumbWestwayTowingMobile from "@/assets/b2b-example-westway-towing-mobile.webp";
@@ -156,6 +177,7 @@ export const EXAMPLE_THUMBS: Record<string, string> = {
   "ray-miramontes": thumbRayMiramontes,
   "richard-steinberg": thumbRichardSteinberg,
   "a2z-marine": thumbA2zMarine,
+  "ak-building-services": thumbAkBuildingServices,
   "amaira-medspa": thumbAmairaMedspa,
   "anco-precision": thumbAncoPrecision,
   "ast-manufacturing": thumbAstManufacturing,
@@ -165,10 +187,15 @@ export const EXAMPLE_THUMBS: Record<string, string> = {
   "central-broward-vet": thumbCentralBrowardVet,
   "chiangwell-medical": thumbChiangwellMedical,
   "evo-air": thumbEvoAir,
+  "it-yall": thumbItYall,
   "jj-dental": thumbJjDental,
   "john-orthodontics": thumbJohnOrthodontics,
+  "john-the-plumber": thumbJohnThePlumber,
+  "lan-infotech": thumbLanInfotech,
+  "levine-family-law": thumbLevineFamilyLaw,
   "madalon-law": thumbMadalonLaw,
   "mamas-boy-air": thumbMamasBoyAir,
+  "meltzer-bell": thumbMeltzerBell,
   "mjm-manufacturing": thumbMjmManufacturing,
   "prestige-auto": thumbPrestigeAuto,
   "prestige-landscape": thumbPrestigeLandscape,
@@ -211,16 +238,22 @@ export const EXAMPLE_THUMBS_MOBILE: Record<string, string> = {
   "central-broward-vet": thumbCentralBrowardVetMobile,
   "chiangwell-medical": thumbChiangwellMedicalMobile,
   "evo-air": thumbEvoAirMobile,
+  "it-yall": thumbItYallMobile,
   "jj-dental": thumbJjDentalMobile,
   "john-orthodontics": thumbJohnOrthodonticsMobile,
+  "john-the-plumber": thumbJohnThePlumberMobile,
+  "lan-infotech": thumbLanInfotechMobile,
+  "levine-family-law": thumbLevineFamilyLawMobile,
   "madalon-law": thumbMadalonLawMobile,
   "mamas-boy-air": thumbMamasBoyAirMobile,
+  "meltzer-bell": thumbMeltzerBellMobile,
   "mjm-manufacturing": thumbMjmManufacturingMobile,
   "national-brick-pavers": thumbNationalBrickPaversMobile,
   "prestige-auto": thumbPrestigeAutoMobile,
   "prestige-landscape": thumbPrestigeLandscapeMobile,
   "robson-industrial": thumbRobsonIndustrialMobile,
   "royal-electrical-supply": thumbRoyalElectricalSupplyMobile,
+  "septic-doctor": thumbSepticDoctorMobile,
   "tole-electric": thumbToleElectricMobile,
   "tropic-supply": thumbTropicSupplyMobile,
   "westway-towing": thumbWestwayTowingMobile,
