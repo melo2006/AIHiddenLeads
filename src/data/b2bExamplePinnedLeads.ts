@@ -69,6 +69,8 @@ export const B2B_EXAMPLE_PINNED_LEADS: B2BExamplePinnedLead[] = [
   { slug: "amaira-medspa", business: "Amaira Med Spa & Surgical", domain: "amairamedspa.com", url: "https://amairamedspa.com/", leadId: "b0f7801e-9c36-4ff6-9ccb-1177ba2842bb", presenter: "Sara" },
   { slug: "central-broward-vet", business: "Central Broward Animal Hospital", domain: "centralbrowardvet.com", url: "https://centralbrowardvet.com/", leadId: "e7ae9865-237e-498c-b81f-bf6a1d04d221", presenter: "Brown-haired preset lady" },
   { slug: "chiangwell-medical", business: "ChiangWell Medical", domain: "chiangwellmedical.com", url: "https://www.chiangwellmedical.com/", leadId: "3e88cdcb-9365-444c-9b7d-5462b9dfe714", presenter: "Alex" },
+  { slug: "solaris-financial", business: "Solaris Financial Group", domain: "solarisfg.com", url: "https://solarisfg.com/", leadId: "7a5b3e10-ef87-4c8a-a8d1-67f9e4e38d32", presenter: "Andy" },
+  { slug: "freedom-insurance", business: "Freedom Insurance Financial", domain: "freedominsurancefinancial.com", url: "https://freedominsurancefinancial.com/", leadId: "9e9da794-daca-4a9e-ab12-98447b8d8e67", presenter: "Alex" },
 ];
 
 const hostOf = (raw: string): string | null => {

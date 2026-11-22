@@ -73,6 +73,20 @@
  * Andriot (the phone demos fall back to them — Walter's
  * stored mobile capture is a bot-check page, so his phone
  * card uses the desktop capture like the others).
+ *
+ * 2026-11-22, sixth batch — TWO NEW EXAMPLES (gallery 50 → 52):
+ * solaris-financial (Solaris Financial Group, mortgage broker,
+ * Winter Haven FL) and freedom-insurance (Freedom Insurance
+ * Financial, insurance broker, Kissimmee FL), added because the
+ * intro film names both verticals. Shot the same way as the
+ * fifth batch: fresh in-session panel blocks (Aspen, captions
+ * off) under the no-live-business-site guard, composited over
+ * the leads' stored site captures at the true anchored
+ * position. Backdrops: the stored desktop captures for both
+ * desktop cards and for Solaris's phone card (no stored mobile
+ * capture — the phone demo falls back to it); Freedom's phone
+ * card also uses its stored desktop capture because its stored
+ * mobile capture rendered almost entirely white.
  */
 
 import thumbSpodakDentalMobile from "@/assets/b2b-example-spodak-dental-mobile.webp";
@@ -127,6 +141,7 @@ import thumbCableMarine from "@/assets/b2b-example-cable-marine.webp";
 import thumbCentralBrowardVet from "@/assets/b2b-example-central-broward-vet.webp";
 import thumbChiangwellMedical from "@/assets/b2b-example-chiangwell-medical.webp";
 import thumbEvoAir from "@/assets/b2b-example-evo-air.webp";
+import thumbFreedomInsurance from "@/assets/b2b-example-freedom-insurance.webp";
 import thumbItYall from "@/assets/b2b-example-it-yall.webp";
 import thumbJjDental from "@/assets/b2b-example-jj-dental.webp";
 import thumbJohnOrthodontics from "@/assets/b2b-example-john-orthodontics.webp";
@@ -142,6 +157,7 @@ import thumbPrestigeLandscape from "@/assets/b2b-example-prestige-landscape.webp
 import thumbRobsonIndustrial from "@/assets/b2b-example-robson-industrial.webp";
 import thumbRoyalElectricalSupply from "@/assets/b2b-example-royal-electrical-supply.webp";
 import thumbSepticDoctor from "@/assets/b2b-example-septic-doctor.webp";
+import thumbSolarisFinancial from "@/assets/b2b-example-solaris-financial.webp";
 import thumbToleElectric from "@/assets/b2b-example-tole-electric.webp";
 import thumbTropicSupply from "@/assets/b2b-example-tropic-supply.webp";
 import thumbWestwayTowing from "@/assets/b2b-example-westway-towing.webp";
@@ -156,6 +172,7 @@ import thumbCableMarineMobile from "@/assets/b2b-example-cable-marine-mobile.web
 import thumbCentralBrowardVetMobile from "@/assets/b2b-example-central-broward-vet-mobile.webp";
 import thumbChiangwellMedicalMobile from "@/assets/b2b-example-chiangwell-medical-mobile.webp";
 import thumbEvoAirMobile from "@/assets/b2b-example-evo-air-mobile.webp";
+import thumbFreedomInsuranceMobile from "@/assets/b2b-example-freedom-insurance-mobile.webp";
 import thumbItYallMobile from "@/assets/b2b-example-it-yall-mobile.webp";
 import thumbJjDentalMobile from "@/assets/b2b-example-jj-dental-mobile.webp";
 import thumbJohnOrthodonticsMobile from "@/assets/b2b-example-john-orthodontics-mobile.webp";
@@ -172,6 +189,7 @@ import thumbPrestigeLandscapeMobile from "@/assets/b2b-example-prestige-landscap
 import thumbRobsonIndustrialMobile from "@/assets/b2b-example-robson-industrial-mobile.webp";
 import thumbRoyalElectricalSupplyMobile from "@/assets/b2b-example-royal-electrical-supply-mobile.webp";
 import thumbSepticDoctorMobile from "@/assets/b2b-example-septic-doctor-mobile.webp";
+import thumbSolarisFinancialMobile from "@/assets/b2b-example-solaris-financial-mobile.webp";
 import thumbToleElectricMobile from "@/assets/b2b-example-tole-electric-mobile.webp";
 import thumbTropicSupplyMobile from "@/assets/b2b-example-tropic-supply-mobile.webp";
 import thumbWestwayTowingMobile from "@/assets/b2b-example-westway-towing-mobile.webp";
@@ -209,6 +227,7 @@ export const EXAMPLE_THUMBS: Record<string, string> = {
   "central-broward-vet": thumbCentralBrowardVet,
   "chiangwell-medical": thumbChiangwellMedical,
   "evo-air": thumbEvoAir,
+  "freedom-insurance": thumbFreedomInsurance,
   "it-yall": thumbItYall,
   "jj-dental": thumbJjDental,
   "john-orthodontics": thumbJohnOrthodontics,
@@ -224,6 +243,7 @@ export const EXAMPLE_THUMBS: Record<string, string> = {
   "robson-industrial": thumbRobsonIndustrial,
   "royal-electrical-supply": thumbRoyalElectricalSupply,
   "septic-doctor": thumbSepticDoctor,
+  "solaris-financial": thumbSolarisFinancial,
   "tole-electric": thumbToleElectric,
   "tropic-supply": thumbTropicSupply,
   "westway-towing": thumbWestwayTowing,
@@ -260,6 +280,7 @@ export const EXAMPLE_THUMBS_MOBILE: Record<string, string> = {
   "central-broward-vet": thumbCentralBrowardVetMobile,
   "chiangwell-medical": thumbChiangwellMedicalMobile,
   "evo-air": thumbEvoAirMobile,
+  "freedom-insurance": thumbFreedomInsuranceMobile,
   "it-yall": thumbItYallMobile,
   "jj-dental": thumbJjDentalMobile,
   "john-orthodontics": thumbJohnOrthodonticsMobile,
@@ -276,6 +297,7 @@ export const EXAMPLE_THUMBS_MOBILE: Record<string, string> = {
   "robson-industrial": thumbRobsonIndustrialMobile,
   "royal-electrical-supply": thumbRoyalElectricalSupplyMobile,
   "septic-doctor": thumbSepticDoctorMobile,
+  "solaris-financial": thumbSolarisFinancialMobile,
   "tole-electric": thumbToleElectricMobile,
   "tropic-supply": thumbTropicSupplyMobile,
   "westway-towing": thumbWestwayTowingMobile,
