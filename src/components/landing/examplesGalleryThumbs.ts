@@ -51,15 +51,28 @@
  * mobile is finished — a real panel block from his fresh Nov-22
  * in-session frame (Frank speaking, captions off) composited
  * over his stored site capture, with the current-design demo
- * header taken from that same frame. Still parked (cards keep
- * their previous still): danielle-lazier (desktop + mobile),
- * logan-walter mobile, gian-sexsmith mobile and
- * jean-luc-andriot mobile. Fresh Nov-22 sessions for those four
- * leads were run under Ron's no-live-business-site rule, and
- * each lead's /demo-site page tries to load the business's live
- * homepage in its replica frame (the request was blocked
- * in-browser; nothing was fetched and no approval was raised),
- * so no still was taken from those sessions.
+ * header taken from that same frame.
+ *
+ * 2026-11-22 panel re-shoot, fifth batch: the parked list is
+ * now EMPTY. danielle-lazier (desktop + mobile), logan-walter
+ * mobile, gian-sexsmith mobile and jean-luc-andriot mobile are
+ * finished the same way — real panel blocks from fresh Nov-22
+ * in-session frames (Monica for Lazier, James for the other
+ * three; captions off) composited over the businesses' stored
+ * site captures at the true anchored position, with the
+ * current-design demo header taken from each lead's own frame.
+ * The sessions ran under the no-live-business-site guard: each
+ * lead's /demo-site replica request to the business's own
+ * domain was aborted in-browser before anything was fetched
+ * (one document request per lead; nothing was downloaded and
+ * no approval was raised), so the panels were captured over
+ * the demo's blank replica and composited onto the stored
+ * captures. Backdrops: Lazier's stored desktop capture for
+ * desktop and her stored mobile capture for the phone card;
+ * the stored desktop captures for Walter, Sexsmith and
+ * Andriot (the phone demos fall back to them — Walter's
+ * stored mobile capture is a bot-check page, so his phone
+ * card uses the desktop capture like the others).
  */
 
 import thumbSpodakDentalMobile from "@/assets/b2b-example-spodak-dental-mobile.webp";
