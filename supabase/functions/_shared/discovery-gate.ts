@@ -221,11 +221,53 @@
 //     so the ask is not in the script at all; with no seeded
 //     name the composed prompt is byte-identical to before.
 
+// PUBLISH #87 (2026-11-22) — Ron's Aurelia Perez test calls
+// (records 27c58682 + 7dae3a37): the #78–#82 ledger covered the
+// name, the purpose, the budget and the greeting — and the live
+// failures moved to everything it did NOT track:
+//  1. THE ENTRY RE-RAN MID-CONVERSATION: inside one unbroken
+//     487s session, minutes into substantive discovery, the
+//     presenter executed the whole simulation entry again — name
+//     ask, announcement, framing, in-role greeting. (The session
+//     had opened as a resume — the mint's recap synthesis, fixed
+//     in gemini-session the same day — so the entry had never run
+//     at the start and sat latent in the prompt until a fragment
+//     turn broke the model's thread.) The gate now treats an
+//     entry signal on an entered session — or a first entry
+//     signal arriving LATE, after criteria are banked — as a
+//     re-run and corrects it; a step-out announcement re-arms the
+//     one legitimate re-entry.
+//  2. QUALIFICATION AMNESIA: areas, property type, beds/baths and
+//     the view were re-asked after being answered — areas three
+//     times. The ledger now banks every discovery dimension (a
+//     stated answer, or a substantive answer to that dimension's
+//     own question — a wave-off banks as answered-open, per the
+//     discovery layer), and a question about a banked dimension
+//     earns the settled-fact correction naming the caller's own
+//     answer.
+//  3. THE NO-MATCH LOOP: "I don't have a match" three times, the
+//     send-the-list close and the capture never fired. A no-match
+//     that lands with the core criteria complete — or repeated
+//     with NO new criterion banked since the last one — owes the
+//     close: the gate debt arms with the no-match flag and the
+//     order is the close order (recap + gate question, then the
+//     promise, then the one capture ask), so the loop terminates
+//     mechanically instead of by the model's goodwill.
+//  4. THE SECOND TRANSFER DEMAND: answered twice with the same
+//     honesty line (and a mutating target). The gate counts the
+//     visitor's transfer demands; the second one converts to the
+//     callback-capture fallback order, naming the pack's agent —
+//     the target the proxy supplies — as the consistent target.
+
 import { sanitizeVisitorName } from './voice-config.ts';
 import { turnSignalsSimulationEntry } from './capture-gate.ts';
 
-/** Total discovery-gate directives one session will inject. */
-export const DISCOVERY_GATE_MAX_FIRES = 6;
+/** Total discovery-gate directives one session will inject.
+ * (Publish #87: raised from 6 — the extended ledger's families
+ * (entry re-run, settled facts, no-match close, transfer
+ * fallback) each carry their own small caps, and a session that
+ * needs several of them must not starve the later ones.) */
+export const DISCOVERY_GATE_MAX_FIRES = 12;
 
 /** Gate-violation corrections one push episode will inject
  * (Publish #82): the violation has its own budget so a violating
@@ -373,6 +415,105 @@ export function detectStatedView(text: string): boolean {
 export function detectTypeOrFeature(text: string): boolean {
   if (!text) return false;
   return /\b(single-family|townhouse|townhome|condo|house|duplex|bedroom|beds?|baths?|garage|waterfront|ocean view|golf view|pool|yard|acre|beach)\b/i.test(text);
+}
+
+// ---------------------------------------------------------------------------
+// Publish #87 detectors — the rest of the discovery ledger (2026-11-22)
+// ---------------------------------------------------------------------------
+
+// Words that can follow a place preposition at the start of a
+// captured phrase without being a place: pronouns, articles and
+// the conversational nouns that ride "in/for/to" in ordinary
+// speech ("in a hurry", "for myself", "in touch"). A missed area
+// costs one un-corrected re-ask; a banked non-place ("In Hurry")
+// would poison the recap summary — the list errs broad.
+const AREA_NON_PLACES: ReadonlySet<string> = new Set([
+  'a', 'an', 'the', 'my', 'your', 'his', 'her', 'our', 'their', 'this', 'that', 'it',
+  'there', 'here', 'touch', 'general', 'particular', 'hurry', 'rush', 'doubt', 'mind',
+  'line', 'charge', 'control', 'trouble', 'luck', 'fact', 'case', 'point', 'way',
+  'front', 'back', 'touch', 'touch', 'sales', 'cash', 'full', 'half', 'about',
+  'myself', 'yourself', 'ourselves', 'us', 'me', 'you', 'him', 'them', 'need',
+  'search', 'area', 'areas', 'market', 'touch',
+]);
+
+const AREA_PATTERN = /\b(?:in|around|near|for|to)\s+([A-Z][a-zA-Z'’-]+(?:\s+(?:[A-Z][a-zA-Z'’-]+|Beach|Isles|Park|Ridge|Grove|Manors|Point|Hills|Gardens|Lakes|Shores|Bay|Creek|Harbor|Harbour|Island|Islands)){0,2})/g;
+
+/**
+ * The areas the visitor named in this utterance, in their own
+ * words ("anything in Fort Lauderdale" → ["Fort Lauderdale"]).
+ * Conservative by construction: a place must be CAPITALIZED and
+ * follow a place preposition — the shapes a caller uses when
+ * naming where they want to live. Sentence fragments, lowercase
+ * speech and pronoun-led phrases bank nothing.
+ */
+export function detectStatedAreas(text: string): string[] {
+  if (!text) return [];
+  const out: string[] = [];
+  for (const m of text.matchAll(AREA_PATTERN)) {
+    const phrase = (m[1] || '').trim();
+    if (!phrase) continue;
+    const first = phrase.split(/\s+/)[0].toLowerCase();
+    if (AREA_NON_PLACES.has(first)) continue;
+    if (!out.some((a) => a.toLowerCase() === phrase.toLowerCase())) out.push(phrase);
+  }
+  return out;
+}
+
+/**
+ * The property-type answer in this utterance, as a short label,
+ * or '' — a named type ("a condo", "single-family"), or the
+ * answered-open shapes the discovery layer banks as settled ("any
+ * type", "either works", "doesn't matter"). A generic "home" is
+ * NOT a type answer.
+ */
+export function detectStatedType(text: string): string {
+  if (!text) return '';
+  const t = text.toLowerCase();
+  if (/\b(any type|either type|any of (them|those)|all of (them|those)|doesn'?t matter|don'?t mind|i'?m flexible|flexible on (the )?type|open to (any|all|either))\b/.test(t)) return 'any type (open)';
+  const m = t.match(/\b(single[- ]family(?: home)?|townhouse|townhome|condo|duplex|house)\b/);
+  return m ? m[1] : '';
+}
+
+/** Beds and/or baths stated in this utterance — a counted bed or
+ * bath ("two bedroom", "2 baths"), or the pair named together. */
+export function detectStatedBedsBaths(text: string): boolean {
+  if (!text) return false;
+  return /\b(\d+|one|two|three|four|five|six)\s*(?:bed|bedroom|bath|bathroom)/i.test(text)
+    || /\bbeds?\s*(?:and|&)\s*baths?\b/i.test(text);
+}
+
+const BEDS_BATHS_SPAN = /(?:\d+|one|two|three|four|five|six)\s*(?:bed|bedroom|bath|bathroom)/gi;
+
+/** The caller's beds/baths as their own span — first counted
+ * shape through the last ("two bedroom, two baths") — or ''. */
+export function detectStatedBedsBathsLabel(text: string): string {
+  if (!text) return '';
+  const matches = [...text.matchAll(BEDS_BATHS_SPAN)];
+  if (!matches.length) return '';
+  const first = matches[0];
+  const last = matches[matches.length - 1];
+  const start = first.index ?? 0;
+  const end = (last.index ?? 0) + last[0].length;
+  return text.slice(start, end).trim();
+}
+
+/** The specific view phrase the visitor stated ("water view"),
+ * or '' — the phrase half of detectStatedView. */
+export function detectStatedViewPhrase(text: string): string {
+  if (!text) return '';
+  const m = text.match(/(waterfront|ocean view|water view|golf view|lake view|canal view|river view|bay view|intracoastal)/i);
+  return m ? m[0] : '';
+}
+
+/**
+ * An explicit transfer demand in the visitor's own words — transfer
+ * me, speak/talk to a human / manager / owner / agent / director,
+ * a real person. Anchored shapes only: "talk to me about…" and
+ * other conversational uses bank nothing.
+ */
+export function detectTransferDemand(text: string): boolean {
+  if (!text) return false;
+  return /\b(transfer me|transfer to|put me through|speak to (a |an |the )?(human|person|manager|owner|agent|director|someone|somebody|representative)|talk to (a |an |the )?(human|person|manager|owner|agent|director|someone|somebody|representative)|get me (a |an |the )?(human|person|manager|owner|agent|director|someone|somebody)|real person|actual person|human being|the sales director|a sales director)\b/i.test(text);
 }
 
 // Number expressions that carry SCALE — a bare count ("three
@@ -597,6 +738,29 @@ export function turnAsksPurposeQuestion(text: string): boolean {
 }
 
 /**
+ * Does this model turn ask the PURPOSE CHOICE itself — the
+ * live-in / flip / rent-out question (Publish #87)? Narrower than
+ * turnAsksPurposeQuestion: the buy-or-sell OPENER is a different
+ * question (it sorts the road), and re-asking IT after the road
+ * is chosen is judged by the conversation, not this detector —
+ * the settled-fact correction for purpose keys on the choice.
+ */
+export function turnAsksPurposeChoice(text: string): boolean {
+  if (!text) return false;
+  const t = text.toLowerCase();
+  // Question shapes only — an alternative must be offered. The bare
+  // phrase "a home to live in" is NOT a question: the model's own
+  // acknowledgment ("Got it, a home to live in.") echoes it, and an
+  // echo of the answer just given must never read as a re-ask
+  // (false positive caught by the Publish #78 replay suite).
+  return /\blive in\b[^.?!]{0,60}\b(flip|rent|invest)/.test(t)
+    || /\b(plan|planning) to live in\b[^.?!]{0,60}\binvestment\b/.test(t)
+    || /\blive in it, or is it an investment\b/.test(t)
+    || /home to live in[^.?!]{0,30}\bor\b/.test(t)
+    || /what (the|is your) (home|house|property) is for/.test(t);
+}
+
+/**
  * Does this model turn ASK for capture — the step-2 beat's shapes
  * (Publish #82)? The channel choice ("would you prefer an email
  * or a mobile number for the link?", "via email or text
@@ -619,6 +783,66 @@ export function turnAsksForCapture(text: string): boolean {
     || /\bwhat('s| is) (the best|your|a good)\b[^.?!]{0,50}\b(e-?mail|phone|mobile|number)\b/i.test(t)
     || /\b(e-?mail|mobile|phone|text)\b[^.?!]{0,40}\bor\b[^.?!]{0,30}\b(e-?mail|mobile|phone|text)\b/i.test(t)
     || /\bprefer\b[^.?!]{0,60}\b(e-?mail|mobile|phone|text)\b/i.test(t);
+}
+
+// ---------------------------------------------------------------------------
+// Publish #87 model-turn detectors (2026-11-22): the discovery
+// questions, the no-match answer, the transfer beats and the
+// step-out — the observe half of the extended ledger.
+// ---------------------------------------------------------------------------
+
+/** This model turn asks the AREAS question (Q2's shapes). */
+export function turnAsksAreas(text: string): boolean {
+  if (!text) return false;
+  return /(which|what) areas|areas are you drawn to|(which|what) neighborhoods|areas (do|are) you (looking|drawn|interested)/i.test(text);
+}
+
+/** This model turn asks the PROPERTY TYPE question (Q3's choice). */
+export function turnAsksType(text: string): boolean {
+  if (!text) return false;
+  return /single[- ]family[^.?!]{0,40}townhouse|townhouse[^.?!]{0,40}condo|what (type|kind) of (home|house|property|place)|a condo, a house, or|condo or (a )?house/i.test(text);
+}
+
+/** This model turn asks the BEDS/BATHS question (Q3's rider). */
+export function turnAsksBedsBaths(text: string): boolean {
+  if (!text) return false;
+  return /how many bedrooms|how many beds|how many baths|bedrooms and baths make it work|how many bedrooms and baths/i.test(text);
+}
+
+/** This model turn asks the VIEW / SETTING question (Q4's shapes,
+ * including the water-vs-golf lean). */
+export function turnAsksView(text: string): boolean {
+  if (!text) return false;
+  return /waterfront, an ocean view|is the setting flexible|(what|which) (view|setting) are you|lean (more )?toward[^.?!]{0,70}(water|golf)|closer to the ocean or more inland/i.test(text);
+}
+
+/** This model turn delivers a NO-MATCH answer about the caller's
+ * criteria (the simulation script's plain no-match shapes). */
+export function turnIsNoMatchAnswer(text: string): boolean {
+  if (!text) return false;
+  return /don'?t have a match|do not have a match|no (current )?match for|nothing (in|on) (the|our) (current )?listings? (fits|matches)|not among [^.!?]{0,40}current listings/i.test(text);
+}
+
+/** This model turn delivers the transfer HONESTY line (the demo
+ * cannot complete the transfer) — the line that may be said once. */
+export function turnDeliversTransferHonesty(text: string): boolean {
+  if (!text) return false;
+  return /cannot complete the transfer|can'?t complete the transfer|i (cannot|can'?t) (complete|do) (the|a|that) transfer/i.test(text);
+}
+
+/** This model turn itself offers the CALLBACK capture — name and
+ * number so the agent can call back: the transfer fallback,
+ * delivered by the model without needing the gate's order. */
+export function turnOffersCallbackCapture(text: string): boolean {
+  if (!text) return false;
+  return /call you back/i.test(text) && /(your name|best number|phone number|mobile number|reach you)/i.test(text);
+}
+
+/** This model turn announces the STEP-OUT of the simulation — the
+ * one beat after which a fresh simulation entry is legitimate. */
+export function turnStepsOutOfSimulation(text: string): boolean {
+  if (!text) return false;
+  return /stepping out of simulation mode|step out of simulation mode|stepping out of the simulation/i.test(text);
 }
 
 // ---------------------------------------------------------------------------
@@ -720,6 +944,69 @@ export interface DiscoveryGateState {
   recapCorrectionFires: number;
   /** Total directives injected this session. */
   fires: number;
+  // ---- Publish #87 (2026-11-22): the extended ledger ----------
+  /** The areas the caller named, in their own words (accumulate,
+   * never shrink — the discovery layer's running-list rule). */
+  areasBanked: string[];
+  /** The caller answered the areas question substantively (a
+   * wave-off included — answered-open, per the layer) even when
+   * no place name was detected in the answer. */
+  areasAnswered: boolean;
+  /** The property-type answer as a short label ('' = unbanked):
+   * a named type, or 'any type (open)' for the waved-off shapes. */
+  typeBanked: string;
+  /** Beds and/or baths stated (or answered to the question). */
+  bedsBathsBanked: boolean;
+  /** The previous model turn asked the areas question — the
+   * position in which a substantive reply is that dimension's
+   * answer (the name rule's bare-reply pattern, generalized). */
+  prevTurnAskedAreas: boolean;
+  prevTurnAskedType: boolean;
+  prevTurnAskedBedsBaths: boolean;
+  prevTurnAskedView: boolean;
+  /** Dimensions whose settled-fact correction has fired (one
+   * per dimension: 'areas' | 'type' | 'beds-baths' | 'view' |
+   * 'purpose'). */
+  reaskCorrected: string[];
+  /** The dimension + evidence of the settled-fact correction
+   * chosen at the most recent boundary — the proxy reads them to
+   * build that boundary's directive text. */
+  lastReaskDimension: string;
+  lastReaskEvidence: string;
+  /** The caller answered the view question substantively (a
+   * "flexible" included — answered-open) without stating a
+   * specific view: the question is settled even though
+   * viewBanked (a SPECIFIC view, for the recap judgment) is not. */
+  viewAnswered: boolean;
+  /** Beds/baths as the caller's own span ("two bedroom, two
+   * baths") when a counted shape stated them — the settled-fact
+   * correction quotes it. */
+  bedsBathsLabel: string;
+  /** Model turns completed this session (the entry's lateness
+   * is judged against it). */
+  modelTurns: number;
+  /** A step-out announcement has been observed since the entry:
+   * the one state in which a new simulation entry is legitimate. */
+  steppedOut: boolean;
+  /** Entry re-run corrections injected (cap 2). */
+  entryRerunFires: number;
+  /** No-match answers delivered this session. */
+  noMatchCount: number;
+  /** The banked-criteria signature at the last no-match — a
+   * repeat with the SAME signature banked nothing new: a loop. */
+  noMatchSignature: string;
+  /** The outstanding gate debt was armed by a no-match (its
+   * order is the close order, not the skip order). */
+  noMatchClose: boolean;
+  /** Transfer demands the visitor has made this session. */
+  transferDemands: number;
+  /** Transfer honesty lines delivered this session. */
+  transferHonestyCount: number;
+  /** Transfer-fallback orders injected (cap 2). */
+  transferFallbackFires: number;
+  /** The callback-capture fallback has been delivered (by the
+   * model itself or under the gate's order). */
+  transferFallbackDone: boolean;
 }
 
 export const freshDiscoveryGateState = (): DiscoveryGateState => ({
@@ -751,6 +1038,29 @@ export const freshDiscoveryGateState = (): DiscoveryGateState => ({
   recapInsertedView: false,
   recapCorrectionFires: 0,
   fires: 0,
+  areasBanked: [],
+  areasAnswered: false,
+  typeBanked: '',
+  bedsBathsBanked: false,
+  prevTurnAskedAreas: false,
+  prevTurnAskedType: false,
+  prevTurnAskedBedsBaths: false,
+  prevTurnAskedView: false,
+  reaskCorrected: [],
+  lastReaskDimension: '',
+  lastReaskEvidence: '',
+  viewAnswered: false,
+  bedsBathsLabel: '',
+  modelTurns: 0,
+  steppedOut: false,
+  entryRerunFires: 0,
+  noMatchCount: 0,
+  noMatchSignature: '',
+  noMatchClose: false,
+  transferDemands: 0,
+  transferHonestyCount: 0,
+  transferFallbackFires: 0,
+  transferFallbackDone: false,
 });
 
 /**
@@ -802,6 +1112,22 @@ export function armDiscoveryGate(
       if (budget) out = { ...out, budgetBanked: budget };
     }
     if (!out.contentBanked && detectTypeOrFeature(utterance)) out = { ...out, contentBanked: true };
+    // Publish #87: the extended ledger arms from the recap too —
+    // a fact banked in the parent session is never re-asked for
+    // by the successor.
+    const areas = detectStatedAreas(utterance);
+    if (areas.length) {
+      const merged = [...out.areasBanked];
+      for (const a of areas) if (!merged.some((x) => x.toLowerCase() === a.toLowerCase())) merged.push(a);
+      out = { ...out, areasBanked: merged.slice(0, 5), areasAnswered: true };
+    }
+    if (!out.typeBanked) {
+      const type = detectStatedType(utterance);
+      if (type) out = { ...out, typeBanked: type };
+    }
+    if (!out.bedsBathsBanked && detectStatedBedsBaths(utterance)) {
+      out = { ...out, bedsBathsBanked: true, bedsBathsLabel: detectStatedBedsBathsLabel(utterance) || out.bedsBathsLabel };
+    }
   }
   return out;
 }
@@ -816,7 +1142,17 @@ export function bankedSummary(state: DiscoveryGateState): string {
   const parts: string[] = [];
   if (state.purposeBanked) parts.push('their purpose');
   if (state.budgetBanked) parts.push(`their stated budget — ${state.budgetBanked} — exactly as stated`);
-  if (state.contentBanked) parts.push('the areas, property type and details they gave');
+  // Publish #87: the extended ledger names its dimensions
+  // specifically; the generic content part remains only for a
+  // session whose content banked without a specific dimension.
+  if (state.areasBanked.length) parts.push(`their areas — ${state.areasBanked.join(', ')}`);
+  else if (state.areasAnswered) parts.push('their area answer');
+  if (state.typeBanked) parts.push(`their property type — ${state.typeBanked}`);
+  if (state.bedsBathsBanked) parts.push('their beds and baths');
+  if (state.viewBanked || state.viewAnswered) parts.push('their view / setting');
+  if (state.contentBanked && !state.areasBanked.length && !state.typeBanked && !state.bedsBathsBanked && !state.viewBanked && !state.viewAnswered) {
+    parts.push('the areas, property type and details they gave');
+  }
   return parts.join('; ');
 }
 
@@ -965,6 +1301,55 @@ export function greetingOnceDirective(): string {
   return `You have already greeted this caller in role once in this session — the turn that just completed greeted them again. The greeting happens ONCE: never greet again in this session — no new time-of-day greeting, no fresh "thank you for calling". Continue from what the caller last said: answer it and carry the conversation forward.`;
 }
 
+/**
+ * The entry re-run correction (Publish #87, defect 1): a model
+ * turn signaled the simulation entry on a session that already
+ * entered — or entered LATE, after discovery was underway (the
+ * displaced-entry case: the session opened as a resume, the
+ * entry never ran at the start, and a fragment turn shook it
+ * loose mid-conversation). The entry is once-per-visit; the
+ * correction names the settled state so the model resumes the
+ * conversation it is actually in.
+ */
+export function entryRerunDirective(state: DiscoveryGateState): string {
+  const banked = bankedSummary(state);
+  return `STOP — your last turn re-ran the simulation entry: the name ask, the "stepping into simulation mode" announcement, the framing, the in-role greeting. The entry runs ONCE, at the start of the visit — this conversation is already underway, and everything in it stands${banked ? `: ${banked}` : ''}. Never re-run any part of the entry again in this visit. Apologize ONCE, briefly, for the repetition, then pick the conversation up from the caller's last substantive answer and continue helping them — do not restart any question sequence and do not ask for anything they have already given you.`;
+}
+
+/**
+ * The settled-fact correction (Publish #87, defect 4): the model
+ * asked about a dimension the ledger holds as answered. Names
+ * the dimension and the caller's own answer — the correction is
+ * the memory the model dropped.
+ */
+export function settledReaskDirective(dimensionLabel: string, evidence: string): string {
+  return `STOP — you just asked about ${dimensionLabel} again, but the caller already answered it: ${evidence}. A settled fact is never re-asked — asking again tells the caller you were not listening. Do not ask it in another form and do not apologize at length. Continue from their answer: ask the next thing they have NOT answered yet — or, if their criteria are complete, run the close: recap everything banked, end with "Did I capture that all correctly?", and on their yes make the promise and the one capture ask.`;
+}
+
+/**
+ * The no-match close order (Publish #87, defect 6): a no-match
+ * landed with the core criteria complete — or repeated with
+ * nothing new banked since the last one. The designed value path
+ * replaces the loop: recap + gate, the promise (the agent pulls
+ * and SENDS the list), and the one capture ask that makes the
+ * send possible.
+ */
+export function noMatchCloseDirective(state: DiscoveryGateState): string {
+  return `STOP — that search came back with no match, and the caller's criteria on your ledger are: ${bankedSummary(state)}. The qualification loop ENDS here: do not deliver another no-match, and do not ask any discovery question that is already answered. Run the CLOSE now, in this order: (1) recap their criteria in one breath — everything banked, anything never covered named as still open — and end with exactly: "Did I capture that all correctly?" and WAIT for their answer; (2) on their yes, make the promise: the agent will pull the broader-market matches and SEND them the list in their channel; (3) if you do not already hold their contact details, make the ONE capture ask — their name, and an email or mobile number — so the list can actually reach them, and run the verbal capture confirmation on whatever they dictate. The list is the deliverable: never swap the promise for a callback, and never let a no-match be the last word on the search.`;
+}
+
+/**
+ * The transfer-fallback order (Publish #87, defect 7): the
+ * caller has demanded a transfer a SECOND time and the honesty
+ * line has already been given once. The demand converts to the
+ * callback capture, and the target is named — the pack's agent,
+ * supplied by the proxy — so it can never mutate between asks.
+ */
+export function transferFallbackDirective(agentName: string): string {
+  const target = agentName || 'the agent';
+  return `STOP — the caller has now demanded a transfer for the SECOND time in this conversation, and the transfer honesty line has already been given once. Do NOT repeat it, do not recap, and do not say goodbye. Convert to the fallback NOW: apologize once, briefly, and offer the callback — "Let me take your name and the best number to reach you, and ${target} will call you back" — then take their name and number, and run the verbal capture confirmation on the number. The transfer target is ${target} — the same name on every transfer beat of this conversation, never a different title or person.`;
+}
+
 // ---------------------------------------------------------------------------
 // The turn-boundary decision
 // ---------------------------------------------------------------------------
@@ -973,6 +1358,10 @@ export type DiscoveryGateInjection =
   | 'short-gate'
   | 'short-gate-purpose'
   | 'short-gate-violation'
+  | 'no-match-close'
+  | 'entry-rerun'
+  | 'transfer-fallback'
+  | 'settled-reask'
   | 'name-known'
   | 'name-known-preempt'
   | 'name-release'
@@ -1027,6 +1416,40 @@ export function discoveryGateTurnDecision(input: {
     if (!state.contentBanked && detectTypeOrFeature(visitorUtterance)) {
       state = { ...state, contentBanked: true };
     }
+    // Publish #87 — the extended ledger folds: areas (named
+    // places accumulate, never shrink), property type, beds/
+    // baths — plus the ANSWERED-AFTER-ASK rule: a substantive
+    // reply to a dimension's own question banks that dimension
+    // even when no detector shape matches the reply (a wave-off
+    // banks as answered-open, per the discovery layer). A reply
+    // that is itself a question, or a transfer demand, banks
+    // nothing — it changed the subject, it did not answer.
+    const areas = detectStatedAreas(visitorUtterance);
+    if (areas.length) {
+      const merged = [...state.areasBanked];
+      for (const a of areas) if (!merged.some((x) => x.toLowerCase() === a.toLowerCase())) merged.push(a);
+      state = { ...state, areasBanked: merged.slice(0, 5), areasAnswered: true };
+    }
+    if (!state.typeBanked) {
+      const type = detectStatedType(visitorUtterance);
+      if (type) state = { ...state, typeBanked: type };
+    }
+    if (!state.bedsBathsBanked && detectStatedBedsBaths(visitorUtterance)) {
+      state = { ...state, bedsBathsBanked: true, bedsBathsLabel: detectStatedBedsBathsLabel(visitorUtterance) || state.bedsBathsLabel };
+    }
+    const replyWords = visitorUtterance.replace(/[^A-Za-z'’\s-]/g, ' ').split(/\s+/).filter(Boolean);
+    const substantiveReply = replyWords.length >= 2
+      && !detectTransferDemand(visitorUtterance)
+      && !(visitorUtterance.includes('?') && replyWords.length >= 4);
+    if (substantiveReply) {
+      if (state.prevTurnAskedAreas && !state.areasAnswered) state = { ...state, areasAnswered: true };
+      if (state.prevTurnAskedType && !state.typeBanked) state = { ...state, typeBanked: 'their stated choice' };
+      if (state.prevTurnAskedBedsBaths && !state.bedsBathsBanked) state = { ...state, bedsBathsBanked: true };
+      if (state.prevTurnAskedView && !state.viewAnswered) state = { ...state, viewAnswered: true };
+    }
+    if (detectTransferDemand(visitorUtterance)) {
+      state = { ...state, transferDemands: state.transferDemands + 1 };
+    }
     if (detectPushToSkip(visitorUtterance) || detectRecapAsk(visitorUtterance)) {
       // A push makes the gate owed — and a REPEATED push renews
       // the order even while the gate is still owed from the
@@ -1034,7 +1457,7 @@ export function discoveryGateTurnDecision(input: {
       // first push bought has already been spent unanswered.
       // Publish #82: the violation budget and the carry ledger
       // are per-episode too — a fresh push renews them all.
-      state = { ...state, gateOwed: true, gateOrderFires: 0, gateOrderCarried: false, gateOrderCarryTurns: 0, gateViolationFires: 0, shortGateRepeat: false };
+      state = { ...state, gateOwed: true, gateOrderFires: 0, gateOrderCarried: false, gateOrderCarryTurns: 0, gateViolationFires: 0, shortGateRepeat: false, noMatchClose: false };
     }
   }
 
@@ -1046,8 +1469,17 @@ export function discoveryGateTurnDecision(input: {
   }
   const greeted = turnIsInRoleGreeting(modelTurnText);
   if (greeted) state = { ...state, inRoleGreetings: state.inRoleGreetings + 1 };
-  if (!state.simulationEntered && turnSignalsSimulationEntry(modelTurnText)) {
-    state = { ...state, simulationEntered: true };
+  // Publish #87: the entry's state BEFORE this turn — the re-run
+  // judgment compares the turn's entry signal against it. A
+  // step-out announcement closes the simulation (a later entry
+  // is the legitimate return); an entry signal (re-)opens it.
+  const entrySignal = turnSignalsSimulationEntry(modelTurnText);
+  const wasEntered = state.simulationEntered;
+  state = { ...state, modelTurns: state.modelTurns + 1 };
+  if (turnStepsOutOfSimulation(modelTurnText)) {
+    state = { ...state, steppedOut: true, simulationEntered: false };
+  } else if (entrySignal) {
+    state = { ...state, simulationEntered: true, steppedOut: false };
   }
   const gateRan = turnAsksGateQuestion(modelTurnText);
   if (gateRan) {
@@ -1081,6 +1513,7 @@ export function discoveryGateTurnDecision(input: {
         recapMissing: [],
         recapInsertedView: false,
         recapCorrectionFires: 0,
+        noMatchClose: false,
       };
     } else {
       state = {
@@ -1100,11 +1533,93 @@ export function discoveryGateTurnDecision(input: {
   const captureAsk = turnAsksForCapture(modelTurnText);
   state = { ...state, prevTurnAskedName: askedName };
 
+  // Publish #87 — observe the extended ledger's model half: the
+  // discovery questions this turn asked (the next boundary's
+  // fold banks a substantive reply as that dimension's answer),
+  // the no-match answer (its close trigger), and the transfer
+  // beats (the honesty line's count, the fallback delivered).
+  const askedAreas = turnAsksAreas(modelTurnText);
+  const askedType = turnAsksType(modelTurnText);
+  const askedBedsBaths = turnAsksBedsBaths(modelTurnText);
+  const askedView = turnAsksView(modelTurnText);
+  const askedPurposeChoice = turnAsksPurposeChoice(modelTurnText);
+  state = {
+    ...state,
+    prevTurnAskedAreas: askedAreas,
+    prevTurnAskedType: askedType,
+    prevTurnAskedBedsBaths: askedBedsBaths,
+    prevTurnAskedView: askedView,
+  };
+  const bankedSignature = [
+    state.purposeBanked ? 'p' : '', state.budgetBanked ? 'b' : '',
+    state.areasBanked.length || state.areasAnswered ? 'a' : '', state.typeBanked ? 't' : '',
+    state.bedsBathsBanked ? 's' : '', state.viewBanked || state.viewAnswered ? 'v' : '',
+  ].join('|');
+  if (turnIsNoMatchAnswer(modelTurnText)) {
+    // THE NO-MATCH CLOSE TRIGGER: the core criteria complete
+    // (purpose + budget + area + type — the discovery layer's
+    // core four) means the search that just failed WAS the
+    // caller's search, fully specified: the close is owed. Or
+    // the same no-match repeated with NOTHING new banked since
+    // the last one — a loop, whatever is still open (the close
+    // then runs in its short form: banked recap, open named
+    // open). Either arms the gate debt with the no-match flag;
+    // the gate family below fires the close order.
+    const coreComplete = state.purposeBanked && state.budgetBanked !== ''
+      && (state.areasBanked.length > 0 || state.areasAnswered) && state.typeBanked !== '';
+    const repeatLoop = state.noMatchCount >= 1 && state.noMatchSignature === bankedSignature;
+    state = { ...state, noMatchCount: state.noMatchCount + 1, noMatchSignature: bankedSignature };
+    if ((coreComplete || repeatLoop) && !state.gateAsked) {
+      state = {
+        ...state,
+        gateOwed: true, noMatchClose: true,
+        gateOrderFires: 0, gateOrderCarried: false, gateOrderCarryTurns: 0,
+        gateViolationFires: 0, shortGateRepeat: false,
+      };
+    }
+  }
+  if (turnDeliversTransferHonesty(modelTurnText)) {
+    state = { ...state, transferHonestyCount: state.transferHonestyCount + 1 };
+  }
+  if (state.transferDemands >= 1 && turnOffersCallbackCapture(modelTurnText)) {
+    state = { ...state, transferFallbackDone: true };
+  }
+
   if (blocked) return { state, inject: null };
   if (state.fires >= DISCOVERY_GATE_MAX_FIRES) return { state, inject: null };
 
   const anythingBanked = state.purposeBanked || state.budgetBanked !== '' || state.contentBanked;
 
+  // 0. THE ENTRY RUNS ONCE (Publish #87, defect 1): an entry
+  //    signal on an already-entered session is a re-run; so is a
+  //    FIRST entry signal arriving late — several turns in, with
+  //    criteria already banked (the displaced entry: the session
+  //    opened as a resume, the entry never ran at the start, and
+  //    a fragment turn shook it loose mid-conversation). A
+  //    step-out re-arms the one legitimate re-entry, and the
+  //    scripted entry (turns 1–2, nothing banked) never matches.
+  const lateEntry = entrySignal && !wasEntered && !state.steppedOut && state.modelTurns >= 3
+    && (state.purposeBanked || state.budgetBanked !== '' || state.contentBanked || state.areasBanked.length > 0);
+  const reEntry = entrySignal && wasEntered && !state.steppedOut;
+  if ((lateEntry || reEntry) && state.entryRerunFires < 2) {
+    return {
+      state: { ...state, entryRerunFires: state.entryRerunFires + 1, fires: state.fires + 1 },
+      inject: 'entry-rerun',
+    };
+  }
+  // 0b. THE SECOND TRANSFER DEMAND CONVERTS TO THE FALLBACK
+  //     (Publish #87, defect 7): the demand is counted from the
+  //     visitor's own words; the honesty line may be given once,
+  //     and a second demand is never answered with it again. The
+  //     order persists (cap 2) until the model's own turn offers
+  //     the callback capture, which the observe step records as
+  //     the fallback delivered.
+  if (state.transferDemands >= 2 && !state.transferFallbackDone && state.transferFallbackFires < 2) {
+    return {
+      state: { ...state, transferFallbackFires: state.transferFallbackFires + 1, fires: state.fires + 1 },
+      inject: 'transfer-fallback',
+    };
+  }
   // 1. THE GATE FAMILY — while the gate is owed and has not
   //    validly run, its orders persist until observably complied
   //    with (Publish #80: the one-shot #78 order is what stranded
@@ -1190,7 +1705,7 @@ export function discoveryGateTurnDecision(input: {
           shortGateRepeat: repeat,
           fires: state.fires + 1,
         },
-        inject: anythingBanked ? 'short-gate' : 'short-gate-purpose',
+        inject: anythingBanked ? (state.noMatchClose ? 'no-match-close' : 'short-gate') : 'short-gate-purpose',
       };
     }
   }
@@ -1214,6 +1729,43 @@ export function discoveryGateTurnDecision(input: {
     return {
       state: { ...state, nameHeldAnnounced: true, fires: state.fires + 1 },
       inject: 'name-known-preempt',
+    };
+  }
+  // 2c. A SETTLED FACT IS NEVER RE-ASKED (Publish #87, defect
+  //     4): the model asked about a dimension the ledger holds
+  //     as answered — areas, property type, beds/baths, view or
+  //     the purpose choice. One correction per dimension, naming
+  //     the caller's own answer as the evidence.
+  const reask = !state.reaskCorrected.includes('areas') && askedAreas && (state.areasBanked.length > 0 || state.areasAnswered)
+    ? {
+      dimension: 'areas', label: 'the areas they are looking in',
+      evidence: state.areasBanked.length ? `they named ${state.areasBanked.join(' and ')} — already on the running list` : 'they already answered the areas question — the answer stands',
+    }
+    : !state.reaskCorrected.includes('type') && askedType && state.typeBanked !== ''
+      ? { dimension: 'type', label: 'the property type', evidence: `their answer stands — ${state.typeBanked}` }
+      : !state.reaskCorrected.includes('beds-baths') && askedBedsBaths && state.bedsBathsBanked
+        ? {
+          dimension: 'beds-baths', label: 'the bedrooms and baths',
+          evidence: state.bedsBathsLabel ? `they said ${state.bedsBathsLabel}` : 'they already gave their beds and baths',
+        }
+        : !state.reaskCorrected.includes('view') && askedView && (state.viewBanked || state.viewAnswered)
+          ? {
+            dimension: 'view', label: 'the view / setting',
+            evidence: state.viewBanked ? 'they already stated the view they want' : 'they already answered the view question — the answer stands',
+          }
+          : !state.reaskCorrected.includes('purpose') && askedPurposeChoice && state.purposeBanked
+            ? { dimension: 'purpose', label: 'what the home is for', evidence: 'they already told you what the home is for' }
+            : null;
+  if (reask) {
+    return {
+      state: {
+        ...state,
+        reaskCorrected: [...state.reaskCorrected, reask.dimension],
+        lastReaskDimension: reask.label,
+        lastReaskEvidence: reask.evidence,
+        fires: state.fires + 1,
+      },
+      inject: 'settled-reask',
     };
   }
   // 3. THE NAME LOOP RELEASE — asked standalone for the second time

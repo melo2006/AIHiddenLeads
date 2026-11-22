@@ -411,7 +411,7 @@ export function personaSegmentPrompt(
       // — the demo-parent hygiene pattern) into config.segmentGreeting,
       // and the proxy's doorway swap opening serves that rendered line
       // as her scripted first utterance, verbatim, before anything else.
-      greeting: `{timeGreeting}, {businessName} — I'm ${binding.displayName}, thanks for calling. How can I help you?`,
+      greeting: `{timeGreeting} — I'm ${binding.displayName}, thanks for calling {businessName}. How can I help you?`,
     };
   }
   if (persona === 'alex') {

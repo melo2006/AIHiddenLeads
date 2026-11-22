@@ -833,6 +833,24 @@ Deno.serve(async req=>{
     } catch { /* captured recovery is best-effort, like the synthesis */ }
   }
 
+  // SAMPLE LAUNCHES START CLEAN (2026-11-22 — Ron's Aurelia Perez
+  // test, call 2): a one-click gallery/sample launch is a FRESH
+  // visit, but the synthesis above (and the client's own visit
+  // memory) handed it the PREVIOUS call's recap whenever the two
+  // landed within 30 minutes on the same lead — so the fresh
+  // session opened with the proxy's resume instruction ("Hey,
+  // you're back! …continue where we left off?"), the simulation
+  // entry never ran at the start, and the framing/disclaimer only
+  // surfaced minutes later when the displaced entry re-ran
+  // mid-conversation. On a sample launch that is NOT a reconnect,
+  // NO recap crosses — neither the client's nor the synthesized
+  // one: the session starts with the full opening sequence, once,
+  // at the start. A genuine reconnect (reconnect === true) keeps
+  // its recap exactly as before, and the durable captured-contact
+  // recovery above (priorCaptured) is a separate mechanism and is
+  // untouched: captured facts still carry forward.
+  if (b.sample === true && b.reconnect !== true) effectiveResumeContext = undefined;
+
   config={...config,visitorKeyHash,timeZone:effectiveTimeZone,...(uiLocale ? {uiLocale, startLanguage: startingLanguageForUiLocale(uiLocale)} : detectedSiteLocale ? {uiLocale: detectedSiteLocale, startLanguage: startingLanguageForUiLocale(detectedSiteLocale), languageSource: 'detected'} : {}),quotaClass:segmentParentId?'persona_segment':b.share?'visitor':voiceQuotaClass(role?.role==='admin',b.preview),model:requestedModel || DEFAULT_LIVE_MODEL,opening:openingFor(config,greetingHour,greetingName),preview:b.preview,resumeContext:b.preview?undefined:(segmentParentId?String(config.resumeContext || ''):effectiveResumeContext),reconnect:segmentParentId?false:!b.preview&&b.reconnect,campaign:b.campaign || (segmentParentId?(config.campaign ?? null):null),recordTranscript:segmentParentId?config.recordTranscript===true:!b.preview && transcriptAllowed(false,false,b.consent),recordAudio:segmentParentId?config.recordAudio===true:!b.preview && b.consent};
   // Publish #68: the recovered captured-contact stamp lands on the
   // assembled config (kept out of the assembly line itself, which is
