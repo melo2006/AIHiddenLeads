@@ -202,6 +202,20 @@ nothing in the repo sets `VOICE_PROXY_BIND`, by design.
 Environment=VOICE_PROXY_BIND=172.16.0.1
 ```
 
+`30-frag.conf` — the fragmented provider leg (2026-11-22). **Still
+load-bearing:** without it the proxy uses Deno's built-in WebSocket for
+the Gemini leg, which sends the whole session setup as ONE frame; the
+Gemini Live endpoint silently swallows single frames above ~131–140 KB,
+so every presenter-class session (setups ~145–160 KB) hangs with no
+error. With the flag set, the proxy uses its FragmentingWsClient
+(<=16 KiB continuation frames) and presenter sessions answer in ~1–3 s.
+The journal's `provider-diag` lines show `impl":"frag"` when active.
+
+```ini
+[Service]
+Environment=VOICE_PROVIDER_WS=frag
+```
+
 ### Phase B local verification (build VM, 2026-11-11 — for the Phase C operator)
 
 Deno **2.9.8** was installed user-locally on the build VM; the staged tree
