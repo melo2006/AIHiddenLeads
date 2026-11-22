@@ -16,7 +16,7 @@ describe("live face background cut-out", () => {
   });
 });
 
-import { opaqueBounds, centeringShift, SARA_CHROMA_KEY_PROFILE, MONICA_CHROMA_KEY_PROFILE, chromaKeyProfileForPersona, chromaAlphaSpatial } from '@/lib/chromaKey';
+import { opaqueBounds, centeringShift, SARA_CHROMA_KEY_PROFILE, MONICA_CHROMA_KEY_PROFILE, DENISE_CHROMA_KEY_PROFILE, DIEGO_CHROMA_KEY_PROFILE, JAMES_CHROMA_KEY_PROFILE, chromaKeyProfileForPersona, chromaAlphaSpatial } from '@/lib/chromaKey';
 
 describe("Monica's dark hair is subject, not padding (2026-11-22 see-through hair fix)", () => {
   const M = MONICA_CHROMA_KEY_PROFILE;
@@ -45,11 +45,15 @@ describe("Monica's dark hair is subject, not padding (2026-11-22 see-through hai
     const a = alphaM(0.020, 0.012, 0.008);
     expect(Math.max(0.020 * a + (1 - a), 0.012 * a + (1 - a), 0.008 * a + (1 - a))).toBeLessThan(0.3);
   });
-  it("routes only sara and latina to per-persona profiles; Aspen keeps the shared defaults", () => {
+  it("routes the measured personas to their profiles; Aspen, Frank and Alex keep the shared defaults", () => {
     expect(chromaKeyProfileForPersona('latina')).toBe(MONICA_CHROMA_KEY_PROFILE);
     expect(chromaKeyProfileForPersona('sara')).toBe(SARA_CHROMA_KEY_PROFILE);
+    expect(chromaKeyProfileForPersona('black-professional-lady')).toBe(DENISE_CHROMA_KEY_PROFILE);
+    expect(chromaKeyProfileForPersona('diego')).toBe(DIEGO_CHROMA_KEY_PROFILE);
+    expect(chromaKeyProfileForPersona('james')).toBe(JAMES_CHROMA_KEY_PROFILE);
     expect(chromaKeyProfileForPersona('aspen')).toBeUndefined();
     expect(chromaKeyProfileForPersona('frank')).toBeUndefined();
+    expect(chromaKeyProfileForPersona('alex')).toBeUndefined();
     expect(chromaKeyProfileForPersona(undefined)).toBeUndefined();
   });
 });
@@ -126,9 +130,9 @@ describe("Monica round 2 — the dark-core fill closes the crushed-black holes (
     patchData[i] = r; patchData[i + 1] = g; patchData[i + 2] = b; patchData[i + 3] = 255;
   }));
 
-  it("only Monica's profile carries the fill; the per-pixel residue is real (40 of 121 patch pixels under 0.5)", () => {
+  it("Monica's profile carries the fill at radius 2 (Sara gained hers in the 2026-11-22 all-avatar audit); the per-pixel residue is real (40 of 121 patch pixels under 0.5)", () => {
     expect(M.darkFillRadius).toBe(2);
-    expect('darkFillRadius' in SARA_CHROMA_KEY_PROFILE).toBe(false);
+    expect(SARA_CHROMA_KEY_PROFILE.darkFillRadius).toBe(2);
     let under = 0;
     for (let y = 0; y < PH; y++) for (let x = 0; x < PW; x++) {
       const [r, g, b] = PATCH[y][x];
@@ -166,12 +170,131 @@ describe("Monica round 2 — the dark-core fill closes the crushed-black holes (
     d[c] = 0; d[c + 1] = 216; d[c + 2] = 0; // her encoded key green (0, 0.847, 0)
     expect(chromaAlphaSpatial(d, 5, 5, 2, 2, M)).toBe(0);
   });
-  it("without a fill profile the spatial alpha is exactly the per-pixel alpha (Aspen/Sara untouched)", () => {
+  it("without a fill profile the spatial alpha is exactly the per-pixel alpha (Aspen/James untouched by the fill)", () => {
     for (const [x, y] of [[0, 0], [5, 5], [3, 7], [10, 10]] as const) {
       const [r, g, b] = PATCH[y][x];
       expect(chromaAlphaSpatial(patchData, PW, PH, x, y)).toBe(chromaAlpha(r / 255, g / 255, b / 255));
-      expect(chromaAlphaSpatial(patchData, PW, PH, x, y, SARA_CHROMA_KEY_PROFILE))
-        .toBe(chromaAlpha(r / 255, g / 255, b / 255, SARA_CHROMA_KEY_PROFILE.low, SARA_CHROMA_KEY_PROFILE.high));
+      expect(chromaAlphaSpatial(patchData, PW, PH, x, y, JAMES_CHROMA_KEY_PROFILE))
+        .toBe(chromaAlpha(r / 255, g / 255, b / 255, JAMES_CHROMA_KEY_PROFILE.low, JAMES_CHROMA_KEY_PROFILE.high, JAMES_CHROMA_KEY_PROFILE.blackLow, JAMES_CHROMA_KEY_PROFILE.blackHigh));
     }
+  });
+});
+
+describe("All-avatar audit (2026-11-22) — Denise, Diego and James had the Monica defect; Frank and Aspen did not", () => {
+  const D = DENISE_CHROMA_KEY_PROFILE;
+  const DG = DIEGO_CHROMA_KEY_PROFILE;
+  const J = JAMES_CHROMA_KEY_PROFILE;
+  const alphaD = (r: number, g: number, b: number) => chromaAlpha(r, g, b, D.low, D.high, D.blackLow, D.blackHigh);
+  const alphaDG = (r: number, g: number, b: number) => chromaAlpha(r, g, b, DG.low, DG.high, DG.blackLow, DG.blackHigh);
+  const alphaJ = (r: number, g: number, b: number) => chromaAlpha(r, g, b, J.low, J.high, J.blackLow, J.blackHigh);
+
+  it("keeps Denise's measured dark-hair pixels opaque — they leaked under the shared band", () => {
+    // Pixel values sampled from Denise's RAW live frames (Ann
+    // Chamberlain demo, 2026-11-22), in the hair masses beside her face.
+    expect(alphaD(6 / 255, 6 / 255, 4 / 255)).toBe(1);
+    expect(alphaD(5 / 255, 5 / 255, 3 / 255)).toBe(1);
+    // The defect, for the record: the shared band ate them.
+    expect(chromaAlpha(6 / 255, 6 / 255, 4 / 255)).toBeLessThan(0.5);
+    expect(chromaAlpha(5 / 255, 5 / 255, 3 / 255)).toBeLessThan(0.5);
+  });
+  it("Denise's crushed core is the fill's job: per-pixel it stays dark even under her narrowed band", () => {
+    expect(alphaD(1 / 255, 1 / 255, 0)).toBeLessThan(0.15);
+    expect(D.darkFillRadius).toBe(8);
+  });
+  it("keys Denise's encoded key-green backdrop fully transparent and true black too", () => {
+    expect(alphaD(0, 0.847, 0)).toBe(0);
+    expect(alphaD(0, 0, 0)).toBe(0);
+  });
+  it("keeps Diego's measured dark-hair pixels opaque — they leaked under the shared band", () => {
+    expect(alphaDG(6 / 255, 6 / 255, 6 / 255)).toBe(1);
+    expect(alphaDG(5 / 255, 5 / 255, 5 / 255)).toBe(1);
+    expect(chromaAlpha(6 / 255, 6 / 255, 6 / 255)).toBeLessThan(0.5);
+    expect(chromaAlpha(5 / 255, 5 / 255, 5 / 255)).toBeLessThan(0.5);
+    expect(DG.darkFillRadius).toBe(2);
+    expect(alphaDG(0, 0.847, 0)).toBe(0);
+  });
+  it("keeps James's measured hairline pixels opaque with the narrowed band alone — no fill, none was proven", () => {
+    expect(alphaJ(6 / 255, 6 / 255, 4 / 255)).toBe(1);
+    expect(alphaJ(6 / 255, 6 / 255, 5 / 255)).toBe(1);
+    expect(chromaAlpha(6 / 255, 6 / 255, 4 / 255)).toBeLessThan(0.5);
+    expect('darkFillRadius' in J).toBe(false);
+    expect(alphaJ(0, 0.847, 0)).toBe(0);
+  });
+  it("Sara audit addendum: her bun/hairline pixels leaked on the shared black band her profile never overrode — now opaque, chroma band untouched", () => {
+    const S = SARA_CHROMA_KEY_PROFILE;
+    const alphaS = (r: number, g: number, b: number) => chromaAlpha(r, g, b, S.low, S.high, S.blackLow, S.blackHigh);
+    // Pixel values sampled from Sara's RAW live doorway-segment
+    // frames (Cool Air USA demo, 2026-11-22): her bun and hairline.
+    expect(alphaS(6 / 255, 5 / 255, 0)).toBe(1);
+    expect(alphaS(5 / 255, 3 / 255, 0)).toBe(1);
+    expect(alphaS(6 / 255, 4 / 255, 2 / 255)).toBe(1);
+    // Under her pre-audit profile (shared black band) they leaked.
+    expect(chromaAlpha(6 / 255, 5 / 255, 0, S.low, S.high)).toBeLessThan(0.5);
+    // Her chroma band — the halo erosion — is exactly as rebalanced in 2026-11-20.
+    expect(S.low).toBe(0.14);
+    expect(S.high).toBe(0.24);
+    expect(alphaS(0, 0.847, 0)).toBe(0);
+  });
+
+  // REAL measured pixels: a 21×21 patch from Denise's RAW live frame
+  // (Ann Chamberlain demo, 2026-11-22) centred on a crushed-black
+  // hole inside the hair mass beside her face (frame pixel 500,455).
+  // The whole patch is subject; per-pixel her narrowed band still
+  // leaves 326 of its 441 pixels under alpha 0.5.
+  const DPATCH: ReadonlyArray<ReadonlyArray<readonly [number, number, number]>> = [
+    [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [1, 1, 1], [2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2], [3, 3, 3], [2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2], [5, 5, 5], [5, 5, 5]],
+    [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [1, 1, 1], [1, 1, 1], [2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2], [3, 3, 3], [2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2], [5, 5, 5], [5, 5, 5]],
+    [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [1, 1, 1], [1, 1, 1], [2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2], [3, 3, 3], [2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2], [3, 3, 3], [2, 2, 2], [2, 2, 2]],
+    [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [1, 1, 1], [1, 1, 1], [1, 1, 1], [2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2], [1, 1, 1], [1, 1, 1]],
+    [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2], [1, 1, 1], [1, 1, 1], [1, 1, 1]],
+    [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2], [1, 1, 1], [1, 1, 1], [1, 1, 1]],
+    [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2], [1, 1, 1], [1, 1, 1], [1, 1, 1]],
+    [[1, 1, 1], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1]],
+    [[0, 0, 0], [0, 0, 0], [0, 0, 0], [1, 1, 1], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [1, 1, 1], [1, 1, 1], [1, 1, 1]],
+    [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [1, 1, 1], [1, 1, 1], [1, 1, 1]],
+    [[1, 1, 1], [1, 1, 1], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [1, 1, 1], [1, 1, 1], [1, 1, 1]],
+    [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [1, 1, 1], [1, 1, 1], [1, 1, 1]],
+    [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [2, 1, 1], [2, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [1, 1, 1], [1, 1, 1], [1, 1, 1]],
+    [[2, 1, 1], [0, 0, 0], [0, 0, 0], [0, 0, 0], [2, 1, 1], [2, 1, 1], [2, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [1, 1, 1], [1, 1, 1], [1, 1, 1]],
+    [[0, 0, 0], [0, 0, 0], [1, 1, 1], [0, 0, 0], [1, 0, 0], [3, 1, 1], [2, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [1, 1, 1], [1, 1, 1], [1, 1, 1]],
+    [[0, 0, 0], [1, 1, 1], [0, 0, 0], [0, 0, 0], [1, 0, 0], [1, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [1, 1, 1], [1, 1, 1], [1, 1, 1], [2, 2, 2], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [1, 1, 1], [1, 1, 1], [1, 1, 1]],
+    [[0, 0, 0], [1, 1, 1], [0, 0, 0], [0, 0, 0], [1, 0, 0], [1, 0, 0], [2, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [0, 0, 0], [1, 1, 1], [1, 1, 1], [2, 2, 2], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]],
+    [[2, 1, 1], [1, 1, 1], [0, 0, 0], [0, 0, 0], [1, 0, 0], [1, 0, 0], [2, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [0, 0, 0], [1, 1, 1], [1, 1, 1], [2, 2, 2], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [0, 0, 0], [0, 0, 0], [0, 0, 0]],
+    [[0, 0, 0], [1, 1, 1], [0, 0, 0], [0, 0, 0], [1, 0, 0], [0, 0, 0], [1, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [2, 1, 1], [2, 1, 1], [3, 2, 2], [3, 2, 2], [3, 2, 2], [3, 2, 2], [3, 2, 2], [1, 0, 0], [1, 0, 0], [1, 0, 0]],
+    [[1, 1, 1], [1, 1, 1], [1, 1, 1], [0, 0, 0], [0, 0, 0], [2, 0, 0], [1, 0, 0], [1, 0, 0], [3, 1, 0], [1, 0, 0], [1, 0, 0], [3, 1, 0], [4, 2, 1], [4, 2, 1], [4, 2, 1], [6, 4, 3], [7, 4, 3], [7, 4, 3], [7, 4, 3], [5, 2, 1], [5, 2, 1]],
+    [[2, 2, 2], [0, 0, 0], [0, 0, 0], [2, 1, 1], [2, 1, 1], [3, 1, 1], [3, 1, 1], [3, 1, 1], [3, 1, 0], [3, 1, 0], [3, 1, 0], [4, 2, 1], [4, 2, 1], [4, 2, 1], [4, 2, 1], [7, 4, 3], [9, 5, 4], [9, 5, 4], [11, 7, 7], [10, 6, 5], [9, 5, 4]],
+  ];
+  const DW = 21, DH = 21;
+  const dData = new Uint8ClampedArray(DW * DH * 4);
+  DPATCH.forEach((row, y) => row.forEach(([r, g, b], x) => {
+    const i = (y * DW + x) * 4;
+    dData[i] = r; dData[i + 1] = g; dData[i + 2] = b; dData[i + 3] = 255;
+  }));
+
+  it("Denise's radius-8 fill closes every hole in the measured patch (326 of 441 under 0.5 per-pixel → 0, min 0.625)", () => {
+    let underPix = 0, underSpatial = 0, minSpatial = 1;
+    for (let y = 0; y < DH; y++) for (let x = 0; x < DW; x++) {
+      const [r, g, b] = DPATCH[y][x];
+      if (alphaD(r / 255, g / 255, b / 255) < 0.5) underPix++;
+      const a = chromaAlphaSpatial(dData, DW, DH, x, y, D);
+      if (a < 0.5) underSpatial++;
+      if (a < minSpatial) minSpatial = a;
+    }
+    expect(underPix).toBe(326);
+    expect(underSpatial).toBe(0);
+    expect(minSpatial).toBeGreaterThan(0.6);
+  });
+  it("Denise's fill does not lift true black or a uniform crushed field, and her backdrop still keys to 0 inside hair", () => {
+    const black = new Uint8ClampedArray(21 * 21 * 4);
+    for (let i = 0; i < 21 * 21; i++) black[i * 4 + 3] = 255;
+    expect(chromaAlphaSpatial(black, 21, 21, 10, 10, D)).toBe(0);
+    const crushed = new Uint8ClampedArray(21 * 21 * 4);
+    for (let i = 0; i < 21 * 21; i++) { crushed[i * 4] = 1; crushed[i * 4 + 3] = 255; }
+    expect(chromaAlphaSpatial(crushed, 21, 21, 10, 10, D)).toBeLessThan(0.15);
+    const d = new Uint8ClampedArray(21 * 21 * 4);
+    for (let i = 0; i < 21 * 21; i++) { d[i * 4] = 6; d[i * 4 + 1] = 6; d[i * 4 + 2] = 4; d[i * 4 + 3] = 255; }
+    const c = (10 * 21 + 10) * 4;
+    d[c] = 0; d[c + 1] = 216; d[c + 2] = 0; // encoded key green (0, 0.847, 0)
+    expect(chromaAlphaSpatial(d, 21, 21, 10, 10, D)).toBe(0);
   });
 });
