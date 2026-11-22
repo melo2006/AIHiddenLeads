@@ -45,12 +45,21 @@
  * position: it-yall, lan-infotech, john-the-plumber,
  * levine-family-law, meltzer-bell (desktop + mobile),
  * ak-building-services (desktop) and septic-doctor (mobile).
- * B2B stills are now complete (36/36 desktop + mobile). Still
- * parked (no clean keyable current-design panel frame exists in
- * any stored capture; cards keep their previous still):
- * danielle-lazier (desktop + mobile), richard-steinberg mobile,
- * and the James-presenter mobile stills (logan-walter,
- * gian-sexsmith, jean-luc-andriot).
+ * B2B stills are now complete (36/36 desktop + mobile).
+ *
+ * 2026-11-22 panel re-shoot, fourth batch: richard-steinberg
+ * mobile is finished — a real panel block from his fresh Nov-22
+ * in-session frame (Frank speaking, captions off) composited
+ * over his stored site capture, with the current-design demo
+ * header taken from that same frame. Still parked (cards keep
+ * their previous still): danielle-lazier (desktop + mobile),
+ * logan-walter mobile, gian-sexsmith mobile and
+ * jean-luc-andriot mobile. Fresh Nov-22 sessions for those four
+ * leads were run under Ron's no-live-business-site rule, and
+ * each lead's /demo-site page tries to load the business's live
+ * homepage in its replica frame (the request was blocked
+ * in-browser; nothing was fetched and no approval was raised),
+ * so no still was taken from those sessions.
  */
 
 import thumbSpodakDentalMobile from "@/assets/b2b-example-spodak-dental-mobile.webp";
