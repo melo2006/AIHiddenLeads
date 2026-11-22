@@ -1,5 +1,7 @@
 import { DEFAULT_VIDEO_AVATAR, type VideoAvatar } from "../../../supabase/functions/_shared/video-avatar";
 import { EMPTY_SERVICE_AREA, type ServiceAreaState } from "../../../supabase/functions/_shared/service-area";
+import { NICHE_MARK, NICHE_PLAYBOOK_MARK, replaceSection } from "../../../supabase/functions/_shared/wizard-knowledge";
+import { questionnaireForIndustry, type NicheQuestionnaire } from "./nicheQuestionnaires";
 import { GEMINI_LIVE_VOICES, type AgentLanguage } from "@/lib/voiceCatalog";
 export type Faq = { q: string; a: string };
 export type Corner = "bottom-right" | "bottom-left";
@@ -41,6 +43,10 @@ export type WizardState = {
   customVariables?: CustomVariable[];
   /** Spreadsheets marked as lookup tables (Concept C UI hooks; the keyed runtime lookup is a later phase). */
   lookupTables?: LookupTableConfig[];
+  /** Niche questionnaire answers, keyed by question id (Phase 1: niche questionnaires + personas). */
+  nicheAnswers?: Record<string, string>;
+  /** The industry name the niche answers were collected under (the questionnaire may change if the industry does). */
+  nicheIndustry?: string;
 };
 
 /** An owner-created variable: the owner names it, says where its value comes from, and gives an example for previews. */
@@ -67,7 +73,11 @@ export type LookupTableConfig = {
 
 export const INDUSTRIES = [
   "Home services", "Roofing", "HVAC", "Plumbing", "Dental", "Medical clinic", "Legal", "Real estate",
-  "Restaurant", "Salon & spa", "Auto services", "Insurance", "Financial services", "Commercial cleaning", "B2B / industrial", "Other",
+  "Restaurant", "Salon & spa", "Auto services", "Insurance", "Financial services", "Commercial cleaning", "B2B / industrial",
+  "Mortgage & lending", "Fitness & gym", "Veterinary", "Property management", "Solar & EV installation",
+  "Staffing & recruitment", "Travel & hospitality", "Physiotherapy & chiropractic", "E-commerce", "Education & coaching",
+  "Logistics & delivery", "Franchise development", "Events & webinars", "Subscription & rental services", "Utilities & telecom",
+  "Other",
 ];
 
 /** All 30 Gemini Live voices (Google's fixed set), from the shared catalog. */
@@ -122,6 +132,7 @@ export const EMPTY: WizardState = {
   greeting: "{timeGreeting}! I'm {agentName} with {businessName}. How can I help you today?",
   voice: "Kore", defaultLanguage: "en", clonedVoiceSelected: false, elevenLabsLiveVoice: false, color: "#10b981", label: "Ask Aspen", corner: "bottom-right", videoAvatar: DEFAULT_VIDEO_AVATAR,
   serviceArea: EMPTY_SERVICE_AREA, serviceAreaText: "", crawlDepth: 1, customVariables: [], lookupTables: [],
+  nicheAnswers: {}, nicheIndustry: "",
 };
 
 /**
@@ -269,6 +280,82 @@ export function stepReady(step: number, s: WizardState) {
 
 export function faqKnowledge(faqs: Faq[]) {
   return faqs.filter((f) => f.q.trim() && f.a.trim()).map((f) => `Q: ${f.q.trim()}\nA: ${f.a.trim()}`).join("\n\n");
+}
+
+export { NICHE_MARK, NICHE_PLAYBOOK_MARK };
+
+/**
+ * The factual niche answers, grouped under their section titles, for the
+ * knowledge block (NICHE_MARK). Behavior answers are NOT facts — they go to
+ * the playbook instead. Empty when nothing factual was answered.
+ */
+export function nicheKnowledge(answers: Record<string, string> | undefined, industry: string) {
+  const q = questionnaireForIndustry(industry);
+  const blocks: string[] = [];
+  for (const section of q.sections) {
+    const lines = section.questions
+      .filter((question) => question.kind !== "behavior" && (answers?.[question.id] || "").trim())
+      .map((question) => `${question.label}: ${answers![question.id].trim()}`);
+    if (lines.length) blocks.push(`${section.title}\n${lines.join("\n")}`);
+  }
+  return blocks.join("\n\n");
+}
+
+/**
+ * The niche playbook for the system prompt (NICHE_PLAYBOOK_MARK): the
+ * persona's feel, what it handles, the order it asks booking questions in,
+ * its hard rules and escalation paths, its after-call habits — plus the
+ * owner's own behavior answers, which always win over the persona defaults.
+ */
+export function nichePlaybook(answers: Record<string, string> | undefined, industry: string) {
+  const q = questionnaireForIndustry(industry);
+  const p = q.persona;
+  const lines: string[] = [
+    `How you should sound: ${p.agentFeel}`,
+    `You mainly handle: ${p.handles.join("; ")}.`,
+    `When booking or taking an enquiry, ask in this order: ${p.bookingQuestions.map((b, i) => `${i + 1}. ${b}`).join(" ")}`,
+  ];
+  if (p.hardRules.length) lines.push(`Hard rules: ${p.hardRules.join(" ")}`);
+  if (p.escalate.length) lines.push(`Hand over to a human when: ${p.escalate.join("; ")}.`);
+  if (p.postCall.length) lines.push(`After the call: ${p.postCall.join(" ")}`);
+  for (const section of q.sections) {
+    for (const question of section.questions) {
+      const answer = (answers?.[question.id] || "").trim();
+      if (question.kind === "behavior" && answer) lines.push(`${question.label} Owner's answer: ${answer}`);
+    }
+  }
+  return lines.join("\n");
+}
+
+/** Splice the niche knowledge into a knowledge block (replace, never duplicate). */
+export function withNicheKnowledge(knowledge: string, answers: Record<string, string> | undefined, industry: string) {
+  return replaceSection(knowledge, NICHE_MARK, nicheKnowledge(answers, industry));
+}
+
+/** Splice the niche playbook into a system prompt (replace, never duplicate). */
+export function withNichePlaybook(systemPrompt: string, answers: Record<string, string> | undefined, industry: string) {
+  return replaceSection(systemPrompt, NICHE_PLAYBOOK_MARK, nichePlaybook(answers, industry));
+}
+
+/**
+ * Answers the wizard already knows, keyed by the shared question ids the
+ * questionnaires use for business basics (businessName / website / phone /
+ * address / hours). Only fields actually present in state are returned.
+ */
+export function prefillNicheAnswers(s: Pick<WizardState, "businessName" | "websiteUrl" | "serviceArea">): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (s.businessName?.trim()) out.businessName = s.businessName.trim();
+  if (s.websiteUrl?.trim()) out.website = s.websiteUrl.trim();
+  const address = s.serviceArea?.baseAddress?.trim();
+  if (address) out.address = address;
+  return out;
+}
+
+/** Answered/total counts for the questionnaire progress line. */
+export function nicheProgress(q: NicheQuestionnaire, answers: Record<string, string> | undefined) {
+  const all = q.sections.flatMap((s) => s.questions);
+  const answered = all.filter((question) => (answers?.[question.id] || "").trim()).length;
+  return { answered, total: all.length };
 }
 
 /** "Ask <name>" label for the current agent name. */

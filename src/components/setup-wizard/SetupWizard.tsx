@@ -30,8 +30,10 @@ import { GUARDRAILS_MARK, REVIEWED_KNOWLEDGE_MARK, SERVICE_AREA_MARK, replaceSec
 import {
   EMPTY, INDUSTRIES, SPECIALTIES, industryName, LABELS, askLabel, isAskLabel, labelOptions, STEPS, faqKnowledge, nameFromUrl, renderGreeting, renderTemplate, sentenceAccepted, stepReady, toggleSentence,
   BUILT_IN_VARIABLES, GREETING_TEMPLATES, greetingStyles, customVariableNameValid, parseCsvColumns, compiledKnowledgeChars, KNOWLEDGE_CAP_CHARS, spliceText,
+  withNicheKnowledge, withNichePlaybook, prefillNicheAnswers, nicheProgress,
   type WizardState, type CustomVariable, type LookupTableConfig,
 } from "./wizardModel";
+import { questionnaireForIndustry, hasNicheQuestionnaire, type NicheQuestionnaire } from "./nicheQuestionnaires";
 import type { ChecklistItem } from "../../../supabase/functions/_shared/niche-suggestions";
 import {
   EMPTY_SERVICE_AREA, OUT_OF_AREA_POLICIES, compileServiceArea, normalizeServiceArea, travelFeeTemplate, type ServiceAreaState,
@@ -90,6 +92,54 @@ function IntegrationConsultCard() {
       <Button asChild variant="ghost" size="sm" className="h-8 px-2 text-primary">
         <Link to="/book"><CalendarCheck className="mr-1.5 h-4 w-4" />{t("wizard.consult.cta")}</Link>
       </Button>
+    </div>
+  );
+}
+
+/**
+ * Niche questionnaire on the Learn step: collapsible section groups, one
+ * input per question, answers live in WizardState.nicheAnswers. Factual
+ * answers feed the knowledge; the closing behavior section feeds the
+ * playbook in the system prompt.
+ */
+function NicheQuestionsSection({ questionnaire, answers, onAnswer }: { questionnaire: NicheQuestionnaire; answers: Record<string, string>; onAnswer: (id: string, value: string) => void }) {
+  const [open, setOpen] = useState<string>(questionnaire.sections[0]?.title || "");
+  useEffect(() => { setOpen(questionnaire.sections[0]?.title || ""); }, [questionnaire.key]);
+  const { answered, total } = nicheProgress(questionnaire, answers);
+  return (
+    <div className="space-y-3 border-b border-border pb-5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="flex items-center gap-2 text-sm font-semibold"><ListChecks className="h-4 w-4 text-primary" />Questions for your kind of business</p>
+        <span className="text-xs font-medium text-muted-foreground">{answered} of {total} answered</span>
+      </div>
+      <p className="text-xs text-muted-foreground">These are the questions a good receptionist for a {questionnaire.name.toLowerCase()} needs answered. Anything you already told us is filled in — just check it and fill the gaps. Your answers become part of what your assistant knows, and the last group shapes how it behaves on calls.</p>
+      <div className="h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuenow={answered} aria-valuemin={0} aria-valuemax={total} aria-label="Questionnaire progress">
+        <div className="h-full bg-primary transition-all" style={{ width: `${total ? Math.round((answered / total) * 100) : 0}%` }} />
+      </div>
+      {questionnaire.sections.map((section) => {
+        const sectionAnswered = section.questions.filter((q) => (answers[q.id] || "").trim()).length;
+        const expanded = open === section.title;
+        return (
+          <div key={section.title} className="rounded-xl border border-border">
+            <button type="button" className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left" aria-expanded={expanded} onClick={() => setOpen(expanded ? "" : section.title)}>
+              <span className="text-sm font-medium">{section.title}</span>
+              <span className="flex items-center gap-2 text-xs text-muted-foreground">{sectionAnswered}/{section.questions.length}<ChevronDown className={`h-4 w-4 transition ${expanded ? "rotate-180" : ""}`} /></span>
+            </button>
+            {expanded && (
+              <div className="space-y-3 px-3 pb-3">
+                {section.questions.map((q) => (
+                  <label key={q.id} className="block space-y-1 text-sm font-medium">{q.label}
+                    {q.kind === "longtext" || q.kind === "behavior"
+                      ? <Textarea aria-label={q.label} rows={3} maxLength={4000} value={answers[q.id] || ""} onChange={(e) => onAnswer(q.id, e.target.value)} />
+                      : <Input aria-label={q.label} maxLength={4000} placeholder={q.kind === "choice" ? "Yes or no — plus any detail that matters" : undefined} value={answers[q.id] || ""} onChange={(e) => onAnswer(q.id, e.target.value)} />}
+                    {q.help && <span className="block text-[11px] font-normal text-muted-foreground">{q.help}</span>}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -193,6 +243,18 @@ export default function SetupWizard({ preview = false, ownerPreview = false, age
     else if (current.left < bounds.left) progress.scrollLeft -= bounds.left - current.left + 2;
   }, [step]);
   useEffect(() => { setSuggestedIndustry(''); setKnowledgeProposal(''); setServiceItems(null); setGuardrailItems(null); setServiceMore(EMPTY_MORE); setGuardrailMore(EMPTY_MORE); setAreaSuggestions([]); setDiscovered(null); setPickedPages([]); setLookupDraft(null); }, [selectedId]);
+  /** Prefill niche answers the wizard already knows (name, website, address) — never overwriting an owner's own answer. */
+  const prefillKey = `${s.businessName}|${s.websiteUrl}|${s.serviceArea?.baseAddress || ""}`;
+  useEffect(() => {
+    const pre = prefillNicheAnswers(s);
+    setS((p) => {
+      const merged = { ...(p.nicheAnswers || {}) };
+      let changed = false;
+      for (const [id, value] of Object.entries(pre)) if (value && !merged[id]?.trim()) { merged[id] = value; changed = true; }
+      return changed ? { ...p, nicheAnswers: merged } : p;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefillKey]);
   const set = (patch: Partial<WizardState>) => setS((p) => ({ ...p, ...patch }));
   /** Picking a voice also pairs it with a default language (Live voices are language-agnostic). */
   const pickVoice = (id: string, language: AgentLanguage) => { set({ voice: id, defaultLanguage: language, clonedVoiceSelected: false }); setVoiceReady(false); };
@@ -226,6 +288,8 @@ export default function SetupWizard({ preview = false, ownerPreview = false, age
         crawlDepth: d.crawlDepth === 2 ? 2 : 1,
         customVariables: Array.isArray(d.customVariables) ? (d.customVariables as CustomVariable[]) : [],
         lookupTables: Array.isArray(d.lookupTables) ? (d.lookupTables as LookupTableConfig[]) : [],
+        nicheAnswers: (d.nicheAnswers && typeof d.nicheAnswers === "object" && !Array.isArray(d.nicheAnswers)) ? (d.nicheAnswers as Record<string, string>) : {},
+        nicheIndustry: String(d.nicheIndustry || ""),
       });
       setPublished(Boolean(a.published));
       setPhoneSetup((d.phoneSetup as PhoneSetupState) || EMPTY_PHONE_SETUP);
@@ -238,10 +302,11 @@ export default function SetupWizard({ preview = false, ownerPreview = false, age
   async function save() {
     if (!selectedId || !draft) return false;
     const reviewed = replaceSection(String(draft.knowledge || "").split(FAQ_MARK)[0], REVIEWED_KNOWLEDGE_MARK, s.knowledgeGuidance || "");
-    const base = replaceSection(reviewed, SERVICE_AREA_MARK, s.serviceAreaText || "");
+    const withArea = replaceSection(reviewed, SERVICE_AREA_MARK, s.serviceAreaText || "");
+    const base = withNicheKnowledge(withArea, s.nicheAnswers, industryName(s));
     const faq = faqKnowledge(s.faqs);
     const config = {
-      ...draft, websiteUrl: s.websiteUrl ? (/^https?:\/\//i.test(s.websiteUrl) ? s.websiteUrl : `https://${s.websiteUrl}`) : "", businessName: s.businessName || "My business", industry: industryName(s), subNiche: s.subNiche || "", businessNotes: s.businessNotes || "", knowledgeGuidance: s.knowledgeGuidance || "", assistantRestrictions: s.assistantRestrictions || "", serviceArea: s.serviceArea, serviceAreaText: s.serviceAreaText || "", systemPrompt: replaceSection(String(draft.systemPrompt || ""), GUARDRAILS_MARK, s.assistantRestrictions || ""), name: s.name || "Aspen",
+      ...draft, websiteUrl: s.websiteUrl ? (/^https?:\/\//i.test(s.websiteUrl) ? s.websiteUrl : `https://${s.websiteUrl}`) : "", businessName: s.businessName || "My business", industry: industryName(s), subNiche: s.subNiche || "", businessNotes: s.businessNotes || "", knowledgeGuidance: s.knowledgeGuidance || "", assistantRestrictions: s.assistantRestrictions || "", serviceArea: s.serviceArea, serviceAreaText: s.serviceAreaText || "", nicheAnswers: s.nicheAnswers || {}, nicheIndustry: industryName(s), systemPrompt: withNichePlaybook(replaceSection(String(draft.systemPrompt || ""), GUARDRAILS_MARK, s.assistantRestrictions || ""), s.nicheAnswers, industryName(s)), name: s.name || "Aspen",
       greeting: s.greeting, voice: s.voice, defaultLanguage: s.defaultLanguage || "en", clonedVoiceSelected: Boolean(s.clonedVoiceSelected), elevenLabsLiveVoice: Boolean(s.elevenLabsLiveVoice), phoneSetup, notificationEmail: s.notificationEmail?.trim() || undefined, theme: { background: "#101216", foreground: "#F4F6F8", font: "system", ...(draft.theme || {}), primary: s.color }, launcherLabel: s.label, launcherCorner: s.corner, videoAvatar: normalizeVideoAvatar(s.videoAvatar),
       crawlDepth: s.crawlDepth === 2 ? 2 : 1, customVariables: s.customVariables || [], lookupTables: s.lookupTables || [],
       knowledge: faq ? `${base}\n\n${FAQ_MARK}\n${faq}`.trim() : base,
@@ -260,7 +325,7 @@ export default function SetupWizard({ preview = false, ownerPreview = false, age
         const data = await request({ action: "create", businessName });
         const id = data.agent?.id;
         if (!id) throw new Error("Could not create assistant");
-        const config = { ...data.agent.draft, ...s, industry: industryName(s), businessName, websiteUrl: s.websiteUrl ? (/^https?:\/\//i.test(s.websiteUrl) ? s.websiteUrl : `https://${s.websiteUrl}`) : "", knowledge: replaceSection(String(data.agent.draft.knowledge || "").split(FAQ_MARK)[0], SERVICE_AREA_MARK, s.serviceAreaText || ""), theme: { primary: s.color, background: "#09090b", foreground: "#fafafa", font: "system" }, launcherLabel: s.label, launcherCorner: s.corner };
+        const config = { ...data.agent.draft, ...s, industry: industryName(s), nicheIndustry: industryName(s), businessName, websiteUrl: s.websiteUrl ? (/^https?:\/\//i.test(s.websiteUrl) ? s.websiteUrl : `https://${s.websiteUrl}`) : "", knowledge: withNicheKnowledge(replaceSection(String(data.agent.draft.knowledge || "").split(FAQ_MARK)[0], SERVICE_AREA_MARK, s.serviceAreaText || ""), s.nicheAnswers, industryName(s)), systemPrompt: withNichePlaybook(String(data.agent.draft.systemPrompt || ""), s.nicheAnswers, industryName(s)), theme: { primary: s.color, background: "#09090b", foreground: "#fafafa", font: "system" }, launcherLabel: s.label, launcherCorner: s.corner };
         await request({ action: "save", agentId: id, config });
         setSelectedId(id); setDraft(config); ok = true;
       } else ok = await save();
@@ -774,6 +839,11 @@ export default function SetupWizard({ preview = false, ownerPreview = false, age
                       onRewrite={(mode) => rewriteField(s.businessNotes || '', mode)} disabled={busy || loading} />
                   </div>
 
+                  {hasNicheQuestionnaire(industryName(s)) && (
+                    <NicheQuestionsSection questionnaire={questionnaireForIndustry(industryName(s))} answers={s.nicheAnswers || {}}
+                      onAnswer={(id, value) => set({ nicheAnswers: { ...(s.nicheAnswers || {}), [id]: value }, nicheIndustry: industryName(s) })} />
+                  )}
+
                   <IntegrationConsultCard />
                 </div>
               )}
@@ -861,6 +931,12 @@ export default function SetupWizard({ preview = false, ownerPreview = false, age
                         ))}
                       </div>
                     </div>
+                    {hasNicheQuestionnaire(industryName(s)) && (!s.greeting.trim() || s.greeting === EMPTY.greeting) && (
+                      <div className="flex flex-wrap items-center gap-2 rounded-lg bg-muted p-2">
+                        <p className="flex-1 text-xs text-muted-foreground">Suggested for a {questionnaireForIndustry(industryName(s)).name.toLowerCase()}: “{renderTemplate(questionnaireForIndustry(industryName(s)).persona.greetingPattern, s)}”</p>
+                        <Button size="sm" variant="outline" onClick={() => { set({ greeting: questionnaireForIndustry(industryName(s)).persona.greetingPattern }); setVoiceReady(false); }}>Use suggested greeting</Button>
+                      </div>
+                    )}
                     {realVoice && (voiceReady ? <div className="rounded-lg border border-border p-2"><GeminiConversation key={`${selectedId}-${s.voice}-${s.greeting}`} previewOnly autoStart previewAudioContext={previewAudioRef.current} draft agentId={selectedId} name={s.name} previewVoice={s.voice} compact /></div> : <Button variant="outline" className="w-full" disabled={busy} onClick={() => void prepareVoice()}>{busy ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}{busy ? 'Saving & preparing voice…' : `Hear my greeting · ${s.voice}`}</Button>)}
                   </div>
 
