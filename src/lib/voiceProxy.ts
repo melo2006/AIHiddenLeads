@@ -11,7 +11,7 @@
 //
 // Resolution order:
 //   1. Per-device override — visiting any page with ?voiceProxy=vps stores
-//      localStorage['voice-proxy-host']='vps'; ?voiceProxy=edge stores
+//      localStorage['voice-proxy-host-v2']='vps'; ?voiceProxy=edge stores
 //      'edge'. A stored 'vps' wins over everything (test stage); a stored
 //      'edge' forces the Edge derivation even when the build default is the
 //      VPS host (per-device rollback).
@@ -20,11 +20,22 @@
 //   3. Fallback — the historical Edge derivation, byte-identical to the
 //      module-level WS_URL this replaces.
 //
+// STORAGE KEY v2 (2026-11-22): the v1 key ('voice-proxy-host') was retired
+// because Stage-3 test-stage visits had pinned real devices to 'vps' in
+// localStorage, and the VPS proxy deterministically stalls presenter-class
+// sessions (realtor demos: socket opens, no ready, no audio — verified by
+// probe 2026-11-22, before AND after a proxy restart, while the same
+// sessions answer in ~1 s via the Edge proxy). Values stored under the v1
+// key are simply never read again, so every device falls back to the build
+// default / Edge derivation on its next visit. The override mechanism
+// itself is unchanged: a fresh ?voiceProxy= visit persists under the v2
+// key and wins exactly as before.
+//
 // voicePreload.ts deliberately does NOT use this resolver: its warm-up ping
 // stays on the Supabase functions URL (it also warms gemini-session, which
 // stays on Edge).
 
-export const VOICE_PROXY_HOST_STORAGE_KEY = 'voice-proxy-host';
+export const VOICE_PROXY_HOST_STORAGE_KEY = 'voice-proxy-host-v2';
 export const VOICE_PROXY_VPS_WS_URL = 'wss://voice-proxy.aihiddenleads.com';
 
 /** The pre-Part-2 socket URL, exactly as GeminiConversation derived it inline. */
