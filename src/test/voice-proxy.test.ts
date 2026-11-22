@@ -1,8 +1,9 @@
 // Voice-proxy resolver (Part 2 server move, 2026-11-11 — design:
 // proxy-vps-move-design-2026-11-10.md §3.1). The socket host is chosen at
 // each connect: per-device ?voiceProxy override (persisted to localStorage)
-// > VITE_VOICE_PROXY_WS_URL build default > the historical Edge derivation.
-// Covers the five required behaviors plus the invalid-param guard.
+// > VITE_VOICE_PROXY_WS_URL build default > the VPS host (the default since
+// the 2026-11-22 v3 flip; the Edge derivation is the ?voiceProxy=edge
+// rollback). Covers the required behaviors plus the invalid-param guard.
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, test } from 'vitest';
@@ -56,12 +57,24 @@ describe('voice proxy resolver', () => {
     expect(url).toBe(ENV_URL);
   });
 
-  test('default is byte-identical to the historical inline derivation', () => {
+  test('edge derivation helper stays byte-identical to the historical inline derivation', () => {
     // The exact expression that used to live at GeminiConversation's module level.
     const historical = SUPABASE_URL.replace(/^https/, 'wss') + '/functions/v1/gemini-live-proxy';
     expect(edgeVoiceProxyWsUrl(SUPABASE_URL)).toBe(historical);
-    expect(resolveVoiceProxyWsUrl({ supabaseUrl: SUPABASE_URL, search: '', storage: fakeStorage() })).toBe(historical);
-    expect(resolveVoiceProxyWsUrl({ supabaseUrl: SUPABASE_URL, search: '', storage: null })).toBe(historical);
+  });
+
+  test('default (no override, no env) is the VPS host since the v3 flip', () => {
+    expect(resolveVoiceProxyWsUrl({ supabaseUrl: SUPABASE_URL, search: '', storage: fakeStorage() })).toBe(VOICE_PROXY_VPS_WS_URL);
+    expect(resolveVoiceProxyWsUrl({ supabaseUrl: SUPABASE_URL, search: '', storage: null })).toBe(VOICE_PROXY_VPS_WS_URL);
+  });
+
+  test('a value stored under the retired v2 key is ignored (device lands on the VPS default)', () => {
+    const url = resolveVoiceProxyWsUrl({
+      supabaseUrl: SUPABASE_URL,
+      search: '',
+      storage: fakeStorage({ 'voice-proxy-host-v2': 'edge' }),
+    });
+    expect(url).toBe(VOICE_PROXY_VPS_WS_URL);
   });
 
   test('?voiceProxy=vps persists to storage and resolves to the VPS host', () => {
@@ -98,7 +111,7 @@ describe('voice proxy resolver', () => {
       search: '?voiceProxy=banana',
       storage,
     });
-    expect(url).toBe(EDGE_URL);
+    expect(url).toBe(VOICE_PROXY_VPS_WS_URL);
     expect(storage.map.has(VOICE_PROXY_HOST_STORAGE_KEY)).toBe(false);
   });
 });
