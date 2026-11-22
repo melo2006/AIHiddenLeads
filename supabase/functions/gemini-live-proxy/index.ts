@@ -92,6 +92,245 @@ const ALLOWED_VOICES = new Set([
   'Vindemiatrix', 'Sadachbia', 'Sadaltager', 'Sulafat',
 ])
 
+// ── FragmentingWsClient (2026-11-22) ────────────────────────────────
+// Minimal RFC 6455 client over Deno.connectTls that FRAGMENTS every
+// outgoing message into <=16 KiB frames (first frame + continuations).
+//
+// Why this exists: the Gemini Live endpoint silently swallows a single
+// WebSocket frame above ~131–140 KB — no error frame, no close, the
+// session just never answers (bisected 2026-11-22 through the VPS
+// proxy: a 131,117-byte setup frame completed setup in ~180 ms; the
+// same session at 140,045 bytes, and the full 159,746-byte realtor-
+// presenter setup, hung forever; content was irrelevant — inert filler
+// at the same size hung too). Deno's built-in WebSocket sends each
+// message as ONE frame, so every presenter-class session (composed
+// setups ~145–160 KB) stalled on the VPS proxy while smaller setups
+// (homepage ~112 KB) worked, and the same code worked on Supabase Edge
+// (different WS stack). Fragmenting the identical message into 16 KiB
+// continuation frames makes the endpoint reassemble and answer in
+// ~200 ms. Selected per deployment via VOICE_PROVIDER_WS=frag (set in
+// the VPS service env); the built-in client remains the default so the
+// Edge deployment of this same source is unchanged.
+//
+// Exposes the subset of the WebSocket interface the provider leg uses
+// (send/close/readyState/bufferedAmount + on* handler assignment).
+const FRAG_CHUNK_BYTES = 16384
+
+class FragmentingWsClient {
+  readyState = 0
+  bufferedAmount = 0
+  onopen: ((ev: Event) => void) | null = null
+  onmessage: ((ev: MessageEvent) => void) | null = null
+  onerror: ((ev: Event) => void) | null = null
+  onclose: ((ev: CloseEvent) => void) | null = null
+  #conn: Deno.TlsConn | null = null
+  #writer: WritableStreamDefaultWriter<Uint8Array> | null = null
+  #writeChain: Promise<void> = Promise.resolve()
+  #pending: string[] = []
+  #closeFired = false
+  #closeSent = false
+
+  constructor(url: string) {
+    this.#connect(url).catch((err) => this.#fail(err))
+  }
+
+  async #connect(urlStr: string) {
+    const url = new URL(urlStr)
+    const port = url.port ? Number(url.port) : 443
+    const conn = await Deno.connectTls({ hostname: url.hostname, port })
+    this.#conn = conn
+    this.#writer = conn.writable.getWriter()
+    const keyBytes = crypto.getRandomValues(new Uint8Array(16))
+    let keyB64 = ''
+    for (const b of keyBytes) keyB64 += String.fromCharCode(b)
+    keyB64 = btoa(keyB64)
+    const handshake =
+      `GET ${url.pathname}${url.search} HTTP/1.1\r\n` +
+      `Host: ${url.host}\r\n` +
+      'Upgrade: websocket\r\n' +
+      'Connection: Upgrade\r\n' +
+      `Sec-WebSocket-Key: ${keyB64}\r\n` +
+      'Sec-WebSocket-Version: 13\r\n' +
+      'User-Agent: Deno/voice-proxy\r\n\r\n'
+    await this.#writer.write(new TextEncoder().encode(handshake))
+    const reader = conn.readable.getReader()
+    let buf = new Uint8Array(0)
+    let headerEnd = -1
+    while (headerEnd < 0) {
+      const { value, done } = await reader.read()
+      if (done) throw new Error('provider TLS closed during handshake')
+      const merged = new Uint8Array(buf.length + value.length)
+      merged.set(buf)
+      merged.set(value, buf.length)
+      buf = merged
+      for (let i = 0; i + 3 < buf.length; i++) {
+        if (buf[i] === 13 && buf[i + 1] === 10 && buf[i + 2] === 13 && buf[i + 3] === 10) { headerEnd = i; break }
+      }
+    }
+    const headerText = new TextDecoder().decode(buf.subarray(0, headerEnd))
+    if (!/^HTTP\/1\.1 101/.test(headerText)) throw new Error(`provider WS upgrade refused: ${headerText.split('\r\n')[0]}`)
+    const leftover = buf.subarray(headerEnd + 4)
+    this.readyState = 1
+    const pending = this.#pending.splice(0)
+    for (const p of pending) this.send(p)
+    this.onopen?.(new Event('open'))
+    this.#readLoop(reader, leftover)
+  }
+
+  async #readLoop(reader: ReadableStreamDefaultReader<Uint8Array>, initial: Uint8Array) {
+    let buf = initial
+    let fragParts: Uint8Array[] = []
+    const deliver = (bytes: Uint8Array) => {
+      const text = new TextDecoder().decode(bytes)
+      this.onmessage?.({ data: text } as MessageEvent)
+    }
+    try {
+      for (;;) {
+        // Parse one frame if fully buffered.
+        let frame: { fin: boolean; opcode: number; payload: Uint8Array; consumed: number } | null = null
+        if (buf.length >= 2) {
+          const fin = (buf[0] & 0x80) !== 0
+          const opcode = buf[0] & 0x0f
+          const masked = (buf[1] & 0x80) !== 0
+          let len = buf[1] & 0x7f
+          let off = 2
+          if (len === 126) { if (buf.length >= 4) { len = (buf[2] << 8) | buf[3]; off = 4 } else len = -1 }
+          else if (len === 127) {
+            if (buf.length >= 10) { let n = 0n; for (let i = 0; i < 8; i++) n = (n << 8n) | BigInt(buf[2 + i]); len = Number(n); off = 10 } else len = -1
+          }
+          if (len >= 0) {
+            const maskLen = masked ? 4 : 0
+            if (buf.length >= off + maskLen + len) {
+              let payload = buf.subarray(off + maskLen, off + maskLen + len)
+              if (masked) {
+                const key = buf.subarray(off, off + 4)
+                const un = new Uint8Array(len)
+                for (let i = 0; i < len; i++) un[i] = payload[i] ^ key[i % 4]
+                payload = un
+              }
+              frame = { fin, opcode, payload, consumed: off + maskLen + len }
+            }
+          }
+        }
+        if (!frame) {
+          const { value, done } = await reader.read()
+          if (done) break
+          const merged = new Uint8Array(buf.length + value.length)
+          merged.set(buf)
+          merged.set(value, buf.length)
+          buf = merged
+          continue
+        }
+        buf = buf.subarray(frame.consumed)
+        const { fin, opcode, payload } = frame
+        if (opcode === 0x8) {
+          let code = 1005
+          let reason = ''
+          if (payload.length >= 2) {
+            code = (payload[0] << 8) | payload[1]
+            reason = new TextDecoder().decode(payload.subarray(2))
+          }
+          if (!this.#closeSent) { this.#closeSent = true; try { await this.#sendFrame(0x8, payload, true) } catch { /* ignore */ } }
+          this.#fireClose(code, reason, true)
+          try { this.#conn?.close() } catch { /* ignore */ }
+          return
+        }
+        if (opcode === 0x9) { try { await this.#sendFrame(0xA, payload, true) } catch { /* ignore */ } continue }
+        if (opcode === 0xA) continue
+        if (opcode === 0x0) {
+          fragParts.push(payload)
+          if (fin) {
+            const total = fragParts.reduce((n, p) => n + p.length, 0)
+            const all = new Uint8Array(total)
+            let o = 0
+            for (const p of fragParts) { all.set(p, o); o += p.length }
+            fragParts = []
+            deliver(all)
+          }
+          continue
+        }
+        if (fin) deliver(payload)
+        else fragParts = [payload]
+      }
+    } catch (_err) {
+      this.#fail(_err)
+      return
+    }
+    this.#fireClose(1006, '', false)
+  }
+
+  async #sendFrame(opcode: number, payload: Uint8Array, fin: boolean) {
+    if (!this.#writer) return
+    const len = payload.length
+    const maskKey = crypto.getRandomValues(new Uint8Array(4))
+    let header: number[]
+    if (len < 126) header = [(fin ? 0x80 : 0) | opcode, 0x80 | len]
+    else if (len <= 0xffff) header = [(fin ? 0x80 : 0) | opcode, 0x80 | 126, (len >> 8) & 0xff, len & 0xff]
+    else throw new Error('frame too large for FragmentingWsClient')
+    const masked = new Uint8Array(len)
+    for (let i = 0; i < len; i++) masked[i] = payload[i] ^ maskKey[i % 4]
+    const out = new Uint8Array(header.length + 4 + len)
+    out.set(header)
+    out.set(maskKey, header.length)
+    out.set(masked, header.length + 4)
+    await this.#writer.write(out)
+  }
+
+  async #writeMessage(bytes: Uint8Array) {
+    if (bytes.length <= FRAG_CHUNK_BYTES) { await this.#sendFrame(0x1, bytes, true); return }
+    let off = 0
+    let first = true
+    while (off < bytes.length) {
+      const end = Math.min(off + FRAG_CHUNK_BYTES, bytes.length)
+      await this.#sendFrame(first ? 0x1 : 0x0, bytes.subarray(off, end), end === bytes.length)
+      first = false
+      off = end
+    }
+  }
+
+  send(data: string) {
+    if (this.readyState === 0) { this.#pending.push(data); return }
+    if (this.readyState !== 1) return
+    const bytes = new TextEncoder().encode(data)
+    this.bufferedAmount += bytes.length
+    this.#writeChain = this.#writeChain.then(async () => {
+      try { await this.#writeMessage(bytes) } catch (err) { this.#fail(err) } finally { this.bufferedAmount -= bytes.length }
+    })
+  }
+
+  close(code = 1000, reason = '') {
+    if (this.readyState === 3 || this.readyState === 2) return
+    if (this.readyState === 1 && !this.#closeSent) {
+      this.#closeSent = true
+      const reasonBytes = new TextEncoder().encode(reason)
+      const payload = new Uint8Array(2 + reasonBytes.length)
+      payload[0] = (code >> 8) & 0xff
+      payload[1] = code & 0xff
+      payload.set(reasonBytes, 2)
+      this.#writeChain = this.#writeChain.then(async () => { try { await this.#sendFrame(0x8, payload, true) } catch { /* ignore */ } })
+    }
+    this.readyState = 2
+    setTimeout(() => {
+      try { this.#conn?.close() } catch { /* ignore */ }
+      this.#fireClose(code, reason, true)
+    }, 250)
+  }
+
+  #fireClose(code: number, reason: string, wasClean: boolean) {
+    if (this.#closeFired) return
+    this.#closeFired = true
+    this.readyState = 3
+    this.onclose?.({ code, reason, wasClean } as CloseEvent)
+  }
+
+  #fail(_err: unknown) {
+    if (this.#closeFired) return
+    try { this.onerror?.(new Event('error')) } catch { /* ignore */ }
+    try { this.#conn?.close() } catch { /* ignore */ }
+    this.#fireClose(1006, '', false)
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
@@ -228,7 +467,11 @@ Deno.serve(async (req) => {
 
   const { socket: clientSocket, response } = Deno.upgradeWebSocket(req)
 
-  let geminiWs: WebSocket | null = null
+  let geminiWs: WebSocket | FragmentingWsClient | null = null
+  // Provider-leg observability (2026-11-22): dial/open/setup timings so a
+  // silent provider stall is visible in the journal per session.
+  let providerDialAt = 0
+  let providerSetupSentAt = 0
   let closed = false
   // Provider session resumption (see _shared/session-resumption.ts): one
   // logical Gemini session may span several provider sockets. The latest
@@ -902,7 +1145,12 @@ Deno.serve(async (req) => {
     const connectProvider = (handle: string | null) => {
       providerConnectHandle = handle
       setupDone = false
-      geminiWs = new WebSocket(`${GEMINI_WS}?key=${apiKey}`)
+      providerDialAt = Date.now()
+      const providerImpl = Deno.env.get('VOICE_PROVIDER_WS') === 'frag' ? 'frag' : 'std'
+      console.info('provider-diag', JSON.stringify({ ev: 'dial', sessionId: session.id, resume: !!handle, impl: providerImpl }))
+      geminiWs = providerImpl === 'frag'
+        ? new FragmentingWsClient(`${GEMINI_WS}?key=${apiKey}`)
+        : new WebSocket(`${GEMINI_WS}?key=${apiKey}`)
       installProviderHandlers()
     }
     const installProviderHandlers = () => {
@@ -910,6 +1158,7 @@ Deno.serve(async (req) => {
       if (!ws) return
       ws.onopen = () => {
       if (!geminiWs || geminiWs.readyState !== WebSocket.OPEN) return
+      console.info('provider-diag', JSON.stringify({ ev: 'provider_open', sessionId: session.id, dialMs: providerDialAt ? Date.now() - providerDialAt : null }))
       // Context-window compression (Publish #85a): sized once from
       // this session's composed prompt (plus the setup suffix and
       // tool-declaration allowances) and reused on every reconnect.
@@ -919,7 +1168,7 @@ Deno.serve(async (req) => {
           : null
       }
       // First message must be the setup
-      geminiWs.send(JSON.stringify({
+      const setupFrame = JSON.stringify({
         setup: {
           sessionResumption: sessionResumptionConfig(providerConnectHandle),
           ...(compressionConfig ? { contextWindowCompression: compressionConfig } : {}),
@@ -980,7 +1229,10 @@ Deno.serve(async (req) => {
           outputAudioTranscription: {},
           inputAudioTranscription: {},
         },
-      }))
+      })
+      providerSetupSentAt = Date.now()
+      console.info('provider-diag', JSON.stringify({ ev: 'setup_send', sessionId: session.id, bytes: new TextEncoder().encode(setupFrame).length, promptChars: prompt.length, compression: compressionConfig != null }))
+      geminiWs.send(setupFrame)
     }
 
       ws.onmessage = async (event) => {
@@ -1024,6 +1276,7 @@ Deno.serve(async (req) => {
         }
 
         if (msg.setupComplete) {
+          console.info('provider-diag', JSON.stringify({ ev: 'setup_complete', sessionId: session.id, msSinceSend: providerSetupSentAt ? Date.now() - providerSetupSentAt : null }))
           clearInterval(heartbeat)
           heartbeat = setInterval(() => { if (!closed) EdgeRuntime.waitUntil(persistUsage()) }, 10000)
           EdgeRuntime.waitUntil(persistUsage())
