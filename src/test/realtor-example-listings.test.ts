@@ -11,6 +11,7 @@ import {
   REALTOR_EXAMPLE_PACKS as SERVER_PACKS,
   REALTOR_EXAMPLE_SIMULATION_SCRIPT,
   buildExampleListingsLayer,
+  formatListingLine,
   examplePackForSiteUrl,
   normalizeExampleSiteUrl,
   stampExampleListings,
@@ -386,5 +387,95 @@ describe("realtor layer — listings first and examples pitch (Batch 2, greeting
     expect(REALTOR_GREETING_VARIANTS[0]).toMatch(
       /^Hi, I'm Aspen — and at AiHiddenLeads, we cater to realtors\./,
     );
+  });
+});
+
+describe("realtor selling upgrade (2026-11-22, Ron's Aurelia Perez retest)", () => {
+  it("renders Aurelia's Point of Americas condo with price, sqft, HOA and built year", () => {
+    const pack = examplePackForSiteUrl("https://www.aureliaperez.com/")!;
+    const layer = buildExampleListingsLayer(pack);
+    const line = layer.split("\n").find((l) => l.includes("2100 S Ocean Lane #1205"))!;
+    expect(line).toBeDefined();
+    expect(line).toContain("$875,000");
+    expect(line).toContain("1,150 sq ft");
+    expect(line).toContain("HOA $685/mo");
+    expect(line).toContain("built 1972");
+    expect(line).toContain("renovated 2023");
+    expect(line).toContain("parking: 1 covered assigned space");
+  });
+
+  it("script carries the three new selling sections with their key directives", () => {
+    const script = REALTOR_EXAMPLE_SIMULATION_SCRIPT;
+    expect(script).toContain("SELL THE LISTING, DON'T READ IT");
+    expect(script).toContain("PRICE EARLY");
+    expect(script).toContain("never make them ask twice");
+    expect(script).toContain("WHY THIS ONE");
+    expect(script).toContain("never invented");
+    expect(script).toContain("QUALIFY LIKE A REALTOR");
+    expect(script).toContain("ONE question at a time, never stacked");
+    expect(script).toContain("rented right away");
+    expect(script).toContain("pre-approved");
+    expect(script).toContain("never ask any theme twice");
+    expect(script).toContain("OTHER UNITS, NEARBY LISTINGS AND COMPARABLES");
+    expect(script).toContain("don't have access to other units in the building");
+    expect(script).toContain("SEND the list shortly");
+    expect(script).toContain("one ask, in the flow of the conversation");
+  });
+
+  it("formatListingLine omits absent fields — no undefined, no invented values", () => {
+    const line = formatListingLine({
+      address: "1 Test Street",
+      area: "Testville",
+      type: "house",
+      descriptor: "the test house",
+      tagline: "A test tagline for the test house.",
+      source: "sample",
+    });
+    expect(line).not.toContain("undefined");
+    expect(line).not.toContain("HOA");
+    expect(line).not.toContain("built");
+    expect(line).not.toContain("renovated");
+    expect(line).not.toContain("parking:");
+    expect(line).not.toContain("sq ft");
+    expect(line).not.toContain("$");
+  });
+
+  it("presenter build still rewrites the named-person paragraph and carries the new sections", () => {
+    const pack = examplePackForSiteUrl("https://www.aureliaperez.com/")!;
+    const layer = buildExampleListingsLayer(pack, { presenter: true });
+    expect(layer).toContain("Aspen is on my team");
+    expect(layer).toContain("SELL THE LISTING, DON'T READ IT");
+    expect(layer).toContain("REALTOR DISCOVERY LAYER");
+    expect(layer).not.toContain("{agentName}");
+  });
+});
+
+describe("no invented incidental facts + knowledge-gap step-out (2026-11-22, Ron)", () => {
+  it("script bars inventing incidental facts — pet policy named — with the callback/email fallback", () => {
+    const script = REALTOR_EXAMPLE_SIMULATION_SCRIPT;
+    expect(script).toContain("NO INVENTED INCIDENTAL FACTS");
+    expect(script).toContain("pet policy");
+    expect(script).toContain("dog-friendly");
+    expect(script).toContain("rental restrictions");
+    expect(script).toContain('never "probably"');
+    expect(script).toContain("Answer yes or no ONLY when that fact is actually in the listing knowledge");
+    expect(script).toContain("call them back and confirm it");
+    expect(script).toContain("send the answer over by email");
+  });
+
+  it("built listings layer (standard and presenter) carries the step-out guidance and its constraints", () => {
+    const pack = examplePackForSiteUrl("https://www.aureliaperez.com/")!;
+    for (const layer of [buildExampleListingsLayer(pack), buildExampleListingsLayer(pack, { presenter: true })]) {
+      expect(layer).toContain("KNOWLEDGE-GAP HONESTY STEP-OUT");
+      expect(layer).toContain("Quick note, stepping out of the demo for a second");
+      expect(layer).toContain("I only know what's been entered into my knowledge base for this demonstration");
+      expect(layer).toContain("on a live setup, with the full listing details entered, I'd have that answer for you right away");
+      expect(layer).toContain("I can have Aurelia Perez call you back with it, or send it over by email");
+      expect(layer).toContain("But let's continue");
+      expect(layer).toContain("ONLY on a genuine knowledge gap the visitor actually hit");
+      expect(layer).toContain("two or three sentences, then back in role");
+      expect(layer).toContain('never "our AI is limited"');
+      expect(layer).toContain("DISTINCT from the demo disclaimer");
+    }
   });
 });
