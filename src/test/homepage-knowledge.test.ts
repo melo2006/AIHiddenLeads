@@ -20,8 +20,11 @@ test('SMS notifications add-on costs $19 monthly', () => expect(HOMEPAGE_ADDONS.
 test('Appointment reminders add-on costs $29 monthly', () => expect(HOMEPAGE_ADDONS.find(a => a.name.startsWith('SMS/Email Appointment Reminders'))).toMatchObject({usd:29,cadence:'monthly'}));
 test('Website Modernization costs $99 one time for up to 5 pages', () => expect(HOMEPAGE_ADDONS.find(a => a.name.startsWith('Website Modernization (up to 5 pages'))).toMatchObject({usd:99,cadence:'one-time'}));
 test('SEO audit is free', () => expect(HOMEPAGE_ADDONS.find(a => a.name === 'SEO Audit')?.usd).toBe(0));
-test('GEO costs $249 monthly', () => expect(HOMEPAGE_ADDONS.find(a => a.name === 'AI Search Optimization / GEO')).toMatchObject({usd:249,cadence:'monthly'}));
-test('Maps Boost costs $149 monthly', () => expect(HOMEPAGE_ADDONS.find(a => a.name === 'Google Maps Boost')).toMatchObject({usd:149,cadence:'monthly'}));
+// Retired 2026-11-23 (Ron's decision): the paid ranking tiers are no longer
+// purchasable packages — visibility help is a concierge engagement scoped
+// after the free audit. These pins now assert the tiers stay GONE.
+test('AI Search Optimization / GEO is not an offered add-on', () => expect(HOMEPAGE_ADDONS.find(a => (a.name as string) === 'AI Search Optimization / GEO')).toBeUndefined());
+test('Google Maps Boost is not an offered add-on', () => expect(HOMEPAGE_ADDONS.find(a => (a.name as string) === 'Google Maps Boost')).toBeUndefined());
 // Pricing pins track Ron's decisions, not the other way round. History:
 // the pre-2026-11-08 pin held the retired launch promo ('DOUBLED' minutes
 // + a hard 'November 30' end); the 2026-11-09 pin held the evergreen
