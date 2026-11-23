@@ -32,7 +32,7 @@ export interface SimliAvatarHandle {
    *  and the cut-over samples it so a face that came live after its
    *  readiness record was orphaned can still attach. Optional: handles
    *  predating the query simply don't answer. */
-  liveness?: () => { live: boolean; displayedFrame: boolean; starting: boolean; failed: boolean };
+  liveness?: () => { live: boolean; displayedFrame: boolean; starting: boolean; failed: boolean; failureReason: string | null };
   /** Call inside the visitor's tap: enables the paired voice of a silently prepared face.
    *  Resolves false when the face is NOT live (dead client / no audio
    *  stream) so callers can tell a silent no-op from a real activation
@@ -180,6 +180,37 @@ export const isVideoStartFailure = (e: unknown): boolean => {
 };
 
 /**
+ * WHY a face start failed, in the small vocabulary the persona-swap
+ * diagnostics persist (Sara pre-stage fix, 2026-11-23 — the
+ * overnight findings' telemetry gap #2: the swap record carried
+ * only 'failed', so a doorway face that failed two sessions in a
+ * row could not be told apart — token refusal, stall, or provider
+ * drop). Classified from the SAME signals start() already
+ * distinguishes internally:
+ *  - 'token-refused': the token endpoint refused (4xx, marked
+ *    `final` by sessionToken — it never retries those);
+ *  - 'timeout': a startup timeout (tagged videoTimeout) or the
+ *    token leg never answering (VIDEO_SLOW after its retries);
+ *  - 'provider-drop': the provider dropped/errored the session
+ *    mid-startup (the VIDEO_START_FAILURE_MESSAGES set);
+ *  - 'sound-blocked' / 'cancelled' / 'not-ready': the browser-side
+ *    finals; 'unknown': anything else.
+ */
+export type FaceStartFailureReason = 'token-refused' | 'timeout' | 'provider-drop' | 'sound-blocked' | 'cancelled' | 'not-ready' | 'unknown';
+export const classifyFaceStartFailure = (e: unknown): FaceStartFailureReason => {
+  if (!e) return 'unknown';
+  const err = e as { final?: unknown; videoTimeout?: unknown; message?: unknown };
+  const msg = typeof err.message === 'string' ? err.message : typeof e === 'string' ? e : '';
+  if (msg === SOUND_BLOCKED) return 'sound-blocked';
+  if (err.final === true) return 'token-refused';
+  if (err.videoTimeout === true || msg === VIDEO_SLOW) return 'timeout';
+  if (msg === 'Video startup cancelled') return 'cancelled';
+  if (msg === 'Avatar view is not ready') return 'not-ready';
+  if (VIDEO_START_FAILURE_MESSAGES.has(msg)) return 'provider-drop';
+  return 'unknown';
+};
+
+/**
  * SimliClient creates both `websocketPromise` and `connectionPromise` in its constructor,
  * and rejects BOTH with the raw string `"Websocket Failed"` on `wsConnection.onerror` while
  * only awaiting `websocketPromise` first — leaving `connectionPromise` as an unhandled rejection
@@ -277,6 +308,11 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
   /** Mirror of the last start()'s failure verdict for the liveness()
    *  query (React state would be stale inside the handle closure). */
   const startFailedRef = useRef(false);
+  /** The classified reason for the last start() failure
+   *  (classifyFaceStartFailure), mirrored for the liveness() query
+   *  like startFailedRef — the persona-swap record persists it so a
+   *  failed pre-stage explains itself (2026-11-23). */
+  const startFailureReasonRef = useRef<string | null>(null);
   const liveRef = useRef(false);
   const audioReadyRef = useRef(false);
   const lifecycleRef = useRef(0);
@@ -529,6 +565,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
       displayedFrame: !!(videoRef.current && videoRef.current.readyState >= 2 && videoRef.current.videoWidth > 0),
       starting: startingRef.current,
       failed: startFailedRef.current,
+      failureReason: startFailureReasonRef.current,
     }),
     start: async (options?: { silent?: boolean; maxAttempts?: number }) => {
       if (clientRef.current) {
@@ -541,6 +578,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
       }
       startingRef.current = true;
       startFailedRef.current = false;
+      startFailureReasonRef.current = null;
       // A non-silent start IS a sound request: if its final play() is
       // refused (or the tap cannot engage yet), completeSound keeps
       // working on it once the face is live instead of leaving the
@@ -721,6 +759,7 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
         const client = clientRef.current; clientRef.current = null;
         stopSimliClient(client);
         setLive(false); startFailedRef.current = true; setState("failed");
+        startFailureReasonRef.current = classifyFaceStartFailure(e);
         setReason(e instanceof Error ? e.message : String(e || "Video avatar could not start"));
         throw e instanceof Error ? e : new Error(String(e || 'Video connection failed'));
       } finally {

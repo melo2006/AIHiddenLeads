@@ -178,7 +178,10 @@ describe('demo-start model-facing responses', () => {
     expect(started.status).toBe('building');
     expect(started.demoPath).toBe('/demo-site?leadId=l1&scan=1');
     expect(started.instruction).toContain('really started');
-    expect(started.instruction).toContain('tap the card on their screen');
+    // One-tap start (2026-11-23): the demo opens in a new tab from
+    // the confirm tap itself; the card remains only as the backup.
+    expect(started.instruction).toContain('opening in a new tab');
+    expect(started.instruction).toContain('card on their screen also opens the demo');
     expect(started.instruction).toContain('Do not invent progress updates');
   });
   test('the failure response forbids claiming a build and routes to the honest fallback', () => {

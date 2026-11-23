@@ -172,8 +172,8 @@ describe('2 — face-slot liveness wiring (source pins)', () => {
     // before.
     expect(handler).toContain('faceLivenessOnNotLive(current)');
     expect(handler).toContain('if (next === current) return;');
-    expect(handler).toContain('preStageRef.current = { ...stage, faceReady: next.ready, faceFailed: next.failed ? true : undefined, faceEverLive: next.everLive, faceStartFailed: next.startFailed };');
-    expect(handler).toContain('warmedFaceRef.current = { ...warmed, ready: next.ready, failed: next.failed, everLive: next.everLive, startFailed: next.startFailed };');
+    expect(handler).toContain('preStageRef.current = { ...stage, faceReady: next.ready, faceFailed: next.failed ? true : undefined, faceEverLive: next.everLive, faceStartFailed: next.startFailed, faceFailureReason: next.failureReason ?? undefined };');
+    expect(handler).toContain('warmedFaceRef.current = { ...warmed, ready: next.ready, failed: next.failed, everLive: next.everLive, startFailed: next.startFailed, failureReason: next.failureReason };');
     // Both invalidations are slot- AND boundary-gated.
     expect(handler).toContain('preStageRef.current?.slot === slot && preStageRef.current.boundary === face.boundary');
     expect(handler).toContain('warmedFaceRef.current?.slot === slot && warmedFaceRef.current.boundary === face.boundary');

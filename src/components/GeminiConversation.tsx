@@ -37,7 +37,7 @@ import { currentPageContext, type PageContext } from '@/lib/pageContext';
 import { samePageContext, sanitizePageContext } from '../../supabase/functions/_shared/page-context';
 import { salesPlans, type SalesPlan } from '@/lib/salesActions';
 import SimliAvatar, { SOUND_BLOCKED, isVideoStartFailure, type SimliAvatarHandle } from '@/components/SimliAvatar';
-import { BOUNDARY_TARGET, boundaryTargetFor, boundedSettle, boundaryForAssistantLine, buildSwapRecap, chainIsMidSegment, chainStashTarget, cutoverAudioSync, cutoverMode, cutoverReady, dequeueSwapExecution, dropApologyVariant, enqueueSwapExecution, faceLivenessOnLive, faceLivenessOnNotLive, faceLivenessOnStartSettled, gateWaitContinues, INITIAL_SWAP_STATE, introYieldOnVisitorLine, lineAnnouncesDoorway, micAudioPasses, noteAlexIntent, noteAspenIntent, noteDoorwayEngagement, noteSegmentFailure, otherFaceSlot, pendingExecutionBoundary, pendingRetryBoundary, PHASE_AFTER_BOUNDARY, PHASE_ENTRY, PRESTAGE_START_TIMEOUT_MS, prestageWatchDecision, reconnectTarget, recordSwapDiag, retryArmStamp, segmentAttemptsFor, segmentConnectRetryAllowed, segmentTokenStale, SEGMENT_TOKEN_TTL_MS, swapBridgeDue, swapDiagPersistPayload, swapFallbackLine, swapWatchdogAction, SWAP_CROSSFADE_MS, SWAP_GATE_POLL_MS, SWAP_GATE_WAIT_MS, swapRecapFacts, SWAP_DIAG_PERSIST_EVENTS, visitorSignalsStepOut, type ChainStash, type FaceSlot, type PersonaBoundary, type PersonaId, type StagedFaceLiveness, type SwapDiagEntry, type SwapPhase, type SwapState } from '@/lib/personaSwap';
+import { BOUNDARY_TARGET, boundaryTargetFor, boundedSettle, boundaryForAssistantLine, buildSwapRecap, chainIsMidSegment, chainStashTarget, cutoverAudioSync, cutoverMode, cutoverReady, dequeueSwapExecution, dropApologyVariant, enqueueSwapExecution, faceLivenessOnLive, faceLivenessOnNotLive, faceLivenessOnStartSettled, gateWaitContinues, INITIAL_SWAP_STATE, introYieldOnVisitorLine, lineAnnouncesDoorway, micAudioPasses, noteAlexIntent, noteAspenIntent, noteDoorwayEngagement, noteSaraIntent, noteSegmentFailure, otherFaceSlot, pendingExecutionBoundary, pendingRetryBoundary, PHASE_AFTER_BOUNDARY, PHASE_ENTRY, PRESTAGE_START_TIMEOUT_MS, prestageWatchDecision, reconnectTarget, recordSwapDiag, revivalHoldContinues, retryArmStamp, segmentAttemptsFor, segmentConnectRetryAllowed, segmentTokenStale, SEGMENT_TOKEN_TTL_MS, swapBridgeDue, swapDiagPersistPayload, swapFallbackLine, swapWatchdogAction, SWAP_CROSSFADE_MS, SWAP_GATE_POLL_MS, SWAP_GATE_WAIT_MS, swapRecapFacts, SWAP_DIAG_PERSIST_EVENTS, visitorSignalsStepOut, type ChainStash, type FaceSlot, type PersonaBoundary, type PersonaId, type StagedFaceLiveness, type SwapDiagEntry, type SwapPhase, type SwapState } from '@/lib/personaSwap';
 import { PERSONAS, SARA_FACE_ID } from '../../supabase/functions/_shared/personas';
 import { presenterForExampleLeadId } from '@/data/realtorExamplePinnedLeads';
 import { ALEX_FACE_ID } from '../../supabase/functions/_shared/alex-guide';
@@ -323,7 +323,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
    *  restored). See applyCaptureProcessing below. */
   const captureRawRef = useRef(false);
   const businessNameRef = useRef('');
-  const preStageRef = useRef<{ boundary: PersonaBoundary; token: string; faceReady: boolean; faceFailed?: boolean; persona: PersonaId; slot: FaceSlot; authorizedAt: number; faceEverLive?: boolean; faceStartFailed?: boolean } | null>(null);
+  const preStageRef = useRef<{ boundary: PersonaBoundary; token: string; faceReady: boolean; faceFailed?: boolean; persona: PersonaId; slot: FaceSlot; authorizedAt: number; faceEverLive?: boolean; faceStartFailed?: boolean; faceFailureReason?: string } | null>(null);
   /** F3 PRE-STAGE (fluidity batch, 2026-11-10): the doorway Sara face
    *  is mounted CONCEALED and started the moment a simulation chain
    *  goes live (host phase) — minutes before the doorway can execute —
@@ -335,7 +335,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
    *  entry that would normally record it; armSwap folds `ready` into
    *  the stage's faceReady (and `failed` into faceFailed) when the
    *  stage is created. Cleared whenever the warmed slot state clears. */
-  const warmedFaceRef = useRef<{ boundary: PersonaBoundary; slot: FaceSlot; ready: boolean; failed: boolean; everLive?: boolean; startFailed?: boolean } | null>(null);
+  const warmedFaceRef = useRef<{ boundary: PersonaBoundary; slot: FaceSlot; ready: boolean; failed: boolean; everLive?: boolean; startFailed?: boolean; failureReason?: string | null } | null>(null);
   /** F4 DROP SNAPSHOT (fluidity batch, 2026-11-10): the swap-chain
    *  state captured BEFORE any teardown in a close path (teardown
    *  clears swapEnabledRef + swapStateRef, which is exactly what made
@@ -632,6 +632,44 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // dismisses it. Data-driven only: the proxy sends demoPath solely
   // for a started homepage demo, so no other surface ever shows it.
   const [demoCard, setDemoCard] = useState<{ demoPath: string; websiteUrl: string } | null>(null);
+  // ONE-TAP DEMO START (obey-requests pass, 2026-11-23): Ron's
+  // morning test needed TWO presses — confirm the card, then a
+  // second "Tap to enter your demo" button — before anything ran.
+  // The confirm tap now RESERVES a blank tab synchronously (the tap
+  // is the user gesture, so popup blockers allow it) and the
+  // proxy's action_result navigates that tab straight to the demo:
+  // one tap starts the demo. The entry card below remains as the
+  // fallback for a blocked/closed reserved tab and for the
+  // synthetic reopen path (which reserves nothing — its confirm is
+  // a re-issue, not a fresh start). The live conversation itself is
+  // never navigated; the visitor's own tab is.
+  const demoTabRef = useRef<Window | null>(null);
+  const reserveDemoTab = () => {
+    try {
+      const w = window.open('', '_blank');
+      if (!w) return;
+      try {
+        w.document.write('<!doctype html><html><head><title>Building your demo…</title></head><body style="font-family:system-ui,sans-serif;padding:2rem;color:#222">Building your demo — it will open right here in a moment.</body></html>');
+        w.document.close();
+      } catch { /* cross-origin paranoia: an unwritten blank tab still navigates fine */ }
+      demoTabRef.current = w;
+    } catch { /* popup blocked: the entry card is the fallback */ }
+  };
+  /** Navigate the reserved tab to a started demo. Returns true when
+   *  the tab took the navigation (the entry card then stays only as
+   *  a backup affordance). */
+  const openReservedDemoTab = (demoPath: string): boolean => {
+    const w = demoTabRef.current;
+    demoTabRef.current = null;
+    if (!w || w.closed) return false;
+    try { w.location.href = demoPath; return true; } catch { return false; }
+  };
+  /** A demo start that failed must not leave a blank tab hanging. */
+  const closeReservedDemoTab = () => {
+    const w = demoTabRef.current;
+    demoTabRef.current = null;
+    if (w && !w.closed) { try { w.close(); } catch { /* already gone */ } }
+  };
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
   const deadlineRef = useRef(0);
   // SESSION CEILING warning (2026-11-21, item 8): the proxy warns
@@ -2404,6 +2442,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         // failure paths now, so the fold above stays sound.
         faceEverLive: warmed && warmed.boundary === boundary && warmed.slot === slot ? warmed.everLive : undefined,
         faceStartFailed: warmed && warmed.boundary === boundary && warmed.slot === slot ? warmed.startFailed : undefined,
+        faceFailureReason: warmed && warmed.boundary === boundary && warmed.slot === slot ? (warmed.failureReason ?? undefined) : undefined,
       };
       if (avatarRequestedRef.current) {
         // Mount the concealed instance in the free slot; its start()
@@ -3948,10 +3987,17 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             if (pendingActionRef.current) setWaitingAction(pendingActionRef.current);
             trackPendingAction(null);
             break;
-          case "action_result":
-            if (msg.started && typeof msg.demoPath === "string") setDemoCard({ demoPath: msg.demoPath, websiteUrl: typeof msg.websiteUrl === "string" ? msg.websiteUrl : "" });
-            setActionNotice(msg.error ? String(msg.error) : msg.started ? "Your demo is building — tap the card below to step into it." : msg.calendarConfirmed ? "Appointment confirmed on the AI Hidden Leads sales calendar." : msg.saved ? "Your confirmed follow-up details are saved." : "No action taken.");
+          case "action_result": {
+            // One-tap demo start (2026-11-23): the confirm tap
+            // reserved a tab; a started demo navigates it directly
+            // (the entry card stays as backup), a failed start
+            // closes it so no blank tab hangs.
+            let demoTabOpened = false;
+            if (msg.started && typeof msg.demoPath === "string") { setDemoCard({ demoPath: msg.demoPath, websiteUrl: typeof msg.websiteUrl === "string" ? msg.websiteUrl : "" }); demoTabOpened = openReservedDemoTab(msg.demoPath); }
+            else if (msg.error) closeReservedDemoTab();
+            setActionNotice(msg.error ? String(msg.error) : msg.started ? (demoTabOpened ? "Your demo is opening in the new tab — the card below is there if you need it." : "Your demo is building — tap the card below to step into it.") : msg.calendarConfirmed ? "Appointment confirmed on the AI Hidden Leads sales calendar." : msg.saved ? "Your confirmed follow-up details are saved." : "No action taken.");
             break;
+          }
           case "audio":
             idleRef.current.generating = true;
             micAwaitRef.current = null;
@@ -4024,6 +4070,19 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             // first and Alex fires on Aspen's first close line).
             if (swapEnabledRef.current && liveRef.current) {
               swapStateRef.current = noteAlexIntent(swapStateRef.current, userLineRef.current);
+            }
+            // Visitor-armed Sara summon (obey-requests pass,
+            // 2026-11-23): the visitor asking for Sara by name (or
+            // for "the receptionist") while Aspen hosts sets
+            // pendingSara — her next line IS the doorway handover,
+            // anchor or not. The ask also counts as doorway
+            // engagement: Sara's face starts warming NOW (the same
+            // pre-stage trigger as noteDoorwayEngagement below), not
+            // at the boundary.
+            if (swapEnabledRef.current && liveRef.current) {
+              const beforeSara = swapStateRef.current;
+              swapStateRef.current = noteSaraIntent(swapStateRef.current, userLineRef.current);
+              if (swapStateRef.current !== beforeSara && swapStateRef.current.pendingSara) prestageDoorwayFace();
             }
             // Visitor-armed summon-aspen (Scalone batch Item 2): the
             // visitor naming Aspen or asking an AI Hidden Leads
@@ -4430,10 +4489,14 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         }
         case "confirm_action": trackPendingAction(msg as unknown as VoiceAction); setWaitingAction(null); break;
         case "cancel_action": if (pendingActionRef.current) setWaitingAction(pendingActionRef.current); trackPendingAction(null); break;
-        case "action_result":
-          if (msg.started && typeof msg.demoPath === "string") setDemoCard({ demoPath: msg.demoPath, websiteUrl: typeof msg.websiteUrl === "string" ? msg.websiteUrl : "" });
-          setActionNotice(msg.error ? String(msg.error) : msg.started ? "Your demo is building — tap the card below to step into it." : msg.calendarConfirmed ? "Appointment confirmed on the AI Hidden Leads sales calendar." : msg.saved ? "Your confirmed follow-up details are saved." : "No action taken.");
+        case "action_result": {
+          // One-tap demo start — same rule as the main socket.
+          let demoTabOpened = false;
+          if (msg.started && typeof msg.demoPath === "string") { setDemoCard({ demoPath: msg.demoPath, websiteUrl: typeof msg.websiteUrl === "string" ? msg.websiteUrl : "" }); demoTabOpened = openReservedDemoTab(msg.demoPath); }
+          else if (msg.error) closeReservedDemoTab();
+          setActionNotice(msg.error ? String(msg.error) : msg.started ? (demoTabOpened ? "Your demo is opening in the new tab — the card below is there if you need it." : "Your demo is building — tap the card below to step into it.") : msg.calendarConfirmed ? "Appointment confirmed on the AI Hidden Leads sales calendar." : msg.saved ? "Your confirmed follow-up details are saved." : "No action taken.");
           break;
+        }
         case "audio":
           idleRef.current.generating = true;
           micAwaitRef.current = null;
@@ -4488,6 +4551,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           // Visitor-armed meet-alex — same rule as the main socket.
           if (swapEnabledRef.current && liveRef.current) {
             swapStateRef.current = noteAlexIntent(swapStateRef.current, userLineRef.current);
+          }
+          // Visitor-armed Sara summon — same rule as the main socket.
+          if (swapEnabledRef.current && liveRef.current) {
+            const beforeSara = swapStateRef.current;
+            swapStateRef.current = noteSaraIntent(swapStateRef.current, userLineRef.current);
+            if (swapStateRef.current !== beforeSara && swapStateRef.current.pendingSara) prestageDoorwayFace();
           }
           // Visitor-armed summon-aspen — same rule as the main socket.
           if (swapEnabledRef.current && liveRef.current) {
@@ -4867,8 +4936,33 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       ? (staged.slot === 'second' ? stagedAvatarRef.current : mainSlotRef.current)
       : null;
     const earlySnap = incomingHandleEarly?.liveness?.();
-    const faceReadyNow = staged.faceReady || !!(earlySnap?.live && earlySnap.displayedFrame);
+    let faceReadyNow = staged.faceReady || !!(earlySnap?.live && earlySnap.displayedFrame);
     let mode = cutoverMode({ videoRequested: avatarRequestedRef.current, faceReady: faceReadyNow });
+    // REVIVAL HOLD (Sara pre-stage fix, 2026-11-23 — overnight
+    // findings option B): the staged face settled FAILED, so the
+    // cut-over would go voice-first NOW and the face would land
+    // ~4 s into the presenter's first line (the A/V offset Ron
+    // hears on Sara). Hold the segment's first line for up to
+    // FACE_REVIVAL_HOLD_MS while ONE revival start runs on the same
+    // instance: a face that lands inside the hold takes the segment
+    // face-first; a face that doesn't lands voice-first exactly as
+    // before. Skipped on watchdog-forced executions (their waiting
+    // budget is already spent) and when no video was requested.
+    if (mode === 'voice-first' && staged.faceFailed && !immediate) {
+      const holdStartedAt = Date.now();
+      kickFaceRevivalRef.current(staged.slot);
+      while (liveRef.current && revivalHoldContinues({ elapsedMs: Date.now() - holdStartedAt, faceReady: false })) {
+        const snap = incomingHandleEarly?.liveness?.();
+        if (snap?.live && snap.displayedFrame) { faceReadyNow = true; break; }
+        await new Promise<void>(resolve => window.setTimeout(resolve, SWAP_GATE_POLL_MS));
+      }
+      if (faceReadyNow) {
+        mode = cutoverMode({ videoRequested: avatarRequestedRef.current, faceReady: true });
+        recordSwapDiag({ event: 'face-revival-hold', boundary, persona: staged.persona, attempt: segmentAttemptsFor(state, boundary) + 1, detail: `recoveredMs=${Date.now() - holdStartedAt}` });
+      } else {
+        recordSwapDiag({ event: 'face-revival-hold', boundary, persona: staged.persona, attempt: segmentAttemptsFor(state, boundary) + 1, detail: `expiredMs=${Date.now() - holdStartedAt} reason=${staged.faceFailureReason ?? incomingHandleEarly?.liveness?.()?.failureReason ?? 'unknown'}` });
+      }
+    }
     swapBusyRef.current = true;
     setSwapTransition(true);
     const incoming = staged.persona;
@@ -4954,7 +5048,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
           segmentFacePendingRef.current = { boundary, persona: incoming, slot: staged.slot };
           voiceFirstLocalChunksRef.current = 0;
           recordSwapDiag({ event: 'voice-first-cutover', boundary, persona: incoming, attempt: segmentAttemptsFor(swapStateRef.current, boundary) + 1, detail: voiceFirstReason });
-          persistSwapDiagRef.current({ event: 'voice-first-cutover', boundary, persona: incoming, attempt: segmentAttemptsFor(swapStateRef.current, boundary) + 1, reason: voiceFirstReason, faceState: staged.faceFailed ? 'failed' : 'not-ready' });
+          // The classified face-failure reason rides the persisted
+          // resolution (2026-11-23): 'face-failed:provider-drop'
+          // etc. — a failed stage now explains itself in the
+          // server-side record instead of collapsing to 'failed'.
+          persistSwapDiagRef.current({ event: 'voice-first-cutover', boundary, persona: incoming, attempt: segmentAttemptsFor(swapStateRef.current, boundary) + 1, reason: staged.faceFailed ? `face-failed:${staged.faceFailureReason ?? incomingHandleEarly?.liveness?.()?.failureReason ?? 'unknown'}` : voiceFirstReason, faceState: staged.faceFailed ? 'failed' : 'not-ready' });
           kickFaceRevivalRef.current(staged.slot);
         }
         preStageRef.current = null;
@@ -5005,6 +5103,14 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         // itself, so it can never re-fire; every other cut-over
         // leaves it untouched (it is only ever set in simulation).
         pendingAspen: boundary === 'summon-aspen' ? false : swapStateRef.current.pendingAspen,
+        // Visitor-armed Sara intent is consumed by the doorway
+        // itself (obey-requests pass, 2026-11-23); every other
+        // cut-over leaves it untouched (it is only ever set in host).
+        pendingSara: boundary === 'doorway' ? false : swapStateRef.current.pendingSara,
+        // Visitor-armed return intent is consumed by the return
+        // itself; every other cut-over leaves it untouched (it is
+        // only ever set in alex-guest).
+        pendingReturn: boundary === 'return' ? false : swapStateRef.current.pendingReturn,
         // Team intro latch: the show ran to completion — nothing in
         // this session re-arms any intro boundary (design §3.1).
         teamIntroDone: swapStateRef.current.teamIntroDone || boundary === 'intro-return-2',
@@ -5268,11 +5374,31 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       if (!handle) return;
       const deadline = Date.now() + PRESTAGE_START_TIMEOUT_MS;
       let ok = false;
+      // ONE bounded re-kick on a failed stage (Sara pre-stage fix,
+      // 2026-11-23 — overnight findings option C): a transient
+      // provider drop used to latch the stage failed for the whole
+      // session, so the doorway went voice-first with the face ~4 s
+      // late two sessions running. The first failure verdict now
+      // re-kicks the SAME instance once and keeps watching inside
+      // the original budget; a second failure settles failed for
+      // real (and its classified reason is recorded below).
+      let retriedStage = false;
       for (;;) {
         if (cancelled) return;
         const decision = prestageWatchDecision(handle.liveness?.() ?? null);
         if (decision === 'ready') { ok = true; break; }
-        if (decision === 'failed') { ok = false; break; }
+        if (decision === 'failed') {
+          if (!retriedStage && Date.now() < deadline) {
+            retriedStage = true;
+            await boundedSettle(
+              handle.start({ silent: true, maxAttempts: 1 }).catch(() => false),
+              Math.max(0, deadline - Date.now()),
+              false,
+            );
+            continue;
+          }
+          ok = false; break;
+        }
         if (decision === 'kick-start') {
           // Await the kicked start's SETTLE (bounded by the remaining
           // watch budget) — but the settle is not the verdict: the
@@ -5300,15 +5426,16 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         failed: (stageNow?.faceFailed ?? warmedNow?.failed) === true,
         everLive: (stageNow?.faceEverLive ?? warmedNow?.everLive) === true,
         startFailed: (stageNow?.faceStartFailed ?? warmedNow?.startFailed) === true,
+        failureReason: stageNow?.faceFailureReason ?? warmedNow?.failureReason ?? null,
         // A settle must never clobber a readiness the live-fold
         // already proved (frame-proof live report): ok is OR-ed with
         // the currently recorded readiness.
-      }, ok || currentReady);
+      }, ok || currentReady, handle.liveness?.()?.failureReason ?? null);
       if (stageNow) {
-        preStageRef.current = { ...stageNow, faceReady: settled.ready, faceFailed: settled.failed ? true : undefined, faceEverLive: settled.everLive, faceStartFailed: settled.startFailed };
+        preStageRef.current = { ...stageNow, faceReady: settled.ready, faceFailed: settled.failed ? true : undefined, faceEverLive: settled.everLive, faceStartFailed: settled.startFailed, faceFailureReason: settled.failureReason ?? undefined };
       }
       if (warmedNow) {
-        warmedFaceRef.current = { ...warmedNow, ready: settled.ready, failed: settled.failed, everLive: settled.everLive, startFailed: settled.startFailed };
+        warmedFaceRef.current = { ...warmedNow, ready: settled.ready, failed: settled.failed, everLive: settled.everLive, startFailed: settled.startFailed, failureReason: settled.failureReason };
       }
       // READINESS: a pending execution staged on this face decides the
       // moment the face settles — ready executes face-first, failed
@@ -5559,7 +5686,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // the pinned example's presenter while the persona is 'aspen').
   const cardPresenterName = presenterPersona && activePersona === 'aspen' ? PERSONAS[presenterPersona].displayName : PERSONAS[activePersona].displayName;
   const confirmation = pendingAction ? (pendingAction.action === 'request_demo_start'
-    ? <DemoStartConfirmation key={pendingAction.id} action={demoDraft ? { ...pendingAction, demo: demoDraft.values } : pendingAction} onAnswer={(approved, demo) => { wsRef.current?.send(JSON.stringify({type:'confirm_action',id:pendingAction.id,approved,demo})); if (approved) { setWaitingAction(null); trackDemoDraft(null); } else setWaitingAction(pendingAction); trackPendingAction(null); }} onDraftChange={liftDemoDraft}/>
+    ? <DemoStartConfirmation key={pendingAction.id} action={demoDraft ? { ...pendingAction, demo: demoDraft.values } : pendingAction} onAnswer={(approved, demo) => { wsRef.current?.send(JSON.stringify({type:'confirm_action',id:pendingAction.id,approved,demo})); if (approved) { setWaitingAction(null); trackDemoDraft(null); } else setWaitingAction(pendingAction); trackPendingAction(null); if (approved && !pendingAction.id.startsWith('reopen-')) reserveDemoTab(); }} onDraftChange={liftDemoDraft}/>
     : <VoiceActionConfirmation key={pendingAction.id} action={contactDrafts[pendingAction.action] ? { ...pendingAction, contact: contactDrafts[pendingAction.action]!.values } : pendingAction} presenterName={cardPresenterName} verbalConsent={verbalConsentActionId === pendingAction.id} onAnswer={(approved, contact) => { wsRef.current?.send(JSON.stringify({type:'confirm_action',id:pendingAction.id,approved,contact})); if (verbalConsentActionIdRef.current === pendingAction.id) { verbalConsentActionIdRef.current = null; setVerbalConsentActionId(null); } if (approved) { setWaitingAction(null); trackContactDraft(pendingAction.action, null); } else setWaitingAction(pendingAction); trackPendingAction(null); }} onDraftChange={liftContactDraft}/>) : null;
   // VOICE DEMO START entry card (2026-11-21): shown once the proxy
   // confirms the demo started. A plain anchor the VISITOR taps —
@@ -5705,6 +5832,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       failed: (stage?.faceFailed ?? warmed?.failed) === true,
       everLive: (stage?.faceEverLive ?? warmed?.everLive) === true,
       startFailed: (stage?.faceStartFailed ?? warmed?.startFailed) === true,
+      failureReason: stage?.faceFailureReason ?? warmed?.failureReason ?? null,
     };
     // VOICE-FIRST READINESS REPAIR: a live report WITH a displayed
     // frame on the instance (the handle's liveness query) folds
@@ -5715,8 +5843,8 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     const snap = live ? (slot === 'second' ? stagedAvatarRef.current : mainSlotRef.current)?.liveness?.() : undefined;
     const next = live ? faceLivenessOnLive(current, !!(snap?.live && snap.displayedFrame)) : faceLivenessOnNotLive(current);
     if (next === current) return;
-    if (stage) preStageRef.current = { ...stage, faceReady: next.ready, faceFailed: next.failed ? true : undefined, faceEverLive: next.everLive, faceStartFailed: next.startFailed };
-    if (warmed) warmedFaceRef.current = { ...warmed, ready: next.ready, failed: next.failed, everLive: next.everLive, startFailed: next.startFailed };
+    if (stage) preStageRef.current = { ...stage, faceReady: next.ready, faceFailed: next.failed ? true : undefined, faceEverLive: next.everLive, faceStartFailed: next.startFailed, faceFailureReason: next.failureReason ?? undefined };
+    if (warmed) warmedFaceRef.current = { ...warmed, ready: next.ready, failed: next.failed, everLive: next.everLive, startFailed: next.startFailed, failureReason: next.failureReason };
   };
   const mainFaceLayer = mainFace ? (mainFace.revealed ? (fadingSlot === 'main' ? 1 : 2) : 0) : undefined;
   const avatarView = videoAvatar?.enabled && !previewOnly ? (mainFace

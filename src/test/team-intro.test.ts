@@ -231,10 +231,12 @@ describe('demo-site opening (revised delta a, owner 2026-11-09 20:58–21:00; di
     expect(SIMULATION_RECEPTIONIST_SEGMENT).not.toContain('THE HONESTY NOTE');
     expect(SIMULATION_RECEPTIONIST_SEGMENT).not.toContain("quick honesty note: this is a mock-up layered over a copy of your site");
     // The doorway swap opening directs the same order: greeting → site
-    // confirmation → overview, with the no-repeat rule named between.
+    // confirmation → introduction (the 2–3 sentence beat that replaced
+    // the overview in the 2026-11-23 obey-requests pass), with the
+    // no-repeat rule named between.
     const doorway = swapOpeningInstruction({ to: 'sara', boundary: 'doorway' }, RECAP);
     expect(doorway).toContain('NEVER repeat it in role');
-    expect(doorway.indexOf('NEVER repeat it in role')).toBeLessThan(doorway.indexOf('business overview'));
+    expect(doorway.indexOf('NEVER repeat it in role')).toBeLessThan(doorway.indexOf('company introduction'));
   });
   test('the close gains exactly one homepage invitation line', () => {
     const line = "visit aihiddenleads.com — there's more we can do to help you grow than one demo can show";

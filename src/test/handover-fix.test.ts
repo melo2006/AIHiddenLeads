@@ -257,11 +257,11 @@ describe('6 — Sara overview conditioning (defense in depth)', () => {
     expect(opening).toContain('CONDITIONED on the recap below');
     // Bug 2 (2026-11-13): the conditioning now keys on SARA's own prior
     // delivery (the host's greeting in the recap is not hers).
-    expect(opening).toContain('already delivered the business overview or your open question earlier in this same visit');
+    expect(opening).toContain('already delivered the company introduction or your open question earlier in this same visit');
     expect(opening).toContain('do NOT deliver either again');
     expect(opening).toContain('skip straight to engaging the visitor with the open question');
     // And the plain path still offers the full overview when it was not delivered.
-    expect(opening).toContain('Otherwise give the 30 to 45 second business overview');
+    expect(opening).toContain('introduce the business in TWO OR THREE SENTENCES');
   });
   test('the website-confirm question moved into her first beat', () => {
     expect(opening).toContain('confirm in ONE line that the site on their screen is the business');
@@ -272,8 +272,9 @@ describe('6 — Sara overview conditioning (defense in depth)', () => {
     expect(opening).toContain('Do NOT continue into the overview, the name ask or any further question in this turn');
     expect(opening).not.toContain('then straight to the overview');
     // The overview still exists — as its own turn, after the visitor speaks.
-    expect(opening).toContain('THE OVERVIEW IS A FOLLOW-UP BEAT NOW');
-    expect(opening).toContain('as its OWN turn, once the visitor has spoken, never in the greeting\'s turn');
-    expect(opening).toContain('never resume the overview mid-sentence');
+    expect(opening).toContain('THE COMPANY INTRODUCTION IS A FOLLOW-UP BEAT NOW');
+    expect(opening).toContain('never in the greeting\'s turn');
+    expect(opening).toContain('END THAT SAME TURN on the follow-through');
+    expect(opening).toContain('never resume the introduction mid-sentence');
   });
 });

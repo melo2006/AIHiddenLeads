@@ -90,6 +90,34 @@ export interface SwapState {
    *  via boundaryForAssistantLine, anchor or no anchor. Cleared when
    *  summon-aspen executes; one-shot via state.done. */
   pendingAspen: boolean;
+  /** Visitor asked for SARA by name (or for "the receptionist")
+   *  while ASPEN hosts (obey-requests pass, 2026-11-23 — Ron's
+   *  morning test: he asked the host for Sara, then for Alex, and
+   *  both asks were ignored for a long stretch because the doorway
+   *  had NO visitor-side trigger: it executed only when Aspen
+   *  happened to speak the announcement, and the Alex intent had a
+   *  mechanical trigger while Sara's ask had none). Set from a
+   *  VISITOR line via noteSaraIntent — host phase only — and
+   *  Aspen's NEXT finalized line executes the doorway via
+   *  boundaryForAssistantLine, anchor or no anchor: the visitor's
+   *  own request IS the announcement from their side, and the host
+   *  prompt law makes her next line the introduction. Cleared when
+   *  the doorway executes; one-shot via state.done. Arming Sara
+   *  supersedes a standing Alex intent (and vice versa): the
+   *  visitor's LATEST named-person ask is the one that fires. */
+  pendingSara: boolean;
+  /** Visitor asked for Aspen by name while ALEX is live
+   *  (obey-requests pass, 2026-11-23): the visitor-armed half of
+   *  the alex-guest return. Set from a VISITOR line via
+   *  noteAspenIntent — alex-guest phase only — and Alex's NEXT
+   *  finalized line executes 'return' via boundaryForAssistantLine,
+   *  anchor or no anchor. The un-armed path now requires Alex's
+   *  line to PERFORM the hand-back (a short closing line), so a
+   *  mid-answer MENTION of bringing Aspen back can no longer drag
+   *  her back mid-segment — once she hands over, she stays gone
+   *  until summoned by name or the segment closes. Cleared when
+   *  return executes; one-shot via state.done. */
+  pendingReturn: boolean;
   /** Team intro: the show has run (or been yielded) in this session —
    *  the once-per-session latch. Once true, no intro boundary can arm
    *  again, whatever the phase says (design §3.1/§3.3). */
@@ -124,7 +152,7 @@ export interface SwapState {
 }
 
 export const INITIAL_SWAP_STATE: SwapState = {
-  phase: 'host', persona: 'aspen', segment: 0, armed: [], done: [], drops: 0, pendingStepout: false, pendingAlex: false, pendingDoorway: false, pendingAspen: false,
+  phase: 'host', persona: 'aspen', segment: 0, armed: [], done: [], drops: 0, pendingStepout: false, pendingAlex: false, pendingDoorway: false, pendingAspen: false, pendingSara: false, pendingReturn: false,
   teamIntroDone: false, teamIntroSeen: false,
 };
 
@@ -325,9 +353,12 @@ export function boundaryForAssistantLine(text: string, state: SwapState): Person
       // His taught hand-back line names the PRESENTER (the server
       // builds his guest prompt that way for a presenter parent —
       // presenterAlexGuestPrompt); the stock Aspen anchor stays as a
-      // fallback in case he reaches for her name anyway.
-      if (BOUNDARY_ANCHORS.return.some(a => line.includes(normalize(a)))) return 'return';
-      if ((PRESENTER_HAND_BACK_ANCHORS[state.presenter] ?? []).some(a => line.includes(a))) return 'return';
+      // fallback in case he reaches for her name anyway. Either way
+      // the line must PERFORM the hand-back (obey-requests pass,
+      // 2026-11-23): a mid-answer mention of bringing the presenter
+      // back no longer ends his segment early.
+      if (linePerformsHandBack(text, BOUNDARY_ANCHORS.return)) return 'return';
+      if (linePerformsHandBack(text, PRESENTER_HAND_BACK_ANCHORS[state.presenter] ?? [])) return 'return';
     }
     if ((state.phase === 'host' || state.phase === 'close') && !state.done.includes('meet-alex')) {
       if (state.pendingAlex) return 'meet-alex';
@@ -376,6 +407,18 @@ export function boundaryForAssistantLine(text: string, state: SwapState): Person
   // stalled host is recoverable in conversation, while an
   // unannounced Sara was a broken promise on every early-engagement
   // run.
+  // Visitor-armed Sara summon (obey-requests pass, 2026-11-23): the
+  // visitor asked for Sara by name (state.pendingSara, set by
+  // noteSaraIntent from a VISITOR line), so Aspen's next line IS the
+  // handover line — whatever words it uses. This sits ABOVE the
+  // announcement gate below on purpose: the 2026-11-20 gate exists
+  // so Sara never arrives UNANNOUNCED, but a visitor who just asked
+  // for her by name has announced her themselves — and the host
+  // prompt law (plus the proxy's summon nudge) makes Aspen's next
+  // line the introduction in the normal case. Without this trigger
+  // the ask had no mechanical force at all and a pitching model
+  // could ignore it indefinitely (Ron's 2026-11-23 morning test).
+  if (state.phase === 'host' && state.pendingSara && !state.done.includes('doorway')) return 'doorway';
   if (state.phase === 'host' && !state.done.includes('doorway') && lineAnnouncesDoorway(text)) return 'doorway';
   // Visitor-armed summon-aspen (Scalone batch Item 2): the visitor
   // asked for Aspen by name or asked an AI Hidden Leads pricing /
@@ -388,7 +431,17 @@ export function boundaryForAssistantLine(text: string, state: SwapState): Person
   if (state.phase === 'simulation' && BOUNDARY_ANCHORS.stepout.some(a => line.includes(normalize(a)))) return 'stepout';
   if (state.phase === 'simulation' && BOUNDARY_ANCHORS['summon-aspen'].some(a => line.includes(normalize(a)))) return 'summon-aspen';
   if (state.phase === 'close' && BOUNDARY_ANCHORS['meet-alex'].some(a => line.includes(normalize(a)))) return 'meet-alex';
-  if (state.phase === 'alex-guest' && BOUNDARY_ANCHORS.return.some(a => line.includes(normalize(a)))) return 'return';
+  // ALEX-GUEST RETURN (obey-requests pass, 2026-11-23): two ways
+  // back to Aspen, and only two — the visitor summoned her by name
+  // (state.pendingReturn: Alex's next line executes the return,
+  // whatever words it uses), or Alex PERFORMS the hand-back as his
+  // own short closing line (linePerformsHandBack). The old rule —
+  // the bare anchor anywhere in his line — fired on mid-answer
+  // mentions and brought Aspen back while Alex was still working,
+  // which is exactly what Ron flagged: once Aspen hands over, she
+  // stays gone until summoned by name or the segment closes.
+  if (state.phase === 'alex-guest' && state.pendingReturn && !state.done.includes('return')) return 'return';
+  if (state.phase === 'alex-guest' && linePerformsHandBack(text, BOUNDARY_ANCHORS.return)) return 'return';
   // Team intro family — the latch is checked BEFORE any anchor: once the
   // show has run or been yielded, nothing in this session re-arms it.
   if (state.teamIntroDone) return null;
@@ -523,7 +576,10 @@ export function noteAlexIntent(state: SwapState, text: string): SwapState {
   if (state.done.includes('meet-alex')) return state;
   if (!visitorRequestsAlex(text)) return state;
   if (state.phase === 'host' || state.phase === 'close') {
-    return state.pendingAlex ? state : { ...state, pendingAlex: true };
+    // A fresh Alex ask supersedes a standing Sara ask (the visitor's
+    // latest named-person ask wins — see pendingSara).
+    if (state.pendingAlex && !state.pendingSara) return state;
+    return { ...state, pendingAlex: true, pendingSara: false };
   }
   if (state.phase === 'simulation') {
     return state.pendingAlex && state.pendingStepout ? state : { ...state, pendingAlex: true, pendingStepout: true };
@@ -581,10 +637,112 @@ export function visitorRequestsAspen(text: string): boolean {
  *  recorded, whatever phase a future change might add. */
 export function noteAspenIntent(state: SwapState, text: string): SwapState {
   if (state.presenter) return state;
+  // ALEX-GUEST (obey-requests pass, 2026-11-23): the visitor asking
+  // for Aspen by name while Alex is live arms the RETURN the same
+  // way — Alex's next finalized line executes it, anchor or no
+  // anchor. The platform-topic phrases do NOT arm here: a pricing
+  // question put to Alex is his to deflect in words; only the NAME
+  // is a summon (his guest prompt owns the plans hand-back, and it
+  // must now be performed as a closing line — see
+  // linePerformsHandBack).
+  if (state.phase === 'alex-guest') {
+    if (state.done.includes('return')) return state;
+    const line = normalize(text);
+    if (!line || !ASPEN_NAME_WORD.test(line)) return state;
+    return state.pendingReturn ? state : { ...state, pendingReturn: true };
+  }
   if (state.phase !== 'simulation') return state;
   if (state.done.includes('summon-aspen')) return state;
   if (!visitorRequestsAspen(text)) return state;
   return state.pendingAspen ? state : { ...state, pendingAspen: true };
+}
+
+/** Visitor intent to meet Sara (obey-requests pass, 2026-11-23 —
+ *  the noteAlexIntent pattern applied to the host → Sara doorway,
+ *  the one named-person ask that had NO visitor-side trigger: the
+ *  doorway executed only when Aspen's own line announced the pass,
+ *  so a model that kept pitching ignored the ask indefinitely, as
+ *  it did in Ron's 2026-11-23 morning test). Two trigger families:
+ *  - Sara named as a WHOLE WORD — including the dictation variants
+ *    "Sarah" and "Sera" — together with a request shape (a talk /
+ *    meet / bring / transfer verb, a "let me / can I / I want"
+ *    frame), or in a SHORT line that is mostly the ask itself
+ *    ("Sara, please", "get Sara"). A bare mention inside a longer
+ *    sentence about someone else ("my partner Sara handles our
+ *    phones") is not a summon.
+ *  - The ROLE with a request verb: "your receptionist", "the
+ *    receptionist", "the demo receptionist" — in the host phase the
+ *    only receptionist the visitor can mean is Sara.
+ *  An explicit decline in the same line ("don't bring Sara", "not
+ *  Sara", "no Sara") suppresses the arming for that line only,
+ *  mirroring the Alex decline guard. */
+const SARA_NAME_WORD = /\b(sara|sarah|sera)\b/;
+const SARA_REQUEST_SHAPE = /\b(talk|speak|meet|bring|get|fetch|ask|transfer|connect|introduce|see|hear|try)\b|\blet me\b|\bcan i\b|\bcould i\b|\bi want\b|\bi'd like\b|\bi would like\b|\bplease\b/;
+const SARA_ROLE_PHRASES = ['your receptionist', 'the receptionist', 'demo receptionist'];
+const SARA_DECLINE_PATTERNS: readonly RegExp[] = [
+  /\b(?:don't|do not|dont|never)\b[^.!?]*\b(sara|sarah|sera)\b/,
+  /\bno (sara|sarah|sera)\b/,
+];
+const SARA_DECLINE_PHRASES = ['not sara', 'not sarah', 'skip sara', 'skip sarah', "don't want sara", 'do not want sara'];
+export function visitorDeclinesSara(text: string): boolean {
+  const line = normalize(text);
+  if (!line) return false;
+  if (SARA_DECLINE_PATTERNS.some(p => p.test(line))) return true;
+  return SARA_DECLINE_PHRASES.some(p => line.includes(p));
+}
+export function visitorRequestsSara(text: string): boolean {
+  const line = normalize(text);
+  if (!line) return false;
+  if (visitorDeclinesSara(line)) return false;
+  if (SARA_NAME_WORD.test(line)) {
+    if (SARA_REQUEST_SHAPE.test(line)) return true;
+    // A short line that names her is the ask itself ("Sara?",
+    // "Sara please", "where's Sara" — the last carries 'please' /
+    // a verb usually; the word cap keeps long mentions out).
+    if (line.split(/\s+/).length <= 4) return true;
+  }
+  if (SARA_ROLE_PHRASES.some(p => line.includes(p)) && SARA_REQUEST_SHAPE.test(line)) return true;
+  return false;
+}
+
+/** Fold a finalized VISITOR line into the swap state for the
+ *  Sara-summon trigger: host phase ONLY (in simulation Sara is
+ *  already live; in close the demo is over; the intro family has
+ *  its own scripted Sara cameo). Sets pendingSara; Aspen's next
+ *  finalized line executes the doorway via boundaryForAssistantLine,
+ *  anchor or no anchor. Arming supersedes a standing Alex intent —
+ *  the visitor's latest named-person ask wins. One-shot: once
+ *  'doorway' is in state.done this is a no-op. PRESENTER CHAINS
+ *  NEVER SUMMON SARA (the presenter fronts her demo solo — there is
+ *  no Sara segment), so the presenter guard stands first, mirroring
+ *  noteAspenIntent. Returns the SAME state object when nothing
+ *  changes. */
+export function noteSaraIntent(state: SwapState, text: string): SwapState {
+  if (state.presenter) return state;
+  if (state.phase !== 'host') return state;
+  if (state.done.includes('doorway')) return state;
+  if (!visitorRequestsSara(text)) return state;
+  if (state.pendingSara && !state.pendingAlex) return state;
+  return { ...state, pendingSara: true, pendingAlex: false };
+}
+
+/** Does this ASSISTANT line PERFORM a hand-back to Aspen — as
+ *  opposed to merely MENTIONING one? (Obey-requests pass,
+ *  2026-11-23: in Ron's morning test Aspen "came back" mid-segment
+ *  while Alex was still working, because the return boundary fired
+ *  on the bare anchor phrase wherever it appeared in his line —
+ *  including inside a longer answer that only mentioned bringing
+ *  her back later.) A performed hand-back is its own short closing
+ *  line: Alex's taught shape ("Let me bring Aspen back for the
+ *  plans side — she has all of that.") runs ~65 characters. A line
+ *  that carries the anchor inside a longer turn is a mention, and
+ *  the segment continues. The visitor-armed path (pendingReturn)
+ *  is separate and needs no performance. */
+export const HAND_BACK_MAX_CHARS = 120;
+export function linePerformsHandBack(text: string, anchors: readonly string[]): boolean {
+  const line = normalize(text);
+  if (!line || line.length > HAND_BACK_MAX_CHARS) return false;
+  return anchors.some(a => line.includes(normalize(a)));
 }
 
 /** Fold a finalized VISITOR line into the swap state for the
@@ -750,6 +908,26 @@ export function gateWaitContinues(facts: StagedGateFacts, videoRequested: boolea
   if (!facts.stagePresent || !facts.boundaryMatches) return true;
   if (facts.faceFailed || facts.tokenStale) return false;
   return !cutoverReady({ authorized: true, videoRequested, faceReady: facts.faceReady });
+}
+
+// ---------------------------------------------------------------------------
+// REVIVAL HOLD (Sara pre-stage fix, 2026-11-23 — overnight findings
+// options C+B). When the staged face has settled FAILED, the cut-over
+// used to go voice-first IMMEDIATELY: the segment's voice started at
+// second zero and the face stumbled in ~4 s later — the exact A/V
+// offset Ron keeps hearing on Sara (2-for-2 on 2026-11-22 night).
+// The cut-over now HOLDS the incoming presenter's first line for up
+// to this bound while ONE revival start runs on the same instance:
+// a face that lands inside the hold takes the segment face-first
+// (no offset at all); a face that doesn't lands voice-first exactly
+// as before, so the hold can only ever cost a beat of doorway
+// pause — never the conversation. 2.5 s reads as a natural doorway
+// beat ("Now, meet Sara —" …she appears) instead of a failure.
+// ---------------------------------------------------------------------------
+export const FACE_REVIVAL_HOLD_MS = 2_500;
+/** Should executeSwap's revival hold keep waiting for the face? */
+export function revivalHoldContinues(input: { elapsedMs: number; faceReady: boolean }): boolean {
+  return !input.faceReady && input.elapsedMs < FACE_REVIVAL_HOLD_MS;
 }
 
 /** The rotating drop apology for the Nth drop of this conversation
@@ -1093,8 +1271,18 @@ export interface StagedFaceLiveness {
   everLive: boolean;
   /** start() settled failed (bounded timeout included). */
   startFailed: boolean;
+  /** WHY the start failed, classified at the settle point in
+   *  SimliAvatar (classifyFaceStartFailure): 'token-refused' |
+   *  'timeout' | 'provider-drop' | 'sound-blocked' | 'cancelled' |
+   *  'not-ready' | 'unknown'. Null while no failure is recorded.
+   *  (Sara pre-stage fix, 2026-11-23 — the overnight findings'
+   *  telemetry gap #2: the swap diag recorded only 'failed', so a
+   *  2-for-2 doorway failure night was undiagnosable. The reason
+   *  now rides the stage entry into the persisted personaSwapDiag
+   *  resolution at cut-over.) */
+  failureReason: string | null;
 }
-export const INITIAL_FACE_LIVENESS: StagedFaceLiveness = { ready: false, failed: false, everLive: false, startFailed: false };
+export const INITIAL_FACE_LIVENESS: StagedFaceLiveness = { ready: false, failed: false, everLive: false, startFailed: false, failureReason: null };
 
 export function faceLivenessOnLive(liveness: StagedFaceLiveness, frameDisplayed = false): StagedFaceLiveness {
   // VOICE-FIRST BATCH (2026-11-10 — investigation Q5-2b): readiness
@@ -1108,17 +1296,17 @@ export function faceLivenessOnLive(liveness: StagedFaceLiveness, frameDisplayed 
   // face demonstrably did what start() was racing to prove. Without
   // frame proof the legacy behavior is unchanged (everLive only —
   // readiness still comes from start(), which waits for a frame).
-  if (frameDisplayed) return { ready: true, failed: false, everLive: true, startFailed: false };
+  if (frameDisplayed) return { ready: true, failed: false, everLive: true, startFailed: false, failureReason: null };
   return liveness.everLive ? liveness : { ...liveness, everLive: true };
 }
-export function faceLivenessOnStartSettled(liveness: StagedFaceLiveness, ok: boolean): StagedFaceLiveness {
+export function faceLivenessOnStartSettled(liveness: StagedFaceLiveness, ok: boolean, failureReason?: string | null): StagedFaceLiveness {
   return ok
-    ? { ...liveness, ready: true, failed: false, startFailed: false, everLive: true }
-    : { ...liveness, ready: false, failed: true, startFailed: true };
+    ? { ...liveness, ready: true, failed: false, startFailed: false, everLive: true, failureReason: null }
+    : { ...liveness, ready: false, failed: true, startFailed: true, failureReason: failureReason ?? liveness.failureReason };
 }
 export function faceLivenessOnNotLive(liveness: StagedFaceLiveness): StagedFaceLiveness {
   if (liveness.failed) return liveness;
-  if (liveness.everLive || liveness.startFailed) return { ...liveness, ready: false, failed: true };
+  if (liveness.everLive || liveness.startFailed) return { ...liveness, ready: false, failed: true, failureReason: liveness.failureReason ?? 'provider-drop' };
   return liveness;
 }
 /** Would a not-live report right now be a death for this face? */
@@ -1342,6 +1530,9 @@ export interface PrestageFaceSnapshot {
   displayedFrame: boolean;
   starting: boolean;
   failed: boolean;
+  /** The classified reason the last start failed (SimliAvatar's
+   *  classifyFaceStartFailure), when the instance carries one. */
+  failureReason?: string | null;
 }
 export type PrestageWatchDecision = 'ready' | 'failed' | 'kick-start' | 'wait';
 export function prestageWatchDecision(snap: PrestageFaceSnapshot | null): PrestageWatchDecision {

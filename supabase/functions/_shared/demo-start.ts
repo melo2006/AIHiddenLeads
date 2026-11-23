@@ -236,7 +236,7 @@ export function demoStartToolSuccessResponse(result: Extract<DemoStartResult, { 
     status: 'building',
     demoPath: result.demoPath,
     instruction:
-      'The visitor\'s demo has really started: their website scan is running and a card on their screen opens the demo. Tell them in one or two sentences that their demo is building now and to tap the card on their screen to step into it — it takes about two minutes. Then follow the demo bridge: prepare them for what the demo version of you is and hand over as scripted. Do not invent progress updates; if they ask later, remind them the card is on their screen.',
+      'The visitor\'s demo has really started: their website scan is running and the demo is opening in a new tab on their screen right now — the confirm tap opened it directly (one-tap start, 2026-11-23); a card on their screen also opens the demo if the tab did not come through. Tell them in one or two sentences that their demo is building now and opening in the new tab — it takes about two minutes — and that the card on their screen opens it too if they need it. Then follow the demo bridge: prepare them for what the demo version of you is and hand over as scripted. Do not invent progress updates; if they ask later, remind them the demo is in the new tab and the card is on their screen.',
   };
 }
 

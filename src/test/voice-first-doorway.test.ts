@@ -296,11 +296,14 @@ describe('7 — script guardrails (prompt pins)', () => {
     expect(DEMO_INVITE_OPENING).not.toContain('let me get your feedback');
     expect(DEMO_INVITE_OPENING).not.toContain('my two cents on waiting');
   });
-  test("Sara's doorway opening keeps the passed beats (confirm → no-disclaimer rule → overview) and bans the AiHiddenLeads/Maxdream pitch", () => {
+  test("Sara's doorway opening keeps the passed beats (confirm → no-disclaimer rule → introduction) and bans the AiHiddenLeads/Maxdream pitch", () => {
     const opening = swapOpeningInstruction({ to: 'sara', boundary: 'doorway' }, null);
     const confirmAt = opening.indexOf('confirm in ONE line that the site on their screen is the business');
     const disclaimerAt = opening.indexOf('NEVER repeat it in role');
-    const overviewAt = opening.indexOf('business overview');
+    // Obey-requests pass (2026-11-23): the 30–45s overview beat is
+    // now the short company introduction (2–3 sentences ending on a
+    // question) — same slot in the sequence, after the disclaimer rule.
+    const overviewAt = opening.indexOf('company introduction');
     expect(confirmAt).toBeGreaterThanOrEqual(0);
     expect(disclaimerAt).toBeGreaterThan(confirmAt);
     expect(overviewAt).toBeGreaterThan(disclaimerAt);

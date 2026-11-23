@@ -37,7 +37,7 @@ test('C1a: simulation greeting is the demo-site opening FIRST SEGMENT — welcom
 });
 
 test('C1b: the entry sequence runs the beats in order (incl. the no-disclaimer-in-role rule, 2026-11-15)', () => {
-  const beats = ['THE ANNOUNCEMENT', 'EXPECTATIONS', 'THE PAUSE', 'THE IN-ROLE GREETING', 'NO DISCLAIMER IN ROLE', 'THE BUSINESS OVERVIEW', 'THE NAME, THEN THE OPENING QUESTION'];
+  const beats = ['THE ANNOUNCEMENT', 'EXPECTATIONS', 'THE PAUSE', 'THE IN-ROLE GREETING', 'NO DISCLAIMER IN ROLE', 'THE COMPANY INTRODUCTION', 'THE NAME, THEN THE OPENING QUESTION'];
   let last = -1;
   for (const beat of beats) {
     const idx = SIMULATION_PROMPT.indexOf(beat);
@@ -58,7 +58,7 @@ test('C1b: the entry sequence runs the beats in order (incl. the no-disclaimer-i
   // help you?") encoded the shape that greeted the business as the caller.
   expect(SIMULATION_PROMPT).toContain('thanks for calling {businessName}. How can I help you?');
   expect(SIMULATION_PROMPT).toContain('never a bare opening on its own');
-  expect(SIMULATION_PROMPT).toContain('30 to 45 second overview');
+  expect(SIMULATION_PROMPT).toContain('introduce {businessName} in TWO OR THREE SENTENCES ONLY');
   // Publish #67 extension (Ron, 2026-11-15): the overview no longer
   // rides in the greeting's turn — it is a separate beat delivered
   // after the visitor has spoken, on every entry path.

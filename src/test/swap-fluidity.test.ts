@@ -123,7 +123,12 @@ describe('F3 — pre-stage Sara (source pins)', () => {
     // now sits at the two noteDoorwayEngagement folds (parent +
     // segment socket — the first post-greeting visitor line), so
     // exactly two call sites exist and goLive has none.
-    expect(convo.split('prestageDoorwayFace();').length - 1).toBe(2);
+    // Obey-requests pass (2026-11-23): a SECOND trigger family joins
+    // at the same fold points — a visitor line that asks for Sara by
+    // name (noteSaraIntent) is doorway engagement too, so her face
+    // starts warming on the ask itself: two more call sites (one per
+    // socket), still none in goLive.
+    expect(convo.split('prestageDoorwayFace();').length - 1).toBe(4);
     const goLive = convo.slice(convo.indexOf('const goLive = () => {'), convo.indexOf('const connectSegmentSocket'));
     expect(goLive).not.toContain('prestageDoorwayFace()');
     expect(convo).toContain('const prestageDoorwayFace = useCallback(() => {');
