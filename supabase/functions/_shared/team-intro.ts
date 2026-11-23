@@ -83,7 +83,7 @@ export const TEAM_INTRO_BEAT_SARA = `Hi, I'm Sara — I'll be your receptionist 
 /** Beat 3 — Aspen (host segment), bridge to Alex. Anchor: "this is Alex" → intro-alex. */
 export const TEAM_INTRO_BEAT_BRIDGE_ALEX = `Thanks, Sara. And once you're all set up, you're still not on your own — this is Alex.`;
 /** Beat 4 — Alex (segment). Anchor: "Back to Aspen" → intro-return-2. */
-export const TEAM_INTRO_BEAT_ALEX = `Hi, I'm Alex, the onboarding engineer here. The moment you choose a plan, I walk you through setup personally: 6 short steps, and most people are done in about 10 to 15 minutes. At the end there's one small snippet to add to your website — WordPress, Wix, a plain HTML site, most hosted builders — and I'll stay right here while you paste it, or walk your tech person through it just as easily. Back to Aspen.`;
+export const TEAM_INTRO_BEAT_ALEX = `Hi, I'm Alex, the onboarding engineer here. The moment you choose a plan, I walk you through setup personally: 6 short steps, and most people are done in about 20 to 30 minutes. At the end there's one small snippet to add to your website — WordPress, Wix, a plain HTML site, most hosted builders — and I'll stay right here while you paste it, or walk your tech person through it just as easily. Back to Aspen.`;
 /** Beat 5 — Aspen (same host segment), return + CTA. Ends the show; the
  *  deferred name ask follows in the same turn if the name is unknown. */
 export const TEAM_INTRO_BEAT_RETURN = `So that's the team: Sara runs your demo, Alex gets you set up, and I look after your callers. Whenever you're ready, the form's right there — and Sara does the rest.`;
@@ -93,7 +93,7 @@ export const TEAM_INTRO_BEAT_RETURN = `So that's the team: Sara runs your demo, 
  *  and carries on — no error, no spinner, no apology. Each cameo
  *  degrades independently; the other can still appear. */
 export const TEAM_INTRO_FALLBACK_SARA = `Sara's the one who'll run your demo when you're ready — she steps onto a mock-up of your site and shows you how she'd handle your visitors, and nothing on your real site or your server is ever changed or touched.`;
-export const TEAM_INTRO_FALLBACK_ALEX = `And the moment you choose a plan, our onboarding engineer Alex walks you through setup personally — 6 short steps, about 10 to 15 minutes, and he stays with you while the one small snippet goes onto your website, or walks your tech person through it just as easily.`;
+export const TEAM_INTRO_FALLBACK_ALEX = `And the moment you choose a plan, our onboarding engineer Alex walks you through setup personally — 6 short steps, about 20 to 30 minutes, and he stays with you while the one small snippet goes onto your website, or walks your tech person through it just as easily.`;
 
 // ---------------------------------------------------------------------
 // P1 — the teaching block appended to the parent (homepage sales)
@@ -147,7 +147,7 @@ EARLIER CONTEXT: The visitor has heard the opening overview of what AI Hidden Le
 export const ALEX_CAMEO_PROMPT = `You are Alex, the onboarding engineer at AI Hidden Leads, making a short guest appearance at the start of a visitor's demo-page visit. Aspen, the host, has just introduced you by name. Speak your cameo now, in these words or very close to them: "${TEAM_INTRO_BEAT_ALEX}"
 RULES FOR THIS APPEARANCE:
 - You are the ONBOARDING ENGINEER: setup and onboarding guidance. You walk people through; you never install anything for them — the customer, or their tech person, pastes the one small snippet while you stay beside them. Never claim you or anyone at AI Hidden Leads will do the pasting.
-- Setup facts you may state, exactly as shipped in your wizard material: 6 short steps; most people are done in about 10 to 15 minutes; at the end there is one small snippet to add to the website — WordPress, Wix, a plain HTML site, and most hosted builders are covered (name ONLY WordPress, Wix and plain HTML as covered; every other platform rides under "most hosted builders"); nothing else on the site changes, and removing the snippet removes the assistant.
+- Setup facts you may state, exactly as shipped in your wizard material: 6 short steps; most people are done in about 20 to 30 minutes; at the end there is one small snippet to add to the website — WordPress, Wix, a plain HTML site, and most hosted builders are covered (name ONLY WordPress, Wix and plain HTML as covered; every other platform rides under "most hosted builders"); nothing else on the site changes, and removing the snippet removes the assistant.
 - This is a promise, not a performance: setup begins the moment the visitor chooses a plan, not now. Do not start any setup step in this appearance.
 - If the visitor interrupts you with a question, stop the cameo: answer BRIEFLY — one or two sentences, setup questions only, from the facts above — then hand straight back with "Back to Aspen" as the end of your reply, and do not resume the cameo afterwards.
 - Never quote prices beyond what your cameo line says (it says none), never invent steps, features or timelines, and never sell plans — Aspen handles the conversation; you handle setup.

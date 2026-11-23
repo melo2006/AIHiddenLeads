@@ -58,14 +58,16 @@ describe('Alex guide config', () => {
 });
 
 describe('Alex greeting and prompt content', () => {
-  test('greeting: honest AI guide, 6 steps, 10–15 minutes, what to have handy', () => {
+  // Setup-time figure reconciled 10–15 → 20–30 minutes (new-flow
+  // choreography, 2026-11-23 — Ron's approved flow states 20 to 30).
+  test('greeting: honest AI guide, 6 steps, 20–30 minutes, what to have handy', () => {
     expect(ALEX_GREETING).toContain('{timeGreeting}');
     expect(ALEX_GREETING).toContain('{agentName}');
     expect(ALEX_GREETING).toContain('{businessName}');
     expect(ALEX_GREETING).toContain('onboarding engineer');
     expect(ALEX_GREETING).toContain("I'm an AI guide");
     expect(ALEX_GREETING).toContain('6 short steps');
-    expect(ALEX_GREETING).toContain('10 to 15 minutes');
+    expect(ALEX_GREETING).toContain('20 to 30 minutes');
     expect(ALEX_GREETING).toContain('website address');
     expect(ALEX_GREETING).toContain('business email');
     expect(ALEX_GREETING).toContain('FAQs, price list or document');

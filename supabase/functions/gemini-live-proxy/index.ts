@@ -417,7 +417,7 @@ Deno.serve(async (req) => {
   // request_demo_start tool is declared on homepage SALES sessions
   // only (see _shared/demo-start.ts) — the one path by which a voice
   // conversation can really create the visitor's demo lead.
-  const demoStartAvailable = demoStartApplies({ homepageSales: config.homepageSales, simulation: config.simulation, preview })
+  const demoStartAvailable = demoStartApplies({ homepageSales: config.homepageSales, demoIntake: config.demoIntake, simulation: config.simulation, preview })
   const managerTransferBlock = managerTransferAvailable ? `\n${MANAGER_TRANSFER_POLICY}` : ''
   // Browser-minutes overage pin (Handoff improvement batch,
   // 2026-11-12): appended ONLY on homepage-sales sessions — the

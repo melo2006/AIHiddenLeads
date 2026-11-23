@@ -32,13 +32,21 @@ export const DEMO_START_TOOL_NAME = 'request_demo_start';
 export const DEMO_CONSENT_DISCLOSURE_VERSION = 'demo-consent-v2';
 
 /** Gate scope: homepage SALES sessions only — never a simulation
- *  (a simulation is the demo itself), never a preview/audition. */
+ *  (a simulation is the demo itself), never a preview/audition.
+ *  DEMO INTAKE extension (new-flow choreography, 2026-11-23): Sara's
+ *  offer-chain intake segment carries demoIntake instead of
+ *  homepageSales — she fires the SAME tool from inside her segment
+ *  session, but her session must NOT inherit the homepage-sales
+ *  prompt appends, pacing or sales gate that key off homepageSales
+ *  in the proxy. The simulation/preview exclusions bind both paths
+ *  identically. */
 export function demoStartApplies(config: {
   homepageSales?: unknown;
+  demoIntake?: unknown;
   simulation?: unknown;
   preview?: unknown;
 }): boolean {
-  return config.homepageSales === true && config.simulation !== true && config.preview !== true;
+  return (config.homepageSales === true || config.demoIntake === true) && config.simulation !== true && config.preview !== true;
 }
 
 export const DEMO_START_TOOL_DECLARATION = {

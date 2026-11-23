@@ -11,10 +11,11 @@ import { workspaceAccess } from '../_shared/customer-payments.ts';
 import { resolveDemoShare } from '../_shared/demo-share.ts';
 import { DEMO_INVITE_GREETING, DEMO_INVITE_GREETING_LEGACY_SLIM, DEMO_INVITE_GREETING_VARIANTS, DEMO_INVITE_OPENING, DEMO_INVITE_OPENING_SWAP, DEMO_VERIFICATION_ACT1, DEMO_VERIFICATION_GREETING } from '../_shared/demo-sales.ts';
 import { alexGuideConfig, alexDemoGuestConfig } from '../_shared/alex-guide.ts';
-import { avatarSwapEnabled, teamIntroEnabled, isPresenterPersona, personaFor, personaSegmentPrompt, presenterAlexGuestPrompt, presenterSimulationPrompt, type PersonaId } from '../_shared/personas.ts';
+import { avatarSwapEnabled, demoOfferEnabled, teamIntroEnabled, isPresenterPersona, personaFor, personaSegmentPrompt, presenterAlexGuestPrompt, presenterSimulationPrompt, type PersonaId } from '../_shared/personas.ts';
 import { fetchPersonaVoiceOverride, resolvePersonaVoice } from '../_shared/persona-voice-overrides.ts';
 import { examplePresenterForSlug } from '../_shared/realtor-example-pinned-leads.ts';
 import { TEAM_INTRO_TEACHING, isIntroBoundary, teamIntroGreetingFor } from '../_shared/team-intro.ts';
+import { DEMO_OFFER_TEACHING, isDemoOfferBoundary } from '../_shared/demo-offer.ts';
 import { realtorLandingApplies, stampHomepageSales, stampRealtorLanding } from '../_shared/homepage-knowledge.ts';
 import { buildExampleListingsLayer, examplePackBySlug, examplePackForSiteUrl, stampExampleListings } from '../_shared/realtor-example-listings.ts';
 import { examplePracticeLayerForType, examplePracticeTypeForSiteUrl, stampExamplePractice } from '../_shared/example-practice-packs.ts';
@@ -25,7 +26,7 @@ import { voiceForLocaleSession } from '../_shared/locale-voices.ts';
 import { buildTranscriptRecap } from '../_shared/recap-builder.ts';
 import { capturedContactFromConfig, type CapturedContact } from '../_shared/captured-contact.ts';
 import { composeSessionKnowledge } from '../_shared/kb-distill.ts';
-const personaSegmentSchema=z.object({persona:z.enum(['aspen','sara','alex','frank','latina','black-professional-lady','james','diego']),boundary:z.enum(['doorway','stepout','meet-alex','return','summon-aspen','intro-sara','intro-return-1','intro-alex','intro-return-2']),parentSessionId:z.string().uuid(),swapRecap:z.string().max(8000),drops:z.number().int().min(0).max(99).default(0),dropRecovery:z.boolean().default(false),manualResume:z.boolean().default(false),swap:z.boolean().default(false),teamIntroSeen:z.boolean().default(false)});
+const personaSegmentSchema=z.object({persona:z.enum(['aspen','sara','alex','frank','latina','black-professional-lady','james','diego']),boundary:z.enum(['doorway','stepout','meet-alex','return','summon-aspen','intro-sara','intro-return-1','intro-alex','intro-return-2','offer-sara','offer-return']),parentSessionId:z.string().uuid(),swapRecap:z.string().max(8000),drops:z.number().int().min(0).max(99).default(0),dropRecovery:z.boolean().default(false),manualResume:z.boolean().default(false),swap:z.boolean().default(false),teamIntroSeen:z.boolean().default(false)});
 // SWAP DIAG (voice-first batch, 2026-11-10): the client posts a doorway
 // attempt's RESOLUTION (gate-abort, fallback, forced-execute,
 // voice-first cut-over, face takeover, watchdog action…) against the
@@ -35,7 +36,7 @@ const personaSegmentSchema=z.object({persona:z.enum(['aspen','sara','alex','fran
 // existed only in the page (a 100-entry ring buffer that died with
 // it) or as prose inside a successor's resumeContext — the final
 // attempt of a boundary left no server record at all (retest #4).
-const swapDiagSchema=z.object({sessionId:z.string().uuid(),event:z.enum(['gate-abort','fallback','retry-scheduled','token-stale','stage-watchdog','forced-execute','cutover','voice-first-cutover','face-takeover','face-attach-failed']),boundary:z.enum(['doorway','stepout','meet-alex','return','summon-aspen','intro-sara','intro-return-1','intro-alex','intro-return-2']),persona:z.enum(['aspen','sara','alex','frank','latina','black-professional-lady','james','diego']).optional(),attempt:z.number().int().min(0).max(99).optional(),reason:z.string().max(200).optional(),faceState:z.string().max(100).optional(),at:z.number().optional()});
+const swapDiagSchema=z.object({sessionId:z.string().uuid(),event:z.enum(['gate-abort','fallback','retry-scheduled','token-stale','stage-watchdog','forced-execute','cutover','voice-first-cutover','face-takeover','face-attach-failed']),boundary:z.enum(['doorway','stepout','meet-alex','return','summon-aspen','intro-sara','intro-return-1','intro-alex','intro-return-2','offer-sara','offer-return']),persona:z.enum(['aspen','sara','alex','frank','latina','black-professional-lady','james','diego']).optional(),attempt:z.number().int().min(0).max(99).optional(),reason:z.string().max(200).optional(),faceState:z.string().max(100).optional(),at:z.number().optional()});
 const SWAP_DIAG_FAILURE_EVENTS: ReadonlySet<string> = new Set(['gate-abort','fallback','token-stale']);
 const playoutDiagSchema=z.object({sessionId:z.string().uuid(),path:z.enum(['local','tap','direct','none']),detail:z.string().max(400),at:z.number().optional()});
 // MIC DIAG (mic zero-input guard, 2026-11-14): the INPUT mirror of
@@ -185,6 +186,11 @@ Deno.serve(async req=>{
   // personas.ts). The /demo parent stamp is applied in the homepage branch
   // below; intro segment requests are refused unless the parent carries it.
   const teamIntroOn=teamIntroEnabled((n)=>Deno.env.get(n));
+  // Demo offer sub-flag: DEMO_OFFER_ENABLED under the master flag (both
+  // in personas.ts). The homepage parent stamp is applied in the
+  // homepage branch below; offer segment requests are refused unless
+  // the parent carries it.
+  const demoOfferOn=demoOfferEnabled((n)=>Deno.env.get(n));
   let segmentParentId: string | null = null;
   // DETECTED SITE LOCALE (Publish #66): set by the lead/prospect branch
   // when the demo's own website language (leads.website_language, written
@@ -215,7 +221,12 @@ Deno.serve(async req=>{
     const parent=parentRow?.config as Record<string,unknown>|undefined;
     const introRequest=isIntroBoundary(b.personaSegment.boundary);
     const introParentOk=!!parent && parent.teamIntroEnabled===true && parent.homepageSales===true && parent.simulation!==true;
-    if(!parentRow || !parent || (introRequest ? !introParentOk : parent.simulation!==true)) return json({error:'Persona segment parent session not found'},404);
+    // DEMO OFFER FAMILY (new-flow choreography, 2026-11-23): a third
+    // disjoint parent class — a homepage sales parent stamped
+    // demoOfferEnabled. Same refusal shape as the intro family.
+    const offerRequest=isDemoOfferBoundary(b.personaSegment.boundary);
+    const offerParentOk=!!parent && parent.demoOfferEnabled===true && parent.homepageSales===true && parent.simulation!==true;
+    if(!parentRow || !parent || (introRequest ? !introParentOk : offerRequest ? !offerParentOk : parent.simulation!==true)) return json({error:'Persona segment parent session not found'},404);
     // PRESENTER SEGMENT GATE (presenter-owns-close, 2026-11-14): a
     // presenter parent (its config carries the demoPresenter stamp)
     // serves EXACTLY two segment shapes — Alex's meet-alex cameo and
@@ -268,6 +279,42 @@ Deno.serve(async req=>{
         homepageSales:false,
         teamIntroEnabled:true,
         teamIntroSegment:true,
+        personaSwapEnabled:true,
+        persona:{id:persona.id,displayName:persona.displayName,faceId:persona.faceId},
+        ...(b.personaSegment.swap?{personaSwap:{to:persona.id,boundary:b.personaSegment.boundary},personaDrop:null,personaResume:null}:b.personaSegment.manualResume?{personaSwap:null,personaDrop:null,personaResume:{persona:persona.id}}:{personaSwap:null,personaDrop:{persona:persona.id,drops:b.personaSegment.drops},personaResume:null}),
+        personaSegment:{persona:persona.id,boundary:b.personaSegment.boundary,parentSessionId:parentRow.id,dropRecovery:b.personaSegment.dropRecovery,manualResume:b.personaSegment.manualResume},
+        recordTranscript:parent.recordTranscript===true,
+        recordAudio:parent.recordAudio===true,
+        resumeContext:b.personaSegment.swapRecap,
+      };
+      agentId=parentRow.agent_id; orgId=parentRow.organization_id; segmentParentId=parentRow.id;
+    } else if(offerRequest) {
+      // DEMO OFFER SEGMENT (new-flow choreography, 2026-11-23): the
+      // prompt packs live in demo-offer.ts via personaSegmentPrompt's
+      // offer branch. Same inheritance law as the intro family: the
+      // parent's knowledge, visitor contact, campaign and recording
+      // settings ride along — and no tenant business material (this
+      // parent has none; its sourceKnowledge slot stays empty). Sara's
+      // segment additionally carries demoIntake: the flag that earns
+      // her session the request_demo_start tool in the proxy WITHOUT
+      // the homepage-sales prompt appends, pacing or sales gate that
+      // key off homepageSales (demo-start.ts owns the gate).
+      const builtOffer=personaSegmentPrompt(b.personaSegment.persona,b.personaSegment.boundary,businessName,String(parent.systemPrompt || ''),undefined,false,undefined,undefined,{parentPrompt:String(parent.systemPrompt || '')});
+      config={
+        ...parent,
+        name:persona.displayName,
+        voice:segVoice,
+        systemPrompt:builtOffer.systemPrompt,
+        greeting:builtOffer.greeting || parent.greeting,
+        knowledge:parent.knowledge ?? '',
+        sourceKnowledge:'',
+        simulation:false,
+        platformFollowup:false,
+        platformGuide:false,
+        homepageSales:false,
+        demoOfferEnabled:true,
+        demoOfferSegment:true,
+        ...(b.personaSegment.boundary==='offer-sara'?{demoIntake:true}:{}),
         personaSwapEnabled:true,
         persona:{id:persona.id,displayName:persona.displayName,faceId:persona.faceId},
         ...(b.personaSegment.swap?{personaSwap:{to:persona.id,boundary:b.personaSegment.boundary},personaDrop:null,personaResume:null}:b.personaSegment.manualResume?{personaSwap:null,personaDrop:null,personaResume:{persona:persona.id}}:{personaSwap:null,personaDrop:{persona:persona.id,drops:b.personaSegment.drops},personaResume:null}),
@@ -573,6 +620,22 @@ Deno.serve(async req=>{
       config.systemPrompt=`${String(config.systemPrompt || '')}\n${TEAM_INTRO_TEACHING}`;
       config.greeting=teamIntroGreetingFor(String(config.greeting || ''));
       if(Array.isArray(config.greetings)) config.greetings=(config.greetings as unknown[]).map(g=>teamIntroGreetingFor(String(g || '')));
+    }
+    // DEMO OFFER PARENT STAMP (new-flow choreography, 2026-11-23):
+    // the homepage sales session earns the offer chain when its flag
+    // is on — server-derived from the resolved agent slug and the
+    // request shape, never from a client flag alone (same trust
+    // pattern as the stamps above). Deliberately NOT the /demo page
+    // (that stage belongs to the team intro) and NOT the realtor
+    // landing (its own flow), and never together with the team-intro
+    // stamp: the two shows are mutually exclusive on one session.
+    // Stamping appends the offer teaching block; the greeting stays
+    // the standard sales greeting (the offer is a mid-conversation
+    // beat, not an opening change). Lead/prospect demo sessions never
+    // carry it — they run their own simulation chain.
+    if(demoOfferOn && !b.agentId && !b.leadId && !b.prospectId && agent.slug==='aspen-homepage' && config.teamIntroEnabled!==true && b.campaign?.entryPath!=='/demo' && b.campaign?.entryPath!=='/agents/realtors') {
+      config.demoOfferEnabled=true;
+      config.systemPrompt=`${String(config.systemPrompt || '')}\n${DEMO_OFFER_TEACHING}`;
     }
     // REALTOR LANDING STAMP (owner-approved 2026-11-11; conversation
     // layer + reachability fix 2026-11-11): a session that STARTS on
@@ -1008,6 +1071,6 @@ Deno.serve(async req=>{
       void db.from('gemini_voice_sessions').update({config:{...parentConfig,teamIntroSeen:true}}).eq('id',segmentParentId).then(()=>{},()=>{});
     }
   }
-  return json({token,sessionId:id,maxSeconds:s?.max_seconds,homepageSales:config.homepageSales===true,idleChecks:config.homepageSales===true || config.simulation===true,name:config.name,businessName:config.businessName,voice:config.voice,avatarUrl,handoffToken,startLanguage:typeof config.startLanguage==='string'?config.startLanguage:undefined,personaSwapEnabled:config.personaSwapEnabled===true,teamIntroEnabled:config.teamIntroEnabled===true,persona:parentPersona?{id:parentPersona.id,displayName:parentPersona.displayName,faceId:parentPersona.faceId}:undefined});
+  return json({token,sessionId:id,maxSeconds:s?.max_seconds,homepageSales:config.homepageSales===true,idleChecks:config.homepageSales===true || config.simulation===true,name:config.name,businessName:config.businessName,voice:config.voice,avatarUrl,handoffToken,startLanguage:typeof config.startLanguage==='string'?config.startLanguage:undefined,personaSwapEnabled:config.personaSwapEnabled===true,teamIntroEnabled:config.teamIntroEnabled===true,demoOfferEnabled:config.demoOfferEnabled===true,persona:parentPersona?{id:parentPersona.id,displayName:parentPersona.displayName,faceId:parentPersona.faceId}:undefined});
  } catch(e) {console.error('gemini-session',e);return json({error:'Could not authorize the voice session'},500);}
 });
