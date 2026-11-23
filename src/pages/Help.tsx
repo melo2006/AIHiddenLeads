@@ -37,7 +37,7 @@ export const HELP_FAQS: { q: string; a: string }[] = [
   },
   {
     q: "What are the setup steps after I pay?",
-    a: "Five first steps, tracked on a checklist in your dashboard: your bookings calendar (nothing to connect — Aspen books and emails you every appointment), set up your phone number, teach Aspen your business from your website and FAQs, make a test call, and go live by publishing and adding one small snippet to your website. Most people finish in about 10–15 minutes. Alex, the setup guide inside the wizard, can walk you through it live.",
+    a: "Five first steps, tracked on a checklist in your dashboard: your bookings calendar (nothing to connect — Aspen books and emails you every appointment), set up your phone number, teach Aspen your business from your website and FAQs, make a test call, and go live by publishing and adding one small snippet to your website. Most people finish in about 20–30 minutes. Alex, the setup guide inside the wizard, can walk you through it live.",
   },
   {
     q: "Can Aspen connect to our phone system or SIP trunk directly?",
@@ -95,7 +95,7 @@ export const HELP_GUIDES: Guide[] = [
     id: "setup",
     icon: Rocket,
     title: "Set up your agent",
-    blurb: "The 6-step setup wizard, step by step — most people are live in about 10–15 minutes.",
+    blurb: "The 6-step setup wizard, step by step — most people are live in about 20–30 minutes.",
     searchText: "setup wizard steps business learn face voice review draft look on your site test go live publish checklist password welcome email",
     body: (
       <div className="space-y-3">

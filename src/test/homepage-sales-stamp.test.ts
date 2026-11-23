@@ -132,7 +132,7 @@ describe('sales conversation arc content (the draft Ron approved)', () => {
   });
 
   test('implementation detail is gated to when they ask', () => {
-    expect(HOMEPAGE_SALES_LAYER).toContain('15 to 30 minutes with Alex');
+    expect(HOMEPAGE_SALES_LAYER).toContain('20 to 30 minutes with Alex');
     expect(HOMEPAGE_SALES_LAYER).toContain('ONLY when they ask a follow-up about what is involved');
     expect(HOMEPAGE_SALES_LAYER).toContain('a couple of hours to a couple of days');
   });
@@ -164,8 +164,8 @@ describe('Publish #61 fixes (live-test defects, 2026-11-15)', () => {
     // is migration 20261115020000; the code must never re-seed them.
     expect(TEAM_FACTS).not.toContain('few hours');
     expect(HOMEPAGE_KNOWLEDGE).not.toContain('few hours');
-    expect(TEAM_FACTS).toContain('15 to 30 minutes');
-    expect(HOMEPAGE_KNOWLEDGE).toContain('15 to 30 minutes');
+    expect(TEAM_FACTS).toContain('20 to 30 minutes');
+    expect(HOMEPAGE_KNOWLEDGE).toContain('20 to 30 minutes');
   });
 });
 
