@@ -32,7 +32,7 @@ export const SEO_ROUTES = [
     canonical: "https://aihiddenleads.com/",
     title: "AI Hidden Leads | AI Voice Agents, B2B Leads & Local SEO",
     description:
-      "Grow your business with 24/7 AI voice agents, website chat and qualified B2B prospects delivered weekly. Explore local SEO and Google Maps Boost services.",
+      "Grow your business with 24/7 AI voice agents, website chat and qualified B2B prospects delivered weekly. Explore local SEO services and run a free 25-point visibility audit.",
     ogTitle: "AI Hidden Leads | AI Voice Agents, B2B Leads & Local SEO",
     ogDescription:
       "24/7 AI voice agents, website chat, weekly qualified B2B prospects and local SEO services for growing businesses.",
@@ -40,7 +40,7 @@ export const SEO_ROUTES = [
     summary: [
       "AI voice agents, website chat, B2B lead generation and local search marketing for growing businesses.",
       "AI voice agents and chat widgets help answer visitor questions and capture inquiries. Appointment booking and telephone transfers require configuration for each business.",
-      "Our services include B2B prospect generation, database reactivation, automated outreach and Google review management. Google Maps Boost and AI Search Optimization help improve local and AI-driven search visibility. Our 25-point Google Maps audit checks neighborhood search positions; homepage before-and-after maps are illustrative, not measured results or ranking guarantees.",
+      "Our services include B2B prospect generation, database reactivation, automated outreach and Google review management. Hands-on local and AI-search visibility help is delivered as a concierge engagement, scoped after a free audit. Our 25-point Google Maps audit checks neighborhood search positions; homepage before-and-after maps are illustrative, not measured results or ranking guarantees.",
     ],
     footerLinks: [
       { href: "/demo", label: "Try the free website demo" },

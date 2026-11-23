@@ -53,7 +53,7 @@ export const SERVICE_DETAILS: ServiceDetail[] = [
     problem: "Customers now ask Google Maps — and ChatGPT, Gemini and Claude — who to call. If you're not in the answer, you don't exist.",
     today: "Your ranking changes from one neighborhood to the next, and most owners only ever check from their own office.",
     solution: "We optimize your presence so those tools find you, rank you and recommend you by name.",
-    details: ["A 25-point map grid shows where you're visible, with priority fixes for your profile and website.", "Free sample audit in the demo.", "Monthly Maps and AI Search packages, or both together as a bundle.", "No ranking guarantees."],
+    details: ["A 25-point map grid shows where you're visible, with priority fixes for your profile and website.", "Free sample audit in the demo.", "Hands-on visibility help is a concierge engagement, scoped after your audit — it is not a purchasable package today.", "No ranking guarantees."],
   },
   {
     id: "reputation", name: "Reviews & Reputation Management", status: "preorder",

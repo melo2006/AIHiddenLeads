@@ -1,10 +1,13 @@
 import { motion } from "framer-motion";
-import { Globe, Search, Sparkles, Wrench } from "lucide-react";
+import { Search, Wrench } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { searchGrowthOffers, searchBundleSavings } from "@/lib/homepageMapComparison";
 
+// Paid ranking tiers (Google Maps Boost / AI Search Optimization / bundle)
+// were pulled on 2026-11-23 by Ron's decision: the free 25-point audit
+// stays; visibility help is delivered as a concierge engagement, not a
+// purchasable tier, until that delivery is built and proven.
 const addOns = [
   {
     key: "websiteRefresh",
@@ -17,21 +20,6 @@ const addOns = [
     icon: Search,
     price: "FREE",
     priceBRL: "GRÁTIS",
-  },
-  {
-    key: "aiSearch",
-    icon: Sparkles,
-    price: `$${searchGrowthOffers.aiSearch}`,
-    priceBRL: "R$ 1.249",
-    priceNote: "/mo",
-    badgeKey: "liveNow",
-  },
-  {
-    key: "mapsBoost",
-    icon: Globe,
-    price: `$${searchGrowthOffers.mapsBoost}`,
-    priceBRL: "R$ 749",
-    priceNote: "/mo",
   },
 ];
 
@@ -63,7 +51,7 @@ const AddOnPackages = () => {
           </p>
         </motion.div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-5xl mx-auto">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-3xl mx-auto">
           {addOns.map((addon, i) => (
             <motion.div
               key={addon.key}
@@ -77,22 +65,14 @@ const AddOnPackages = () => {
                 <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
                   <addon.icon className="w-5 h-5 text-primary" />
                 </div>
-                {addon.badgeKey && (
-                    <Badge variant="outline" className="max-w-full whitespace-normal border-primary/30 text-primary text-[10px] px-2 py-0.5">
-                    {t(`addons.${addon.badgeKey}`)}
-                  </Badge>
-                )}
               </div>
 
               <h3 className="text-lg font-semibold mb-1">{t(`addons.items.${addon.key}.title`)}</h3>
               <div className="flex items-baseline gap-1 mb-1">
                 <span className="text-2xl font-extrabold text-primary">{isPT ? addon.priceBRL : addon.price}</span>
-                {addon.priceNote && (
-                  <span className="text-sm text-muted-foreground">{t("pricing.perMo")}</span>
-                )}
               </div>
               {isPT && addon.price !== "FREE" && (
-                <p className="text-[11px] text-muted-foreground mb-3">(≈ {addon.price} USD{addon.priceNote ? t("pricing.perMo") : ""})</p>
+                <p className="text-[11px] text-muted-foreground mb-3">(≈ {addon.price} USD)</p>
               )}
 
               <p className="text-sm text-muted-foreground leading-relaxed flex-1 mb-4">
@@ -113,27 +93,6 @@ const AddOnPackages = () => {
           ))}
         </div>
 
-        <div className="mx-auto mt-6 max-w-5xl border-y border-primary/40 bg-primary/10 px-5 py-7 sm:px-8">
-          <Badge variant="outline" className="mb-3 border-primary/40 text-primary">{t("addons.bundle.badge")}</Badge>
-          <h3 className="text-xl font-bold sm:text-2xl">{t("addons.bundle.title")}</h3>
-          <p className="mt-3 text-base leading-relaxed">{t("addons.bundle.body", { maps: searchGrowthOffers.mapsBoost, ai: searchGrowthOffers.aiSearch, bundle: searchGrowthOffers.bundle, savings: searchBundleSavings })}</p>
-          <p className="mt-3 text-xs text-muted-foreground">{t("addons.bundle.note")}</p>
-        </div>
-
-        {/* AI Search teaser */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          className="mt-8 max-w-3xl mx-auto"
-        >
-          <div className="rounded-xl border border-accent/20 bg-accent/5 p-5 text-center">
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              <span className="font-semibold text-foreground">{t("addons.futureTitle")}</span>{" "}
-              {t("addons.futureBody")}
-            </p>
-          </div>
-        </motion.div>
       </div>
     </section>
   );

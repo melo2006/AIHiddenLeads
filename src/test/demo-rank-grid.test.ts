@@ -20,6 +20,5 @@ describe("demo audit rules", () => {
     }
   });
   it("prices Founder at $99/mo", () => expect(auditOffers.founder).toBe(99));
-  it("prices separate Maps Boost at $149/mo", () => expect(auditOffers.mapsBoost).toBe(149));
   it("includes up to 50 monthly B2B leads", () => expect(auditOffers.monthlyLeads).toBe(50));
 });

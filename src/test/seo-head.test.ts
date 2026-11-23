@@ -58,7 +58,7 @@ describe("SEO route data (scripts/seo-routes.mjs — prerender + client source o
       canonical: "https://aihiddenleads.com/",
       title: "AI Hidden Leads | AI Voice Agents, B2B Leads & Local SEO",
       description:
-        "Grow your business with 24/7 AI voice agents, website chat and qualified B2B prospects delivered weekly. Explore local SEO and Google Maps Boost services.",
+        "Grow your business with 24/7 AI voice agents, website chat and qualified B2B prospects delivered weekly. Explore local SEO services and run a free 25-point visibility audit.",
     });
     expect(byPath("/demo")).toMatchObject({
       canonical: "https://aihiddenleads.com/demo",
