@@ -494,8 +494,13 @@ describe('swap-audio fix batch — defect 3: manual stop resumes the chain', () 
   test('server wiring: gemini-session stamps personaResume (never alongside swap/drop); the proxy passes it through', () => {
     const session = read('supabase/functions/gemini-session/index.ts');
     expect(session).toContain('manualResume:z.boolean().default(false)');
-    expect(session.match(/personaResume:\{persona:persona\.id\}/g)).toHaveLength(2);
-    expect(session.match(/manualResume:b\.personaSegment\.manualResume/g)).toHaveLength(2);
+    // Count was 2 (intro + simulation segment builds); the demo offer
+    // segment build (new-flow choreography, 2026-11-23) carries the
+    // same mutually-exclusive marker shape, so the count is now 3 —
+    // the invariant (personaResume stamped in EVERY segment branch,
+    // never alongside swap/drop) is unchanged.
+    expect(session.match(/personaResume:\{persona:persona\.id\}/g)).toHaveLength(3);
+    expect(session.match(/manualResume:b\.personaSegment\.manualResume/g)).toHaveLength(3);
     const proxy = read('supabase/functions/gemini-live-proxy/index.ts');
     expect(proxy).toContain('personaResume: (config.personaResume ?? null)');
   });

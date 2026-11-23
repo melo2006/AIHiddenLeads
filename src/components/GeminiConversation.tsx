@@ -37,7 +37,7 @@ import { currentPageContext, type PageContext } from '@/lib/pageContext';
 import { samePageContext, sanitizePageContext } from '../../supabase/functions/_shared/page-context';
 import { salesPlans, type SalesPlan } from '@/lib/salesActions';
 import SimliAvatar, { SOUND_BLOCKED, isVideoStartFailure, type SimliAvatarHandle } from '@/components/SimliAvatar';
-import { BOUNDARY_TARGET, boundaryTargetFor, boundedSettle, boundaryForAssistantLine, buildSwapRecap, chainIsMidSegment, chainStashTarget, cutoverAudioSync, cutoverMode, cutoverReady, dequeueSwapExecution, dropApologyVariant, enqueueSwapExecution, faceLivenessOnLive, faceLivenessOnNotLive, faceLivenessOnStartSettled, gateWaitContinues, INITIAL_SWAP_STATE, introYieldOnVisitorLine, lineAnnouncesDoorway, micAudioPasses, noteAlexIntent, noteAspenIntent, noteDoorwayEngagement, noteSaraIntent, noteSegmentFailure, otherFaceSlot, pendingExecutionBoundary, pendingRetryBoundary, PHASE_AFTER_BOUNDARY, PHASE_ENTRY, PRESTAGE_START_TIMEOUT_MS, prestageWatchDecision, reconnectTarget, recordSwapDiag, revivalHoldContinues, retryArmStamp, segmentAttemptsFor, segmentConnectRetryAllowed, segmentTokenStale, SEGMENT_TOKEN_TTL_MS, swapBridgeDue, swapDiagPersistPayload, swapFallbackLine, swapWatchdogAction, SWAP_CROSSFADE_MS, SWAP_GATE_POLL_MS, SWAP_GATE_WAIT_MS, swapRecapFacts, SWAP_DIAG_PERSIST_EVENTS, visitorSignalsStepOut, type ChainStash, type FaceSlot, type PersonaBoundary, type PersonaId, type StagedFaceLiveness, type SwapDiagEntry, type SwapPhase, type SwapState } from '@/lib/personaSwap';
+import { BOUNDARY_TARGET, boundaryTargetFor, boundedSettle, boundaryForAssistantLine, buildSwapRecap, chainIsMidSegment, chainStashTarget, cutoverAudioSync, cutoverMode, cutoverReady, dequeueSwapExecution, dropApologyVariant, enqueueSwapExecution, faceLivenessOnLive, faceLivenessOnNotLive, faceLivenessOnStartSettled, gateWaitContinues, INITIAL_SWAP_STATE, introYieldOnVisitorLine, lineAnnouncesDoorway, micAudioPasses, noteAlexIntent, noteAspenIntent, noteDoorwayEngagement, noteOfferIntent, noteSaraIntent, noteSegmentFailure, otherFaceSlot, pendingExecutionBoundary, pendingRetryBoundary, PHASE_AFTER_BOUNDARY, PHASE_ENTRY, PRESTAGE_START_TIMEOUT_MS, prestageWatchDecision, reconnectTarget, recordSwapDiag, revivalHoldContinues, retryArmStamp, segmentAttemptsFor, segmentConnectRetryAllowed, segmentTokenStale, SEGMENT_TOKEN_TTL_MS, swapBridgeDue, swapDiagPersistPayload, swapFallbackLine, swapWatchdogAction, SWAP_CROSSFADE_MS, SWAP_GATE_POLL_MS, SWAP_GATE_WAIT_MS, swapRecapFacts, SWAP_DIAG_PERSIST_EVENTS, visitorSignalsStepOut, type ChainStash, type FaceSlot, type PersonaBoundary, type PersonaId, type StagedFaceLiveness, type SwapDiagEntry, type SwapPhase, type SwapState } from '@/lib/personaSwap';
 import { PERSONAS, SARA_FACE_ID } from '../../supabase/functions/_shared/personas';
 import { presenterForExampleLeadId } from '@/data/realtorExamplePinnedLeads';
 import { ALEX_FACE_ID } from '../../supabase/functions/_shared/alex-guide';
@@ -346,7 +346,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
    *  consumed by the reconnected parent's arming block in
    *  startConversation, which re-arms the doorway immediately instead
    *  of waiting for a whole extra Aspen turn. */
-  const chainDropSnapshotRef = useRef<{ state: SwapState; parentSessionId: string | null; chainClass: 'simulation' | 'intro' | 'presenter' | null; at: number } | null>(null);
+  const chainDropSnapshotRef = useRef<{ state: SwapState; parentSessionId: string | null; chainClass: 'simulation' | 'intro' | 'presenter' | 'offer' | null; at: number } | null>(null);
   /** Capture the live swap chain (null when no chain is armed). Reads
    *  refs only, so any render's closure is equivalent. */
   const snapshotChainState = () => swapEnabledRef.current
@@ -366,7 +366,7 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
    *  explainer chain starts in phase 'intro', never 'host', and a
    *  homepage session carries no chain at all — so neither can ever
    *  set pendingDoorway. Set at both arming sites, cleared at teardown. */
-  const swapChainClassRef = useRef<'simulation' | 'intro' | 'presenter' | null>(null);
+  const swapChainClassRef = useRef<'simulation' | 'intro' | 'presenter' | 'offer' | null>(null);
   /** Completed assistant turns on the live socket (any persona). The
    *  structural doorway's "greeting turn has completed" input: the
    *  first turn_complete of a simulation chain IS the host's greeting /
@@ -2505,6 +2505,28 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     else setMainFace({ persona: 'sara', boundary: 'doorway', revealed: false });
   }, []);
 
+  // Demo offer pre-stage (new-flow choreography, 2026-11-23): the
+  // doorway pre-stage's twin for the homepage offer chain. Ron's flow
+  // has Aspen introduce Sara WHILE STILL TALKING, so Sara's face must
+  // already be warm when the introduction lands — never summoned
+  // cold. Fired from the two moments that predict the handover: the
+  // visitor's own acceptance line (noteOfferIntent newly setting
+  // pendingOffer in the transcript folds below) — and armSwap mounts
+  // the face at arm time as the fallback, exactly like the doorway.
+  // Face-only, same slot discipline: Aspen's live face + this ONE
+  // pre-stage in the free slot. Offer chain + 'offer' phase only.
+  const prestageOfferFace = useCallback(() => {
+    if (!avatarRequestedRef.current || warmedFaceRef.current || preStageRef.current) return;
+    if (!swapEnabledRef.current || swapChainClassRef.current !== 'offer') return;
+    if (swapStateRef.current.phase !== 'offer' || swapStateRef.current.done.includes('offer-sara')) return;
+    const slot = otherFaceSlot(faceSlotOwnerRef.current);
+    warmedFaceRef.current = { boundary: 'offer-sara', slot, ready: false, failed: false };
+    setStageGeneration(g => g + 1);
+    recordSwapDiag({ event: 'prestage', boundary: 'offer-sara', persona: 'sara' });
+    if (slot === 'second') setSecondFace({ persona: 'sara', boundary: 'offer-sara', revealed: false });
+    else setMainFace({ persona: 'sara', boundary: 'offer-sara', revealed: false });
+  }, []);
+
   // Shared local teardown. endSession=true also tells the server the visitor
   // ended the conversation; the Stage 3 suspend path passes false so the
   // server treats the close like a drop and the session stays resumable.
@@ -2836,7 +2858,16 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     // as its own class (Alex handoff fix, 2026-11-14) so the doorway
     // trigger stays off for it after the resume too.
     swapEnabledRef.current = true;
-    swapChainClassRef.current = stash.state.presenter ? 'presenter' : 'simulation';
+    // The resumed chain keeps its own class: derived from the stashed
+    // phase family (offer phases → 'offer', intro phases → 'intro'),
+    // so a resumed offer/intake chain never inherits simulation-only
+    // triggers (doorway engagement, doorway pre-stage) and the offer
+    // pre-stage stays correctly gated. Simulation phases fall through
+    // to 'simulation', exactly as before.
+    swapChainClassRef.current = stash.state.presenter ? 'presenter'
+      : stash.state.phase.startsWith('offer') ? 'offer'
+      : stash.state.phase.startsWith('intro') ? 'intro'
+      : 'simulation';
     parentSessionIdRef.current = stash.parentSessionId;
     visitorKeyRef.current = stash.visitorKey;
     businessNameRef.current = stash.businessName;
@@ -3810,6 +3841,24 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         setActivePersona('aspen');
         visitChainStash.delete(agentId || "homepage");
       }
+      // Demo offer arming (new-flow choreography, 2026-11-23): a THIRD
+      // arming class — the homepage sales parent (server echo
+      // demoOfferEnabled, no business id on this session) starts the
+      // swap machine in phase 'offer', authorized against
+      // gemini-session's offer parent class. The server never stamps
+      // both shows on one session (the stamp is mutually exclusive
+      // with the team intro), and the class check keeps a stray echo
+      // from re-classing an already-armed chain. Flag-off ⇒ no echo ⇒
+      // nothing changes: the bare homepage session stays swap-free.
+      if (!preview && authorized.demoOfferEnabled === true && !leadId && !prospectId && swapChainClassRef.current === null) {
+        swapEnabledRef.current = true;
+        swapChainClassRef.current = 'offer';
+        parentSessionIdRef.current = String(authorized.sessionId || '');
+        visitorKeyRef.current = visitorKey;
+        swapStateRef.current = { ...INITIAL_SWAP_STATE, phase: 'offer' };
+        setActivePersona('aspen');
+        visitChainStash.delete(agentId || "homepage");
+      }
       // Example presenter (Frank batch): this parent is a
       // solo-presenter demo — the server withheld the swap stamp, so
       // no cut-over will ever report the presenter to the shell.
@@ -4137,6 +4186,20 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
               swapStateRef.current = noteSaraIntent(swapStateRef.current, userLineRef.current);
               if (swapStateRef.current !== beforeSara && swapStateRef.current.pendingSara) prestageDoorwayFace();
             }
+            // Visitor-armed demo offer (new-flow choreography,
+            // 2026-11-23): the visitor accepting the offer — or
+            // asking for the demo / Sara outright — while Aspen hosts
+            // the homepage sets pendingOffer; her next line IS the
+            // scripted Sara introduction, anchor or not. The
+            // acceptance ALSO fires Sara's face pre-stage from this
+            // line, so her face is warm while Aspen is still
+            // introducing her (Ron's flow: the introduction happens
+            // while Aspen talks, never a cold summon).
+            if (swapEnabledRef.current && liveRef.current) {
+              const beforeOffer = swapStateRef.current;
+              swapStateRef.current = noteOfferIntent(swapStateRef.current, userLineRef.current);
+              if (swapStateRef.current !== beforeOffer && swapStateRef.current.pendingOffer) prestageOfferFace();
+            }
             // Visitor-armed summon-aspen (Scalone batch Item 2): the
             // visitor naming Aspen or asking an AI Hidden Leads
             // pricing/platform question while Sara is live sets
@@ -4231,6 +4294,15 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
                 // complete, it arms (here or at the streaming site)
                 // and yields 'doorway' via boundaryForAssistantLine.
                 armSwapRef.current('doorway');
+              } else if (state.pendingOffer && state.phase === 'offer' && !state.armed.includes('offer-sara') && !state.done.includes('offer-sara')) {
+                // Visitor-armed demo offer late arm (new-flow
+                // choreography, 2026-11-23) — same pattern as
+                // meet-alex above: the visitor accepted the offer,
+                // but Aspen's line completed without anything
+                // staged. Arm now; the flag STAYS set, so her NEXT
+                // line still yields 'offer-sara' via
+                // boundaryForAssistantLine and the swap follows it.
+                armSwapRef.current('offer-sara');
               }
               // Team intro yield (design §3.3 rules 2–3): if the visitor
               // interrupted a BRIDGE beat during this turn, the show is
@@ -4618,6 +4690,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
             swapStateRef.current = noteSaraIntent(swapStateRef.current, userLineRef.current);
             if (swapStateRef.current !== beforeSara && swapStateRef.current.pendingSara) prestageDoorwayFace();
           }
+          // Visitor-armed demo offer — same rule as the main socket.
+          if (swapEnabledRef.current && liveRef.current) {
+            const beforeOffer = swapStateRef.current;
+            swapStateRef.current = noteOfferIntent(swapStateRef.current, userLineRef.current);
+            if (swapStateRef.current !== beforeOffer && swapStateRef.current.pendingOffer) prestageOfferFace();
+          }
           // Visitor-armed summon-aspen — same rule as the main socket.
           if (swapEnabledRef.current && liveRef.current) {
             swapStateRef.current = noteAspenIntent(swapStateRef.current, userLineRef.current);
@@ -4671,6 +4749,10 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
               // Structural doorway late arm — same rule as the main
               // socket, announcement gate included (2026-11-20).
               armSwapRef.current('doorway');
+            } else if (state.pendingOffer && state.phase === 'offer' && !state.armed.includes('offer-sara') && !state.done.includes('offer-sara')) {
+              // Visitor-armed demo offer late arm — same rule as the
+              // main socket: arm now, flag stays set for her next line.
+              armSwapRef.current('offer-sara');
             }
             // Team intro yield — same rule as the main socket (design §3.3).
             const after = swapStateRef.current;
@@ -5171,6 +5253,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         // itself; every other cut-over leaves it untouched (it is
         // only ever set in alex-guest).
         pendingReturn: boundary === 'return' ? false : swapStateRef.current.pendingReturn,
+        // Visitor-armed offer intent is consumed by offer-sara
+        // itself (new-flow choreography, 2026-11-23); every other
+        // cut-over leaves it untouched (it is only ever set in the
+        // 'offer' phase).
+        pendingOffer: boundary === 'offer-sara' ? false : swapStateRef.current.pendingOffer,
         // Team intro latch: the show ran to completion — nothing in
         // this session re-arms any intro boundary (design §3.1).
         teamIntroDone: swapStateRef.current.teamIntroDone || boundary === 'intro-return-2',

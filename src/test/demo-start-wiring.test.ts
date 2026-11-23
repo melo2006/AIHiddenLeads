@@ -15,9 +15,14 @@ const proxy = readFileSync(resolve(__dirname, '../../supabase/functions/gemini-l
 const conversation = readFileSync(resolve(__dirname, '../components/GeminiConversation.tsx'), 'utf8');
 const card = readFileSync(resolve(__dirname, '../components/DemoStartConfirmation.tsx'), 'utf8');
 
-test('proxy declares the demo-start tool only on homepage sales sessions', () => {
+test('proxy declares the demo-start tool only on homepage sales sessions (plus Sara\'s demo-intake segment)', () => {
   expect(proxy).toContain("from '../_shared/demo-start.ts'");
-  expect(proxy).toContain('demoStartApplies({ homepageSales: config.homepageSales, simulation: config.simulation, preview })');
+  // Call shape widened 2026-11-23 (new-flow choreography): the gate now
+  // also receives config.demoIntake so Sara's offer-chain intake
+  // segment — which deliberately does NOT carry homepageSales — can
+  // fire the same tool. demoStartApplies' matrix is pinned in
+  // new-flow-choreography-2026-11-23.test.ts.
+  expect(proxy).toContain('demoStartApplies({ homepageSales: config.homepageSales, demoIntake: config.demoIntake, simulation: config.simulation, preview })');
   expect(proxy).toContain('...(demoStartAvailable ? [DEMO_START_TOOL_DECLARATION] : [])');
 });
 

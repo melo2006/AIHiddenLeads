@@ -74,7 +74,9 @@ describe('prompt split', () => {
   test('Alex guest segment: greeting + guest prompt via parent chain', () => {
     const guest = alexDemoGuestConfig('Durgin Electric');
     expect(ALEX_DEMO_GREETING).toContain("Hi, I'm Alex");
-    expect(ALEX_DEMO_GREETING).toContain('10 to 15 minutes');
+    // Setup-time figure reconciled 10–15 → 20–30 minutes (new-flow
+    // choreography, 2026-11-23 — Ron's approved flow states 20 to 30).
+    expect(ALEX_DEMO_GREETING).toContain('20 to 30 minutes');
     expect(ALEX_DEMO_GREETING).toContain('install snippet');
     const built = personaSegmentPrompt('alex', 'meet-alex', 'Durgin Electric', SIMULATION_PROMPT, guest);
     expect(built.systemPrompt).toContain('onboarding engineer at AI Hidden Leads');

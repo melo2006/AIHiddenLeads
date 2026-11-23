@@ -24,6 +24,12 @@
 // stays assembled byte-identical), the Alex guest segment in alex-guide.ts.
 import { ALEX_FACE_ID, ALEX_VOICE, alexPresenterGuestPrompt } from './alex-guide.ts';
 import {
+  DEMO_OFFER_HOST_SEGMENT,
+  SARA_INTAKE_PROMPT,
+  isDemoOfferBoundary,
+  type DemoOfferBoundary,
+} from './demo-offer.ts';
+import {
   ALEX_CAMEO_PROMPT,
   INTRO_BOUNDARIES,
   SARA_CAMEO_PROMPT,
@@ -44,13 +50,15 @@ import {
 
 export type PersonaId = 'aspen' | 'sara' | 'alex' | 'frank' | 'latina' | 'black-professional-lady' | 'james' | 'diego';
 /** All segment boundaries: the Stage 1 simulation family plus the team
- *  intro family (design: team-intro-design-2026-11-09.md §4.1). The two
- *  families are disjoint and phase-gated against their own parent class
+ *  intro family (design: team-intro-design-2026-11-09.md §4.1) plus the
+ *  demo offer family (new-flow choreography, 2026-11-23). The families
+ *  are disjoint and phase-gated against their own parent class
  *  (gemini-session refuses cross-family requests). */
 export type PersonaBoundary =
   | 'doorway' | 'stepout' | 'meet-alex' | 'return' | 'summon-aspen'
-  | IntroBoundary;
-export type { IntroBoundary };
+  | IntroBoundary
+  | DemoOfferBoundary;
+export type { IntroBoundary, DemoOfferBoundary };
 
 export interface PersonaBinding {
   id: PersonaId;
@@ -293,6 +301,20 @@ export function teamIntroEnabled(env: (name: string) => string | undefined): boo
 }
 
 // ---------------------------------------------------------------------------
+// Demo offer sub-flag (new-flow choreography, 2026-11-23): the offer
+// chain rides the swap family but is enabled SEPARATELY, same pattern
+// as the team intro — DEMO_OFFER_ENABLED is its own server env and it
+// can never outlive the master flag. gemini-session is the single
+// decision point: it stamps demoOfferEnabled on the homepage parent
+// (never together with the team-intro stamp — the two shows are
+// mutually exclusive on one session) and segment requests in the
+// offer family are refused unless the parent carries the stamp.
+// ---------------------------------------------------------------------------
+export function demoOfferEnabled(env: (name: string) => string | undefined): boolean {
+  return avatarSwapEnabled(env) && env('DEMO_OFFER_ENABLED') === 'true';
+}
+
+// ---------------------------------------------------------------------------
 // Segment prompt assembly (spec §5.1). A segment session's system prompt
 // carries ONLY that persona's segment + the shared framing below; the
 // business knowledge rides separately as reference data, exactly as in the
@@ -343,6 +365,15 @@ export interface TeamIntroSegmentOptions {
   parentPrompt: string;
 }
 
+/** Demo-offer segment build options (the offer family's parent is the
+ *  homepage sales session — same shape as the intro options, for the
+ *  same reason: the Aspen return segment rides the parent's prompt so
+ *  the post-Sara landing keeps the whole sales context, while Sara's
+ *  intake pack stands alone). */
+export interface DemoOfferSegmentOptions {
+  parentPrompt: string;
+}
+
 /**
  * Build the segment prompt + greeting for one persona inside one business
  * demo. `parentPrompt` is the PARENT session's full systemPrompt: the
@@ -363,8 +394,27 @@ export function personaSegmentPrompt(
   teamIntroSeen?: boolean,
   teamIntro?: TeamIntroSegmentOptions,
   exampleListings?: ExampleListingsSegmentOptions,
+  demoOffer?: DemoOfferSegmentOptions,
 ): PersonaSegmentBuild {
   const binding = PERSONAS[persona];
+  // DEMO OFFER FAMILY (new-flow choreography, 2026-11-23): segments of
+  // a homepage sales parent. Sara's intake pack stands alone (bounded
+  // material: the greeting, the two hard needs, the one optional email
+  // ask, the phone-only simulation, the real demo start); the Aspen
+  // return segment rides the parent's own prompt (sales arc + offer
+  // teaching) plus the landing block, exactly like the intro family's
+  // host segment. No greeting either way: the proxy's swap opening
+  // serves the first beat.
+  if (isDemoOfferBoundary(boundary)) {
+    if (boundary === 'offer-sara' && persona === 'sara') {
+      return { systemPrompt: SARA_INTAKE_PROMPT, greeting: '' };
+    }
+    if (boundary === 'offer-return' && persona === 'aspen') {
+      if (!demoOffer) throw new Error('personaSegmentPrompt: demoOffer options are required for offer segments');
+      return { systemPrompt: `${demoOffer.parentPrompt}\n${DEMO_OFFER_HOST_SEGMENT}`, greeting: '' };
+    }
+    throw new Error(`personaSegmentPrompt: persona ${persona} cannot enter boundary ${boundary}`);
+  }
   // TEAM INTRO FAMILY (design §4.3 P3–P5): segments of a homepage parent.
   // The cameo prompts stand alone (bounded material, no tenant business,
   // no parent sales prompt); the Aspen host segment rides the parent's

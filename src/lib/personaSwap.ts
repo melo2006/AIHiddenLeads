@@ -18,12 +18,15 @@ export type { PersonaBoundary, PersonaId } from '../../supabase/functions/_share
 export type { IntroBoundary } from '../../supabase/functions/_shared/team-intro';
 /** Phases: the Stage 1 simulation chain (host → simulation → close /
  *  alex-guest) plus the team-intro chain on the demo page (intro →
- *  intro-sara → intro-host → intro-alex → intro-host). The two families
- *  are disjoint: a session is armed for exactly one of them (the server
- *  echo decides), and every phase gate below is family-scoped. */
+ *  intro-sara → intro-host → intro-alex → intro-host) plus the demo
+ *  offer chain on the homepage (offer → offer-sara → offer-host,
+ *  new-flow choreography 2026-11-23). The families are disjoint: a
+ *  session is armed for exactly one of them (the server echo
+ *  decides), and every phase gate below is family-scoped. */
 export type SwapPhase =
   | 'host' | 'simulation' | 'close' | 'alex-guest'
-  | 'intro' | 'intro-sara' | 'intro-host' | 'intro-alex';
+  | 'intro' | 'intro-sara' | 'intro-host' | 'intro-alex'
+  | 'offer' | 'offer-sara' | 'offer-host';
 
 export interface SwapState {
   phase: SwapPhase;
@@ -106,6 +109,18 @@ export interface SwapState {
    *  supersedes a standing Alex intent (and vice versa): the
    *  visitor's LATEST named-person ask is the one that fires. */
   pendingSara: boolean;
+  /** Visitor accepted the demo offer, or asked for Sara / the demo,
+   *  while ASPEN hosts the HOMEPAGE sales session (demo offer family,
+   *  new-flow choreography 2026-11-23). Set from a VISITOR line via
+   *  noteOfferIntent — 'offer' phase only — and Aspen's NEXT
+   *  finalized line executes 'offer-sara' via
+   *  boundaryForAssistantLine, anchor or no anchor: her offer
+   *  teaching makes that line the scripted Sara introduction. The
+   *  same visitor line fires Sara's face pre-stage in
+   *  GeminiConversation, so her face is warm before Aspen finishes
+   *  the introduction. Cleared when offer-sara executes; one-shot
+   *  via state.done. */
+  pendingOffer: boolean;
   /** Visitor asked for Aspen by name while ALEX is live
    *  (obey-requests pass, 2026-11-23): the visitor-armed half of
    *  the alex-guest return. Set from a VISITOR line via
@@ -152,7 +167,7 @@ export interface SwapState {
 }
 
 export const INITIAL_SWAP_STATE: SwapState = {
-  phase: 'host', persona: 'aspen', segment: 0, armed: [], done: [], drops: 0, pendingStepout: false, pendingAlex: false, pendingDoorway: false, pendingAspen: false, pendingSara: false, pendingReturn: false,
+  phase: 'host', persona: 'aspen', segment: 0, armed: [], done: [], drops: 0, pendingStepout: false, pendingAlex: false, pendingDoorway: false, pendingAspen: false, pendingSara: false, pendingOffer: false, pendingReturn: false,
   teamIntroDone: false, teamIntroSeen: false,
 };
 
@@ -160,12 +175,14 @@ export const INITIAL_SWAP_STATE: SwapState = {
  *  and the persona it lands on. Intro phases included: the returns land
  *  on ASPEN segments (the new chain shape — the parent session cannot
  *  resume after a cameo voice session, design §4.4). */
-export const PHASE_ENTRY: Record<Exclude<SwapPhase, 'host' | 'intro'>, { boundary: PersonaBoundary; persona: PersonaId }> = {
+export const PHASE_ENTRY: Record<Exclude<SwapPhase, 'host' | 'intro' | 'offer'>, { boundary: PersonaBoundary; persona: PersonaId }> = {
   simulation: { boundary: 'doorway', persona: 'sara' },
   close: { boundary: 'stepout', persona: 'aspen' },
   'alex-guest': { boundary: 'meet-alex', persona: 'alex' },
   'intro-sara': { boundary: 'intro-sara', persona: 'sara' },
   'intro-host': { boundary: 'intro-return-1', persona: 'aspen' },
+  'offer-sara': { boundary: 'offer-sara', persona: 'sara' },
+  'offer-host': { boundary: 'offer-return', persona: 'aspen' },
   'intro-alex': { boundary: 'intro-alex', persona: 'alex' },
 };
 
@@ -184,6 +201,8 @@ export const PHASE_AFTER_BOUNDARY: Record<PersonaBoundary, SwapPhase> = {
   'intro-return-1': 'intro-host',
   'intro-alex': 'intro-alex',
   'intro-return-2': 'intro-host',
+  'offer-sara': 'offer-sara',
+  'offer-return': 'offer-host',
 };
 
 /** Planned-swap face transition (owner transition spec, 2026-11-09):
@@ -258,6 +277,8 @@ export const BOUNDARY_TARGET: Record<PersonaBoundary, PersonaId> = {
   'intro-return-1': 'aspen',
   'intro-alex': 'alex',
   'intro-return-2': 'aspen',
+  'offer-sara': 'sara',
+  'offer-return': 'aspen',
 };
 
 /** Phrases Sara/Alex use when THEY initiate the hand back to Aspen for
@@ -442,6 +463,20 @@ export function boundaryForAssistantLine(text: string, state: SwapState): Person
   // stays gone until summoned by name or the segment closes.
   if (state.phase === 'alex-guest' && state.pendingReturn && !state.done.includes('return')) return 'return';
   if (state.phase === 'alex-guest' && linePerformsHandBack(text, BOUNDARY_ANCHORS.return)) return 'return';
+  // Demo offer family (new-flow choreography, 2026-11-23): two
+  // boundaries, both phase-scoped to the offer chain. INTO Sara: the
+  // visitor-armed trigger (state.pendingOffer — the visitor accepted
+  // the offer or asked for the demo/Sara) makes Aspen's next line
+  // the handover whatever words it uses; the anchor path matches
+  // only the scripted introduction's distinctive shapes, because
+  // the 'offer' phase lasts the whole sales conversation and a
+  // passing team mention must never arm the swap early. BACK to
+  // Aspen: only a PERFORMED hand-back (Sara's short closing line) —
+  // the same obey-requests law as Alex's return: a mid-answer
+  // mention of Aspen never drags her back mid-intake.
+  if (state.phase === 'offer' && state.pendingOffer && !state.done.includes('offer-sara')) return 'offer-sara';
+  if (state.phase === 'offer' && !state.done.includes('offer-sara') && BOUNDARY_ANCHORS['offer-sara'].some(a => line.includes(normalize(a)))) return 'offer-sara';
+  if (state.phase === 'offer-sara' && !state.done.includes('offer-return') && linePerformsHandBack(text, BOUNDARY_ANCHORS['offer-return'])) return 'offer-return';
   // Team intro family — the latch is checked BEFORE any anchor: once the
   // show has run or been yielded, nothing in this session re-arms it.
   if (state.teamIntroDone) return null;
@@ -724,6 +759,53 @@ export function noteSaraIntent(state: SwapState, text: string): SwapState {
   if (!visitorRequestsSara(text)) return state;
   if (state.pendingSara && !state.pendingAlex) return state;
   return { ...state, pendingSara: true, pendingAlex: false };
+}
+
+/** Visitor intent for the DEMO OFFER (new-flow choreography,
+ *  2026-11-23 — the noteSaraIntent pattern applied to the homepage
+ *  offer chain): the visitor accepted Aspen's offer, asked for the
+ *  demo outright, or asked for Sara by name/role, while Aspen hosts
+ *  the homepage sales session. Two trigger families:
+ *  - Sara named/role-asked, exactly as the host-phase summon reads
+ *    it (visitorRequestsSara — whole-word name + request shape, role
+ *    phrases, decline guard included).
+ *  - Demo-acceptance phrases: the natural ways a visitor says yes
+ *    to "want to see it live on your own website?" — kept tight
+ *    (demo/site/website must be IN the phrase) so ordinary sales
+ *    chatter ("show me the pricing", "let's see the plans") never
+ *    arms the intake.
+ *  An explicit decline ("no demo", "don't want a demo", "no
+ *  thanks", or a Sara decline) suppresses the arming for that line
+ *  only. 'offer' phase ONLY — every other chain is untouched, and a
+ *  presenter chain never carries the offer. One-shot: once
+ *  'offer-sara' is in state.done this is a no-op. Returns the SAME
+ *  state object when nothing changes. GeminiConversation fires
+ *  Sara's face pre-stage when this fold newly sets the flag. */
+const OFFER_ACCEPT_PHRASES = [
+  'show me the demo', 'see the demo', 'start the demo', "let's see the demo", 'lets see the demo',
+  'see it working', 'show me it working', 'see it live', 'show me it live',
+  'try the demo', 'do the demo', 'run the demo',
+  'demo on my site', 'demo on my website', 'see it on my site', 'see it on my website',
+  'show me on my site', 'show me on my website', 'on my own website', 'on my own site',
+];
+const OFFER_DECLINE_PHRASES = [
+  'no demo', "don't want a demo", 'do not want a demo', "don't want the demo", 'do not want the demo',
+  'no thanks', 'not now', 'maybe later',
+];
+export function visitorAcceptsOffer(text: string): boolean {
+  const line = normalize(text);
+  if (!line) return false;
+  if (visitorDeclinesSara(line)) return false;
+  if (OFFER_DECLINE_PHRASES.some(p => line.includes(p))) return false;
+  if (visitorRequestsSara(line)) return true;
+  return OFFER_ACCEPT_PHRASES.some(p => line.includes(p));
+}
+export function noteOfferIntent(state: SwapState, text: string): SwapState {
+  if (state.presenter) return state;
+  if (state.phase !== 'offer') return state;
+  if (state.done.includes('offer-sara')) return state;
+  if (!visitorAcceptsOffer(text)) return state;
+  return state.pendingOffer ? state : { ...state, pendingOffer: true };
 }
 
 /** Does this ASSISTANT line PERFORM a hand-back to Aspen — as
@@ -1576,7 +1658,7 @@ export interface ChainStash {
  *  have no segment to resume: their restart stays the legacy parent
  *  resume, byte-identical. */
 export function chainIsMidSegment(state: SwapState): boolean {
-  return state.phase !== 'host' && state.phase !== 'intro';
+  return state.phase !== 'host' && state.phase !== 'intro' && state.phase !== 'offer';
 }
 
 /** What a manual-stop restart must re-authorise as, given a chain stash:
@@ -1614,6 +1696,13 @@ function segmentTargetForState(state: SwapState, parentSessionId: string): {
   if (state.phase === 'intro-sara') return { persona: 'sara', personaSegment: { persona: 'sara', boundary: 'intro-sara', parentSessionId } };
   if (state.phase === 'intro-host') return { persona: 'aspen', personaSegment: { persona: 'aspen', boundary: 'intro-return-1', parentSessionId } };
   if (state.phase === 'intro-alex') return { persona: 'alex', personaSegment: { persona: 'alex', boundary: 'intro-alex', parentSessionId } };
+  // Demo offer phases: same law — the PARENT Aspen (phase offer)
+  // stays on the legacy session shape; Sara's intake segment
+  // re-enters on offer-sara; the Aspen host segment re-enters via
+  // offer-return.
+  if (state.phase === 'offer') return { persona: 'aspen' };
+  if (state.phase === 'offer-sara') return { persona: 'sara', personaSegment: { persona: 'sara', boundary: 'offer-sara', parentSessionId } };
+  if (state.phase === 'offer-host') return { persona: 'aspen', personaSegment: { persona: 'aspen', boundary: 'offer-return', parentSessionId } };
   const boundary: PersonaBoundary = state.phase === 'simulation' ? 'doorway' : state.phase === 'close' ? 'stepout' : 'meet-alex';
   return { persona: state.persona, personaSegment: { persona: state.persona, boundary, parentSessionId } };
 }
