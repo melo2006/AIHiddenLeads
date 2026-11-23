@@ -37,22 +37,11 @@ export interface Film {
 
 export const FILMS: Film[] = [
   {
-    slug: "frank-pool",
-    narrator: "Frank",
-    business: "A-B-C Pool Cleaning",
-    industry: "Pool Cleaning",
-    runtime: "1:57",
-    blurb:
-      "Three pool companies never answered. The fourth had Aspen — and booked him on the spot.",
-    youtubeId: "AmpmbPJ2O6A",
-    poster: "/videos/testimonials/frank-pool.jpg",
-  },
-  {
     slug: "frank-pool-dialogue",
     narrator: "Frank & his wife",
     business: "A-B-C Pool Cleaning",
     industry: "Pool Cleaning",
-    runtime: "1:40",
+    runtime: "2:04",
     blurb:
       "Told together: a pool emergency, a string of unanswered calls, and the one company that picked up.",
     youtubeId: "JWPKgu19nEs",

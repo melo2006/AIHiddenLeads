@@ -7,11 +7,10 @@ import { FILMS } from "../components/landing/FilmGallery";
 const read = (rel: string) => readFileSync(resolve(__dirname, "..", rel), "utf8");
 
 describe("film gallery data (2026-11-20)", () => {
-  it("carries the seven testimonial films, Frank's solo story in the spotlight slot", () => {
-    expect(FILMS).toHaveLength(7);
-    expect(FILMS[0].slug).toBe("frank-pool");
+  it("carries the six testimonial films, Frank & his wife's story in the spotlight slot (Ron, 2026-11-22: the hairy Frank is THE Frank; the solo cut was a different man and left the gallery)", () => {
+    expect(FILMS).toHaveLength(6);
+    expect(FILMS[0].slug).toBe("frank-pool-dialogue");
     expect(FILMS.map((f) => f.slug)).toEqual([
-      "frank-pool",
       "frank-pool-dialogue",
       "dave-marine",
       "karen-dental",
@@ -25,7 +24,6 @@ describe("film gallery data (2026-11-20)", () => {
     // The films are published on the AI Hidden Leads channel
     // (@AIHiddenLeads, 2026-11-20); ids pinned so a swap is a deliberate edit.
     expect(FILMS.map((f) => f.youtubeId)).toEqual([
-      "AmpmbPJ2O6A",
       "JWPKgu19nEs",
       "RG2saPORnG4",
       "BevOXGmhKBs",
