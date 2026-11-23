@@ -710,6 +710,7 @@
     "audioPaused": "O áudio está pausado. Encerre a chamada e toque em Iniciar de novo para ativar o som.",
     "tapForSound": "Toque para ativar o som",
     "startTimeout": "A assistente de voz demorou demais para iniciar. Verifique a permissão do microfone e tente novamente.",
+    "stillConnecting": "Ainda conectando — só mais um momento…",
     "initialStatus": "Escolha uma voz e toque em Iniciar — depois é só falar, como numa ligação de verdade. Você pode interromper quando quiser.",
     "micLevelShort": "Nível do microfone",
     "micSound": "Som — sua voz está sendo captada",

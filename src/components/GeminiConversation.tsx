@@ -58,6 +58,7 @@ import { clearAllVisitMemory, visitMemoryAppend, visitMemoryDelete, visitMemoryG
 import { shouldShowMicHint } from '@/lib/micAudibility';
 import { createMicFlowState, MIC_MUTED_START_GRACE_MS, MIC_SILENT_MIN_LOUD_FRAMES, micDiagPayload, micDiagSignature, micDiagStamp, micInputSeconds, micTrackStartVerdict, noteMicFrame, noteMicSessionLive, noteMicWatchdogFired, shouldShowMicWatchdog, shouldShowSilentMicNotice, type MicDiagEvent, type MicTrackState } from '@/lib/micWatchdog';
 import { createPlayoutStartupWatch, heardEngineWhy, STARTUP_BLOCKED_AFTER_MS, STARTUP_CHECK_AFTER_MS, startupDiagPayload, startupDiagSignature, type PlayoutProbe, type StartupDiagEvent, type StartupVerdict } from '@/lib/playoutStartup';
+import { classifyStartupError, STARTUP_READY_TIMEOUT_MS, STARTUP_RETRY_DELAY_MS, STARTUP_TIMEOUT_MS, startupRetryAllowed, tagStartupError, type StartupFailureKind } from '@/lib/startupRetry';
 import { clearRetainedHandoffMic, fitHandoffRecap, handoffDiagPayload, handoffDiagSignature, handoffVisitFact, isHandoffAnnouncement, micRequestPromise, micStreamIsLive, retainHandoffMic, reusableMicStream, stripHandoffAnnouncement, takeRetainedHandoffMic, type HandoffDiagEvent, type HandoffDiagMic, type HandoffDiagOutcome } from '@/lib/handoffRecovery';
 import { consumeEndConversationSignal, endSignalVisibleChunk, END_SIGNAL_DRAIN_POLL_MS, END_SIGNAL_MAX_WAIT_MS } from '@/lib/endConversation';
 import { windowRecapLines } from '../../supabase/functions/_shared/recap-builder';
@@ -1458,6 +1459,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const micSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const generationRef = useRef(0);
   const startingRef = useRef(false);
+  // Startup auto-retry budget (lib/startupRetry): retries spent on
+  // the current visitor start, and the flag the scheduled retry sets
+  // so its own startConversation entry keeps that budget instead of
+  // resetting it. Any other entry (tap, reconnect, auto-start)
+  // resets the budget; goLive clears it on success.
+  const startupRetriesRef = useRef(0);
+  const startupAutoRetryRef = useRef(false);
   const previewDoneRef = useRef(false);
   const isPreviewRef = useRef(false);
   const aspenLineRef = useRef("");
@@ -3390,6 +3398,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     setError(voiceDisconnectMessage(code, ''));
   }, [stopEverything, partialTeardownForSwap]);
   const startConversation = useCallback(async (preview = false, warm = false) => {
+    // Startup auto-retry budget (lib/startupRetry): the scheduled
+    // retry's entry consumes the flag and keeps the spent budget;
+    // every other entry begins a fresh one.
+    if (startupAutoRetryRef.current) startupAutoRetryRef.current = false;
+    else startupRetriesRef.current = 0;
     // A silently prepared session only needs the tap's audio/microphone unlock.
     if (!preview && !warm && warmRef.current) {
       // STALE-PREWARM GUARD (2026-11-21): a held, never-begun
@@ -3482,13 +3495,41 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     if (!warm) { setPhase("connecting"); setStatus(preview ? "Preparing your saved greeting…" : "Connecting…"); }
     avatarLiveRef.current = false;
     avatarRequestedRef.current = !preview && !!videoAvatar?.enabled;
+    // STARTUP AUTO-RETRY (2026-11-23, lib/startupRetry): a transient
+    // setup failure retries the whole start once, silently — fresh
+    // generation, fresh visitor key, fresh session mint — behind a
+    // calm "still connecting" status instead of the red error. Only
+    // a second failure surfaces the hard error. Permission denials,
+    // tap-for-sound holds and definitive face refusals classify out
+    // in the policy and keep their existing handling. `stopped`
+    // marks callers whose own failure path already tore down (the
+    // catch block), so the teardown runs exactly once per failure.
+    const retryStartup = (kind: StartupFailureKind, stopped = false): boolean => {
+      if (!startupRetryAllowed({ kind, retriesUsed: startupRetriesRef.current, warm, preview })) return false;
+      startupRetriesRef.current += 1;
+      startupAutoRetryRef.current = true;
+      if (!stopped) stopEverything();
+      setError(null);
+      setPhase("connecting");
+      setStatus(t("panel.stillConnecting"));
+      const genAfterStop = generationRef.current;
+      window.setTimeout(() => {
+        // A stop or any newer teardown since the failure cancels
+        // the retry: teardown bumps the generation, so a changed
+        // generation means the visitor (or a newer start) took over.
+        if (generationRef.current !== genAfterStop || liveRef.current) return;
+        void startConversationRef.current();
+      }, STARTUP_RETRY_DELAY_MS);
+      return true;
+    };
     const startupTimeout = window.setTimeout(() => {
       if (warm) { if (generation === generationRef.current && silentWarm() && !warmState?.ok) failWarm(); return; }
       if (generation === generationRef.current && !liveRef.current) {
+        if (retryStartup('timeout')) return;
         stopEverything();
         setError(t("panel.startTimeout"));
       }
-    }, 30000);
+    }, STARTUP_TIMEOUT_MS);
 
     try {
       // Unlock audio while still inside the user's click, before permissions/network awaits.
@@ -3649,8 +3690,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       faceGatePassed = true;
       const faceGate = faceGateAction(faceSettlement);
       if (faceGate === 'fail') {
-        if (faceSettlement.error != null) throw faceSettlement.error;
-        throw new Error('The moving face could not connect. Please press play to try again.');
+        // Tagged face-refusal: a definitive video refusal hard-fails
+        // the start (house rule) — the startup auto-retry must not
+        // soften it into a silent second attempt.
+        if (faceSettlement.error != null) throw tagStartupError(faceSettlement.error, 'face-refusal');
+        throw tagStartupError(new Error('The moving face could not connect. Please press play to try again.'), 'face-refusal');
       }
       if (faceGate === 'fallback') engageVideoFallback();
       if (faceGate === 'voice-first' && avatarRequestedRef.current) parentFacePendingRef.current = true;
@@ -3669,7 +3713,12 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       const { data: authorized, error: authError } = session;
       if (authError) {
         const detail = authError instanceof FunctionsHttpError ? await authError.context.json().catch(() => null) : null;
-        throw new Error(detail?.error || authError.message);
+        // Tagged transient: an HTTP-level mint failure is the edge
+        // function or the network hiccuping, not a verdict on the
+        // visitor (allowed===false denials return gracefully below
+        // and never reach this throw) — the startup auto-retry may
+        // spend its one silent retry on it.
+        throw tagStartupError(new Error(detail?.error || authError.message), 'transient');
       }
       if (authorized?.allowed === false) {
         if (silentWarm()) { failWarm(); return; }
@@ -3793,14 +3842,18 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       const readyTimeout = setTimeout(() => {
         if (silentWarm()) { if (!warmState?.ok) failWarm(); return; }
         if (!liveRef.current) {
+          if (retryStartup('no-response')) return;
           setError("The voice service did not respond in time. Please try again.");
           stopEverything();
         }
-      }, 15000);
+      }, STARTUP_READY_TIMEOUT_MS);
 
       const goLive = () => {
         if (generation !== generationRef.current) return;
         liveRef.current = true;
+        // A start landed: the next start begins with a fresh
+        // startup auto-retry budget.
+        startupRetriesRef.current = 0;
         sessionRecoveringRef.current = false;
         // Reconnect-stamp fix (2026-11-14): EVERY parent session —
         // first connect and every reconnect/resume alike — stamps
@@ -4323,6 +4376,13 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         setError(null);
         return;
       }
+      // STARTUP AUTO-RETRY (2026-11-23, lib/startupRetry): a
+      // transient setup failure — the session mint's transport, a
+      // busy mic device — retries once, silently, before any error
+      // is shown. Permission denials keep the accurate denial copy
+      // below; face refusals keep their hard fail. The teardown
+      // above already ran, so the retry is scheduled against it.
+      if (retryStartup(classifyStartupError(e, { microphoneDenied: MICROPHONE_DENIED, audioTapNeeded: AUDIO_TAP_NEEDED, soundBlocked: SOUND_BLOCKED }), true)) return;
       setError(
         e instanceof Error && e.name === "NotAllowedError"
           ? SOUND_BLOCKED
