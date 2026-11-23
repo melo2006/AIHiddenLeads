@@ -165,7 +165,8 @@ describe("widget viewport fit — stage 3 and short viewports", () => {
     const start = css.indexOf(mq);
     expect(start).toBeGreaterThanOrEqual(0);
     const block = css.slice(start, start + 600);
-    expect(block).toContain(".aspen-person-livebox { height: 120px; }");
+    expect(block).toContain(".aspen-person-livebox { width: 150px; height: 120px; }");
+    expect(block).toContain(".aspen-person-shell.aspen-person-focus .aspen-person-livebox { width: 187px; height: 150px; }");
     expect(block).toContain(".aspen-voice-panel { min-height: 0; }");
     // The window-controls row is in flow (2026-11-12 panel layout fix):
     // no per-breakpoint top offset follows the shrinking portrait anymore.
