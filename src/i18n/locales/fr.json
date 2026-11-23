@@ -140,7 +140,7 @@
     "core": "Service de base",
     "quickWins": "Gains rapides",
     "alsoAvailable": "Aussi offerts :",
-    "alsoList": "Refonte et modernisation de site Web · Référencement (SEO) et classement Google Maps · Optimisation pour la recherche par IA (GEO) · Rappels instantanés dès l'arrivée d'un prospect · Formation d'agents IA sur mesure",
+    "alsoList": "Refonte et modernisation de site Web · Référencement (SEO) et classement Google Maps · Rappels instantanés dès l'arrivée d'un prospect · Formation d'agents IA sur mesure",
     "items": {
       "voice": {
         "title": "Agent vocal IA",
@@ -282,8 +282,6 @@
     "sub": "Bonifiez vos résultats avec ces services ciblés. Ajoutez-les à n'importe quel forfait, annulez en tout temps.",
     "learnMore": "En savoir plus",
     "comingSoon": "Bientôt offert",
-    "futureTitle": "🔮 L'avenir de la recherche :",
-    "futureBody": "Google n'est plus la seule façon dont les clients vous trouvent. ChatGPT, Gemini et Perplexity citent aussi des entreprises. Notre optimisation pour la recherche par IA améliore votre admissibilité à ces résultats; le placement est décidé par chaque plateforme.",
     "items": {
       "websiteRefresh": {
         "title": "Modernisation de site Web : jusqu'à 5 pages",
@@ -294,24 +292,7 @@
         "title": "Rapport d'audit carte et IA en 25 points (GRATUIT)",
         "description": "Comparez la visibilité à 25 points de contrôle de quartier et repérez quoi examiner en premier. La grille de la page d'accueil est illustrée; des résultats mesurés exigent un audit en direct.",
         "note": "Aperçu simulé gratuit; les classements en direct exigent un audit vérifié."
-      },
-      "aiSearch": {
-        "title": "Optimisation pour la recherche par IA",
-        "description": "Améliorez la clarté avec laquelle les systèmes de recherche et d'IA peuvent comprendre votre entreprise grâce à du contenu révisé et des données structurées. ChatGPT, Gemini et Perplexity décident quelles entreprises ils citent.",
-        "note": "Nouveau — tarifs pour les premiers adoptants"
-      },
-      "mapsBoost": {
-        "title": "Propulsion Google Maps",
-        "description": "Grimpez dans le trio de tête Google Maps. Nous optimisons votre profil d'entreprise Google, bâtissons des citations et gérons le rythme des avis pour dominer localement.",
-        "note": "⚡ Optimisation rapide du profil et des catégories en 14 jours + suivi hebdomadaire de la grille en 25 points"
       }
-    },
-    "liveNow": "🔥 Maintenant en direct — recherche par IA + citations ChatGPT/Gemini",
-    "bundle": {
-      "badge": "Combo à meilleur prix",
-      "title": "🚀 Ensemble domination totale de la recherche",
-      "body": "Combinez la propulsion Google Maps ({{maps}} $) + l'optimisation pour la recherche par IA ({{ai}} $) pour {{bundle}} $/mois (économisez {{savings}} $/mois par rapport aux services séparés). Priorisez la visibilité locale et l'information d'entreprise lisible par l'IA, sans garantie de classement ni de citation.",
-      "note": "L'optimisation est un plan d'action, pas une garantie de classement ou de citation. Le suivi hebdomadaire en direct de la grille exige la configuration d'un fournisseur; l'ensemble est arrangé pendant votre appel de mise en place."
     }
   },
   "testimonials": {
@@ -771,6 +752,7 @@
     "privacy": "Politique de confidentialité",
     "terms": "Conditions d'utilisation",
     "help": "Aide et assistance",
+    "articles": "Articles et guides",
     "smsConsent": "En utilisant nos services, vous consentez à recevoir des textos de la part d'AI Hidden Leads. La fréquence des messages varie. Répondez STOP pour vous désabonner. Répondez HELP pour de l'aide. Des frais de messagerie et de données peuvent s'appliquer. Le consentement n'est pas une condition d'achat.",
     "copyright": "Génération de prospects et automatisation des ventes propulsées par l'IA.",
     "rights": "Tous droits réservés."
@@ -1211,7 +1193,7 @@
     "legendBad": "11+ · Faible visibilité",
     "legendUnknown": "— · Introuvable / non disponible",
     "ctaButton": "Voir Aspen en direct sur votre site Web",
-    "ctaNote": "La propulsion Google Maps et l'optimisation pour la recherche par IA sont offertes en supplément une fois que vous êtes client — nous vous les présenterons lors de votre appel de suivi.",
+    "ctaNote": "L'audit est gratuit et les résultats vous appartiennent — nous vous expliquerons ce qu'ils signifient lors de votre appel de suivi.",
     "errName": "Entrez le nom exact de l'entreprise ou de la succursale.",
     "errKeyword": "Entrez un service que les acheteurs recherchent, comme le nettoyage commercial ou l'usinage CNC.",
     "errLocation": "Entrez l'adresse de la succursale ou la ville et la province/l'État pour l'audit cartographique local.",

@@ -140,7 +140,7 @@
     "core": "Core Service",
     "quickWins": "Quick Wins",
     "alsoAvailable": "Also available:",
-    "alsoList": "Website redesign & modernization · SEO & Google Maps ranking · AI Search Optimization (GEO) · Speed-to-lead instant callbacks · Custom AI agent training",
+    "alsoList": "Website redesign & modernization · SEO & Google Maps ranking · Speed-to-lead instant callbacks · Custom AI agent training",
     "items": {
       "voice": {
         "title": "AI Voice Agent",
@@ -282,8 +282,6 @@
     "sub": "Boost your results with these targeted services. Add to any plan, cancel anytime.",
     "learnMore": "Learn More",
     "comingSoon": "Coming Soon",
-    "futureTitle": "🔮 The Future of Search:",
-    "futureBody": "Google is not the only way customers find you anymore. ChatGPT, Gemini and Perplexity also cite businesses. Our AI Search Optimization improves your eligibility for these results; placement is decided by each platform.",
     "items": {
       "websiteRefresh": {
         "title": "Website Modernization: up to 5 pages",
@@ -294,24 +292,7 @@
         "title": "25-Point Map & AI Audit Report (FREE)",
         "description": "Compare visibility across 25 neighborhood checkpoints and identify what to investigate first. The homepage grid is illustrative; measured findings require a live audit.",
         "note": "Free simulated preview; live rankings require a verified audit."
-      },
-      "aiSearch": {
-        "title": "AI Search Optimization",
-        "description": "Improve how clearly search and AI systems can understand your business through reviewed content and structured data. ChatGPT, Gemini and Perplexity decide which businesses they cite.",
-        "note": "New — early adopter pricing"
-      },
-      "mapsBoost": {
-        "title": "Google Maps Boost",
-        "description": "Climb the Google Maps 3-pack. We optimize your Google Business Profile, build citations, and manage review velocity for local dominance.",
-        "note": "⚡ 14-Day Fast-Win Profile & Category Optimization + Weekly 25-Dot Grid Tracking"
       }
-    },
-    "liveNow": "🔥 Live Now — AI Search + ChatGPT/Gemini Citations",
-    "bundle": {
-      "badge": "Best Value Combo",
-      "title": "🚀 Total Search Dominance Bundle",
-      "body": "Combine Google Maps Boost (${{maps}}) + AI Search Optimization (${{ai}}) for ${{bundle}}/mo (save ${{savings}}/mo versus separate services). Prioritize local visibility and AI-readable business information, without ranking or citation guarantees.",
-      "note": "Optimization is an action plan, not a ranking or citation guarantee. Live weekly grid tracking requires provider setup; bundle arranged during your implementation call."
     }
   },
   "testimonials": {
@@ -771,6 +752,7 @@
     "privacy": "Privacy Policy",
     "terms": "Terms of Service",
     "help": "Help & Support",
+    "articles": "Articles & Guides",
     "smsConsent": "By using our services, you consent to receive SMS/text messages from AI Hidden Leads. Message frequency varies. Reply STOP to opt out. Reply HELP for help. Message and data rates may apply. Consent is not a condition of purchase.",
     "copyright": "AI-powered lead generation & sales automation.",
     "rights": "All rights reserved."
@@ -1211,7 +1193,7 @@
     "legendBad": "11+ · Low visibility",
     "legendUnknown": "— · Not found / unavailable",
     "ctaButton": "See Aspen live on your website",
-    "ctaNote": "Google Maps Boost and AI Search Optimization are available as add-ons once you're a customer — we'll walk you through them on your follow-up call.",
+    "ctaNote": "The audit is free and the results are yours to keep — we'll walk you through what they mean on your follow-up call.",
     "errName": "Enter the exact business or branch name.",
     "errKeyword": "Enter a service buyers search for, such as commercial cleaning or CNC machining.",
     "errLocation": "Enter the branch address or city and state for the local map audit.",

@@ -21,6 +21,10 @@ describe("public sitemap.xml", () => {
       "https://aihiddenleads.com/book",
       "https://aihiddenleads.com/plans",
       "https://aihiddenleads.com/help",
+      "https://aihiddenleads.com/articles",
+      "https://aihiddenleads.com/articles/ai-receptionist-cost",
+      "https://aihiddenleads.com/articles/ai-receptionist-vs-answering-service",
+      "https://aihiddenleads.com/articles/ai-receptionist-with-video-avatar",
     ]);
   });
 

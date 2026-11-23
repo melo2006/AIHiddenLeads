@@ -1,6 +1,6 @@
 export interface AuditContext { businessName: string; city?: string; niche?: string }
 export type RankTone = "good" | "warning" | "bad";
-export const auditOffers = { founder: 99, mapsBoost: 149, monthlyLeads: 50 } as const;
+export const auditOffers = { founder: 99, monthlyLeads: 50 } as const;
 export const rankTone = (rank: number): RankTone => rank <= 3 ? "good" : rank <= 10 ? "warning" : "bad";
 
 // Stable illustrative values, never measured or inferred Google rankings.

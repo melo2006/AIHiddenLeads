@@ -5,11 +5,11 @@
      /cal/<id> (per-booking), /setup, /dashboard/*, /voice-lab (signed-in / internal),
      /agents/mortgage and /agents/insurance (do not exist yet).
      Add any future public marketing pages here only after verifying they return 200.
-     2026-11-23 (SEO Phase 0): /demo/br, /plans and /help added — /plans and
-     /help now ship their own pre-rendered heads instead of the homepage's —
-     and every URL carries <lastmod>: 2026-11-23 is the deploy that changed
-     the served head of every page listed here (new Organization schema,
-     new homepage title, new /plans + /help variants). -->
+     2026-11-23 (SEO Phase 0 + articles merge): /demo/br, /plans, /help and the
+     /articles hub + first three articles listed; every URL carries <lastmod>:
+     2026-11-23 is the deploy that changed the served head of every page listed
+     here (new Organization schema, new homepage title, new /plans + /help
+     variants, articles launch). -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://aihiddenleads.com/</loc>
@@ -52,5 +52,29 @@
     <lastmod>2026-11-23</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://aihiddenleads.com/articles</loc>
+    <lastmod>2026-11-23</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://aihiddenleads.com/articles/ai-receptionist-cost</loc>
+    <lastmod>2026-11-23</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://aihiddenleads.com/articles/ai-receptionist-vs-answering-service</loc>
+    <lastmod>2026-11-23</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://aihiddenleads.com/articles/ai-receptionist-with-video-avatar</loc>
+    <lastmod>2026-11-23</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
   </url>
 </urlset>

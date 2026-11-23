@@ -87,6 +87,9 @@ const Footer = () => {
               <Link to="/help" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
                 {t("footer.help")}
               </Link>
+              <Link to="/articles" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                {t("footer.articles")}
+              </Link>
             </div>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">

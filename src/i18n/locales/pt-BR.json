@@ -140,7 +140,7 @@
     "core": "Serviço Principal",
     "quickWins": "Resultado Rápido",
     "alsoAvailable": "Também disponível:",
-    "alsoList": "Redesign e modernização do site · SEO e ranking no Google Maps · Otimização para busca por IA (GEO) · Retorno automático em até 60s · Treinamento personalizado do agente de IA",
+    "alsoList": "Redesign e modernização do site · SEO e ranking no Google Maps · Retorno automático em até 60s · Treinamento personalizado do agente de IA",
     "items": {
       "voice": {
         "title": "Agente de Voz com IA",
@@ -310,8 +310,6 @@
     "sub": "Turbina seus resultados com esses serviços direcionados. Adiciona em qualquer plano, cancela quando quiser.",
     "learnMore": "Saber Mais",
     "comingSoon": "Em Breve",
-    "futureTitle": "🔮 O Futuro da Busca:",
-    "futureBody": "Google não é mais o único jeito de te encontrarem. ChatGPT, Gemini e Perplexity também citam empresas. Nossa otimização melhora sua elegibilidade nesses resultados; cada plataforma decide o posicionamento.",
     "items": {
       "websiteRefresh": {
         "title": "Atualização do Site",
@@ -322,24 +320,7 @@
         "title": "Relatório de Auditoria de Mapas de 25 Pontos e IA (GRÁTIS)",
         "description": "Veja a grade exata de 25 pontos do bairro onde concorrentes estão levando suas ligações e o que corrigir primeiro.",
         "note": "Prévia simulada grátis; posições reais exigem auditoria verificada."
-      },
-      "aiSearch": {
-        "title": "Otimização para Busca por IA",
-        "description": "Faça seu negócio ser citado por ChatGPT, Gemini e Perplexity. O futuro da busca não é só Google — é IA. Otimizamos sua presença para resultados com IA.",
-        "note": "Novo — preço de early adopter"
-      },
-      "mapsBoost": {
-        "title": "Impulso no Google Maps",
-        "description": "Suba no pacote local do Google Maps. Otimizamos seu Perfil da Empresa, criamos citações e gerenciamos avaliações para dominar localmente.",
-        "note": "⚡ Otimização de Perfil e Categorias em 14 Dias + Acompanhamento Semanal de 25 Pontos"
       }
-    },
-    "liveNow": "🔥 Disponível — Busca por IA + Citações de ChatGPT/Gemini",
-    "bundle": {
-      "badge": "Combo com Melhor Custo-Benefício",
-      "title": "🚀 Pacote de Domínio Total nas Buscas",
-      "body": "Combine Impulso no Google Maps (US$ {{maps}}) + Otimização para Busca por IA (US$ {{ai}}) por apenas US$ {{bundle}}/mês (Economize US$ {{savings}}/mês) — Apareça no pacote local do Google E receba recomendações do ChatGPT, Gemini e Google IA!",
-      "note": "Otimização é um plano de ação, não garantia de posições ou citações. Acompanhamento real exige configuração de provedor; o pacote é combinado na sua chamada de implementação."
     }
   },
   "testimonials": {
@@ -799,6 +780,7 @@
     "privacy": "Política de Privacidade",
     "terms": "Termos de Uso",
     "help": "Ajuda e suporte",
+    "articles": "Artigos e guias",
     "smsConsent": "Ao usar nossos serviços, você consente em receber SMS da AI Hidden Leads. A frequência varia. Responda STOP pra cancelar. Responda HELP pra ajuda. Podem ser aplicadas taxas de SMS e dados. O consentimento não é condição de compra.",
     "copyright": "Geração de leads e automação de vendas com IA.",
     "rights": "Todos os direitos reservados."
@@ -1211,7 +1193,7 @@
     "legendBad": "11+ · Baixa visibilidade",
     "legendUnknown": "— · Não encontrado / indisponível",
     "ctaButton": "Veja a Aspen ao vivo no seu site",
-    "ctaNote": "O Impulso no Google Maps e a Otimização para Buscas de IA estão disponíveis como complementos quando você vira cliente — explicamos tudo na sua ligação de acompanhamento.",
+    "ctaNote": "A auditoria é gratuita e os resultados são seus — explicamos o que eles significam na sua ligação de acompanhamento.",
     "errName": "Digite o nome exato da empresa ou filial.",
     "errKeyword": "Digite um serviço que os compradores procuram, como limpeza comercial ou usinagem CNC.",
     "errLocation": "Digite o endereço da filial ou cidade e estado para a auditoria local do mapa.",

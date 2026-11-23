@@ -140,7 +140,7 @@
     "core": "Servicio Principal",
     "quickWins": "Resultados Rápidos",
     "alsoAvailable": "También disponible:",
-    "alsoList": "Rediseño y modernización del sitio · SEO y posicionamiento en Google Maps · Optimización para Búsqueda con IA (GEO) · Devoluciones de llamada instantáneas · Entrenamiento personalizado del agente de IA",
+    "alsoList": "Rediseño y modernización del sitio · SEO y posicionamiento en Google Maps · Devoluciones de llamada instantáneas · Entrenamiento personalizado del agente de IA",
     "items": {
       "voice": {
         "title": "Agente de Voz con IA",
@@ -310,8 +310,6 @@
     "sub": "Potencia tus resultados con estos servicios. Agrégalos a cualquier plan, cancela cuando quieras.",
     "learnMore": "Saber Más",
     "comingSoon": "Próximamente",
-    "futureTitle": "🔮 El Futuro de la Búsqueda:",
-    "futureBody": "Google ya no es la única forma de encontrarte. ChatGPT, Gemini y Perplexity también citan negocios. Nuestra optimización mejora tu elegibilidad para estos resultados; cada plataforma decide las posiciones.",
     "items": {
       "websiteRefresh": {
         "title": "Actualización del Sitio",
@@ -322,24 +320,7 @@
         "title": "Reporte de Auditoría de Mapas de 25 Puntos e IA (GRATIS)",
         "description": "Ve la cuadrícula exacta de 25 puntos del vecindario donde tus competidores se llevan tus llamadas y qué corregir primero.",
         "note": "Vista simulada gratis; las posiciones reales requieren una auditoría verificada."
-      },
-      "aiSearch": {
-        "title": "Optimización para Búsqueda con IA",
-        "description": "Haz que tu negocio sea citado por ChatGPT, Gemini y Perplexity. El futuro de la búsqueda no es solo Google — es IA. Optimizamos tu presencia para resultados con IA.",
-        "note": "Nuevo — precio early adopter"
-      },
-      "mapsBoost": {
-        "title": "Impulso en Google Maps",
-        "description": "Sube al paquete local de Google Maps. Optimizamos tu Perfil de Empresa, creamos citas y gestionamos reseñas para dominar localmente.",
-        "note": "⚡ Optimización de Perfil y Categorías en 14 Días + Seguimiento Semanal de 25 Puntos"
       }
-    },
-    "liveNow": "🔥 Disponible — Búsqueda con IA + Citas de ChatGPT/Gemini",
-    "bundle": {
-      "badge": "Combo de Mejor Valor",
-      "title": "🚀 Paquete de Dominio Total de Búsqueda",
-      "body": "Combina Impulso en Google Maps (${{maps}}) + Optimización para Búsqueda con IA (${{ai}}) por solo ${{bundle}}/mes (Ahorra ${{savings}}/mes) — ¡Posiciónate en el paquete local de Google Y consigue recomendaciones de ChatGPT, Gemini y Google IA!",
-      "note": "La optimización es un plan de acción, no una garantía de posiciones o citas. El seguimiento real requiere configurar un proveedor; el paquete se acuerda en tu llamada de implementación."
     }
   },
   "testimonials": {
@@ -596,6 +577,7 @@
     "privacy": "Política de Privacidad",
     "terms": "Términos de Servicio",
     "help": "Ayuda y soporte",
+    "articles": "Artículos y guías",
     "smsConsent": "Al usar nuestros servicios, aceptas recibir mensajes SMS de AI Hidden Leads. La frecuencia varía. Responde STOP para cancelar. Responde HELP para ayuda. Pueden aplicar tarifas de SMS y datos. El consentimiento no es condición de compra.",
     "copyright": "Generación de leads y automatización de ventas con IA.",
     "rights": "Todos los derechos reservados."
@@ -1211,7 +1193,7 @@
     "legendBad": "11+ · Baja visibilidad",
     "legendUnknown": "— · No encontrado / no disponible",
     "ctaButton": "Mira a Aspen en vivo en tu sitio web",
-    "ctaNote": "El Impulso en Google Maps y la Optimización para Búsqueda con IA están disponibles como complementos cuando seas cliente — te los explicaremos en tu llamada de seguimiento.",
+    "ctaNote": "La auditoría es gratuita y los resultados son tuyos — te explicaremos lo que significan en tu llamada de seguimiento.",
     "errName": "Ingresa el nombre exacto del negocio o la sucursal.",
     "errKeyword": "Ingresa un servicio que los compradores buscan, como limpieza comercial o mecanizado CNC.",
     "errLocation": "Ingresa la dirección de la sucursal o la ciudad y el estado para la auditoría local de mapa.",

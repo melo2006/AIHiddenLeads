@@ -35,10 +35,10 @@ const metaOf = (html: string, attr: string, name: string) =>
   html.match(new RegExp(`<meta ${attr}="${name}" content="([^"]*)">`))?.[1];
 
 describe("SEO route data (scripts/seo-routes.mjs — prerender + client source of truth)", () => {
-  it("covers exactly the seven sitemap routes", () => {
-    // 2026-11-23 (SEO Phase 0): /plans and /help joined the set — they were
-    // real public pages served the homepage's head + canonical, the audit's
-    // #1 defect. The name of this test said "five" until this change.
+  it("covers exactly the public prerendered routes (marketing pages + articles)", () => {
+    // 2026-11-23 (SEO Phase 0 + articles): /plans and /help joined the set —
+    // they were real public pages served the homepage's head + canonical,
+    // the audit's #1 defect; the articles hub + first three articles too.
     expect(routes.map((r) => r.path)).toEqual([
       "/",
       "/demo",
@@ -47,6 +47,10 @@ describe("SEO route data (scripts/seo-routes.mjs — prerender + client source o
       "/agents/realtors",
       "/plans",
       "/help",
+      "/articles",
+      "/articles/ai-receptionist-cost",
+      "/articles/ai-receptionist-vs-answering-service",
+      "/articles/ai-receptionist-with-video-avatar",
     ]);
     // The client mirror must carry the same routes (both read the same file).
     expect(SEO_PAGE_HEADS.map((r) => r.path)).toEqual(routes.map((r) => r.path));
@@ -71,7 +75,7 @@ describe("SEO route data (scripts/seo-routes.mjs — prerender + client source o
       // phrase "AI receptionist with a live video avatar".
       title: "AI Hidden Leads | AI Receptionist with a Live Video Avatar",
       description:
-        "Grow your business with 24/7 AI voice agents, website chat and qualified B2B prospects delivered weekly. Explore local SEO and Google Maps Boost services.",
+        "Grow your business with 24/7 AI voice agents, website chat and qualified B2B prospects delivered weekly. Explore local SEO services and run a free 25-point visibility audit.",
     });
     expect(byPath("/demo")).toMatchObject({
       canonical: "https://aihiddenleads.com/demo",
@@ -345,14 +349,15 @@ describe("fallback footer links (seoMainHtml — route-localized labels)", () =>
   const EN_FOOTER_LINKS = [
     { href: "/demo", label: "Try the free website demo" },
     { href: "/book", label: "Book a brief introductory call" },
+    { href: "/articles", label: "Articles and guides" },
     { href: "/privacy", label: "Privacy policy" },
     { href: "/terms", label: "Terms of service" },
   ];
   const footerOf = (html: string) => html.match(/<footer>([\s\S]*?)<\/footer>/)?.[1] ?? "";
 
-  it("every route carries the four footer links — same hrefs, same order, non-empty labels", () => {
+  it("every route carries the five footer links — same hrefs, same order, non-empty labels", () => {
     for (const r of routes) {
-      expect(r.footerLinks?.map((l) => l.href)).toEqual(["/demo", "/book", "/privacy", "/terms"]);
+      expect(r.footerLinks?.map((l) => l.href)).toEqual(["/demo", "/book", "/articles", "/privacy", "/terms"]);
       for (const l of r.footerLinks ?? []) expect(l.label.length).toBeGreaterThan(0);
       // And the prerendered fallback prints exactly the route's own anchors.
       const footer = footerOf(buildRouteHtml(indexHtml, r) as string);
@@ -372,6 +377,7 @@ describe("fallback footer links (seoMainHtml — route-localized labels)", () =>
     expect(byPath("/demo/br").footerLinks).toEqual([
       { href: "/demo", label: "Experimente a demo gratuita do site" },
       { href: "/book", label: "Agende uma breve ligação de apresentação" },
+      { href: "/articles", label: "Artigos e guias" },
       { href: "/privacy", label: "Política de Privacidade" },
       { href: "/terms", label: "Termos de Uso" },
     ]);
