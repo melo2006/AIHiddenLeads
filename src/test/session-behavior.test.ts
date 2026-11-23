@@ -137,6 +137,22 @@ describe('proxy wiring — item 1 (tool + backstop + reason)', () => {
     expect(gateAt).toBeGreaterThan(dispatchAt);
   });
 
+  it('the end_conversation tool is corroborated by the visitor’s own last utterance (2026-11-22 Richard test)', () => {
+    // The proxy keeps the last completed caller utterance past the
+    // per-turn reset, and the tool only fires on corroboration: an
+    // end demand, a farewell, or a farewell already handled.
+    expect(proxy).toContain('let lastCompletedCallerUtterance = ');
+    expect(proxy).toContain('lastCompletedCallerUtterance = completedUtterance');
+    expect(proxy).toContain('const endCorroborated = farewellHandled || detectFarewell(lastCompletedCallerUtterance) || detectEndIntent(lastCompletedCallerUtterance);');
+    expect(proxy).toContain("event: 'end_conversation_refused'");
+    expect(proxy).toContain('The visitor has not asked to end this conversation');
+    // The refusal sits between the availability gate and the trigger.
+    const gateAt = proxy.indexOf('const endCorroborated');
+    const triggerAt = proxy.indexOf("triggerRequestedEnd('tool', 12000)");
+    expect(gateAt).toBeGreaterThan(0);
+    expect(triggerAt).toBeGreaterThan(gateAt);
+  });
+
   it('records visitor_requested on the requested-end path', () => {
     expect(proxy).toContain("endReason = 'visitor_requested'");
     expect(proxy).toContain('requested_end_path=');

@@ -734,6 +734,10 @@ Deno.serve(async (req) => {
   let conversationLanguage = startLanguage
   let callerLanguageRequest: string | null = null
   let callerUtterance = ''
+  // The visitor's most recent COMPLETED utterance, kept after the
+  // per-turn reset below — the end_conversation tool gate corroborates
+  // the model's end request against what the visitor actually said.
+  let lastCompletedCallerUtterance = ''
 
   const transcript: { role: string; text: string }[] = []
   let recordId: string | null = null;
@@ -1350,6 +1354,29 @@ Deno.serve(async (req) => {
               // token within ~2s of that turn (the armed timer is
               // only the backstop).
               if (config.homepageSales !== true && config.simulation !== true) { respond({error:'Ending the conversation is not available in this session.'}); continue; }
+              // END-GATE CORROBORATION (2026-11-22, Ron's "Richard"
+              // test, session 5c3c6327): the model called this tool
+              // after a COMPLAINT turn ("you talked over me... not a
+              // good experience") whose transcription was garbled by
+              // another tab's audio — the visitor never asked to end
+              // anything, yet the session closed on his complaint.
+              // The tool is the model's claim that the visitor wants
+              // out; like the language tool above, the claim is only
+              // honored when the visitor's own last completed
+              // utterance corroborates it (an end demand via
+              // detectEndIntent, a farewell via detectFarewell, or a
+              // farewell the farewell arm already handled). Otherwise
+              // the call is refused and the model is told to keep
+              // helping — a wrongful hang-up is far worse than a
+              // missed one, and a genuine end request still ends via
+              // this tool on a corroborated turn, the detectEndIntent
+              // backstop below, or the farewell arm.
+              const endCorroborated = farewellHandled || detectFarewell(lastCompletedCallerUtterance) || detectEndIntent(lastCompletedCallerUtterance);
+              if (!endCorroborated) {
+                console.log(JSON.stringify({ event: 'end_conversation_refused', sessionId: session.id, path: 'tool' }));
+                respond({error:'The visitor has not asked to end this conversation — the end is not confirmed. Do not say goodbye and do not end. Acknowledge what the visitor just said and continue helping them.'});
+                continue;
+              }
               triggerRequestedEnd('tool', 12000);
               respond({ended:true,instruction:'Say ONE short goodbye line now, append the exact token [[END_CONVERSATION]] at the very end of that line, and then stop. Do not ask a question or start a new topic.'});
             } else if (call.name === 'request_manager_transfer') {
@@ -1629,6 +1656,7 @@ Deno.serve(async (req) => {
             // session, never for previews or before the visitor's tap.
             const completedUtterance = callerUtterance
             callerUtterance = ''
+            lastCompletedCallerUtterance = completedUtterance
             // SILENCE EPISODE RESET (2026-11-16; widened 2026-11-18):
             // any completed turn with recognisable content ends the
             // episode — including the short answers the ladder itself
