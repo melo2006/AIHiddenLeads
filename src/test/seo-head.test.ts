@@ -35,8 +35,19 @@ const metaOf = (html: string, attr: string, name: string) =>
   html.match(new RegExp(`<meta ${attr}="${name}" content="([^"]*)">`))?.[1];
 
 describe("SEO route data (scripts/seo-routes.mjs — prerender + client source of truth)", () => {
-  it("covers exactly the five sitemap routes", () => {
-    expect(routes.map((r) => r.path)).toEqual(["/", "/demo", "/demo/br", "/book", "/agents/realtors"]);
+  it("covers exactly the seven sitemap routes", () => {
+    // 2026-11-23 (SEO Phase 0): /plans and /help joined the set — they were
+    // real public pages served the homepage's head + canonical, the audit's
+    // #1 defect. The name of this test said "five" until this change.
+    expect(routes.map((r) => r.path)).toEqual([
+      "/",
+      "/demo",
+      "/demo/br",
+      "/book",
+      "/agents/realtors",
+      "/plans",
+      "/help",
+    ]);
     // The client mirror must carry the same routes (both read the same file).
     expect(SEO_PAGE_HEADS.map((r) => r.path)).toEqual(routes.map((r) => r.path));
     for (const r of routes) expect(seoHeadForPath(r.path)?.canonical).toBe(r.canonical);
@@ -56,7 +67,9 @@ describe("SEO route data (scripts/seo-routes.mjs — prerender + client source o
   it("pins the exact per-route title / description / canonical", () => {
     expect(byPath("/")).toMatchObject({
       canonical: "https://aihiddenleads.com/",
-      title: "AI Hidden Leads | AI Voice Agents, B2B Leads & Local SEO",
+      // Title reworked 2026-11-23 (SEO Phase 0) to carry the exact buyer
+      // phrase "AI receptionist with a live video avatar".
+      title: "AI Hidden Leads | AI Receptionist with a Live Video Avatar",
       description:
         "Grow your business with 24/7 AI voice agents, website chat and qualified B2B prospects delivered weekly. Explore local SEO and Google Maps Boost services.",
     });
@@ -78,6 +91,18 @@ describe("SEO route data (scripts/seo-routes.mjs — prerender + client source o
       description:
         "Never miss a buyer or seller call again — even at a showing or closing. Aspen, your AI voice receptionist, answers 24/7 from $99/mo with 400 minutes included.",
     });
+    expect(byPath("/plans")).toMatchObject({
+      canonical: "https://aihiddenleads.com/plans",
+      title: "Plans & Pricing | AI Hidden Leads",
+      description:
+        "Compare AiHiddenLeads plans: Premium $99/mo with 400 voice minutes, Professional $199/mo with 1,200 minutes, Platinum $349/mo with 2,500 minutes. Live video avatar add-on $79/mo.",
+    });
+    expect(byPath("/help")).toMatchObject({
+      canonical: "https://aihiddenleads.com/help",
+      title: "Help & Support | AI Hidden Leads",
+      description:
+        "AiHiddenLeads help: searchable guides for installing the website code, setting up your agent, CRM connections, bookings and troubleshooting — plus Alex, our support engineer, live on the page.",
+    });
   });
 });
 
@@ -89,7 +114,7 @@ describe("static prerender output (buildRouteHtml over index.html)", () => {
     expect(metaOf(head, "name", "description")).toBe(byPath("/").description);
   });
 
-  for (const path of ["/demo", "/book", "/agents/realtors"]) {
+  for (const path of ["/demo", "/book", "/agents/realtors", "/plans", "/help"]) {
     it(`${path} serves its own title, description, canonical, OG tags and summary`, () => {
       const route = byPath(path);
       const html = buildRouteHtml(indexHtml, route) as string;
@@ -133,7 +158,11 @@ describe("homepage JSON-LD (index.html)", () => {
     expect(ld.email).toBe("info@aihiddenleads.com");
     expect(ld.address).toMatchObject({
       "@type": "PostalAddress",
-      addressLocality: "Fort Lauderdale",
+      // Ron ruled the ONE official address on 2026-11-23: the Maxdream
+      // address, 1401 S Ocean Blvd, Pompano Beach (was: Fort Lauderdale,
+      // locality only).
+      streetAddress: "1401 S Ocean Blvd",
+      addressLocality: "Pompano Beach",
       addressRegion: "FL",
       addressCountry: "US",
     });
@@ -141,14 +170,40 @@ describe("homepage JSON-LD (index.html)", () => {
     expect(ld.openingHoursSpecification.dayOfWeek).toHaveLength(7);
   });
 
-  it("deliberately has NO street address and NO sameAs until Ron rules / profiles are published", () => {
-    // GBP shows a Plantation street address; the address of record is in
-    // Pompano Beach. Until Ron picks the public one, area-level only.
-    expect(ld.address.streetAddress).toBeUndefined();
+  it("carries the ruled street address, NO invented ZIP, and NO sameAs on the LocalBusiness block", () => {
+    // Ron ruled on 2026-11-23: the public address is 1401 S Ocean Blvd,
+    // Pompano Beach (superseding the earlier area-level-only pin, which
+    // existed because GBP showed a Plantation address while the address
+    // of record was Pompano Beach).
+    expect(ld.address.streetAddress).toBe("1401 S Ocean Blvd");
+    // No ZIP: the codebase carries no postal code for this address
+    // anywhere, so postalCode stays out rather than being invented.
     expect(ld.address.postalCode).toBeUndefined();
-    // sameAs takes only profile URLs the site itself publishes — today it
-    // publishes none, so the field stays out rather than being invented.
+    // sameAs lives on the Organization block (see its describe below);
+    // the LocalBusiness block itself still carries none.
     expect(ld.sameAs).toBeUndefined();
+  });
+});
+
+describe("Organization JSON-LD (index.html, added 2026-11-23 — SEO Phase 0)", () => {
+  const blocks = [...indexHtml.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map(
+    (m) => JSON.parse(m[1]),
+  );
+  const org = blocks.find((b) => b["@type"] === "Organization");
+
+  it("exists as its own block alongside LocalBusiness", () => {
+    expect(org).toBeTruthy();
+    expect(blocks.some((b) => b["@type"] === "LocalBusiness")).toBe(true);
+    expect(org?.name).toBe("AI Hidden Leads");
+    expect(org?.url).toBe("https://aihiddenleads.com/");
+    expect(org?.telephone).toBe("+1-877-862-4949");
+  });
+
+  it("sameAs carries only profiles the company actually publishes", () => {
+    // The YouTube channel is live and linked from the site. Facebook /
+    // Instagram / LinkedIn profile URLs exist nowhere in this codebase, so
+    // they stay out until those profiles are published — never invented.
+    expect(org?.sameAs).toEqual(["https://www.youtube.com/@AIHiddenLeads"]);
   });
 });
 
@@ -169,12 +224,16 @@ describe("keyword Q&A (FAQPage schema + fallback + visible copy parity)", () => 
   };
   const faqOf = (p: string) => byPath(p).faq ?? [];
 
-  it("carries the approved question sets: 5 homepage, 3 demo, 3 demo/br, 4 realtors, none on /book", () => {
+  it("carries the approved question sets: 5 homepage, 3 demo, 3 demo/br, 4 realtors, none on /book, /plans or /help", () => {
     expect(faqOf("/")).toHaveLength(5);
     expect(faqOf("/demo")).toHaveLength(3);
     expect(faqOf("/demo/br")).toHaveLength(3);
     expect(faqOf("/agents/realtors")).toHaveLength(4);
     expect(faqOf("/book")).toHaveLength(0);
+    // /plans and /help show no keyword Q&A section, so they declare none
+    // (schema == visible rule), exactly like /book.
+    expect(faqOf("/plans")).toHaveLength(0);
+    expect(faqOf("/help")).toHaveLength(0);
     // The client mirror carries the same sets.
     for (const r of routes) expect(seoHeadForPath(r.path)?.faq).toEqual(faqOf(r.path));
   });
@@ -242,10 +301,12 @@ describe("keyword Q&A (FAQPage schema + fallback + visible copy parity)", () => 
     for (const r of routes) expect(seoHeadForPath(r.path)?.faqHeading).toBe(r.faqHeading ?? "");
   });
 
-  it("/book: prerender strips the homepage FAQPage block and declares none of its own", () => {
-    const html = buildRouteHtml(indexHtml, byPath("/book")) as string;
-    expect(html).not.toContain("data-faq-schema");
-    expect(html).not.toContain('"@type": "FAQPage"');
+  it("/book, /plans and /help: prerender strips the homepage FAQPage block and declares none of its own", () => {
+    for (const path of ["/book", "/plans", "/help"]) {
+      const html = buildRouteHtml(indexHtml, byPath(path)) as string;
+      expect(html).not.toContain("data-faq-schema");
+      expect(html).not.toContain('"@type": "FAQPage"');
+    }
   });
 
   it("visible copy parity: homepage FAQ, demo Q&A and realtor FAQ show the same wording", () => {

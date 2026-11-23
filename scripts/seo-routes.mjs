@@ -30,10 +30,13 @@ export const SEO_ROUTES = [
   {
     path: "/",
     canonical: "https://aihiddenleads.com/",
-    title: "AI Hidden Leads | AI Voice Agents, B2B Leads & Local SEO",
+    // Title reworked 2026-11-23 (SEO Phase 0): carries the exact buyer phrase
+    // "AI receptionist with a live video avatar" — the differentiator search
+    // and AI answers look for — while keeping the brand first.
+    title: "AI Hidden Leads | AI Receptionist with a Live Video Avatar",
     description:
       "Grow your business with 24/7 AI voice agents, website chat and qualified B2B prospects delivered weekly. Explore local SEO and Google Maps Boost services.",
-    ogTitle: "AI Hidden Leads | AI Voice Agents, B2B Leads & Local SEO",
+    ogTitle: "AI Hidden Leads | AI Receptionist with a Live Video Avatar",
     ogDescription:
       "24/7 AI voice agents, website chat, weekly qualified B2B prospects and local SEO services for growing businesses.",
     heading: "AI Hidden Leads",
@@ -210,6 +213,54 @@ export const SEO_ROUTES = [
         q: "Can it book showings and consultations?",
         a: "Yes. Aspen books showings, buyer consultations, and seller valuation appointments as 30-minute bookings, against your real availability once your calendar is connected in setup. Each booking sends a confirmation with a calendar invite, and reminders go out before the appointment.",
       },
+    ],
+  },
+  {
+    // Added 2026-11-23 (SEO Phase 0): /plans and /help were real public
+    // pages served the homepage's head + a canonical pointing at "/", which
+    // told Google to treat them as duplicates of the homepage. They now
+    // carry their own heads like the other marketing routes. Neither page
+    // shows a keyword Q&A section, so — like /book — they declare no FAQ
+    // set (schema == visible rule).
+    path: "/plans",
+    canonical: "https://aihiddenleads.com/plans",
+    title: "Plans & Pricing | AI Hidden Leads",
+    description:
+      "Compare AiHiddenLeads plans: Premium $99/mo with 400 voice minutes, Professional $199/mo with 1,200 minutes, Platinum $349/mo with 2,500 minutes. Live video avatar add-on $79/mo.",
+    ogTitle: "Plans & Pricing | AI Hidden Leads",
+    ogDescription:
+      "Premium $99/mo, Professional $199/mo, Platinum $349/mo — 24/7 AI receptionist plans with minutes included and an optional live video avatar add-on.",
+    heading: "Plans and pricing",
+    summary: [
+      "Premium is $99/mo with 400 voice minutes included; Professional is $199/mo with 1,200 minutes; Platinum is $349/mo with 2,500 minutes. Every plan answers calls and website visitors 24/7 and books appointments into your calendar.",
+      "Aspen's live video avatar — a lip-synced video spokesperson on your website — is an optional add-on at $79/mo on any plan, and its first month is free. The $199 setup fee is waived through the end of the month.",
+    ],
+    footerLinks: [
+      { href: "/demo", label: "Try the free website demo" },
+      { href: "/book", label: "Book a brief introductory call" },
+      { href: "/privacy", label: "Privacy policy" },
+      { href: "/terms", label: "Terms of service" },
+    ],
+  },
+  {
+    path: "/help",
+    canonical: "https://aihiddenleads.com/help",
+    title: "Help & Support | AI Hidden Leads",
+    description:
+      "AiHiddenLeads help: searchable guides for installing the website code, setting up your agent, CRM connections, bookings and troubleshooting — plus Alex, our support engineer, live on the page.",
+    ogTitle: "Help & Support | AI Hidden Leads",
+    ogDescription:
+      "Guides, troubleshooting and live support for your AiHiddenLeads AI receptionist — install, setup, CRM, bookings and more.",
+    heading: "Help and support",
+    summary: [
+      "Searchable guides walk you through installing the code on your website, setting up your agent, connecting your CRM (guided paths via Zapier, n8n or API), booking and calendar setup, and troubleshooting basics. Most people finish setup in about 20–30 minutes.",
+      "Signed-in customers can talk live with Alex, our support engineer, right on the help page; anyone can send a support ticket with the form there, or call 1-877-862-4949.",
+    ],
+    footerLinks: [
+      { href: "/demo", label: "Try the free website demo" },
+      { href: "/book", label: "Book a brief introductory call" },
+      { href: "/privacy", label: "Privacy policy" },
+      { href: "/terms", label: "Terms of service" },
     ],
   },
 ];
