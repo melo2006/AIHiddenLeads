@@ -24,7 +24,77 @@
 // the three surfaces must never drift: edit the wording here AND on the
 // visible surface in the same change.
 
+import { ARTICLES, formatArticleDate } from "./articles-data.mjs";
+
 export const SEO_SITE_ORIGIN = "https://aihiddenleads.com";
+
+// The no-JS fallback footer is the same on every route (labels localized
+// per route): the demo and booking doors, the articles section, and the
+// legal pages. The /articles link joined the set with the articles
+// foundation (2026-11-23) so every prerendered page links the section in
+// raw HTML — the internal-linking surface crawlers walk.
+const EN_FOOTER_LINKS = [
+  { href: "/demo", label: "Try the free website demo" },
+  { href: "/book", label: "Book a brief introductory call" },
+  { href: "/articles", label: "Articles and guides" },
+  { href: "/privacy", label: "Privacy policy" },
+  { href: "/terms", label: "Terms of service" },
+];
+const PT_FOOTER_LINKS = [
+  { href: "/demo", label: "Experimente a demo gratuita do site" },
+  { href: "/book", label: "Agende uma breve ligação de apresentação" },
+  { href: "/articles", label: "Artigos e guias" },
+  { href: "/privacy", label: "Política de Privacidade" },
+  { href: "/terms", label: "Termos de Uso" },
+];
+
+// The /articles index route: no Q&A set of its own — its fallback lists
+// every article with a crawlable link (see seoArticleIndexHtml), which is
+// the section's internal-linking hub.
+const ARTICLES_INDEX_ROUTE = {
+  path: "/articles",
+  canonical: "https://aihiddenleads.com/articles",
+  title: "Articles & Guides | AI Receptionist Costs, Comparisons & How It Works — AI Hidden Leads",
+  description:
+    "Plain-English guides for small-business owners: what an AI receptionist costs, how it compares with an answering service, and what an AI receptionist with a video avatar actually does.",
+  ogTitle: "Articles & Guides | AI Receptionist Costs, Comparisons & How It Works — AI Hidden Leads",
+  ogDescription:
+    "Plain-English guides for small-business owners: AI receptionist costs, the answering-service comparison, and how a video avatar receptionist works.",
+  heading: "Articles & guides",
+  summary: [
+    "Straight answers to the questions small-business owners ask before they buy an AI receptionist: what it costs, how it compares with a traditional answering service, and what an AI receptionist with a live video avatar actually does.",
+    "Every guide is written from the same facts our own pages publish — real prices, real plan details, and the differences that actually matter when your phone rings.",
+  ],
+  footerLinks: EN_FOOTER_LINKS,
+  articleIndex: true,
+};
+
+// One route per article, generated from scripts/articles-data.mjs so the
+// head, the Article + FAQPage schema and the no-JS fallback all carry the
+// article's own wording — the same single-source discipline as the routes
+// above. `body` is the full article (rendered by seoBodyHtml); `article`
+// carries the Article JSON-LD facts.
+function articleSeoRoutes() {
+  return ARTICLES.map((a) => ({
+    path: a.path,
+    canonical: `https://aihiddenleads.com${a.path}`,
+    title: a.seoTitle,
+    description: a.description,
+    ogTitle: a.seoTitle,
+    ogDescription: a.description,
+    heading: a.headline,
+    summary: [a.excerpt],
+    footerLinks: EN_FOOTER_LINKS,
+    faqHeading: "Common questions",
+    faq: a.faq,
+    body: a.body,
+    article: {
+      datePublished: a.datePublished,
+      dateModified: a.dateModified,
+      section: "AI Receptionist Guides",
+    },
+  }));
+}
 
 export const SEO_ROUTES = [
   {
@@ -42,12 +112,7 @@ export const SEO_ROUTES = [
       "AI voice agents and chat widgets help answer visitor questions and capture inquiries. Appointment booking and telephone transfers require configuration for each business.",
       "Our services include B2B prospect generation, database reactivation, automated outreach and Google review management. Google Maps Boost and AI Search Optimization help improve local and AI-driven search visibility. Our 25-point Google Maps audit checks neighborhood search positions; homepage before-and-after maps are illustrative, not measured results or ranking guarantees.",
     ],
-    footerLinks: [
-      { href: "/demo", label: "Try the free website demo" },
-      { href: "/book", label: "Book a brief introductory call" },
-      { href: "/privacy", label: "Privacy policy" },
-      { href: "/terms", label: "Terms of service" },
-    ],
+    footerLinks: EN_FOOTER_LINKS,
     faqHeading: "Common questions",
     faq: [
       {
@@ -87,12 +152,7 @@ export const SEO_ROUTES = [
       "Aspen reads your public website, greets visitors by voice and chat, answers questions from your own content, and can capture inquiries and book appointments once configured. The demo preserves your website's appearance and is a simulation based on its public information, not a full business implementation.",
       "From this page you can also run the free 25-point Google Maps rank check to see where your business shows up across 25 neighborhood search points.",
     ],
-    footerLinks: [
-      { href: "/demo", label: "Try the free website demo" },
-      { href: "/book", label: "Book a brief introductory call" },
-      { href: "/privacy", label: "Privacy policy" },
-      { href: "/terms", label: "Terms of service" },
-    ],
+    footerLinks: EN_FOOTER_LINKS,
     faqHeading: "Common questions",
     faq: [
       {
@@ -128,12 +188,7 @@ export const SEO_ROUTES = [
       "A Aspen lê seu site público, atende os visitantes por voz e chat, responde perguntas a partir do seu próprio conteúdo e pode captar consultas e agendar compromissos depois de configurada. A demo preserva a aparência do seu site e é uma simulação baseada nas informações públicas dele, não uma implementação completa da sua empresa.",
       "Nesta página você também pode executar a verificação gratuita de classificação no Google Maps com 25 pontos para ver onde sua empresa aparece em 25 pontos de busca do bairro.",
     ],
-    footerLinks: [
-      { href: "/demo", label: "Experimente a demo gratuita do site" },
-      { href: "/book", label: "Agende uma breve ligação de apresentação" },
-      { href: "/privacy", label: "Política de Privacidade" },
-      { href: "/terms", label: "Termos de Uso" },
-    ],
+    footerLinks: PT_FOOTER_LINKS,
     faqHeading: "Perguntas frequentes",
     faq: [
       {
@@ -164,12 +219,7 @@ export const SEO_ROUTES = [
       "Book a free 30-minute implementation call with the AiHiddenLeads team — one-on-one, weekdays 8 AM–6 PM Eastern Time, up to two weeks ahead. Most calls wrap up in 15–20 minutes.",
       "On the call we answer your questions about AI voice agents, website chat and B2B lead generation, and plan your setup. Pick a time on the booking calendar and you will receive a confirmation with a calendar invite; text confirmations are sent only with your permission.",
     ],
-    footerLinks: [
-      { href: "/demo", label: "Try the free website demo" },
-      { href: "/book", label: "Book a brief introductory call" },
-      { href: "/privacy", label: "Privacy policy" },
-      { href: "/terms", label: "Terms of service" },
-    ],
+    footerLinks: EN_FOOTER_LINKS,
   },
   {
     path: "/agents/realtors",
@@ -186,12 +236,7 @@ export const SEO_ROUTES = [
       "You stay in control: your phone rings first, and only if you do not answer does Aspen pick up. Hot leads are transferred straight back to you with a summary; other callers are booked onto your calendar. After every call you get the summary and the full transcript.",
       "Plans start at $99/mo with 400 voice minutes included; a lip-synced video avatar of Aspen for your website is an optional add-on. Aspen greets callers in your name, answers basic listing questions from the details you give her, and checks buyer pre-approval and timeline before you call back.",
     ],
-    footerLinks: [
-      { href: "/demo", label: "Try the free website demo" },
-      { href: "/book", label: "Book a brief introductory call" },
-      { href: "/privacy", label: "Privacy policy" },
-      { href: "/terms", label: "Terms of service" },
-    ],
+    footerLinks: EN_FOOTER_LINKS,
     faqHeading: "Common questions",
     faq: [
       {
@@ -212,6 +257,8 @@ export const SEO_ROUTES = [
       },
     ],
   },
+  ARTICLES_INDEX_ROUTE,
+  ...articleSeoRoutes(),
 ];
 
 export function seoRouteForPath(path) {
@@ -244,27 +291,89 @@ ${items}
         </section>`;
 }
 
+// Inline links inside article body text use the light [label](/path)
+// convention (see articles-data.mjs); the fallback renders them as real
+// anchors so the article pages cross-link in raw HTML too. Escape first —
+// the bracket/paren syntax survives escaping, so the pattern still matches.
+function renderInlineHtml(text) {
+  return escapeHtml(text).replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+}
+
+// An article route's full body as fallback HTML: the complete article
+// text (headings, paragraphs, lists, tables) — not a summary — so a
+// crawler that never runs JavaScript reads the whole piece, the same
+// text the React page renders from the same data.
+export function seoBodyHtml(route) {
+  const blocks = (route.body || []).map((block) => {
+    switch (block.type) {
+      case "lead":
+      case "p":
+        return `          <p>${renderInlineHtml(block.text)}</p>`;
+      case "h2":
+        return `          <h2>${escapeHtml(block.text)}</h2>`;
+      case "list":
+        return `          <ul>\n${block.items.map((i) => `            <li>${renderInlineHtml(i)}</li>`).join("\n")}\n          </ul>`;
+      case "table": {
+        const head = block.head.map((h) => `<th>${escapeHtml(h)}</th>`).join("");
+        const rows = block.rows
+          .map(
+            (row) =>
+              `            <tr>${row.map((c, i) => (i === 0 ? `<th scope="row">${escapeHtml(c)}</th>` : `<td>${escapeHtml(c)}</td>`)).join("")}</tr>`,
+          )
+          .join("\n");
+        return `          <table>\n            <thead><tr>${head}</tr></thead>\n            <tbody>\n${rows}\n            </tbody>\n          </table>`;
+      }
+      default:
+        return "";
+    }
+  });
+  return `        <section>\n${blocks.join("\n")}\n        </section>`;
+}
+
+// The /articles fallback body: one crawlable card per article — headline
+// link, excerpt and date — so the section hub links every article in raw
+// HTML (and each article links back here through its own page chrome).
+export function seoArticleIndexHtml() {
+  const items = ARTICLES.map(
+    (a) => `          <article>
+            <h2><a href="${escapeHtml(a.path)}">${escapeHtml(a.headline)}</a></h2>
+            <p>${escapeHtml(a.excerpt)}</p>
+            <p><time datetime="${a.datePublished}">${formatArticleDate(a.datePublished)}</time></p>
+          </article>`,
+  ).join("\n");
+  return `        <section>\n${items}\n        </section>`;
+}
+
 // The route-specific no-JS summary that replaces the homepage <main> inside
 // #root in the static variant. Mirrors the index.html fallback structure
 // (public-only content, hidden behind the themed startup once React mounts,
 // per repo AGENTS.md) — wording is a factual summary of the route's page.
-// The footer link labels are the route's OWN localized strings
-// (route.footerLinks, carried with the route's other localized fields) —
-// never hardcoded English literals: /demo/br's footer reads "Política de
-// Privacidade" / "Termos de Uso", not "Privacy policy" / "Terms of service".
+// Article routes carry their full body instead of a summary; the /articles
+// index carries its summary plus the article list. The footer link labels
+// are the route's OWN localized strings (route.footerLinks, carried with
+// the route's other localized fields) — never hardcoded English literals:
+// /demo/br's footer reads "Política de Privacidade" / "Termos de Uso", not
+// "Privacy policy" / "Terms of service".
 export function seoMainHtml(route) {
-  const paragraphs = route.summary.map((p) => `          <p>${escapeHtml(p)}</p>`).join("\n");
   const footerLinks = route.footerLinks
     .map((link) => `<a href="${escapeHtml(link.href)}">${escapeHtml(link.label)}</a>`)
     .join(" · ");
+  let content;
+  if (route.body) {
+    content = seoBodyHtml(route);
+  } else if (route.articleIndex) {
+    const paragraphs = route.summary.map((p) => `          <p>${escapeHtml(p)}</p>`).join("\n");
+    content = `        <section>\n${paragraphs}\n        </section>\n${seoArticleIndexHtml()}`;
+  } else {
+    const paragraphs = route.summary.map((p) => `          <p>${escapeHtml(p)}</p>`).join("\n");
+    content = `        <section>\n${paragraphs}\n        </section>`;
+  }
   return `      <main>
         <header>
           <img src="/logo.png" alt="AI Hidden Leads logo" width="160" height="160" />
           <h1>${escapeHtml(route.heading)}</h1>
         </header>
-        <section>
-${paragraphs}
-        </section>${seoFaqSectionHtml(route)}
+${content}${seoFaqSectionHtml(route)}
         <footer>
           ${footerLinks}
         </footer>
@@ -301,7 +410,9 @@ export function applyRouteFaq(html, route) {
   let out = html.replace(FAQ_SCHEMA_PATTERN, "");
   if (route.faq && route.faq.length > 0) {
     if (!out.includes("</head>")) throw new Error("prerender-seo: could not find </head> for FAQ schema");
-    out = out.replace("</head>", `  ${faqSchemaScriptHtml(route)}\n</head>`);
+    // Function replacement: the schema text carries prices ($199, $79…)
+    // whose $ sequences String.replace would otherwise read as patterns.
+    out = out.replace("</head>", () => `  ${faqSchemaScriptHtml(route)}\n</head>`);
   }
   return out;
 }
@@ -314,7 +425,8 @@ export function applyRouteHead(html, route) {
   let out = html;
   const replaceOnce = (pattern, replacement, label) => {
     if (!pattern.test(out)) throw new Error(`prerender-seo: could not find ${label} in built index.html`);
-    out = out.replace(pattern, replacement);
+    // Function replacement so $ sequences in route copy stay literal.
+    out = out.replace(pattern, () => replacement);
   };
   replaceOnce(/<title>[\s\S]*?<\/title>/, `<title>${escapeHtml(route.title)}</title>`, "<title>");
   replaceOnce(
@@ -356,12 +468,61 @@ export function applyRouteHead(html, route) {
 }
 
 // Swap the no-JS fallback <main> inside #root for the route's own summary.
+// The replacement MUST be a function: route copy carries prices ($199,
+// $149…) and "$1" in a replacement string is String.replace's group-1
+// pattern — with a string replacement, "$199/mo" silently became the
+// captured <div id="root"> prefix + "99/mo" (latent until the first route
+// whose copy contained a $1xx price — the articles, 2026-11-23).
 export function applyRouteMain(html, route) {
   const pattern = /(<div id="root">\s*<!--[^>]*-->\s*)<main>[\s\S]*?<\/main>/;
   if (!pattern.test(html)) throw new Error("prerender-seo: could not find the fallback <main> in built index.html");
-  return html.replace(pattern, `$1${seoMainHtml(route)}`);
+  return html.replace(pattern, (_match, prefix) => `${prefix}${seoMainHtml(route)}`);
+}
+
+// Article JSON-LD for article routes, generated from the same data as the
+// visible article page and the fallback (one wording, three surfaces).
+// The script tag carries data-article-schema so the prerender can find
+// and replace it, mirroring the data-faq-schema convention above.
+export function articleJsonLd(route) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: route.heading,
+    description: route.description,
+    image: `${SEO_SITE_ORIGIN}/logo.png`,
+    datePublished: route.article.datePublished,
+    dateModified: route.article.dateModified,
+    articleSection: route.article.section,
+    author: { "@type": "Organization", name: "AI Hidden Leads", url: `${SEO_SITE_ORIGIN}/` },
+    publisher: {
+      "@type": "Organization",
+      name: "AI Hidden Leads",
+      url: `${SEO_SITE_ORIGIN}/`,
+      logo: { "@type": "ImageObject", url: `${SEO_SITE_ORIGIN}/logo.png` },
+    },
+    mainEntityOfPage: { "@type": "WebPage", "@id": route.canonical },
+  };
+}
+
+export function articleSchemaScriptHtml(route) {
+  return `<script type="application/ld+json" data-article-schema>\n    ${JSON.stringify(articleJsonLd(route), null, 2).replace(/\n/g, "\n    ")}\n  </script>`;
+}
+
+const ARTICLE_SCHEMA_PATTERN = /\s*<script type="application\/ld\+json" data-article-schema>[\s\S]*?<\/script>/;
+
+// Inject this route's Article block (article routes only); every other
+// route gets any stray block stripped, so no page ever declares another
+// page's article.
+export function applyRouteArticle(html, route) {
+  let out = html.replace(ARTICLE_SCHEMA_PATTERN, "");
+  if (route.article) {
+    if (!out.includes("</head>")) throw new Error("prerender-seo: could not find </head> for Article schema");
+    // Function replacement, same $-pattern guard as applyRouteFaq.
+    out = out.replace("</head>", () => `  ${articleSchemaScriptHtml(route)}\n</head>`);
+  }
+  return out;
 }
 
 export function buildRouteHtml(indexHtml, route) {
-  return applyRouteFaq(applyRouteMain(applyRouteHead(indexHtml, route), route), route);
+  return applyRouteArticle(applyRouteFaq(applyRouteMain(applyRouteHead(indexHtml, route), route), route), route);
 }
