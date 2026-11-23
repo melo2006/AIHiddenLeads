@@ -97,8 +97,12 @@ describe('client wiring — outcome threading', () => {
 
   it('BrowserVoiceHandoff reports the outcome, mapped from the terminal handoff status', () => {
     expect(handoff).toContain('onEnded?:(outcome:\'completed\'|\'unavailable\')=>void');
-    expect(handoff).toContain("result.status==='completed'?'completed':'unavailable'");
+    // 2026-11-22 joined-call outcome rule: a terminal row status counts
+    // as completed when the call had joined, not only on 'completed'.
+    expect(handoff).toContain("const done=result.status==='completed'||joined.current");
+    expect(handoff).toContain("done?'completed':'unavailable'");
     expect(handoff).toContain("finish('Connection interrupted — back with Aspen.','unavailable')");
+    expect(handoff).toContain("if(joined.current){finish('Manager call ended — back with Aspen.','completed');return;}");
   });
 
   it('a visitor Return after the call joined counts as completed; before joining, unavailable', () => {

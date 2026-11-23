@@ -30,7 +30,14 @@ export default function BrowserVoiceHandoff({token,onActive,onEnded,microphone,p
   try{
    const data=await request('token',token);if(run!==generation.current)return;
    const d=new Device(data.token,{closeProtection:true});device.current=d;
-   const fail=()=>{void request('cancel',token).catch(()=>{});finish('Connection interrupted — back with Aspen.','unavailable');};
+   // Joined-call outcome rule (2026-11-22, Ron's Edge test): once the
+   // manager call has JOINED, any ending — error event, dropped leg, a
+   // failed status fetch, or a non-'completed' terminal row status — is
+   // a COMPLETED call from the visitor's side. Before this rule the
+   // error path reported 'unavailable' even after minutes of talk, so
+   // Aspen apologized for a connection that had in fact happened (the
+   // server row itself landed 'completed' seconds later).
+   const fail=()=>{void request('cancel',token).catch(()=>{});if(joined.current){finish('Manager call ended — back with Aspen.','completed');return;}finish('Connection interrupted — back with Aspen.','unavailable');};
    d.on('error',fail);
    if(microphone!=='default')await d.audio.setInputDevice(microphone);
    const c=await d.connect({params:{handoffToken:token}});
@@ -40,10 +47,10 @@ export default function BrowserVoiceHandoff({token,onActive,onEnded,microphone,p
     if(polling.current||run!==generation.current)return;polling.current=true;
     try{
      const result=await request('status',token);if(run!==generation.current)return;
-     if(['failed','cancelled','completed'].includes(result.status)){finish(result.status==='completed'?'Manager call ended — back with Aspen.':'No manager available — back with Aspen.',result.status==='completed'?'completed':'unavailable');return;}
+     if(['failed','cancelled','completed'].includes(result.status)){const done=result.status==='completed'||joined.current;finish(done?'Manager call ended — back with Aspen.':'No manager available — back with Aspen.',done?'completed':'unavailable');return;}
      if(result.status==='joined')joined.current=true;
      setStatus(result.status==='joined'?'Connected to manager':result.status==='awaiting_owner'?'Manager is reviewing your request…':"Calling manager — Aspen stays with you until you're through.");
-    }catch{if(run===generation.current)fail();}finally{polling.current=false;}
+    }catch{if(run===generation.current&&!joined.current)fail();}finally{polling.current=false;}
    };
    c.on('error',fail);
    c.on('disconnect',()=>{void poll();});
