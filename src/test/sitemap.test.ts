@@ -10,11 +10,17 @@ const locs = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
 
 describe("public sitemap.xml", () => {
   it("lists exactly the verified public marketing pages", () => {
+    // 2026-11-23 (SEO Phase 0): /demo/br (pre-rendered since Publish #71 but
+    // never announced) plus /plans and /help, which now ship their own
+    // pre-rendered heads instead of the homepage's.
     expect(locs).toEqual([
       "https://aihiddenleads.com/",
       "https://aihiddenleads.com/demo",
+      "https://aihiddenleads.com/demo/br",
       "https://aihiddenleads.com/agents/realtors",
       "https://aihiddenleads.com/book",
+      "https://aihiddenleads.com/plans",
+      "https://aihiddenleads.com/help",
       "https://aihiddenleads.com/articles",
       "https://aihiddenleads.com/articles/ai-receptionist-cost",
       "https://aihiddenleads.com/articles/ai-receptionist-vs-answering-service",
@@ -37,8 +43,14 @@ describe("public sitemap.xml", () => {
     expect(listed).not.toContain("/agents/insurance");
   });
 
-  it("carries no lastmod dates (no fake freshness)", () => {
-    expect(sitemap).not.toContain("<lastmod>");
+  it("carries a lastmod for every URL (SEO Phase 0, 2026-11-23)", () => {
+    // Deliberate reversal of the old "no lastmod (no fake freshness)" pin:
+    // the 2026-11-23 deploy genuinely changed the served head of every
+    // listed page, so the date is a real modification date, not decoration.
+    // Keep it honest: bump these dates only when a listed page changes.
+    const lastmods = [...sitemap.matchAll(/<lastmod>([^<]+)<\/lastmod>/g)].map((m) => m[1]);
+    expect(lastmods).toHaveLength(locs.length);
+    for (const d of lastmods) expect(d).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 });
 
