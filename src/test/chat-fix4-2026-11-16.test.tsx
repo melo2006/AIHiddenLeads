@@ -184,7 +184,7 @@ describe('chat-fix4 — keyboard-fit CSS is keyed to the VISUAL viewport', () =>
     const css = read('index.css');
     expect(css).toContain('.aspen-vv-short .aspen-chat-dock .aspen-panel { min-height: 0; }');
     expect(css).toContain('.aspen-vv-short .aspen-voice-panel { min-height: 0; }');
-    expect(css).toContain('.aspen-vv-short .aspen-person-livebox { height: 120px; }');
-    expect(css).toContain('.aspen-vv-short .aspen-person-shell.aspen-person-focus .aspen-person-livebox { height: 150px; }');
+    expect(css).toContain('.aspen-vv-short .aspen-person-livebox { width: 150px; height: 120px; }');
+    expect(css).toContain('.aspen-vv-short .aspen-person-shell.aspen-person-focus .aspen-person-livebox { width: 187px; height: 150px; }');
   });
 });
