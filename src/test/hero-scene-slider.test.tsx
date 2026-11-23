@@ -34,10 +34,10 @@ const activeSlideId = (container: HTMLElement) =>
 // 2026-11-19): pain (plumber, AC man, roofer, white-haired owner) then
 // relief (spokesperson team, older couple) closing on Aspen with the owners.
 const EXPECTED_SCENES = [
+  "manufacturer-pain-whitehair",
   "plumber-pain",
   "ac-guy-pain",
   "roofer-pain",
-  "manufacturer-pain-whitehair",
   "faces-montage",
   "couple-relief",
   "aspen-owners",
@@ -64,11 +64,17 @@ describe("HeroSceneSlider", () => {
     expect(container.querySelectorAll("h1")).toHaveLength(1);
   });
 
-  it("alternates the slogan side per slide — even left, odd right", () => {
+  it("keeps each slogan on the side its photo was composed for", () => {
     setReducedMotion(false);
     const { container } = render(<HeroSceneSlider />);
+    // Per line, following its scene: the white-haired owner and the AC
+    // man sit left (slogan right); the plumber and the roofer work on
+    // the right (slogan left); the team photo's side never renders
+    // (bottom placement); the couple stands left (slogan right); Aspen
+    // and the owners sit right (slogan left).
+    const expectedSides = ["right", "left", "right", "left", "left", "right", "left"];
     getLines(container).forEach((line, i) => {
-      expect(line.dataset.textSide).toBe(i % 2 === 0 ? "left" : "right");
+      expect(line.dataset.textSide).toBe(expectedSides[i]);
     });
   });
 
