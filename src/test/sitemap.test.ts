@@ -25,6 +25,11 @@ describe("public sitemap.xml", () => {
       "https://aihiddenleads.com/articles/ai-receptionist-cost",
       "https://aihiddenleads.com/articles/ai-receptionist-vs-answering-service",
       "https://aihiddenleads.com/articles/ai-receptionist-with-video-avatar",
+      // Batch 2 (2026-11-23): the employee comparison, the human-remote
+      // comparison and the buyer's checklist.
+      "https://aihiddenleads.com/articles/ai-receptionist-vs-hiring-a-receptionist",
+      "https://aihiddenleads.com/articles/ai-receptionist-vs-virtual-receptionist",
+      "https://aihiddenleads.com/articles/best-ai-receptionist-for-small-business",
     ]);
   });
 

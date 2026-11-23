@@ -51,6 +51,10 @@ describe("SEO route data (scripts/seo-routes.mjs — prerender + client source o
       "/articles/ai-receptionist-cost",
       "/articles/ai-receptionist-vs-answering-service",
       "/articles/ai-receptionist-with-video-avatar",
+      // Batch 2 (2026-11-23): articles 4–6 of the program.
+      "/articles/ai-receptionist-vs-hiring-a-receptionist",
+      "/articles/ai-receptionist-vs-virtual-receptionist",
+      "/articles/best-ai-receptionist-for-small-business",
     ]);
     // The client mirror must carry the same routes (both read the same file).
     expect(SEO_PAGE_HEADS.map((r) => r.path)).toEqual(routes.map((r) => r.path));

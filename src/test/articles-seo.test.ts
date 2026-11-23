@@ -30,11 +30,17 @@ const jsonLdOf = (html: string, attr: string) => {
 };
 
 describe("articles foundation (Phase 1 of the SEO program, 2026-11-23)", () => {
-  it("ships exactly the three commissioned articles, each in the program's length band", () => {
+  it("ships exactly the commissioned articles, each in the program's length band", () => {
+    // Batch 1 (2026-11-23): cost, answering-service comparison, video
+    // avatar. Batch 2 (2026-11-23): hiring comparison, virtual-receptionist
+    // comparison, buyer's checklist.
     expect(ARTICLES.map((a) => a.slug)).toEqual([
       "ai-receptionist-cost",
       "ai-receptionist-vs-answering-service",
       "ai-receptionist-with-video-avatar",
+      "ai-receptionist-vs-hiring-a-receptionist",
+      "ai-receptionist-vs-virtual-receptionist",
+      "best-ai-receptionist-for-small-business",
     ]);
     for (const a of ARTICLES) {
       const words = articleWordCount(a);
