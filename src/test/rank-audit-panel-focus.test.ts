@@ -9,7 +9,9 @@ import { describe, expect, it } from "vitest";
  * stays fully functional; only the closing sales pitch changes: the
  * 3-part growth timeline and the Maps Boost / Founder Plan buttons are
  * gone, replaced by a single CTA back to the live Aspen demo plus one
- * honest small-print line about add-ons.
+ * honest small-print line. (Updated 2026-11-23: Ron pulled the paid
+ * ranking tiers entirely, so the small-print line no longer pitches
+ * Maps Boost / AI Search add-ons either.)
  */
 
 const panel = readFileSync(
@@ -45,10 +47,11 @@ describe("rank audit panel closing pitch (voice + avatar focus)", () => {
     expect(panel.match(/See Aspen live on your website/g)).toHaveLength(1);
   });
 
-  it("keeps one honest small-print line about add-ons, with no guarantee", () => {
+  it("keeps one honest small-print line, with no paid-tier pitch (2026-11-23)", () => {
     expect(panel).toContain(
-      "Google Maps Boost and AI Search Optimization are available as add-ons once you're a customer — we'll walk you through them on your follow-up call.",
+      "The audit is free and the results are yours to keep — we'll walk you through what they mean on your follow-up call.",
     );
+    expect(panel).not.toContain("Google Maps Boost and AI Search Optimization are available as add-ons");
   });
 
   it("keeps the audit form, both modes and the Run Live button intact", () => {

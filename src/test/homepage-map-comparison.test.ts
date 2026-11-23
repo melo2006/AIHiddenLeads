@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { expect, test } from "vitest";
-import { homepageMapComparison, searchGrowthOffers, searchBundleSavings } from "../lib/homepageMapComparison";
+import { homepageMapComparison } from "../lib/homepageMapComparison";
 
 test("comparison shows 25 checkpoints on each map", () => {
   expect(homepageMapComparison).toHaveLength(25);
@@ -16,7 +16,6 @@ test("after illustrates exactly 22 green ranks between one and three", () => {
   expect(green).toHaveLength(22);
   expect(green.every(p => p.afterRank >= 1 && p.afterRank <= 3)).toBe(true);
 });
-test("Maps Boost costs 149 monthly", () => expect(searchGrowthOffers.mapsBoost).toBe(149));
-test("AI Search costs 249 monthly", () => expect(searchGrowthOffers.aiSearch).toBe(249));
-test("search bundle costs 299 monthly", () => expect(searchGrowthOffers.bundle).toBe(299));
-test("bundle saves 99 monthly versus buying separately", () => expect(searchBundleSavings).toBe(99));
+// Paid ranking tiers (Maps Boost $149 / AI Search $249 / bundle $299) were
+// pulled on 2026-11-23 by Ron's decision — the offer constants and their
+// price pins were removed with the cards. The illustrative grid stays.

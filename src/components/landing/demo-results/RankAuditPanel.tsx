@@ -222,7 +222,7 @@ export default function RankAuditPanel({ businessName, city = "", niche = "", we
 
           <div className="space-y-2 border-t border-border pt-4">
             <Button onClick={goToDemo} className="h-auto min-h-11 w-full whitespace-normal py-3">{t("rankAudit.ctaButton", { defaultValue: "See Aspen live on your website" })}</Button>
-            <p className="text-xs text-muted-foreground">{t("rankAudit.ctaNote", { defaultValue: "Google Maps Boost and AI Search Optimization are available as add-ons once you're a customer — we'll walk you through them on your follow-up call." })}</p>
+            <p className="text-xs text-muted-foreground">{t("rankAudit.ctaNote", { defaultValue: "The audit is free and the results are yours to keep — we'll walk you through what they mean on your follow-up call." })}</p>
           </div>
         </div>
       </SheetContent>
