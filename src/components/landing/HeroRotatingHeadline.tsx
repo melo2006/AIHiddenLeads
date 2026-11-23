@@ -6,8 +6,14 @@ export interface HeadlineSegment {
 // The hero headline rotates through these seven lines, in order. This is
 // the ENGLISH set, kept as the default; HeroSection passes the localized
 // set for the visitor's language (homepageSalesCopy's heroHeadlines —
-// en / es / pt-BR / fr-CA) via the lines prop.
+// en / es / pt-BR / fr-CA) via the lines prop. Order (2026-11-22, owner
+// direction): the white-haired machine-shop owner's line opens — he is
+// the hero slide's star — the plumber's voicemail line runs second, and
+// the remaining lines follow in their previous relative order. Every
+// locale's set carries the same order, and HeroSceneSlider's
+// SCENE_FOR_LINE map follows it.
 export const HERO_HEADLINE_LINES: ReadonlyArray<ReadonlyArray<HeadlineSegment>> = [
+  [{ text: "One unanswered call can cost you 78% of customers." }],
   [
     { text: "85% of " },
     { text: "voicemail", accent: true },
@@ -19,7 +25,6 @@ export const HERO_HEADLINE_LINES: ReadonlyArray<ReadonlyArray<HeadlineSegment>> 
     { text: "ONE", accent: true },
     { text: " bad experience." },
   ],
-  [{ text: "One unanswered call can cost you 78% of customers." }],
   [
     { text: "Pick a live " },
     { text: "spokesperson", accent: true },

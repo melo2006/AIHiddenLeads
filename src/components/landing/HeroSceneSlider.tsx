@@ -81,25 +81,44 @@ const HERO_SCENES: readonly HeroScene[] = [
 /**
  * Headline index -> scene index. Every locale's heroHeadlines carry the
  * same seven lines in the same order (homepageSalesCopy), so one map
- * serves all languages. The emotion follows the line:
- *   0 voicemail / don't call back      -> plumber-pain (under the sink, phone lit on the counter)
- *   1 hang up, can't reach a person    -> ac-guy-pain (shirt open in the heat, fanning himself, desk phone ringing)
- *   2 78% abandoned, one missed call   -> roofer-pain (up on the roof, phone buzzing in his belt)
- *   3 owners shocked, ONE missed call  -> manufacturer-pain-whitehair (staring at his phone — six missed calls — the disbelief beat; the master is pre-mirrored)
+ * serves all languages. Rotation order (2026-11-22, owner direction):
+ * the white-haired machine-shop owner OPENS — he is the hero's star —
+ * and the plumber's voicemail line runs second; the rest follow in
+ * their previous relative order. The emotion follows the line:
+ *   0 owners shocked, ONE missed call  -> manufacturer-pain-whitehair (staring at his phone — six missed calls — the disbelief beat; the master is pre-mirrored)
+ *   1 voicemail / don't call back      -> plumber-pain (under the sink, phone lit on the counter)
+ *   2 hang up, can't reach a person    -> ac-guy-pain (shirt open in the heat, fanning himself, desk phone ringing)
+ *   3 78% abandoned, one missed call   -> roofer-pain (up on the roof, phone buzzing in his belt)
  *   4 spokespersons / your own face    -> faces-montage (the eight spokesperson models as one team photo; faces span the whole frame, so this scene declares placement "bottom" — the slogan moves into the bottom band where only torsos are, keeping every face visible)
  *   5 never miss another call, 24/7    -> couple-relief (the older couple, free to laugh with the customer in front of them; the master is mirrored so the couple stands left, clear of this line's right-side slogan)
  *   6 $99/mo + B2B prospects           -> aspen-owners (Aspen showing the cabinet-shop owners their leads on her tablet — the payoff)
  */
-const SCENE_FOR_LINE: readonly number[] = [0, 1, 2, 3, 4, 5, 6];
+const SCENE_FOR_LINE: readonly number[] = [3, 0, 1, 2, 4, 5, 6];
 
 export const HERO_LINE_COUNT = SCENE_FOR_LINE.length;
 
 export const sceneIndexForLine = (lineIndex: number): number =>
   SCENE_FOR_LINE[lineIndex] ?? lineIndex % HERO_SCENES.length;
 
-/** Slogan side per slide: even lines read left, odd lines read right. */
+/**
+ * Slogan side per SCENE — the side each photo was composed for (the
+ * person stands clear of it). The side follows the scene, not the line
+ * index, so reordering the rotation (2026-11-22: the white-haired owner
+ * opens, the plumber runs second) never moves a slogan onto a face.
+ */
+const TEXT_SIDE_FOR_SCENE: readonly HeroTextSide[] = [
+  "left", // plumber-pain — she works on the right
+  "right", // ac-guy-pain — he stands on the left
+  "left", // roofer-pain — he works on the right
+  "right", // manufacturer-pain-whitehair — he sits on the left (pre-mirrored)
+  "left", // faces-montage — placement "bottom"; the side never renders
+  "right", // couple-relief — the couple stands left (mirrored master)
+  "left", // aspen-owners — Aspen and the owners sit right of frame
+];
+
+/** Slogan side for a line: the side its scene was composed for. */
 export const textSideForLine = (lineIndex: number): HeroTextSide =>
-  lineIndex % 2 === 0 ? "left" : "right";
+  TEXT_SIDE_FOR_SCENE[sceneIndexForLine(lineIndex)] ?? "left";
 
 /** Slogan placement per slide, from the scene the line shows. */
 export const placementForLine = (lineIndex: number): HeroTextPlacement =>
