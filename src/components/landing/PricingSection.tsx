@@ -87,7 +87,7 @@ const FEATURES: Record<string, Record<string, string[]>> = {
       "Database reactivation of authorized contacts (agreed setup)",
       "Email campaigns & drip sequences (configured consent / opt-outs)",
       "Inquiry follow-up workflows (agreed setup)",
-      "Google review management (separate Maps Boost scope)",
+      "Google review management (concierge engagement, not included in any plan)",
       "CRM pipeline & tracking",
     ],
     full: [
