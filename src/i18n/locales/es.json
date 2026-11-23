@@ -936,6 +936,7 @@
     "micNoSound": "No te escucho — tu micrófono no está enviando sonido. Toca el botón del micrófono o permite el acceso al micrófono en tu navegador.",
     "micSilent": "No escucho nada de tu micrófono — parece estar en silencio. Si usas auriculares, revisa el enchufe o la conexión, o elige otro micrófono.",
     "startTimeout": "El asistente de voz tardó demasiado en iniciar. Revisa el permiso del micrófono e inténtalo de nuevo.",
+    "stillConnecting": "Sigue conectando — un momento más…",
     "initialStatus": "Elige una voz y pulsa Iniciar — luego solo habla, como en una llamada telefónica real. Puedes interrumpirla.",
     "micLevelShort": "Nivel de mic",
     "micSound": "Sonido — tu voz se está captando",

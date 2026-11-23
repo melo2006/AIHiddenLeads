@@ -682,6 +682,7 @@
     "audioPaused": "L'audio est en pause. Terminez l'appel et appuyez à nouveau sur Commencer pour activer le son.",
     "tapForSound": "Touchez pour le son",
     "startTimeout": "Le démarrage de l'assistante vocale a pris trop de temps. Vérifiez l'autorisation du microphone et réessayez.",
+    "stillConnecting": "Connexion toujours en cours — encore un instant…",
     "initialStatus": "Choisissez une voix et appuyez sur Commencer — puis parlez simplement, comme un vrai appel téléphonique. Vous pouvez l'interrompre.",
     "micLevelShort": "Niveau du micro",
     "micSound": "Son — votre voix est captée",

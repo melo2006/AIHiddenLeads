@@ -97,6 +97,9 @@ describe("voice-first wiring in GeminiConversation", () => {
   it("warm activation re-kicks a dropped face instead of throwing the moving-face error", () => {
     expect(conversation).toContain("settleRekick");
     // The moving-face throw survives only at the pre-gate fail path.
-    expect(conversation.match(/throw new Error\('The moving face could not connect/g) ?? []).toHaveLength(1);
+    // (2026-11-23: the throw now goes through tagStartupError so the
+    // startup auto-retry can classify it as a face refusal — still
+    // exactly one throw site, still the same error.)
+    expect(conversation.match(/throw tagStartupError\(new Error\('The moving face could not connect/g) ?? []).toHaveLength(1);
   });
 });

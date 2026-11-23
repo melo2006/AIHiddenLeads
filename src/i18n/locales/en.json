@@ -682,6 +682,7 @@
     "audioPaused": "Audio is paused. End the call and press Start again to enable sound.",
     "tapForSound": "Tap for sound",
     "startTimeout": "Starting the voice assistant took too long. Check microphone permission and try again.",
+    "stillConnecting": "Still connecting — just a moment…",
     "initialStatus": "Pick a voice and press Start — then just talk, like a real phone call. You can interrupt her.",
     "micLevelShort": "Mic level",
     "micSound": "Sound — your voice is registering",
