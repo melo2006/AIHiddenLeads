@@ -15,6 +15,10 @@ describe("public sitemap.xml", () => {
       "https://aihiddenleads.com/demo",
       "https://aihiddenleads.com/agents/realtors",
       "https://aihiddenleads.com/book",
+      "https://aihiddenleads.com/articles",
+      "https://aihiddenleads.com/articles/ai-receptionist-cost",
+      "https://aihiddenleads.com/articles/ai-receptionist-vs-answering-service",
+      "https://aihiddenleads.com/articles/ai-receptionist-with-video-avatar",
     ]);
   });
 
