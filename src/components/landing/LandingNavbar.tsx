@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Menu, X, FileText, Type, Phone, ChevronDown, LifeBuoy } from "lucide-react";
+import { Menu, X, FileText, Type, Phone, ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
@@ -48,21 +48,32 @@ const LandingNavbar = ({ brand }: { brand?: ResolvedBrand }) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
   };
 
-  // Section jump links live in ONE stacked menu (Ron's call,
-  // 2026-11-21): spread across the bar they ate the whole header on
-  // smaller screens. The desktop dropdown and the mobile panel both
-  // render this same list, stacked.
-  const sectionLinks = [
+  // Menu links live in ONE stacked menu (Ron's call, 2026-11-21):
+  // spread across the bar they ate the whole header on smaller
+  // screens. The desktop dropdown and the mobile panel both render
+  // this same list, stacked. Most entries jump to a homepage section
+  // (`id`); Articles and Help are real routes (`to`) in the same
+  // list. Menu cleanup (2026-11-24): the old FAQ section jump and
+  // the separate Help route entry merged into ONE Help
+  // entry → /help — the homepage FAQ section itself is untouched.
+  type MenuLinkItem = { label: string; id?: string; to?: string };
+  const menuLinks: MenuLinkItem[] = [
     { id: "services", label: t("nav.services") },
     { id: "customers", label: t("nav.customers", "Customers") },
     { id: "examples", label: t("nav.examples", "Examples") },
+    { to: "/articles", label: t("nav.articles", "Articles") },
     { id: "benefits", label: t("nav.benefits", "Benefits") },
     { id: "avatar-gallery", label: t("nav.avatars", "Avatars") },
     { id: "how-it-works", label: t("nav.howItWorks") },
     { id: "pricing", label: t("nav.pricing") },
     { id: "testimonials", label: t("nav.testimonials") },
-    { id: "faq", label: t("nav.faq", "Help / FAQ") },
+    { to: "/help", label: t("nav.help", "Help") },
   ];
+
+  const closeMenus = () => {
+    setOpen(false);
+    setMenuOpen(false);
+  };
 
   return (
     <>
@@ -115,15 +126,26 @@ const LandingNavbar = ({ brand }: { brand?: ResolvedBrand }) => {
             </PopoverTrigger>
             <PopoverContent align="start" className="z-[100] w-60 p-2">
               <div className="flex flex-col">
-                {sectionLinks.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => scrollTo(item.id)}
-                    className="w-full rounded-md px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-secondary"
-                  >
-                    {item.label}
-                  </button>
-                ))}
+                {menuLinks.map((item) =>
+                  item.to ? (
+                    <Link
+                      key={item.to}
+                      to={item.to}
+                      onClick={closeMenus}
+                      className="w-full rounded-md px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-secondary"
+                    >
+                      {item.label}
+                    </Link>
+                  ) : (
+                    <button
+                      key={item.id}
+                      onClick={() => scrollTo(item.id!)}
+                      className="w-full rounded-md px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-secondary"
+                    >
+                      {item.label}
+                    </button>
+                  ),
+                )}
                 <div className="my-1 border-t border-border" />
                 <Link
                   to="/transcript"
@@ -133,15 +155,6 @@ const LandingNavbar = ({ brand }: { brand?: ResolvedBrand }) => {
                 >
                   <FileText className="h-3.5 w-3.5" />
                   Script
-                </Link>
-                <Link
-                  to="/help"
-                  onClick={() => setMenuOpen(false)}
-                  className="flex w-full items-center gap-1.5 rounded-md px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-                  title="Help & Support"
-                >
-                  <LifeBuoy className="h-3.5 w-3.5" />
-                  {t("nav.help", "Help")}
                 </Link>
               </div>
             </PopoverContent>
@@ -197,22 +210,26 @@ const LandingNavbar = ({ brand }: { brand?: ResolvedBrand }) => {
             the menu open. Clicking the scrim closes the menu. */}
         <div aria-hidden onClick={() => setOpen(false)} className="fixed inset-0 top-14 z-[80] bg-foreground/10 sm:top-16" />
         <div role="dialog" aria-label="Menu" className="fixed bottom-0 right-0 top-14 z-[85] w-[min(88vw,360px)] space-y-1 overflow-y-auto overscroll-contain border-l border-border bg-background px-4 py-3 shadow-2xl sm:top-16">
-          {sectionLinks.map((item) => (
-            <Button variant="ghost"
-              key={item.id}
-              onClick={() => scrollTo(item.id)}
-              className="h-auto min-h-11 justify-start whitespace-normal w-full text-left px-3 py-2 text-base font-medium text-foreground hover:bg-secondary transition-all"
-            >
-              {item.label}
-            </Button>
-          ))}
-          <Link
-            to="/help"
-            onClick={() => setOpen(false)}
-            className="block w-full text-left px-3 py-3 rounded-lg text-base font-medium text-foreground hover:bg-secondary transition-all"
-          >
-            {t("nav.help", "Help")}
-          </Link>
+          {menuLinks.map((item) =>
+            item.to ? (
+              <Link
+                key={item.to}
+                to={item.to}
+                onClick={closeMenus}
+                className="block w-full text-left px-3 py-3 rounded-lg text-base font-medium text-foreground hover:bg-secondary transition-all"
+              >
+                {item.label}
+              </Link>
+            ) : (
+              <Button variant="ghost"
+                key={item.id}
+                onClick={() => scrollTo(item.id!)}
+                className="h-auto min-h-11 justify-start whitespace-normal w-full text-left px-3 py-2 text-base font-medium text-foreground hover:bg-secondary transition-all"
+              >
+                {item.label}
+              </Button>
+            ),
+          )}
           <Link
             to="/transcript"
             onClick={() => setOpen(false)}
