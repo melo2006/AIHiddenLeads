@@ -196,10 +196,26 @@ describe('proxy wiring — detection at turnComplete, with cancel paths', () => 
     expect(session).toContain('name:persona.displayName');
   });
 
-  it('the handoff summary stamp on turnComplete still runs after the farewell block', () => {
-    const farewellAt = src.indexOf('const completedUtterance = callerUtterance');
-    const stampAt = src.indexOf("browser_voice_handoffs').update({summary})");
-    expect(stampAt).toBeGreaterThan(farewellAt);
+  it('no handoff summary stamp runs on turnComplete anymore (fix batch 2026-11-24)', () => {
+    // This pin used to guard the per-turn summary stamp that ran
+    // after the farewell block. That stamp WAS the defect: it wrote
+    // the raw caller-ASR stitch into browser_voice_handoffs.summary
+    // on every turn, and the manager briefing spoke it verbatim.
+    // The summary is now composed ONCE at the request_manager_
+    // transfer tool (handoff-summary.ts) — the turnComplete path
+    // only keeps its turn_complete signal.
+    expect(src).not.toContain("browser_voice_handoffs').update({summary})");
+    // The one remaining summary update lives inside the
+    // transfer-time composer helper, and the turnComplete boundary
+    // (farewell block → turn_complete signal) touches no handoff row.
+    const boundary = src.slice(
+      src.indexOf('const completedUtterance = callerUtterance'),
+      src.indexOf("clientSocket.send(JSON.stringify({ type: 'turn_complete' }))"),
+    );
+    expect(boundary).not.toContain("from('browser_voice_handoffs')");
+    expect(src.indexOf("browser_voice_handoffs').update({ summary })"))
+      .toBeGreaterThan(src.indexOf('const writeComposedHandoffSummary'));
+    expect(src).toContain('await writeComposedHandoffSummary();');
     expect(src).toContain("clientSocket.send(JSON.stringify({ type: 'turn_complete' }))");
   });
 });
