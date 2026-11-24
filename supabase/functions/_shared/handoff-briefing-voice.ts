@@ -29,6 +29,7 @@
 // every function here already reads.
 
 import { pcmWav } from './recording-audio.ts';
+import { isComposedHandoffSummary } from './handoff-summary.ts';
 
 /** Private bucket the session recordings already live in; briefing
  *  audio rides the same service-role upload + signed-URL pattern. */
@@ -89,11 +90,19 @@ export function briefingSayLanguage(language: BriefingLanguage): string {
  *  input so the two can never diverge. English wording identical to
  *  what browser-voice-handoff spoke through Twilio TTS before this
  *  batch; PT/ES are the same words in the session's language
- *  (2026-11-16). The summary itself is composed upstream in the
- *  conversation's language. */
+ *  (2026-11-16).
+ *
+ *  SUMMARY RULE (fix batch 2026-11-24): the stored summary is
+ *  embedded ONLY when it is a composed summary in the exact
+ *  template _shared/handoff-summary.ts builds from structured
+ *  facts. Anything else — above all a legacy row still carrying
+ *  the raw-ASR stitch the Live proxy used to write every turn —
+ *  is treated as NO summary, and the briefing falls back to the
+ *  clean templated line below. Raw caller ASR is never spoken to
+ *  the manager. */
 export function managerBriefingText(handoff: { manager_name?: unknown; summary?: unknown }, language: BriefingLanguage = 'en'): string {
   const name = typeof handoff.manager_name === 'string' && handoff.manager_name.trim() ? handoff.manager_name : 'the manager';
-  const summary = typeof handoff.summary === 'string' && handoff.summary.trim() ? handoff.summary : null;
+  const summary = isComposedHandoffSummary(handoff.summary) ? (handoff.summary as string).trim() : null;
   if (language === 'pt') return `Olá ${name}. Um visitante do site está esperando. Esta é uma transferência automática. ${summary ?? 'O visitante pediu para falar com a sua equipe.'} Pressione 1 para aceitar e conectar. Pressione qualquer outra tecla para recusar.`;
   if (language === 'es') return `Hola ${name}. Un visitante del sitio web está esperando. Esta es una transferencia automática. ${summary ?? 'El visitante ha pedido hablar con su equipo.'} Presione 1 para aceptar y conectar. Presione cualquier otra tecla para rechazar.`;
   if (language === 'fr') return `Bonjour ${name}. Un visiteur du site Web attend. Il s'agit d'un transfert automatique. ${summary ?? 'Le visiteur a demandé à parler à votre équipe.'} Appuyez sur 1 pour accepter et vous connecter. Appuyez sur n'importe quelle autre touche pour refuser.`;

@@ -4,6 +4,7 @@ import { z } from 'npm:zod@3';
 import twilio from 'npm:twilio@5';
 import { acceptsManager, escapeXml, ownerOutcome, sha256 } from '../_shared/browser-handoff.ts';
 import { briefingLanguageFrom, briefingSayLanguage, HANDOFF_BRIEFING_BUCKET, handoffBriefingPath, handoffConnectingPath, handoffStayPath, handoffConnectingLine, handoffStayLine, managerBriefingText, pollForBriefingUrl, storeHandoffBriefing, type BriefingLanguage } from '../_shared/handoff-briefing-voice.ts';
+import { composeHandoffSummary, isComposedHandoffSummary } from '../_shared/handoff-summary.ts';
 
 const json=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
 const xml=(body:string)=>new Response(`<?xml version="1.0" encoding="UTF-8"?><Response>${body}</Response>`,{headers:{...corsHeaders,'Content-Type':'text/xml'}});
@@ -39,6 +40,32 @@ Deno.serve(async req=>{
    const cfg=(data?.config??{}) as Record<string,unknown>;
    return briefingLanguageFrom({startLanguage:cfg.startLanguage,uiLocale:cfg.uiLocale});
   }catch{return 'en';}
+ }
+ async function ensureComposedHandoffSummary(h:{id:string;session_id?:string|null;summary?:unknown}){
+  // Real briefing summary (fix batch 2026-11-24): the Live proxy
+  // composes the summary when the visitor asks by voice; a transfer
+  // started from the on-screen Manager button (or a client-armed
+  // trigger) can reach token issuance without that write. Compose
+  // it HERE, at arm time, from the session row's structured facts
+  // (the durable captured-contact stamp, the stamped visitor
+  // contact, the session's business) — never from transcript text.
+  // A row already carrying a composed summary keeps it; a legacy
+  // raw-ASR stitch is replaced when facts exist and ignored by
+  // managerBriefingText when they do not. Never throws: the
+  // handoff must not fail because its summary could not be built.
+  try{
+   if(isComposedHandoffSummary(h.summary))return;
+   if(!h.session_id)return;
+   const {data}=await db.from('gemini_voice_sessions').select('config').eq('id',h.session_id).maybeSingle();
+   const cfg=(data?.config??{}) as Record<string,unknown>;
+   const captured=(cfg.capturedContact??{}) as Record<string,unknown>;
+   const visitor=(cfg.visitorContact??{}) as Record<string,unknown>;
+   const summary=composeHandoffSummary({callerName:captured.name||visitor.name,businessName:cfg.businessName});
+   if(!summary)return;
+   const {error}=await db.from('browser_voice_handoffs').update({summary}).eq('id',h.id).eq('status','not_requested');
+   if(error){console.error('handoff briefing summary failed',error.message);return;}
+   h.summary=summary;
+  }catch(e){console.error('handoff briefing summary failed',e instanceof Error?e.message:'error');}
  }
  async function briefingUpload(path:string,wav:Uint8Array){
   const {error}=await db.storage.from(HANDOFF_BRIEFING_BUCKET).upload(path,wav,{contentType:'audio/wav',upsert:true});
@@ -215,6 +242,7 @@ Deno.serve(async req=>{
   // window is ahead of the owner answer. Synthesizing here (not
   // at visitor-join, as before) means the briefing WAV is
   // already stored when the owner picks up, however fast.
+  await ensureComposedHandoffSummary(h);
   EdgeRuntime.waitUntil(armBriefingVoice(h,'token'));
   return json({token:token.toJwt()});
  }catch(e){console.error('browser handoff',e instanceof Error?e.message:'error');return json({error:'Could not connect the manager. You can continue with Aspen.'},500);}

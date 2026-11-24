@@ -36,13 +36,18 @@ import {
   synthesizeBriefingWavDetailed,
   ttsPcmFromResponse,
 } from '../../supabase/functions/_shared/handoff-briefing-voice';
+import { composeHandoffSummary } from '../../supabase/functions/_shared/handoff-summary';
 
 const read = (rel: string) => fs.readFileSync(path.join(__dirname, '..', '..', rel), 'utf8');
 
 describe('managerBriefingText — the one briefing, shared by <Play> and <Say>', () => {
   it('matches the wording Twilio TTS spoke before this batch', () => {
-    expect(managerBriefingText({ manager_name: 'Ron', summary: 'The visitor wants pricing.' }))
-      .toBe('Hello Ron. A website visitor is waiting. This is an automated handoff. The visitor wants pricing. Press 1 to accept and connect. Press any other key to decline.');
+    // Since the 2026-11-24 fix batch the embedded summary must be a
+    // COMPOSED summary (handoff-summary.ts) — free text is never
+    // embedded (see handoff-summary.test.ts for the stitch pins).
+    const summary = composeHandoffSummary({ topics: ['pricing'] })!;
+    expect(managerBriefingText({ manager_name: 'Ron', summary }))
+      .toBe(`Hello Ron. A website visitor is waiting. This is an automated handoff. ${summary} Press 1 to accept and connect. Press any other key to decline.`);
   });
 
   it('falls back for a missing name and an empty summary', () => {
