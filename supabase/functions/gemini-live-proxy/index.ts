@@ -34,6 +34,7 @@ import { transferDestination } from '../_shared/browser-handoff.ts'
 import { searchKnowledgeBase } from '../_shared/kb-distill.ts'
 import { MANAGER_HANDOFF_DELAY_MS, MANAGER_TRANSFER_POLICY, managerTransferAnnouncement } from '../_shared/manager-transfer.ts'
 import { handoffReturnInstruction, handoffReturnOutcome } from '../_shared/handoff-return.ts'
+import { composeHandoffSummary } from '../_shared/handoff-summary.ts'
 import { BROWSER_MINUTES_OVERAGE_POLICY } from '../_shared/overage-facts.ts'
 import { guardedSearchPolicyFor, guardedSearchToolEntriesFor } from '../_shared/guarded-search.ts'
 import { DEMO_CONSENT_DISCLOSURE_VERSION, DEMO_START_CLIENT_ERROR, DEMO_START_FALLBACK_TOOL_RESPONSE, DEMO_START_TOOL_DECLARATION, demoStartApplies, demoStartCardFromArgs, demoStartToolSuccessResponse, startDemoForVisitor, type DemoStartCard } from '../_shared/demo-start.ts'
@@ -658,6 +659,33 @@ Deno.serve(async (req) => {
     // no answer arms it.
     consentAsk = syncConsentAskState(consentAsk, capturedContact)
     stampCapturedContact()
+  }
+  // REAL BRIEFING SUMMARY (fix batch 2026-11-24): composed ONCE,
+  // when the transfer is requested — never rewritten per turn, and
+  // never built from transcript text. Facts come only from
+  // structured session state: the durable captured contact (or the
+  // session's stamped visitor contact, or the discovery gate's
+  // banked name), the session's business, and the closed-enum
+  // call-review interest LABELS (homepage-sales sessions only —
+  // labels from a fixed set, never the evidence text behind them).
+  // A fact that is not present is omitted by the composer; when no
+  // fact exists at all nothing is written and the spoken briefing
+  // uses its clean templated fallback.
+  let handoffSummaryWritten = false
+  const writeComposedHandoffSummary = async () => {
+    if (handoffSummaryWritten || !managerTransferAvailable) return
+    handoffSummaryWritten = true
+    try {
+      const topics = config.recordTranscript && config.homepageSales ? callReview(transcript).interest.map((i) => i.label) : []
+      const summary = composeHandoffSummary({
+        callerName: capturedContact?.name || (config.visitorContact as { name?: unknown } | null | undefined)?.name || discoveryGate.visitorName,
+        businessName: config.businessName,
+        topics,
+      })
+      if (!summary) return
+      const { error } = await db.from('browser_voice_handoffs').update({ summary }).eq('session_id', session.id).eq('status', 'not_requested')
+      if (error) console.error('handoff briefing summary failed', error.message)
+    } catch (e) { console.error('handoff briefing summary failed', e instanceof Error ? e.message : 'error') }
   }
   // FORM RE-PRESENTATION (Publish #68): the most recent confirmation
   // card this session presented — what it was, the exact contact it
@@ -1447,6 +1475,10 @@ Deno.serve(async (req) => {
               const announcement = managerTransferAnnouncement(config, conversationLanguage);
               if (managerTransferRequested) { respond({transferring:true,alreadyRequested:true,announcement,instruction:'The transfer is already being connected. Do not repeat the announcement or start another transfer.'}); continue; }
               managerTransferRequested = true;
+              // Compose the real briefing summary NOW, at transfer
+              // request time (fix batch 2026-11-24), and await it so
+              // the row carries it before the handoff token is armed.
+              await writeComposedHandoffSummary();
               respond({transferring:true,announcement,instruction:'Say the announcement exactly once, word for word, and then stop talking while the transfer connects. Do not add anything after it.'});
               // Let the spoken announcement land before the browser leg
               // starts (the client pauses Aspen when the handoff begins).
@@ -2109,11 +2141,14 @@ Deno.serve(async (req) => {
                 geminiWs?.send(JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text: portugueseCorrectionDirective() }] }], turnComplete: true } }))
               }
             }
-            if(config.transferPhone) EdgeRuntime.waitUntil((async()=>{
-              const summary=transcript.filter(t=>t.role==='caller').map(t=>t.text).join(' ').slice(-1200);
-              const {error}=await db.from('browser_voice_handoffs').update({summary}).eq('session_id',session.id).eq('status','not_requested');
-              if(error)console.error('handoff briefing checkpoint failed',error.message);
-            })());
+            // NO per-turn summary write (fix batch 2026-11-24): this
+            // boundary used to rewrite browser_voice_handoffs.summary
+            // as the raw caller-ASR stitch (last 1,200 chars of every
+            // caller turn concatenated), and the manager briefing
+            // spoke it verbatim. The composed summary is now written
+            // ONCE, when the transfer is actually requested — see
+            // writeComposedHandoffSummary at the request_manager_
+            // transfer tool below.
             clientSocket.send(JSON.stringify({ type: 'turn_complete' }))
           }
           return

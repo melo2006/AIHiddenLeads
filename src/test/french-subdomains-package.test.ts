@@ -30,6 +30,7 @@ import {
   handoffStayLine,
   managerBriefingText,
 } from "../../supabase/functions/_shared/handoff-briefing-voice";
+import { composeHandoffSummary } from "../../supabase/functions/_shared/handoff-summary";
 import {
   phoneConnectLine,
   phoneFollowUpLine,
@@ -131,10 +132,17 @@ describe("French package — content detection and spoken lines", () => {
     expect(briefingLanguageFrom({ uiLocale: "fr-CA" })).toBe("fr");
     expect(briefingLanguageFrom({ startLanguage: "French" })).toBe("fr");
     expect(briefingSayLanguage("fr")).toBe("fr-CA");
-    const text = managerBriefingText({ summary: "Le visiteur veut un prix." }, "fr");
+    // Since the 2026-11-24 fix batch only a COMPOSED summary
+    // (handoff-summary.ts) is embedded in the briefing; arbitrary
+    // free text (e.g. "Le visiteur veut un prix.") falls back to
+    // the French template line.
+    const summary = composeHandoffSummary({ topics: ["pricing"] })!;
+    const text = managerBriefingText({ summary }, "fr");
     expect(text).toContain("Bonjour");
     expect(text).toContain("transfert automatique");
-    expect(text).toContain("Le visiteur veut un prix.");
+    expect(text).toContain(summary);
+    expect(managerBriefingText({ summary: "Le visiteur veut un prix." }, "fr"))
+      .toContain("Le visiteur a demandé à parler à votre équipe.");
     expect(handoffStayLine("fr")).toContain("rester en ligne");
     expect(handoffConnectingLine("fr")).toContain("connecte");
   });

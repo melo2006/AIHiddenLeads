@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { briefingLanguageFrom, briefingSayLanguage, handoffConnectingLine, handoffStayLine, managerBriefingText } from '../../supabase/functions/_shared/handoff-briefing-voice';
+import { composeHandoffSummary } from '../../supabase/functions/_shared/handoff-summary';
 
 describe('handoff whisper language (2026-11-16) — our words, session language', () => {
   it('maps session language signals to a briefing language', () => {
@@ -14,17 +15,24 @@ describe('handoff whisper language (2026-11-16) — our words, session language'
   });
 
   it('the English briefing is byte-identical to the pre-localization wording', () => {
-    expect(managerBriefingText({ manager_name: 'Ron Melo', summary: 'A caller asked about pricing.' })).toBe(
-      'Hello Ron Melo. A website visitor is waiting. This is an automated handoff. A caller asked about pricing. Press 1 to accept and connect. Press any other key to decline.');
+    // Since the 2026-11-24 fix batch only a COMPOSED summary
+    // (handoff-summary.ts) is embedded; free text falls back to the
+    // template line (pinned in handoff-summary.test.ts).
+    const summary = composeHandoffSummary({ callerName: 'Ron Melo', topics: ['pricing'] })!;
+    expect(managerBriefingText({ manager_name: 'Ron Melo', summary })).toBe(
+      `Hello Ron Melo. A website visitor is waiting. This is an automated handoff. ${summary} Press 1 to accept and connect. Press any other key to decline.`);
     expect(managerBriefingText({})).toContain('The visitor has requested to speak with your team.');
   });
 
   it('PT and ES briefings carry the same content in the session language', () => {
-    const pt = managerBriefingText({ manager_name: 'Ron Melo', summary: 'Um cliente perguntou sobre preços.' }, 'pt');
+    const summary = composeHandoffSummary({ topics: ['pricing'] })!;
+    const pt = managerBriefingText({ manager_name: 'Ron Melo', summary }, 'pt');
     expect(pt).toContain('Olá Ron Melo.');
+    expect(pt).toContain(summary);
     expect(pt).toContain('Pressione 1 para aceitar e conectar.');
-    const es = managerBriefingText({ manager_name: 'Ron Melo', summary: 'Un cliente preguntó por los precios.' }, 'es');
+    const es = managerBriefingText({ manager_name: 'Ron Melo', summary }, 'es');
     expect(es).toContain('Hola Ron Melo.');
+    expect(es).toContain(summary);
     expect(es).toContain('Presione 1 para aceptar y conectar.');
     expect(managerBriefingText({}, 'pt')).toContain('O visitante pediu para falar com a sua equipe.');
   });
