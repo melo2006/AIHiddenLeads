@@ -111,8 +111,12 @@ describe("locale → voice (Ron, 2026-11-09)", () => {
     expect(esHost).toContain("in Spanish only");
     expect(esHost).toContain("a host phase comes first");
     // Resume/drop continuity: unchanged without a locale, directed with one.
-    expect(openingText({ preview: false, resumeContext: "RECAP" })).toBe(resumeInstruction("RECAP"));
-    expect(openingText({ preview: false, resumeContext: "RECAP", startLanguage: "Portuguese" })).toContain("Deliver that resume line in Portuguese");
+    // (Fix batch 2026-11-24: the resume fixture now carries a fact —
+    // a bare stub recap no longer earns the scripted greeting; see
+    // memory-bridge.test.ts for the gate itself.)
+    const FACT_RECAP = "Visitor: My name is Dana, and my website is durginelectric.com.";
+    expect(openingText({ preview: false, resumeContext: FACT_RECAP })).toBe(resumeInstruction(FACT_RECAP));
+    expect(openingText({ preview: false, resumeContext: FACT_RECAP, startLanguage: "Portuguese" })).toContain("Deliver that resume line in Portuguese");
   });
 
   it("honors explicit switch requests in BOTH directions, and nothing else", () => {

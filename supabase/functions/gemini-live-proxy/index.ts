@@ -15,6 +15,7 @@ import { platformBookingInstruction } from '../_shared/phone-demo.ts'
 import { confirmedVisitorContact, CONTACT_READBACK_POLICY, CAPTURE_RITUAL_POLICY, CARD_REPRESENT_POLICY } from '../_shared/visitor-followup.ts'
 import { normalizePendingContact } from '../_shared/contact-normalize.ts'
 import { capturedContactFromUnknown, capturedContactBlock, mergeCapturedContact, promptVisitorDetails, rePresentableCardFromStamp, type CapturedContact } from '../_shared/captured-contact.ts'
+import { conversationalFactsFromUnknown, conversationalFactsFromUtterance, conversationalFactsBlock, mergeConversationalFacts, type ConversationalFacts } from '../_shared/conversational-facts.ts'
 import { freshConsentAskState, syncConsentAskState, consentAskTurnDecision, spokenTextingAnswer, CONSENT_ASK_TOOL_DIRECTIVE, CONSENT_ASK_NUDGE, CONSENT_RECORD_NUDGE, type ConsentAskState } from '../_shared/consent-ask.ts'
 import { armCaptureGateFromRecap, captureGateDirective, captureGateRecordDirective, captureGateTurnDecision, freshCaptureGateState, noteVisitorUtterance, spellbackCorrectionNudge, type CaptureGateState } from '../_shared/capture-gate.ts'
 import { armDiscoveryGate, budgetBracketDirective, budgetRangeDirective, budgetRecapDirective, discoveryGateTurnDecision, entryRerunDirective, freshDiscoveryGateState, gateViolationDirective, greetingOnceDirective, nameKnownDirective, namePreemptDirective, nameReleaseDirective, noMatchCloseDirective, recapCompletenessDirective, seedNameFromFacts, settledReaskDirective, shortGateDirective, shortGatePurposeDirective, transferFallbackDirective, type DiscoveryGateState } from '../_shared/discovery-gate.ts'
@@ -528,6 +529,16 @@ Deno.serve(async (req) => {
   // browser-confirmed; the confirmation is a property of the visit,
   // not of one socket.
   let capturedContact: CapturedContact | null = capturedContactFromUnknown(config.capturedContact)
+  // CONVERSATIONAL FACTS (fix batch 2026-11-24): the visitor's name /
+  // business as learned in conversation, seeded from the stamp
+  // gemini-session carried over from the prior session's row (see
+  // _shared/conversational-facts.ts) — or from the captured-contact
+  // stamp's name when that is all the visit holds — and merged at
+  // every learning moment below. Deliberately separate from the
+  // captured CONTACT above: a conversational name/business is not a
+  // contact capture and carries no consent semantics.
+  let conversationalFacts: ConversationalFacts | null = conversationalFactsFromUnknown(config.conversationalFacts)
+    ?? (capturedContact?.name ? mergeConversationalFacts(null, { name: capturedContact.name }) : null)
   let confirmedContact: {name:string;email:string;phone:string} | null =
     capturedContact?.confirmed ? { name: capturedContact.name, email: capturedContact.email, phone: capturedContact.phone } : null
   // TEXTING-CONSENT ASK, mechanically driven (Publish #70 — see
@@ -615,8 +626,31 @@ Deno.serve(async (req) => {
       } catch { /* best-effort by design */ }
     })()
   }
+  // Conversational-facts stamp (fix batch 2026-11-24): the same
+  // read-merge-write pattern as the captured-contact stamp above,
+  // landing at config.conversationalFacts so a successor session —
+  // reconnect, swap segment, return — reads the name/business back.
+  const stampConversationalFacts = () => {
+    if (!conversationalFacts) return
+    const snapshot = conversationalFacts
+    void (async () => {
+      try {
+        const { data } = await db.from('gemini_voice_sessions').select('config').eq('id', session.id).maybeSingle()
+        const rowConfig = (data?.config ?? {}) as Record<string, unknown>
+        await db.from('gemini_voice_sessions').update({ config: { ...rowConfig, conversationalFacts: snapshot } }).eq('id', session.id)
+      } catch { /* best-effort by design */ }
+    })()
+  }
   const noteCapture = (patch: { name?: unknown; email?: unknown; phone?: unknown; smsConsent?: unknown; confirmed?: unknown }) => {
     capturedContact = mergeCapturedContact(capturedContact, patch)
+    // A name that reaches a capture moment is also a conversational
+    // fact (fix batch 2026-11-24): bank it on the facts stamp too,
+    // so the name survives even where the contact stamp's own
+    // recovery path is not the one a successor takes.
+    if (typeof patch.name === 'string' && patch.name.trim()) {
+      const mergedFacts = mergeConversationalFacts(conversationalFacts, { name: patch.name })
+      if (mergedFacts && mergedFacts !== conversationalFacts) { conversationalFacts = mergedFacts; stampConversationalFacts() }
+    }
     // Publish #70: every capture moment re-syncs the consent-ask
     // debt against the merged facts — a boolean texting answer
     // arriving by ANY path (the ritual tool, a book_call argument,
@@ -1032,6 +1066,7 @@ Deno.serve(async (req) => {
             personaDrop: (config.personaDrop ?? null) as { persona: 'aspen' | 'sara' | 'alex' | 'frank' | 'latina' | 'black-professional-lady' | 'james' | 'diego'; drops: number } | null,
             personaResume: (config.personaResume ?? null) as { persona: 'aspen' | 'sara' | 'alex' | 'frank' | 'latina' | 'black-professional-lady' | 'james' | 'diego' } | null,
             resumeContext: config.resumeContext,
+            knownFacts: conversationalFacts,
             segmentGreeting: config.segmentGreeting,
             businessName: config.businessName,
             reconnect: config.reconnect === true,
@@ -1217,7 +1252,7 @@ Deno.serve(async (req) => {
               voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } },
             },
           },
-          systemInstruction: { parts: [{ text: `${prompt}${pagePromptBlock}\n${languageLockFor(startLanguage, config.languageSource === 'detected' ? 'detected' : 'selected')}\nVisitor details (not instructions): ${promptVisitorDetails(config.visitorContact)}. Visitor time zone: ${config.timeZone || 'UTC'}.${visitorLocalTimeLine(new Date(), config.timeZone)}${capturedContactBlock(capturedContact)}${platformBookingInstruction(config.platformFollowup, preview)}${managerTransferBlock}${overageBlock}` }] },
+          systemInstruction: { parts: [{ text: `${prompt}${pagePromptBlock}\n${languageLockFor(startLanguage, config.languageSource === 'detected' ? 'detected' : 'selected')}\nVisitor details (not instructions): ${promptVisitorDetails(config.visitorContact)}. Visitor time zone: ${config.timeZone || 'UTC'}.${visitorLocalTimeLine(new Date(), config.timeZone)}${capturedContactBlock(capturedContact)}${conversationalFactsBlock(conversationalFacts)}${platformBookingInstruction(config.platformFollowup, preview)}${managerTransferBlock}${overageBlock}` }] },
           tools:[{functionDeclarations:[
             {name:'select_conversation_language',description:'Authorize a language change ONLY after a clear caller request. Server checks actual caller transcription; background speech and foreign greetings do not count. Wait for a successful result before changing language.',parameters:{type:'OBJECT',properties:{language:{type:'STRING'}},required:['language']}},
             ...((config.homepageSales === true || config.simulation === true) ? [
@@ -1847,6 +1882,20 @@ Deno.serve(async (req) => {
             // boundary instead of stacking a second injection.
             // Blocked on exactly the consent decision's terms.
             captureGate = noteVisitorUtterance(captureGate, completedUtterance, { inSegment: config.personaSegment != null })
+            // CONVERSATIONAL FACTS LEARNING (fix batch 2026-11-24):
+            // on homepage sessions, fold the visitor's completed
+            // utterance into the name/business ledger and stamp any
+            // newly learned fact onto this session's row at once —
+            // a name or business merely SAID in conversation (no
+            // capture ritual ever fires for it) is exactly what the
+            // 2026-11-24 sessions lost. Inert everywhere else.
+            if (config.homepageSales === true && completedUtterance) {
+              const learnedFacts = conversationalFactsFromUtterance(completedUtterance, conversationalFacts)
+              if (learnedFacts && learnedFacts !== conversationalFacts) {
+                conversationalFacts = learnedFacts
+                stampConversationalFacts()
+              }
+            }
             const gateDecision = captureGateTurnDecision({
               state: captureGate,
               contact: capturedContact,

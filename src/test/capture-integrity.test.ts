@@ -291,7 +291,10 @@ describe('gemini-session wiring — recovery across sessions (defect 2)', () => 
 
   it('a full-recap reconnect gets a second, config-only recovery chance', () => {
     expect(sessionSource).toContain('Publish #68, second chance');
-    expect(sessionSource).toContain('if (!priorCaptured && !b.personaSegment && !b.preview && !b.draft && !b.share && !b.guide && b.reconnect === true) {');
+    // Fix batch 2026-11-24: the second chance now also recovers the
+    // conversational-facts stamp, so the gate is "either stamp
+    // missing" — the captured-contact recovery itself is unchanged.
+    expect(sessionSource).toContain('if ((!priorCaptured || !priorFacts) && !b.personaSegment && !b.preview && !b.draft && !b.share && !b.guide && b.reconnect === true) {');
   });
 
   it('stamps the recovered facts onto the assembled config, assembly line untouched', () => {
