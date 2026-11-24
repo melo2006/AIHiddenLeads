@@ -151,10 +151,13 @@ describe("gemini-session wiring — caps raised + server-side synthesis", () => 
     expect(sessionSource).toContain("buildTranscriptRecap");
     expect(sessionSource).toContain("effectiveResumeContext");
     expect(sessionSource).toContain(":effectiveResumeContext)");
-    // Only non-segment, non-preview authorizations with a thin or
-    // absent client recap trigger the lookup.
+    // Only non-segment, non-preview authorizations trigger the
+    // lookup, and (fix batch 2026-11-24) the gate is the widened
+    // memory-bridge decision — a short recap OR one with no
+    // identifiable facts recovers; the old < 200 stub gate is gone.
     expect(sessionSource).toContain("!b.personaSegment && !b.preview && !b.draft && !b.share && !b.guide");
-    expect(sessionSource).toContain("b.resumeContext.trim().length < 200");
+    expect(sessionSource).toContain("shouldRecoverPriorSession({ reconnect: b.reconnect, resumeContext: b.resumeContext })");
+    expect(sessionSource).not.toContain("b.resumeContext.trim().length < 200");
   });
 
   it("Publish #64: stamps an IP-free visitorKeyHash into every stored config", () => {

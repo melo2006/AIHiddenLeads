@@ -25,6 +25,8 @@ import { normalizeUiLocale, resolveDemoStartLocale, startingLanguageForUiLocale,
 import { voiceForLocaleSession } from '../_shared/locale-voices.ts';
 import { buildTranscriptRecap } from '../_shared/recap-builder.ts';
 import { capturedContactFromConfig, type CapturedContact } from '../_shared/captured-contact.ts';
+import { priorRowLookupKeys, shouldRecoverPriorSession } from '../_shared/memory-bridge.ts';
+import { conversationalFactsFromConfig, extractConversationalFactsFromRecap, mergeConversationalFacts, type ConversationalFacts } from '../_shared/conversational-facts.ts';
 import { composeSessionKnowledge } from '../_shared/kb-distill.ts';
 const personaSegmentSchema=z.object({persona:z.enum(['aspen','sara','alex','frank','latina','black-professional-lady','james','diego']),boundary:z.enum(['doorway','stepout','meet-alex','return','summon-aspen','intro-sara','intro-return-1','intro-alex','intro-return-2','offer-sara','offer-return']),parentSessionId:z.string().uuid(),swapRecap:z.string().max(8000),drops:z.number().int().min(0).max(99).default(0),dropRecovery:z.boolean().default(false),manualResume:z.boolean().default(false),swap:z.boolean().default(false),teamIntroSeen:z.boolean().default(false)});
 // SWAP DIAG (voice-first batch, 2026-11-10): the client posts a doorway
@@ -63,7 +65,14 @@ const handoffDiagSchema=z.object({sessionId:z.string().uuid(),detail:z.string().
 // same shape as micDiag; sessions whose startup was never watched
 // (previews) simply never stamp.
 const startupDiagSchema=z.object({sessionId:z.string().uuid(),detail:z.string().max(400),at:z.number().optional()});
-const schema=z.object({ visitorKey:z.string().min(16).max(100), model:z.string().max(100).optional(), agentId:z.string().uuid().optional(), leadId:z.string().uuid().optional(), prospectId:z.string().uuid().optional(), draft:z.boolean().default(false), preview:z.boolean().default(false), voice:z.enum(VOICES as [string,...string[]]).optional(), hour:z.number().int().min(0).max(23).optional(), visitorName:z.string().max(100).default(''), timeZone:z.string().max(100).default('UTC'), locale:z.string().max(10).optional(), campaign:z.object({visitId:z.string().uuid(),source:z.string().max(100),campaign:z.string().max(100),entryPath:z.enum(PUBLIC_PATHS).optional()}).nullable().optional(), page:z.object({path:z.string().max(100),section:z.string().max(40).optional(),title:z.string().max(160).optional()}).nullable().optional(), consent:z.boolean().default(false), verification:z.enum(['pending','verified']).optional(), invite:z.boolean().optional(), sample:z.boolean().optional(), guide:z.enum(['alex']).optional(), share:z.string().max(100).optional(), resumeContext:z.string().max(16000).optional(), reconnect:z.boolean().default(false), prewarm:z.boolean().default(false), personaSegment:personaSegmentSchema.optional(), swapDiag:swapDiagSchema.optional(), playoutDiag:playoutDiagSchema.optional(), micDiag:micDiagSchema.optional(), handoffDiag:handoffDiagSchema.optional(), startupDiag:startupDiagSchema.optional() });
+// MEMORY DIAG (fix batch 2026-11-24): startupDiag's sibling through
+// the same diag channel — the client stamps the visit-memory turn
+// count and the minted recap's char length at session mint time, so
+// a recap that shrank to a tail stub (the 2026-11-24 defect: a
+// 264-char stub where the designed first-6 + last-30 recap belonged)
+// is identifiable from the session record instead of guesswork.
+const memoryDiagSchema=z.object({sessionId:z.string().uuid(),detail:z.string().max(400),at:z.number().optional()});
+const schema=z.object({ visitorKey:z.string().min(16).max(100), model:z.string().max(100).optional(), agentId:z.string().uuid().optional(), leadId:z.string().uuid().optional(), prospectId:z.string().uuid().optional(), draft:z.boolean().default(false), preview:z.boolean().default(false), voice:z.enum(VOICES as [string,...string[]]).optional(), hour:z.number().int().min(0).max(23).optional(), visitorName:z.string().max(100).default(''), timeZone:z.string().max(100).default('UTC'), locale:z.string().max(10).optional(), campaign:z.object({visitId:z.string().uuid(),source:z.string().max(100),campaign:z.string().max(100),entryPath:z.enum(PUBLIC_PATHS).optional()}).nullable().optional(), page:z.object({path:z.string().max(100),section:z.string().max(40).optional(),title:z.string().max(160).optional()}).nullable().optional(), consent:z.boolean().default(false), verification:z.enum(['pending','verified']).optional(), invite:z.boolean().optional(), sample:z.boolean().optional(), guide:z.enum(['alex']).optional(), share:z.string().max(100).optional(), resumeContext:z.string().max(16000).optional(), reconnect:z.boolean().default(false), prewarm:z.boolean().default(false), personaSegment:personaSegmentSchema.optional(), swapDiag:swapDiagSchema.optional(), playoutDiag:playoutDiagSchema.optional(), micDiag:micDiagSchema.optional(), handoffDiag:handoffDiagSchema.optional(), startupDiag:startupDiagSchema.optional(), memoryDiag:memoryDiagSchema.optional() });
 const json=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
 export async function hash(value:string) { return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)))).map(b=>b.toString(16).padStart(2,'0')).join(''); }
 Deno.serve(async req=>{
@@ -157,6 +166,20 @@ Deno.serve(async req=>{
     const priorStartup=Array.isArray(startupConfig.startupDiag) ? startupConfig.startupDiag : [];
     const startupEntry={detail:b.startupDiag.detail,at:b.startupDiag.at ?? Date.now()};
     await db.from('gemini_voice_sessions').update({config:{...startupConfig,startupDiag:[...priorStartup,startupEntry].slice(-30)}}).eq('id',startupRow.id);
+    return json({ok:true});
+  }
+  // Memory telemetry (fix batch 2026-11-24): appended to the session
+  // row at config.memoryDiag (bounded — the last 30), same
+  // visitor-hash ownership as startupDiag. The client stamps the
+  // visit-memory turn count + minted recap char length at mint time.
+  if(b.memoryDiag) {
+    const memoryVisitor=await hash(`${b.visitorKey}|${req.headers.get('x-forwarded-for')?.split(',')[0] || ''}`);
+    const {data:memoryRow}=await db.from('gemini_voice_sessions').select('id,config,visitor_hash').eq('id',b.memoryDiag.sessionId).maybeSingle();
+    if(!memoryRow || memoryRow.visitor_hash!==memoryVisitor) return json({error:'Session not found'},404);
+    const memoryConfig=(memoryRow.config ?? {}) as Record<string,unknown>;
+    const priorMemory=Array.isArray(memoryConfig.memoryDiag) ? memoryConfig.memoryDiag : [];
+    const memoryEntry={detail:b.memoryDiag.detail,at:b.memoryDiag.at ?? Date.now()};
+    await db.from('gemini_voice_sessions').update({config:{...memoryConfig,memoryDiag:[...priorMemory,memoryEntry].slice(-30)}}).eq('id',memoryRow.id);
     return json({ok:true});
   }
   const bearer=req.headers.get('Authorization')?.replace(/^Bearer\s+/i,'') || '';
@@ -750,7 +773,10 @@ Deno.serve(async req=>{
   // propagated zone the same way.
   const effectiveTimeZone=segmentParentId?segmentTimeZone((parentRowRef as {config?:Record<string,unknown>}|undefined)?.config,b.timeZone):b.timeZone;
   const greetingHour=hourInTimeZone(new Date(),effectiveTimeZone) ?? b.hour;
-  const greetingName=sanitizeVisitorName((b.sample === true ? '' : b.visitorName) || String((config.visitorContact as Record<string,unknown>|undefined)?.name || ''));
+  // `let`, not `const` (fix batch 2026-11-24): the prior-row recovery
+  // below can hand back the visitor's conversational name stamp, and
+  // a returning visitor whose name is on file is greeted BY it.
+  let greetingName=sanitizeVisitorName((b.sample === true ? '' : b.visitorName) || String((config.visitorContact as Record<string,unknown>|undefined)?.name || ''));
   // SERVER-SIDE RECAP SYNTHESIS (Publish #63, 2026-11-15): the
   // client-side recap lives in the page's visit memory; a reload (or
   // a dropped call that reopens the demo) arrives with NO recap at
@@ -797,14 +823,34 @@ Deno.serve(async req=>{
   // assembly below; persona segments inherit it from the parent
   // row's config spread instead.
   let priorCaptured: CapturedContact | null = null;
+  // CONVERSATIONAL FACTS (fix batch 2026-11-24): the same prior-row
+  // scan also recovers the conversational-facts stamp (the visitor's
+  // name / business as learned in conversation — see
+  // _shared/conversational-facts.ts), scanned from the same rows in
+  // the same pass. The recovery gate itself is WIDENED by
+  // shouldRecoverPriorSession (_shared/memory-bridge.ts): it runs
+  // when the supplied recap is short (< 600 chars) OR carries no
+  // identifiable name/facts — the 264-char tail stub that arrived in
+  // Ron's 2026-11-24 sessions passed the old < 200 gate and disarmed
+  // the whole recovery, facts included. A full recap (long AND
+  // fact-bearing) keeps the pre-fix behaviour exactly.
+  let priorFacts: ConversationalFacts | null = null;
+  const lookupKeys = priorRowLookupKeys({ visitId: b.campaign?.visitId });
   if (!b.personaSegment && !b.preview && !b.draft && !b.share && !b.guide
-    && (b.reconnect === true || !b.resumeContext || b.resumeContext.trim().length < 200)) {
+    && shouldRecoverPriorSession({ reconnect: b.reconnect, resumeContext: b.resumeContext })) {
     try {
       const scanCaptured = (rows: unknown[] | null | undefined) => {
         if (priorCaptured) return;
         for (const row of rows || []) {
           const found = capturedContactFromConfig((row as { config?: unknown }).config);
           if (found) { priorCaptured = found; return; }
+        }
+      };
+      const scanFacts = (rows: unknown[] | null | undefined) => {
+        if (priorFacts) return;
+        for (const row of rows || []) {
+          const found = conversationalFactsFromConfig((row as { config?: unknown }).config);
+          if (found) { priorFacts = found; return; }
         }
       };
       const priorSince = new Date(Date.now() - 30 * 60_000).toISOString();
@@ -820,6 +866,7 @@ Deno.serve(async req=>{
       else priorQuery = priorQuery.eq('agent_id', agentId);
       const { data: priorRows } = await priorQuery;
       scanCaptured(priorRows);
+      scanFacts(priorRows);
       const usablePrior = (row: unknown) => {
         const priorConfig = (row as { config?: Record<string, unknown> }).config || {};
         return !priorConfig.personaSegment && priorConfig.preview !== true
@@ -844,7 +891,32 @@ Deno.serve(async req=>{
         else fallbackQuery = fallbackQuery.eq('agent_id', agentId);
         const { data: fallbackRows } = await fallbackQuery;
         scanCaptured(fallbackRows);
+        scanFacts(fallbackRows);
         prior = (fallbackRows || []).find(usablePrior);
+      }
+      if (!prior && lookupKeys.includes('campaignVisitId')) {
+        // VISIT-ID FALLBACK (fix batch 2026-11-24): both hash keys
+        // above are tied to the visitorKey, and every homepage start
+        // mints a FRESH visitorKey — so a returning start's hashes
+        // match nothing the prior row stored. The campaign visitId
+        // is the one identifier stable across the rows of a visit
+        // (stored in each row's config.campaign), so it joins the
+        // lookup chain as the last resort: identical scoping, same
+        // 30-minute window, same usable-row criteria, matched on
+        // the visitId inside the prior row's stored campaign.
+        let visitQuery = db.from('gemini_voice_sessions')
+          .select('config,transcript,created_at')
+          .eq('config->campaign->>visitId', b.campaign?.visitId)
+          .gte('created_at', priorSince)
+          .order('created_at', { ascending: false })
+          .limit(5);
+        if (b.leadId) visitQuery = visitQuery.eq('lead_id', b.leadId);
+        else if (b.prospectId) visitQuery = visitQuery.eq('prospect_id', b.prospectId);
+        else visitQuery = visitQuery.eq('agent_id', agentId);
+        const { data: visitRows } = await visitQuery;
+        scanCaptured(visitRows);
+        scanFacts(visitRows);
+        prior = (visitRows || []).find(usablePrior);
       }
       const synthesized = prior ? buildTranscriptRecap((prior as { transcript?: unknown }).transcript) : undefined;
       if (synthesized && synthesized.length > (effectiveResumeContext || '').length) {
@@ -858,13 +930,20 @@ Deno.serve(async req=>{
   // sit in the recap's elided middle while the fact itself must
   // survive. On a reconnect with no stamp recovered yet, run the
   // same two lookups config-only and take the newest stamp.
-  if (!priorCaptured && !b.personaSegment && !b.preview && !b.draft && !b.share && !b.guide && b.reconnect === true) {
+  if ((!priorCaptured || !priorFacts) && !b.personaSegment && !b.preview && !b.draft && !b.share && !b.guide && b.reconnect === true) {
     try {
       const capturedSince = new Date(Date.now() - 30 * 60_000).toISOString();
       const capturedHash = await hash(`${b.visitorKey}|${req.headers.get('x-forwarded-for')?.split(',')[0] || ''}`);
       const scanRows = (rows: unknown[] | null | undefined) => {
         for (const row of rows || []) {
           const found = capturedContactFromConfig((row as { config?: unknown }).config);
+          if (found) return found;
+        }
+        return null;
+      };
+      const scanFactRows = (rows: unknown[] | null | undefined) => {
+        for (const row of rows || []) {
+          const found = conversationalFactsFromConfig((row as { config?: unknown }).config);
           if (found) return found;
         }
         return null;
@@ -879,8 +958,9 @@ Deno.serve(async req=>{
       else if (b.prospectId) capturedQuery = capturedQuery.eq('prospect_id', b.prospectId);
       else capturedQuery = capturedQuery.eq('agent_id', agentId);
       const { data: capturedRows } = await capturedQuery;
-      priorCaptured = scanRows(capturedRows);
-      if (!priorCaptured) {
+      if (!priorCaptured) priorCaptured = scanRows(capturedRows);
+      if (!priorFacts) priorFacts = scanFactRows(capturedRows);
+      if (!priorCaptured || !priorFacts) {
         let capturedFallback = db.from('gemini_voice_sessions')
           .select('config,created_at')
           .eq('config->>visitorKeyHash', visitorKeyHash)
@@ -891,7 +971,25 @@ Deno.serve(async req=>{
         else if (b.prospectId) capturedFallback = capturedFallback.eq('prospect_id', b.prospectId);
         else capturedFallback = capturedFallback.eq('agent_id', agentId);
         const { data: capturedFallbackRows } = await capturedFallback;
-        priorCaptured = scanRows(capturedFallbackRows);
+        if (!priorCaptured) priorCaptured = scanRows(capturedFallbackRows);
+        if (!priorFacts) priorFacts = scanFactRows(capturedFallbackRows);
+      }
+      if ((!priorCaptured || !priorFacts) && lookupKeys.includes('campaignVisitId')) {
+        // Same visitId last resort as the synthesis block above,
+        // config-only: the fresh visitorKey's hashes match nothing,
+        // the visit's campaign visitId still does.
+        let capturedVisit = db.from('gemini_voice_sessions')
+          .select('config,created_at')
+          .eq('config->campaign->>visitId', b.campaign?.visitId)
+          .gte('created_at', capturedSince)
+          .order('created_at', { ascending: false })
+          .limit(5);
+        if (b.leadId) capturedVisit = capturedVisit.eq('lead_id', b.leadId);
+        else if (b.prospectId) capturedVisit = capturedVisit.eq('prospect_id', b.prospectId);
+        else capturedVisit = capturedVisit.eq('agent_id', agentId);
+        const { data: capturedVisitRows } = await capturedVisit;
+        if (!priorCaptured) priorCaptured = scanRows(capturedVisitRows);
+        if (!priorFacts) priorFacts = scanFactRows(capturedVisitRows);
       }
     } catch { /* captured recovery is best-effort, like the synthesis */ }
   }
@@ -914,6 +1012,23 @@ Deno.serve(async req=>{
   // untouched: captured facts still carry forward.
   if (b.sample === true && b.reconnect !== true) effectiveResumeContext = undefined;
 
+  // KNOWN FACTS ASSEMBLY (fix batch 2026-11-24): the successor's
+  // conversational-facts stamp is the recovered prior stamp, topped
+  // up by whatever the surviving recap itself states in the
+  // visitor's own words (a prior session whose stamp never landed
+  // still handed its facts forward in its recap) and by the name on
+  // the recovered captured-contact stamp. The stamp lands on the new
+  // config below; the proxy renders it into the returning-visitor
+  // context (conversationalFactsBlock) and the resume greeting names
+  // it — so "welcome back" arrives WITH the name/business, and
+  // neither is ever re-asked. A recovered name also becomes the
+  // greeting name when no stronger source named the visitor.
+  let knownFacts: ConversationalFacts | null = priorFacts;
+  const recapFacts = extractConversationalFactsFromRecap(effectiveResumeContext);
+  if (recapFacts) knownFacts = mergeConversationalFacts(knownFacts, recapFacts) ?? knownFacts;
+  if (priorCaptured?.name) knownFacts = mergeConversationalFacts(knownFacts, { name: priorCaptured.name }) ?? knownFacts;
+  if (knownFacts?.name && !greetingName) greetingName = sanitizeVisitorName(knownFacts.name);
+
   config={...config,visitorKeyHash,timeZone:effectiveTimeZone,...(uiLocale ? {uiLocale, startLanguage: startingLanguageForUiLocale(uiLocale)} : detectedSiteLocale ? {uiLocale: detectedSiteLocale, startLanguage: startingLanguageForUiLocale(detectedSiteLocale), languageSource: 'detected'} : {}),quotaClass:segmentParentId?'persona_segment':b.share?'visitor':voiceQuotaClass(role?.role==='admin',b.preview),model:requestedModel || DEFAULT_LIVE_MODEL,opening:openingFor(config,greetingHour,greetingName),preview:b.preview,resumeContext:b.preview?undefined:(segmentParentId?String(config.resumeContext || ''):effectiveResumeContext),reconnect:segmentParentId?false:!b.preview&&b.reconnect,campaign:b.campaign || (segmentParentId?(config.campaign ?? null):null),recordTranscript:segmentParentId?config.recordTranscript===true:!b.preview && transcriptAllowed(false,false,b.consent),recordAudio:segmentParentId?config.recordAudio===true:!b.preview && b.consent};
   // Publish #68: the recovered captured-contact stamp lands on the
   // assembled config (kept out of the assembly line itself, which is
@@ -921,6 +1036,9 @@ Deno.serve(async req=>{
   // priorCaptured is only set by the non-segment synthesis above,
   // and a segment's own inheritance rides the parent spread.
   if (priorCaptured) config.capturedContact = priorCaptured;
+  // Fix batch 2026-11-24: the recovered conversational-facts stamp
+  // lands beside the captured-contact stamp, same reasoning.
+  if (knownFacts) config.conversationalFacts = knownFacts;
   // DEMO-SITE OPENING RENDER (2026-11-12 late — live retest of the
   // Scalone batch, session 96d54121): openingFor returned the picked
   // demo rotation variant VERBATIM, and the demo-site variants are

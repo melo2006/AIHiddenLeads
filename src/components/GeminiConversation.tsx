@@ -54,7 +54,7 @@ import { PlaybackCaptions, type PlaybackCaption as Caption } from '@/lib/playbac
 import { displayNumbers } from '@/lib/displayNumbers';
 import PlaybackCaption from '@/components/PlaybackCaption';
 import { voiceSessionHeaders } from '@/lib/voiceSessionAuth';
-import { clearAllVisitMemory, visitMemoryAppend, visitMemoryDelete, visitMemoryGet, visitMemorySet, type VisitTurn } from '@/lib/visitMemory';
+import { clearAllVisitMemory, memoryDiagPayload, memoryDiagSignature, type MemoryDiagStats, visitMemoryAppend, visitMemoryDelete, visitMemoryGet, visitMemorySet, type VisitTurn } from '@/lib/visitMemory';
 import { shouldShowMicHint } from '@/lib/micAudibility';
 import { createMicFlowState, MIC_MUTED_START_GRACE_MS, MIC_SILENT_MIN_LOUD_FRAMES, micDiagPayload, micDiagSignature, micDiagStamp, micInputSeconds, micTrackStartVerdict, noteMicFrame, noteMicSessionLive, noteMicWatchdogFired, shouldShowMicWatchdog, shouldShowSilentMicNotice, type MicDiagEvent, type MicTrackState } from '@/lib/micWatchdog';
 import { createPlayoutStartupWatch, heardEngineWhy, STARTUP_BLOCKED_AFTER_MS, STARTUP_CHECK_AFTER_MS, startupDiagPayload, startupDiagSignature, type PlayoutProbe, type StartupDiagEvent, type StartupVerdict } from '@/lib/playoutStartup';
@@ -2064,6 +2064,31 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     startupTimersRef.current.forEach((timer) => window.clearTimeout(timer));
     startupTimersRef.current = [];
   }, []);
+  // Memory diag (fix batch 2026-11-24): startupDiag's sibling through
+  // the same gemini-session diag channel, landing on the session row
+  // at config.memoryDiag. Stamped ONCE per mint (see the call in the
+  // authorization below) with the visit-memory turn count and the
+  // minted recap's char length, so a future shrink-to-tail — a long
+  // visit whose recap arrives as a few hundred chars — is readable
+  // from the record (turns= high, recapChars= low) instead of
+  // guesswork. Fire-and-forget, signature-deduped — diagnostics
+  // never break the call, and nothing here is visitor-visible.
+  const lastMemoryDiagRef = useRef('');
+  const stampMemoryDiag = useCallback((stats: MemoryDiagStats) => {
+    const target = diagStampTarget();
+    if (!target) return;
+    const { sessionId, visitorKey } = target;
+    const payload = memoryDiagPayload(sessionId, stats, Date.now());
+    const signature = memoryDiagSignature(payload);
+    if (signature === lastMemoryDiagRef.current) return;
+    lastMemoryDiagRef.current = signature;
+    void (async () => {
+      try {
+        const headers = await voiceSessionHeaders();
+        await supabase.functions.invoke('gemini-session', { headers, body: { visitorKey, memoryDiag: payload } });
+      } catch { /* diagnostics never break the call */ }
+    })();
+  }, []);
   /** Arm the startup watch at the session's first locally-routed
    *  chunk: baseline the terminal, stamp 'first', and schedule the
    *  two checks — the pill decision at 1.5 s (audio delivered but
@@ -3771,6 +3796,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
         diagTargetRef.current = { sessionId: String(authorized.sessionId), visitorKey };
         resetRateWitness(graphWitnessRef.current);
         graphSegmentRef.current = null;
+        // Memory diag (fix batch 2026-11-24): stamp what this mint
+        // actually carried — the visit-memory turn count and the
+        // recap char length — onto the NEW session's own row, so a
+        // shrink-to-tail recap is identifiable from the record.
+        stampMemoryDiag({ turns: memoryTurns.length, recapChars: resumeContext ? resumeContext.length : 0 });
       }
       // Avatar swap arming (Stage 1): only a parent business-demo
       // authorization can enable the flow, and only when the server says

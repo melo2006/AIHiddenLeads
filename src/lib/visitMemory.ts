@@ -91,6 +91,39 @@ export function visitMemoryDelete(key: string) {
   visitMemory.delete(key);
   persistVisitMemory();
 }
+/** MEMORY DIAG (fix batch 2026-11-24): the mint-time diagnostic the
+ * conversation stamps through the gemini-session diag channel
+ * (config.memoryDiag on the new session's own row). It records how
+ * much visit memory the mint actually carried — the accumulated
+ * turn count and the recap's char length — so a recap that shrank
+ * to a tail stub (Ron's 2026-11-24 sessions: 264 chars where the
+ * designed first-6 + last-30 recap belonged) is identifiable from
+ * the record: turns high + recapChars low IS the shrink, readable
+ * without replaying the visit. Pure formatting, no side effects. */
+export interface MemoryDiagStats {
+  /** Turns held in visit memory for this visit at mint time. */
+  turns: number;
+  /** Char length of the resume recap sent with the mint (0 = none). */
+  recapChars: number;
+}
+
+export function memoryDiagDetail(stats: MemoryDiagStats): string {
+  const turns = Number.isFinite(stats.turns) && stats.turns > 0 ? Math.floor(stats.turns) : 0;
+  const recapChars = Number.isFinite(stats.recapChars) && stats.recapChars > 0 ? Math.floor(stats.recapChars) : 0;
+  return `turns=${turns};recapChars=${recapChars}`;
+}
+
+export function memoryDiagPayload(sessionId: string, stats: MemoryDiagStats, at: number): { sessionId: string; detail: string; at: number } {
+  return { sessionId, detail: memoryDiagDetail(stats).slice(0, 400), at };
+}
+
+/** Dedupe key (session-scoped, like the other diag channels): a new
+ *  session's first stamp always lands; identical repeats within a
+ *  session post once. */
+export function memoryDiagSignature(payload: { sessionId: string; detail: string }): string {
+  return `${payload.sessionId}|${payload.detail}`;
+}
+
 /** Wipe EVERY key of the visit store plus its storage mirror (the
  * start-over-as-a-new-visitor reset). Hydration is marked done so a
  * stale mirror can never resurrect the wiped visit. */
