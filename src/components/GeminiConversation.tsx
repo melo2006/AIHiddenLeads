@@ -37,7 +37,7 @@ import { currentPageContext, type PageContext } from '@/lib/pageContext';
 import { samePageContext, sanitizePageContext } from '../../supabase/functions/_shared/page-context';
 import { salesPlans, type SalesPlan } from '@/lib/salesActions';
 import SimliAvatar, { SOUND_BLOCKED, isVideoStartFailure, type SimliAvatarHandle } from '@/components/SimliAvatar';
-import { BOUNDARY_TARGET, boundaryTargetFor, boundedSettle, boundaryForAssistantLine, buildSwapRecap, chainIsMidSegment, chainStashTarget, cutoverAudioSync, cutoverMode, cutoverReady, dequeueSwapExecution, dropApologyVariant, enqueueSwapExecution, faceLivenessOnLive, faceLivenessOnNotLive, faceLivenessOnStartSettled, gateWaitContinues, INITIAL_SWAP_STATE, introYieldOnVisitorLine, lineAnnouncesDoorway, micAudioPasses, noteAlexIntent, noteAspenIntent, noteDoorwayEngagement, noteOfferIntent, noteSaraIntent, noteSegmentFailure, otherFaceSlot, pendingExecutionBoundary, pendingRetryBoundary, PHASE_AFTER_BOUNDARY, PHASE_ENTRY, PRESTAGE_START_TIMEOUT_MS, prestageWatchDecision, reconnectTarget, recordSwapDiag, revivalHoldContinues, retryArmStamp, segmentAttemptsFor, segmentConnectRetryAllowed, segmentTokenStale, SEGMENT_TOKEN_TTL_MS, swapBridgeDue, swapDiagPersistPayload, swapFallbackLine, swapWatchdogAction, SWAP_CROSSFADE_MS, SWAP_GATE_POLL_MS, SWAP_GATE_WAIT_MS, swapRecapFacts, SWAP_DIAG_PERSIST_EVENTS, visitorSignalsStepOut, type ChainStash, type FaceSlot, type PersonaBoundary, type PersonaId, type StagedFaceLiveness, type SwapDiagEntry, type SwapPhase, type SwapState } from '@/lib/personaSwap';
+import { BOUNDARY_TARGET, boundaryTargetFor, boundedSettle, boundaryForAssistantLine, buildSwapRecap, chainIsMidSegment, chainStashTarget, cutoverAudioSync, cutoverMode, cutoverReady, dequeueSwapExecution, dropApologyVariant, enqueueSwapExecution, faceLivenessOnLive, faceLivenessOnNotLive, faceLivenessOnStartSettled, gateWaitContinues, INITIAL_SWAP_STATE, introYieldOnVisitorLine, lineAnnouncesDoorway, micAudioPasses, noteAlexIntent, noteAspenIntent, noteDoorwayEngagement, noteOfferIntent, noteSaraIntent, noteSegmentFailure, otherFaceSlot, pendingExecutionBoundary, pendingRetryBoundary, PHASE_AFTER_BOUNDARY, PHASE_ENTRY, PRESTAGE_START_TIMEOUT_MS, prestageWatchDecision, reconnectTarget, recordSwapDiag, revivalHoldContinues, runFaceRevivalStart, retryArmStamp, segmentAttemptsFor, segmentConnectRetryAllowed, segmentTokenStale, SEGMENT_TOKEN_TTL_MS, swapBridgeDue, swapDiagPersistPayload, swapFallbackLine, swapWatchdogAction, SWAP_CROSSFADE_MS, SWAP_GATE_POLL_MS, SWAP_GATE_WAIT_MS, swapRecapFacts, SWAP_DIAG_PERSIST_EVENTS, visitorSignalsStepOut, type ChainStash, type FaceSlot, type PersonaBoundary, type PersonaId, type StagedFaceLiveness, type SwapDiagEntry, type SwapPhase, type SwapState } from '@/lib/personaSwap';
 import { PERSONAS, SARA_FACE_ID } from '../../supabase/functions/_shared/personas';
 import { presenterForExampleLeadId } from '@/data/realtorExamplePinnedLeads';
 import { ALEX_FACE_ID } from '../../supabase/functions/_shared/alex-guide';
@@ -59,7 +59,7 @@ import { shouldShowMicHint } from '@/lib/micAudibility';
 import { createMicFlowState, MIC_MUTED_START_GRACE_MS, MIC_SILENT_MIN_LOUD_FRAMES, micDiagPayload, micDiagSignature, micDiagStamp, micInputSeconds, micTrackStartVerdict, noteMicFrame, noteMicSessionLive, noteMicWatchdogFired, shouldShowMicWatchdog, shouldShowSilentMicNotice, type MicDiagEvent, type MicTrackState } from '@/lib/micWatchdog';
 import { createPlayoutStartupWatch, heardEngineWhy, STARTUP_BLOCKED_AFTER_MS, STARTUP_CHECK_AFTER_MS, startupDiagPayload, startupDiagSignature, type PlayoutProbe, type StartupDiagEvent, type StartupVerdict } from '@/lib/playoutStartup';
 import { classifyStartupError, STARTUP_READY_TIMEOUT_MS, STARTUP_RETRY_DELAY_MS, STARTUP_TIMEOUT_MS, startupRetryAllowed, tagStartupError, type StartupFailureKind } from '@/lib/startupRetry';
-import { clearRetainedHandoffMic, fitHandoffRecap, handoffDiagPayload, handoffDiagSignature, handoffVisitFact, isHandoffAnnouncement, micRequestPromise, micStreamIsLive, retainHandoffMic, reusableMicStream, stripHandoffAnnouncement, takeRetainedHandoffMic, type HandoffDiagEvent, type HandoffDiagMic, type HandoffDiagOutcome } from '@/lib/handoffRecovery';
+import { clearRetainedHandoffMic, fitHandoffRecap, handoffDiagPayload, handoffDiagSignature, handoffFaceRevivalDiag, handoffVisitFact, isHandoffAnnouncement, micRequestPromise, micStreamIsLive, retainHandoffMic, reusableMicStream, runHandoffFaceRevivalProbe, stripHandoffAnnouncement, takeRetainedHandoffMic, type HandoffDiagEvent, type HandoffDiagMic, type HandoffDiagOutcome } from '@/lib/handoffRecovery';
 import { consumeEndConversationSignal, endSignalVisibleChunk, END_SIGNAL_DRAIN_POLL_MS, END_SIGNAL_MAX_WAIT_MS } from '@/lib/endConversation';
 import { windowRecapLines } from '../../supabase/functions/_shared/recap-builder';
 import { createMediaSink, mediaPlaybackNode, type MediaSink } from '@/lib/mediaSink';
@@ -713,6 +713,19 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   const handoffAnnouncementRef = useRef<string | null>(null);
   const handoffReturnRef = useRef<{ outcome: 'completed' | 'unavailable' | 'unknown' } | null>(null);
   const handoffMicReusedRef = useRef(false);
+  // Face revival on handoff return (2026-11-24): armed by
+  // onHandoffActive(false) when the come-back will be delivered
+  // in-session, fired by playPcmChunk at the FIRST post-return
+  // audio chunk. The probe itself (lib/handoffRecovery's
+  // runHandoffFaceRevivalProbe, assigned to handoffFaceProbeRef in
+  // the render body next to kickFaceRevivalRef) watches the face's
+  // frame counter and kicks ONE revival start if it never moves.
+  // The outcome ref carries the leg outcome the probe's
+  // handoffDiag stamp reports (handoffOutcomeRef is already
+  // cleared by the time the probe resolves).
+  const handoffFaceProbePendingRef = useRef(false);
+  const handoffFaceProbeOutcomeRef = useRef<HandoffDiagOutcome>('unknown');
+  const handoffFaceProbeRef = useRef<() => void>(() => {});
   const lastHandoffDiagRef = useRef('');
   const consent = consentReadyRef.current;
   const [voice, setVoice] = useState(() => {
@@ -2203,11 +2216,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
   // an actual handoff: sessions without one never stamp, keeping
   // their records byte-identical. Fire-and-forget, deduped by
   // signature — diagnostics never break the call.
-  const stampHandoffDiag = useCallback((event: HandoffDiagEvent, outcome: HandoffDiagOutcome, mic: HandoffDiagMic) => {
+  const stampHandoffDiag = useCallback((event: HandoffDiagEvent, outcome: HandoffDiagOutcome, mic: HandoffDiagMic, face?: string) => {
     const target = diagStampTarget();
     if (!target) return;
     const { sessionId, visitorKey } = target;
-    const payload = handoffDiagPayload(sessionId, { event, outcome, mic }, Date.now());
+    const payload = handoffDiagPayload(sessionId, { event, outcome, mic, ...(face ? { face } : {}) }, Date.now());
     const signature = handoffDiagSignature(payload);
     if (signature === lastHandoffDiagRef.current) return;
     lastHandoffDiagRef.current = signature;
@@ -2647,6 +2660,11 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
     setHandoffToken(null);
     handoffRef.current = false;
     setHandoffActive(false);
+    // Face-revival probe (2026-11-24): a teardown disarms an
+    // un-fired probe — a later session's first chunk is not a
+    // handoff return. (A probe already running aborts on its own
+    // live check when liveRef drops below.)
+    handoffFaceProbePendingRef.current = false;
     openingGateRef.current = false;
     setSuspended(false);
     if(endSession && liveRef.current&&!isPreviewRef.current) {wsRef.current?.send(JSON.stringify({type:'end_session',reason:'user_ended'}));void trackCampaignEvent('voice_ended');}
@@ -2934,6 +2952,16 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
 
   // Play a 24 kHz PCM chunk (base64) with gapless scheduling
   const playPcmChunk = useCallback((base64: string, reserved?: ReturnType<PlaybackCaptions['reserve']>) => {
+    // FACE REVIVAL ON HANDOFF RETURN (2026-11-24): the first
+    // post-return chunk fires the armed face probe — fire-and-
+    // forget, BEFORE any hold below, so the probe (and a revival
+    // start, if the face is frozen) overlaps the welcome-back line
+    // instead of delaying it. A replay of an earlier line is not
+    // post-return audio and never fires it.
+    if (handoffFaceProbePendingRef.current && !captureRef.current.replaying) {
+      handoffFaceProbePendingRef.current = false;
+      handoffFaceProbeRef.current();
+    }
     // ROUND-4 ENGINE-FIRST HOLD (volume round 4, 2026-11-14):
     // while the media-element engine is still starting, a LOCAL
     // chunk waits for it instead of playing through the
@@ -4866,10 +4894,40 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
    * that liveness read, so it can never restart a live stream. */
   kickFaceRevivalRef.current = (slot: FaceSlot) => {
     const handle = slot === 'second' ? stagedAvatarRef.current : mainSlotRef.current;
-    if (!handle?.start || !handle.liveness) return;
-    const snap = handle.liveness();
-    if (snap.live || snap.starting) return;
-    void handle.start({ silent: true, maxAttempts: 1 }).catch(() => false);
+    // The kick itself is the shared machinery (runFaceRevivalStart
+    // in lib/personaSwap.ts): liveness-gated, one silent start,
+    // one attempt — the handoff-return probe below runs the same
+    // helper against the active face.
+    void runFaceRevivalStart(handle);
+  };
+  /* FACE REVIVAL ON HANDOFF RETURN (2026-11-24 — Ron's session
+   * 4656e8c4: the leg starved the face for ~67 s, Aspen resumed
+   * speaking over her preserved last frame, and nothing on the
+   * return path ever checked or revived the face). Fired by
+   * playPcmChunk at the first post-return chunk (armed in
+   * onHandoffActive): probe the ACTIVE face's frame counter for
+   * up to HANDOFF_FACE_PROBE_MS; if it never advances, run ONE
+   * revival start through the same shared machinery the swap path
+   * uses (runFaceRevivalStart on avatarRef — never a second Simli
+   * session, never a restart of a live/starting instance). The
+   * probe runs concurrently with the welcome-back audio — it
+   * holds nothing — and its outcome lands in handoffDiag
+   * (ev=face-revival;face=…) so a future frozen face is provable
+   * from the session record. The preserved frame is never blanked:
+   * nothing here stops or replaces the face. */
+  handoffFaceProbeRef.current = () => {
+    void (async () => {
+      const outcome = await runHandoffFaceRevivalProbe({
+        readFrame: () => avatarRef.current?.frameCounter?.() ?? null,
+        readLiveness: () => avatarRef.current?.liveness?.() ?? null,
+        kickRevival: async () => {
+          const result = await runFaceRevivalStart(avatarRef.current);
+          return { attempted: result === 'started' || result === 'failed', succeeded: result === 'started' };
+        },
+        isSessionLive: () => liveRef.current,
+      });
+      stampHandoffDiag("face-revival", handoffFaceProbeOutcomeRef.current, handoffMicState(), handoffFaceRevivalDiag(outcome));
+    })();
   };
   runFaceTakeoverRef.current = async (slot: FaceSlot) => {
     const pending = segmentFacePendingRef.current;
@@ -5773,6 +5831,9 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       // the return window open, and stamp the leg's start.
       noteHandoffAnnouncement();
       if (!handoffReturnRef.current) handoffReturnRef.current = { outcome: 'unknown' };
+      // A new leg supersedes any un-fired return probe from an
+      // earlier leg — the next return arms its own.
+      handoffFaceProbePendingRef.current = false;
       stampHandoffDiag("leg-started", "-", handoffMicState());
       pauseCapture(); clearPlayback();
       captureRef.current.paused = true; setPaused(true);
@@ -5803,6 +5864,19 @@ const GeminiConversation = ({ agentId, leadId, prospectId, draft = false, compac
       // Handoff-leg recovery: a delivered outcome report completes
       // the come-back in-session — no new-session return is owed.
       if (socketOpen) handoffReturnRef.current = null;
+      // FACE REVIVAL ON HANDOFF RETURN (2026-11-24): arm the face
+      // probe for the come-back this send is about to produce —
+      // playPcmChunk fires it at the first post-return chunk. Only
+      // an in-session come-back on a session that requested the
+      // face has a preserved frame to check: a dead socket's return
+      // is a fresh session whose face starts fresh with it, and a
+      // voice-only session has no face to revive. The face itself
+      // is untouched here — its last frame stays up through the
+      // leg and the return, exactly as before.
+      if (socketOpen && avatarRequestedRef.current) {
+        handoffFaceProbeOutcomeRef.current = endedOutcome;
+        handoffFaceProbePendingRef.current = true;
+      }
     }
   };
   // ITEM 5 FORM FIX (2026-11-21): the card renders with the lifted

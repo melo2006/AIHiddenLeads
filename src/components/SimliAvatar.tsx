@@ -33,6 +33,17 @@ export interface SimliAvatarHandle {
    *  readiness record was orphaned can still attach. Optional: handles
    *  predating the query simply don't answer. */
   liveness?: () => { live: boolean; displayedFrame: boolean; starting: boolean; failed: boolean; failureReason: string | null };
+  /** Frame-advancement probe (handoff face revival, 2026-11-24): a
+   *  monotonically increasing count of the frames this instance's
+   *  video element has actually DISPLAYED — the playback-quality
+   *  total where the platform exposes it, the element's playhead
+   *  (ms) as the fallback. A frozen face (the preserved last frame
+   *  after a handoff leg) reads a counter that never moves even
+   *  though liveness() still shows a displayed frame, which is why
+   *  the return probe samples THIS instead of the liveness flags.
+   *  Null when nothing is readable (no element / not ready).
+   *  Optional: handles predating the probe simply don't answer. */
+  frameCounter?: () => number | null;
   /** Call inside the visitor's tap: enables the paired voice of a silently prepared face.
    *  Resolves false when the face is NOT live (dead client / no audio
    *  stream) so callers can tell a silent no-op from a real activation
@@ -567,6 +578,13 @@ const SimliAvatar = forwardRef<SimliAvatarHandle, SimliAvatarProps>(({ avatar, a
       failed: startFailedRef.current,
       failureReason: startFailureReasonRef.current,
     }),
+    frameCounter: () => {
+      const video = videoRef.current as (HTMLVideoElement & { getVideoPlaybackQuality?: () => { totalVideoFrames: number } }) | null;
+      if (!video || video.readyState < 2 || video.videoWidth <= 0) return null;
+      const quality = video.getVideoPlaybackQuality?.();
+      if (quality && typeof quality.totalVideoFrames === 'number') return quality.totalVideoFrames;
+      return Math.floor(video.currentTime * 1000);
+    },
     start: async (options?: { silent?: boolean; maxAttempts?: number }) => {
       if (clientRef.current) {
         if (liveRef.current) return true;
