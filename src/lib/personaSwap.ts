@@ -1012,6 +1012,44 @@ export function revivalHoldContinues(input: { elapsedMs: number; faceReady: bool
   return !input.faceReady && input.elapsedMs < FACE_REVIVAL_HOLD_MS;
 }
 
+// ---------------------------------------------------------------------------
+// SHARED REVIVAL START (handoff face revival, 2026-11-24 — Ron's
+// session 4656e8c4: after a ~67 s phone handoff leg Aspen resumed
+// speaking but her lips never moved; the face had died while the leg
+// starved it and nothing on the return path ever restarted it). The
+// ONE bounded revival start the swap path kicks on a dead/idle face
+// instance lives HERE so the persona-swap cut-over AND the handoff
+// return probe run the exact same machinery: gated on the instance's
+// own liveness read (a live or already-starting instance is NEVER
+// restarted — the 2026-11-09 defect-1 trap), exactly one start,
+// silent, capped at one attempt (never a second Simli session).
+// ---------------------------------------------------------------------------
+
+/** Structural minimum of a face handle for a revival start — the
+ *  real SimliAvatarHandle satisfies it, and tests can fake it. */
+export interface FaceRevivalHandleLike {
+  liveness?: () => { live: boolean; starting: boolean };
+  start?: (options?: { silent?: boolean; maxAttempts?: number }) => Promise<boolean>;
+}
+
+export type FaceRevivalStartResult = 'started' | 'already-live' | 'already-starting' | 'no-handle' | 'failed';
+
+/** Run ONE bounded revival start on a face instance that is neither
+ *  live nor starting. Resolves with what actually happened so the
+ *  caller can record it (the swap kick ignores the result; the
+ *  handoff return stamps it into handoffDiag). */
+export async function runFaceRevivalStart(handle: FaceRevivalHandleLike | null | undefined): Promise<FaceRevivalStartResult> {
+  if (!handle?.start || !handle.liveness) return 'no-handle';
+  const snap = handle.liveness();
+  if (snap.live) return 'already-live';
+  if (snap.starting) return 'already-starting';
+  try {
+    return (await handle.start({ silent: true, maxAttempts: 1 })) ? 'started' : 'failed';
+  } catch {
+    return 'failed';
+  }
+}
+
 /** The rotating drop apology for the Nth drop of this conversation
  *  (0-based count of PREVIOUS drops). Deterministic rotation: consecutive
  *  drops never repeat a wording. The proxy holds its own copy of the

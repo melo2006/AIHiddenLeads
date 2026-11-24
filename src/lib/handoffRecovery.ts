@@ -223,7 +223,7 @@ export function handoffVisitFact(outcome: HandoffOutcomeFact): string {
 /* 3 — handoffDiag stamp (config.handoffDiag record).                  */
 /* ------------------------------------------------------------------ */
 
-export type HandoffDiagEvent = "announced" | "leg-started" | "ended" | "interrupted" | "return-ok" | "return-failed";
+export type HandoffDiagEvent = "announced" | "leg-started" | "ended" | "interrupted" | "return-ok" | "return-failed" | "face-revival";
 /** The leg outcome as the stamping side knows it: the terminal
  *  outcome the handoff component reported, or 'unknown' when the
  *  leg was cut before any outcome existed. '-' before the leg. */
@@ -238,13 +238,18 @@ export interface HandoffDiagStamp {
   event: HandoffDiagEvent;
   outcome: HandoffDiagOutcome;
   mic: HandoffDiagMic;
+  /** Face-revival outcome (2026-11-24): present ONLY on the
+   *  'face-revival' stamp — the handoffFaceRevivalDiag value for
+   *  the return probe. Stamps without it render byte-identically
+   *  to before, so older records and tests stay comparable. */
+  face?: string;
 }
 
 /** The compact one-line form stored in the session record, in
  *  the same `k=v;` style as playoutDiagDetail / micDiagDetail so
  *  a SQL eyeball reads all three the same way. */
 export function handoffDiagDetail(s: HandoffDiagStamp): string {
-  return [`ev=${s.event}`, `out=${s.outcome}`, `mic=${s.mic}`].join(";");
+  return [`ev=${s.event}`, `out=${s.outcome}`, `mic=${s.mic}`, ...(s.face ? [`face=${s.face}`] : [])].join(";");
 }
 
 export interface HandoffDiagPayload {
@@ -262,4 +267,134 @@ export function handoffDiagPayload(sessionId: string, stamp: HandoffDiagStamp, a
  *  a session post once. */
 export function handoffDiagSignature(payload: HandoffDiagPayload): string {
   return `${payload.sessionId}|${payload.detail}`;
+}
+
+/* ------------------------------------------------------------------ */
+/* 4 — face revival on handoff return (2026-11-24).                    */
+/*                                                                     */
+/* Ron's session 4656e8c4: after a ~67 s phone handoff leg Aspen       */
+/* resumed speaking in the browser but her lips never moved. On leg    */
+/* start the client pauses capture, clears playback and suspends the   */
+/* playback context — starving the Simli face — and on leg end it      */
+/* unpauses, resumes and sends handoff_ended, but NEVER checked or     */
+/* revived the face: the preserved last frame just stayed up while     */
+/* her voice played over it. The persona-swap path already owns the    */
+/* cure (ONE bounded revival start on a dead instance — see            */
+/* runFaceRevivalStart in lib/personaSwap.ts); the return path now     */
+/* probes for the disease and applies that same cure:                  */
+/*                                                                     */
+/*   - the probe starts at the FIRST post-return audio chunk (the      */
+/*     caller arms it at leg end and fires it from the chunk path),    */
+/*     so it overlaps the welcome-back line instead of delaying it;    */
+/*   - it samples the face's frame counter for up to                   */
+/*     HANDOFF_FACE_PROBE_MS, exiting the moment frames advance;       */
+/*   - a face whose own liveness reads dead (not live, not starting)   */
+/*     is declared frozen at once — it cannot advance on its own,      */
+/*     so waiting out the window would only delay the revival;         */
+/*   - a frozen face earns exactly ONE revival start through the       */
+/*     caller's kick (the shared personaSwap machinery);               */
+/*   - the outcome is stamped into handoffDiag (section 3) so a        */
+/*     future occurrence is provable from the record.                  */
+/* The last frame stays visible throughout — nothing here stops,       */
+/* blanks or replaces the face; a revival start on the SAME instance   */
+/* is the only mutation, exactly as on the swap path.                  */
+/* ------------------------------------------------------------------ */
+
+/** How long the return probe watches for face frames to advance
+ *  after the first post-return audio before calling the face
+ *  frozen. Shorter than the swap path's FACE_REVIVAL_HOLD_MS: the
+ *  probe runs CONCURRENTLY with the welcome-back line (it never
+ *  holds audio), and the dead-liveness fast path below usually
+ *  resolves it in one poll — the full window is spent only on a
+ *  face that claims to be live while its frames stand still. */
+export const HANDOFF_FACE_PROBE_MS = 2_000;
+/** Poll cadence for the return probe (the swap gate-wait's 150 ms
+ *  cadence: fine enough to catch the revival window, coarse enough
+ *  to cost nothing on the main thread). */
+export const HANDOFF_FACE_PROBE_POLL_MS = 150;
+
+export interface HandoffFaceRevivalKickResult {
+  /** A revival start was actually run (the shared kick gates out
+   *  live / already-starting instances, so attempted can be false
+   *  even for a frozen verdict — the stamp records why). */
+  attempted: boolean;
+  /** The revival start landed (the face reported live again). */
+  succeeded: boolean;
+}
+
+export interface HandoffFaceProbeDeps {
+  /** The face's frame counter right now (SimliAvatar's
+   *  frameCounter): strictly increasing while frames are being
+   *  displayed; null when no counter is readable (no face handle,
+   *  no video element, element not ready). */
+  readFrame: () => number | null;
+  /** The face instance's liveness snapshot, when it answers. A
+   *  not-live, not-starting verdict is a face that cannot advance
+   *  frames without a revival start. */
+  readLiveness?: () => { live: boolean; starting: boolean } | null | undefined;
+  /** ONE revival start, via the shared personaSwap machinery
+   *  (runFaceRevivalStart bound to the active face handle). */
+  kickRevival: () => Promise<HandoffFaceRevivalKickResult>;
+  /** False once the conversation is over: the probe aborts and
+   *  never revives a face for a dead session. */
+  isSessionLive?: () => boolean;
+  probeMs?: number;
+  pollMs?: number;
+  now?: () => number;
+  sleep?: (ms: number) => Promise<void>;
+}
+
+export interface HandoffFaceProbeOutcome {
+  /** advanced: frames moved inside the window — no revival.
+   *  frozen: frames never moved — one revival was kicked.
+   *  unavailable: no frame counter could be read — nothing was
+   *  kicked (there is no evidence the face is frozen, and a blind
+   *  restart could kill a healthy face mid-line).
+   *  aborted: the session ended mid-probe. */
+  probe: "advanced" | "frozen" | "unavailable" | "aborted";
+  revivalAttempted: boolean;
+  /** Null when no revival was attempted. */
+  revivalSucceeded: boolean | null;
+}
+
+/** Probe the returned face and revive it once if it is frozen.
+ *  Pure orchestration over the injected reads/kick — the component
+ *  owns the handles, this owns the decisions (and the tests). */
+export async function runHandoffFaceRevivalProbe(deps: HandoffFaceProbeDeps): Promise<HandoffFaceProbeOutcome> {
+  const probeMs = deps.probeMs ?? HANDOFF_FACE_PROBE_MS;
+  const pollMs = deps.pollMs ?? HANDOFF_FACE_PROBE_POLL_MS;
+  const now = deps.now ?? (() => Date.now());
+  const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const startedAt = now();
+  let baseline = deps.readFrame();
+  let frozen = false;
+  while (now() - startedAt < probeMs) {
+    if (deps.isSessionLive && !deps.isSessionLive()) return { probe: "aborted", revivalAttempted: false, revivalSucceeded: null };
+    await sleep(pollMs);
+    if (deps.isSessionLive && !deps.isSessionLive()) return { probe: "aborted", revivalAttempted: false, revivalSucceeded: null };
+    const frame = deps.readFrame();
+    if (baseline === null && frame !== null) baseline = frame;
+    else if (baseline !== null && frame !== null && frame > baseline) return { probe: "advanced", revivalAttempted: false, revivalSucceeded: null };
+    const snap = deps.readLiveness?.();
+    if (snap && !snap.live && !snap.starting) { frozen = true; break; }
+  }
+  if (!frozen) {
+    if (baseline === null) return { probe: "unavailable", revivalAttempted: false, revivalSucceeded: null };
+    // The window expired with a readable counter that never moved.
+    frozen = true;
+  }
+  if (deps.isSessionLive && !deps.isSessionLive()) return { probe: "aborted", revivalAttempted: false, revivalSucceeded: null };
+  const kick = await deps.kickRevival();
+  return { probe: "frozen", revivalAttempted: kick.attempted, revivalSucceeded: kick.attempted ? kick.succeeded : null };
+}
+
+/** The handoffDiag `face=` value for a probe outcome — one token
+ *  per distinguishable result, so the session record alone proves
+ *  what the probe saw and what the revival did. */
+export function handoffFaceRevivalDiag(outcome: HandoffFaceProbeOutcome): string {
+  if (outcome.probe === "advanced") return "advanced";
+  if (outcome.probe === "unavailable") return "no-counter";
+  if (outcome.probe === "aborted") return "aborted";
+  if (!outcome.revivalAttempted) return "frozen-nokick";
+  return outcome.revivalSucceeded ? "frozen-revived" : "frozen-failed";
 }
