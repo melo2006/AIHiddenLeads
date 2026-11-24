@@ -8,6 +8,8 @@ const frame = read("../components/FloatingPersonFrame.tsx");
 const conversation = read("../components/GeminiConversation.tsx");
 const demoWidget = read("../components/landing/demo-results/AspenDemoWidget.tsx");
 const draggable = read("../components/landing/demo-results/DraggableFloating.tsx");
+const floatingViewportLib = read("../lib/floatingViewport.ts");
+const agentWidget = read("../components/GeminiAgentWidget.tsx");
 
 /** Extract one CSS rule block (selector through its closing brace). */
 function rule(selector: string): string {
@@ -187,5 +189,65 @@ describe("widget viewport fit — stage 3 and short viewports", () => {
     expect(cluster).not.toContain("position: absolute");
     expect(cluster).not.toContain("top:");
     expect(css).not.toContain(".aspen-person-chest-cluster { top:");
+  });
+});
+
+describe("widget viewport fit — POSITION chain derives from the one tracked visual-viewport rect (fix batch 2026-11-24)", () => {
+  // Root cause: the shell is position:fixed (left/top resolve against
+  // the visual viewport's own origin), but the corner math added the
+  // visual viewport's offset within the layout viewport on top —
+  // double-counting it, so the panel seated too low on Android Chrome.
+  // Meanwhile clampPosition, the window-resize reseat and drag all
+  // clamped against the LAYOUT viewport size, including a hard-coded
+  // layout-height-minus-100 reseat target. Every positioning path now
+  // derives from readFloatingViewport() / the tracked `viewport` state.
+  it("no positioning path in the shell or its lib reads the layout viewport size", () => {
+    for (const src of [draggable, floatingViewportLib]) {
+      expect(src).not.toContain("window.innerHeight");
+      expect(src).not.toContain("window.innerWidth");
+      expect(src).not.toContain("innerHeight - 100");
+      expect(src).not.toContain("innerHeight-90");
+    }
+    // The visual viewport's offset within the layout viewport is never
+    // added to a fixed-position coordinate (the double-count).
+    expect(draggable).not.toContain(".offsetTop");
+    expect(draggable).not.toContain(".offsetLeft");
+    expect(floatingViewportLib).not.toContain(".offsetTop");
+    expect(floatingViewportLib).not.toContain(".offsetLeft");
+  });
+
+  it("the tracked rect is the visual viewport's SIZE with a 0,0 origin", () => {
+    expect(floatingViewportLib).toContain("export function readFloatingViewport(): FloatingViewport");
+    expect(floatingViewportLib).toContain("width: visual?.width ??");
+    expect(floatingViewportLib).toContain("height: visual?.height ??");
+    expect(floatingViewportLib).toContain("left: 0,");
+    expect(floatingViewportLib).toContain("top: 0,");
+    // The component's tracked state is seeded and updated ONLY from it.
+    expect(draggable).toContain("useState<FloatingViewport>(() => readFloatingViewport())");
+    expect(draggable).toContain("const update = () => setViewport(readFloatingViewport());");
+  });
+
+  it("corner, clamp, reseat, reset and drag all derive from the tracked rect", () => {
+    // Corner (rendered position for the anchored, un-moved shell) and
+    // the render-time re-fit that runs on every stage/size change.
+    expect(draggable).toContain("? floatingCornerPosition(dimensions, viewport, initialX)");
+    expect(draggable).toContain(": fitFloatingPosition(pos, dimensions, viewport);");
+    // clampPosition fits against the tracked rect, not layout maxima.
+    expect(draggable).toContain("fitFloatingPosition(nextPosition ?? prev, size, viewport, VIEWPORT_PADDING)");
+    // resetKey re-seats anchored shells at the tracked corner.
+    expect(draggable).toContain("clampPosition(floatingCornerPosition(size, viewport, initialX));");
+    // The window-resize reseat reads a fresh tracked rect and seats
+    // the corner from it — no hard-coded layout-height target remains.
+    expect(draggable).toContain("const rect = readFloatingViewport();");
+    expect(draggable).toContain("setPos(floatingCornerPosition(size, rect, initialX));");
+    // Dragging clamps through the same fit against the tracked rect.
+    expect(draggable).toContain("readFloatingViewport(),\n        VIEWPORT_PADDING,");
+  });
+
+  it("the Aspen shells pass a bottom inset, not a layout-height-derived top", () => {
+    expect(demoWidget).not.toContain("window.innerHeight");
+    expect(agentWidget).not.toContain("window.innerHeight");
+    expect(demoWidget).toContain("initialY={12} anchorRight anchorBottom");
+    expect(agentWidget).toContain("initialY={12} anchorRight anchorBottom");
   });
 });

@@ -289,7 +289,7 @@ export default function Help() {
           </div>
           {signedIn && alexOpen && (
             <div className="relative mt-4 min-h-[480px]">
-              <GeminiAgentWidget guide="alex" autoStart onClose={() => setAlexOpen(false)} />
+              <GeminiAgentWidget guide="alex" autoStart guideSurface="help" onClose={() => setAlexOpen(false)} />
             </div>
           )}
         </section>

@@ -113,7 +113,10 @@ describe("support ticket form + backend (2026-11-21)", () => {
 
   it("nav and footer link to /help in every locale", () => {
     const nav = read("components/landing/LandingNavbar.tsx");
-    expect(nav).toContain('to="/help"');
+    // Menu cleanup (2026-11-24): Help is a single route entry in the
+    // shared menuLinks list (rendered by both desktop and mobile).
+    expect(nav).toContain('{ to: "/help", label: t("nav.help", "Help") }');
+    expect(nav.match(/nav\.help/g)).toHaveLength(1);
     expect(nav).toContain('t("nav.help", "Help")');
     const footer = read("components/landing/Footer.tsx");
     expect(footer).toContain('to="/help"');
