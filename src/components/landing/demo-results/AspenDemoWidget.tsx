@@ -112,7 +112,7 @@ function AspenDemoWidgetContent({ voiceRequested = false, onClosed, onAssistantR
     onToggleSpeaker: () => shellControlsRef.current?.toggleSpeaker(),
     onReplay: () => shellControlsRef.current?.replay(),
   } : undefined;
-  return <DraggableFloating initialX={12} initialY={window.innerHeight - 90} anchorRight anchorBottom resetKey={expanded ? 'open' : 'closed'} dragHandlePlacement={expanded ? 'chest' : minimized ? 'top' : 'below'}>
+  return <DraggableFloating initialX={12} initialY={12} anchorRight anchorBottom resetKey={expanded ? 'open' : 'closed'} dragHandlePlacement={expanded ? 'chest' : minimized ? 'top' : 'below'}>
     <FloatingPersonFrame name={presenterName} avatarUrl={presenterPortrait} open={expanded} minimized={minimized} mode={mode} onOpen={() => { setHasOpened(true); setMinimized(false); setOpen(true); }} onMinimize={minimize} onClose={close} onMode={next => { setMode(next); if (next === 'chat') setChatVisited(true); }} keepRendered={prewarm} stage3={stage3} inviteArrival={!!invite} focus={mode === 'voice' ? (shellState?.focus ?? false) : false}>
       {mounted && mode === 'voice' && <>
         {gateWaiting && <div className="aspen-panel flex flex-col items-center gap-2 px-4 py-3 text-center" role="status">

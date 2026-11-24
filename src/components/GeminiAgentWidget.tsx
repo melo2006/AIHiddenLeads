@@ -103,5 +103,5 @@ export default function GeminiAgentWidget({ agentId, leadId, prospectId, busines
  // the corner) and during the Stage-3 live bar (which stretches across
  // the corner), so the two never overlap. Config: src/lib/whatsapp.ts.
  const showWhatsAppButton = WHATSAPP_BUTTON_ENABLED && floating && !agentId && !isGuide && !open && !stage3;
- return <>{showWhatsAppButton && <WhatsAppFloatingButton />}<DraggableFloating initialX={12} initialY={window.innerHeight-90} anchorRight anchorBottom resetKey={open ? 'open' : 'closed'} dragHandlePlacement={open ? 'chest' : minimized ? 'top' : 'below'}>{themedContent}</DraggableFloating></>;
+ return <>{showWhatsAppButton && <WhatsAppFloatingButton />}<DraggableFloating initialX={12} initialY={12} anchorRight anchorBottom resetKey={open ? 'open' : 'closed'} dragHandlePlacement={open ? 'chest' : minimized ? 'top' : 'below'}>{themedContent}</DraggableFloating></>;
 }

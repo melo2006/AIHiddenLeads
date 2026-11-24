@@ -2,12 +2,10 @@ import { useState, useRef, useCallback, useEffect, type ReactNode } from "react"
 import { GripVertical } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import { createPortal } from 'react-dom';
-import { fitFloatingPosition, floatingCornerPosition, type FloatingViewport } from '@/lib/floatingViewport';
+import { fitFloatingPosition, floatingCornerPosition, readFloatingViewport, type FloatingViewport } from '@/lib/floatingViewport';
 import { availableHeightFor, visualViewportClass } from '@/lib/visualViewport';
 
 const VIEWPORT_PADDING = 12;
-
-const clampValue = (value: number, min: number, max: number) => Math.min(Math.max(value, min), Math.max(min, max));
 
 interface DraggableFloatingProps {
   children: ReactNode;
@@ -15,6 +13,9 @@ interface DraggableFloatingProps {
   initialY: number;
   /** If set, initialX is treated as pixels from the RIGHT edge instead of left */
   anchorRight?: boolean;
+  /** If set, initialY is treated as pixels from the BOTTOM edge (an inset)
+   * instead of an absolute top. Bottom-anchored shells are seated by
+   * floatingCornerPosition against the tracked visual-viewport rect. */
   anchorBottom?: boolean;
   dragLabel?: string;
   resetKey?: string | number;  /** 'below': in-flow pill under the content. 'top': pill at the top of the
@@ -37,10 +38,20 @@ const DraggableFloating = ({
   dragLabel = "Drag me",
   resetKey, dragHandlePlacement = 'below',
 }: DraggableFloatingProps) => {
-  const [pos, setPos] = useState(() => ({
-    x: anchorRight ? Math.max(VIEWPORT_PADDING, window.innerWidth - 200 - initialX) : Math.min(initialX, window.innerWidth - 80),
-    y: Math.min(initialY, window.innerHeight - 80),
-  }));
+  const [pos, setPos] = useState(() => {
+    // Fix batch 2026-11-24: EVERY positioning path derives from the one
+    // tracked visual-viewport rect (readFloatingViewport) — never from
+    // the layout viewport's width/height. The shell is position:fixed,
+    // so the rect's origin is 0,0; adding the visual viewport's offset
+    // within the layout viewport double-counted it and seated the
+    // panel too low on Android.
+    const rect = readFloatingViewport();
+    const size = { width: 200, height: 80 };
+    if (anchorRight && anchorBottom) return floatingCornerPosition(size, rect, initialX);
+    if (anchorRight) return fitFloatingPosition({ x: rect.left + rect.width - size.width - initialX, y: initialY }, size, rect);
+    if (anchorBottom) return fitFloatingPosition({ x: initialX, y: rect.top + rect.height - size.height - initialY }, size, rect);
+    return fitFloatingPosition({ x: initialX, y: initialY }, size, rect);
+  });
   const [hasInitialized, setHasInitialized] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [hasMoved, setHasMoved] = useState(false);
@@ -48,11 +59,11 @@ const DraggableFloating = ({
   const activePointerId = useRef<number | null>(null);
   const offset = useRef({ x: 0, y: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
-  const [viewport, setViewport] = useState<FloatingViewport>(() => ({ left: 0, top: 0, width: window.innerWidth, height: window.innerHeight }));
+  const [viewport, setViewport] = useState<FloatingViewport>(() => readFloatingViewport());
   const [dimensions, setDimensions] = useState({ width: 200, height: 80 });
   useEffect(() => {
     const visual = window.visualViewport;
-    const update = () => setViewport({ left: visual?.offsetLeft ?? 0, top: visual?.offsetTop ?? 0, width: visual?.width ?? window.innerWidth, height: visual?.height ?? window.innerHeight });
+    const update = () => setViewport(readFloatingViewport());
     update();
     visual?.addEventListener('resize', update);
     visual?.addEventListener('scroll', update);
@@ -64,19 +75,12 @@ const DraggableFloating = ({
     const el = containerRef.current;
     if (!el) return;
 
-    const maxX = window.innerWidth - el.offsetWidth - VIEWPORT_PADDING;
-    const maxY = window.innerHeight - el.offsetHeight - VIEWPORT_PADDING;
-
+    const size = { width: el.offsetWidth, height: el.offsetHeight };
     setPos((prev) => {
-      const base = nextPosition ?? prev;
-      const clamped = {
-        x: clampValue(base.x, VIEWPORT_PADDING, maxX),
-        y: clampValue(base.y, VIEWPORT_PADDING, maxY),
-      };
-
+      const clamped = fitFloatingPosition(nextPosition ?? prev, size, viewport, VIEWPORT_PADDING);
       return prev.x === clamped.x && prev.y === clamped.y ? prev : clamped;
     });
-  }, []);
+  }, [viewport]);
 
   useEffect(() => {
     if (resetKey === undefined) return;
@@ -84,10 +88,19 @@ const DraggableFloating = ({
     const frame = requestAnimationFrame(() => {
       const el = containerRef.current;
       if (!el) return;
-      clampPosition({ x: anchorRight ? window.innerWidth - el.offsetWidth - initialX : initialX, y: initialY });
+      const size = { width: el.offsetWidth, height: el.offsetHeight };
+      if (anchorRight && anchorBottom) {
+        clampPosition(floatingCornerPosition(size, viewport, initialX));
+      } else if (anchorRight) {
+        clampPosition({ x: viewport.left + viewport.width - size.width - initialX, y: initialY });
+      } else if (anchorBottom) {
+        clampPosition({ x: initialX, y: viewport.top + viewport.height - size.height - initialY });
+      } else {
+        clampPosition({ x: initialX, y: initialY });
+      }
     });
     return () => cancelAnimationFrame(frame);
-  }, [resetKey, anchorRight, initialX, initialY, clampPosition]);
+  }, [resetKey, anchorRight, anchorBottom, initialX, initialY, clampPosition, viewport]);
 
   // After first render, reposition right-anchored widgets using actual element width
   useEffect(() => {
@@ -95,19 +108,19 @@ const DraggableFloating = ({
     if (!el) return;
     const frame = window.requestAnimationFrame(() => {
       if (anchorRight && !hasInitialized) {
-        const w = el.offsetWidth;
-        const rightX = window.innerWidth - w - initialX;
-        setPos((prev) => ({
-          x: clampValue(rightX, VIEWPORT_PADDING, window.innerWidth - w - VIEWPORT_PADDING),
-          y: clampValue(prev.y, VIEWPORT_PADDING, window.innerHeight - el.offsetHeight - VIEWPORT_PADDING),
-        }));
+        const size = { width: el.offsetWidth, height: el.offsetHeight };
+        if (anchorBottom) {
+          setPos(floatingCornerPosition(size, viewport, initialX));
+        } else {
+          setPos((prev) => fitFloatingPosition({ x: viewport.left + viewport.width - size.width - initialX, y: prev.y }, size, viewport, VIEWPORT_PADDING));
+        }
         setHasInitialized(true);
       } else {
         clampPosition();
       }
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [children, clampPosition, anchorRight, initialX, hasInitialized]);
+  }, [children, clampPosition, anchorRight, anchorBottom, initialX, hasInitialized, viewport]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -117,17 +130,24 @@ const DraggableFloating = ({
       if (focused instanceof HTMLInputElement || focused instanceof HTMLTextAreaElement) return;
       const el = containerRef.current;
       if (!el) return;
-      if (anchorRight) {
-        const w = el.offsetWidth;
-        const rightX = window.innerWidth - w - initialX;
-        clampPosition({ x: rightX, y: window.innerHeight - 100 });
+      // Reseat from a FRESH read of the tracked visual-viewport rect —
+      // the old hard-coded layout-height-minus-100 target seated the
+      // shell against the layout viewport and pushed it too low.
+      const rect = readFloatingViewport();
+      const size = { width: el.offsetWidth, height: el.offsetHeight };
+      if (anchorRight && anchorBottom) {
+        setPos(floatingCornerPosition(size, rect, initialX));
+      } else if (anchorRight) {
+        setPos((prev) => fitFloatingPosition({ x: rect.left + rect.width - size.width - initialX, y: prev.y }, size, rect, VIEWPORT_PADDING));
+      } else if (anchorBottom) {
+        setPos((prev) => fitFloatingPosition({ x: prev.x, y: rect.top + rect.height - size.height - initialY }, size, rect, VIEWPORT_PADDING));
       } else {
-        clampPosition({ x: initialX, y: window.innerHeight - 100 });
+        setPos(fitFloatingPosition({ x: initialX, y: initialY }, size, rect, VIEWPORT_PADDING));
       }
     };
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
-  }, [clampPosition, initialX, anchorRight]);
+  }, [initialX, initialY, anchorRight, anchorBottom]);
 
   useEffect(() => {
     const element = containerRef.current;
@@ -176,18 +196,16 @@ const DraggableFloating = ({
       const el = containerRef.current;
       if (!el) return;
 
-      const w = el.offsetWidth;
-      const h = el.offsetHeight;
-      const maxX = window.innerWidth - w - VIEWPORT_PADDING;
-      const maxY = window.innerHeight - h - VIEWPORT_PADDING;
-
-      const newX = e.clientX - offset.current.x;
-      const newY = e.clientY - offset.current.y;
-
-      setPos({
-        x: clampValue(newX, VIEWPORT_PADDING, maxX),
-        y: clampValue(newY, VIEWPORT_PADDING, maxY),
-      });
+      const size = { width: el.offsetWidth, height: el.offsetHeight };
+      // Drag clamps against the tracked visual-viewport rect too, so a
+      // drag cannot park the shell in the layout-only area below the
+      // visible viewport (e.g. behind the Android Chrome URL bar zone).
+      setPos(fitFloatingPosition(
+        { x: e.clientX - offset.current.x, y: e.clientY - offset.current.y },
+        size,
+        readFloatingViewport(),
+        VIEWPORT_PADDING,
+      ));
     };
 
     const handlePointerEnd = (e: PointerEvent) => stopDragging(e.pointerId);
