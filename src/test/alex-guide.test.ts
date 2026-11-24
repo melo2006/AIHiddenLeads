@@ -5,6 +5,7 @@ import * as path from 'node:path';
 import {
   ALEX_FACE_ID,
   ALEX_GREETING,
+  ALEX_SUPPORT_GREETING,
   ALEX_GUIDE_SLUG,
   ALEX_KNOWLEDGE,
   ALEX_SYSTEM_PROMPT,
@@ -128,6 +129,58 @@ describe('Alex greeting and prompt content', () => {
     expect(ALEX_SYSTEM_PROMPT).toContain('You cannot transfer this call');
     expect(ALEX_SYSTEM_PROMPT).toContain('(877) 862-4949');
     expect(ALEX_SYSTEM_PROMPT).toContain('the team can call them back');
+  });
+});
+
+describe('Alex support greeting (/help surface only, 2026-11-24)', () => {
+  test('help surface gets the support greeting; setup/default keep ALEX_GREETING verbatim', () => {
+    expect(alexGuideConfig('help').greeting).toBe(ALEX_SUPPORT_GREETING);
+    expect(alexGuideConfig('setup').greeting).toBe(ALEX_GREETING);
+    expect(alexGuideConfig().greeting).toBe(ALEX_GREETING);
+    expect(alexGuideConfig(undefined).greeting).toBe(ALEX_GREETING);
+  });
+
+  test('support greeting: support engineer, points at the page Q&A first, then offers himself', () => {
+    expect(ALEX_SUPPORT_GREETING).toContain('{timeGreeting}');
+    expect(ALEX_SUPPORT_GREETING).toContain('{agentName}');
+    expect(ALEX_SUPPORT_GREETING).toContain('{businessName}');
+    expect(ALEX_SUPPORT_GREETING).toContain('support engineer');
+    expect(ALEX_SUPPORT_GREETING).toContain('complete set of questions and answers');
+    expect(ALEX_SUPPORT_GREETING).toContain('guides and FAQs covering lots of topics');
+    expect(ALEX_SUPPORT_GREETING).toContain("hope you find what you're looking for");
+    expect(ALEX_SUPPORT_GREETING).toContain('you can ask me directly');
+    expect(ALEX_SUPPORT_GREETING).toContain('installation, setup, or something you\'d like to change');
+    // Not the onboarding opening: no step walk, no setup shape.
+    expect(ALEX_SUPPORT_GREETING).not.toContain('onboarding engineer');
+    expect(ALEX_SUPPORT_GREETING).not.toContain('Which step are you on');
+    expect(ALEX_SUPPORT_GREETING).not.toContain('6 short steps');
+    expect(ALEX_SUPPORT_GREETING).not.toBe(ALEX_GREETING);
+  });
+
+  test('support greeting renders through the standard templating with no leftover placeholders', () => {
+    const spoken = openingFor(alexGuideConfig('help'), 10);
+    expect(spoken).toContain('Good morning');
+    expect(spoken).toContain("I'm Alex");
+    expect(spoken).toContain('AI Hidden Leads');
+    expect(spoken).toContain('support engineer');
+    expect(spoken).not.toMatch(/\{\w+\}/);
+  });
+
+  test('server + client wiring: only the /help mount sends guideSurface=help', () => {
+    const session = readFn('gemini-session/index.ts');
+    expect(session).toContain("guideSurface:z.enum(['help','setup']).optional()");
+    expect(session).toContain("if(b.guideSurface==='help') config.greeting=ALEX_SUPPORT_GREETING;");
+    const convo = read('components/GeminiConversation.tsx');
+    expect(convo).toContain('guideSurface?: "help" | "setup"');
+    expect(convo).toContain('guideSurface, hour:');
+    const widget = read('components/GeminiAgentWidget.tsx');
+    expect(widget).toContain("guideSurface?: 'help' | 'setup'");
+    expect(widget).toContain('guideSurface={guideSurface}');
+    const help = read('pages/Help.tsx');
+    expect(help).toContain('<GeminiAgentWidget guide="alex" autoStart guideSurface="help"');
+    const setup = read('pages/CustomerSetup.tsx');
+    expect(setup).toContain('<GeminiAgentWidget guide="alex" floating/>');
+    expect(setup).not.toContain('guideSurface');
   });
 });
 
