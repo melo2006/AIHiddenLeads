@@ -10,7 +10,7 @@ import { transcriptAllowed } from '../_shared/transcript-consent.ts';
 import { workspaceAccess } from '../_shared/customer-payments.ts';
 import { resolveDemoShare } from '../_shared/demo-share.ts';
 import { DEMO_INVITE_GREETING, DEMO_INVITE_GREETING_LEGACY_SLIM, DEMO_INVITE_GREETING_VARIANTS, DEMO_INVITE_OPENING, DEMO_INVITE_OPENING_SWAP, DEMO_VERIFICATION_ACT1, DEMO_VERIFICATION_GREETING } from '../_shared/demo-sales.ts';
-import { alexGuideConfig, alexDemoGuestConfig } from '../_shared/alex-guide.ts';
+import { alexGuideConfig, alexDemoGuestConfig, ALEX_SUPPORT_GREETING } from '../_shared/alex-guide.ts';
 import { avatarSwapEnabled, demoOfferEnabled, teamIntroEnabled, isPresenterPersona, personaFor, personaSegmentPrompt, presenterAlexGuestPrompt, presenterSimulationPrompt, type PersonaId } from '../_shared/personas.ts';
 import { fetchPersonaVoiceOverride, resolvePersonaVoice } from '../_shared/persona-voice-overrides.ts';
 import { examplePresenterForSlug } from '../_shared/realtor-example-pinned-leads.ts';
@@ -63,7 +63,7 @@ const handoffDiagSchema=z.object({sessionId:z.string().uuid(),detail:z.string().
 // same shape as micDiag; sessions whose startup was never watched
 // (previews) simply never stamp.
 const startupDiagSchema=z.object({sessionId:z.string().uuid(),detail:z.string().max(400),at:z.number().optional()});
-const schema=z.object({ visitorKey:z.string().min(16).max(100), model:z.string().max(100).optional(), agentId:z.string().uuid().optional(), leadId:z.string().uuid().optional(), prospectId:z.string().uuid().optional(), draft:z.boolean().default(false), preview:z.boolean().default(false), voice:z.enum(VOICES as [string,...string[]]).optional(), hour:z.number().int().min(0).max(23).optional(), visitorName:z.string().max(100).default(''), timeZone:z.string().max(100).default('UTC'), locale:z.string().max(10).optional(), campaign:z.object({visitId:z.string().uuid(),source:z.string().max(100),campaign:z.string().max(100),entryPath:z.enum(PUBLIC_PATHS).optional()}).nullable().optional(), page:z.object({path:z.string().max(100),section:z.string().max(40).optional(),title:z.string().max(160).optional()}).nullable().optional(), consent:z.boolean().default(false), verification:z.enum(['pending','verified']).optional(), invite:z.boolean().optional(), sample:z.boolean().optional(), guide:z.enum(['alex']).optional(), share:z.string().max(100).optional(), resumeContext:z.string().max(16000).optional(), reconnect:z.boolean().default(false), prewarm:z.boolean().default(false), personaSegment:personaSegmentSchema.optional(), swapDiag:swapDiagSchema.optional(), playoutDiag:playoutDiagSchema.optional(), micDiag:micDiagSchema.optional(), handoffDiag:handoffDiagSchema.optional(), startupDiag:startupDiagSchema.optional() });
+const schema=z.object({ visitorKey:z.string().min(16).max(100), model:z.string().max(100).optional(), agentId:z.string().uuid().optional(), leadId:z.string().uuid().optional(), prospectId:z.string().uuid().optional(), draft:z.boolean().default(false), preview:z.boolean().default(false), voice:z.enum(VOICES as [string,...string[]]).optional(), hour:z.number().int().min(0).max(23).optional(), visitorName:z.string().max(100).default(''), timeZone:z.string().max(100).default('UTC'), locale:z.string().max(10).optional(), campaign:z.object({visitId:z.string().uuid(),source:z.string().max(100),campaign:z.string().max(100),entryPath:z.enum(PUBLIC_PATHS).optional()}).nullable().optional(), page:z.object({path:z.string().max(100),section:z.string().max(40).optional(),title:z.string().max(160).optional()}).nullable().optional(), consent:z.boolean().default(false), verification:z.enum(['pending','verified']).optional(), invite:z.boolean().optional(), sample:z.boolean().optional(), guide:z.enum(['alex']).optional(), guideSurface:z.enum(['help','setup']).optional(), share:z.string().max(100).optional(), resumeContext:z.string().max(16000).optional(), reconnect:z.boolean().default(false), prewarm:z.boolean().default(false), personaSegment:personaSegmentSchema.optional(), swapDiag:swapDiagSchema.optional(), playoutDiag:playoutDiagSchema.optional(), micDiag:micDiagSchema.optional(), handoffDiag:handoffDiagSchema.optional(), startupDiag:startupDiagSchema.optional() });
 const json=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
 export async function hash(value:string) { return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)))).map(b=>b.toString(16).padStart(2,'0')).join(''); }
 Deno.serve(async req=>{
@@ -396,6 +396,10 @@ Deno.serve(async req=>{
     // config carries no transferPhone, so no handoff token is issued.
     if(!user) return json({error:'Sign in to use the setup guide'},401);
     config=alexGuideConfig();
+    // /help surface only (2026-11-24): the support greeting points at the
+    // page's guides/FAQs first; every other guide surface keeps the
+    // onboarding greeting from alexGuideConfig() verbatim.
+    if(b.guideSurface==='help') config.greeting=ALEX_SUPPORT_GREETING;
     // ADMIN VOICE OVERRIDE (2026-11-14): Alex is one persona with one
     // voice — an admin override for 'alex' covers his guide sessions
     // as well as his demo segments. Override-only: with no row the

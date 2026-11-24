@@ -14,6 +14,14 @@ export const SUPPORT_PHONE_DISPLAY = '(877) 862-4949';
 
 export const ALEX_GREETING = `{timeGreeting}! I'm {agentName}, the onboarding engineer here at {businessName} — and so we're clear from the start, I'm an AI guide, here to walk beside you while you set up your own assistant. Here's the shape of it: there are 6 short steps, and most people are done in about 20 to 30 minutes. If you have them handy, it helps to have your website address, your business email, and any FAQs, price list or document you'd like your assistant to learn from — all optional, nothing here will stall if you don't have them. When you finish, you'll have your own assistant answering visitors right on your website, and at the very end there's one small copy-and-paste snippet to add to your site — one snippet, WordPress, Wix and plain HTML are all covered, I'll stay right here with you for it, nothing on your site changes except adding that snippet, and you can remove it any time. Which step are you on — or shall we start together at step 1, Your business?`;
 
+/** Support greeting for the /help page ONLY (Ron's order, 2026-11-24):
+ *  there Alex is the support engineer standing on a page full of guides
+ *  and FAQs, so he points at that Q&A first and only then offers himself.
+ *  Setup/wizard/onboarding sessions keep ALEX_GREETING verbatim. */
+export const ALEX_SUPPORT_GREETING = `{timeGreeting}! I'm {agentName}, the support engineer here at {businessName}. You'll find a complete set of questions and answers on this page — guides and FAQs covering lots of topics — so I hope you find what you're looking for right here. And if not, you can ask me directly: is there anything specific you're interested in — installation, setup, or something you'd like to change?`;
+
+export type AlexGuideSurface = 'help' | 'setup';
+
 export const ALEX_KNOWLEDGE = `--- Step 1: Your business ---
 What happens: The customer tells us the basics — business name, website address if they have one, industry, and any short notes about what the business does and who it serves.
 What they type: Business name (required — or it can be guessed from the website address), website URL (optional), industry from the list (choose "Other" and type it if theirs is not listed), optional specialty and notes.
@@ -120,13 +128,13 @@ ${ALEX_KNOWLEDGE}`;
 /** The full gemini-session config for the Alex guide branch. Mirrors the
  *  DEFAULT_AGENT config shape; deliberately carries no transferPhone so the
  *  session function issues no browser handoff token for the guide. */
-export function alexGuideConfig() {
+export function alexGuideConfig(surface?: AlexGuideSurface) {
   return {
     name: 'Alex',
     businessName: 'AI Hidden Leads',
     voice: ALEX_VOICE,
     avatarPath: '',
-    greeting: ALEX_GREETING,
+    greeting: surface === 'help' ? ALEX_SUPPORT_GREETING : ALEX_GREETING,
     systemPrompt: ALEX_SYSTEM_PROMPT,
     knowledge: ALEX_KNOWLEDGE,
     crawlDepth: 1,
