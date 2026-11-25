@@ -24,7 +24,7 @@ describe("film gallery data (2026-11-20)", () => {
     // The films are published on the AI Hidden Leads channel
     // (@AIHiddenLeads, 2026-11-20); ids pinned so a swap is a deliberate edit.
     expect(FILMS.map((f) => f.youtubeId)).toEqual([
-      "JWPKgu19nEs",
+      "rh4I6bsEcOg",
       "RG2saPORnG4",
       "BevOXGmhKBs",
       "ffU6UsQFJqQ",
