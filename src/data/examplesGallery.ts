@@ -140,6 +140,18 @@ const realtorCityBySlug = new Map(
 
 const packBySlug = new Map(B2B_EXAMPLE_PACKS.map((pack) => [pack.slug, pack] as const));
 
+/**
+ * B2B demos open with Aspen by default (the proposed presenters in the
+ * pinned-leads file are not wired server-side) — label them Aspen.
+ * Two pinned demos are the exception: their presenters ARE wired
+ * server-side, so their cards name the presenter who actually opens
+ * the demo (Ron's relabel call, 2026-11-25).
+ */
+const B2B_PRESENTER_OVERRIDES: Record<string, string> = {
+  "solaris-financial": "Andy",
+  "freedom-insurance": "Alex",
+};
+
 const b2bExamples: GalleryExample[] = B2B_EXAMPLE_PINNED_LEADS.map((entry) => {
   const pack = packBySlug.get(entry.slug);
   const place = pack ? `${pack.city}, ${pack.state}` : "";
@@ -152,9 +164,7 @@ const b2bExamples: GalleryExample[] = B2B_EXAMPLE_PINNED_LEADS.map((entry) => {
     detail: [place, niche].filter(Boolean).join(" · "),
     url: entry.url,
     leadId: entry.leadId,
-    // B2B demos open with Aspen today (the proposed presenters in the
-    // pinned-leads file are not wired server-side) — label it Aspen.
-    presenterName: "Aspen",
+    presenterName: B2B_PRESENTER_OVERRIDES[entry.slug] ?? "Aspen",
   };
 });
 
