@@ -316,10 +316,107 @@ export function silenceCheckinSuppressed(args: {
   lastCallerTurnAt: number;
   lastModelTurnAt: number;
   modelTurnInFlight: boolean;
+  /** A scripted greeting/resume/intro was injected and its turn
+   * has not completed (see the mutual-exclusion state below): the
+   * check-in would land in the same turn as the greeting. */
+  scriptedGreetingPending?: boolean;
 }): boolean {
   if (args.modelTurnInFlight) return true;
+  if (args.scriptedGreetingPending) return true;
   if (args.now - args.lastCallerSpeechAt < IDLE_CHECKIN_ACTIVITY_WINDOW_MS) return true;
   if (args.now - args.lastCallerTurnAt < IDLE_CHECKIN_ACTIVITY_WINDOW_MS) return true;
   if (args.now - args.lastModelTurnAt < IDLE_CHECKIN_MODEL_SETTLE_MS) return true;
   return false;
+}
+
+// GREETING / CHECK-IN MUTUAL EXCLUSION (2026-11-25, Ron approved
+// "build both fixes"): the silence ladder's guards keyed on model
+// turns — never fire while she speaks, never inside the settle
+// beat — but a scripted greeting/resume/intro injection has a blind
+// window the turn bookkeeping cannot see: between the proxy
+// injecting the script (session start, a resume, a reconnect's
+// welcome-back) and the provider's first output frame, no model
+// turn is in flight yet and the last-turn stamp is stale, so a
+// check-in due off the PREVIOUS silence could be injected on top
+// of the greeting and the two rendered as ONE turn — the greeting
+// with an "are you still there?" glued to it (the tangled-greeting
+// defect; session 9d1c5d95 also re-ran an intro across a reconnect
+// into exactly this traffic). The exclusion is symmetric:
+//   - while a greeting script is PENDING (injected, its turn not
+//     yet completed), no silence check-in may be injected — the
+//     proxy also re-anchors the silence clock at the injection, so
+//     a check-in that is still needed afterwards comes later, as
+//     its own turn, off fresh silence;
+//   - while a check-in is PENDING (fired, its turn not yet
+//     completed), no greeting re-run may be attached to it — the
+//     re-run's owner (the discovery gate) stands down through its
+//     blocked input, so the debt survives to the next boundary.
+// A script's pending window closes when a model turn that STARTED
+// at or after the injection completes: a turn already in flight
+// when the script landed is not the script's turn, and its
+// completion must not open the window early.
+export interface ScriptedTurnState {
+  /** ms epoch the latest greeting/resume/intro script was injected; 0 = none. */
+  greetingInjectedAtMs: number;
+  /** A model turn that started at/after the greeting injection has completed. */
+  greetingTurnCompleted: boolean;
+  /** ms epoch the latest silence check-in fired; 0 = none. */
+  checkinFiredAtMs: number;
+  /** A model turn that started at/after the check-in has completed. */
+  checkinTurnCompleted: boolean;
+}
+
+export function freshScriptedTurnState(): ScriptedTurnState {
+  return { greetingInjectedAtMs: 0, greetingTurnCompleted: false, checkinFiredAtMs: 0, checkinTurnCompleted: false };
+}
+
+/** Record a greeting/resume/intro script injection: its pending
+ * window opens (any earlier greeting's window is superseded). */
+export function noteGreetingScriptInjected(state: ScriptedTurnState, nowMs: number): ScriptedTurnState {
+  return { ...state, greetingInjectedAtMs: nowMs, greetingTurnCompleted: false };
+}
+
+/** Record a silence check-in firing (server ladder or a forwarded
+ * client idle check-in): its pending window opens. */
+export function noteSilenceCheckinFired(state: ScriptedTurnState, nowMs: number): ScriptedTurnState {
+  return { ...state, checkinFiredAtMs: nowMs, checkinTurnCompleted: false };
+}
+
+/** Record a completed model turn. `turnStartedAtMs` is when THAT
+ * turn began (the proxy's modelTurnStartedAt for the turn that just
+ * ended): only a turn that started at or after a script's injection
+ * can be that script's turn, so only it closes the pending window. */
+export function noteScriptedModelTurnCompleted(state: ScriptedTurnState, turnStartedAtMs: number): ScriptedTurnState {
+  return {
+    greetingInjectedAtMs: state.greetingInjectedAtMs,
+    greetingTurnCompleted: state.greetingTurnCompleted
+      || (state.greetingInjectedAtMs > 0 && turnStartedAtMs >= state.greetingInjectedAtMs),
+    checkinFiredAtMs: state.checkinFiredAtMs,
+    checkinTurnCompleted: state.checkinTurnCompleted
+      || (state.checkinFiredAtMs > 0 && turnStartedAtMs >= state.checkinFiredAtMs),
+  };
+}
+
+/** The greeting script still owns the upcoming turn: injected and
+ * its turn has not completed. */
+export function scriptedGreetingPending(state: ScriptedTurnState): boolean {
+  return state.greetingInjectedAtMs > 0 && !state.greetingTurnCompleted;
+}
+
+/** The check-in still owns the upcoming turn: fired and its turn
+ * has not completed. */
+export function silenceCheckinPending(state: ScriptedTurnState): boolean {
+  return state.checkinFiredAtMs > 0 && !state.checkinTurnCompleted;
+}
+
+/** A silence check-in must stand down while a greeting script is
+ * pending — it would merge into the greeting's turn. */
+export function silenceCheckinExcludedByGreeting(state: ScriptedTurnState): boolean {
+  return scriptedGreetingPending(state);
+}
+
+/** A greeting re-run must stand down while a check-in is pending —
+ * it would attach itself to the check-in's turn. */
+export function greetingScriptExcludedByCheckin(state: ScriptedTurnState): boolean {
+  return silenceCheckinPending(state);
 }

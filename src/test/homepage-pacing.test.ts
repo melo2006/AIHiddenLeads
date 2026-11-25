@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it, test } from 'vitest';
-import { homepagePacingAction, silenceLadderRung, silenceLadderDue, substantiveCallerTurn, contentFreeCallerTurn, visitorFloorSeconds, SILENCE_NUDGE_1, SILENCE_NUDGE_2, SILENCE_NUDGE_3 } from '../../supabase/functions/_shared/homepage-pacing';
+import { homepagePacingAction, silenceLadderRung, silenceLadderDue, substantiveCallerTurn, contentFreeCallerTurn, visitorFloorSeconds, silenceCheckinSuppressed, freshScriptedTurnState, noteGreetingScriptInjected, noteSilenceCheckinFired, noteScriptedModelTurnCompleted, scriptedGreetingPending, silenceCheckinPending, silenceCheckinExcludedByGreeting, greetingScriptExcludedByCheckin, SILENCE_NUDGE_1, SILENCE_NUDGE_2, SILENCE_NUDGE_3, type ScriptedTurnState } from '../../supabase/functions/_shared/homepage-pacing';
 
 test('soft wrap-up offer starts at seven minutes, once', () => {
   expect(homepagePacingAction(419, 5, false)).toBeNull();
@@ -224,5 +224,132 @@ describe('visitorFloorSeconds — the ladder clock excludes her speaking time (2
   it('never goes negative when bookkeeping races', () => {
     expect(visitorFloorSeconds({ nowMs: 1000, lastCallerTurnAtMs: 5000, modelBusyMs: 0, modelTurnInFlight: false, modelTurnStartedAtMs: 0 })).toBe(0);
     expect(visitorFloorSeconds({ nowMs: 9000, lastCallerTurnAtMs: 1000, modelBusyMs: 20000, modelTurnInFlight: false, modelTurnStartedAtMs: 0 })).toBe(0);
+  });
+});
+
+// GREETING / CHECK-IN MUTUAL EXCLUSION (2026-11-25): a scripted
+// greeting/resume/intro and a silence check-in must never land in
+// the same model turn. The proxy's fire decision is the ladder math
+// ANDed with the exclusion; these simulations drive the shared
+// state machine the way the proxy does — injection noted at
+// sendOpening / the fire sites, completions noted with the
+// completed turn's start stamp.
+describe('scripted-turn mutual exclusion — greeting and check-in never share a turn (2026-11-25)', () => {
+  const S = 1000;
+  // The proxy's combined fire decision for one pacing tick.
+  const wouldFireCheckin = (state: ScriptedTurnState, dueArgs: Parameters<typeof silenceLadderDue>[0]) =>
+    silenceLadderDue(dueArgs) > dueArgs.currentRung && !silenceCheckinExcludedByGreeting(state);
+  const dueArgs = (over: Partial<Parameters<typeof silenceLadderDue>[0]>) => ({
+    silenceSeconds: 0, currentRung: 0, modelSpeaking: false,
+    sinceModelTurnEndSeconds: 60, sinceLastFireSeconds: Number.POSITIVE_INFINITY,
+    ...over,
+  });
+
+  it('resume-then-silence: the check-in stands down while the resume greeting is pending, then fires later as its own turn', () => {
+    const t0 = 2_000_000;
+    // The visitor returns; the proxy injects the resume script and
+    // re-anchors the silence clock at the injection.
+    let state = noteGreetingScriptInjected(freshScriptedTurnState(), t0);
+    expect(scriptedGreetingPending(state)).toBe(true);
+    // The visitor's PRE-resume silence was long — the raw ladder
+    // math alone would fire rung 1 on the very next tick, straight
+    // into the greeting's turn. The exclusion holds it.
+    expect(silenceLadderDue(dueArgs({ silenceSeconds: 90, currentRung: 0 }))).toBe(1);
+    expect(wouldFireCheckin(state, dueArgs({ silenceSeconds: 90, currentRung: 0 }))).toBe(false);
+    // Her greeting turn runs (starts just after the injection) and
+    // completes: the pending window closes.
+    state = noteScriptedModelTurnCompleted(state, t0 + 800);
+    expect(scriptedGreetingPending(state)).toBe(false);
+    expect(silenceCheckinExcludedByGreeting(state)).toBe(false);
+    // The clock was re-anchored at the injection and her greeting
+    // time is banked as model-busy, so the floor clock restarts at
+    // ~zero: the check-in is earned off FRESH silence only.
+    const floorAt = (nowMs: number) => visitorFloorSeconds({
+      nowMs, lastCallerTurnAtMs: t0, modelBusyMs: 6 * S, modelTurnInFlight: false, modelTurnStartedAtMs: 0,
+    });
+    expect(floorAt(t0 + 20 * S)).toBe(14);
+    expect(wouldFireCheckin(state, dueArgs({ silenceSeconds: floorAt(t0 + 20 * S), currentRung: 0 }))).toBe(false);
+    // At 15 fresh floor-seconds rung 1 fires — as its OWN turn,
+    // exactly once for the episode.
+    expect(floorAt(t0 + 21 * S)).toBe(15);
+    expect(wouldFireCheckin(state, dueArgs({ silenceSeconds: floorAt(t0 + 21 * S), currentRung: 0 }))).toBe(true);
+    state = noteSilenceCheckinFired(state, t0 + 21 * S);
+    expect(silenceCheckinPending(state)).toBe(true);
+  });
+
+  it('reconnect-then-silence: a turn that started BEFORE the reconnect greeting does not close its window', () => {
+    const t0 = 3_000_000;
+    // A model turn was already in flight when the reconnect's
+    // welcome-back script was injected; that turn completing is not
+    // the greeting's turn ending.
+    let state = noteGreetingScriptInjected(freshScriptedTurnState(), t0);
+    state = noteScriptedModelTurnCompleted(state, t0 - 5 * S);
+    expect(scriptedGreetingPending(state)).toBe(true);
+    expect(wouldFireCheckin(state, dueArgs({ silenceSeconds: 120, currentRung: 0 }))).toBe(false);
+    // The greeting's own turn (started after the injection)
+    // completes: the window closes and normal ladder service resumes.
+    state = noteScriptedModelTurnCompleted(state, t0 + 1200);
+    expect(scriptedGreetingPending(state)).toBe(false);
+    expect(wouldFireCheckin(state, dueArgs({ silenceSeconds: 15, currentRung: 0 }))).toBe(true);
+  });
+
+  it('silence-only: with no greeting scripted, the ladder climbs exactly as designed — each rung once', () => {
+    const state = freshScriptedTurnState();
+    expect(silenceCheckinExcludedByGreeting(state)).toBe(false);
+    expect(greetingScriptExcludedByCheckin(state)).toBe(false);
+    expect(wouldFireCheckin(state, dueArgs({ silenceSeconds: 14, currentRung: 0 }))).toBe(false);
+    expect(wouldFireCheckin(state, dueArgs({ silenceSeconds: 15, currentRung: 0 }))).toBe(true);
+    expect(wouldFireCheckin(state, dueArgs({ silenceSeconds: 40, currentRung: 1, sinceLastFireSeconds: 25 }))).toBe(true);
+    expect(wouldFireCheckin(state, dueArgs({ silenceSeconds: 75, currentRung: 2, sinceLastFireSeconds: 35 }))).toBe(true);
+    expect(wouldFireCheckin(state, dueArgs({ silenceSeconds: 300, currentRung: 3, sinceLastFireSeconds: 225 }))).toBe(false);
+  });
+
+  it('reverse direction: while a check-in is pending, a greeting re-run is excluded — until the check-in\'s own turn completes', () => {
+    const t0 = 4_000_000;
+    let state = noteSilenceCheckinFired(freshScriptedTurnState(), t0);
+    expect(greetingScriptExcludedByCheckin(state)).toBe(true);
+    // A stale turn (started before the check-in fired) completing
+    // does not lift the exclusion.
+    state = noteScriptedModelTurnCompleted(state, t0 - 2 * S);
+    expect(greetingScriptExcludedByCheckin(state)).toBe(true);
+    // The check-in's own turn completes: re-runs may proceed again.
+    state = noteScriptedModelTurnCompleted(state, t0 + 900);
+    expect(greetingScriptExcludedByCheckin(state)).toBe(false);
+    expect(silenceCheckinPending(state)).toBe(false);
+  });
+
+  it('the client idle-prompt guard also stands down while a greeting is pending, even with stale activity clocks', () => {
+    const t0 = 5_000_000;
+    const state = noteGreetingScriptInjected(freshScriptedTurnState(), t0);
+    // Every activity clock is old — without the greeting term this
+    // is exactly the read that used to let a client check-in land.
+    expect(silenceCheckinSuppressed({
+      now: t0 + 60 * S, lastCallerSpeechAt: t0 - 60 * S, lastCallerTurnAt: t0 - 60 * S,
+      lastModelTurnAt: t0 - 60 * S, modelTurnInFlight: false,
+      scriptedGreetingPending: silenceCheckinExcludedByGreeting(state),
+    })).toBe(true);
+    // Once the greeting's turn completes, the same clocks no longer
+    // suppress — the guard returns to its activity-only behavior.
+    const done = noteScriptedModelTurnCompleted(state, t0 + 1000);
+    expect(silenceCheckinSuppressed({
+      now: t0 + 60 * S, lastCallerSpeechAt: t0 - 60 * S, lastCallerTurnAt: t0 - 60 * S,
+      lastModelTurnAt: t0 - 60 * S, modelTurnInFlight: false,
+      scriptedGreetingPending: silenceCheckinExcludedByGreeting(done),
+    })).toBe(false);
+  });
+
+  it('the proxy wires the exclusion into the ladder, the idle guard, sendOpening and the discovery gate', () => {
+    const proxy = fs.readFileSync(path.join(__dirname, '..', '..', 'supabase/functions/gemini-live-proxy/index.ts'), 'utf8');
+    expect(proxy).toContain('noteGreetingScriptInjected(scriptedTurns, Date.now())');
+    expect(proxy).toContain('!silenceCheckinExcludedByGreeting(scriptedTurns)');
+    expect(proxy).toContain('noteSilenceCheckinFired(scriptedTurns, Date.now())');
+    expect(proxy).toContain('noteScriptedModelTurnCompleted(scriptedTurns, completedTurnStartedAt)');
+    expect(proxy).toContain('noteScriptedModelTurnCompleted(scriptedTurns, interruptedTurnStartedAt)');
+    expect(proxy).toContain('greetingScriptExcludedByCheckin(scriptedTurns)');
+    expect(proxy).toContain('scriptedGreetingPending: silenceCheckinExcludedByGreeting(scriptedTurns)');
+    const pacing = fs.readFileSync(path.join(__dirname, '..', '..', 'supabase/functions/_shared/homepage-pacing.ts'), 'utf8');
+    expect(pacing).toContain('export function noteScriptedModelTurnCompleted');
+    expect(pacing).toContain('export function silenceCheckinExcludedByGreeting');
+    expect(pacing).toContain('export function greetingScriptExcludedByCheckin');
   });
 });
