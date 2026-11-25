@@ -33,9 +33,14 @@ const ArticlePage = () => {
         </Link>
 
         <h1 className="text-3xl sm:text-4xl font-bold text-foreground leading-tight mb-4">{article.headline}</h1>
-        <p className="text-sm text-muted-foreground mb-10">
+        <p className="text-sm text-muted-foreground mb-6">
           By AI Hidden Leads · {formatArticleDate(article.datePublished)} · {articleReadingMinutes(article)} min read
         </p>
+        <img
+          src={article.image}
+          alt={article.imageAlt}
+          className="w-full aspect-[16/9] object-cover rounded-xl mb-10"
+        />
 
         <ArticleBody blocks={article.body} />
 
@@ -80,10 +85,18 @@ const ArticlePage = () => {
                 <Link
                   key={other.slug}
                   to={other.path}
-                  className="block rounded-lg border border-border p-5 hover:border-primary/40 transition-colors"
+                  className="flex items-start gap-4 rounded-lg border border-border p-5 hover:border-primary/40 transition-colors"
                 >
-                  <span className="block font-medium text-foreground mb-1">{other.headline}</span>
-                  <span className="block text-sm text-muted-foreground leading-relaxed">{other.excerpt}</span>
+                  <img
+                    src={other.image}
+                    alt={other.imageAlt}
+                    loading="lazy"
+                    className="hidden sm:block w-28 shrink-0 aspect-[16/9] object-cover rounded-md"
+                  />
+                  <span>
+                    <span className="block font-medium text-foreground mb-1">{other.headline}</span>
+                    <span className="block text-sm text-muted-foreground leading-relaxed">{other.excerpt}</span>
+                  </span>
                 </Link>
               ))}
             </div>

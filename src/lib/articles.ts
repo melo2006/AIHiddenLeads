@@ -17,6 +17,8 @@ export interface Article {
   seoTitle: string;
   description: string;
   excerpt: string;
+  image: string;
+  imageAlt: string;
   targetKeyword: string;
   datePublished: string;
   dateModified: string;
@@ -38,6 +40,8 @@ export const ARTICLES_LIST: Article[] = (ARTICLES as any[]).map((a) => ({
   seoTitle: a.seoTitle,
   description: a.description,
   excerpt: a.excerpt,
+  image: a.image,
+  imageAlt: a.imageAlt,
   targetKeyword: a.targetKeyword,
   datePublished: a.datePublished,
   dateModified: a.dateModified,

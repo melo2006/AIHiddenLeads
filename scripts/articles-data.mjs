@@ -29,6 +29,8 @@ export const ARTICLES = [
       "Real 2026 prices for AI receptionists, answering services and human receptionists — published provider plans compared, the per-minute math, and exactly what AI Hidden Leads charges.",
     excerpt:
       "Published AI receptionist plans run $49–$299/mo. Here's how that compares with an answering service's meter and a human receptionist's salary — with the per-minute math done for you.",
+    image: "/articles/ai-receptionist-cost.webp",
+    imageAlt: "Aspen, the AI receptionist from AI Hidden Leads, smiling in a navy blazer",
     targetKeyword: "ai receptionist cost",
     datePublished: "2026-11-23",
     dateModified: "2026-11-23",
@@ -150,6 +152,8 @@ ARTICLES.push(
       "An answering service rents you people who take messages; an AI receptionist answers instantly and finishes the work in the call. An honest side-by-side — including where humans are genuinely better.",
     excerpt:
       "One rents you people who take messages. The other answers instantly and books the appointment during the call. The honest side-by-side, including where humans win.",
+    image: "/articles/ai-receptionist-vs-answering-service.webp",
+    imageAlt: "Dave, a marina service manager, standing in front of the boats at his marina",
     targetKeyword: "ai receptionist vs answering service",
     datePublished: "2026-11-23",
     dateModified: "2026-11-23",
@@ -261,6 +265,8 @@ ARTICLES.push(
       "An AI receptionist with a video avatar answers your phone and appears live on your website as a talking, lip-synced person visitors can speak with. How it works, who it's for, and what to check before buying.",
     excerpt:
       "It's an AI receptionist you can see: the same AI that answers your phone appears live on your website as a talking person your visitors can speak with. Here's how it works.",
+    image: "/articles/ai-receptionist-with-video-avatar.webp",
+    imageAlt: "Aspen, the AI receptionist, appearing on screen as a live video avatar",
     targetKeyword: "ai receptionist with video avatar",
     datePublished: "2026-11-23",
     dateModified: "2026-11-23",
