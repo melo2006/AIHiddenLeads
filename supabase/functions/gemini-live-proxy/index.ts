@@ -1,4 +1,4 @@
-import { contentFreeCallerTurn, homepagePacingAction, silenceLadderDue, silenceCheckinSuppressed, visitorFloorSeconds, freshSessionCeilingState, sessionCeilingAction, SESSION_ABSOLUTE_CAP_SECONDS, SILENCE_NUDGE_1, SILENCE_NUDGE_2, SILENCE_NUDGE_3, type SessionCeilingState } from '../_shared/homepage-pacing.ts'
+import { contentFreeCallerTurn, homepagePacingAction, silenceLadderDue, silenceCheckinSuppressed, visitorFloorSeconds, freshSessionCeilingState, sessionCeilingAction, SESSION_ABSOLUTE_CAP_SECONDS, SILENCE_NUDGE_1, SILENCE_NUDGE_2, SILENCE_NUDGE_3, freshScriptedTurnState, noteGreetingScriptInjected, noteSilenceCheckinFired, noteScriptedModelTurnCompleted, silenceCheckinExcludedByGreeting, greetingScriptExcludedByCheckin, type SessionCeilingState } from '../_shared/homepage-pacing.ts'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { hourInTimeZone, INTERRUPTION_RESUME_POLICY, languagePolicyFor, NO_SPEAKER_LABEL_RULE, ONE_LINE_ONCE_POLICY, renderOpeningTemplate, sanitizeVisitorName, visitorLocalTimeLine, VOICE_DISCONNECT_PLAIN } from '../_shared/voice-config.ts'
@@ -1061,6 +1061,14 @@ Deno.serve(async (req) => {
   let silenceRung = 0, lastModelTurnAt = Date.now(), lastRealCallerTurnAt = Date.now()
   let modelTurnInFlight = false, lastSilenceFireAt = 0
   let modelTurnStartedAt = 0, modelBusyMsSinceCallerTurn = 0, cantHearNoticeActive = false
+  // GREETING / CHECK-IN MUTUAL EXCLUSION (2026-11-25 — see
+  // ScriptedTurnState in _shared/homepage-pacing.ts): tracks the
+  // pending windows of scripted greeting/resume injections and of
+  // silence check-ins so the two can never be injected into the
+  // same model turn. The ladder and the client idle-prompt guard
+  // consult it before firing; sendOpening and the check-in fire
+  // sites record into it; turn completions close the windows.
+  let scriptedTurns = freshScriptedTurnState()
   const sendOpening = () => {
           // Opening selection lives in _shared/session-opening.ts so the
           // priority stack is unit-tested: persona swap (planned, NO
@@ -1109,6 +1117,17 @@ Deno.serve(async (req) => {
               turnComplete: true,
             },
           }))
+          // GREETING / CHECK-IN MUTUAL EXCLUSION (2026-11-25): the
+          // scripted opening — greeting, resume line, reconnect
+          // welcome-back — owns the next turn: no silence check-in
+          // may be injected until its turn completes, and the
+          // silence clock re-anchors at the injection, so a
+          // check-in that is still needed afterwards is earned off
+          // fresh silence and arrives as its own turn, never glued
+          // to the greeting.
+          scriptedTurns = noteGreetingScriptInjected(scriptedTurns, Date.now())
+          lastRealCallerTurnAt = Date.now()
+          modelBusyMsSinceCallerTurn = 0
   }
   let openedAt = Date.now()
   clientSocket.onopen = () => {
@@ -1162,7 +1181,7 @@ Deno.serve(async (req) => {
       // simulations keep their own in-layer silence rules. Fires
       // before the pacing actions; never inside a farewell window,
       // a pending handoff, or while a confirmation card is up.
-      if (config.homepageSales === true && geminiWs?.readyState === WebSocket.OPEN && !farewellGateActive() && !managerTransferRequested && pendingActions.size === 0 && !cantHearNoticeActive) {
+      if (config.homepageSales === true && geminiWs?.readyState === WebSocket.OPEN && !farewellGateActive() && !managerTransferRequested && pendingActions.size === 0 && !cantHearNoticeActive && !silenceCheckinExcludedByGreeting(scriptedTurns)) {
         // Visitor-silence clock in FLOOR TIME (2026-11-18):
         // seconds since the visitor's last completed turn minus
         // Aspen's own speaking time in between — her greeting,
@@ -1187,6 +1206,7 @@ Deno.serve(async (req) => {
         if (nextRung > silenceRung) {
           silenceRung = nextRung
           lastSilenceFireAt = Date.now()
+          scriptedTurns = noteSilenceCheckinFired(scriptedTurns, Date.now())
           console.log(JSON.stringify({ event: 'silence_ladder_fire', sessionId: session.id, rung: nextRung }))
           const nudge = nextRung === 1 ? SILENCE_NUDGE_1 : nextRung === 2 ? SILENCE_NUDGE_2 : SILENCE_NUDGE_3
           geminiWs.send(JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text: nudge }] }], turnComplete: true } }))
@@ -1633,7 +1653,9 @@ Deno.serve(async (req) => {
             // elapsed time into the floor-time bookkeeping and
             // re-anchor the settle guard, exactly as a completed
             // turn does at turnComplete below.
+            const interruptedTurnStartedAt = modelTurnStartedAt
             if (modelTurnStartedAt > 0) { modelBusyMsSinceCallerTurn += Date.now() - modelTurnStartedAt; modelTurnStartedAt = 0 }
+            scriptedTurns = noteScriptedModelTurnCompleted(scriptedTurns, interruptedTurnStartedAt)
             lastModelTurnAt = Date.now()
             modelTurnInFlight = false
             // ElevenLabs mouth: drop every queued chunk and abort the
@@ -1739,7 +1761,9 @@ Deno.serve(async (req) => {
             // Floor time (2026-11-18): this turn's speaking time is
             // Aspen's, not the visitor's silence — bank it before
             // the episode bookkeeping below reads the clocks.
+            const completedTurnStartedAt = modelTurnStartedAt
             if (modelTurnStartedAt > 0) { modelBusyMsSinceCallerTurn += Date.now() - modelTurnStartedAt; modelTurnStartedAt = 0 }
+            scriptedTurns = noteScriptedModelTurnCompleted(scriptedTurns, completedTurnStartedAt)
             lastModelTurnAt = Date.now()
             modelTurnInFlight = false
             // Farewell hang-up (Fix 5): evaluate the visitor's
@@ -1981,11 +2005,20 @@ Deno.serve(async (req) => {
             // terms OR where the capture gate or the consent ask
             // already injected — directives never stack.
             if (presenterDiscoverySession) {
+              // GREETING / CHECK-IN MUTUAL EXCLUSION (2026-11-25):
+              // the blocked input below also carries
+              // greetingScriptExcludedByCheckin — while a forwarded
+              // silence check-in's turn is still pending, the gate
+              // stands down, because its entry-rerun / greeting-once
+              // corrections are greeting re-runs and must not attach
+              // to the check-in's turn; blocked returns before any
+              // fire counter moves, so the debt survives to the
+              // next boundary.
               const discoveryDecision = discoveryGateTurnDecision({
                 state: discoveryGate,
                 visitorUtterance: completedUtterance,
                 modelTurnText: completedModelTurn,
-                blocked: preview || farewellHandled || farewellTimer !== undefined || managerTransferRequested || pendingActions.size > 0 || gateInjected || consentInjected,
+                blocked: preview || farewellHandled || farewellTimer !== undefined || managerTransferRequested || pendingActions.size > 0 || gateInjected || consentInjected || greetingScriptExcludedByCheckin(scriptedTurns),
               })
               discoveryGate = discoveryDecision.state
               if (discoveryDecision.inject && !visitorRequestedEnd) {
@@ -2555,7 +2588,7 @@ Deno.serve(async (req) => {
         // active, a turn in flight — is suppressed, so a silence
         // prompt can only ever key off actual inactivity.
         if ((msg.stage === 'checkin' || msg.stage === 'goodbye') && config.simulation === true
-          && silenceCheckinSuppressed({ now: Date.now(), lastCallerSpeechAt: lastCallerSpeech, lastCallerTurnAt: lastRealCallerTurnAt, lastModelTurnAt, modelTurnInFlight })) {
+          && silenceCheckinSuppressed({ now: Date.now(), lastCallerSpeechAt: lastCallerSpeech, lastCallerTurnAt: lastRealCallerTurnAt, lastModelTurnAt, modelTurnInFlight, scriptedGreetingPending: silenceCheckinExcludedByGreeting(scriptedTurns) })) {
           console.log(JSON.stringify({ event: 'idle_prompt_suppressed_active', sessionId: session.id, stage: msg.stage }))
           return
         }
@@ -2607,6 +2640,10 @@ Deno.serve(async (req) => {
         // resumes normally. The bridge line is exempt: it is not a
         // farewell, and a swap in flight still needs it.
         const farewellOwnsClose = farewellTimer !== undefined && msg.stage !== 'bridge';
+        // A forwarded check-in opens its own pending window
+        // (mutual exclusion, 2026-11-25): a greeting re-run must
+        // not attach to this turn.
+        if (!farewellOwnsClose && (msg.stage === 'checkin' || msg.stage === 'goodbye')) scriptedTurns = noteSilenceCheckinFired(scriptedTurns, Date.now())
         if (!farewellOwnsClose) geminiWs.send(JSON.stringify({clientContent:{turns:[{role:'user',parts:[{text}]}],turnComplete:true}}));
       } else if (msg.type === 'handoff_ended' && managerTransferAvailable && !handoffReturnHandled) {
         // Come-back after handoff (Handoff improvement batch,
