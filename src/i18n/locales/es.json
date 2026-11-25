@@ -579,7 +579,7 @@
     "terms": "Términos de Servicio",
     "help": "Ayuda y soporte",
     "articles": "Artículos y guías",
-    "smsConsent": "Al usar nuestros servicios, aceptas recibir mensajes SMS de AI Hidden Leads. La frecuencia varía. Responde STOP para cancelar. Responde HELP para ayuda. Pueden aplicar tarifas de SMS y datos. El consentimiento no es condición de compra.",
+    "smsConsent": "Mensajes de texto: AI Hidden Leads solo envía SMS a quienes lo aceptan — por ejemplo, marcando la casilla opcional de SMS en nuestro formulario de demo o pidiéndonos un código de verificación por mensaje. Los mensajes pueden incluir códigos de verificación de un solo uso, notificaciones y alertas (como el enlace de tu demo, resultados y confirmaciones) y mensajes de seguimiento conversacionales sobre tu demo. La frecuencia varía. Responde STOP para cancelar, HELP para ayuda. Pueden aplicar tarifas de mensajes y datos. Enviar mensajes es opcional y nunca es condición de compra ni de usar la demo.",
     "copyright": "Generación de leads y automatización de ventas con IA.",
     "rights": "Todos los derechos reservados."
   },
@@ -761,7 +761,7 @@
     "verifyToggleLabel": "Verificar demo",
     "verifyToggleHint": "(solo prueba — desactivado omite el paso del código)",
     "verifyToggleAria": "Verificar demo (interruptor de prueba)",
-    "smsConsentAria": "Opcional: enviarme por SMS el enlace de mi demo y mis resultados",
+    "smsConsentAria": "Opcional: enviarme por SMS mi código de verificación, notificaciones de la demo y mensajes de seguimiento",
     "submit": "Muéstrame mi sitio web que habla",
     "trustLine": "Gratis · Sin tarjeta de crédito · Tu sitio nunca se modifica",
     "errName": "Ingresa tu nombre",
@@ -781,7 +781,7 @@
     "leadNotCreated": "El lead de la demo no se creó"
   },
   "consent": {
-    "smsLabel": "Envíame por SMS el enlace de mi demo y mis resultados — y mensajes de seguimiento sobre AiHiddenLeads. Opcional; la demo funciona de cualquier manera. Pueden aplicar tarifas de mensajes y datos; responde STOP para cancelar.",
+    "smsLabel": "Opcional: envíame por SMS un código de verificación de un solo uso si lo solicito, notificaciones y alertas sobre mi demo (el enlace de mi demo, mis resultados, confirmaciones) y mensajes de seguimiento conversacionales sobre mi demo. La demo funciona de cualquier manera. Pueden aplicar tarifas de mensajes y datos; responde STOP para cancelar, HELP para ayuda.",
     "disclosure": "Al continuar, aceptas que AI Hidden Leads puede contactarte sobre tu demo y nuestros servicios por llamada y correo electrónico. Solo te enviamos mensajes de texto si marcas la casilla de SMS de arriba. El consentimiento no es condición de compra. Pueden aplicar tarifas de mensajes y datos. Responde STOP para dejar de recibir mensajes."
   },
   "demoSite": {

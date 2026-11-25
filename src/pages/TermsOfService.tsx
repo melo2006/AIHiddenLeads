@@ -41,7 +41,7 @@ const TermsOfService = () => {
           <section>
             <h2 className="text-2xl font-semibold mb-3">3. SMS/Text Messaging Terms</h2>
             <p className="text-muted-foreground leading-relaxed">
-              By providing your phone number and opting in, you consent to receive SMS/text messages from AI Hidden Leads related to our services, including demo links, lead notifications, appointment reminders, and promotional offers.
+              Texting is optional. If you opt in — by ticking the optional SMS checkbox on our website forms, or by asking us to text you a one-time verification code — you consent to receive SMS/text messages from AI Hidden Leads covering three things: one-time verification codes you request; notifications and alerts about your demo or account (demo links, results, confirmations and reminders); and conversational replies and follow-ups about your demo or account. We do not send marketing blasts by text.
             </p>
             <ul className="list-disc pl-6 text-muted-foreground space-y-2 mt-3">
               <li><strong className="text-foreground">Frequency:</strong> Message frequency varies; typically 1-10 messages per month.</li>
@@ -49,7 +49,7 @@ const TermsOfService = () => {
               <li><strong className="text-foreground">Help:</strong> Reply HELP for assistance or contact support@aihiddenleads.com.</li>
               <li><strong className="text-foreground">Costs:</strong> Standard message and data rates may apply per your carrier plan.</li>
               <li><strong className="text-foreground">No Sharing:</strong> We will not sell or share your opt-in information with third parties for marketing purposes.</li>
-              <li><strong className="text-foreground">Consent Not Required:</strong> Consent to receive SMS is not a condition of purchasing any service.</li>
+              <li><strong className="text-foreground">Consent Not Required:</strong> Consent to receive SMS is not a condition of purchasing any service or of using our demo.</li>
             </ul>
           </section>
 

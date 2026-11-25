@@ -19,12 +19,17 @@ export const DEMO_CONSENT_DISCLOSURE =
 
 /**
  * Label for the OPTIONAL SMS consent checkbox on the demo intake (Telnyx
- * TFV fix, 2026-11-13): unchecked by default, never required — the demo
- * starts and completes identically either way. Ticking it is the only
- * action that records SMS consent for a website demo lead.
+ * TFV fix, 2026-11-13; wording completed 2026-11-25 after reviewer Allen
+ * Rhodes required the opt-in to name every use case in the TFV use-case
+ * summary): unchecked by default, never required — the demo starts and
+ * completes identically either way. Ticking it is the only action that
+ * records SMS consent for a website demo lead. The label names all three
+ * TFV use cases — one-time verification codes (2FA), notifications/alerts
+ * about the demo, and conversational follow-ups — so the on-page opt-in
+ * matches the mixed use case filed with Telnyx.
  */
 export const DEMO_SMS_CONSENT_LABEL =
-  'Text me my demo link and my results — and follow-ups about AiHiddenLeads — by SMS. Optional; the demo works either way. Msg & data rates may apply; reply STOP to end.';
+  'Optional — text me by SMS: a one-time verification code if I ask for one, notifications and alerts about my demo (my demo link, my results, confirmations), and conversational follow-ups about my demo. The demo works either way. Msg & data rates may apply; reply STOP to end, HELP for help.';
 
 /** Phase 1 is email-only; SMS codes arrive when a Telnyx messaging lane is approved. Mirrors the server flag. */
 export const SMS_VERIFICATION_ENABLED = false;

@@ -39,15 +39,16 @@ const PrivacyPolicy = () => {
           <section>
             <h2 className="text-2xl font-semibold mb-3">3. SMS/Text Messaging Consent & Policy</h2>
             <p className="text-muted-foreground leading-relaxed mb-3">
-              By providing your phone number and opting in to our services, you consent to receive SMS/text messages from AI Hidden Leads. These messages may include:
+              Texting is always optional. We only send SMS/text messages to people who opt in — by ticking the optional, unchecked-by-default SMS checkbox on our website forms, or by asking us to text them a one-time verification code. You can use our demo and our services without ever agreeing to receive texts. If you opt in, messages from AI Hidden Leads may include:
             </p>
             <ul className="list-disc pl-6 text-muted-foreground space-y-2">
-              <li>Service notifications and updates</li>
-              <li>AI demo links and personalized business previews</li>
-              <li>Appointment confirmations and reminders</li>
-              <li>Lead alerts and engagement notifications</li>
-              <li>Marketing and promotional messages about our services</li>
+              <li>One-time verification codes — for example, the 4-digit code that starts or resumes a demo — only when you request one</li>
+              <li>Notifications and alerts about your demo or account — demo links and results, confirmations and reminders</li>
+              <li>Conversational messages — replies and follow-ups about your demo or account, when you message us or opt in to follow-ups</li>
             </ul>
+            <p className="text-muted-foreground leading-relaxed mt-3">
+              We do not send marketing blasts by text, and we never text purchased or rented lists or do cold outreach by SMS.
+            </p>
             <p className="text-muted-foreground leading-relaxed mt-3">
               <strong className="text-foreground">Message Frequency:</strong> Message frequency varies based on your engagement and service usage. Typically 1-10 messages per month.
             </p>
@@ -55,7 +56,7 @@ const PrivacyPolicy = () => {
               <strong className="text-foreground">Opt-Out:</strong> You may opt out of SMS messages at any time by replying STOP to any message. After opting out, you will receive one final confirmation message. You may also contact us at support@aihiddenleads.com to opt out.
             </p>
             <p className="text-muted-foreground leading-relaxed">
-              <strong className="text-foreground">Opt-In:</strong> You may re-subscribe at any time by replying START or by contacting us.
+              <strong className="text-foreground">Opt-In:</strong> You may opt in at any time by ticking the SMS checkbox on our website forms or by asking us to text you a verification code. If you previously opted out, you may re-subscribe by replying START or by contacting us.
             </p>
             <p className="text-muted-foreground leading-relaxed">
               <strong className="text-foreground">Costs:</strong> Message and data rates may apply. Check with your mobile carrier for details.
@@ -64,7 +65,7 @@ const PrivacyPolicy = () => {
               <strong className="text-foreground">Help:</strong> For help, reply HELP to any message or contact support@aihiddenleads.com.
             </p>
             <p className="text-muted-foreground leading-relaxed">
-              We do not sell, rent, or share your phone number or SMS opt-in consent with third parties for their marketing purposes. Consent is not a condition of purchase.
+              We do not sell, rent, or share your phone number or SMS opt-in consent with third parties for their marketing purposes. Consent is not a condition of purchase — and it is never required to use our demo.
             </p>
           </section>
 

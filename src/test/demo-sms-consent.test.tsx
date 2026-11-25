@@ -86,7 +86,7 @@ afterEach(() => cleanup());
 describe('demo intake SMS consent checkbox (Telnyx TFV fix)', () => {
   it('renders unchecked by default with the optional-consent label', () => {
     renderPanel();
-    const box = screen.getByRole('checkbox', { name: /text me my demo link/i });
+    const box = screen.getByRole('checkbox', { name: /text me my verification code/i });
     expect(box).toBeInTheDocument();
     expect(box).not.toBeChecked();
     expect(box).toHaveAttribute('aria-checked', 'false');
@@ -114,8 +114,8 @@ describe('demo intake SMS consent checkbox (Telnyx TFV fix)', () => {
     renderPanel(onReady);
     fillRequiredFields();
 
-    fireEvent.click(screen.getByRole('checkbox', { name: /text me my demo link/i }));
-    expect(screen.getByRole('checkbox', { name: /text me my demo link/i })).toBeChecked();
+    fireEvent.click(screen.getByRole('checkbox', { name: /text me my verification code/i }));
+    expect(screen.getByRole('checkbox', { name: /text me my verification code/i })).toBeChecked();
 
     fireEvent.click(screen.getByRole('button', { name: /show me my talking website/i }));
 

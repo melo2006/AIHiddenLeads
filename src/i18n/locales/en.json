@@ -506,7 +506,7 @@
     "verifyToggleLabel": "Verify demo",
     "verifyToggleHint": "(test only — off skips the code step)",
     "verifyToggleAria": "Verify demo (test toggle)",
-    "smsConsentAria": "Optional: text me my demo link and results by SMS",
+    "smsConsentAria": "Optional: text me my verification code, demo notifications and follow-ups by SMS",
     "submit": "Show me my talking website",
     "trustLine": "Free · No credit card · Your site is never changed",
     "errName": "Enter your name",
@@ -526,7 +526,7 @@
     "leadNotCreated": "Demo lead was not created"
   },
   "consent": {
-    "smsLabel": "Text me my demo link and my results — and follow-ups about AiHiddenLeads — by SMS. Optional; the demo works either way. Msg & data rates may apply; reply STOP to end.",
+    "smsLabel": "Optional — text me by SMS: a one-time verification code if I ask for one, notifications and alerts about my demo (my demo link, my results, confirmations), and conversational follow-ups about my demo. The demo works either way. Msg & data rates may apply; reply STOP to end, HELP for help.",
     "disclosure": "By continuing, you agree AI Hidden Leads may contact you about your demo and our services by call and email. We only text you if you tick the SMS box above. Consent is not a condition of purchase. Message and data rates may apply. Reply STOP to end texts."
   },
   "demoSite": {
@@ -754,7 +754,7 @@
     "terms": "Terms of Service",
     "help": "Help & Support",
     "articles": "Articles & Guides",
-    "smsConsent": "By using our services, you consent to receive SMS/text messages from AI Hidden Leads. Message frequency varies. Reply STOP to opt out. Reply HELP for help. Message and data rates may apply. Consent is not a condition of purchase.",
+    "smsConsent": "Text messages: AI Hidden Leads only texts people who opt in — for example by ticking the optional SMS box on our demo form, or by asking us to text a one-time verification code. Texts may include one-time verification codes, notifications and alerts (such as your demo link, results and confirmations), and conversational follow-ups about your demo. Message frequency varies. Reply STOP to opt out, HELP for help. Message and data rates may apply. Texting is optional and is never a condition of purchase or of using the demo.",
     "copyright": "AI-powered lead generation & sales automation.",
     "rights": "All rights reserved."
   },
