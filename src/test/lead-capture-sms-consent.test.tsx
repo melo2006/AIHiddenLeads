@@ -106,7 +106,7 @@ afterEach(() => cleanup());
 describe('homepage LeadCaptureSection SMS consent (Publish #41 Pick 2 — mirrors /demo)', () => {
   it('renders the checkbox unchecked by default with the canonical label and disclosure', () => {
     renderForm();
-    const box = screen.getByRole('checkbox', { name: /text me my demo link/i });
+    const box = screen.getByRole('checkbox', { name: /text me my verification code/i });
     expect(box).toBeInTheDocument();
     expect(box).not.toBeChecked();
     expect(box).toHaveAttribute('aria-checked', 'false');
@@ -135,8 +135,8 @@ describe('homepage LeadCaptureSection SMS consent (Publish #41 Pick 2 — mirror
     renderForm();
     fillRequiredFields();
 
-    fireEvent.click(screen.getByRole('checkbox', { name: /text me my demo link/i }));
-    expect(screen.getByRole('checkbox', { name: /text me my demo link/i })).toBeChecked();
+    fireEvent.click(screen.getByRole('checkbox', { name: /text me my verification code/i }));
+    expect(screen.getByRole('checkbox', { name: /text me my verification code/i })).toBeChecked();
 
     submitForm();
 

@@ -506,7 +506,7 @@
     "verifyToggleLabel": "Vérifier la démo",
     "verifyToggleHint": "(test seulement — désactivé saute l'étape du code)",
     "verifyToggleAria": "Vérifier la démo (bascule de test)",
-    "smsConsentAria": "Facultatif : envoyez-moi par texto mon lien de démo et mes résultats",
+    "smsConsentAria": "Facultatif : envoyez-moi par texto mon code de vérification, des notifications de démo et des suivis",
     "submit": "Montrez-moi mon site Web qui parle",
     "trustLine": "Gratuit · Aucune carte de crédit · Votre site n'est jamais modifié",
     "errName": "Entrez votre nom",
@@ -526,7 +526,7 @@
     "leadNotCreated": "Le prospect de démo n'a pas été créé"
   },
   "consent": {
-    "smsLabel": "Textos : envoyez-moi mon lien de démo et mes résultats — et des suivis au sujet d'AiHiddenLeads — par texto. Facultatif; la démo fonctionne de toute façon. Des frais de messagerie et de données peuvent s'appliquer; répondez STOP pour cesser.",
+    "smsLabel": "Facultatif — envoyez-moi par texto : un code de vérification à usage unique si j'en demande un, des notifications et des alertes au sujet de ma démo (mon lien de démo, mes résultats, des confirmations) et des suivis conversationnels au sujet de ma démo. La démo fonctionne de toute façon. Des frais de messagerie et de données peuvent s'appliquer; répondez STOP pour cesser, HELP pour de l'aide.",
     "disclosure": "En continuant, vous acceptez qu'AI Hidden Leads puisse vous contacter au sujet de votre démo et de nos services par appel et par courriel. Nous ne vous textons que si vous cochez la case Texto ci-dessus. Le consentement n'est pas une condition d'achat. Des frais de messagerie et de données peuvent s'appliquer. Répondez STOP pour cesser les textos."
   },
   "demoSite": {
@@ -754,7 +754,7 @@
     "terms": "Conditions d'utilisation",
     "help": "Aide et assistance",
     "articles": "Articles et guides",
-    "smsConsent": "En utilisant nos services, vous consentez à recevoir des textos de la part d'AI Hidden Leads. La fréquence des messages varie. Répondez STOP pour vous désabonner. Répondez HELP pour de l'aide. Des frais de messagerie et de données peuvent s'appliquer. Le consentement n'est pas une condition d'achat.",
+    "smsConsent": "Textos : AI Hidden Leads n'envoie des textos qu'aux personnes qui l'acceptent — par exemple en cochant la case texto facultative de notre formulaire de démo ou en nous demandant un code de vérification par texto. Les messages peuvent inclure des codes de vérification à usage unique, des notifications et des alertes (comme votre lien de démo, vos résultats et des confirmations) et des suivis conversationnels au sujet de votre démo. La fréquence des messages varie. Répondez STOP pour vous désabonner, HELP pour de l'aide. Des frais de messagerie et de données peuvent s'appliquer. Les textos sont facultatifs et ne sont jamais une condition d'achat ni d'utilisation de la démo.",
     "copyright": "Génération de prospects et automatisation des ventes propulsées par l'IA.",
     "rights": "Tous droits réservés."
   },

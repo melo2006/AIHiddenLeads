@@ -534,7 +534,7 @@
     "verifyToggleLabel": "Verificar demo",
     "verifyToggleHint": "(só para teste — desligado pula a etapa do código)",
     "verifyToggleAria": "Verificar demo (alternância de teste)",
-    "smsConsentAria": "Opcional: enviar por SMS o link e os resultados da minha demo",
+    "smsConsentAria": "Opcional: enviar por SMS meu código de verificação, notificações da demo e acompanhamentos",
     "submit": "Mostre meu site falando",
     "trustLine": "Grátis · Sem cartão de crédito · Seu site nunca é alterado",
     "errName": "Digite seu nome",
@@ -554,7 +554,7 @@
     "leadNotCreated": "A demo não foi criada"
   },
   "consent": {
-    "smsLabel": "Envie por SMS o link da minha demo e meus resultados — e novidades sobre a AiHiddenLeads. Opcional; a demo funciona do mesmo jeito. Podem valer tarifas de mensagens e dados; responda STOP para encerrar.",
+    "smsLabel": "Opcional — envie por SMS: um código de verificação de uso único se eu solicitar, notificações e alertas sobre minha demo (o link da minha demo, meus resultados, confirmações) e mensagens de acompanhamento conversacionais sobre minha demo. A demo funciona do mesmo jeito. Podem valer tarifas de mensagens e dados; responda STOP para encerrar, HELP para ajuda.",
     "disclosure": "Ao continuar, você concorda que a AI Hidden Leads pode entrar em contato sobre sua demo e nossos serviços por ligação e e-mail. Só enviamos SMS se você marcar a caixa de SMS acima. O consentimento não é condição de compra. Podem valer tarifas de mensagens e dados. Responda STOP para encerrar os SMS."
   },
   "demoSite": {
@@ -782,7 +782,7 @@
     "terms": "Termos de Uso",
     "help": "Ajuda e suporte",
     "articles": "Artigos e guias",
-    "smsConsent": "Ao usar nossos serviços, você consente em receber SMS da AI Hidden Leads. A frequência varia. Responda STOP pra cancelar. Responda HELP pra ajuda. Podem ser aplicadas taxas de SMS e dados. O consentimento não é condição de compra.",
+    "smsConsent": "Mensagens de texto: a AI Hidden Leads só envia SMS para quem aceita — por exemplo, marcando a caixa opcional de SMS no formulário da demo ou pedindo um código de verificação por mensagem. As mensagens podem incluir códigos de verificação de uso único, notificações e alertas (como o link da sua demo, resultados e confirmações) e acompanhamentos conversacionais sobre a sua demo. A frequência varia. Responda STOP para cancelar, HELP para ajuda. Podem ser aplicadas taxas de mensagens e dados. O envio de mensagens é opcional e nunca é condição de compra nem de uso da demo.",
     "copyright": "Geração de leads e automação de vendas com IA.",
     "rights": "Todos os direitos reservados."
   },

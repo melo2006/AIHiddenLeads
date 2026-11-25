@@ -534,7 +534,7 @@ const LeadCaptureSection = ({ selectedNiche }: LeadCaptureSectionProps) => {
                 checked={smsConsent}
                 onCheckedChange={(value) => setSmsConsent(value === true)}
                 disabled={isSubmitting}
-                aria-label="Optional: text me my demo link and results by SMS"
+                aria-label="Optional: text me my verification code, demo notifications and follow-ups by SMS"
                 className="mt-0.5"
               />
               <label htmlFor="lead-sms-consent" className="cursor-pointer text-[11px] leading-snug text-muted-foreground">
