@@ -34,9 +34,18 @@ describe("examples gallery data (2026-11-18)", () => {
     expect(new Set(slugs).size).toBe(slugs.length);
   });
 
-  it("B2B examples are labelled Aspen — the presenter their demos actually open with", () => {
+  it("B2B examples are labelled with the presenter their demos actually open with", () => {
+    // Solaris and Freedom are wired server-side to their own
+    // presenters (Ron's relabel call, 2026-11-25); every other B2B
+    // demo still opens with Aspen.
+    const EXPECTED_PRESENTER: Record<string, string> = {
+      "solaris-financial": "Andy",
+      "freedom-insurance": "Alex",
+    };
     for (const entry of EXAMPLES_GALLERY.filter((e) => e.kind === "b2b")) {
-      expect(entry.presenterName).toBe("Aspen");
+      expect(entry.presenterName, entry.slug).toBe(
+        EXPECTED_PRESENTER[entry.slug] ?? "Aspen",
+      );
     }
   });
 });
