@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { microphonePcm, pcmToBase64, shouldSendMicrophone, microphoneGate, microphoneAutoGain, initialCaptureMode, estimateNoiseFloor, pickNoiseFilterForFloor, ambientLevelForFloor, createAmbientGateState, pushAmbientRms, AMBIENT_WINDOW_MAX_SAMPLES, createSpeechGateState, pushSpeechGateFrame, autoNoiseFilter, appliedAmbientLevel, appliedNoiseFilter, deadAirRelaxedFilter, noiseThresholds, SPEECH_GATE_SUSTAIN_MS, SPEECH_GATE_SPEAKING_SUSTAIN_MS, SPEECH_GATE_SPEAKING_THRESHOLD, SPEECH_GATE_OPENING_MAX, type NoiseFilter, type SpeechGateState } from "../lib/voiceLabAudio";
+import { microphonePcm, pcmToBase64, shouldSendMicrophone, microphoneGate, microphoneAutoGain, initialCaptureMode, estimateNoiseFloor, pickNoiseFilterForFloor, ambientLevelForFloor, createAmbientGateState, pushAmbientRms, AMBIENT_WINDOW_MAX_SAMPLES, createSpeechGateState, pushSpeechGateFrame, autoNoiseFilter, appliedAmbientLevel, appliedNoiseFilter, deadAirRelaxedFilter, noiseThresholds, SPEECH_GATE_SUSTAIN_MS, SPEECH_GATE_SPEAKING_SUSTAIN_MS, SPEECH_GATE_SPEAKING_THRESHOLD, SPEECH_GATE_OPENING_MAX, SPEECH_GATE_NEAR_THRESHOLD, SPEECH_GATE_NEAR_MISS_MIN_MS, SPEECH_GATE_LOWERED_SUSTAIN_MS, SPEECH_GATE_LOWERED_WINDOW_MS, type NoiseFilter, type SpeechGateState } from "../lib/voiceLabAudio";
 
 describe("Voice Lab microphone privacy controls", () => {
   it('AGC stays on under strong filtering (restored 2026-11-18 — a quiet speaker must be liftable to the gate bar); hold-to-talk keeps it off', () => {
@@ -350,6 +350,159 @@ describe("deadAirRelaxedFilter — the dead-air exception to never-relax", () =>
     expect(deadAirRelaxedFilter({ ...base, applied: "light" })).toBeNull();
   });
 });
+// Repetition-aware barge-in (2026-11-25): the 250 ms speaking
+// sustain defeats a determined interrupter whose attempts arrive as
+// repeated bursts, each dying just short of the bar. Two word-length
+// near-miss bursts (above the near threshold, never opening the gate)
+// inside the window lower the speaking sustain to ~90 ms for the
+// next burst — while a single near-miss, sub-near-threshold noise,
+// and her own echo change nothing.
+describe("speech gate — repetition-aware barge-in (2026-11-25)", () => {
+  const STEP = 50; // ms per simulated capture frame
+  type Seg = { rms: number; ms: number; speaking?: boolean };
+  /** Drive the gate through segments; `speaking` defaults to true
+   * (Aspen mid-utterance — the only place repetition is tracked). */
+  const drive = (segments: Seg[], filter: NoiseFilter = "strong") => {
+    let state: SpeechGateState = createSpeechGateState();
+    let now = 0;
+    let everOpened = false;
+    let firstOpenAt = -1;
+    for (const seg of segments) {
+      const frames = Math.max(1, Math.round(seg.ms / STEP));
+      for (let i = 0; i < frames; i++) {
+        state = pushSpeechGateFrame(state, seg.rms, filter, now, seg.speaking ?? true);
+        if (state.open) { everOpened = true; if (firstOpenAt < 0) firstOpenAt = now; }
+        now += STEP;
+      }
+    }
+    return { state, everOpened, firstOpenAt };
+  };
+  const QUIET = 0.004; // room tone under every threshold
+  const NEAR = 0.02; // above the near threshold (0.015), below the speaking bar (0.025)
+  const LOUD = 0.06; // a real voice over her: above the speaking bar
+
+  it("the near threshold sits between room tone and the speaking bar, filter-independent", () => {
+    expect(SPEECH_GATE_NEAR_THRESHOLD).toBeGreaterThan(noiseThresholds.balanced);
+    expect(SPEECH_GATE_NEAR_THRESHOLD).toBeLessThan(SPEECH_GATE_SPEAKING_THRESHOLD);
+    expect(SPEECH_GATE_LOWERED_SUSTAIN_MS).toBeGreaterThanOrEqual(80);
+    expect(SPEECH_GATE_LOWERED_SUSTAIN_MS).toBeLessThanOrEqual(100);
+  });
+
+  it("a single near-miss does NOT lower the bar: the next short burst still fails the full sustain", () => {
+    // One word-length attempt at near level (counted as a near-miss
+    // when it ends), then a 150 ms above-bar burst: long enough to
+    // pass the LOWERED sustain (90 ms) but not the real one (250 ms).
+    // With only one near-miss on the clock it must stay shut.
+    const { everOpened, state } = drive([
+      { rms: NEAR, ms: 300 }, { rms: QUIET, ms: 200 },
+      { rms: LOUD, ms: 150 }, { rms: QUIET, ms: 800 },
+    ]);
+    expect(everOpened).toBe(false);
+    expect(state.loweredUntil).toBe(0);
+    expect(state.nearMissAt).toHaveLength(1);
+  });
+
+  it("two near-misses then a real burst interrupts at the lowered sustain", () => {
+    const { everOpened, firstOpenAt } = drive([
+      { rms: NEAR, ms: 300 }, { rms: QUIET, ms: 200 },
+      { rms: NEAR, ms: 300 }, { rms: QUIET, ms: 200 },
+      { rms: LOUD, ms: 400 }, { rms: QUIET, ms: 200 },
+    ]);
+    expect(everOpened).toBe(true);
+    // The real burst starts at t=1000; it opens at the lowered
+    // sustain (~90 ms -> first 50 ms frame at/past it), far ahead
+    // of the 250 ms the unlowered bar would demand.
+    expect(firstOpenAt - 1000).toBe(Math.ceil(SPEECH_GATE_LOWERED_SUSTAIN_MS / STEP) * STEP);
+    expect(firstOpenAt - 1000).toBeLessThan(SPEECH_GATE_SPEAKING_SUSTAIN_MS);
+  });
+
+  it("near-misses count above the bar too: two 200 ms above-bar bursts arm the lowered bar for the third", () => {
+    // Each 200 ms burst is a genuine attempt that dies 50 ms short
+    // of the 250 ms sustain — the exact shape that used to make her
+    // uninterruptible.
+    const { everOpened, firstOpenAt } = drive([
+      { rms: LOUD, ms: 200 }, { rms: QUIET, ms: 150 },
+      { rms: LOUD, ms: 200 }, { rms: QUIET, ms: 150 },
+      { rms: LOUD, ms: 400 }, { rms: QUIET, ms: 200 },
+    ]);
+    expect(everOpened).toBe(true);
+    expect(firstOpenAt - 700).toBe(Math.ceil(SPEECH_GATE_LOWERED_SUSTAIN_MS / STEP) * STEP);
+  });
+
+  it("echo-like periodic low bursts BELOW the near threshold never count and never trigger", () => {
+    // Periodic bursts at 0.01 — under the near threshold — for a
+    // full 12 seconds of her speaking: no near-miss, no lowered
+    // bar, no opening, however long they repeat.
+    const pattern = Array.from({ length: 24 }, () => [{ rms: 0.01, ms: 300 }, { rms: QUIET, ms: 200 }]).flat();
+    const { everOpened, state } = drive(pattern);
+    expect(everOpened).toBe(false);
+    expect(state.nearMissAt).toHaveLength(0);
+    expect(state.loweredUntil).toBe(0);
+  });
+
+  it("her own echo can never arm the lowered bar: 150 ms above-bar bursts stay under the near-miss minimum", () => {
+    // The pinned echo simulation (150 ms bursts, 100 ms gaps) runs
+    // 12 times: every burst is above the speaking bar yet below the
+    // 180 ms near-miss minimum, so repetition accumulates nothing.
+    expect(SPEECH_GATE_NEAR_MISS_MIN_MS).toBeGreaterThan(150);
+    const pattern = Array.from({ length: 12 }, () => [{ rms: LOUD, ms: 150 }, { rms: QUIET, ms: 100 }]).flat();
+    const { everOpened, state } = drive(pattern);
+    expect(everOpened).toBe(false);
+    expect(state.nearMissAt).toHaveLength(0);
+    expect(state.loweredUntil).toBe(0);
+  });
+
+  it("near-misses outside the window do not accumulate", () => {
+    // One near-miss, five quiet seconds (past the 4 s window), a
+    // second near-miss: the first has aged out, so the following
+    // 150 ms burst still faces the full sustain and fails.
+    const { everOpened, state } = drive([
+      { rms: NEAR, ms: 300 }, { rms: QUIET, ms: 5000 },
+      { rms: NEAR, ms: 300 }, { rms: QUIET, ms: 200 },
+      { rms: LOUD, ms: 150 }, { rms: QUIET, ms: 500 },
+    ]);
+    expect(everOpened).toBe(false);
+    expect(state.nearMissAt).toHaveLength(1);
+  });
+
+  it("the lowered bar lapses after its window: a later short burst faces the full sustain again", () => {
+    const { everOpened } = drive([
+      { rms: NEAR, ms: 300 }, { rms: QUIET, ms: 200 },
+      { rms: NEAR, ms: 300 }, { rms: QUIET, ms: 200 },
+      // She keeps speaking; the visitor waits out the lowered window.
+      { rms: QUIET, ms: SPEECH_GATE_LOWERED_WINDOW_MS + 1000 },
+      { rms: LOUD, ms: 150 }, { rms: QUIET, ms: 500 },
+    ]);
+    expect(everOpened).toBe(false);
+  });
+
+  it("the repetition state resets when she stops speaking", () => {
+    // Two near-misses arm the bar; she finishes her turn (speaking
+    // goes false) before the visitor's next burst — the earned
+    // lowering must not leak across her turn boundary.
+    const { everOpened, state } = drive([
+      { rms: NEAR, ms: 300 }, { rms: QUIET, ms: 200 },
+      { rms: NEAR, ms: 300 }, { rms: QUIET, ms: 200 },
+      { rms: QUIET, ms: 200, speaking: false },
+      { rms: LOUD, ms: 150 }, { rms: QUIET, ms: 500 },
+    ]);
+    expect(everOpened).toBe(false);
+    expect(state.nearMissAt).toHaveLength(0);
+    expect(state.loweredUntil).toBe(0);
+  });
+
+  it("once the gate opens, the repetition state clears — the interruption landed", () => {
+    const { everOpened, state } = drive([
+      { rms: NEAR, ms: 300 }, { rms: QUIET, ms: 200 },
+      { rms: NEAR, ms: 300 }, { rms: QUIET, ms: 200 },
+      { rms: LOUD, ms: 400 },
+    ]);
+    expect(everOpened).toBe(true);
+    expect(state.nearMissAt).toHaveLength(0);
+    expect(state.loweredUntil).toBe(0);
+  });
+});
+
 describe("pcmToBase64 (audio-path slim, 2026-11-20)", () => {
   it("is byte-identical to the old byte-by-byte btoa loop, including past one chunk", () => {
     const slow = (pcm: Int16Array) => {
