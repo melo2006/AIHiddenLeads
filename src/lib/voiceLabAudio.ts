@@ -86,30 +86,123 @@ export interface SpeechGateState {
    * frame timestamps are always >= 0, so -1 can never collide with a
    * run that legitimately starts at t=0). */
   runSince: number;
+  /** Repetition-aware barge-in (2026-11-25): when the current
+   * continuous above-NEAR-threshold run began while she speaks
+   * (-1 = no run). A run that ends without opening the gate is a
+   * near-miss burst; see SPEECH_GATE_NEAR_MISS_MIN_MS. */
+  nearRunSince: number;
+  /** Timestamps of the near-miss bursts counted inside the current
+   * window (SPEECH_GATE_NEAR_WINDOW_MS); pruned as they age out. */
+  nearMissAt: number[];
+  /** While `now` is before this deadline, the speaking sustain is
+   * lowered (SPEECH_GATE_LOWERED_SUSTAIN_MS): two or more near-miss
+   * bursts proved a determined interrupter, so the next burst gets
+   * through fast. 0 = bar at its normal height. */
+  loweredUntil: number;
 }
 
 export function createSpeechGateState(): SpeechGateState {
-  return { open: false, openUntil: 0, runSince: -1 };
+  return { open: false, openUntil: 0, runSince: -1, nearRunSince: -1, nearMissAt: [], loweredUntil: 0 };
 }
+
+// ---------------------------------------------------------------------------
+// REPETITION-AWARE BARGE-IN (2026-11-25, Ron approved "build both
+// fixes"): the 250 ms speaking sustain is the echo defence, but it
+// also defeats a DETERMINED interrupter whose attempts arrive as
+// repeated bursts — a word or two over her, a breath, another try —
+// each burst dying a few tens of ms short of the bar, the run reset
+// by every dip. The gate now LEARNS from repetition, only while she
+// speaks: a burst that sustains above the NEAR threshold (below the
+// speaking bar, far above room tone) for at least
+// SPEECH_GATE_NEAR_MISS_MIN_MS but ends without opening the gate
+// counts as one near-miss. TWO near-misses inside
+// SPEECH_GATE_NEAR_WINDOW_MS lower the speaking sustain to
+// SPEECH_GATE_LOWERED_SUSTAIN_MS for the next few seconds, so the
+// visitor's next burst interrupts her almost immediately.
+// Echo protection is preserved three ways: a SINGLE isolated
+// near-miss never lowers anything; bursts below the near threshold
+// never count; and the near-miss minimum (180 ms) sits ABOVE the
+// loud slices of her own playback in the pinned echo simulation
+// (150 ms bursts), so her echo can never arm the lowered bar no
+// matter how long it repeats. The lowered state resets the moment
+// she stops speaking, when its window lapses, and when the gate
+// opens (the interruption landed — the episode is over).
+// ---------------------------------------------------------------------------
+
+/** The near threshold while she speaks: speech-like energy clearly
+ * above room tone but below the speaking bar (0.6 × strong). Like
+ * the speaking bar itself it is filter-independent — a manually
+ * lightened filter must not lower what echo has to clear. */
+export const SPEECH_GATE_NEAR_THRESHOLD = noiseThresholds.strong * 0.6;
+/** A burst must sustain at least this long above the near threshold
+ * to count as a near-miss: word-length, not a click, a knock, or a
+ * slice of her own echo (her simulated echo bursts run 150 ms). */
+export const SPEECH_GATE_NEAR_MISS_MIN_MS = 180;
+/** Near-misses only accumulate inside this rolling window — two
+ * attempts a minute apart are not one determined interrupter. */
+export const SPEECH_GATE_NEAR_WINDOW_MS = 4000;
+/** How many near-misses inside the window lower the bar. One is an
+ * accident (a cough, a door, one echo swell); two is a person. */
+export const SPEECH_GATE_NEAR_MISS_COUNT = 2;
+/** The lowered speaking sustain once repetition is proven: the full
+ * strong level is still required — only the wait shrinks, into the
+ * approved ~80–100 ms band. */
+export const SPEECH_GATE_LOWERED_SUSTAIN_MS = 90;
+/** How long the lowered bar stays armed after the qualifying
+ * near-miss; after it lapses the full sustain applies again. */
+export const SPEECH_GATE_LOWERED_WINDOW_MS = 4000;
 
 /** Pure reducer: feed one frame's RMS. `speaking` is the caller's
  * composite "Aspen is generating or audibly playing right now" signal;
  * it raises the opening bar to SPEECH_GATE_SPEAKING_THRESHOLD and the
- * sustain to SPEECH_GATE_SPEAKING_SUSTAIN_MS. */
+ * sustain to SPEECH_GATE_SPEAKING_SUSTAIN_MS — lowered to
+ * SPEECH_GATE_LOWERED_SUSTAIN_MS while repetition has armed it
+ * (see the repetition-aware block above). */
 export function pushSpeechGateFrame(state: SpeechGateState, rms: number, filter: NoiseFilter, now: number, speaking: boolean): SpeechGateState {
   if (now < state.openUntil) {
     // Already open: an established turn extends on the plain send
     // threshold (speech tails dip; the hangover carries them), exactly
-    // the pre-hardening gate's close behavior.
+    // the pre-hardening gate's close behavior. The interruption the
+    // repetition state was tracking has landed (or a plain turn is
+    // under way): the near-miss bookkeeping resets.
     const openUntil = rms >= noiseThresholds[filter] ? now + 450 : state.openUntil;
-    return { open: true, openUntil, runSince: -1 };
+    return { open: true, openUntil, runSince: -1, nearRunSince: -1, nearMissAt: [], loweredUntil: 0 };
   }
-  const bar = speaking ? SPEECH_GATE_SPEAKING_THRESHOLD : Math.min(noiseThresholds[filter], SPEECH_GATE_OPENING_MAX);
-  if (rms < bar) return { open: false, openUntil: state.openUntil, runSince: -1 };
+  if (!speaking) {
+    // The visitor has the floor: the original opening bar/sustain,
+    // unchanged. Her speaking ending also resets the repetition
+    // state — a lowered bar earned against one utterance must not
+    // leak into the next one.
+    const bar = Math.min(noiseThresholds[filter], SPEECH_GATE_OPENING_MAX);
+    if (rms < bar) return { open: false, openUntil: state.openUntil, runSince: -1, nearRunSince: -1, nearMissAt: [], loweredUntil: 0 };
+    const runSince = state.runSince >= 0 ? state.runSince : now;
+    if (now - runSince >= SPEECH_GATE_SUSTAIN_MS) return { open: true, openUntil: now + 450, runSince: -1, nearRunSince: -1, nearMissAt: [], loweredUntil: 0 };
+    return { open: false, openUntil: state.openUntil, runSince, nearRunSince: -1, nearMissAt: [], loweredUntil: 0 };
+  }
+  // She is speaking. First the repetition bookkeeping: track the
+  // current above-near run, and when a run ends without the gate
+  // having opened, count it as a near-miss if it was word-length.
+  let nearRunSince = state.nearRunSince;
+  let nearMissAt = state.nearMissAt;
+  let loweredUntil = now < state.loweredUntil ? state.loweredUntil : 0;
+  if (rms >= SPEECH_GATE_NEAR_THRESHOLD) {
+    if (nearRunSince < 0) nearRunSince = now;
+  } else {
+    if (nearRunSince >= 0 && now - nearRunSince >= SPEECH_GATE_NEAR_MISS_MIN_MS) {
+      nearMissAt = [...nearMissAt.filter((t) => now - t < SPEECH_GATE_NEAR_WINDOW_MS), now];
+      if (nearMissAt.length >= SPEECH_GATE_NEAR_MISS_COUNT) {
+        loweredUntil = now + SPEECH_GATE_LOWERED_WINDOW_MS;
+        nearMissAt = [];
+      }
+    }
+    nearRunSince = -1;
+  }
+  const bar = SPEECH_GATE_SPEAKING_THRESHOLD;
+  if (rms < bar) return { open: false, openUntil: state.openUntil, runSince: -1, nearRunSince, nearMissAt, loweredUntil };
   const runSince = state.runSince >= 0 ? state.runSince : now;
-  const sustain = speaking ? SPEECH_GATE_SPEAKING_SUSTAIN_MS : SPEECH_GATE_SUSTAIN_MS;
-  if (now - runSince >= sustain) return { open: true, openUntil: now + 450, runSince: -1 };
-  return { open: false, openUntil: state.openUntil, runSince };
+  const sustain = loweredUntil > 0 ? SPEECH_GATE_LOWERED_SUSTAIN_MS : SPEECH_GATE_SPEAKING_SUSTAIN_MS;
+  if (now - runSince >= sustain) return { open: true, openUntil: now + 450, runSince: -1, nearRunSince: -1, nearMissAt: [], loweredUntil: 0 };
+  return { open: false, openUntil: state.openUntil, runSince, nearRunSince, nearMissAt, loweredUntil };
 }
 
 // ---------------------------------------------------------------------------
