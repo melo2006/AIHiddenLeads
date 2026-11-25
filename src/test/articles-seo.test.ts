@@ -78,6 +78,16 @@ describe("articles foundation (Phase 1 of the SEO program, 2026-11-23)", () => {
         expect(ld.author.name).toBe("AI Hidden Leads");
       });
 
+      it("carries a real header image with alt text, in the page, the fallback and the schema", () => {
+        expect(a.image).toMatch(/^\/articles\/[a-z0-9-]+\.webp$/);
+        expect(a.imageAlt.length).toBeGreaterThan(20);
+        expect(getArticle(a.slug)?.image).toBe(a.image);
+        expect(getArticle(a.slug)?.imageAlt).toBe(a.imageAlt);
+        expect(html).toContain(`<img src="${a.image}" alt="${escapeHtml(a.imageAlt)}" />`);
+        const ld = jsonLdOf(html, "data-article-schema");
+        expect(ld.image).toBe(`https://aihiddenleads.com${a.image}`);
+      });
+
       it("prerenders the FAQPage schema from the same Q&A the page shows", () => {
         const ld = jsonLdOf(html, "data-faq-schema");
         expect(ld["@type"]).toBe("FAQPage");
@@ -135,6 +145,7 @@ describe("articles foundation (Phase 1 of the SEO program, 2026-11-23)", () => {
     for (const a of ARTICLES) {
       expect(html).toContain(`<a href="${a.path}">${escapeHtml(a.headline)}</a>`);
       expect(html).toContain(escapeHtml(a.excerpt));
+      expect(html).toContain(`<img src="${a.image}" alt="${escapeHtml(a.imageAlt)}" />`);
     }
     expect(html).not.toContain("data-article-schema");
     expect(html).not.toContain("data-faq-schema");

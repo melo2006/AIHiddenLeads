@@ -84,6 +84,8 @@ function articleSeoRoutes() {
     ogDescription: a.description,
     heading: a.headline,
     summary: [a.excerpt],
+    image: a.image,
+    imageAlt: a.imageAlt,
     footerLinks: EN_FOOTER_LINKS,
     faqHeading: "Common questions",
     faq: a.faq,
@@ -377,6 +379,7 @@ export function seoBodyHtml(route) {
 export function seoArticleIndexHtml() {
   const items = ARTICLES.map(
     (a) => `          <article>
+            <p><img src="${escapeHtml(a.image)}" alt="${escapeHtml(a.imageAlt)}" /></p>
             <h2><a href="${escapeHtml(a.path)}">${escapeHtml(a.headline)}</a></h2>
             <p>${escapeHtml(a.excerpt)}</p>
             <p><time datetime="${a.datePublished}">${formatArticleDate(a.datePublished)}</time></p>
@@ -401,7 +404,10 @@ export function seoMainHtml(route) {
     .join(" · ");
   let content;
   if (route.body) {
-    content = seoBodyHtml(route);
+    const figure = route.image
+      ? `        <figure>\n          <img src="${escapeHtml(route.image)}" alt="${escapeHtml(route.imageAlt ?? "")}" />\n        </figure>\n`
+      : "";
+    content = `${figure}${seoBodyHtml(route)}`;
   } else if (route.articleIndex) {
     const paragraphs = route.summary.map((p) => `          <p>${escapeHtml(p)}</p>`).join("\n");
     content = `        <section>\n${paragraphs}\n        </section>\n${seoArticleIndexHtml()}`;
@@ -530,7 +536,7 @@ export function articleJsonLd(route) {
     "@type": "Article",
     headline: route.heading,
     description: route.description,
-    image: `${SEO_SITE_ORIGIN}/logo.png`,
+    image: route.image ? `${SEO_SITE_ORIGIN}${route.image}` : `${SEO_SITE_ORIGIN}/logo.png`,
     datePublished: route.article.datePublished,
     dateModified: route.article.dateModified,
     articleSection: route.article.section,
