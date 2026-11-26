@@ -356,6 +356,12 @@ export function seoBodyHtml(route) {
         return `          <h2>${escapeHtml(block.text)}</h2>`;
       case "list":
         return `          <ul>\n${block.items.map((i) => `            <li>${renderInlineHtml(i)}</li>`).join("\n")}\n          </ul>`;
+      case "stats":
+        // The mid-article stat panel (ArticleStatPanel on the React
+        // page): the program's two approved statistics, printed here as
+        // plain fallback facts so the crawler copy carries the same
+        // numbers the designed panel shows.
+        return `          <aside>\n            <p><strong>85%</strong> of callers who hit voicemail never call back.</p>\n            <p><strong>78%</strong> of customers abandoned a business after just one unanswered call.</p>\n          </aside>`;
       case "table": {
         const head = block.head.map((h) => `<th>${escapeHtml(h)}</th>`).join("");
         const rows = block.rows
@@ -379,8 +385,7 @@ export function seoBodyHtml(route) {
 export function seoArticleIndexHtml() {
   const items = ARTICLES.map(
     (a) => `          <article>
-            <p><img src="${escapeHtml(a.image)}" alt="${escapeHtml(a.imageAlt)}" /></p>
-            <h2><a href="${escapeHtml(a.path)}">${escapeHtml(a.headline)}</a></h2>
+${a.image ? `            <p><img src="${escapeHtml(a.image)}" alt="${escapeHtml(a.imageAlt ?? "")}" /></p>\n` : ""}            <h2><a href="${escapeHtml(a.path)}">${escapeHtml(a.headline)}</a></h2>
             <p>${escapeHtml(a.excerpt)}</p>
             <p><time datetime="${a.datePublished}">${formatArticleDate(a.datePublished)}</time></p>
           </article>`,

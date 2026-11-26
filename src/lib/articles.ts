@@ -8,7 +8,8 @@ import {
 export type ArticleBlock =
   | { type: "lead" | "p" | "h2"; text: string }
   | { type: "list"; items: string[] }
-  | { type: "table"; head: string[]; rows: string[][] };
+  | { type: "table"; head: string[]; rows: string[][] }
+  | { type: "stats" };
 
 export interface Article {
   slug: string;
@@ -17,8 +18,10 @@ export interface Article {
   seoTitle: string;
   description: string;
   excerpt: string;
-  image: string;
-  imageAlt: string;
+  // Optional: articles published by the daily cron may not have a hero
+  // image yet — every renderer must skip the image cleanly when absent.
+  image?: string;
+  imageAlt?: string;
   targetKeyword: string;
   datePublished: string;
   dateModified: string;

@@ -36,11 +36,13 @@ const ArticlePage = () => {
         <p className="text-sm text-muted-foreground mb-6">
           By AI Hidden Leads · {formatArticleDate(article.datePublished)} · {articleReadingMinutes(article)} min read
         </p>
-        <img
-          src={article.image}
-          alt={article.imageAlt}
-          className="w-full aspect-[16/9] object-cover rounded-xl mb-10"
-        />
+        {article.image && (
+          <img
+            src={article.image}
+            alt={article.imageAlt ?? ""}
+            className="w-full aspect-[16/9] object-cover rounded-xl mb-10"
+          />
+        )}
 
         <ArticleBody blocks={article.body} />
 
@@ -87,12 +89,14 @@ const ArticlePage = () => {
                   to={other.path}
                   className="flex items-start gap-4 rounded-lg border border-border p-5 hover:border-primary/40 transition-colors"
                 >
-                  <img
-                    src={other.image}
-                    alt={other.imageAlt}
-                    loading="lazy"
-                    className="hidden sm:block w-28 shrink-0 aspect-[16/9] object-cover rounded-md"
-                  />
+                  {other.image && (
+                    <img
+                      src={other.image}
+                      alt={other.imageAlt ?? ""}
+                      loading="lazy"
+                      className="hidden sm:block w-28 shrink-0 aspect-[16/9] object-cover rounded-md"
+                    />
+                  )}
                   <span>
                     <span className="block font-medium text-foreground mb-1">{other.headline}</span>
                     <span className="block text-sm text-muted-foreground leading-relaxed">{other.excerpt}</span>
