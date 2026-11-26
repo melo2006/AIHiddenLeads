@@ -13,7 +13,12 @@
 //
 // Body blocks: { type: "lead" | "p" | "h2", text } renders a paragraph or
 // heading; { type: "list", items } a bullet list; { type: "table", head,
-// rows } a comparison table. Inline links inside text use the light
+// rows } a comparison table; { type: "stats" } the designed mid-article
+// stat panel (the program's two approved statistics, rendered by both
+// consumers — see ArticleStatPanel / seoBodyHtml). The `image` /
+// `imageAlt` fields are OPTIONAL: an article without them renders
+// cleanly with no image (the daily article cron publishes pieces whose
+// hero image has not been made yet). Inline links inside text use the light
 // convention [label](/path) and are rendered as real anchors by both
 // consumers. Prices and plan facts are the site's verified ones; competitor
 // prices are the published ones documented in the 2026-11-23 audit
@@ -84,6 +89,7 @@ export const ARTICLES = [
         type: "p",
         text: "Prices change; check each provider's own site before you buy. The shape matters as much as the number: per-minute plans punish a busy month, per-customer pricing is hard to compare until you know your caller count, and included minutes only help if the plan also does the work you need — booking and answering real questions.",
       },
+      { type: "stats" },
       { type: "h2", text: "Do the per-minute math before you compare stickers" },
       {
         type: "p",
@@ -211,6 +217,7 @@ ARTICLES.push(
         type: "p",
         text: "If most of your calls look like that, hire the humans. Most small-business calls, though, are hours, prices, availability and booking — and for those, the differences run the other way.",
       },
+      { type: "stats" },
       { type: "h2", text: "Where an AI receptionist wins" },
       {
         type: "list",
@@ -312,6 +319,7 @@ ARTICLES.push(
         type: "p",
         text: "A chatbot is a text box: the visitor types, and too often gets a decision tree that ends at 'please call us.' A recorded video is a one-way presentation — polished, but it can't hear a question, let alone answer one about your prices. A live video avatar is a real-time conversation. Visitors can interrupt, ask follow-ups, and get answers drawn from your business's own information, spoken naturally by a person they can see. The face is not decoration; it's what makes people actually start the conversation.",
       },
+      { type: "stats" },
       { type: "h2", text: "Who it's for" },
       {
         type: "list",
@@ -388,6 +396,8 @@ ARTICLES.push(
       "A full-time receptionist costs $2,800–$3,800/mo in salary alone; an AI receptionist plan is $99/mo. The full cost stack, the coverage math, and an honest account of what a great human hire still does better.",
     excerpt:
       "Salary alone runs $2,800–$3,800 a month for a full-time receptionist — before taxes, benefits and one sick day. Here's the full cost stack next to a $99/mo AI plan, and where each one honestly wins.",
+    image: "/articles/ai-receptionist-vs-hiring-a-receptionist.webp",
+    imageAlt: "An empty receptionist desk in a bright office, a desk phone waiting unanswered",
     targetKeyword: "ai receptionist vs hiring a receptionist",
     datePublished: "2026-11-23",
     dateModified: "2026-11-23",
@@ -425,6 +435,7 @@ ARTICLES.push(
         type: "p",
         text: "A hire buys you one person, in one place, for one shift, having one conversation at a time. Calls that arrive at 7 PM, on a Sunday, during lunch, or while your receptionist is already talking to someone else do not get a worse receptionist — they get voicemail. For many service businesses, those are exactly the calls that matter: the homeowner with a leak searches and dials after dinner, not at 10 AM. The AI answers every one of them, instantly, at the same flat price — and when two people call at once, both get answered.",
       },
+      { type: "stats" },
       { type: "h2", text: "What a great human hire does better" },
       {
         type: "p",
@@ -496,6 +507,8 @@ ARTICLES.push(
       "A virtual receptionist is a real person working remotely who answers your phone; an AI receptionist is software that answers instantly, 24/7. Hours, knowledge, consistency and cost shapes compared — honestly.",
     excerpt:
       "Same job title, different worker: one is a real person at a remote desk, the other is software. How hours, knowledge, consistency and pricing really differ — and where the human is the right call.",
+    image: "/articles/ai-receptionist-vs-virtual-receptionist.webp",
+    imageAlt: "A virtual receptionist wearing a headset, working at a laptop in a home office",
     targetKeyword: "virtual receptionist ai",
     datePublished: "2026-11-23",
     dateModified: "2026-11-23",
@@ -544,6 +557,7 @@ ARTICLES.push(
         type: "p",
         text: "If that describes your call mix, hire the humans — a good virtual receptionist service is a real service, and pretending otherwise would be a poor way to sell you software.",
       },
+      { type: "stats" },
       { type: "h2", text: "Where the AI wins" },
       {
         type: "list",
@@ -597,6 +611,8 @@ ARTICLES.push(
       "There is no universal best AI receptionist — there is the one that passes your tests. The checklist: answer speed, business knowledge, booking, transfers, video presence and pricing traps, with published prices compared.",
     excerpt:
       "Skip the rankings list. The best AI receptionist is the one that passes your tests: a 9 PM call, your own prices, a real booking, a clean transfer. Here's the checklist, and the published prices.",
+    image: "/articles/best-ai-receptionist-for-small-business.webp",
+    imageAlt: "A small business owner at a desk, weighing his options beside a laptop and notebook",
     targetKeyword: "best ai receptionist for small business",
     datePublished: "2026-11-23",
     dateModified: "2026-11-23",
@@ -638,6 +654,7 @@ ARTICLES.push(
         type: "p",
         text: "On raw per-minute math, Rosie's higher tiers run lower than ours — our [price guide](/articles/ai-receptionist-cost) shows the arithmetic and says so plainly. What differs is the bundle and the shape: whether the entry price already includes booking, whether the same system covers your website by voice and chat, whether a video avatar exists at all, and whether prospect generation is part of the plan. 'Best' depends on which of those your business actually uses.",
       },
+      { type: "stats" },
       { type: "h2", text: "How to run the whole test in one afternoon" },
       {
         type: "list",

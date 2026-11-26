@@ -84,14 +84,30 @@ describe("articles foundation (Phase 1 of the SEO program, 2026-11-23)", () => {
         expect(ld.author.name).toBe("AI Hidden Leads");
       });
 
-      it("carries a real header image with alt text, in the page, the fallback and the schema", () => {
-        expect(a.image).toMatch(/^\/articles\/[a-z0-9-]+\.webp$/);
-        expect(a.imageAlt.length).toBeGreaterThan(20);
-        expect(getArticle(a.slug)?.image).toBe(a.image);
-        expect(getArticle(a.slug)?.imageAlt).toBe(a.imageAlt);
-        expect(html).toContain(`<img src="${a.image}" alt="${escapeHtml(a.imageAlt)}" />`);
-        const ld = jsonLdOf(html, "data-article-schema");
-        expect(ld.image).toBe(`https://aihiddenleads.com${a.image}`);
+      it("carries its header image (when it has one) in the page, the fallback and the schema — and renders cleanly without one", () => {
+        // The image field is OPTIONAL: the daily article cron publishes
+        // pieces whose hero image has not been made yet, and those must
+        // render with no broken image tag anywhere.
+        if (a.image) {
+          expect(a.image).toMatch(/^\/articles\/[a-z0-9-]+\.webp$/);
+          expect(a.imageAlt.length).toBeGreaterThan(20);
+          expect(getArticle(a.slug)?.image).toBe(a.image);
+          expect(getArticle(a.slug)?.imageAlt).toBe(a.imageAlt);
+          expect(html).toContain(`<img src="${a.image}" alt="${escapeHtml(a.imageAlt)}" />`);
+          const ld = jsonLdOf(html, "data-article-schema");
+          expect(ld.image).toBe(`https://aihiddenleads.com${a.image}`);
+        } else {
+          expect(html).not.toContain('src="undefined"');
+          expect(html).not.toContain("<figure>");
+          const ld = jsonLdOf(html, "data-article-schema");
+          expect(ld.image).toBe("https://aihiddenleads.com/logo.png");
+        }
+      });
+
+      it("prerenders the mid-article stat panel's two approved statistics", () => {
+        expect(a.body.filter((b) => b.type === "stats")).toHaveLength(1);
+        expect(html).toContain("<strong>85%</strong> of callers who hit voicemail never call back.");
+        expect(html).toContain("<strong>78%</strong> of customers abandoned a business after just one unanswered call.");
       });
 
       it("prerenders the FAQPage schema from the same Q&A the page shows", () => {
@@ -151,8 +167,12 @@ describe("articles foundation (Phase 1 of the SEO program, 2026-11-23)", () => {
     for (const a of ARTICLES) {
       expect(html).toContain(`<a href="${a.path}">${escapeHtml(a.headline)}</a>`);
       expect(html).toContain(escapeHtml(a.excerpt));
-      expect(html).toContain(`<img src="${a.image}" alt="${escapeHtml(a.imageAlt)}" />`);
+      // Card image only when the article has one (the field is optional).
+      if (a.image) {
+        expect(html).toContain(`<img src="${a.image}" alt="${escapeHtml(a.imageAlt)}" />`);
+      }
     }
+    expect(html).not.toContain('src="undefined"');
     expect(html).not.toContain("data-article-schema");
     expect(html).not.toContain("data-faq-schema");
   });

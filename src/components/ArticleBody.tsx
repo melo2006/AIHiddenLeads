@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import type { ArticleBlock } from "@/lib/articles";
+import ArticleStatPanel from "@/components/ArticleStatPanel";
 
 /**
  * Renders an article's structured body (scripts/articles-data.mjs) for the
@@ -61,6 +62,8 @@ export default function ArticleBody({ blocks }: { blocks: ArticleBlock[] }) {
                 {block.text}
               </h2>
             );
+          case "stats":
+            return <ArticleStatPanel key={i} />;
           case "list":
             return (
               <ul key={i} className="list-disc pl-6 space-y-2.5 mb-6 text-muted-foreground leading-relaxed">

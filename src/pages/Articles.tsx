@@ -35,12 +35,14 @@ const Articles = () => {
               to={article.path}
               className="flex flex-col rounded-xl border border-border p-6 hover:border-primary/40 transition-colors"
             >
-              <img
-                src={article.image}
-                alt={article.imageAlt}
-                loading="lazy"
-                className="w-full aspect-[16/9] object-cover rounded-lg mb-5"
-              />
+              {article.image && (
+                <img
+                  src={article.image}
+                  alt={article.imageAlt ?? ""}
+                  loading="lazy"
+                  className="w-full aspect-[16/9] object-cover rounded-lg mb-5"
+                />
+              )}
               <span className="text-xs text-muted-foreground mb-3">
                 {formatArticleDate(article.datePublished)} · {articleReadingMinutes(article)} min read
               </span>
