@@ -41,6 +41,7 @@ describe("articles foundation (Phase 1 of the SEO program, 2026-11-23)", () => {
       "ai-receptionist-vs-hiring-a-receptionist",
       "ai-receptionist-vs-virtual-receptionist",
       "best-ai-receptionist-for-small-business",
+      "aihiddenleads-vs-smith-ai",
     ]);
     for (const a of ARTICLES) {
       const words = articleWordCount(a);
