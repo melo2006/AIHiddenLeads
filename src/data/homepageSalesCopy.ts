@@ -13,7 +13,7 @@ const english: SalesCopy = {
   heroHeadlines: [
     [{ text: "One unanswered call can cost you 78% of customers." }],
     [{ text: "85% of " }, { text: "voicemail", accent: true }, { text: " callers never call back. They call your competitor." }],
-    [{ text: "67% of callers hang up when no real person answers." }],
+    [{ text: "82% of customers say they'd call a competitor if a business doesn't answer." }],
     [{ text: "78% of customers leave after " }, { text: "ONE", accent: true }, { text: " bad experience." }],
     [{ text: "Pick a live " }, { text: "spokesperson", accent: true }, { text: " — or use your own face." }],
     [{ text: "Never miss a call again. Aspen answers in seconds — 24/7." }],
