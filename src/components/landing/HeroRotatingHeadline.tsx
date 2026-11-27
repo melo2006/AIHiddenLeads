@@ -19,7 +19,7 @@ export const HERO_HEADLINE_LINES: ReadonlyArray<ReadonlyArray<HeadlineSegment>> 
     { text: "voicemail", accent: true },
     { text: " callers never call back. They call your competitor." },
   ],
-  [{ text: "67% of callers hang up when no real person answers." }],
+  [{ text: "82% of customers say they'd call a competitor if a business doesn't answer." }],
   [
     { text: "78% of customers leave after " },
     { text: "ONE", accent: true },
