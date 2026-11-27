@@ -1325,6 +1325,7 @@ const buildStructuredKnowledge = ({
   pageSummaries,
   webResearchContent,
   voiceSourceText,
+  voiceHeadlineText,
 }: {
   websiteUrl: string;
   profile: Awaited<ReturnType<typeof analyzeBusinessProfile>>;
@@ -1338,6 +1339,10 @@ const buildStructuredKnowledge = ({
    *  is generated). Absent → no VOICE IDENTITY section is stored;
    *  session composition still extracts at mint time. */
   voiceSourceText?: string;
+  /** The homepage's own raw copy, when the caller has it
+   *  separately: the stated line is read from the front door only,
+   *  never from a sub-page's title. */
+  voiceHeadlineText?: string;
 }) => {
   const nicheFallback = NICHE_FALLBACK_KNOWLEDGE[profile.detectedNiche] || NICHE_FALLBACK_KNOWLEDGE.general;
   const services = profile.serviceHighlights.length > 0 ? profile.serviceHighlights : nicheFallback.services;
@@ -1349,7 +1354,7 @@ const buildStructuredKnowledge = ({
   // session composition can parse it back. '' when the site states
   // nothing usable — an honest scan stores nothing.
   const voiceIdentityBlock = voiceSourceText
-    ? formatVoiceIdentitySection(extractVoiceIdentityFromCopy(voiceSourceText, profile.businessName, profile.toneKeywords))
+    ? formatVoiceIdentitySection(extractVoiceIdentityFromCopy(voiceSourceText, profile.businessName, profile.toneKeywords, voiceHeadlineText))
     : '';
 
   const sections = [
@@ -2011,6 +2016,7 @@ Deno.serve(async (req) => {
       homepageSummary,
       pageSummaries: successfulPages.map((p) => p.summary).filter(Boolean).slice(0, 6),
       voiceSourceText: [homepageMarkdown, combinedPageContent, secondaryContent].filter(Boolean).join('\n\n'),
+      voiceHeadlineText: homepageMarkdown,
     });
 
     const additionalContent = [
