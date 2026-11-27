@@ -56,6 +56,10 @@ describe("SEO route data (scripts/seo-routes.mjs — prerender + client source o
       "/articles/ai-receptionist-vs-virtual-receptionist",
       "/articles/best-ai-receptionist-for-small-business",
       "/articles/aihiddenleads-vs-smith-ai",
+      // City landing pages (2026-11-27): Fort Lauderdale first, then
+      // Dallas — generated from scripts/cities-data.mjs.
+      "/ai-receptionist/fort-lauderdale",
+      "/ai-receptionist/dallas",
     ]);
     // The client mirror must carry the same routes (both read the same file).
     expect(SEO_PAGE_HEADS.map((r) => r.path)).toEqual(routes.map((r) => r.path));

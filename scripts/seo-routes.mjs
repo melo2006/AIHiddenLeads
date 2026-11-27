@@ -25,6 +25,7 @@
 // visible surface in the same change.
 
 import { ARTICLES, formatArticleDate } from "./articles-data.mjs";
+import { CITIES } from "./cities-data.mjs";
 
 export const SEO_SITE_ORIGIN = "https://aihiddenleads.com";
 
@@ -95,6 +96,33 @@ function articleSeoRoutes() {
       dateModified: a.dateModified,
       section: "AI Receptionist Guides",
     },
+  }));
+}
+
+// One route per city landing page, generated from
+// scripts/cities-data.mjs with the same single-source discipline as the
+// articles: the head, the FAQPage schema and the full-body no-JS fallback
+// all carry the page's own wording. `localBusiness` is present ONLY on
+// a city the company can honestly claim a presence in (its real address
+// of record + the served market as areaServed); cities served remotely
+// carry none and declare FAQPage schema only.
+function citySeoRoutes() {
+  return CITIES.map((c) => ({
+    path: c.path,
+    canonical: `https://aihiddenleads.com${c.path}`,
+    title: c.seoTitle,
+    description: c.description,
+    ogTitle: c.seoTitle,
+    ogDescription: c.description,
+    heading: c.headline,
+    summary: [c.excerpt],
+    image: c.image,
+    imageAlt: c.imageAlt,
+    footerLinks: EN_FOOTER_LINKS,
+    faqHeading: "Common questions",
+    faq: c.faq,
+    body: c.body,
+    ...(c.localBusiness ? { localBusiness: c.localBusiness } : {}),
   }));
 }
 
@@ -302,6 +330,7 @@ export const SEO_ROUTES = [
   },
   ARTICLES_INDEX_ROUTE,
   ...articleSeoRoutes(),
+  ...citySeoRoutes(),
 ];
 
 export function seoRouteForPath(path) {
@@ -575,6 +604,59 @@ export function applyRouteArticle(html, route) {
   return out;
 }
 
+// Page-level LocalBusiness JSON-LD for city routes that carry one
+// (scripts/cities-data.mjs decides which — only a city with a real
+// presence, always the address of record, with the served market as
+// areaServed). The script tag carries data-localbusiness-schema so the
+// prerender can find and replace it, mirroring the data-faq-schema and
+// data-article-schema conventions. This is a page-level block, distinct
+// from the company-wide LocalBusiness record baked into index.html.
+export function localBusinessJsonLd(route) {
+  const lb = route.localBusiness;
+  return {
+    "@context": "https://schema.org",
+    "@type": "LocalBusiness",
+    "@id": `${route.canonical}#business`,
+    name: "AI Hidden Leads",
+    url: route.canonical,
+    description: route.description,
+    email: lb.email,
+    telephone: lb.telephone,
+    priceRange: lb.priceRange,
+    image: route.image ? `${SEO_SITE_ORIGIN}${route.image}` : `${SEO_SITE_ORIGIN}/logo.png`,
+    address: { "@type": "PostalAddress", ...lb.address },
+    areaServed: lb.areaServed,
+    openingHoursSpecification: {
+      "@type": "OpeningHoursSpecification",
+      dayOfWeek: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+      opens: "00:00",
+      closes: "23:59",
+    },
+  };
+}
+
+export function localBusinessSchemaScriptHtml(route) {
+  return `<script type="application/ld+json" data-localbusiness-schema>\n    ${JSON.stringify(localBusinessJsonLd(route), null, 2).replace(/\n/g, "\n    ")}\n  </script>`;
+}
+
+const LOCALBUSINESS_SCHEMA_PATTERN = /\s*<script type="application\/ld\+json" data-localbusiness-schema>[\s\S]*?<\/script>/;
+
+// Inject this route's page-level LocalBusiness block (city routes that
+// carry one only); every other route gets any stray block stripped, so
+// no page ever declares another page's local business record.
+export function applyRouteLocalBusiness(html, route) {
+  let out = html.replace(LOCALBUSINESS_SCHEMA_PATTERN, "");
+  if (route.localBusiness) {
+    if (!out.includes("</head>")) throw new Error("prerender-seo: could not find </head> for LocalBusiness schema");
+    // Function replacement, same $-pattern guard as applyRouteFaq.
+    out = out.replace("</head>", () => `  ${localBusinessSchemaScriptHtml(route)}\n</head>`);
+  }
+  return out;
+}
+
 export function buildRouteHtml(indexHtml, route) {
-  return applyRouteArticle(applyRouteFaq(applyRouteMain(applyRouteHead(indexHtml, route), route), route), route);
+  return applyRouteLocalBusiness(
+    applyRouteArticle(applyRouteFaq(applyRouteMain(applyRouteHead(indexHtml, route), route), route), route),
+    route,
+  );
 }
