@@ -124,7 +124,7 @@ export const ARTICLES = [
       },
       {
         type: "p",
-        text: "Deciding between software and a person? [AI receptionist vs hiring a receptionist](/articles/ai-receptionist-vs-hiring-a-receptionist) does that math, [AI receptionist vs virtual receptionist](/articles/ai-receptionist-vs-virtual-receptionist) covers the human remote option, and the [buyer's checklist](/articles/best-ai-receptionist-for-small-business) lists the tests to run before you choose.",
+        text: "Deciding between software and a person? [AI receptionist vs hiring a receptionist](/articles/ai-receptionist-vs-hiring-a-receptionist) does that math, [AI receptionist vs virtual receptionist](/articles/ai-receptionist-vs-virtual-receptionist) covers the human remote option, and the [buyer's checklist](/articles/best-ai-receptionist-for-small-business) lists the tests to run before you choose, plus the [Smith.ai comparison](/articles/aihiddenleads-vs-smith-ai).",
       },
     ],
     faq: [
@@ -245,7 +245,7 @@ ARTICLES.push(
       },
       {
         type: "p",
-        text: "Two comparisons owners ask about next: [AI receptionist vs hiring a receptionist](/articles/ai-receptionist-vs-hiring-a-receptionist), if the alternative is an employee, and [AI receptionist vs virtual receptionist](/articles/ai-receptionist-vs-virtual-receptionist), if it is a remote human service. Comparing AI providers themselves? The [buyer's checklist](/articles/best-ai-receptionist-for-small-business) lists what to test.",
+        text: "Two comparisons owners ask about next: [AI receptionist vs hiring a receptionist](/articles/ai-receptionist-vs-hiring-a-receptionist), if the alternative is an employee, and [AI receptionist vs virtual receptionist](/articles/ai-receptionist-vs-virtual-receptionist), if it is a remote human service. Comparing AI providers themselves? The [buyer's checklist](/articles/best-ai-receptionist-for-small-business) lists what to test, and the [Smith.ai comparison](/articles/aihiddenleads-vs-smith-ai) works through one pairing.",
       },
     ],
     faq: [
@@ -353,7 +353,7 @@ ARTICLES.push(
       },
       {
         type: "p",
-        text: "Comparing the alternatives first? [AI receptionist vs hiring a receptionist](/articles/ai-receptionist-vs-hiring-a-receptionist) does the employee math, [AI receptionist vs virtual receptionist](/articles/ai-receptionist-vs-virtual-receptionist) covers remote human services, and the [buyer's checklist](/articles/best-ai-receptionist-for-small-business) lists the tests any provider — us included — should pass.",
+        text: "Comparing the alternatives first? [AI receptionist vs hiring a receptionist](/articles/ai-receptionist-vs-hiring-a-receptionist) does the employee math, [AI receptionist vs virtual receptionist](/articles/ai-receptionist-vs-virtual-receptionist) covers remote human services, and the [buyer's checklist](/articles/best-ai-receptionist-for-small-business) lists the tests any provider — us included — should pass. One pairing worked through in full: [AiHiddenLeads vs Smith.ai](/articles/aihiddenleads-vs-smith-ai).",
       },
     ],
     faq: [
@@ -472,7 +472,7 @@ ARTICLES.push(
       },
       {
         type: "p",
-        text: "Run your own math against your own call volume, then watch the AI work before you decide: the [free live demo](/demo) puts Aspen on your own website in about 2 minutes, and the [buyer's checklist](/articles/best-ai-receptionist-for-small-business) lists the tests any provider should pass.",
+        text: "Run your own math against your own call volume, then watch the AI work before you decide: the [free live demo](/demo) puts Aspen on your own website in about 2 minutes, and the [buyer's checklist](/articles/best-ai-receptionist-for-small-business) lists the tests any provider should pass. Comparing AI providers head to head? See [AiHiddenLeads vs Smith.ai](/articles/aihiddenleads-vs-smith-ai).",
       },
     ],
     faq: [
@@ -576,7 +576,7 @@ ARTICLES.push(
       },
       {
         type: "p",
-        text: "Comparing the employee option instead? [AI receptionist vs hiring a receptionist](/articles/ai-receptionist-vs-hiring-a-receptionist) does that math. Comparing AI providers against each other? The [buyer's checklist](/articles/best-ai-receptionist-for-small-business) lists the tests to run, and the [2026 price guide](/articles/ai-receptionist-cost) compares published plans. Or skip the reading: the [free live demo](/demo) puts Aspen on your own website in about 2 minutes.",
+        text: "Comparing the employee option instead? [AI receptionist vs hiring a receptionist](/articles/ai-receptionist-vs-hiring-a-receptionist) does that math. Comparing AI providers against each other? The [buyer's checklist](/articles/best-ai-receptionist-for-small-business) lists the tests to run, and the [2026 price guide](/articles/ai-receptionist-cost) compares published plans. Or skip the reading: the [free live demo](/demo) puts Aspen on your own website in about 2 minutes. One provider pairing, worked through honestly: [AiHiddenLeads vs Smith.ai](/articles/aihiddenleads-vs-smith-ai).",
       },
     ],
     faq: [
@@ -672,7 +672,7 @@ ARTICLES.push(
       },
       {
         type: "p",
-        text: "Start with test eight: the [free live demo](/demo) puts Aspen on your own website — your pages, your services — in about 2 minutes, nothing installed. Then run the other seven tests on her, and on anyone else you're considering, and buy whoever passes. New to the category itself? The [comparison with a traditional answering service](/articles/ai-receptionist-vs-answering-service) explains what an AI receptionist replaces — and what it doesn't.",
+        text: "Start with test eight: the [free live demo](/demo) puts Aspen on your own website — your pages, your services — in about 2 minutes, nothing installed. Then run the other seven tests on her, and on anyone else you're considering, and buy whoever passes. New to the category itself? The [comparison with a traditional answering service](/articles/ai-receptionist-vs-answering-service) explains what an AI receptionist replaces — and what it doesn't. For one head-to-head pairing, see [AiHiddenLeads vs Smith.ai](/articles/aihiddenleads-vs-smith-ai).",
       },
     ],
     faq: [
@@ -695,6 +695,127 @@ ARTICLES.push(
       {
         q: "Can I try an AI receptionist on my own website before paying?",
         a: "With us, yes — that is the free live demo: Aspen builds a simulation on a preview of your actual website in about 2 minutes, nothing installed, nothing on your site changed. Judge her on your own pages and prices, then run the same tests on any other provider you're considering. A provider that won't demo on your site is asking you to buy on faith.",
+      },
+    ],
+  },
+);
+
+// Batch 3 (2026-11-27): article 7 of the 24-article program — the
+// Smith.ai comparison, first of the three honest comparison pages
+// queued in ~/workspace/seo/article-queue/. Same discipline: no
+// competitor prices invented (Smith.ai's per-call tiers are pointed
+// to their own site), their genuine human-layer strength conceded,
+// the site's verified plan facts, and the two approved statistics.
+ARTICLES.push(
+  {
+    slug: "aihiddenleads-vs-smith-ai",
+    path: "/articles/aihiddenleads-vs-smith-ai",
+    headline: "AiHiddenLeads vs Smith.ai: Which One Fits Your Business?",
+    seoTitle: "AiHiddenLeads vs Smith.ai: Which One Fits Your Business? | AI Hidden Leads",
+    description:
+      "AiHiddenLeads vs Smith.ai compared honestly: AI-only with a video avatar vs AI-plus-human receptionists, pricing models, and who each one suits.",
+    excerpt:
+      "Smith.ai pairs AI with human receptionists and charges per call; AiHiddenLeads is AI-only, flat-priced, and adds a live video avatar for your website. The honest comparison.",
+    targetKeyword: "aihiddenleads vs smith.ai",
+    datePublished: "2026-11-27",
+    dateModified: "2026-11-27",
+    body: [
+      {
+        type: "lead",
+        text: "Both services answer your business phone so callers never reach a dead end. The difference is who — or what — does the answering, and what else you get with it. Smith.ai built its name on a hybrid model: AI working alongside trained human receptionists. AiHiddenLeads is AI-only, and it adds something Smith.ai doesn't offer: the same AI that answers your phone also appears on your website as a live video avatar — a face your visitors can see and talk to, not just a voice or a chat box. Neither approach is automatically better; it depends on what your callers need and what you're paying for.",
+      },
+      { type: "h2", text: "What is the real difference between AiHiddenLeads and Smith.ai?" },
+      {
+        type: "p",
+        text: "Smith.ai has a strong reputation for call handling, live chat, and intake — especially for law firms and professional practices that want a human in the loop. AiHiddenLeads covers both front doors with one system: Aspen learns your business once and answers both the phone and the website, where visitors can see her as a [live video avatar](/articles/ai-receptionist-with-video-avatar), speak with her, get their questions answered, and book an appointment. One system, one flat price, two places your customers reach you.",
+      },
+      { type: "h2", text: "How does the pricing compare?" },
+      {
+        type: "p",
+        text: "Smith.ai prices by the call, with tiers that rise as your call volume grows, and human-staffed coverage costs more than AI-only handling — check their site for current per-call rates, because tiers and inclusions change. We won't put a number in their mouth here; their price page is the source.",
+      },
+      {
+        type: "p",
+        text: "AiHiddenLeads is a flat monthly price:",
+      },
+      {
+        type: "list",
+        items: [
+          "Premium: $99/mo with 400 minutes included — about 25 cents a minute.",
+          "Professional: $199/mo with 1,200 minutes, for heavier volume.",
+          "Video avatar add-on: $79/mo — and for new customers this month, the avatar is free for the first month and the setup fee is waived, so you can start for $99 out of pocket and decide about the face later.",
+        ],
+      },
+      {
+        type: "p",
+        text: "The honest way to compare: estimate your monthly call minutes. A business taking 30 short calls a day will burn through per-call tiers quickly; a business taking five complex intake calls a day may fit a per-call plan comfortably. Do your own math with your real call volume — and be suspicious of any comparison page, including this one, that skips that step. For the full breakdown of what answering coverage costs across every model, see our guide: [How much does an AI receptionist cost?](/articles/ai-receptionist-cost)",
+      },
+      { type: "h2", text: "What happens when a customer visits your website instead of calling?" },
+      {
+        type: "p",
+        text: "This is where the two services genuinely part company. Smith.ai offers website chat — text-based, with AI and human agents. If your visitors are happy typing, that works.",
+      },
+      {
+        type: "p",
+        text: "AiHiddenLeads puts a live video spokesperson on your site. She greets visitors by sight, answers questions about your services, prices, and service area out loud, qualifies the lead, and books the appointment — the same conversation she would have on the phone. For businesses whose customers skew older, or who simply don't type into chat boxes, a face and a voice get engagement that a chat widget doesn't.",
+      },
+      {
+        type: "p",
+        text: "Why does that matter? Because the callers you're worried about missing are only half the picture. The other half never call at all — they land on your website after hours, look around, and leave. 78% of customers have abandoned a business after just one unanswered attempt to reach it. A website visitor who gets no answer is an unanswered attempt.",
+      },
+      { type: "h2", text: "Which one learns your business better?" },
+      {
+        type: "p",
+        text: "Both services are configured around your business rather than reading a generic script — that's table stakes in this category now, and you should test any provider on it before paying.",
+      },
+      {
+        type: "p",
+        text: "AiHiddenLeads learns your business by scanning your actual website: your services, your prices, your hours, your service area. When your site changes, she can be refreshed. During a call she answers from that knowledge, books into your calendar, and takes contact details for follow-up.",
+      },
+      {
+        type: "p",
+        text: "Smith.ai's strength is the human layer: trained receptionists who can handle nuance, judgment calls, and multi-step intake with a person on the line. If your calls routinely involve sensitive judgment — legal intake is the classic example — a human in the loop is a real advantage, and we won't pretend otherwise. That is the same reason the [comparison with a virtual receptionist](/articles/ai-receptionist-vs-virtual-receptionist) and the [one with hiring a receptionist](/articles/ai-receptionist-vs-hiring-a-receptionist) both concede ground to humans where humans are better.",
+      },
+      {
+        type: "p",
+        text: "The trade-off is consistency and hours. An AI answers the same way at 2 p.m. and 2 a.m., never calls in sick, and never puts a caller on hold. 85% of callers who hit voicemail never call back — the most expensive call is the one nobody picks up, and both services exist to fix that. The question is which fix fits your callers.",
+      },
+      { type: "stats" },
+      { type: "h2", text: "What about after hours and weekends?" },
+      {
+        type: "p",
+        text: "Both cover 24/7 — that's the point of the category. AiHiddenLeads' coverage is the same AI, with the same knowledge, at every hour, included in the flat monthly price rather than billed as premium-time minutes. With hybrid services, confirm what after-hours coverage costs and whether a human or the AI answers at 11 p.m. on a Sunday; the answer varies by plan.",
+      },
+      { type: "h2", text: "So which should you choose?" },
+      {
+        type: "p",
+        text: "Choose Smith.ai if your calls need human judgment on the line, your industry expects a staffed intake process, and per-call pricing fits your volume. Choose AiHiddenLeads if you want one flat price, 24/7 coverage without per-call math, and — the deciding factor for most of our customers — a receptionist your website visitors can actually see. If your website gets traffic your phone never hears about, the video avatar is the difference.",
+      },
+      {
+        type: "p",
+        text: "Still deciding between models rather than brands? Our [AI receptionist vs virtual receptionist](/articles/ai-receptionist-vs-virtual-receptionist) and [AI receptionist vs answering service](/articles/ai-receptionist-vs-answering-service) guides lay out the categories without a sales pitch, and the [buyer's checklist](/articles/best-ai-receptionist-for-small-business) lists the tests to run on any provider, us included.",
+      },
+      {
+        type: "p",
+        text: "And the simplest test of all: you can see and talk to our receptionist on your own website, free, before you pay anything — try the [free live demo](/demo) or call 1-877-862-4949.",
+      },
+    ],
+    faq: [
+      {
+        q: "Is AiHiddenLeads a replacement for Smith.ai?",
+        a: "For businesses whose main need is answered calls plus an answered website, yes — it covers both in one flat-price service: Premium is $99/mo with 400 minutes included. For businesses that specifically need human receptionists handling judgment-heavy intake, Smith.ai's hybrid model may fit better. The honest answer depends on your call types, which is why both offer ways to test before committing.",
+      },
+      {
+        q: "Does Smith.ai have a video avatar?",
+        a: "No. Smith.ai offers phone answering and website chat. AiHiddenLeads is the one with a live video avatar on your website — a face visitors can see and talk to, powered by the same AI that answers your phone.",
+      },
+      {
+        q: "Which is cheaper, AiHiddenLeads or Smith.ai?",
+        a: "It depends on your volume. AiHiddenLeads is flat: $99/mo with 400 minutes included on Premium, $199/mo on Professional. Smith.ai charges per call, so a low-volume business may pay less there, while a high-volume business usually finds flat pricing cheaper and predictable. Run your own call count against both price pages.",
+      },
+      {
+        q: "Can I talk to AiHiddenLeads before buying?",
+        a: "Yes — that's the point of the demo. Visit the demo page to see her working on your own website, or call 1-877-862-4949 and talk to her on the phone. No card is required for the demo.",
       },
     ],
   },
