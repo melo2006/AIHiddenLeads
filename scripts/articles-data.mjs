@@ -716,6 +716,8 @@ ARTICLES.push(
       "AiHiddenLeads vs Smith.ai compared honestly: AI-only with a video avatar vs AI-plus-human receptionists, pricing models, and who each one suits.",
     excerpt:
       "Smith.ai pairs AI with human receptionists and charges per call; AiHiddenLeads is AI-only, flat-priced, and adds a live video avatar for your website. The honest comparison.",
+    image: "/articles/aihiddenleads-vs-smith-ai.webp",
+    imageAlt: "Two screens face off across a seam of light: a crowded call-center answering operation on one side, a single friendly video-avatar receptionist on the other",
     targetKeyword: "aihiddenleads vs smith.ai",
     datePublished: "2026-11-27",
     dateModified: "2026-11-27",
