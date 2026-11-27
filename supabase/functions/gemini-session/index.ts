@@ -28,6 +28,7 @@ import { capturedContactFromConfig, type CapturedContact } from '../_shared/capt
 import { priorRowLookupKeys, shouldRecoverPriorSession } from '../_shared/memory-bridge.ts';
 import { conversationalFactsFromConfig, extractConversationalFactsFromRecap, mergeConversationalFacts, type ConversationalFacts } from '../_shared/conversational-facts.ts';
 import { composeSessionKnowledge } from '../_shared/kb-distill.ts';
+import { extractVoiceIdentity, sanitizeVoiceIdentity, voiceIdentitySection } from '../_shared/voice-identity.ts';
 const personaSegmentSchema=z.object({persona:z.enum(['aspen','sara','alex','frank','latina','black-professional-lady','james','diego']),boundary:z.enum(['doorway','stepout','meet-alex','return','summon-aspen','intro-sara','intro-return-1','intro-alex','intro-return-2','offer-sara','offer-return']),parentSessionId:z.string().uuid(),swapRecap:z.string().max(8000),drops:z.number().int().min(0).max(99).default(0),dropRecovery:z.boolean().default(false),manualResume:z.boolean().default(false),swap:z.boolean().default(false),teamIntroSeen:z.boolean().default(false)});
 // SWAP DIAG (voice-first batch, 2026-11-10): the client posts a doorway
 // attempt's RESOLUTION (gate-abort, fallback, forced-execute,
@@ -373,7 +374,16 @@ Deno.serve(async req=>{
     // builds stay byte-identical.
     const practiceLayer=b.personaSegment.persona==='sara'?examplePracticeLayerForType((parent.examplePractice as {type?:unknown}|undefined)?.type):null;
     const listingsLayer=examplePack?{layer:buildExampleListingsLayer(examplePack)}:undefined;
-    const segmentLayer=[listingsLayer?.layer, practiceLayer].filter(Boolean).join('\n');
+    // VOICE IDENTITY → SARA (2026-11-27): the parent's stamped
+    // voiceIdentity (server-stored at the parent's own authorization
+    // — extracted there from the lead's stored knowledge, never
+    // client-supplied) rebuilds the same identity section for Sara's
+    // fresh-built segment prompt, riding in the same layer slot as
+    // the listings/practice layers. Sara only; a parent without the
+    // stamp (or with an empty record) passes nothing and its segment
+    // builds stay byte-identical.
+    const voiceIdentityLayer=b.personaSegment.persona==='sara'?voiceIdentitySection(sanitizeVoiceIdentity((parent as Record<string,unknown>).voiceIdentity),businessName):'';
+    const segmentLayer=[listingsLayer?.layer, practiceLayer, voiceIdentityLayer].filter(Boolean).join('\n');
     // PRESENTER PARENT (Alex handoff fix, 2026-11-14): when the parent
     // is a whole-demo presenter (its config carries the demoPresenter
     // stamp from its own authorization), Alex's guest prompt names
@@ -519,7 +529,17 @@ Deno.serve(async req=>{
     // their own name — is untouched, as is the call_history
     // caller_name record below (record-keeping, never spoken).
     const seededVisitorName = sanitizeVisitorName((b.sample === true ? '' : b.visitorName) || String(visitorContact.name || ''));
-    config={...(presenter ? businessDemoConfig(businessName,kbSlim.sessionKnowledge,{...(published ?? {}),name:presenter.displayName,voice:presenterVoice ?? presenter.voiceName,simulationPrompt:presenterSimulationPrompt(presenter, seededVisitorName)}) : swapEnabled ? businessDemoConfigSwapParent(businessName,kbSlim.sessionKnowledge,published) : businessDemoConfig(businessName,kbSlim.sessionKnowledge,published)), visitorContact, platformFollowup:true};
+    // PER-BUSINESS VOICE IDENTITY (2026-11-27): extract THIS
+    // business's own voice — its stated greeting/tagline, its own
+    // self-description phrasing, tone, signature phrases and
+    // customer terms — from the full stored knowledge THIS function
+    // fetched for the lead/prospect row (never from anything the
+    // client sent), and hand it to the composition through the
+    // identity record. A site that states nothing usable yields an
+    // empty record and the composition stays exactly as before.
+    const voiceIdentity=extractVoiceIdentity(knowledge,businessName);
+    const demoIdentity={...(published ?? {}),voiceIdentity};
+    config={...(presenter ? businessDemoConfig(businessName,kbSlim.sessionKnowledge,{...demoIdentity,name:presenter.displayName,voice:presenterVoice ?? presenter.voiceName,simulationPrompt:presenterSimulationPrompt(presenter, seededVisitorName)}) : swapEnabled ? businessDemoConfigSwapParent(businessName,kbSlim.sessionKnowledge,demoIdentity) : businessDemoConfig(businessName,kbSlim.sessionKnowledge,demoIdentity)), visitorContact, platformFollowup:true};
     // KB SLIM (Publish #85b): only a distilled session carries the
     // lookup stamp — the full text rides OUTSIDE the prompt (never
     // in sourceKnowledge) so the proxy can answer

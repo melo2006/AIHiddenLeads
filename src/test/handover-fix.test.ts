@@ -246,7 +246,13 @@ describe('5 — swap vs non-swap prompt composition', () => {
     // follows the argument's new name; the ternary it guards —
     // swap composition only when the swap family is armed — is the
     // same.
-    expect(geminiSession).toContain('businessDemoConfigSwapParent(businessName,kbSlim.sessionKnowledge,published) : businessDemoConfig(businessName,kbSlim.sessionKnowledge,published)');
+    // Voice identity (2026-11-27): the identity argument is now
+    // demoIdentity — the published snapshot merged with the
+    // per-business voiceIdentity extracted from the lead's stored
+    // knowledge. The pin follows again; the ternary is unchanged,
+    // and an empty voice record leaves the composition
+    // byte-identical (pinned in voice-identity.test.ts).
+    expect(geminiSession).toContain('businessDemoConfigSwapParent(businessName,kbSlim.sessionKnowledge,demoIdentity) : businessDemoConfig(businessName,kbSlim.sessionKnowledge,demoIdentity)');
     expect(geminiSession).toContain('swapEnabled ? DEMO_INVITE_OPENING_SWAP : DEMO_INVITE_OPENING');
   });
 });

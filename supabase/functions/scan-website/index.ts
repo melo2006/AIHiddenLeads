@@ -27,6 +27,7 @@ import { rehostScreenshotUrlWith } from '../_shared/screenshot-rehost.ts';
 import { detectContentLanguage } from '../_shared/content-language.ts';
 import { REALTOR_EXAMPLE_PINNED_LEADS } from '../_shared/realtor-example-pinned-leads.ts';
 import { B2B_EXAMPLE_PINNED_LEADS } from '../_shared/b2b-example-pinned-leads.ts';
+import { extractVoiceIdentityFromCopy, formatVoiceIdentitySection } from '../_shared/voice-identity.ts';
 
 const FIRECRAWL_BASE = 'https://api.firecrawl.dev/v1';
 const GOOGLE_AI_BASE = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
@@ -1323,17 +1324,33 @@ const buildStructuredKnowledge = ({
   homepageSummary,
   pageSummaries,
   webResearchContent,
+  voiceSourceText,
 }: {
   websiteUrl: string;
   profile: Awaited<ReturnType<typeof analyzeBusinessProfile>>;
   homepageSummary: string;
   pageSummaries: string[];
   webResearchContent?: string;
+  /** The raw scraped copy of the business's own pages, when the
+   *  caller has it: the voice-identity extraction reads the
+   *  business's own stated line, self-descriptions, signature
+   *  phrases and customer terms from it (evidence only — nothing
+   *  is generated). Absent → no VOICE IDENTITY section is stored;
+   *  session composition still extracts at mint time. */
+  voiceSourceText?: string;
 }) => {
   const nicheFallback = NICHE_FALLBACK_KNOWLEDGE[profile.detectedNiche] || NICHE_FALLBACK_KNOWLEDGE.general;
   const services = profile.serviceHighlights.length > 0 ? profile.serviceHighlights : nicheFallback.services;
   const trust = profile.trustSignals.length > 0 ? profile.trustSignals : nicheFallback.trust;
   const faqs = profile.faqs.length > 0 ? profile.faqs : nicheFallback.faqs;
+  // PER-BUSINESS VOICE IDENTITY (2026-11-27): the business's own
+  // voice, lifted verbatim from its own copy, stored as its own
+  // structured section so the KB distiller carries it verbatim and
+  // session composition can parse it back. '' when the site states
+  // nothing usable — an honest scan stores nothing.
+  const voiceIdentityBlock = voiceSourceText
+    ? formatVoiceIdentitySection(extractVoiceIdentityFromCopy(voiceSourceText, profile.businessName, profile.toneKeywords))
+    : '';
 
   const sections = [
     `BUSINESS NAME: ${profile.businessName}`,
@@ -1362,6 +1379,7 @@ const buildStructuredKnowledge = ({
     '=== TONE ===',
     ...profile.toneKeywords.map((item) => `- ${item}`),
     '',
+    ...(voiceIdentityBlock ? [voiceIdentityBlock, ''] : []),
     profile.competitors.length > 0 ? '=== KNOWN COMPETITORS ===' : '',
     ...profile.competitors.map((item) => `- ${item}`),
     '',
@@ -1478,6 +1496,7 @@ async function backgroundEnrich(
       homepageSummary,
       pageSummaries,
       webResearchContent,
+      voiceSourceText: existingContent,
     });
 
     const fullContent = truncate(
@@ -1991,6 +2010,7 @@ Deno.serve(async (req) => {
       profile,
       homepageSummary,
       pageSummaries: successfulPages.map((p) => p.summary).filter(Boolean).slice(0, 6),
+      voiceSourceText: [homepageMarkdown, combinedPageContent, secondaryContent].filter(Boolean).join('\n\n'),
     });
 
     const additionalContent = [
