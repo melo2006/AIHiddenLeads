@@ -1,3 +1,5 @@
+import { sanitizeVoiceIdentity, isEmptyVoiceIdentity, voiceIdentitySection } from './voice-identity.ts';
+
 export const VOICES = ['Zephyr','Puck','Charon','Kore','Fenrir','Leda','Orus','Aoede','Callirrhoe','Autonoe','Enceladus','Iapetus','Umbriel','Algieba','Despina','Erinome','Algenib','Rasalgethi','Laomedeia','Achernar','Alnilam','Schedar','Gacrux','Pulcherrima','Achird','Zubenelgenubi','Vindemiatrix','Sadachbia','Sadaltager','Sulafat'];
 export const DEMO_NOT_TOUCHED_REASSURANCE = 'Before we start: this is a mock-up layered over a copy of your site — we haven\'t touched your website or your server.';
 // ---------------------------------------------------------------------------
@@ -234,6 +236,19 @@ export const DEFAULT_AGENT = {
   knowledge: '', crawlDepth: 1, recordTranscript: false, transferPhone: '', transferManagerName: '', simulationGreeting: SIMULATION_GREETING, simulationPrompt: SIMULATION_PROMPT,
 };
 export function businessDemoConfig(businessName: string, knowledge: string, identity?: Record<string, unknown>) {
+  // PER-BUSINESS VOICE IDENTITY (2026-11-27): the identity record
+  // may carry a voiceIdentity — the business's own greeting/tagline,
+  // self-descriptions, tone, signature phrases and customer terms,
+  // extracted from ITS OWN scanned website copy (voice-identity.ts,
+  // evidence only). When present and non-empty it is woven into the
+  // composed system prompt as an identity section ahead of the
+  // simulation prompt, and stamped onto the config (so a persona
+  // segment authorization can rebuild the same section for Sara,
+  // the example-listings pattern). When absent or empty, NOTHING
+  // below changes: no section, no stamp — the composition stays
+  // byte-identical to before.
+  const voiceIdentity = sanitizeVoiceIdentity(identity?.voiceIdentity);
+  const voiceSection = voiceIdentitySection(voiceIdentity, businessName);
   return {
     ...DEFAULT_AGENT,
     name: String(identity?.name || DEFAULT_AGENT.name),
@@ -250,7 +265,8 @@ export function businessDemoConfig(businessName: string, knowledge: string, iden
     greetings: (Array.isArray(identity?.simulationGreetings) && identity.simulationGreetings.length ? identity.simulationGreetings.map(g => String(g || '')).filter(Boolean) : DEMO_SITE_GREETING_VARIANTS),
     simulation: true,
     sourceKnowledge: knowledge.slice(0, 160000),
-    systemPrompt: `You are the virtual customer-service assistant for ${businessName}. Use only facts supported by the supplied website and documents. Prefer original page evidence over generated summaries; questions are not evidence of answers. Never invent rates, policies or financial advice. If an answer is missing, say so. Keep replies natural and concise. ${SOUND_COMPLAINT_RULE}\n${String(identity?.simulationPrompt || SIMULATION_PROMPT)}`,
+    ...(isEmptyVoiceIdentity(voiceIdentity) ? {} : { voiceIdentity }),
+    systemPrompt: `You are the virtual customer-service assistant for ${businessName}. Use only facts supported by the supplied website and documents. Prefer original page evidence over generated summaries; questions are not evidence of answers. Never invent rates, policies or financial advice. If an answer is missing, say so. Keep replies natural and concise. ${SOUND_COMPLAINT_RULE}\n${voiceSection ? `${voiceSection}\n` : ''}${String(identity?.simulationPrompt || SIMULATION_PROMPT)}`,
   };
 }
 /** The swap-enabled demo parent's config: identical to
@@ -261,9 +277,15 @@ export function businessDemoConfig(businessName: string, knowledge: string, iden
  *  keeps businessDemoConfig byte-identical. */
 export function businessDemoConfigSwapParent(businessName: string, knowledge: string, identity?: Record<string, unknown>) {
   const base = businessDemoConfig(businessName, knowledge, identity);
+  // Voice identity (2026-11-27): the swap parent's prompt is rebuilt
+  // here, so the identity section is re-woven in the same position
+  // businessDemoConfig puts it — ahead of the swap-parent material.
+  // The base config's voiceIdentity stamp rides through the spread.
+  // Absent/empty identity → byte-identical to before.
+  const voiceSection = voiceIdentitySection(sanitizeVoiceIdentity(identity?.voiceIdentity), businessName);
   return {
     ...base,
-    systemPrompt: `You are the virtual customer-service assistant for ${businessName}. Use only facts supported by the supplied website and documents. Prefer original page evidence over generated summaries; questions are not evidence of answers. Never invent rates, policies or financial advice. If an answer is missing, say so. Keep replies natural and concise. ${SOUND_COMPLAINT_RULE}\n${SIMULATION_PROMPT_SWAP_PARENT}`,
+    systemPrompt: `You are the virtual customer-service assistant for ${businessName}. Use only facts supported by the supplied website and documents. Prefer original page evidence over generated summaries; questions are not evidence of answers. Never invent rates, policies or financial advice. If an answer is missing, say so. Keep replies natural and concise. ${SOUND_COMPLAINT_RULE}\n${voiceSection ? `${voiceSection}\n` : ''}${SIMULATION_PROMPT_SWAP_PARENT}`,
   };
 }
 export function timeGreeting(hour?: number) {
