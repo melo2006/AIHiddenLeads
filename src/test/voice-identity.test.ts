@@ -119,6 +119,80 @@ describe("extraction — evidence only, verbatim lifts", () => {
     expect(extractVoiceIdentity("{}", "X")).toEqual(emptyVoiceIdentity());
   });
 
+  it("lifts the business's own Welcome greeting out of a glued Firecrawl heading line", () => {
+    // The real stored shape (MoveToSFL.com's scan): heading, bold
+    // greeting and body copy glued into ONE line by the crawler.
+    const copy = [
+      "## Move To South Florida **Welcome to MoveToSFL.com — Your Trusted Guide to South Florida Living.** Whether you are buying, selling, or just exploring, start here.",
+      "",
+      "We help families find their place in the sun, from first tour to closing day.",
+    ].join("\n");
+    const v = extractVoiceIdentityFromCopy(copy, "Southern Florida Property Management LLC", [], copy);
+    expect(v.tagline).toBe("Welcome to MoveToSFL.com — Your Trusted Guide to South Florida Living.");
+  });
+
+  it("never promotes a sub-page title to the tagline", () => {
+    // Aurelia-shaped blob: the homepage states no headline; the
+    // ADDITIONAL pages carry scan-inserted ## page titles. None of
+    // them is the business's greeting.
+    const blob = [
+      "=== HOMEPAGE CONTENT ===",
+      "Aurelia Perez is a luxury realtor in Fort Lauderdale. She helps buyers and sellers across Broward County.",
+      "",
+      "=== ADDITIONAL WEBSITE CONTENT ===",
+      "SOURCE URL: https://www.aureliaperez.com/properties",
+      "## Properties — Luxury Homes in Broward County | Aurelia Perez Realtor",
+      "Browse current listings and recent sales.",
+    ].join("\n");
+    const v = extractVoiceIdentity(blob, "Aurelia Perez");
+    expect(v.tagline).toBeNull();
+  });
+
+  it("a customer's quoted words are not the business's self-description", () => {
+    const copy = [
+      "We are a family-run pool builder and we have designed backyards across South Florida for decades.",
+      "",
+      "## What Our Customers Say",
+      "",
+      "We received weekly progress reports from Armando, to keep us informed about future deliveries and construction progress.",
+      "",
+      "## Our Process",
+      "",
+      "We guide every project from the first sketch to the final walkthrough with the same small crew.",
+    ].join("\n");
+    const v = extractVoiceIdentityFromCopy(copy, "Essig Pools");
+    expect(v.selfDescriptions).toContain(
+      "We are a family-run pool builder and we have designed backyards across South Florida for decades.",
+    );
+    expect(v.selfDescriptions.join(" ")).not.toContain("progress reports from Armando");
+    expect(v.selfDescriptions).toContain(
+      "We guide every project from the first sketch to the final walkthrough with the same small crew.",
+    );
+  });
+
+  it("customer-voice shapes are excluded even without a review heading", () => {
+    const copy = [
+      "We design and build custom pools across South Florida for families who love their backyards.",
+      "We received weekly progress reports from Armando, to keep us informed about future deliveries and construction progress.",
+      "We hired them last spring and the crew finished ahead of schedule for our anniversary party.",
+    ].join("\n");
+    const v = extractVoiceIdentityFromCopy(copy, "Essig Pools");
+    expect(v.selfDescriptions).toEqual([
+      "We design and build custom pools across South Florida for families who love their backyards.",
+    ]);
+  });
+
+  it("signature phrases skip site chrome, the business name and shifted windows", () => {
+    const copy = [
+      "Photo Gallery Photo Gallery Photo Gallery — Essig Pools Essig Pools Essig Pools.",
+      "Crystal clear water all summer long is what every backyard deserves.",
+      "Crystal clear water all summer long, year after year in South Florida.",
+      "Crystal clear water all summer long for our guests and their families.",
+    ].join("\n");
+    const v = extractVoiceIdentityFromCopy(copy, "Essig Pools");
+    expect(v.signaturePhrases).toEqual(["Crystal Clear Water All Summer Long"]);
+  });
+
   it("sanitize drops junk, caps lists and collapses whitespace", () => {
     const v = sanitizeVoiceIdentity({
       tagline: "  A   real   line  ",
@@ -230,8 +304,9 @@ describe("composition — businessDemoConfig is the plug-in point", () => {
 
 describe("wiring — scan stores it, gemini-session composes from it", () => {
   it("scan-website extracts from the raw copy into the structured knowledge", () => {
-    expect(scanSource).toContain("extractVoiceIdentityFromCopy(voiceSourceText, profile.businessName, profile.toneKeywords)");
+    expect(scanSource).toContain("extractVoiceIdentityFromCopy(voiceSourceText, profile.businessName, profile.toneKeywords, voiceHeadlineText)");
     expect(scanSource).toContain("voiceSourceText: [homepageMarkdown, combinedPageContent, secondaryContent].filter(Boolean).join('\\n\\n')");
+    expect(scanSource).toContain("voiceHeadlineText: homepageMarkdown");
     expect(scanSource).toContain("voiceSourceText: existingContent");
   });
 

@@ -155,28 +155,25 @@ const RAW_PAGE_HEADERS: ReadonlySet<string> = new Set([
  *  chrome, legal/footer lines, and commerce UI words. */
 const BOILERPLATE_RE = /privacy|terms|copyright|cookie|rights reserved|sitemap|accessibility|newsletter|checkout|shopping cart|sign in|log in|menu|navigation/i;
 
-function headlineCandidate(rawMarkdown: string, businessName: string): string {
-  // 1) An explicit label wins: "Tagline: …" / "Slogan — …" stated
-  //    in the business's own copy.
-  for (const line of rawMarkdown.split('\n')) {
-    const m = line.match(/^\s*(?:[#>*\-•\s]*(?:tagline|slogan)\s*[:\-–—]\s*)(.+)$/i);
-    if (m) {
-      const v = cleanMarkdown(m[1]).replace(/^["“]|["”]$/g, '').trim();
-      if (v.length >= 8 && v.length <= MAX_TAGLINE_CHARS && !BOILERPLATE_RE.test(v)) return v;
-    }
-  }
-  // 2) Else the homepage's own headline — the line the business
-  //    itself puts at the top of its site. First pass: H1s only.
-  //    Second pass (sites whose hero is an H2): H1–H2 in document
-  //    order, with section-y headings ("Our Services", "About Us"…)
-  //    rejected. The bare business name alone is not a tagline, and
-  //    neither is site chrome; a "Welcome to …" headline IS the
-  //    business's own greeting and qualifies.
-  const headings: Array<{ level: number; text: string }> = [];
-  for (const line of rawMarkdown.split('\n')) {
-    const m = line.match(/^(#{1,2})\s+(.+)$/);
-    if (m) headings.push({ level: m[1].length, text: cleanMarkdown(m[2]).trim() });
-  }
+const SECTION_HEADING_RE = /^(our services|our products|about us|about|meet the team|meet|contact|services|products|properties|testimonials|reviews|gallery|blog|news|faq|frequently asked)\b/i;
+
+/**
+ * The business's own stated line, read from its HOMEPAGE copy only
+ * (the caller scopes the input: sub-page titles and other pages'
+ * headlines are never the business's greeting). Three evidence
+ * tiers, in order:
+ *   1. an explicit "Tagline:" / "Slogan:" label in its own copy;
+ *   2. its own "Welcome to …" greeting sentence — the greeting it
+ *      actually greets its visitors with;
+ *   3. its homepage headline (H1 first, then H2 with section-y
+ *      headings rejected). Firecrawl often GLUES the headline and
+ *      the copy after it into one line, so a heading's value is
+ *      its first segment (cut at the next inline heading marker)
+ *      or a bold span inside it.
+ * The bare business name alone is not a tagline, and neither is
+ * site chrome.
+ */
+function headlineCandidate(homepageCopy: string, businessName: string): string {
   const qualifies = (v: string): boolean => {
     const words = v.split(/\s+/).filter(Boolean);
     if (v.length < 10 || v.length > MAX_TAGLINE_CHARS) return false;
@@ -185,15 +182,66 @@ function headlineCandidate(rawMarkdown: string, businessName: string): string {
     if (BOILERPLATE_RE.test(v)) return false;
     return true;
   };
-  for (const h of headings) {
-    if (h.level === 1 && qualifies(h.text)) return h.text;
+  // 1) An explicit label wins.
+  for (const line of homepageCopy.split('\n')) {
+    const m = line.match(/^\s*(?:[#>*\-•\s]*(?:tagline|slogan)\s*[:\-–—]\s*)(.+)$/i);
+    if (m) {
+      const v = cleanMarkdown(m[1]).replace(/^["“]|["”]$/g, '').trim();
+      if (v.length >= 8 && v.length <= MAX_TAGLINE_CHARS && !BOILERPLATE_RE.test(v)) return v;
+    }
   }
-  const SECTION_HEADING_RE = /^(our services|our products|about us|about|meet the team|meet|contact|services|products|testimonials|reviews|gallery|blog|news|faq|frequently asked)\b/i;
+  // 2) Its own "Welcome to …" greeting sentence. (A dot followed
+  //    by a letter is a domain dot, not a sentence end.)
+  const plain = cleanMarkdown(homepageCopy).replace(/\*/g, '');
+  const welcome = plain.match(/welcome to\s(?:[^.!?\n]|\.(?=[a-z])){5,160}?(?:[.!?](?=\s|$)|$)/i);
+  if (welcome) {
+    const v = welcome[0].replace(/\s+/g, ' ').trim();
+    if (v.length >= 12 && v.length <= MAX_TAGLINE_CHARS && !BOILERPLATE_RE.test(v)) return v;
+  }
+  // 3) Homepage headlines, H1 pass then H1–H2 pass.
+  const headings: Array<{ level: number; values: string[] }> = [];
+  for (const line of homepageCopy.split('\n')) {
+    const m = line.match(/^(#{1,2})\s+(.+)$/);
+    if (!m) continue;
+    const segment = cleanMarkdown(m[2].split(/\s#{1,6}\s/)[0]).replace(/\*/g, '').trim();
+    const values = [segment];
+    for (const b of m[2].matchAll(/\*\*([^*]{10,160})\*\*/g)) {
+      values.push(cleanMarkdown(b[1]).replace(/\*/g, '').trim());
+    }
+    headings.push({ level: m[1].length, values });
+  }
   for (const h of headings) {
-    if (SECTION_HEADING_RE.test(h.text)) continue;
-    if (qualifies(h.text)) return h.text;
+    if (h.level !== 1) continue;
+    for (const v of h.values) if (qualifies(v)) return v;
+  }
+  for (const h of headings) {
+    for (const v of h.values) {
+      if (SECTION_HEADING_RE.test(v)) continue;
+      if (qualifies(v)) return v;
+    }
   }
   return '';
+}
+
+/** Drop review/testimonial blocks from the voice copy: a customer
+ *  quoted on the site speaks in the first person too, but their
+ *  words are not the business's own voice. Blocks run from a
+ *  review-ish heading to the next heading. */
+const REVIEW_HEADING_RE = /review|testimonial|what (our|clients|customers|people)|client stories|success stories/i;
+
+function dropReviewBlocks(cleanedText: string): string {
+  const out: string[] = [];
+  let inReview = false;
+  for (const line of cleanedText.split('\n')) {
+    const t = line.trim();
+    if (t.startsWith('#')) {
+      inReview = REVIEW_HEADING_RE.test(t);
+      if (!inReview) out.push(line);
+      continue;
+    }
+    if (!inReview) out.push(line);
+  }
+  return out.join('\n');
 }
 
 /** First-person sentences in the business's own voice: "We …",
@@ -215,6 +263,17 @@ function selfDescriptions(cleanedText: string, businessName: string): string[] {
     const s = raw.trim();
     if (s.length < 40 || s.length > MAX_SELF_DESCRIPTION_CHARS) continue;
     if (/https?:|@|cookie|privacy/i.test(s)) continue;
+    // A quote-led sentence is someone quoted ON the site (a review,
+    // a testimonial), not the business speaking for itself.
+    if (/^["“”'‘’]/.test(s)) continue;
+    // Glued crawler artifacts (a heading or icon fused into the
+    // line) are not sentences the business wrote as prose.
+    if (s.includes('#') || s.includes('→')) continue;
+    // Customer-voice shapes: "we" as the BUYER — we received
+    // reports from <staff name>, we hired / chose / called them.
+    // The business does not talk about itself that way.
+    if (/\bwe (received|got)\b[^.]*\bfrom\b/i.test(s)) continue;
+    if (/\bwe (hired|chose|selected|called|contacted|found)\b/i.test(s)) continue;
     const lower = s.toLowerCase();
     const firstPerson = /^we\b/.test(lower) || /\bwe (are|have|offer|provide|believe|know|treat|serve|help|specialize|pride|love|strive)\b/.test(lower)
       || /\bour (team|family|mission|goal|promise|commitment)\b/.test(lower)
@@ -244,35 +303,75 @@ const PHRASE_BOILERPLATE: ReadonlySet<string> = new Set([
   'subscribe', 'newsletter', 'checkout', 'cart', 'login', 'account',
   'search', 'results', 'page', 'website', 'site', 'designed',
   'powered', 'home', 'contact', 'about', 'services', 'service',
+  // Site chrome that repeats on every page (nav labels, link
+  // furniture) is not the business's voice either.
+  'gallery', 'photo', 'photos', 'tab', 'tabs', 'click', 'opens',
+  'blog', 'read', 'view', 'views', 'learn', 'discover', 'explore',
+  // URL / file-path fragments the crawler leaves in the copy.
+  'html', 'www', 'com', 'http', 'https', 'wp', 'php', 'index',
+  'jpg', 'png',
 ]);
 
-/** Short phrases the copy repeats verbatim (≥3 occurrences), with
- *  at least two real content words and no boilerplate or digits. */
-function signaturePhrases(cleanedText: string): string[] {
+/** Short phrases the copy repeats verbatim (≥3 occurrences on ≥2
+ *  distinct lines), with at least two real content words and no
+ *  boilerplate or digits. Phrases are counted INSIDE sentences —
+ *  a window sliding across a sentence boundary is a counting
+ *  artifact, not a phrase the business repeats. The business's
+ *  own name is not a signature phrase, and shifted windows of one
+ *  repetition collapse to a single maximal phrase. */
+function signaturePhrases(cleanedText: string, businessName: string, homepageText?: string): string[] {
   const counts = new Map<string, number>();
-  for (const line of cleanedText.split('\n')) {
-    const words = line.toLowerCase().replace(/[^a-z' ]+/g, ' ').split(/\s+/).filter(Boolean);
-    for (let n = 4; n <= 6; n++) {
-      for (let i = 0; i + n <= words.length; i++) {
-        const gram = words.slice(i, i + n);
-        if (gram.some((w) => PHRASE_BOILERPLATE.has(w))) continue;
-        const content = gram.filter((w) => !STOPWORDS.has(w));
-        if (content.length < 2) continue;
-        const key = gram.join(' ');
-        counts.set(key, (counts.get(key) || 0) + 1);
+  const lines = new Map<string, Set<number>>();
+  const nameKey = businessName.toLowerCase().replace(/[^a-z' ]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const collect = (text: string, onLine: (key: string, lineIdx: number) => void) => {
+    text.split('\n').forEach((rawLine, lineIdx) => {
+      for (const sentence of rawLine.split(/[.!?]+/)) {
+        const words = sentence.toLowerCase().replace(/[^a-z' ]+/g, ' ').split(/\s+/).filter(Boolean);
+        for (let n = 4; n <= 6; n++) {
+          for (let i = 0; i + n <= words.length; i++) {
+            const gram = words.slice(i, i + n);
+            if (gram.some((w) => PHRASE_BOILERPLATE.has(w))) continue;
+            const content = gram.filter((w) => !STOPWORDS.has(w));
+            if (content.length < 2) continue;
+            onLine(gram.join(' '), lineIdx);
+          }
+        }
       }
-    }
+    });
+  };
+  collect(cleanedText, (key, lineIdx) => {
+    counts.set(key, (counts.get(key) || 0) + 1);
+    let set = lines.get(key);
+    if (!set) { set = new Set(); lines.set(key, set); }
+    set.add(lineIdx);
+  });
+  // When the homepage copy is identifiable, a signature phrase
+  // must appear on the front door at least once — repetition that
+  // lives only in blog listings and sub-pages is content, not the
+  // business's signature.
+  let homepageGrams: Set<string> | null = null;
+  if (homepageText && homepageText.trim()) {
+    homepageGrams = new Set<string>();
+    collect(homepageText, (key) => { homepageGrams!.add(key); });
   }
   const candidates = [...counts.entries()]
-    .filter(([, c]) => c >= 3)
+    .filter(([key, c]) => c >= 3 && (lines.get(key)?.size ?? 0) >= 2 && !(nameKey.length > 3 && key.includes(nameKey)) && (!homepageGrams || homepageGrams.has(key)))
     .sort((a, b) => b[1] - a[1] || b[0].length - a[0].length);
-  const out: string[] = [];
+  const kept: string[] = [];
+  const keptWords: Array<Set<string>> = [];
   for (const [phrase] of candidates) {
-    if (out.some((p) => p.includes(phrase) || phrase.includes(p))) continue;
-    out.push(phrase.replace(/\b\w/g, (c) => c.toUpperCase()));
-    if (out.length >= MAX_SIGNATURE_PHRASES) break;
+    const words = new Set(phrase.split(' '));
+    const nearDuplicate = keptWords.some((kw) => {
+      let overlap = 0;
+      for (const w of words) if (kw.has(w)) overlap++;
+      return overlap >= 3 && overlap >= Math.min(words.size, kw.size) - 1;
+    });
+    if (nearDuplicate) continue;
+    kept.push(phrase);
+    keptWords.push(words);
+    if (kept.length >= MAX_SIGNATURE_PHRASES) break;
   }
-  return out;
+  return kept.map((p) => p.replace(/\b\w/g, (c) => c.toUpperCase()));
 }
 
 const CUSTOMER_NOUNS = [
@@ -301,11 +400,18 @@ function customerTerms(cleanedText: string): string[] {
  * Extract the voice identity from raw website copy (the scan-time
  * producer: scan-website passes the scraped markdown + the profile's
  * tone keywords). Deterministic; every value is a verbatim lift.
+ *
+ * `headlineCopy` is the business's homepage copy when the caller
+ * has it separately — the stated line is read from the front door
+ * only. Without it, the headline source is the copy up to the first
+ * sub-page block (scan-website prefixes sub-pages with SOURCE URL
+ * lines; everything before the first is the homepage).
  */
 export function extractVoiceIdentityFromCopy(
   rawCopy: string,
   businessName: string,
   toneKeywords?: string[],
+  headlineCopy?: string,
 ): VoiceIdentity {
   if (!rawCopy || !rawCopy.trim()) {
     return sanitizeVoiceIdentity({ toneCues: toneKeywords ?? [] });
@@ -316,13 +422,17 @@ export function extractVoiceIdentityFromCopy(
   const withoutOwnSection = rawCopy
     .replace(/=== VOICE IDENTITY ===[\s\S]*?(?=\n=== |\n--- |$)/, '')
     .replace(/^(Stated line|Self-description|Signature phrases|Calls its customers):.*$/gm, '');
+  const headlineSource = headlineCopy ?? withoutOwnSection.split(/^SOURCE URL:.*$/m)[0];
   const cleaned = cleanMarkdown(withoutOwnSection);
+  // Review/testimonial blocks are dropped from the voice copy: a
+  // customer quoted on the site is not the business's own voice.
+  const voiceCopy = dropReviewBlocks(cleaned);
   return sanitizeVoiceIdentity({
-    tagline: headlineCandidate(withoutOwnSection, businessName) || null,
-    selfDescriptions: selfDescriptions(cleaned, businessName),
+    tagline: headlineCandidate(headlineSource, businessName) || null,
+    selfDescriptions: selfDescriptions(voiceCopy, businessName),
     toneCues: toneKeywords ?? [],
-    signaturePhrases: signaturePhrases(cleaned),
-    customerTerms: customerTerms(cleaned),
+    signaturePhrases: signaturePhrases(voiceCopy, businessName, headlineCopy ? dropReviewBlocks(cleanMarkdown(headlineCopy)) : undefined),
+    customerTerms: customerTerms(voiceCopy),
   });
 }
 
@@ -394,7 +504,11 @@ export function extractVoiceIdentity(knowledge: string, businessName: string): V
   const rawParts = sections.filter((s) => RAW_PAGE_HEADERS.has(s.header)).map((s) => s.body);
   const tone = toneSectionKeywords(knowledge);
   if (rawParts.length) {
-    return extractVoiceIdentityFromCopy(rawParts.join('\n\n'), businessName, tone);
+    // The stated line comes from the HOMEPAGE section alone when
+    // the blob carries one — other pages' titles are not the
+    // business's greeting.
+    const homepageBody = sections.find((s) => s.header === 'HOMEPAGE CONTENT')?.body;
+    return extractVoiceIdentityFromCopy(rawParts.join('\n\n'), businessName, tone, homepageBody);
   }
   if (sections.length <= 1) {
     return extractVoiceIdentityFromCopy(knowledge, businessName, tone);
