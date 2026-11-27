@@ -2,12 +2,18 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { FILMS } from "../components/landing/FilmGallery";
+import {
+  CHAPTER_LEAD_IN_SECONDS,
+  FILMS,
+  INTRO_CHAPTERS,
+  INTRO_FILM,
+  chapterSeekSeconds,
+} from "../components/landing/FilmGallery";
 
 const read = (rel: string) => readFileSync(resolve(__dirname, "..", rel), "utf8");
 
 describe("film gallery data (2026-11-20)", () => {
-  it("carries the six testimonial films, Frank & his wife's story in the spotlight slot (Ron, 2026-11-22: the hairy Frank is THE Frank; the solo cut was a different man and left the gallery)", () => {
+  it("carries the six testimonial films, Frank & his wife's story leading the row (Ron, 2026-11-22: the hairy Frank is THE Frank; the solo cut was a different man and left the gallery. Ron, 2026-11-27: the intro film took the top slot and Frank & Susan moved down into the row)", () => {
     expect(FILMS).toHaveLength(6);
     expect(FILMS[0].slug).toBe("frank-pool-dialogue");
     expect(FILMS.map((f) => f.slug)).toEqual([
@@ -40,6 +46,70 @@ describe("film gallery data (2026-11-20)", () => {
       expect(film.runtime).toMatch(/^\d+:\d{2}$/);
       expect(film.blurb.length).toBeGreaterThan(20);
     }
+  });
+});
+
+describe("intro film spotlight + chapter index (Ron, 2026-11-27)", () => {
+  it("the intro film is its own top-slot entry, not a catalogue film", () => {
+    expect(INTRO_FILM.slug).toBe("aspen-intro");
+    expect(INTRO_FILM.youtubeId).toBe("ls4E4dKRybA");
+    expect(INTRO_FILM.youtubeId).toMatch(/^[\w-]{11}$/);
+    expect(INTRO_FILM.poster).toBe("/videos/testimonials/aspen-intro.jpg");
+    expect(INTRO_FILM.runtime).toBe("6:44");
+    expect(INTRO_FILM.title).toContain("Meet Aspen");
+    expect(FILMS.map((f) => f.slug)).not.toContain(INTRO_FILM.slug);
+    expect(FILMS.map((f) => f.youtubeId)).not.toContain(INTRO_FILM.youtubeId);
+  });
+
+  it("the chapter index carries the chapters Ron named, at the V7.7 times", () => {
+    const byLabel = new Map(INTRO_CHAPTERS.map((c) => [c.label, c]));
+    expect(byLabel.get("Frank's story")?.time).toBe("0:07");
+    expect(byLabel.get("Dave's story")?.time).toBe("0:57");
+    expect(byLabel.get("The 85% number")?.time).toBe("0:45");
+    expect(byLabel.get("The 78% number")?.time).toBe("2:18");
+    expect(byLabel.get("Choose your spokesperson")?.time).toBe("4:59");
+    expect(byLabel.get("Pricing")?.time).toBe("5:07");
+    expect(byLabel.get("Meet Alex — support & onboarding")?.time).toBe("5:39");
+    expect(byLabel.get("The close")?.time).toBe("5:58");
+    // Display time and startSeconds must agree, in film order, and
+    // every chapter gets one plain description sentence.
+    let prev = -1;
+    for (const chapter of INTRO_CHAPTERS) {
+      const expectedTime = `${Math.floor(chapter.startSeconds / 60)}:${String(
+        chapter.startSeconds % 60,
+      ).padStart(2, "0")}`;
+      expect(chapter.time).toBe(expectedTime);
+      expect(chapter.startSeconds).toBeGreaterThan(prev);
+      prev = chapter.startSeconds;
+      expect(chapter.description.length).toBeGreaterThan(20);
+    }
+    expect(INTRO_CHAPTERS[0].startSeconds).toBe(0);
+  });
+
+  it("a chapter tap lands ~2s before the chapter, clamped at 0", () => {
+    expect(CHAPTER_LEAD_IN_SECONDS).toBe(2);
+    expect(chapterSeekSeconds(0)).toBe(0);
+    expect(chapterSeekSeconds(7)).toBe(5);
+    expect(chapterSeekSeconds(138)).toBe(136);
+    expect(chapterSeekSeconds(358)).toBe(356);
+  });
+
+  it("the intro renders at the top of the section, above the testimonial row, with its chapter index and the watch-it-whole line", () => {
+    const section = read("components/landing/FilmGallery.tsx");
+    const intro = section.indexOf("<IntroSpotlight");
+    const row = section.indexOf("data-film-gallery-scroll");
+    expect(intro).toBeGreaterThan(-1);
+    expect(row).toBeGreaterThan(intro);
+    expect(section).toContain("data-intro-spotlight");
+    expect(section).toContain("data-intro-chapters");
+    expect(section).toContain("data-intro-chapter={chapter.startSeconds}");
+    expect(section).toContain("best\n          watched whole");
+    // The seek: the intro embed remounts with &start= at the lead-in.
+    expect(section).toContain(
+      "https://www.youtube-nocookie.com/embed/${INTRO_FILM.youtubeId}?autoplay=1&playsinline=1&rel=0",
+    );
+    expect(section).toContain("&start=${startSeconds}");
+    expect(section).toContain("onSeekChapter(chapter.startSeconds)");
   });
 });
 
