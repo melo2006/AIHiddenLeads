@@ -30,6 +30,7 @@ describe("public sitemap.xml", () => {
       "https://aihiddenleads.com/articles/ai-receptionist-vs-hiring-a-receptionist",
       "https://aihiddenleads.com/articles/ai-receptionist-vs-virtual-receptionist",
       "https://aihiddenleads.com/articles/best-ai-receptionist-for-small-business",
+      "https://aihiddenleads.com/articles/aihiddenleads-vs-smith-ai",
     ]);
   });
 
