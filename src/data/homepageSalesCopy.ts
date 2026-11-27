@@ -47,7 +47,7 @@ const spanish: SalesCopy = {
   heroHeadlines: [
     [{ text: "Una llamada sin respuesta te cuesta el 78% de tus clientes." }],
     [{ text: "El 85% de los que caen en el " }, { text: "buzón de voz", accent: true }, { text: " no vuelve a llamar. Llaman a tu competencia." }],
-    [{ text: "El 67% de los que llaman cuelga cuando nadie real contesta." }],
+    [{ text: "El 82% de los clientes dice que llamaría a un competidor si una empresa no contesta." }],
     [{ text: "El 78% de los clientes se va tras " }, { text: "UNA", accent: true }, { text: " mala experiencia." }],
     [{ text: "Elige un " }, { text: "portavoz", accent: true }, { text: " en vivo — o usa tu propio rostro." }],
     [{ text: "No pierdas ni una llamada más. Aspen responde en segundos — 24/7." }],
@@ -78,7 +78,7 @@ const portuguese: SalesCopy = {
   heroHeadlines: [
     [{ text: "Uma chamada não atendida pode custar 78% dos seus clientes." }],
     [{ text: "85% de quem cai na " }, { text: "caixa postal", accent: true }, { text: " não liga de volta. Liga para o concorrente." }],
-    [{ text: "67% de quem liga desliga quando ninguém de verdade atende." }],
+    [{ text: "82% dos clientes dizem que ligariam para um concorrente se uma empresa não atender." }],
     [{ text: "78% dos clientes vão embora após " }, { text: "UMA", accent: true }, { text: " má experiência." }],
     [{ text: "Escolha um " }, { text: "porta-voz", accent: true }, { text: " ao vivo — ou use seu próprio rosto." }],
     [{ text: "Nunca mais perca uma chamada. A Aspen atende em segundos — 24/7." }],
@@ -111,7 +111,7 @@ const french: SalesCopy = {
   heroHeadlines: [
     [{ text: "Un seul appel sans réponse — et 78 % des clients partent." }],
     [{ text: "Boîte vocale", accent: true }, { text: " : 85 % des appelants ne rappellent jamais. Ils appellent votre concurrent." }],
-    [{ text: "Pas de vraie personne? 67 % des appelants raccrochent." }],
+    [{ text: "82 % des clients disent qu'ils appelleraient un concurrent si une entreprise ne répond pas." }],
     [{ text: "78 % des clients partent après " }, { text: "UNE", accent: true }, { text: " mauvaise expérience." }],
     [{ text: "Choisissez un " }, { text: "porte-parole", accent: true }, { text: " en direct — ou votre visage." }],
     [{ text: "Plus aucun appel manqué. Aspen répond en quelques secondes — 24/7." }],
