@@ -101,6 +101,12 @@
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
+  <url>
+    <loc>https://aihiddenleads.com/articles/aihiddenleads-vs-rosie</loc>
+    <lastmod>2026-11-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
   <!-- City landing pages (2026-11-27): Fort Lauderdale first, then
        Dallas — pre-rendered from scripts/cities-data.mjs like the
        articles. -->

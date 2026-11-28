@@ -124,7 +124,7 @@ export const ARTICLES = [
       },
       {
         type: "p",
-        text: "Deciding between software and a person? [AI receptionist vs hiring a receptionist](/articles/ai-receptionist-vs-hiring-a-receptionist) does that math, [AI receptionist vs virtual receptionist](/articles/ai-receptionist-vs-virtual-receptionist) covers the human remote option, and the [buyer's checklist](/articles/best-ai-receptionist-for-small-business) lists the tests to run before you choose, plus the [Smith.ai comparison](/articles/aihiddenleads-vs-smith-ai).",
+        text: "Deciding between software and a person? [AI receptionist vs hiring a receptionist](/articles/ai-receptionist-vs-hiring-a-receptionist) does that math, [AI receptionist vs virtual receptionist](/articles/ai-receptionist-vs-virtual-receptionist) covers the human remote option, and the [buyer's checklist](/articles/best-ai-receptionist-for-small-business) lists the tests to run before you choose, plus the [Smith.ai comparison](/articles/aihiddenleads-vs-smith-ai) and the [Rosie comparison](/articles/aihiddenleads-vs-rosie).",
       },
     ],
     faq: [
@@ -245,7 +245,7 @@ ARTICLES.push(
       },
       {
         type: "p",
-        text: "Two comparisons owners ask about next: [AI receptionist vs hiring a receptionist](/articles/ai-receptionist-vs-hiring-a-receptionist), if the alternative is an employee, and [AI receptionist vs virtual receptionist](/articles/ai-receptionist-vs-virtual-receptionist), if it is a remote human service. Comparing AI providers themselves? The [buyer's checklist](/articles/best-ai-receptionist-for-small-business) lists what to test, and the [Smith.ai comparison](/articles/aihiddenleads-vs-smith-ai) works through one pairing.",
+        text: "Two comparisons owners ask about next: [AI receptionist vs hiring a receptionist](/articles/ai-receptionist-vs-hiring-a-receptionist), if the alternative is an employee, and [AI receptionist vs virtual receptionist](/articles/ai-receptionist-vs-virtual-receptionist), if it is a remote human service. Comparing AI providers themselves? The [buyer's checklist](/articles/best-ai-receptionist-for-small-business) lists what to test, and two comparisons work through specific pairings: [AiHiddenLeads vs Smith.ai](/articles/aihiddenleads-vs-smith-ai) and [AiHiddenLeads vs Rosie](/articles/aihiddenleads-vs-rosie).",
       },
     ],
     faq: [
@@ -353,7 +353,7 @@ ARTICLES.push(
       },
       {
         type: "p",
-        text: "Comparing the alternatives first? [AI receptionist vs hiring a receptionist](/articles/ai-receptionist-vs-hiring-a-receptionist) does the employee math, [AI receptionist vs virtual receptionist](/articles/ai-receptionist-vs-virtual-receptionist) covers remote human services, and the [buyer's checklist](/articles/best-ai-receptionist-for-small-business) lists the tests any provider — us included — should pass. One pairing worked through in full: [AiHiddenLeads vs Smith.ai](/articles/aihiddenleads-vs-smith-ai).",
+        text: "Comparing the alternatives first? [AI receptionist vs hiring a receptionist](/articles/ai-receptionist-vs-hiring-a-receptionist) does the employee math, [AI receptionist vs virtual receptionist](/articles/ai-receptionist-vs-virtual-receptionist) covers remote human services, and the [buyer's checklist](/articles/best-ai-receptionist-for-small-business) lists the tests any provider — us included — should pass. Two pairings worked through in full: [AiHiddenLeads vs Smith.ai](/articles/aihiddenleads-vs-smith-ai) and [AiHiddenLeads vs Rosie](/articles/aihiddenleads-vs-rosie).",
       },
     ],
     faq: [
@@ -472,7 +472,7 @@ ARTICLES.push(
       },
       {
         type: "p",
-        text: "Run your own math against your own call volume, then watch the AI work before you decide: the [free live demo](/demo) puts Aspen on your own website in about 2 minutes, and the [buyer's checklist](/articles/best-ai-receptionist-for-small-business) lists the tests any provider should pass. Comparing AI providers head to head? See [AiHiddenLeads vs Smith.ai](/articles/aihiddenleads-vs-smith-ai).",
+        text: "Run your own math against your own call volume, then watch the AI work before you decide: the [free live demo](/demo) puts Aspen on your own website in about 2 minutes, and the [buyer's checklist](/articles/best-ai-receptionist-for-small-business) lists the tests any provider should pass. Comparing AI providers head to head? See [AiHiddenLeads vs Smith.ai](/articles/aihiddenleads-vs-smith-ai) and [AiHiddenLeads vs Rosie](/articles/aihiddenleads-vs-rosie).",
       },
     ],
     faq: [
@@ -576,7 +576,7 @@ ARTICLES.push(
       },
       {
         type: "p",
-        text: "Comparing the employee option instead? [AI receptionist vs hiring a receptionist](/articles/ai-receptionist-vs-hiring-a-receptionist) does that math. Comparing AI providers against each other? The [buyer's checklist](/articles/best-ai-receptionist-for-small-business) lists the tests to run, and the [2026 price guide](/articles/ai-receptionist-cost) compares published plans. Or skip the reading: the [free live demo](/demo) puts Aspen on your own website in about 2 minutes. One provider pairing, worked through honestly: [AiHiddenLeads vs Smith.ai](/articles/aihiddenleads-vs-smith-ai).",
+        text: "Comparing the employee option instead? [AI receptionist vs hiring a receptionist](/articles/ai-receptionist-vs-hiring-a-receptionist) does that math. Comparing AI providers against each other? The [buyer's checklist](/articles/best-ai-receptionist-for-small-business) lists the tests to run, and the [2026 price guide](/articles/ai-receptionist-cost) compares published plans. Or skip the reading: the [free live demo](/demo) puts Aspen on your own website in about 2 minutes. Two provider pairings, worked through honestly: [AiHiddenLeads vs Smith.ai](/articles/aihiddenleads-vs-smith-ai) and [AiHiddenLeads vs Rosie](/articles/aihiddenleads-vs-rosie).",
       },
     ],
     faq: [
@@ -672,7 +672,7 @@ ARTICLES.push(
       },
       {
         type: "p",
-        text: "Start with test eight: the [free live demo](/demo) puts Aspen on your own website — your pages, your services — in about 2 minutes, nothing installed. Then run the other seven tests on her, and on anyone else you're considering, and buy whoever passes. New to the category itself? The [comparison with a traditional answering service](/articles/ai-receptionist-vs-answering-service) explains what an AI receptionist replaces — and what it doesn't. For one head-to-head pairing, see [AiHiddenLeads vs Smith.ai](/articles/aihiddenleads-vs-smith-ai).",
+        text: "Start with test eight: the [free live demo](/demo) puts Aspen on your own website — your pages, your services — in about 2 minutes, nothing installed. Then run the other seven tests on her, and on anyone else you're considering, and buy whoever passes. New to the category itself? The [comparison with a traditional answering service](/articles/ai-receptionist-vs-answering-service) explains what an AI receptionist replaces — and what it doesn't. For two head-to-head pairings, see [AiHiddenLeads vs Smith.ai](/articles/aihiddenleads-vs-smith-ai) and [AiHiddenLeads vs Rosie](/articles/aihiddenleads-vs-rosie).",
       },
     ],
     faq: [
@@ -795,7 +795,7 @@ ARTICLES.push(
       },
       {
         type: "p",
-        text: "Still deciding between models rather than brands? Our [AI receptionist vs virtual receptionist](/articles/ai-receptionist-vs-virtual-receptionist) and [AI receptionist vs answering service](/articles/ai-receptionist-vs-answering-service) guides lay out the categories without a sales pitch, and the [buyer's checklist](/articles/best-ai-receptionist-for-small-business) lists the tests to run on any provider, us included.",
+        text: "Still deciding between models rather than brands? Our [AI receptionist vs virtual receptionist](/articles/ai-receptionist-vs-virtual-receptionist) and [AI receptionist vs answering service](/articles/ai-receptionist-vs-answering-service) guides lay out the categories without a sales pitch, and the [buyer's checklist](/articles/best-ai-receptionist-for-small-business) lists the tests to run on any provider, us included. Comparing a phone-only AI instead? See [AiHiddenLeads vs Rosie](/articles/aihiddenleads-vs-rosie).",
       },
       {
         type: "p",
@@ -818,6 +818,134 @@ ARTICLES.push(
       {
         q: "Can I talk to AiHiddenLeads before buying?",
         a: "Yes — that's the point of the demo. Visit the demo page to see her working on your own website, or call 1-877-862-4949 and talk to her on the phone. No card is required for the demo.",
+      },
+    ],
+  },
+);
+
+// Batch 4 (2026-11-28): article 8 of the 24-article program — the
+// Rosie comparison, second of the three honest comparison pages
+// queued in ~/workspace/seo/article-queue/. Same discipline: Rosie's
+// published tiers ($49/250 min, $149/1,000 min) verified against
+// heyrosie.com/pricing, their cheaper low-volume entry conceded,
+// the site's verified plan facts, and the two approved statistics.
+ARTICLES.push(
+  {
+    slug: "aihiddenleads-vs-rosie",
+    path: "/articles/aihiddenleads-vs-rosie",
+    headline: "AiHiddenLeads vs Rosie: An Honest Comparison",
+    seoTitle: "AiHiddenLeads vs Rosie: An Honest Comparison | AI Hidden Leads",
+    description:
+      "AiHiddenLeads vs Rosie compared: minutes and pricing, phone-only vs phone plus a video avatar on your website, and which fits your business better.",
+    excerpt:
+      "Rosie answers your phone from $49 a month; AiHiddenLeads answers your phone and puts a live video avatar on your website for a flat $99. The honest comparison, including where Rosie wins.",
+    image: "/articles/aihiddenleads-vs-rosie.webp",
+    imageAlt: "A desk split by a seam of light: a lone desk telephone with sound rings in cool shadow on one side, a laptop showing a smiling video-avatar receptionist in warm sunlight on the other",
+    targetKeyword: "aihiddenleads vs rosie",
+    datePublished: "2026-11-28",
+    dateModified: "2026-11-28",
+    body: [
+      {
+        type: "lead",
+        text: "Rosie is a well-known AI phone receptionist: it answers your business calls with an AI voice, takes messages, and handles basic booking. It's a phone product. AiHiddenLeads answers your phone the same way — and then does a second job Rosie doesn't do. If every customer reaches you by phone, that second job may not matter to you. If your website gets visitors who never call — and most do — it matters a lot. This page compares the two fairly, including where Rosie is the better buy.",
+      },
+      { type: "h2", text: "What is the real difference between AiHiddenLeads and Rosie?" },
+      {
+        type: "p",
+        text: "The second job is this: the same AI that answers your phone also appears on your website as a live video avatar — a face your visitors can see, talk to out loud, ask about your services and prices, and book with — without ever picking up the phone. Rosie answers calls. AiHiddenLeads answers calls and covers the front door Rosie leaves open.",
+      },
+      { type: "h2", text: "How does the pricing compare?" },
+      {
+        type: "p",
+        text: "Rosie's published pricing runs $49/month for 250 minutes and $149/month for 1,000 minutes (check their site for current tiers — prices in this category move). AiHiddenLeads is a flat monthly price:",
+      },
+      {
+        type: "list",
+        items: [
+          "Premium: $99/mo with 400 minutes included — about 25 cents a minute.",
+          "Professional: $199/mo with 1,200 minutes, for heavier volume.",
+          "Video avatar add-on: $79/mo — and for new customers this month, the avatar is free for the first month and the setup fee is waived, so you can start for $99 out of pocket.",
+        ],
+      },
+      {
+        type: "p",
+        text: "Do the per-minute math honestly: Rosie's entry plan is cheaper per month but smaller — 250 minutes suits a business taking a handful of short calls a day. At 400 minutes, AiHiddenLeads' $99 sits between Rosie's two tiers on price and includes the website avatar option, which Rosie doesn't sell at any tier. At high volume, compare Rosie's 1,000-minute tier against our Professional plan with your real call log in hand. Our full cost guide — including human receptionists and answering services — is here: [How Much Does an AI Receptionist Cost?](/articles/ai-receptionist-cost)",
+      },
+      { type: "h2", text: "What happens to the customer who never calls?" },
+      {
+        type: "p",
+        text: "This is the question that decides it for most businesses, so let's be direct about it. A phone receptionist — Rosie, ours, anyone's — only helps people who dial. But a large share of your potential customers find you on Google, land on your website at 9 p.m., and decide there. If the site can't answer a question, they hit the back button and call the next listing. 78% of customers have abandoned a business after just one unanswered attempt to reach it — and a silent website counts.",
+      },
+      {
+        type: "p",
+        text: "Rosie leaves that visitor with a contact form. AiHiddenLeads greets them with a face and a voice, answers from your real services and prices, qualifies them, and books the appointment on the spot. Same AI, same knowledge of your business, two front doors instead of one.",
+      },
+      {
+        type: "p",
+        text: "If you want the deeper explanation of how the avatar side works, read [What Is an AI Receptionist with a Video Avatar?](/articles/ai-receptionist-with-video-avatar)",
+      },
+      { type: "h2", text: "How do the two compare on the phone itself?" },
+      {
+        type: "p",
+        text: "Both answer 24/7, both are trained on your business rather than reading a generic script, and both exist because of one brutal number: 85% of callers who hit voicemail never call back. Any working AI receptionist beats voicemail, an answering machine, or a phone that rings out — if that's your current setup, either service is a step up, and we'd rather you pick Rosie than pick nothing. The differences on the phone are about fit:",
+      },
+      {
+        type: "list",
+        items: [
+          "Minutes model — Rosie sells smaller, cheaper buckets; we sell bigger buckets at a flat rate. Your call volume decides which is cheaper — measure it before you choose.",
+          "One brain or two tools — with AiHiddenLeads, the phone AI and the website avatar are the same system, trained once on your business. With a phone-only service, your website still needs a separate answer — a chat widget, a form, or nothing.",
+          "Seeing is believing — we let you watch her work on your own website before paying. Judge any provider by a live demo on your business, not by a polished recording of someone else's.",
+        ],
+      },
+      {
+        type: "p",
+        text: "For the category-level view, our [Best AI Receptionist for Small Business: A Buyer's Checklist](/articles/best-ai-receptionist-for-small-business) walks through the questions to ask every vendor — including us.",
+      },
+      { type: "stats" },
+      { type: "h2", text: "What about setup?" },
+      {
+        type: "p",
+        text: "Both services are built for owners who don't have an IT department. AiHiddenLeads learns your business by scanning your website — your services, prices, hours, and service area — and the phone and website coverage are typically set up in about 20 to 30 minutes. Rosie is likewise configured through a dashboard with your business details. With either, the real work is the same: check what it learned, correct the gaps, and test it with the questions your customers actually ask.",
+      },
+      { type: "h2", text: "What should you check before choosing either one?" },
+      {
+        type: "p",
+        text: "Three things, whichever way you lean. First, your real minutes: pull a month of call history and count them, because every pricing argument in this category collapses without that number. Second, your after-hours share: if a third of your calls arrive when you're closed, 24/7 coverage isn't a feature, it's the whole purchase. Third, your website traffic: if your site gets visitors your phone never hears from, a phone-only answer solves half your problem.",
+      },
+      { type: "h2", text: "So which should you choose?" },
+      {
+        type: "p",
+        text: "Choose Rosie if your customers reach you by phone only, your call volume is low, and the $49 entry tier covers your minutes. It's a sensible, cheaper starting point for a phone-only problem.",
+      },
+      {
+        type: "p",
+        text: "Choose AiHiddenLeads if your website matters to your sales — if people find you online, browse after hours, and book (or don't) based on what the site does for them. The flat $99 plan covers your phone, and the avatar covers the front door Rosie leaves open.",
+      },
+      {
+        type: "p",
+        text: "Still deciding between models rather than brands? Our [AI receptionist vs virtual receptionist](/articles/ai-receptionist-vs-virtual-receptionist), [AI receptionist vs answering service](/articles/ai-receptionist-vs-answering-service), and [AI receptionist vs hiring a receptionist](/articles/ai-receptionist-vs-hiring-a-receptionist) guides lay out the categories without a sales pitch, and [AiHiddenLeads vs Smith.ai](/articles/aihiddenleads-vs-smith-ai) works through the other provider pairing.",
+      },
+      {
+        type: "p",
+        text: "Test ours free, on your own website, before you decide: [aihiddenleads.com/demo](/demo) — or call 1-877-862-4949 and talk to her yourself.",
+      },
+    ],
+    faq: [
+      {
+        q: "Is Rosie cheaper than AiHiddenLeads?",
+        a: "At the entry tier, yes: Rosie starts at $49/month for 250 minutes, while AiHiddenLeads Premium is $99/month for 400 minutes. Per minute, the two are close. The real difference is scope — AiHiddenLeads adds a live video avatar on your website, which Rosie doesn't offer at any price.",
+      },
+      {
+        q: "Does Rosie work on my website?",
+        a: "Rosie is a phone answering service. It doesn't put a spokesperson on your website. AiHiddenLeads' AI answers your phone and appears on your site as a live video avatar that talks with visitors and books appointments.",
+      },
+      {
+        q: "Which one is better for after-hours calls?",
+        a: "Both answer 24/7, and both beat voicemail — 85% of callers who reach voicemail never call back. The difference is that AiHiddenLeads also covers the after-hours website visitor, who never dials at all.",
+      },
+      {
+        q: "Can I try AiHiddenLeads before paying?",
+        a: "Yes. The demo at aihiddenleads.com/demo shows her working on your own website, free. You can also call 1-877-862-4949. And for new customers this month, setup is waived and the video avatar is free for the first month.",
       },
     ],
   },
