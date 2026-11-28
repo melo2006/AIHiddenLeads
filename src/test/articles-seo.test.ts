@@ -33,7 +33,8 @@ describe("articles foundation (Phase 1 of the SEO program, 2026-11-23)", () => {
   it("ships exactly the commissioned articles, each in the program's length band", () => {
     // Batch 1 (2026-11-23): cost, answering-service comparison, video
     // avatar. Batch 2 (2026-11-23): hiring comparison, virtual-receptionist
-    // comparison, buyer's checklist.
+    // comparison, buyer's checklist. Batch 3 (2026-11-27): Smith.ai
+    // comparison. Batch 4 (2026-11-28): Rosie comparison.
     expect(ARTICLES.map((a) => a.slug)).toEqual([
       "ai-receptionist-cost",
       "ai-receptionist-vs-answering-service",
@@ -42,6 +43,7 @@ describe("articles foundation (Phase 1 of the SEO program, 2026-11-23)", () => {
       "ai-receptionist-vs-virtual-receptionist",
       "best-ai-receptionist-for-small-business",
       "aihiddenleads-vs-smith-ai",
+      "aihiddenleads-vs-rosie",
     ]);
     for (const a of ARTICLES) {
       const words = articleWordCount(a);

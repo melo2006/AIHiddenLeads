@@ -31,6 +31,7 @@ describe("public sitemap.xml", () => {
       "https://aihiddenleads.com/articles/ai-receptionist-vs-virtual-receptionist",
       "https://aihiddenleads.com/articles/best-ai-receptionist-for-small-business",
       "https://aihiddenleads.com/articles/aihiddenleads-vs-smith-ai",
+      "https://aihiddenleads.com/articles/aihiddenleads-vs-rosie",
       // City landing pages (2026-11-27): Fort Lauderdale, then Dallas.
       "https://aihiddenleads.com/ai-receptionist/fort-lauderdale",
       "https://aihiddenleads.com/ai-receptionist/dallas",
